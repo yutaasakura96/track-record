@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;450;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#08090a}
+*{box-sizing:border-box}
+body{font-family:"Geist",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#8b93e8;text-decoration:none}
+a:hover{color:#a8afef}
+[contenteditable]:focus{outline:none}
+::selection{background:rgba(94,106,210,.35)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#232427;border:3px solid #08090a;border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:#08090a;color:#e8e8ea;font-size:13px">
+
+  <header style="height:46px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:1px solid #1a1b1e;background:#0a0b0c">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:16px;height:16px;border-radius:4px;background:linear-gradient(160deg,#5e6ad2,#3d4699);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)"></div>
+      <span style="font-weight:600;font-size:12.5px;letter-spacing:-.01em">Track Record</span>
+    </div>
+    <div style="width:1px;height:16px;background:#232427"></div>
+    <nav style="display:flex;align-items:center;gap:7px;font-size:12px;color:#7c8189">
+      <span>Imports</span><span style="color:#3c3f45">/</span>
+      <span style="color:#c9ccd1">Halcyon Freight — Ledger</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:#62666d;background:#131416;border:1px solid #1f2023;border-radius:4px;padding:2px 5px;margin-left:2px">ledger-writeup.md</span>
+    </nav>
+    <div style="flex:1"></div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <span style="font-size:11.5px;color:#7c8189">{{ progressLabel }}</span>
+      <div style="width:96px;height:4px;border-radius:3px;background:#1c1d20;overflow:hidden">
+        <div style="{{ progressBar }}"></div>
+      </div>
+    </div>
+    <button type="button" style="{{ finishBtn }}" style-hover="filter:brightness(1.12)">Finish review</button>
+  </header>
+
+  <main style="flex:1;display:flex;min-height:0">
+
+    <section style="flex:1;min-width:0;display:flex;flex-direction:column;background:#08090a">
+      <div style="height:34px;flex:none;display:flex;align-items:center;gap:10px;padding:0 18px;border-bottom:1px solid #141517;color:#62666d;font-size:11px">
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;color:#7c8189">Source document</span>
+        <span style="color:#2e3136">·</span><span>1,480 words</span>
+        <span style="color:#2e3136">·</span><span>imported 3 minutes ago</span>
+        <div style="flex:1"></div>
+        <span>{{ markHint }}</span>
+      </div>
+
+      <div ref="{{ docRef }}" style="flex:1;overflow-y:auto;position:relative;padding:0 18px">
+        <article style="{{ docStyle }}">
+          <h1 style="margin:0 0 8px;font-size:22px;font-weight:600;letter-spacing:-.02em;color:#f2f3f5;line-height:1.25">Ledger — real-time freight settlement</h1>
+          <p style="margin:0 0 34px;font-size:12px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Halcyon Freight · Platform Engineering · Mar 2023 – May 2024</p>
+
+          <h2 style="margin:0 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">Context</h2>
+          <p style="margin:0 0 18px">Halcyon Freight paid its carriers out of a nightly mainframe batch window that had not changed materially since 2011. Invoices arrived through four intake channels — EDI 210 feeds, the carrier portal, a scanned-document pipeline and plain email — and none of them agreed on what a shipment leg was. Settlement ran once a day, at 01:40, so any dispute raised during business hours waited a full cycle to clear.</p>
+          <p style="margin:0 0 18px"><span data-mark="f6" style="{{ mark.f6 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f6 }}">I owned the migration of fourteen legacy settlement jobs off that batch window</span>, rebuilding them as event-driven services on the platform team's existing Kafka backbone. Three of the fourteen turned out to be dead code that had been running nightly for years.</p>
+
+          <h2 style="margin:32px 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">What we built</h2>
+          <p style="margin:0 0 18px">Ledger ingests rate confirmations, proof-of-delivery scans and accessorial charges, normalises them into a single shipment-leg record, and settles that record against the carrier's contracted rate table. The hard part was never the arithmetic; it was agreeing on identity.</p>
+          <p style="margin:0 0 18px"><span data-mark="f3" style="{{ mark.f3 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f3 }}">I designed the idempotent event-replay layer, which eliminated duplicate payouts by keying every settlement attempt to a deterministic shipment-leg hash</span>. Once replay was provably safe it stopped being an incident manoeuvre and became routine tooling: we replayed the whole of February 2024 twice during the contract-rate migration without a single carrier noticing.</p>
+          <p style="margin:0 0 18px">The service is written in Go, with a Postgres ledger of record and one compacted Kafka topic per carrier account. Contract rate tables are versioned and evaluated as data rather than code, which let carrier relations change accessorial rules without waiting on a deploy.</p>
+
+          <h2 style="margin:32px 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">Team and timeline</h2>
+          <p style="margin:0 0 18px"><span data-mark="f2" style="{{ mark.f2 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f2 }}">I led a team of six engineers and two data analysts over fourteen months</span>, reporting to the VP of Platform and working day to day with treasury and carrier relations. We ran a two-week discovery with the mainframe operations group before writing anything, mostly to establish which of the batch jobs were still load-bearing.</p>
+
+          <h2 style="margin:32px 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">Results</h2>
+          <p style="margin:0 0 18px"><span data-mark="f1" style="{{ mark.f1 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f1 }}">Median time from proof-of-delivery to settled invoice fell from 42 hours to 90 seconds, across roughly 1.2 million freight invoices a month</span>. The tail matters more than the median here: the 99th percentile fell from six days to just under four minutes, and that is the number carrier relations quotes in contract talks.</p>
+          <p style="margin:0 0 18px"><span data-mark="f4" style="{{ mark.f4 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f4 }}">Reconciliation disputes dropped 63% in the two quarters following launch</span>, measured against the same period the previous year and normalised for shipment volume. <span data-mark="f5" style="{{ mark.f5 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f5 }}">At the FY24 platform review, Ledger was cited as the year's highest-impact platform project</span>.</p>
+          <p style="margin:0 0 18px">Finance never published a consolidated savings figure for the programme. <span data-mark="f7" style="{{ mark.f7 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f7 }}">What is documented is that the reconciliation team's manual review queue shrank from about 400 items a day to under 30, and that two contractor seats were not renewed at the end of the year</span>.</p>
+
+          <h2 style="margin:32px 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">Incidents and aftercare</h2>
+          <p style="margin:0 0 18px">In March 2024 a misconfigured consumer group replayed a partition against a stale offset and paid 1,842 invoices twice, for $310,000 recovered over the following eleven days.</p>
+          <p style="margin:0 0 18px"><span data-mark="f8" style="{{ mark.f8 }}" style-hover="filter:brightness(1.3)" onMouseDown="{{ pick.f8 }}">I ran the post-incident review, including the write-up circulated to treasury leadership and the remediation plan that followed</span>. The corrective work — offset fencing, a settlement-attempt ledger and a hard cap on per-run payout volume — shipped over the next six weeks and has held since.</p>
+
+          <h2 style="margin:32px 0 10px;font-size:13px;font-weight:600;color:#e8e8ea;letter-spacing:.02em;text-transform:uppercase">What I would do differently</h2>
+          <p style="margin:0 0 18px">We treated the carrier portal as a fifth intake channel for far longer than we should have, instead of folding it into the EDI path on day one. It cost us roughly two months of duplicated validation logic and it is still the source of most of the shipment-leg identity edge cases in the backlog.</p>
+          <p style="margin:0 0 120px">The second thing is sequencing. We migrated the highest-volume carrier first because the savings were obvious, which meant every early operational surprise landed on the account with the least tolerance for surprises. Starting with a mid-volume regional carrier would have bought us the same learning at a tenth of the blast radius.</p>
+        </article>
+      </div>
+    </section>
+
+    <aside style="{{ railStyle }}">
+      <div style="flex:none;padding:14px 14px 10px;border-bottom:1px solid #17181b">
+        <div style="display:flex;align-items:baseline;gap:8px">
+          <h2 style="margin:0;font-size:12.5px;font-weight:600;letter-spacing:-.01em">Candidate facts</h2>
+          <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:#62666d">{{ countLabel }}</span>
+        </div>
+        <p style="margin:5px 0 11px;font-size:11.5px;line-height:1.5;color:#7c8189;text-wrap:pretty">Each fact needs a provenance and a disclosure level before it enters your record.</p>
+        <div style="display:flex;gap:4px">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="3">
+            <button type="button" style="{{ f.style }}" style-hover="color:#c9ccd1" onClick="{{ f.click }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <div ref="{{ railRef }}" style="flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px">
+        <sc-for list="{{ cards }}" as="c" hint-placeholder-count="4">
+          <div data-mark-card="{{ c.id }}" style="{{ c.card }}" onMouseDown="{{ c.select }}">
+
+            <sc-if value="{{ c.isPrivate }}" hint-placeholder-val="{{ false }}">
+              <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="1.4" style="position:absolute;right:6px;bottom:2px;opacity:.045;pointer-events:none">
+                <rect x="4" y="10.5" width="16" height="10" rx="2"></rect><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path>
+              </svg>
+            </sc-if>
+
+            <sc-if value="{{ c.isOpen }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="display:flex;align-items:center;gap:7px;margin-bottom:8px">
+                  <span style="{{ c.lineChip }}">{{ c.line }}</span>
+                  <sc-if value="{{ c.isGen }}" hint-placeholder-val="{{ false }}">
+                    <span style="display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.06em;color:#e0a851;background:rgba(224,168,81,.12);border:1px dashed rgba(224,168,81,.45);border-radius:4px;padding:2px 6px">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#e0a851" stroke-width="2.2"><path d="M12 3v18M3 12h18"></path></svg>DRAFT · NOT USABLE
+                    </span>
+                  </sc-if>
+                  <sc-if value="{{ c.isPrivate }}" hint-placeholder-val="{{ false }}">
+                    <span style="display:inline-flex;align-items:center;gap:5px;font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.06em;color:#9ba0a8;background:#191a1d;border:1px solid #2a2c30;border-radius:4px;padding:2px 6px">
+                      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#9ba0a8" stroke-width="2"><rect x="4" y="10.5" width="16" height="10" rx="2"></rect><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path></svg>PRIVATE · NEVER SHARED
+                    </span>
+                  </sc-if>
+                  <div style="flex:1"></div>
+                  <span style="{{ c.confStyle }}">{{ c.conf }}</span>
+                </div>
+
+                <div contenteditable="true" suppressContentEditableWarning="{{ true }}" onBlur="{{ c.commit }}" style="{{ c.claimStyle }}" style-focus="background:rgba(255,255,255,.03);box-shadow:inset 0 0 0 1px rgba(255,255,255,.08)">{{ c.claim }}</div>
+
+                <sc-if value="{{ c.isGen }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:7px;margin:0 0 11px;padding:7px 9px;border-radius:6px;background:rgba(224,168,81,.06);border:1px dashed rgba(224,168,81,.28)">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#e0a851" stroke-width="2" style="flex:none;margin-top:1px"><path d="M12 9v5M12 17.5v.5"></path><path d="M10.3 3.9 2.6 17.4A2 2 0 0 0 4.3 20.4h15.4a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"></path></svg>
+                    <span style="font-size:11px;line-height:1.5;color:#c2a06a;text-wrap:pretty">Inferred by the importer — this number is not stated in the source. Promote it to Attested or Measured before it can be accepted.</span>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px">
+                  <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.07em;color:#62666d;text-transform:uppercase">Provenance</span>
+                  <div style="display:flex;gap:2px;padding:2px;background:#0d0e10;border:1px solid #1f2023;border-radius:6px">
+                    <sc-for list="{{ c.provOpts }}" as="o" hint-placeholder-count="3">
+                      <button type="button" style="{{ o.style }}" style-hover="color:#c9ccd1" onClick="{{ o.click }}">{{ o.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+                  <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.07em;color:#62666d;text-transform:uppercase">Disclosure</span>
+                  <div style="display:flex;gap:2px;padding:2px;background:#0d0e10;border:1px solid #1f2023;border-radius:6px">
+                    <sc-for list="{{ c.discOpts }}" as="o" hint-placeholder-count="3">
+                      <button type="button" style="{{ o.style }}" style-hover="color:#c9ccd1" onClick="{{ o.click }}">{{ o.label }}</button>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <sc-if value="{{ c.isPrivate }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;gap:7px;margin-top:10px;padding-top:9px;border-top:1px solid #1c1d20">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7c8189" stroke-width="1.9" style="flex:none;margin-top:1px"><rect x="4" y="10.5" width="16" height="10" rx="2"></rect><path d="M8 10.5V7a4 4 0 0 1 8 0v3.5"></path></svg>
+                    <span style="font-size:11px;line-height:1.5;color:#7c8189;text-wrap:pretty">Kept in your record for your eyes only. Excluded from every export, résumé and shared profile.</span>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex;align-items:center;gap:6px;margin-top:12px;padding-top:11px;border-top:1px solid #1c1d20">
+                  <button type="button" style="{{ c.rejectBtn }}" style-hover="background:#1a1b1e;color:#c9ccd1" onClick="{{ c.reject }}">Reject</button>
+                  <div style="flex:1"></div>
+                  <span style="{{ c.acceptHintStyle }}">{{ c.acceptHint }}</span>
+                  <button type="button" title="{{ c.acceptTitle }}" style="{{ c.acceptBtn }}" style-hover="filter:brightness(1.1)" onClick="{{ c.accept }}">{{ c.acceptLabel }}</button>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ c.isResolved }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:flex-start;gap:9px">
+                <span style="{{ c.resolvedIconWrap }}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="{{ c.resolvedIconPath }}"></path></svg>
+                </span>
+                <div style="flex:1;min-width:0">
+                  <div style="{{ c.resolvedClaim }}">{{ c.claim }}</div>
+                  <div style="display:flex;align-items:center;gap:6px;margin-top:5px;font-family:'Geist Mono',ui-monospace,monospace;font-size:9.5px;letter-spacing:.05em;color:#54585e">
+                    <span>{{ c.resolvedMeta }}</span>
+                  </div>
+                </div>
+                <button type="button" style="flex:none;background:transparent;border:none;color:#7c8189;font:500 11px/1 inherit;cursor:pointer;padding:3px 5px;border-radius:4px" style-hover="color:#c9ccd1;background:#1a1b1e" onClick="{{ c.undo }}">Undo</button>
+              </div>
+            </sc-if>
+
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="flex:none;padding:11px 13px;border-top:1px solid #17181b;background:#0a0b0c">
+        <div style="display:flex;flex-wrap:wrap;gap:9px;margin-bottom:10px;font-size:11px;color:#7c8189">
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:2px;background:#4cb782"></span>{{ sumAdd }}</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:2px;background:#5b5f66"></span>{{ sumPrivate }}</span>
+          <span style="display:inline-flex;align-items:center;gap:5px"><span style="width:6px;height:6px;border-radius:2px;background:#e0a851"></span>{{ sumDraft }}</span>
+        </div>
+        <button type="button" style="{{ addBtn }}" style-hover="filter:brightness(1.12)">{{ addLabel }}</button>
+      </div>
+    </aside>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#5e6ad2&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#5e6ad2&quot;,&quot;#4c8ed9&quot;,&quot;#8a63d2&quot;,&quot;#4cb782&quot;],&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Comfortable&quot;,&quot;options&quot;:[&quot;Comfortable&quot;,&quot;Compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;showLineRefs&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Cards&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.docRef = React.createRef();
+    this.railRef = React.createRef();
+    this.state = {
+      sel: 'f1',
+      filter: 'All',
+      facts: [
+        { id:'f1', line:'L79', conf:'0.96', prov:'Measured', disc:'Public', status:'open',
+          claim:'Cut median settlement time from 42 hours to 90 seconds across ~1.2M freight invoices a month.' },
+        { id:'f3', line:'L41', conf:'0.94', prov:'Measured', disc:'Public', status:'open',
+          claim:'Designed an idempotent event-replay layer that eliminated duplicate carrier payouts.' },
+        { id:'f6', line:'L18', conf:'0.91', prov:'Measured', disc:'Public', status:'open',
+          claim:'Migrated 14 legacy settlement jobs off a nightly mainframe batch window onto event-driven services.' },
+        { id:'f2', line:'L63', conf:'0.89', prov:'Attested', disc:'Public', status:'open',
+          claim:'Led a team of six engineers and two data analysts for 14 months.' },
+        { id:'f4', line:'L84', conf:'0.93', prov:'Measured', disc:'Restricted', status:'open',
+          claim:'Reduced reconciliation disputes by 63% in the two quarters after launch.' },
+        { id:'f5', line:'L88', conf:'0.81', prov:'Attested', disc:'Restricted', status:'open',
+          claim:'Ledger was cited as the highest-impact platform project at the FY24 platform review.' },
+        { id:'f7', line:'L92', conf:'0.42', prov:'Generated', disc:'Public', status:'open',
+          claim:'Saved approximately $2.4M a year in operational overhead.' },
+        { id:'f8', line:'L108', conf:'0.87', prov:'Attested', disc:'Private', status:'open',
+          claim:'Led the post-incident review after the March 2024 duplicate-payout incident ($310k recovered).' }
+      ]
+    };
+  }
+
+  rgba(hex, a) {
+    let h = String(hex || '#5e6ad2').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  patch(id, changes) {
+    this.setState(s => ({ facts: s.facts.map(f => f.id === id ? Object.assign({}, f, changes) : f) }));
+  }
+
+  select(id) {
+    this.setState({ sel: id });
+    const sc = this.docRef.current;
+    if (!sc) return;
+    const el = sc.querySelector('[data-mark="' + id + '"]');
+    if (!el) return;
+    const r = el.getBoundingClientRect(), s = sc.getBoundingClientRect();
+    sc.scrollTo({ top: sc.scrollTop + (r.top - s.top) - sc.clientHeight * 0.34, behavior: 'smooth' });
+  }
+
+  selectFromDoc(id) {
+    this.setState({ sel: id, filter: 'All' });
+    requestAnimationFrame(() => {
+      const rail = this.railRef.current;
+      if (!rail) return;
+      const el = rail.querySelector('[data-mark-card="' + id + '"]');
+      if (!el) return;
+      const r = el.getBoundingClientRect(), s = rail.getBoundingClientRect();
+      rail.scrollTo({ top: rail.scrollTop + (r.top - s.top) - 60, behavior: 'smooth' });
+    });
+  }
+
+  renderVals() {
+    const A = this.props.accent || '#5e6ad2';
+    const dense = (this.props.density || 'Comfortable') === 'Compact';
+    const showLine = this.props.showLineRefs !== false;
+    const rgba = (h, a) => this.rgba(h, a);
+    const facts = this.state.facts, sel = this.state.sel;
+
+    const AMBER = '#e0a851', GREEN = '#4cb782';
+    const tone = {
+      Measured:   { bg:'rgba(76,183,130,.15)',  fg:'#5ec99a' },
+      Attested:   { bg:rgba(A, .22),            fg:'#a3abf0' },
+      Generated:  { bg:'rgba(224,168,81,.16)',  fg:AMBER },
+      Public:     { bg:'rgba(255,255,255,.10)', fg:'#d5d7da' },
+      Restricted: { bg:'rgba(126,146,178,.16)', fg:'#a6b3c6' },
+      Private:    { bg:'#2b2d31',               fg:'#cfd2d6' }
+    };
+    const seg = (active, key) => ({
+      padding: dense ? '2px 7px' : '3px 8px', borderRadius:'4px', border:'none', cursor:'pointer',
+      font:'500 10.5px/1.35 inherit', letterSpacing:'.005em', whiteSpace:'nowrap',
+      background: active ? tone[key].bg : 'transparent',
+      color: active ? tone[key].fg : '#6d7178',
+      boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,.06)' : 'none',
+      transition:'background .12s ease, color .12s ease'
+    });
+
+    // --- document marks ---
+    const mark = {}, pick = {};
+    facts.forEach(f => {
+      const isSel = f.id === sel;
+      let st = {
+        borderRadius:'2px', padding:'1px 1px', cursor:'pointer', transition:'background .14s ease, box-shadow .14s ease',
+        background:'transparent', boxShadow:'none', color:'inherit',
+        borderBottom:'1px solid ' + rgba(A, .40), backgroundColor: rgba(A, .07)
+      };
+      if (f.prov === 'Generated') { st.borderBottom = '1px dashed rgba(224,168,81,.6)'; st.backgroundColor = 'rgba(224,168,81,.07)'; }
+      if (f.disc === 'Private')   { st.borderBottom = '1px dotted #4a4d53'; st.backgroundColor = 'rgba(255,255,255,.04)'; st.color = '#8d9198'; }
+      if (f.status === 'accepted'){ st.borderBottom = '1px solid rgba(76,183,130,.45)'; st.backgroundColor = 'rgba(76,183,130,.08)'; }
+      if (f.status === 'rejected'){ st.borderBottom = 'none'; st.backgroundColor = 'transparent'; st.color = '#54585e'; st.textDecoration = 'line-through'; st.textDecorationColor = '#3a3d42'; }
+      if (isSel && f.status !== 'rejected') {
+        const base = f.prov === 'Generated' ? AMBER : (f.disc === 'Private' ? '#8d9198' : (f.status === 'accepted' ? GREEN : A));
+        st.backgroundColor = rgba(base, .26);
+        st.boxShadow = '0 0 0 1px ' + rgba(base, .5) + ', 0 0 22px ' + rgba(base, .18);
+        st.color = f.disc === 'Private' ? '#c6c9ce' : '#f2f3f5';
+      }
+      mark[f.id] = st;
+      pick[f.id] = () => this.selectFromDoc(f.id);
+    });
+
+    // --- cards ---
+    const list = facts.filter(f => this.state.filter === 'All' ? true : (this.state.filter === 'Open' ? f.status === 'open' : f.status !== 'open'));
+    const cards = list.map(f => {
+      const isSel = f.id === sel, isGen = f.prov === 'Generated', isPriv = f.disc === 'Private';
+      const open = f.status === 'open', resolved = !open;
+
+      const card = {
+        position:'relative', overflow:'hidden', borderRadius:'8px', flex:'none',
+        padding: resolved ? '10px 11px' : (dense ? '10px 11px' : '12px 13px'),
+        background:'#101113', border:'1px solid #1f2023', cursor:'pointer',
+        transition:'border-color .14s ease, background .14s ease, box-shadow .14s ease, opacity .14s ease',
+        opacity: 1
+      };
+      if (isPriv && open) { card.background = '#0b0c0d'; card.border = '1px solid #232529'; }
+      if (isGen && open)  {
+        card.border = '1px dashed rgba(224,168,81,.42)';
+        card.backgroundColor = '#0f1011';
+        card.backgroundImage = 'repeating-linear-gradient(135deg, rgba(224,168,81,.055) 0 6px, rgba(224,168,81,0) 6px 13px)';
+      }
+      if (resolved) { card.background = '#0b0c0d'; card.border = '1px solid #17181b'; card.opacity = f.status === 'rejected' ? .5 : .78; }
+      if (isSel) {
+        const edge = isGen ? AMBER : (isPriv ? '#6c7078' : A);
+        card.border = (isGen ? '1px dashed ' : '1px solid ') + rgba(edge, .6);
+        card.boxShadow = '0 0 0 1px ' + rgba(edge, .18) + ', 0 10px 26px rgba(0,0,0,.5)';
+        if (!resolved && !isGen && !isPriv) card.background = '#13141a';
+        card.opacity = 1;
+      }
+
+      const acceptable = !isGen;
+      const acceptBtn = {
+        padding:'5px 11px', borderRadius:'6px', border:'1px solid transparent', cursor: acceptable ? 'pointer' : 'not-allowed',
+        font:'500 11.5px/1 inherit', letterSpacing:'-.005em',
+        background: acceptable ? (isPriv ? '#26282c' : A) : '#141518',
+        color: acceptable ? (isPriv ? '#e0e2e5' : '#fff') : '#54585e',
+        borderColor: acceptable ? 'transparent' : '#1f2023',
+        transition:'background .12s ease'
+      };
+
+      return {
+        id: f.id, claim: f.claim, line: showLine ? f.line : '', conf: 'p ' + f.conf,
+        isGen, isPrivate: isPriv, isOpen: open, isResolved: resolved,
+        card,
+        lineChip: {
+          display: showLine ? 'inline-block' : 'none',
+          fontFamily:"'Geist Mono',ui-monospace,monospace", fontSize:'9.5px', color:'#62666d',
+          background:'#131416', border:'1px solid #1f2023', borderRadius:'4px', padding:'2px 5px'
+        },
+        confStyle: { fontFamily:"'Geist Mono',ui-monospace,monospace", fontSize:'9.5px', color: isGen ? 'rgba(224,168,81,.75)' : '#4d5157' },
+        claimStyle: {
+          font: (dense ? '400 12.5px/1.5 ' : '400 13px/1.55 ') + 'inherit',
+          color: isGen ? '#a9a290' : (isPriv ? '#9ea2a9' : '#e2e4e7'),
+          fontStyle: isGen ? 'italic' : 'normal',
+          margin:'0 0 11px', padding:'2px 4px', marginLeft:'-4px', borderRadius:'5px',
+          cursor:'text', textWrap:'pretty', transition:'background .12s ease'
+        },
+        provOpts: ['Measured','Attested','Generated'].map(v => ({
+          label: v, style: seg(f.prov === v, v),
+          click: (e) => { e.stopPropagation(); this.patch(f.id, { prov: v }); this.setState({ sel: f.id }); }
+        })),
+        discOpts: ['Public','Restricted','Private'].map(v => ({
+          label: v, style: seg(f.disc === v, v),
+          click: (e) => { e.stopPropagation(); this.patch(f.id, { disc: v }); this.setState({ sel: f.id }); }
+        })),
+        rejectBtn: { padding:'5px 10px', borderRadius:'6px', border:'1px solid #232427', background:'transparent', color:'#8a8f98', font:'500 11.5px/1 inherit', cursor:'pointer', transition:'background .12s ease, color .12s ease' },
+        acceptBtn,
+        acceptLabel: isPriv ? 'Accept · private' : 'Accept',
+        acceptTitle: acceptable ? '' : 'Generated facts cannot be accepted — promote to Attested or Measured first',
+        acceptHint: isGen ? 'Needs promotion' : '',
+        acceptHintStyle: { display: isGen ? 'inline' : 'none', fontSize:'10.5px', color:'rgba(224,168,81,.75)' },
+        resolvedIconWrap: {
+          flex:'none', width:'17px', height:'17px', borderRadius:'5px', display:'inline-flex', alignItems:'center', justifyContent:'center',
+          background: f.status === 'accepted' ? 'rgba(76,183,130,.14)' : '#1a1b1e',
+          color: f.status === 'accepted' ? GREEN : '#7c8189'
+        },
+        resolvedIconPath: f.status === 'accepted' ? 'M4.5 12.5 9.5 17.5 19.5 6.5' : 'M6 6 18 18M18 6 6 18',
+        resolvedClaim: {
+          font:'400 12px/1.45 inherit', color: f.status === 'accepted' ? '#b6b9bf' : '#6d7178',
+          textDecoration: f.status === 'rejected' ? 'line-through' : 'none', textWrap:'pretty'
+        },
+        resolvedMeta: (f.status === 'accepted' ? 'ACCEPTED' : 'REJECTED') + ' · ' + f.prov.toUpperCase() + ' · ' + f.disc.toUpperCase(),
+        select: () => this.select(f.id),
+        commit: (e) => { const t = e.target.innerText.trim(); if (t && t !== f.claim) this.patch(f.id, { claim: t }); },
+        accept: (e) => { e.stopPropagation(); if (isGen) { this.setState({ sel: f.id }); return; } this.patch(f.id, { status:'accepted' }); },
+        reject: (e) => { e.stopPropagation(); this.patch(f.id, { status:'rejected' }); },
+        undo:   (e) => { e.stopPropagation(); this.patch(f.id, { status:'open' }); }
+      };
+    });
+
+    const done = facts.filter(f => f.status !== 'open').length;
+    const accepted = facts.filter(f => f.status === 'accepted');
+    const privAccepted = accepted.filter(f => f.disc === 'Private').length;
+    const gens = facts.filter(f => f.prov === 'Generated' && f.status === 'open').length;
+    const shareable = accepted.length - privAccepted;
+    const counts = { All: facts.length, Open: facts.length - done, Resolved: done };
+
+    return {
+      docRef: this.docRef, railRef: this.railRef,
+      mark, pick, cards,
+      docStyle: {
+        maxWidth:'740px', margin:'0 auto', padding: '44px 8px 40px',
+        font: (dense ? '400 13.5px/1.72 ' : '400 14.5px/1.78 ') + 'inherit',
+        color:'#a8acb3', textWrap:'pretty'
+      },
+      railStyle: {
+        width: dense ? '380px' : '412px', flex:'none', display:'flex', flexDirection:'column',
+        minHeight:0, borderLeft:'1px solid #1a1b1e', background:'#0a0b0c'
+      },
+      markHint: facts.length + ' passages marked',
+      progressLabel: done + ' of ' + facts.length + ' reviewed',
+      progressBar: { width: (done / facts.length * 100) + '%', height:'100%', background: A, transition:'width .25s ease' },
+      finishBtn: {
+        padding:'5px 11px', borderRadius:'6px', border:'none', cursor:'pointer', font:'500 11.5px/1 inherit',
+        background: done === facts.length ? A : '#1a1b1e', color: done === facts.length ? '#fff' : '#8a8f98',
+        transition:'background .15s ease, color .15s ease'
+      },
+      countLabel: facts.length + ' extracted',
+      filters: ['All','Open','Resolved'].map(v => ({
+        label: v + ' ' + counts[v],
+        style: {
+          padding:'3px 8px', borderRadius:'5px', cursor:'pointer', font:'500 10.5px/1.4 inherit',
+          border:'1px solid ' + (this.state.filter === v ? '#2c2e33' : 'transparent'),
+          background: this.state.filter === v ? '#191a1d' : 'transparent',
+          color: this.state.filter === v ? '#d5d7da' : '#6d7178', transition:'all .12s ease'
+        },
+        click: () => this.setState({ filter: v })
+      })),
+      sumAdd: shareable + ' shareable',
+      sumPrivate: privAccepted + ' private',
+      sumDraft: gens + ' need promotion',
+      addLabel: accepted.length ? 'Add ' + accepted.length + ' facts to record' : 'Nothing accepted yet',
+      addBtn: {
+        width:'100%', padding:'8px 12px', borderRadius:'6px', border:'1px solid transparent', cursor:'pointer',
+        font:'500 12px/1 inherit',
+        background: accepted.length ? A : '#141518',
+        color: accepted.length ? '#fff' : '#54585e',
+        borderColor: accepted.length ? 'transparent' : '#1f2023'
+      }
+    };
+  }
+}
+</script>
+</body>
+</html>
