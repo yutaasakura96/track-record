@@ -140,3 +140,23 @@ Append-only. The answer to every future "why is it like this?"
 - **Alternatives considered:** Picking now to unblock design work.
 - **Reason:** Nothing in the brief or PRD changes based on the answer. The requirement is "the app generates prose from structured facts"; the provider is an implementation detail behind that requirement.
 - **Revisit if:** A Phase 1 requirement turns out to be provider-specific (e.g. a hard dependency on a feature only one vendor offers).
+
+---
+
+### [2026-08-11] English interface, bilingual content
+
+- **Decision:** The application interface is in **English**. The record holds Japanese content and generates Japanese documents, but interface chrome, labels and actions are English only.
+- **Alternatives considered:** A Japanese interface; a bilingual interface with a language toggle.
+- **Reason:** When the chrome is also Japanese it becomes visually hard to separate interface from content — and that separation is precisely what the fact-review screen depends on. A language toggle is multi-user product scaffolding for an app with one bilingual user.
+- **Revisit if:** The project acquires non-English-speaking users, at which point interface localisation is a product feature rather than a preference.
+
+---
+
+### [2026-08-11] Design references: one aesthetic source, two interaction sources
+
+- **Decision:** **Linear** is the sole aesthetic reference — palette, density, typography, restraint. Every screen inherits its look from Linear and nothing else. Two products are referenced for **interaction mechanics only**, each scoped to one screen: **Grammarly's editor** for the fact-review screen (document with highlighted spans on the left, per-span cards with accept/dismiss on the right), and **GitHub pull-request review in split view** for the diff-review screen (two versions side by side, word-level marks, accept as one decision).
+- **Alternatives considered:**
+  - *Notion* — proposed initially and rejected: its strength is authoring long documents, and this app reviews generated output rather than authoring it. Adopting its affordances would pull in a prose editor that no requirement asks for.
+  - *Three whole-app references treated equally* — rejected: mixing three aesthetics produces three apps. Separating "what it looks like" from "how it behaves" keeps one visual direction while still borrowing proven mechanics.
+- **Reason:** Grammarly's editor is the closest existing analogue to the fact-review interaction, but its visual language is not what this project wants. Naming the split explicitly prevents the prototype from inheriting the wrong half.
+- **Revisit if:** A render turns out to need genuine in-app prose editing — then Notion's editing surfaces become relevant again.
