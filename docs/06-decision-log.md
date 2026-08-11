@@ -160,3 +160,49 @@ Append-only. The answer to every future "why is it like this?"
   - *Three whole-app references treated equally* — rejected: mixing three aesthetics produces three apps. Separating "what it looks like" from "how it behaves" keeps one visual direction while still borrowing proven mechanics.
 - **Reason:** Grammarly's editor is the closest existing analogue to the fact-review interaction, but its visual language is not what this project wants. Naming the split explicitly prevents the prototype from inheriting the wrong half.
 - **Revisit if:** A render turns out to need genuine in-app prose editing — then Notion's editing surfaces become relevant again.
+
+---
+
+### [2026-08-12] Diff acceptance is all-or-nothing — corrects the Track Changes precedent
+
+- **Decision:** A proposed render version is accepted or rejected **as a whole**. There is no per-change accept/reject.
+- **Supersedes:** the "Prior art to draw on" note in the 2026-08-11 diff-gate entry, which cited Word Track Changes / Google Docs Suggesting mode for **per-change granularity**. That precedent is withdrawn; the review-a-whole-proposal model (GitHub pull requests) and version history as a safety net both still stand.
+- **Reason:** Accepting 9 of 11 proposed changes leaves the document no longer matching the record. That is precisely the hand-tuning drift this project exists to eliminate, and the rejected changes would be re-proposed on every future regeneration. If a proposed line is wrong, the correct fix is to fix the **fact**, not to edit the render.
+- **Alternatives considered:** Per-change accept (rejected, above); per-section accept (rejected — same divergence at coarser grain).
+- **Revisit if:** Whole-proposal rejection becomes common because one bad line keeps blocking twenty good ones — the fix would be better fact-level editing from within the diff, not partial acceptance.
+
+---
+
+### [2026-08-12] Dismissed proposals are retained, but are not versions
+
+- **Decision:** Rejecting a proposal retains it as a **dismissed proposal**, visibly distinct from the version history of accepted versions. The stored current version is left byte-identical.
+- **Alternatives considered:** Discarding rejected proposals entirely (rejected — generation is not deterministic, so a dismissed draft may contain phrasing worth recovering); storing them in version history alongside accepted versions (rejected — conflates "what my résumé was" with "what was once suggested").
+- **Reason:** Cheap to keep, confusing to mix.
+- **Revisit if:** Dismissed proposals accumulate to the point of noise — then age them out rather than removing the concept.
+
+---
+
+### [2026-08-12] No confidence scores in the interface
+
+- **Decision:** The interface displays **no model confidence score, percentage or certainty value**. Provenance (Measured / Attested / Generated) is the only trust signal shown. A confidence value may exist internally for ordering candidates; it is never rendered.
+- **Alternatives considered:** Displaying the per-fact confidence the prototype introduced (`p 0.96`).
+- **Reason:** It is self-undermining — a model-generated certainty number sitting beside a provenance system whose entire purpose is *not* trusting model certainty. It also adds a third trust axis to a screen that already asks the author to set two.
+- **Revisit if:** Candidate ordering proves insufficient without exposing the score — expose ordering, not the number.
+
+---
+
+### [2026-08-12] A Generated fact can be accepted into the record; it is blocked at render time
+
+- **Decision:** Accepting a fact whose provenance is **Generated** is permitted. It enters the record flagged and is excluded when any render is produced. The block lives at **render time**, not at review time.
+- **Alternatives considered:** The prototype's stricter behaviour — the accept button disabled until the fact is promoted to Measured or Attested.
+- **Reason:** At review time the author often lacks the evidence needed to verify a claim. Forcing the choice then means either discarding a useful lead or promoting something unverified — both worse than parking it. The render-time block delivers the same safety.
+- **Revisit if:** Generated facts accumulate unreviewed in large numbers — the answer is better surfacing (the overview's amber "Review N →" row), not a harder gate.
+
+---
+
+### [2026-08-12] Dark theme only; desktop only
+
+- **Decision:** v1 ships a **dark theme only** and is **desktop only**, minimum supported width 1280px. Below 1024px the app states that a wider window is required rather than reflowing.
+- **Alternatives considered:** Light mode (rejected for v1 — the prototype has none, and a half-built one is worse than none); responsive/mobile support (rejected — the two core screens are irreducibly two-pane: source beside facts, current beside proposed).
+- **Reason:** Making only the overview screen responsive would invite use on a device where the very next click fails.
+- **Revisit if:** Quick capture (M3) turns out to be something the author wants to do from a phone — that single screen could ship as a separate narrow surface without making the whole app responsive.
