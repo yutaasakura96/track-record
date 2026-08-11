@@ -122,5 +122,10 @@ Use `/grill-me` for Phase 1 (product thinking, non-code) and `/grill-with-docs` 
 - `.claude/settings.json` created, enabling the pack for this repo only. The marketplace install
   set it `true` at *user* scope; that was flipped to `false` in `~/.claude/settings.json` so the
   trial stays scoped here, per the catalog's thin-floor principle.
-- No commits yet. Run `/new-project` *after* planning, per the README's two-halves note — there is
-  no stack to detect until the docs state one.
+- Repo: https://github.com/yutaasakura96/track-record — **public**. Branches: `main` (production,
+  GitHub default) and `develop` (working). Day-to-day work happens on `develop`.
+- Because the repo is public, the `CLAUDE.md` rule about never quoting `local/` specifics into a
+  committed file is load-bearing rather than advisory. A leak here is indexed, cloned and archived,
+  not quietly deleted.
+- Run `/new-project` *after* planning, per the README's two-halves note — there is no stack to
+  detect until the docs state one.
