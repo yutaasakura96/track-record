@@ -117,8 +117,10 @@ Use `/grill-me` for Phase 1 (product thinking, non-code) and `/grill-with-docs` 
 - Chosen as the two-week trial named in `claude-agentic-setup.md` Appendix D, still-open item 2.
 - `superpowers` deliberately left disabled — Appendix D disabled it the same day, and the gates
   flagged as possibly worth restoring were TDD and systematic-debugging, not brainstorming.
-- **Still to run:** `/setup-matt-pocock-skills`. Choose **local files** as the tracker — Backlog
-  (Nulab) is not supported, per Appendix E.
+- **Still to run:** `/setup-matt-pocock-skills`. Choose **GitHub** as the tracker — this repo is on
+  GitHub and Issues is supported. (Appendix E's unsupported-tracker warning is about Backlog/Nulab,
+  which is the work tracker; it does not apply here.) Point generated docs at `docs/specs/`, *not*
+  `docs/`, so the planning template keeps sole ownership of `docs/01`–`06`.
 - `.claude/settings.json` created, enabling the pack for this repo only. The marketplace install
   set it `true` at *user* scope; that was flipped to `false` in `~/.claude/settings.json` so the
   trial stays scoped here, per the catalog's thin-floor principle.
