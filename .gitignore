@@ -1,0 +1,15 @@
+.DS_Store
+
+# Secrets — never commit, regardless of stack
+.env
+.env.*
+!.env.example
+
+# Reference material: real career data, kept on disk for agents, never committed.
+# Contains personal PII (home address, phone, DOB), NDA-bound client material,
+# named third-party individuals, and internal network addresses.
+# Pattern is `local/*`, not `local/`: git does not descend into an excluded
+# directory, so the README negation below only works if the contents are
+# excluded rather than the directory itself.
+local/*
+!local/README.md
