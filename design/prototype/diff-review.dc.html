@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;450;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;padding:0;background:#08090a}
+*{box-sizing:border-box}
+body{font-family:"Geist",system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#8b93e8;text-decoration:none}
+a:hover{color:#a8afef}
+::selection{background:rgba(94,106,210,.35)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-thumb{background:#232427;border:3px solid #08090a;border-radius:6px}
+::-webkit-scrollbar-track{background:transparent}
+</style>
+</helmet>
+
+<div style="height:100vh;display:flex;flex-direction:column;background:#08090a;color:#e8e8ea;font-size:13px">
+
+  <header style="height:46px;flex:none;display:flex;align-items:center;gap:14px;padding:0 14px;border-bottom:1px solid #1a1b1e;background:#0a0b0c">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div style="width:16px;height:16px;border-radius:4px;background:linear-gradient(160deg,#5e6ad2,#3d4699);box-shadow:inset 0 1px 0 rgba(255,255,255,.25)"></div>
+      <span style="font-weight:600;font-size:12.5px;letter-spacing:-.01em">Track Record</span>
+    </div>
+    <div style="width:1px;height:16px;background:#232427"></div>
+    <nav style="display:flex;align-items:center;gap:7px;font-size:12px;color:#7c8189">
+      <span>Outputs</span><span style="color:#3c3f45">/</span>
+      <span style="color:#c9ccd1">Résumé</span>
+      <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:#62666d;background:#131416;border:1px solid #1f2023;border-radius:4px;padding:2px 5px;margin-left:2px">proposed v5</span>
+    </nav>
+    <div style="flex:1"></div>
+    <span style="font-size:11.5px;color:#62666d">{{ regenNote }}</span>
+    <button type="button" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:6px;border:1px solid #232427;background:transparent;color:#8a8f98;font:500 11.5px/1 inherit;cursor:pointer" style-hover="background:#17181b;color:#c9ccd1">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 7v5l3.5 2"></path><circle cx="12" cy="12" r="9"></circle></svg>
+      Version history
+    </button>
+  </header>
+
+  <div style="height:38px;flex:none;display:flex;align-items:center;gap:12px;padding:0 14px;border-bottom:1px solid #141517;background:#08090a">
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#7c8189">
+      <span style="width:6px;height:6px;border-radius:2px;background:#4cb782"></span>{{ addCount }}
+    </span>
+    <span style="display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#7c8189">
+      <span style="width:6px;height:6px;border-radius:2px;background:#c25a5f"></span>{{ delCount }}
+    </span>
+    <span style="color:#2e3136">·</span>
+    <span style="font-size:11.5px;color:#62666d">{{ sectionNote }}</span>
+    <div style="flex:1"></div>
+    <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10.5px;color:#62666d">{{ navLabel }}</span>
+    <div style="display:flex;gap:2px">
+      <button type="button" title="Previous change" style="width:24px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid #232427;background:transparent;color:#8a8f98;cursor:pointer" style-hover="background:#17181b;color:#c9ccd1" onClick="{{ prev }}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M17 15 12 9 7 15"></path></svg>
+      </button>
+      <button type="button" title="Next change" style="width:24px;height:22px;display:inline-flex;align-items:center;justify-content:center;border-radius:5px;border:1px solid #232427;background:transparent;color:#8a8f98;cursor:pointer" style-hover="background:#17181b;color:#c9ccd1" onClick="{{ next }}">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 9 12 15 17 9"></path></svg>
+      </button>
+    </div>
+  </div>
+
+  <div ref="{{ scrollRef }}" style="flex:1;min-height:0;overflow-y:auto;background:linear-gradient(#1a1b1e,#1a1b1e) center/1px 100% no-repeat">
+    <div style="display:grid;grid-template-columns:1fr 1fr;align-items:stretch">
+
+      <div style="position:sticky;top:0;z-index:2;background:#0a0b0c;border-bottom:1px solid #17181b;padding:9px 26px;display:flex;align-items:center;gap:9px">
+        <span style="font-size:11.5px;font-weight:500;color:#c9ccd1">Current</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#62666d;background:#131416;border:1px solid #1f2023;border-radius:4px;padding:2px 5px">v4</span>
+        <span style="font-size:11px;color:#62666d">Saved 12 Jan 2026</span>
+      </div>
+      <div style="position:sticky;top:0;z-index:2;background:#0a0b0c;border-bottom:1px solid #17181b;border-left:1px solid #1a1b1e;padding:9px 26px;display:flex;align-items:center;gap:9px">
+        <span style="font-size:11.5px;font-weight:500;color:#c9ccd1">Proposed</span>
+        <span style="font-family:'Geist Mono',ui-monospace,monospace;font-size:10px;color:#a3abf0;background:rgba(94,106,210,.14);border:1px solid rgba(94,106,210,.3);border-radius:4px;padding:2px 5px">v5 draft</span>
+        <span style="font-size:11px;color:#62666d">Generated 12 Aug 2026, 09:14</span>
+      </div>
+
+      <div style="{{ cellL }}">
+        <p style="margin:34px 0 3px;font-size:19px;font-weight:600;letter-spacing:-.02em;color:#f2f3f5">Mara Ostrowski</p>
+        <p style="margin:0 0 4px;font-size:13.5px;color:#a8acb3"><span data-chg="c1" style="{{ mark.c1D }}" onMouseDown="{{ pick.c1 }}">Backend Engineer</span></p>
+        <p style="margin:0;font-size:12px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Rotterdam · mara.ostrowski@fastmail.example</p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="margin:34px 0 3px;font-size:19px;font-weight:600;letter-spacing:-.02em;color:#f2f3f5">Mara Ostrowski</p>
+        <p style="margin:0 0 4px;font-size:13.5px;color:#a8acb3"><span data-chg="c1" style="{{ mark.c1A }}" onMouseDown="{{ pick.c1 }}">Platform Engineer</span></p>
+        <p style="margin:0;font-size:12px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Rotterdam · mara.ostrowski@fastmail.example</p>
+      </div>
+
+      <div style="{{ cellL }}"><h2 style="{{ h2 }}">Summary</h2></div>
+      <div style="{{ cellR }}"><h2 style="{{ h2 }}">Summary</h2></div>
+
+      <div style="{{ cellL }}">
+        <p style="{{ body }}">Engineer with nine years of experience building <span data-chg="c2" style="{{ mark.c2D }}" onMouseDown="{{ pick.c2 }}">payments and logistics systems</span>. <span data-chg="c3" style="{{ mark.c3D }}" onMouseDown="{{ pick.c3 }}">Comfortable across the stack, with a focus on reliability and team leadership.</span></p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="{{ body }}">Engineer with nine years of experience building <span data-chg="c2" style="{{ mark.c2A }}" onMouseDown="{{ pick.c2 }}">freight settlement and carrier payment systems</span>. <span data-chg="c4" style="{{ mark.c4A }}" onMouseDown="{{ pick.c4 }}">Led a fourteen-month migration off nightly mainframe batch processing that cut median settlement time from 42 hours to 90 seconds.</span></p>
+      </div>
+
+      <div style="{{ cellL }}"><h2 style="{{ h2 }}">Experience</h2></div>
+      <div style="{{ cellR }}"><h2 style="{{ h2 }}">Experience</h2></div>
+
+      <div style="{{ cellL }}">
+        <p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#e2e4e7">Halcyon Freight — Senior Engineer, Platform</p>
+        <p style="margin:0 0 10px;font-size:11.5px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Mar 2023 – May 2024 · Rotterdam</p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="margin:0 0 2px;font-size:13.5px;font-weight:500;color:#e2e4e7">Halcyon Freight — Senior Engineer, Platform</p>
+        <p style="margin:0 0 10px;font-size:11.5px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Mar 2023 – May 2024 · Rotterdam</p>
+      </div>
+
+      <div style="{{ cellL }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Rebuilt the carrier settlement pipeline as <span data-chg="c5" style="{{ mark.c5D }}" onMouseDown="{{ pick.c5 }}">a set of event-driven services</span>.</span></p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Rebuilt the carrier settlement pipeline as <span data-chg="c5" style="{{ mark.c5A }}" onMouseDown="{{ pick.c5 }}">event-driven services, migrating 14 legacy settlement jobs off a nightly mainframe batch window</span>.</span></p>
+      </div>
+
+      <div style="{{ cellL }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span><span data-chg="c6" style="{{ mark.c6D }}" onMouseDown="{{ pick.c6 }}">Worked closely with a cross-functional team</span> on the migration.</span></p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span><span data-chg="c6" style="{{ mark.c6A }}" onMouseDown="{{ pick.c6 }}">Led a team of six engineers and two data analysts over fourteen months</span> on the migration.</span></p>
+      </div>
+
+      <div style="{{ emptyL }}"><span style="{{ emptyLabel }}">no matching line</span></div>
+      <div style="{{ addRow }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span data-chg="c7" style="{{ mark.c7A }}" onMouseDown="{{ pick.c7 }}">Designed the idempotent event-replay layer that eliminated duplicate carrier payouts.</span></p>
+      </div>
+
+      <div style="{{ emptyL }}"><span style="{{ emptyLabel }}">no matching line</span></div>
+      <div style="{{ addRow }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span data-chg="c8" style="{{ mark.c8A }}" onMouseDown="{{ pick.c8 }}">Reduced reconciliation disputes by 63% in the two quarters following launch.</span></p>
+      </div>
+
+      <div style="{{ delRow }}">
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span data-chg="c9" style="{{ mark.c9D }}" onMouseDown="{{ pick.c9 }}">Saved approximately $2.4M annually in operational overhead.</span></p>
+      </div>
+      <div style="{{ emptyR }}"><span style="{{ emptyLabel }}">removed</span></div>
+
+      <div style="{{ cellL }}">
+        <p style="margin:22px 0 2px;font-size:13.5px;font-weight:500;color:#e2e4e7">Meridian Cargo — Backend Engineer</p>
+        <p style="margin:0 0 10px;font-size:11.5px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Aug 2019 – Feb 2023 · Rotterdam</p>
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Built the rate-quoting service behind the customer booking portal.</span></p>
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Maintained the EDI intake pipeline for eleven carrier partners.</span></p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="margin:22px 0 2px;font-size:13.5px;font-weight:500;color:#e2e4e7">Meridian Cargo — Backend Engineer</p>
+        <p style="margin:0 0 10px;font-size:11.5px;color:#62666d;font-family:'Geist Mono',ui-monospace,monospace">Aug 2019 – Feb 2023 · Rotterdam</p>
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Built the rate-quoting service behind the customer booking portal.</span></p>
+        <p style="{{ bullet }}"><span style="{{ dot }}"></span><span>Maintained the EDI intake pipeline for eleven carrier partners.</span></p>
+      </div>
+
+      <div style="{{ cellL }}"><h2 style="{{ h2 }}">Skills</h2></div>
+      <div style="{{ cellR }}"><h2 style="{{ h2 }}">Skills</h2></div>
+
+      <div style="{{ cellL }}">
+        <p style="{{ bodyLast }}">Go, Python, Postgres, Kafka, Terraform, <span data-chg="c10" style="{{ mark.c10D }}" onMouseDown="{{ pick.c10 }}">jQuery</span></p>
+      </div>
+      <div style="{{ cellR }}">
+        <p style="{{ bodyLast }}">Go, Python, Postgres, Kafka, Terraform, <span data-chg="c11" style="{{ mark.c11A }}" onMouseDown="{{ pick.c11 }}">event sourcing, idempotent systems design</span></p>
+      </div>
+    </div>
+  </div>
+
+  <sc-if value="{{ pending }}" hint-placeholder-val="{{ true }}">
+    <footer style="flex:none;border-top:1px solid #1a1b1e;background:#0a0b0c">
+      <div style="{{ noteBar }}">
+        <span style="{{ noteDot }}"></span>
+        <span style="font-size:11.5px;line-height:1.5;color:#8a8f98;text-wrap:pretty">{{ noteText }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px;padding:11px 14px">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <span style="font-size:11.5px;color:#8a8f98">Accepting replaces your résumé with v5.</span>
+          <span style="font-size:11px;color:#62666d">v4 and every earlier version stay restorable from version history.</span>
+        </div>
+        <div style="flex:1"></div>
+        <span style="font-size:11px;color:#54585e">1 private fact in your record was not used.</span>
+        <button type="button" style="padding:7px 13px;border-radius:6px;border:1px solid #232427;background:transparent;color:#c9ccd1;font:500 12px/1 inherit;cursor:pointer" style-hover="background:#17181b" onClick="{{ reject }}">Keep current version</button>
+        <button type="button" style="{{ acceptBtn }}" style-hover="filter:brightness(1.12)" onClick="{{ accept }}">Accept proposed version</button>
+      </div>
+    </footer>
+  </sc-if>
+
+  <sc-if value="{{ decided }}" hint-placeholder-val="{{ false }}">
+    <footer style="flex:none;display:flex;align-items:center;gap:12px;padding:14px;border-top:1px solid #1a1b1e;background:#0a0b0c">
+      <span style="{{ resultIcon }}">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="{{ resultPath }}"></path></svg>
+      </span>
+      <div style="display:flex;flex-direction:column;gap:2px">
+        <span style="font-size:12.5px;font-weight:500;color:#e2e4e7">{{ resultTitle }}</span>
+        <span style="font-size:11px;color:#62666d">{{ resultSub }}</span>
+      </div>
+      <div style="flex:1"></div>
+      <button type="button" style="padding:7px 13px;border-radius:6px;border:1px solid #232427;background:transparent;color:#c9ccd1;font:500 12px/1 inherit;cursor:pointer" style-hover="background:#17181b" onClick="{{ undo }}">Undo</button>
+    </footer>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;accent&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#5e6ad2&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#5e6ad2&quot;,&quot;#4c8ed9&quot;,&quot;#8a63d2&quot;,&quot;#4cb782&quot;],&quot;section&quot;:&quot;Theme&quot;},&quot;density&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Comfortable&quot;,&quot;options&quot;:[&quot;Comfortable&quot;,&quot;Compact&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;showRationale&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Review&quot;}}">
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.scrollRef = React.createRef();
+    this.state = { sel: 'c1', decision: null };
+  }
+
+  changes() {
+    return [
+      { id:'c1',  kind:'edit', note:'Title updated from the role held for the last 14 months.' },
+      { id:'c2',  kind:'edit', note:'From 3 measured facts in your Halcyon Freight record.' },
+      { id:'c3',  kind:'del',  note:'Removed — no fact in your record supports it.' },
+      { id:'c4',  kind:'add',  note:'From 2 measured facts · Ledger write-up, L63 and L79.' },
+      { id:'c5',  kind:'edit', note:'From 1 measured fact · Ledger write-up, L18.' },
+      { id:'c6',  kind:'edit', note:'From 1 attested fact · Ledger write-up, L63.' },
+      { id:'c7',  kind:'add',  note:'From 1 measured fact · Ledger write-up, L41.' },
+      { id:'c8',  kind:'add',  note:'From 1 restricted fact · included in this résumé, withheld from public outputs.' },
+      { id:'c9',  kind:'del',  note:'Removed — the supporting fact is unverified (Generated) and is never rendered.' },
+      { id:'c10', kind:'del',  note:'Removed — no project in your record has used it since 2019.' },
+      { id:'c11', kind:'add',  note:'From 2 measured facts · Ledger write-up, L41.' }
+    ];
+  }
+
+  rgba(hex, a) {
+    let h = String(hex || '#5e6ad2').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
+  }
+
+  go(id) {
+    this.setState({ sel: id });
+    const sc = this.scrollRef.current;
+    if (!sc) return;
+    const el = sc.querySelector('[data-chg="' + id + '"]');
+    if (!el) return;
+    const r = el.getBoundingClientRect(), s = sc.getBoundingClientRect();
+    sc.scrollTo({ top: sc.scrollTop + (r.top - s.top) - sc.clientHeight * 0.4, behavior: 'smooth' });
+  }
+
+  step(d) {
+    const ids = this.changes().map(c => c.id);
+    const i = ids.indexOf(this.state.sel);
+    this.go(ids[(i + d + ids.length) % ids.length]);
+  }
+
+  renderVals() {
+    const A = this.props.accent || '#5e6ad2';
+    const dense = (this.props.density || 'Comfortable') === 'Compact';
+    const showRationale = this.props.showRationale !== false;
+    const rgba = (h, a) => this.rgba(h, a);
+
+    const GREEN = '#4cb782', RED = '#c25a5f';
+    const list = this.changes(), sel = this.state.sel;
+    const cur = list.find(c => c.id === sel) || list[0];
+
+    const mark = {}, pick = {};
+    list.forEach(c => {
+      const isSel = c.id === sel;
+      const base = {
+        borderRadius:'3px', padding:'1px 3px', margin:'0 -1px', cursor:'pointer',
+        transition:'background .14s ease, box-shadow .14s ease', boxDecorationBreak:'clone',
+        WebkitBoxDecorationBreak:'clone'
+      };
+      const del = Object.assign({}, base, {
+        background: isSel ? rgba(RED, .26) : rgba(RED, .11),
+        color: isSel ? '#f0d5d6' : '#b09195',
+        textDecoration:'line-through', textDecorationColor: rgba(RED, .55), textDecorationThickness:'1px',
+        boxShadow: isSel ? '0 0 0 1px ' + rgba(RED, .5) : 'none'
+      });
+      const add = Object.assign({}, base, {
+        background: isSel ? rgba(GREEN, .26) : rgba(GREEN, .11),
+        color: isSel ? '#e2f3ea' : '#93c9ac',
+        boxShadow: isSel ? '0 0 0 1px ' + rgba(GREEN, .5) : 'none'
+      });
+      mark[c.id + 'D'] = del;
+      mark[c.id + 'A'] = add;
+      pick[c.id] = () => this.setState({ sel: c.id });
+    });
+
+    const pad = dense ? '10px 22px' : '14px 26px';
+    const cellL = { padding: pad, minWidth:0 };
+    const cellR = { padding: pad, minWidth:0, borderLeft:'1px solid #1a1b1e' };
+    const emptyBase = {
+      padding: pad, minWidth:0, display:'flex', alignItems:'center',
+      backgroundImage:'repeating-linear-gradient(135deg, rgba(255,255,255,.022) 0 6px, rgba(255,255,255,0) 6px 13px)'
+    };
+
+    const adds = list.filter(c => c.kind !== 'del').length;
+    const dels = list.filter(c => c.kind !== 'add').length;
+    const decided = this.state.decision !== null;
+
+    return {
+      scrollRef: this.scrollRef, mark, pick,
+      cellL, cellR,
+      emptyL: emptyBase,
+      emptyR: Object.assign({}, emptyBase, { borderLeft:'1px solid #1a1b1e' }),
+      addRow: Object.assign({}, cellR, { background: rgba(GREEN, .05) }),
+      delRow: Object.assign({}, cellL, { background: rgba(RED, .05) }),
+      emptyLabel: { fontFamily:"'Geist Mono',ui-monospace,monospace", fontSize:'10px', letterSpacing:'.06em', color:'#3c3f45', textTransform:'uppercase' },
+      h2: { margin: dense ? '18px 0 6px' : '24px 0 8px', fontSize:'11px', fontWeight:600, letterSpacing:'.08em', textTransform:'uppercase', color:'#7c8189' },
+      body: { margin:'0', font:(dense ? '400 13px/1.65 ' : '400 13.5px/1.72 ') + 'inherit', color:'#a8acb3', textWrap:'pretty' },
+      bodyLast: { margin:'0 0 40px', font:(dense ? '400 13px/1.65 ' : '400 13.5px/1.72 ') + 'inherit', color:'#a8acb3', textWrap:'pretty' },
+      bullet: { margin:'0 0 7px', display:'flex', gap:'9px', font:(dense ? '400 13px/1.6 ' : '400 13.5px/1.68 ') + 'inherit', color:'#a8acb3', textWrap:'pretty' },
+      dot: { flex:'none', width:'3px', height:'3px', borderRadius:'50%', background:'#4d5157', marginTop: dense ? '9px' : '10px' },
+
+      regenNote: 'Regenerated after 6 new facts entered your record',
+      addCount: adds + ' additions',
+      delCount: dels + ' removals',
+      sectionNote: 'Summary, Experience and Skills changed · Meridian Cargo unchanged',
+      navLabel: 'Change ' + (list.indexOf(cur) + 1) + ' of ' + list.length,
+      prev: () => this.step(-1),
+      next: () => this.step(1),
+
+      pending: !decided,
+      decided,
+      noteBar: {
+        display: showRationale ? 'flex' : 'none', alignItems:'flex-start', gap:'8px',
+        padding:'9px 14px', borderBottom:'1px solid #141517', background:'#08090a'
+      },
+      noteDot: {
+        flex:'none', width:'6px', height:'6px', borderRadius:'2px', marginTop:'5px',
+        background: cur.kind === 'add' ? GREEN : (cur.kind === 'del' ? RED : A)
+      },
+      noteText: cur.note,
+      acceptBtn: { padding:'7px 13px', borderRadius:'6px', border:'none', background:A, color:'#fff', font:'500 12px/1 inherit', cursor:'pointer' },
+      accept: () => this.setState({ decision:'accepted' }),
+      reject: () => this.setState({ decision:'rejected' }),
+      undo: () => this.setState({ decision: null }),
+      resultIcon: {
+        flex:'none', width:'22px', height:'22px', borderRadius:'6px', display:'inline-flex', alignItems:'center', justifyContent:'center',
+        background: this.state.decision === 'accepted' ? rgba(GREEN, .14) : '#1a1b1e',
+        color: this.state.decision === 'accepted' ? GREEN : '#8a8f98'
+      },
+      resultPath: this.state.decision === 'accepted' ? 'M4.5 12.5 9.5 17.5 19.5 6.5' : 'M5 12h14',
+      resultTitle: this.state.decision === 'accepted' ? 'Proposal accepted — saved as v5' : 'Proposal dismissed — v4 kept',
+      resultSub: this.state.decision === 'accepted'
+        ? 'Your résumé now reads from v5, saved 12 Aug 2026. v4 remains restorable from version history.'
+        : 'Nothing changed. The proposal stays available in version history if you want it later.'
+    };
+  }
+}
+</script>
+</body>
+</html>
