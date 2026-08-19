@@ -493,3 +493,32 @@ Append-only. The answer to every future "why is it like this?"
 - **Decision:** `03-technical-design.md` §12 holds a **single register of every deferred item**, each with the trigger that unblocks it, grouped as M2 / M3 / gated-on-second-user / indefinite-with-a-named-fallback. Items leave the table when they ship or when a decision-log entry retires them.
 - **Reason:** requested by the author when deferring rate limiting. Deferrals scattered across eight documents are functionally forgotten, and "later" without a trigger is indistinguishable from "never". The register also makes the second-user gates legible as a **group** — rate limiting, spend cap, account deletion, legal documents, error alerting and optional Japanese renders are six items that must land together, and reading them in one block makes clear that inviting a second person is a project rather than a config change.
 - **Revisit if:** the register grows past roughly 30 items, at which point it wants to become GitHub issues rather than a table.
+
+---
+
+### [2026-08-12] Styling: Tailwind v4 with `@theme`, plus shadcn/ui used selectively
+
+- **Decision:** **Tailwind v4**, with its `@theme` block generated from `05-design-system.md` and containing nothing else. **shadcn/ui** for a small set of components — Button, ToggleGroup (the provenance and disclosure segmented controls), ScrollArea, Progress, Tooltip, and Dialog at M2 — each **restyled to doc 05 on the day it is added.**
+- **Supersedes:** the Phase 4 recommendation of CSS Modules plus a hand-written `tokens.css`, which rested on **two assumptions that are both wrong for Tailwind v4 and current shadcn**:
+  1. *"Tailwind duplicates the design system into a JS config, creating a second source of truth."* False in v4. `@theme` registers CSS custom properties **as** design tokens, so `--color-card: #101113` yields both `var(--color-card)` and the `bg-card` utility from one declaration. There is no second source.
+  2. *"shadcn is a component library that arrives with opinions to override."* False. shadcn **copies components into the repository**, where they are owned and edited like any other file. It is a code generator, not a runtime dependency, and it fully supports Tailwind v4 and React 19.
+- **Reason (author's, and the decisive one):** most of this code will be written by agents, and models write plain CSS less reliably than Tailwind. The mechanism is concrete rather than impressionistic — plain CSS requires inventing class names, managing a separate file, avoiding collisions and remembering what already exists, which is cross-file state, and cross-file state is where models drift. Tailwind colocates styling with the element and constrains the available values.
+- **The three guardrails, without which this choice is unsafe:**
+  1. **`@theme` is generated from doc 05 and holds nothing else** — a utility cannot exist unless the design system defines it.
+  2. **Arbitrary values are lint-banned** (`no-arbitrary-value` in `eslint-plugin-tailwindcss`, off by default and needing tuning for a known false positive on square brackets used in attribute selectors). `p-[13px]` and `text-[#fff]` are how the forbidden list dies quietly.
+  3. **A shadcn component is restyled to doc 05 the day it is added.** Its defaults ship a palette and radii that contradict the design system; deferring the edit produces a half-Linear, half-shadcn interface.
+- **Not taken from shadcn:** cards, panels and badges. `05-design-system.md` specifies those completely and shadcn's versions would fight it.
+- **Alternatives considered:** CSS Modules + tokens + stylelint (the withdrawn recommendation); vanilla-extract or StyleX, where an off-scale value is a **type error** — the strongest possible enforcement, rejected on setup cost and kept as the escalation if drift becomes real; a conventional component library such as MUI, rejected outright.
+- **Revisit if:** the interface starts reading as a generic shadcn application rather than the Linear-derived design in doc 05 — the countermeasure is the manual design-conformance checklist item, not a change of tooling.
+
+---
+
+### [2026-08-12] File-to-text extraction: Markdown only in M1, OOXML parsed directly, and versions are never re-extracted
+
+- **Decision:** `.md` and `.txt` in M1, handled by `await file.text()` with **no library**. `.docx` at M2, by unzipping with `fflate` and walking `word/document.xml` directly. `.pdf` **deferred, possibly permanently.** `source_document_versions` gains an **`extractor_version`** column, and **an existing version is never re-extracted in place.**
+- **Alternatives considered:**
+  - *Supporting all four formats in M1* — rejected. The author's case studies are Markdown, produced by a standing prompt inside each work repository, so M1 never encounters the other three. Supporting them would mean carrying three Cloudflare Workers compatibility risks for documents M1 does not see, and it inflated the pre-M2 spike unnecessarily.
+  - *`mammoth` for `.docx`* — rejected, and not on dependency weight. Parsing OOXML directly means **we control paragraph boundaries**, and paragraph boundaries are what line numbering is built on. A library that changed its paragraph handling in a minor release would silently move every line number in the record. The direct approach was verified against the author's real 履歴書 and 職務経歴書 during Phase 4.
+  - *`unpdf` for `.pdf` in v1* — deferred. Every document the author holds exists as `.docx` or Markdown.
+- **The `extractor_version` rule, and why it is not optional:** fact quote offsets index into `extracted_text`. If the extractor ever changes how it emits paragraphs or whitespace, every stored offset points somewhere subtly wrong — and **nothing surfaces the problem**, because the offsets still resolve to *some* text. Storing the extractor version and forbidding in-place re-extraction means a parser upgrade produces a **new** document version with fresh offsets, while the old version keeps the text its facts were verified against. Asserted by test.
+- **Revisit if:** a document arrives that exists only as a PDF.

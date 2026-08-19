@@ -15,7 +15,7 @@ survives only in git history.
 
 ## Stack (decided 2026-08-12 — see the decision log)
 
-Cloudflare Workers (paid) · Hono API · React + Vite SPA · Neon Postgres · Drizzle · Better Auth with
+Cloudflare Workers (paid) · Hono API · React + Vite SPA · Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
 Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
 two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
 `docxtemplater` for Word output.
@@ -31,6 +31,10 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 - **Logs never contain source text, fact claims, or render content.**
 - **No secret and no database dump is ever committed.** This repo is public.
 - **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
+- **Every design value comes from `@theme`, generated from `docs/05-design-system.md`.** Arbitrary
+  Tailwind values (`p-[13px]`, `text-[#fff]`) are lint-banned — they are how the forbidden list dies.
+- **A source document version is never re-extracted in place.** Fact quote offsets index into its
+  text; a parser upgrade creates a new version.
 - **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
   Calendar scope. Release blocker, not a hardening task.
 - **Nothing is ever deleted** — render versions, source documents and rejected facts are permanent.

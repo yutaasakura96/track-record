@@ -223,7 +223,8 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `source_document_id` | text | no | FK → `source_documents.id` **cascade** |
 | `version_no` | integer | no | 1, 2, 3… |
 | `original_bytes` | bytea | no | The uploaded file, as uploaded |
-| `extracted_text` | text | no | **Line numbers in the UI index into this** |
+| `extracted_text` | text | no | **Line numbers and fact quote offsets index into this** |
+| `extractor_version` | text | no | Which parser produced `extracted_text`. **A version is never re-extracted in place** — a parser upgrade creates a new version with fresh offsets (`03` §5.1) |
 | `byte_size` | integer | no | |
 | `word_count` | integer | no | Shown in the source pane label strip |
 | `import_status` | import_status | no | |

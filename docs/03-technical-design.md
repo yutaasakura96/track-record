@@ -14,6 +14,8 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | Runtime | **Cloudflare Workers** (paid, $5/mo) | Flat cost forever; Workflows solves the import pipeline |
 | API | **Hono** | Native to Workers, no adapter layer |
 | Client | **React + Vite**, served as Workers static assets | Three screens, no public surface, nothing to server-render |
+| Styling | **Tailwind v4** — `@theme` generated from `05-design-system.md` | In v4 tokens *are* utilities, so the design system stays the single source |
+| Components | **shadcn/ui**, selectively, restyled to doc 05 on add | Copied into the repo and owned, not a runtime dependency |
 | Client server-state | **TanStack Query** | Caching, refetch, mutation lifecycle |
 | Client UI-state | **Zustand** | Selection, filters, highlighted change — never server data |
 | Database | **Neon Postgres** (free tier) | Scale-to-zero, branching, no forced unpause |
@@ -85,8 +87,9 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   ├── client/                 # React SPA
 │   │   ├── screens/            # fact-review, diff-review, overview
 │   │   ├── components/
+│   │   ├── components/ui/      # shadcn — owned, restyled to doc 05
 │   │   ├── stores/             # Zustand — UI state only
-│   │   └── design-tokens.css   # generated from 05-design-system.md
+│   │   └── theme.css           # @theme — generated from 05-design-system.md
 │   ├── server/
 │   │   ├── index.ts            # Hono app, deny-by-default middleware
 │   │   ├── routes/
@@ -172,7 +175,7 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 
 ```
 1. Store upload            → source_document + source_document_version (full text retained)
-2. Extract text            → .docx / .pdf / .md / .txt → plain text
+2. Extract text            → plain text, stamped with `extractor_version` (§5.1)
 3. Diff against previous   → if a prior version exists, compute changed + added passages
                              (unchanged passages are NEVER re-sent to the model)
 4. Chunk changed regions   → chunks sized for progress reporting, not for context limits
@@ -190,6 +193,35 @@ extraction.
 
 **Zero facts extracted is a failure, not an empty success** (PRD §7). The document is retained and
 the author can retry or capture manually.
+
+### 5.1 Turning an uploaded file into text
+
+| Format | How | Milestone |
+|---|---|---|
+| `.md`, `.txt` | `await file.text()` — **no library** | **M1** |
+| `.docx` | Unzip with `fflate`, read `word/document.xml`, walk `w:p` elements into paragraphs. ~50 lines, no Node dependencies | M2 |
+| `.pdf` | **Deferred, possibly permanently.** `unpdf` if ever needed | — |
+
+**M1 needs `.md` and `.txt` only.** The author's case studies are Markdown, produced by a standing
+prompt inside each work repository. Supporting four formats in M1 would mean carrying three Workers
+compatibility risks for a document type M1 never sees.
+
+**`.docx` is parsed directly rather than through `mammoth`.** The decisive reason is not dependency
+weight: parsing OOXML ourselves means **we control paragraph boundaries**, and paragraph boundaries
+are what line numbering is built on. A library that changes its paragraph handling in a minor
+release would silently move every line number in the record. This approach was verified against the
+author's real 履歴書 and 職務経歴書 during Phase 4.
+
+> ### The rule that prevents a silent corruption bug
+>
+> **Fact quote offsets index into `extracted_text`.** If the extractor ever changes how it emits
+> paragraphs or whitespace, every stored offset points somewhere subtly wrong — and nothing surfaces
+> the problem, because the offsets still resolve to *some* text.
+>
+> Therefore: `source_document_versions.extractor_version` is stored alongside the text, and
+> **an existing version is never re-extracted in place.** A parser upgrade produces a **new**
+> document version with fresh offsets; the old version keeps the text its facts were verified
+> against. This is not optional and it is asserted by test.
 
 ---
 
@@ -359,7 +391,8 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | When 職務経歴書 generation exists. Ground truth is in `local/JAPANESE/` |
 | 3 | **Entity extraction / bootstrap flow** (`09` Flow 7) | Before importing the back catalogue in bulk |
 | 4 | **Batch import** (`09` Flow 8) | With Flow 7 |
-| 5 | **`docx` / `docxtemplater` Workers spike** | ~1 hour, before 履歴書 work starts |
+| 5 | **`docx` / `docxtemplater` Workers spike** | ~1 hour, before 履歴書 work starts. **Smaller than first scoped** — file *reading* no longer needs a library (§5.1), so the spike covers writing only |
+| 5b | **`.docx` text extraction** via `fflate` + OOXML walk | With the bootstrap flow |
 | 6 | **Skills curation** and **per-render inclusion rules** | S9 and S13 |
 | 7 | **Version history UI** — accepted versions and dismissed proposals, visibly distinct | S14 |
 
@@ -389,6 +422,7 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | 17 | Broader E2E suite beyond the one smoke test | Second smoke path would be 履歴書 generation |
 | 18 | Visual regression testing | Manual checklist + agent-driven verification |
 | 19 | Object storage for source documents | One-table migration when `bytea` stops being appropriate |
+| 19b | **`.pdf` import** | `unpdf` if a document ever exists only as PDF. The author has `.docx` for everything |
 | 20 | Hyperdrive in front of Neon | Drop-in, if latency ever matters |
 | 21 | Tighter `DATABASE_URL` role (DML only, DDL for migrations) | Worth doing when convenient |
 
