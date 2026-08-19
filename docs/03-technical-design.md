@@ -214,14 +214,21 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 > re-reads what it needs from Postgres by ID. `ReadableStream<Uint8Array>` is the documented escape
 > hatch if a large binary return ever becomes unavoidable.
 >
-> **2 · Writes must be non-interactive.** The Neon HTTP driver supports multiple statements in one
-> transaction via `sql.transaction([...])`, but **not** interactive transactions — a read, a decision
-> made in JavaScript, then a write, all inside one transaction. Every multi-statement write in this
-> application must be expressible as a **fixed sequence of statements**. Accepting a proposal
-> (insert version → update `current_version_id` → mark proposal accepted) and finishing an import
-> both qualify. If a future feature genuinely needs an interactive transaction, the driver moves to
-> WebSockets — and in Workers a WebSocket `Pool`/`Client` **cannot outlive a single request
-> handler**.
+> **2 · Multi-statement writes use `db.batch([...])`, never `db.transaction()`.**
+> **Verified against `drizzle-orm@0.45.2` source, not documentation:** `db.transaction()` on the
+> `neon-http` driver **throws** — `neon-http/session.js:151` is literally
+> `throw new Error("No transactions support in neon-http driver")`. The same file's **batch** path
+> (line 131) calls the Neon driver's `client.transaction(builtQueries, queryConfig)`, so
+> **`db.batch([...])` executes as a genuine single non-interactive transaction** and is atomic.
+>
+> This matches the constraint the driver imposes anyway: every multi-statement write must be a
+> **fixed sequence of statements**, not a read → decide-in-JavaScript → write loop. Accepting a
+> proposal (insert version → update `current_version_id` → mark proposal accepted) and finishing an
+> import both qualify.
+>
+> If a future feature genuinely needs an interactive transaction, the driver moves to
+> `neon-websockets` — and note that in Workers a WebSocket `Pool`/`Client` **cannot outlive a single
+> request handler**.
 
 **Step 3 is the answer to PRD §8's re-import row** — all three clauses at once. Accepted facts are
 not duplicated, only genuinely new content is proposed, and rejected facts stay rejected, without

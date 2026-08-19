@@ -563,3 +563,7 @@ every entity, every provenance and disclosure value, and every evidence pointer.
   the author's decision (decision log, 2026-08-12).
 - **No database dump is ever committed.** The repo is public.
 - Better Auth owns its own migrations; they run first.
+- **Multi-statement writes use `db.batch([...])`.** `db.transaction()` throws on the `neon-http`
+  driver (verified in `drizzle-orm@0.45.2` source). `db.batch` runs its queries inside a real
+  non-interactive Postgres transaction, so atomicity holds — but the statement list must be fixed up
+  front, with no read-then-decide step inside it. See `03-technical-design.md` §5.

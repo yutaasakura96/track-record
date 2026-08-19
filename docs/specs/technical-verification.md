@@ -373,19 +373,10 @@ shape already recorded as a constraint, so the design needs no change: the API c
 **Amended:** `03` §5, `04` §7. **Version-specific** — recheck if Drizzle's neon-http driver gains
 transaction support.
 
----
-
-### 14a (original, superseded) — documentation did not settle this
-
-Drizzle documents `neon-http` and `neon-websockets` drivers and repeats Neon's framing — HTTP is for
-"single, non-interactive transactions", WebSockets for "session or interactive transaction support".
-It does **not** state whether Drizzle's own `db.transaction(async tx => …)` callback API works,
-throws, or silently runs without a transaction on `neon-http`.
-
-**This is a spike, not a doc question**, and it is worth doing early because `03` §5 depends on
-multi-statement writes being atomic. **Fallback if `db.transaction()` is unavailable:** drop to the
-underlying driver's `sql.transaction([...])`, which is confirmed to work over HTTP and matches the
-"fixed sequence of statements" constraint already recorded.
+> **Why documentation could not settle it:** Drizzle's docs repeat Neon's framing — HTTP for
+> "single, non-interactive transactions", WebSockets for "interactive transaction support" — without
+> ever stating whether Drizzle's own `db.transaction(cb)` works, throws, or silently runs unwrapped.
+> The third possibility is the dangerous one, and only the source rules it out.
 
 ---
 
