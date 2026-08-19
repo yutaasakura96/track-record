@@ -342,12 +342,24 @@ without the wrapper becomes a reviewable mistake instead of an invisible one.
 
 ---
 
-### 13 ✅ Drizzle — `bytea`, GIN indexes and partial indexes all supported
+### 13 ⚠️ Drizzle — GIN and partial indexes supported; **`bytea` is not, in the stable release**
 
-**Found:** [PostgreSQL column types](https://orm.drizzle.team/docs/column-types/pg) — `bytea()` is a
-first-class type, no custom type needed. [Indexes & constraints](https://orm.drizzle.team/docs/indexes-constraints)
-— `.using('gin', …)` for index methods, `.op('text_ops')` for operator classes, and `.where(sql\`\`)`
-for partial indexes. Every index in `04` §3.7 is expressible.
+**Documentation said:** [PostgreSQL column types](https://orm.drizzle.team/docs/column-types/pg)
+lists `bytea()` as a first-class type.
+
+**Running it said otherwise.** In `drizzle-orm@0.45.2`, `bytea` is **not exported** from
+`drizzle-orm/pg-core` — that docs page describes the **v1.0 beta**, which the site serves by default.
+This is a clean example of why the spike list exists: the documentation was current, accurate, and
+about a different version than the one that installs.
+
+**Resolution:** `bytea` is defined locally with `customType`, which generates identical SQL
+(verified — `"photo" "bytea"` and `"original_bytes" "bytea" NOT NULL` in `0000_init.sql`). Remove
+the shim when it lands in stable. [Indexes & constraints](https://orm.drizzle.team/docs/indexes-constraints)
+— `.using('gin', …)` for index methods and `.where(sql\`\`)` for partial indexes. **Confirmed by
+generating the migration**, not by reading: `0000_init.sql` contains
+`CREATE UNIQUE INDEX "facts_user_dedupe_uq" … WHERE "facts"."dedupe_hash" is not null` and
+`CREATE INDEX "facts_tech_gin_idx" … USING gin ("technologies")`. Every index in `04` §3.7 is
+expressible.
 
 ---
 

@@ -13,3 +13,19 @@
 # excluded rather than the directory itself.
 local/*
 !local/README.md
+
+# Build + tooling
+node_modules/
+dist/
+.wrangler/
+*.tsbuildinfo
+
+# Local secrets for `wrangler dev` — the local counterpart of Workers secrets.
+# Holds DATABASE_URL, ANTHROPIC_API_KEY, BETTER_AUTH_SECRET, GOOGLE_CLIENT_*.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# Never commit a database dump. This repo is public.
+*.dump
+*.sql.gz
