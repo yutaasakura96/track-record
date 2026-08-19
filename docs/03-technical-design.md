@@ -19,6 +19,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | Client server-state | **TanStack Query** | Caching, refetch, mutation lifecycle |
 | Client UI-state | **Zustand** | Selection, filters, highlighted change — never server data |
 | Database | **Neon Postgres** (free tier) | Scale-to-zero, branching, no forced unpause |
+| DB driver | `@neondatabase/serverless`, **HTTP mode** | Verified: supports multi-query **non-interactive** transactions via `sql.transaction([...])`. Interactive transactions would require WebSockets |
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
@@ -137,9 +138,15 @@ plausible fact absent from the source"* becomes mechanically impossible for Meas
 than merely contained by the Generated default.
 
 > **Why not the Citations API.** Anthropic's Citations feature returns `cited_text` with exact
-> character offsets and would be the natural fit — but it is documented as **incompatible with
-> structured outputs** (a 400 error). Extraction needs a strict schema. Quote anchoring is
-> stronger anyway, and is provider-portable.
+> character offsets and would be the natural fit. It is officially documented as **incompatible with
+> structured outputs** — but on verification the incompatibility names **`output_config.format`**
+> (JSON outputs) specifically, and our contract uses **strict tool use**, which the docs describe as
+> a separate feature. So Citations may in fact be usable alongside it.
+>
+> **The decision stands regardless.** Quote anchoring verifies a returned string against a document
+> we already hold, rather than trusting a reported offset — a stronger guarantee than Citations
+> provides — and it is provider-portable. Citations remains available as an optional redundant check
+> (`docs/specs/technical-verification.md`, item D).
 
 Every candidate arrives with provenance **Generated** and disclosure set by the scrub rules (§7).
 Promotion is always a deliberate act by the author.
@@ -185,6 +192,22 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 8. Deduplicate             → drop candidates whose (quote, claim) hash matches an already-judged fact
 9. Persist candidates      → progress becomes visible in the fact rail as each chunk lands
 ```
+
+> ### Two verified platform constraints that shape this pipeline
+>
+> **1 · A Workflow step result is capped at 1 MiB.** Steps therefore **pass IDs, never text.** No
+> step returns the uploaded file, the extracted text, a chunk body, or a generated render; each step
+> re-reads what it needs from Postgres by ID. `ReadableStream<Uint8Array>` is the documented escape
+> hatch if a large binary return ever becomes unavoidable.
+>
+> **2 · Writes must be non-interactive.** The Neon HTTP driver supports multiple statements in one
+> transaction via `sql.transaction([...])`, but **not** interactive transactions — a read, a decision
+> made in JavaScript, then a write, all inside one transaction. Every multi-statement write in this
+> application must be expressible as a **fixed sequence of statements**. Accepting a proposal
+> (insert version → update `current_version_id` → mark proposal accepted) and finishing an import
+> both qualify. If a future feature genuinely needs an interactive transaction, the driver moves to
+> WebSockets — and in Workers a WebSocket `Pool`/`Client` **cannot outlive a single request
+> handler**.
 
 **Step 3 is the answer to PRD §8's re-import row** — all three clauses at once. Accepted facts are
 not duplicated, only genuinely new content is proposed, and rejected facts stay rejected, without
@@ -372,7 +395,8 @@ by blocking generation on missing fields, and by warning on unexplained gaps. M2
 |---|---|---|
 | 1 | **Cross-document numeric conflicts** — PRD §8 requires two documents asserting different numbers for the same thing to be surfaced. Needs a notion of "the same thing" across documents | **Deferred to M2.** Impossible in M1 (one document, one employer). Not half-solved now |
 | 2 | **`docx` / `docxtemplater` on Workers** — neither verified on a constrained runtime; both assume Node | **Spike before M2**, ~1 hour. Fallbacks: build in the browser, or move that step to a Node-compatible runtime. Does not block M1 |
-| 3 | **Workers CPU budget for `.docx` assembly and long diffs** — paid plan gives 30s CPU per request, ample on paper, unmeasured in practice | Measure during M1 |
+| 3 | **Workers CPU budget for `.docx` assembly and long diffs** — **verified**: paid plan gives 30 s CPU per invocation, raisable to **5 minutes** via `limits.cpu_ms`; subrequests 10,000, raisable to 10M. Generous, but a high ceiling does not prove our code fits under it | Measure during M1 |
+| 3b | **Anthropic strict-schema complexity limits** — ~24 optional parameters combined across all strict schemas per request, plus internal compiled-grammar limits, returning `400 "Schema is too complex for compilation."` | Headroom, not a risk — **provided extraction stays one small, mostly-required strict tool** |
 | 4 | **Paragraph-alignment quality** on heavily restructured renders | Tune the similarity threshold against real proposals |
 | 5 | **Japanese generation quality by provider** | The M2 bake-off. Ground truth already exists in `local/JAPANESE/` |
 

@@ -15,7 +15,7 @@ defended.** The security baseline in `03-technical-design.md` §8 still applies;
 | Unit | Runs on | Stateful? | If it dies |
 |---|---|---|---|
 | **The Worker** — SPA assets, Hono API, Workflow definitions | Cloudflare edge | **Stateless** | Cloudflare restarts it. No state to recover |
-| **Workflow instances** — one per import, one per generation | Cloudflare Workflows | **Durable** | **Resumes from its last completed step.** A crash mid-import loses one chunk, not the import |
+| **Workflow instances** — one per import, one per generation | Cloudflare Workflows | **Durable** | **Resumes from its last completed step.** A crash mid-import loses one chunk, not the import. Instance state and logs retained **30 days** on the paid plan |
 | **Neon Postgres** | Neon — **region recorded at provisioning; see §8** | **Stateful — the only one** | The app is unusable until it returns. Nothing is lost |
 
 There are no containers, no VMs, no cron jobs, no queues, no cache tier, and no build servers of our

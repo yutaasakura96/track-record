@@ -88,7 +88,7 @@ habit.
 |---|---|
 | Bad code, schema unchanged | `wrangler rollback` — Cloudflare keeps previous versions. **Seconds** |
 | Bad code, schema changed **compatibly** | Same. The old code still works against the new schema, which is why compatibility is mandatory |
-| Bad migration | **Restore the Neon branch to a point in time before it ran**, then roll back the Worker. Neon's history window covers the free tier's retention |
+| Bad migration | **Restore `main` to a point in time before it ran**, then roll back the Worker. ⚠️ **The free-tier window is 6 hours** — see §5 |
 | Bad *data*, schema fine | Neon point-in-time restore. This is also the answer to "I accepted the wrong proposal and Undo is gone" |
 | Leaked secret | §6 |
 
@@ -101,15 +101,21 @@ procedure that has never been run is a hypothesis.
 
 | What | How | Where |
 |---|---|---|
-| The record | **Neon point-in-time restore**, continuous within the retention window | Neon |
+| The record | **Neon point-in-time restore — a 6-hour window on the Free plan**, capped at 1 GB of change history. Root branches only; dev branches have none | Neon |
 | The record, off-platform | **`GET /api/export`** — the full record as JSON (S15) | Wherever the author saves it |
 | Code | GitHub | |
 | Secrets | **Not backed up.** All are regenerable; regenerating is safer than storing a copy | |
 
-**The honest gap:** Neon's free-tier retention window is finite, and everything else depends on the
-author remembering to export. **S15 is therefore not merely a portability feature — it is the
-disaster-recovery plan**, which is an argument for pulling it earlier than M3 if the record becomes
-valuable before then.
+**The honest gap, now measured rather than assumed.** Verification against Neon's own documentation
+found the Free plan's restore window is **six hours**, not the open-ended window this document
+originally implied. That covers *"I just ran a bad migration"*. It does **not** cover *"I noticed on
+Wednesday that Monday's deploy corrupted something."*
+
+**So `GET /api/export` (S15) is the actual backup, not a portability nicety** — which is a direct
+argument for pulling it forward from M3. The alternatives are automating the export to somewhere
+off-platform (which reintroduces the object storage `03` deliberately removed) or upgrading Neon to
+Launch for a 7-day window at real monthly cost. Recorded as open decision A in
+`docs/specs/technical-verification.md`.
 
 **A restore is tested once before M1 is done** — restore a branch to a point in time, confirm the
 record is intact. Untested backups are not backups.
@@ -155,7 +161,8 @@ a gate alongside the others in `08` §2.2.
 ## 8. Local development
 
 ```
-1. Docker Postgres up          — for the test suite only
+1. Docker Postgres + Neon Local up   — for the test suite (the app speaks Neon's HTTP protocol,
+                                       which plain Postgres does not implement)
 2. Create a Neon branch off main, put its URL in .dev.vars
 3. npm run dev                 — wrangler dev + vite
 4. drizzle-kit migrate         — against the branch

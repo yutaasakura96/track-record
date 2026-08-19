@@ -60,6 +60,21 @@ An identity not on the list completes the Google flow and is then **rejected wit
 — the only 403 in the API — and **no `users` row is created**. A rejected sign-in leaves no trace
 beyond a log line.
 
+**The hook is `user.validateUserInfo`**, verified against Better Auth's documentation. It is
+preferred over `databaseHooks.user.create.before` because it fires before **account linking** as
+well as before user creation:
+
+```ts
+betterAuth({
+  user: {
+    validateUserInfo: ({ user }) =>
+      isAllowed(user.email)
+        ? undefined
+        : { error: "email_not_allowed", errorDescription: "This deployment accepts one account." },
+  },
+});
+```
+
 The allowlist is the degenerate case of the invite list, which is why moving between them is a
 schema change at one enforcement point rather than a redesign.
 

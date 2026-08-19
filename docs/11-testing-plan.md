@@ -20,12 +20,19 @@ test fixture containing a real client name would be committed to a public repo f
 |---|---|
 | Unit and integration | **Vitest** |
 | API integration | Vitest against the Hono app, with a real Postgres |
-| Test database | **Docker Postgres**, migrated from the same Drizzle migrations as production |
+| Server-side tests | **`@cloudflare/vitest-pool-workers`** — runs tests *inside* the Workers runtime via Miniflare, with bindings and isolated per-test-file storage |
+| Test database | **Docker Postgres + a Neon HTTP proxy** — see below |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |
 
 **Why a real Postgres and not an in-memory fake:** the isolation guarantee this project depends on
 is enforced by SQL. A fake that does not run the query proves nothing about the query.
+
+**Why Docker Postgres alone is not enough.** The application speaks to Postgres over **Neon's HTTP
+protocol**, which plain Postgres does not implement. Local and CI runs therefore need **Neon Local**
+(the official Docker image) or the community `local-neon-http-proxy` Compose file in front of
+Postgres. Without it, every database test fails at connection time — this was found during
+verification, not during the build.
 
 ---
 
