@@ -131,9 +131,19 @@ is explicit and short:
 Everything else is protected **because it exists**, not because someone remembered to protect it.
 A route added without thinking about auth fails closed.
 
-**This is asserted by test** (`11-testing-plan.md`): a test enumerates the Hono router's registered
-routes, calls each without a session, and fails if any responds with anything other than `401` —
-so a new unprotected endpoint breaks the build rather than shipping.
+**This is asserted by test** (`11-testing-plan.md`): a test enumerates every registered route, calls
+each without a session, and fails if any responds with anything other than `401` — so a new
+unprotected endpoint breaks the build rather than shipping.
+
+> **Enumeration does not rely on Hono internals.** Verification found that `app.routes` is **not part
+> of Hono's documented API surface** (`hono/dev` exposes a `showRoutes` helper, but that is a
+> development utility). Depending on an undocumented property for a security guarantee is how the
+> guarantee quietly becomes decorative after a minor upgrade.
+>
+> **Instead, routes are registered through a thin project-owned wrapper that records them** in a
+> module-level array as a side effect of registration. The test reads that array. This is a few
+> lines, has no upstream dependency, and additionally makes "register a route without going through
+> the wrapper" a reviewable mistake rather than an invisible one.
 
 **Where an unauthenticated user lands.** Any API call without a session returns `401`. The SPA
 catches that globally and shows a sign-in screen; it does not deep-link back afterwards, because

@@ -227,6 +227,44 @@ Nothing animates on load. No entrance animations, no spinners longer than the wo
 
 ---
 
+## 8b. How this document is enforced
+
+The rules below are not conventions to remember. Two mechanisms make most of them structural:
+
+**1 · `@theme` with the default theme switched off.** Tailwind v4 accepts `--*: initial` inside
+`@theme`, which **disables every default theme variable**. With it set, only the tokens defined from
+this document generate utilities — so `bg-red-500`, `p-7` and `rounded-xl` **do not exist**. Rule 1
+("no new colors") and rule 7 ("no off-scale spacing or radii") stop being things to check in review.
+
+```css
+@theme {
+  --*: initial;                    /* nothing survives except what follows */
+  --color-bg: #08090a;
+  --color-card: #101113;
+  --color-measured: #4cb782;
+  --spacing: 2px;                  /* the scale in §3 */
+  --radius-chip: 4px;
+  /* … every value in this document, and nothing else … */
+}
+```
+
+Namespaces map as: `--color-*` → color utilities · `--spacing-*` → padding, margin, gap, size ·
+`--radius-*` → border radius · `--font-*` → family · `--text-*` → size · `--font-weight-*` ·
+`--tracking-*` · `--leading-*` · `--shadow-*` · `--breakpoint-*`.
+
+**2 · Arbitrary values are lint-banned.** `--*: initial` closes the named-utility route; `p-[13px]`
+and `text-[#ff0000]` are the remaining escape hatch, closed by `no-arbitrary-value` in
+`eslint-plugin-tailwindcss` (off by default, and needing tuning for a known false positive on square
+brackets in attribute selectors).
+
+**What stays human-enforced:** rule 5 (three font weights per screen), rule 6 (no emoji), rule 9
+(green/amber/red carry provenance meaning and are never decorative), rule 11 (no disabled control
+without a stated reason), rule 12 (no confidence scores) and rule 13 (border style carries meaning).
+No tool can check those; they are on the manual design-conformance checklist
+(`11-testing-plan.md` §3).
+
+---
+
 ## 9. The forbidden list
 
 1. **No new colors.** If a state needs a color it does not have, it is reusing the wrong semantic — fix the semantics.

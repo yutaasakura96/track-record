@@ -544,3 +544,31 @@ Append-only. The answer to every future "why is it like this?"
 - **Correction this entry records:** Anthropic's structured-outputs documentation is labelled "ZDR Eligible", which is easy to misread as meaning requests using structured outputs are automatically zero-retention. They are not — **ZDR is an organisation-level arrangement requested from Anthropic's sales team.** `claude-opus-5` is eligible; Claude Fable 5 and Claude Mythos 5 are designated Covered Models requiring 30-day retention and **cannot** use ZDR, which is a further point in favour of the model already chosen.
 - **Gate:** requesting ZDR moves onto the second-user checklist in `03` §12. At that point the material sent to the model belongs to someone who has not accepted this risk, and the author's own tolerance stops being the relevant standard.
 - **Revisit if:** a specific client relationship imposes a written data-handling obligation that standard retention does not satisfy — that would make ZDR a requirement rather than a preference, before any second user.
+
+---
+
+### [2026-08-12] Design-system enforcement is structural: `@theme { --*: initial }`
+
+- **Decision:** The Tailwind theme is declared with **`--*: initial`**, which disables every default Tailwind theme variable, followed by the values from `05-design-system.md` and nothing else.
+- **Reason:** verification found this documented capability, and it converts the design system's forbidden list from a review convention into a structural impossibility. With the default theme switched off, **`bg-red-500`, `p-7` and `rounded-xl` do not exist as utilities.** Rule 1 ("no new colors") and rule 7 ("no off-scale spacing or radii") can no longer be violated, rather than merely being caught. This directly answers the concern that motivated the earlier plain-CSS recommendation — that agents drift from a design system nobody is checking.
+- **What remains human-enforced**, because no tool can check it: three font weights per screen, no emoji, green/amber/red never decorative, no disabled control without a stated reason, no confidence scores, and border style carrying meaning. These sit on the manual design-conformance checklist.
+- **Revisit if:** never expected.
+
+---
+
+### [2026-08-12] Route enumeration for the deny-by-default test uses a project-owned registry, not Hono internals
+
+- **Decision:** Routes are registered through a **thin project-owned wrapper** that records each route in a module-level array. The deny-by-default test reads that array.
+- **Supersedes:** the original description in `08` §4 and `11` §2.1, which said the test would walk "the Hono router's registered routes".
+- **Reason:** verification found that **`app.routes` is not part of Hono's documented API** — the documented surface is `get`/`post`/`all`/`on`/`use`/`route`/`basePath`/`notFound`/`onError`/`mount`/`fetch`/`request`, and `hono/dev`'s `showRoutes` is a development utility. Resting one of this project's two load-bearing security controls on an undocumented property is how a guarantee quietly stops working after a minor upgrade — **and it would still pass, because an empty route list trivially satisfies "every route returns 401".** A test that cannot fail is worse than no test, because it is believed.
+- **Secondary benefit:** registering a route without going through the wrapper becomes a reviewable mistake rather than an invisible one.
+- **Revisit if:** Hono documents a stable public route-introspection API.
+
+---
+
+### [2026-08-12] Import pipeline uses the 1-hour prompt cache TTL, not the 5-minute default
+
+- **Decision:** Extraction requests set a **1-hour** `cache_control` TTL on the source document and system prompt.
+- **Reason:** verified figures — cache reads cost 0.1× base input, 5-minute writes 1.25×, 1-hour writes 2×, and the default cache lifetime is 5 minutes. Import chunks run as separate Workflow steps and can easily span more than five minutes, especially after a retry, so the default TTL would expire mid-import and every chunk would pay a fresh cache write. **Paying 2× once beats paying 1.25× repeatedly on a cache that keeps expiring.**
+- **Also recorded:** the minimum cacheable prompt for `claude-opus-5` is 512 tokens, and the cache is invalidated by changes to breakpoint position, `tool_choice`, thinking configuration, `output_config.effort`, presence or absence of images, and **key ordering inside `tool_use` blocks** — all of which must stay byte-identical across the chunks of one import.
+- **Revisit if:** imports routinely complete inside five minutes, where the 5-minute TTL is cheaper.

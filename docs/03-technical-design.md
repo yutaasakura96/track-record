@@ -173,6 +173,20 @@ a prompt difference, not a data difference.
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
 after the response returns.
 
+### 4.3 Prompt caching in the import pipeline — verified figures
+
+Cache reads cost **0.1×** base input tokens, 5-minute cache writes **1.25×**, 1-hour writes **2×**.
+Minimum cacheable prompt for `claude-opus-5` is **512 tokens**.
+
+**Use the 1-hour TTL for the import pipeline, not the 5-minute default.** Extraction chunks run as
+separate Workflow steps and may be spread over more than five minutes — especially after a retry —
+so the default TTL would expire mid-import and every chunk would pay a fresh cache write. Paying 2×
+once beats paying 1.25× per chunk.
+
+**What silently invalidates the cache**, and therefore must stay byte-identical across chunks: the
+`cache_control` breakpoint position, `tool_choice`, the thinking configuration, `output_config.effort`,
+the presence or absence of images, and **key ordering inside `tool_use` blocks**.
+
 ---
 
 ## 5. The import pipeline

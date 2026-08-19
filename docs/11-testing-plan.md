@@ -52,10 +52,11 @@ Then no response contains any record belonging to user B
 And requesting user B's record by its ID returns 404 — never 403, never 200
 ```
 
-Plus a **router-enumeration test**: walk the Hono router's registered routes, call each without a
-session, and fail if any returns anything other than `401`. **A newly added unprotected endpoint
-breaks the build rather than shipping.** This is what makes deny-by-default real rather than
-aspirational.
+Plus a **route-enumeration test**: read the project's own route registry (a module-level array
+populated by the registration wrapper — *not* Hono's undocumented `app.routes`, see
+`08-auth-and-permissions.md` §4), call each route without a session, and fail if any returns anything
+other than `401`. **A newly added unprotected endpoint breaks the build rather than shipping.** This
+is what makes deny-by-default real rather than aspirational.
 
 ### 2.2 Quote verification — a fact's evidence must exist
 

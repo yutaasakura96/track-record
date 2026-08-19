@@ -91,8 +91,26 @@ create type import_status as enum ('queued', 'extracting', 'ready', 'failed');
 
 ### 3.1 `users` — owned by Better Auth
 
-Created and migrated by Better Auth: `users`, `sessions`, `accounts`, `verifications`. **Do not
-hand-edit.** The only thing this project adds is the foreign key every other table points at.
+Created and migrated by Better Auth. **Do not hand-edit.**
+
+> **Verified correction.** Better Auth's default core schema uses **singular** table names —
+> `user`, `session`, `account`, `verification` — with **camelCase** columns (`userId`, `expiresAt`,
+> `ipAddress`, `userAgent`). That contradicts this document's conventions (§0: plural tables,
+> `snake_case` columns), so the naming must be **configured explicitly**, not assumed:
+>
+> ```ts
+> betterAuth({
+>   user:    { modelName: "users",    fields: { /* … */ } },
+>   session: { modelName: "sessions", fields: { userId: "user_id", expiresAt: "expires_at" } },
+> });
+> ```
+>
+> Type inference keeps the original field names (`user.name`), so only storage naming changes.
+> `session` also carries `token`, `ipAddress` and `userAgent` — relevant to `13` §6's audit trail.
+
+`users.id` is a **string** (matching this document's `text` primary keys) and **is the person.** No
+separate `person` table exists; inventing one would duplicate identity across two tables with no
+rule for which is authoritative.
 
 `users.id` **is the person.** No separate `person` table exists; inventing one would duplicate
 identity across two tables with no rule for which is authoritative.

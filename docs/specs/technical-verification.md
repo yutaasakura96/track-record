@@ -1,6 +1,6 @@
 # Technical Verification Register
 
-**Status:** Phase 4 · opened 2026-08-12 · **round 1 of 2 complete**
+**Status:** Phase 4 · opened 2026-08-12 · **rounds 1 and 2 complete**
 
 Every load-bearing technical claim in `docs/01`–`13`, checked against **primary sources** — vendor
 documentation and official library docs, not comparison articles. Several Phase 4 claims came from
@@ -225,7 +225,7 @@ drivers and ephemeral branches) or the community `local-neon-http-proxy` Compose
 | C | `.docx` assembly inside the CPU budget | 🔬 spike |
 | D | Citations alongside *strict tool use* (as opposed to JSON outputs) | 🔬 spike, optional |
 | E | Whether to request a ZDR arrangement from Anthropic | ✅ **Resolved 2026-08-12** — declined for now; **gated on the second user** |
-| F | Round 2 — the remaining ~50 lower-stakes claims across all documents | ⏳ |
+| F | Round 2 | ✅ complete — see below |
 
 ---
 
@@ -243,3 +243,136 @@ accepts the risk. Anthropic's standard API retention therefore applies to reques
 NDA-bound client material. **Requesting ZDR is a gate before the second invited user**, when the
 material stops being the author's to accept risk on. `claude-opus-5` is ZDR-eligible when wanted;
 Fable 5 and Mythos 5 are Covered Models that cannot use it.
+
+
+---
+
+# Round 2 — libraries, framework APIs and platform configuration
+
+### 8 ❌ Better Auth's core schema is **singular and camelCase** — `04` was wrong
+
+**Claim (`04` §3.1):** Better Auth creates `users`, `sessions`, `accounts`, `verifications`.
+
+**Found:** [Better Auth — Database](https://www.better-auth.com/docs/concepts/database). Default core
+schema is **`user`, `session`, `account`, `verification`** — singular — with **camelCase** columns
+(`userId`, `expiresAt`, `ipAddress`, `userAgent`). `id` is a `string`, which does match `04`'s `text`
+primary keys.
+
+Since `04` §0 mandates plural tables and `snake_case` columns, the naming must be **configured
+explicitly** via `modelName` and `fields`. Left unconfigured, the auth tables would be the only ones
+in the database following different conventions.
+
+Also noted: `session` carries `ipAddress` and `userAgent`, which `13` §6's audit trail can use
+without adding columns.
+
+**Amended:** `04` §3.1.
+
+---
+
+### 9 ✅ Tailwind v4 can **disable its entire default theme** — the strongest finding of round 2
+
+**Found:** [Theme variables](https://tailwindcss.com/docs/theme) —
+
+> To completely disable the default theme and use only custom values, set the global theme variable
+> namespace to `initial`: `@theme { --*: initial; … }`
+
+**Consequence.** With `--*: initial`, only tokens defined from `05-design-system.md` generate
+utilities. **`bg-red-500`, `p-7` and `rounded-xl` cease to exist.** Forbidden-list rules 1 ("no new
+colors") and 7 ("no off-scale spacing or radii") become **structurally impossible** rather than
+review-enforced — which was the entire worry behind the earlier CSS-versus-Tailwind argument. The
+lint rule is then only needed to close the `[...]` arbitrary-value hatch.
+
+Namespaces confirmed: `--color-*`, `--spacing-*`, `--radius-*`, `--font-*`, `--text-*`,
+`--font-weight-*`, `--tracking-*`, `--leading-*`, `--shadow-*`, `--breakpoint-*`, `--container-*`.
+
+**Amended:** `05` §8b (new).
+
+---
+
+### 10 ✅ Prompt-caching figures — `03`'s "~10%" was right
+
+**Found:** [Prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching) —
+cache reads **0.1×** base input, 5-minute writes **1.25×**, 1-hour writes **2×**. Minimum cacheable
+prompt for `claude-opus-5` is **512 tokens**. Default cache lifetime **5 minutes**.
+
+**New guidance this produces.** Import chunks run as separate Workflow steps and can easily be spread
+over more than five minutes, especially after a retry — so the pipeline should use the **1-hour TTL**.
+Paying 2× once beats paying 1.25× per chunk on a cache that keeps expiring.
+
+**Cache invalidators to hold constant across chunks:** breakpoint position, `tool_choice`, thinking
+configuration, `output_config.effort`, presence/absence of images, and **key ordering inside
+`tool_use` blocks**.
+
+**Amended:** `03` §4.3 (new).
+
+---
+
+### 11 ⚠️ `app.routes` is **not documented Hono API** — the deny-by-default test needed rethinking
+
+**Claim (`08` §4, `11` §2.1):** a test walks Hono's registered routes and asserts each returns `401`.
+
+**Found:** Hono's [App API](https://hono.dev/docs/api/hono) documents `get`/`post`/`all`/`on`/`use`/
+`route`/`basePath`/`notFound`/`onError`/`mount`/`fetch`/`request`. **`routes` is not among them.**
+`hono/dev` ships a `showRoutes` helper, but that is a development utility.
+
+**Why this mattered.** The deny-by-default guarantee is one of the two load-bearing security controls
+in this project. Resting it on an undocumented property is how a guarantee quietly stops working
+after a minor upgrade — and it would still *pass*, because an empty route list trivially satisfies
+"every route returns 401".
+
+**Resolution:** routes are registered through a **thin project-owned wrapper** that records them in a
+module-level array. The test reads that array. No upstream dependency, and registering a route
+without the wrapper becomes a reviewable mistake instead of an invisible one.
+
+**Amended:** `08` §4, `11` §2.1.
+
+---
+
+### 12 ✅ `workers.dev` disable — verified, with two traps
+
+**Found:** [workers.dev](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/) —
+`workers_dev = false` in the Wrangler configuration.
+
+1. **Disabling in the dashboard alone does not persist.** Cloudflare re-enables the route on the next
+   `wrangler deploy` unless the Wrangler file also carries the setting.
+2. **Preview URLs** default to matching `workers_dev`, but if explicitly enabled must be disabled
+   separately.
+
+**Amended:** `13` §3.
+
+---
+
+### 13 ✅ Drizzle — `bytea`, GIN indexes and partial indexes all supported
+
+**Found:** [PostgreSQL column types](https://orm.drizzle.team/docs/column-types/pg) — `bytea()` is a
+first-class type, no custom type needed. [Indexes & constraints](https://orm.drizzle.team/docs/indexes-constraints)
+— `.using('gin', …)` for index methods, `.op('text_ops')` for operator classes, and `.where(sql\`\`)`
+for partial indexes. Every index in `04` §3.7 is expressible.
+
+---
+
+### 14 🔬 Drizzle `db.transaction()` over `neon-http` — **documentation does not settle this**
+
+Drizzle documents `neon-http` and `neon-websockets` drivers and repeats Neon's framing — HTTP is for
+"single, non-interactive transactions", WebSockets for "session or interactive transaction support".
+It does **not** state whether Drizzle's own `db.transaction(async tx => …)` callback API works,
+throws, or silently runs without a transaction on `neon-http`.
+
+**This is a spike, not a doc question**, and it is worth doing early because `03` §5 depends on
+multi-statement writes being atomic. **Fallback if `db.transaction()` is unavailable:** drop to the
+underlying driver's `sql.transaction([...])`, which is confirmed to work over HTTP and matches the
+"fixed sequence of statements" constraint already recorded.
+
+---
+
+## Spikes outstanding after both rounds
+
+| # | Spike | Blocks |
+|---|---|---|
+| B | `docx` / `docxtemplater` on Workers | M2 |
+| C | `.docx` assembly inside the CPU budget | M1 measurement |
+| D | Citations alongside *strict tool use* (optional redundancy) | nothing |
+| **14** | **Drizzle `db.transaction()` on `neon-http`** | **M1 — do this first** |
+
+No documentation can settle these four. Everything else in `docs/01`–`13` now rests on a primary
+source.

@@ -66,9 +66,14 @@ path:
   workers.dev route: DISABLED          │
 ```
 
-**`workers.dev` is disabled.** Cloudflare issues every Worker a default `*.workers.dev` address.
-It is left enabled by default and it bypasses nothing in *our* auth — but it is an unnecessary
-second front door on an app holding this material, and disabling it is one line in `wrangler.toml`.
+**`workers.dev` is disabled** via `workers_dev = false` in the Wrangler configuration. Cloudflare
+issues every Worker a default `*.workers.dev` address; it bypasses nothing in *our* auth, but it is
+an unnecessary second front door on an app holding this material.
+
+> **Two verified traps.** Disabling `workers.dev` **in the dashboard only** does not persist —
+> Cloudflare re-enables the route on the next `wrangler deploy` unless the Wrangler file also says
+> `workers_dev = false`. And **Preview URLs** default to matching the `workers_dev` setting, but if
+> they were ever explicitly enabled they must be disabled separately.
 
 **The `ANTHROPIC_API_KEY` never reaches the browser.** All model calls are server-side. A client-side
 call would put a spending credential in devtools.
