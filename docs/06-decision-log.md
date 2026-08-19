@@ -522,3 +522,25 @@ Append-only. The answer to every future "why is it like this?"
   - *`unpdf` for `.pdf` in v1* — deferred. Every document the author holds exists as `.docx` or Markdown.
 - **The `extractor_version` rule, and why it is not optional:** fact quote offsets index into `extracted_text`. If the extractor ever changes how it emits paragraphs or whitespace, every stored offset points somewhere subtly wrong — and **nothing surfaces the problem**, because the offsets still resolve to *some* text. Storing the extractor version and forbidding in-place re-extraction means a parser upgrade produces a **new** document version with fresh offsets, while the old version keeps the text its facts were verified against. Asserted by test.
 - **Revisit if:** a document arrives that exists only as a PDF.
+
+---
+
+### [2026-08-12] Backups: accept a 6-hour restore window; export is promoted to M1
+
+- **Decision:** Stay on Neon's **free** plan. `GET /api/export` (story S15) is promoted from `SHOULD` · M3 to **`MUST` · M1** and becomes the project's disaster-recovery mechanism.
+- **What prompted it:** verification against Neon's own documentation, not a search summary. The Free plan retains **6 hours** of change history capped at 1 GB, and point-in-time restore is supported on **root branches only** — so dev branches have none. `12-deployment-devops.md` had implied an open-ended window.
+- **Alternatives considered:**
+  - *Automating exports off-platform* — a Cron trigger writing a weekly JSON snapshot somewhere durable. Rejected for now: it reintroduces the object storage `03-technical-design.md` deliberately removed, for a record measured in single-digit megabytes.
+  - *Upgrading Neon to Launch* for a 7-day window — rejected: real monthly cost against a stated free-tier-first preference.
+- **Residual risk, accepted explicitly:** six hours covers a mistake noticed immediately. Anything older is recoverable only from the most recent export, which means **the backup is worth exactly what the habit of running it is worth.**
+- **Revisit if:** the record starts feeling irreplaceable — the first move is automating the export, not upgrading the database.
+
+---
+
+### [2026-08-12] Zero data retention declined for now, and gated on the second user
+
+- **Decision:** **No ZDR arrangement is requested from Anthropic.** Standard API retention applies to extraction and generation requests, which carry NDA-bound client material.
+- **Reason (author's):** the record is the author's own data, and the author accepts the risk on their own behalf.
+- **Correction this entry records:** Anthropic's structured-outputs documentation is labelled "ZDR Eligible", which is easy to misread as meaning requests using structured outputs are automatically zero-retention. They are not — **ZDR is an organisation-level arrangement requested from Anthropic's sales team.** `claude-opus-5` is eligible; Claude Fable 5 and Claude Mythos 5 are designated Covered Models requiring 30-day retention and **cannot** use ZDR, which is a further point in favour of the model already chosen.
+- **Gate:** requesting ZDR moves onto the second-user checklist in `03` §12. At that point the material sent to the model belongs to someone who has not accepted this risk, and the author's own tolerance stops being the relevant standard.
+- **Revisit if:** a specific client relationship imposes a written data-handling obligation that standard retention does not satisfy — that would make ZDR a requirement rather than a preference, before any second user.

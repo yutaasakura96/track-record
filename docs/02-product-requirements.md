@@ -144,10 +144,14 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 
 ---
 
-**S15 · Export the record** — `SHOULD` · M3
+**S15 · Export the record** — `MUST` · M1
 > As the Author, I want to export the entire record in an open format, so that my career data is not trapped in an application I might stop maintaining.
 
 **Acceptance:** One action produces the full record — every entity, fact, provenance value, disclosure value and evidence pointer — in a documented, human-readable format.
+
+**Promoted from `SHOULD` · M3 to `MUST` · M1 on 2026-08-12.** Verification established that Neon's
+free plan retains only a **6-hour** point-in-time restore window, so this export is the project's
+actual disaster-recovery mechanism, not merely a portability feature.
 
 ---
 

@@ -425,7 +425,10 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | # | Item | Trigger / note |
 |---|---|---|
 | 8 | **Quick capture** — free text in, Attested facts out | S12. The one screen that may justify a narrow mobile surface |
-| 9 | **Export the whole record** (`GET /api/export`) | S15. **Also the disaster-recovery plan** (`12` §5) — an argument for pulling it earlier than M3 |
+
+**Promoted out of M3 into M1:** `GET /api/export` (S15). Neon's free plan retains a **6-hour**
+restore window, so the export is the disaster-recovery mechanism rather than a convenience.
+| 9 | *(moved to M1 — see below)* | |
 
 ### Gated on the second invited user — build **before** issuing the invite, not after
 

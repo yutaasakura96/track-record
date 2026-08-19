@@ -220,21 +220,26 @@ drivers and ephemeral branches) or the community `local-neon-http-proxy` Compose
 
 | # | Item | Type |
 |---|---|---|
-| A | **Backups, given a 6-hour restore window** | **Decision required — see below** |
+| A | Backups, given a 6-hour restore window | ✅ **Resolved 2026-08-12** — stay free; S15 export promoted to M1 |
 | B | `docx` / `docxtemplater` on Workers | 🔬 spike |
 | C | `.docx` assembly inside the CPU budget | 🔬 spike |
 | D | Citations alongside *strict tool use* (as opposed to JSON outputs) | 🔬 spike, optional |
-| E | Whether to request a ZDR arrangement from Anthropic | Decision |
+| E | Whether to request a ZDR arrangement from Anthropic | ✅ **Resolved 2026-08-12** — declined for now; **gated on the second user** |
 | F | Round 2 — the remaining ~50 lower-stakes claims across all documents | ⏳ |
 
 ---
 
-## Open decision A — backups
+## Resolved decisions
 
-Free-tier restore covers **six hours**. Three options:
+**A · Backups — option 1.** Stay on Neon's free plan and accept the six-hour window. `GET
+/api/export` (S15) is promoted from `SHOULD` · M3 to **`MUST` · M1** and becomes the
+disaster-recovery mechanism. Rejected: automating exports off-platform (reintroduces object storage);
+Neon Launch for a 7-day window (real monthly cost). **The residual risk is honest and accepted:**
+anything older than six hours is recoverable only from the most recent export, so the backup is worth
+exactly what the habit of running it is worth.
 
-1. **Accept it**, and treat `GET /api/export` as the real backup — which means **pulling S15 forward
-   from M3 to M1**, and exporting on a habit rather than a schedule.
-2. **Automate the export** — a Cloudflare Cron trigger writing a JSON snapshot somewhere off-platform
-   weekly. Reintroduces the object storage that `03` deliberately removed.
-3. **Upgrade Neon to Launch** for a 7-day window, at a real monthly cost.
+**E · Zero data retention — declined for now.** The record is the author's own data and the author
+accepts the risk. Anthropic's standard API retention therefore applies to requests carrying
+NDA-bound client material. **Requesting ZDR is a gate before the second invited user**, when the
+material stops being the author's to accept risk on. `claude-opus-5` is ZDR-eligible when wanted;
+Fable 5 and Mythos 5 are Covered Models that cannot use it.

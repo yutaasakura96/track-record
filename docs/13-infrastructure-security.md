@@ -205,6 +205,7 @@ are the reason for every confidentiality control in this repo.
 | Right of access | Already satisfied by `GET /api/export` |
 | Right of erasure | **Does not exist yet.** Account deletion must actually delete — including source documents and render versions, which this schema otherwise never deletes |
 | Data residency | **Record the Neon project's actual region here at provisioning time.** It was not verified when this document was written and must not be assumed. Model calls leave whatever region it is |
+| Model-provider retention | **No ZDR arrangement is in place** (declined 2026-08-12 — the data is the author's own). Anthropic's standard API retention therefore applies to extraction and generation requests, which carry NDA-bound client material. **Requesting ZDR is a gate before the second invited user**, when the material stops being the author's to accept risk on |
 | Breach notification | Statutory clocks apply. §7 is the procedure |
 
 **The erasure gap is the sharpest one**, and it is a direct tension with `04-database-schema.md` §6,

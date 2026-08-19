@@ -111,11 +111,15 @@ found the Free plan's restore window is **six hours**, not the open-ended window
 originally implied. That covers *"I just ran a bad migration"*. It does **not** cover *"I noticed on
 Wednesday that Monday's deploy corrupted something."*
 
-**So `GET /api/export` (S15) is the actual backup, not a portability nicety** — which is a direct
-argument for pulling it forward from M3. The alternatives are automating the export to somewhere
-off-platform (which reintroduces the object storage `03` deliberately removed) or upgrading Neon to
-Launch for a 7-day window at real monthly cost. Recorded as open decision A in
-`docs/specs/technical-verification.md`.
+**Resolved 2026-08-12: stay on the free plan, and `GET /api/export` (S15) becomes the backup.**
+S15 is promoted from `SHOULD` · M3 to `MUST` · **M1**. Rejected: automating the export off-platform
+(reintroduces the object storage `03` deliberately removed) and upgrading Neon to Launch for a
+7-day window at real monthly cost.
+
+**What this means in practice, stated plainly:** the six-hour window covers a mistake you notice
+immediately. Anything older is recovered from your most recent export — so **the export is only
+worth what your habit of running it is worth.** Automating it is the first thing to revisit if the
+record ever starts feeling irreplaceable.
 
 **A restore is tested once before M1 is done** — restore a branch to a point in time, confirm the
 record is intact. Untested backups are not backups.
