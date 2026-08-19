@@ -12,7 +12,7 @@ The single constraint this imposes on everything downstream: **no design decisio
 
 ## 2. The record
 
-Six entity types. Only **Project** uses the expensive import path; the rest are short forms filled a few times a year.
+Seven entity types. Only **Project** uses the expensive import path; the rest are short forms filled a few times a year.
 
 | Entity | What one row is | Notes |
 |---|---|---|
@@ -21,7 +21,8 @@ Six entity types. Only **Project** uses the expensive import path; the rest are 
 | **Role** | A title held at an employer | Title, period, 職種. Multiple roles per employer |
 | **Project** | A discrete piece of work | **Employed or independent.** Independent projects have no employer — the English résumé renders them as a separate `PROJECTS` section |
 | **Fact** | One claim, with evidence | The core object. Carries provenance and disclosure (§5, §6) |
-| **Credential** | A certification or a qualification from study | One shape covers both: institution, name, date |
+| **Education** | A school attended | Institution, 学部・学科, degree, start and end, and an **outcome** (卒業 / 修了 / 中退 / expected) |
+| **Certification** | A licence or certification held | Name, issuing organisation, issue and expiry dates, credential ID and URL |
 
 **Skills are not stored.** They are derived from facts as candidates; the author curates which appear and in what order (§4, story 9).
 

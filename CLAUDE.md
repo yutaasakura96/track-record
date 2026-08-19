@@ -3,13 +3,39 @@
 A web application that turns a hand-maintained career record into a structured source of truth
 with derived renders (résumé, 履歴書, 職務経歴書, interview stories).
 
-**Phase 1 is complete.** Read `docs/01-project-brief.md` and `docs/02-product-requirements.md`
-first — they define what this is and what it does. `docs/06-decision-log.md` answers "why is it
-like this?" and is append-only. `docs/00-kickoff.md` was the pre-planning scaffold and has been
-deleted; it is superseded by 01 and 02 and survives only in git history.
+**Phases 1–4 are complete. There is no code yet.** `docs/` is the source of truth; the prototype in
+`design/prototype/` is a visual reference only. Where they disagree, the docs win.
 
-Phase 2 (design exploration in Claude Design) is next. There is no code yet — this file will be
-rewritten by `/new-project` once the planning documents state a stack.
+Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
+then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
+`docs/05-design-system.md` and `docs/10-screen-specifications.md` are the interface contract.
+`docs/06-decision-log.md` answers "why is it like this?" and is **append-only** — never edit an
+existing entry; supersede it with a new one. `docs/00-kickoff.md` was the pre-planning scaffold and
+survives only in git history.
+
+## Stack (decided 2026-08-12 — see the decision log)
+
+Cloudflare Workers (paid) · Hono API · React + Vite SPA · Neon Postgres · Drizzle · Better Auth with
+Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
+two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
+`docxtemplater` for Word output.
+
+**Rules that are easy to break and expensive to fix:**
+
+- **Every query filters by `user_id`.** No exceptions. Asserted by test.
+- **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
+- **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
+  Candidates that fail are discarded before they reach the database.
+- **Generated-provenance and Private-disclosure facts never reach a render.** The block is at
+  render time, not review time.
+- **Logs never contain source text, fact claims, or render content.**
+- **No secret and no database dump is ever committed.** This repo is public.
+- **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
+- **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
+  Calendar scope. Release blocker, not a hardening task.
+- **Nothing is ever deleted** — render versions, source documents and rejected facts are permanent.
+  This is correct for one user and becomes wrong at the second: account deletion that actually
+  deletes is a gate before the second invite (`08` §6, `13` §8).
 
 **Document ownership — do not violate this.**
 `/Users/yutaasakura/Documents/GitHub/claude-setup-inventory/project-planning-template.md` owns the

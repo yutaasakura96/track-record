@@ -174,6 +174,8 @@ Sidebar + header (`Your record`, note `Last import <relative time>`, actions `Qu
 **Section 1 — At a glance.** Four-tile grid, 1px gaps over a `border` background so the tiles read
 as one object. Each tile: label, 23px value, sub-note (`2 current, 2 past` / `4 with measured
 outcomes` / `1 expires Mar 2027`). Entities: Employers · Roles · Projects · Credentials.
+**Credentials counts educations and certifications together** — the split is a storage decision
+(`04-database-schema.md` §3.8–3.9), not an interface one.
 
 **Section 2 — Facts by provenance.** A panel with a 7px stacked bar (green / accent / amber, 2px
 gaps) and a legend row per value: dot, name, one-line description, count.
@@ -217,8 +219,9 @@ Needed before their milestones; not blocking M1.
 
 | Screen | Milestone | Note |
 |---|---|---|
-| Profile form | M2 | 履歴書 identity fields incl. PII. Field list comes from the real document in Phase 4 |
-| Employer / Role / Credential forms | M2 | Plain forms. 資本金 and 従業員数 on Employer |
+| Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
+| Employer / Role forms | M2 | Plain forms. 資本金 and 従業員数 on Employer |
+| Education / Certification forms | M2 | Two forms, not one. Education carries an **outcome**; certification follows the shape the author maintains on LinkedIn. Both collect **month and year only** |
 | Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
 | Version history | M2 | Accepted versions and dismissed proposals, visibly distinct |
 | Skills curation | M2 | Derived candidates, author-ordered; stale skills flagged, not removed |
@@ -237,3 +240,7 @@ single column.
 
 The overview screen would adapt to narrow widths, but shipping one responsive screen out of three
 is worse than none: it invites use on a device where the next click fails.
+
+**Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
+product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
+surface without re-laying-out the application.

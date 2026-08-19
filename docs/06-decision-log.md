@@ -206,3 +206,290 @@ Append-only. The answer to every future "why is it like this?"
 - **Alternatives considered:** Light mode (rejected for v1 — the prototype has none, and a half-built one is worse than none); responsive/mobile support (rejected — the two core screens are irreducibly two-pane: source beside facts, current beside proposed).
 - **Reason:** Making only the overview screen responsive would invite use on a device where the very next click fails.
 - **Revisit if:** Quick capture (M3) turns out to be something the author wants to do from a phone — that single screen could ship as a separate narrow surface without making the whole app responsive.
+
+---
+
+### [2026-08-12] Hosted, not local-first — the LLM egress argument decides it
+
+- **Decision:** Track Record is a **hosted web application**, not a local-only tool. The record — including NDA-bound client material and the author's PII — lives in a managed Postgres, not on the author's laptop.
+- **Alternatives considered:**
+  - *Local-only* — one process on the author's machine, SQLite on disk, nothing exposed to a network. Recommended in Phase 4 initially, then **withdrawn**.
+  - *Local-first with encrypted sync* — deferred, not rejected. It solves backup, which is a real problem; the v1 answer to backup is Time Machine plus the S15 export.
+- **Reason:** The initial local-only recommendation rested on keeping NDA material off third-party disks. That argument does not survive contact with the product: **the import pipeline sends the same case-study text to a commercial LLM API for fact extraction**, which is the core of the application and happens regardless of where the database sits. Once that egress is accepted, a managed Postgres behind authentication is the same category of exposure, not a new one. The risks that remain and are actually addressable are (1) leaking a connection string from the public repo, (2) the LLM provider's data-retention policy, and (3) weak single-user auth — all of which are handled in `03-technical-design.md` rather than by refusing to deploy.
+- **Revisit if:** a future capability makes on-device extraction viable at acceptable quality, at which point local-first stops costing the product anything.
+
+---
+
+### [2026-08-12] Stack: Cloudflare Workers · Neon Postgres · Drizzle · Vite + React + Hono
+
+- **Decision:** **Cloudflare Workers (paid, $5/month)** for compute and static hosting, **Cloudflare Workflows** for the import pipeline, **Neon Postgres** (free tier) for data, **Drizzle** as the ORM, and a **Vite + React SPA served as Workers static assets with a Hono API on the same Worker**. Local development runs Postgres in Docker.
+- **Alternatives considered:**
+  - *Next.js on Vercel* — recommended first and rejected. Vercel Hobby is $0 and zero-config, but the app has no public surface, no SEO, and nothing to server-render, so Next.js's core value does not apply; and Vercel's function-duration limits fight the requirement that extraction be incremental.
+  - *Next.js on Cloudflare via the OpenNext adapter* — rejected. A translation layer between a framework built for one platform and a runtime that is not that platform, bought for framework features this app does not use.
+  - *AWS or Azure* — rejected on cost shape rather than capability. Both offer a generous 12-month free tier followed by a bill for an always-on managed Postgres, which is the worst possible shape for a database used a few times a month. Avoiding that by keeping Neon means paying a hyperscaler for compute while maintaining IAM, networking and a deploy pipeline for a three-screen single-user app. Azure was additionally defensible on the author's Microsoft certifications; familiarity was judged not scarce enough to buy the complexity.
+  - *Cloudflare Workers free tier* — rejected. 10 ms CPU per request is fine for I/O-bound work but not for Japanese segmentation, word-diffing, and `.docx` assembly, all of which are real CPU. It would work until it abruptly did not.
+  - *Cloudflare D1 instead of Neon* — rejected. Postgres gives `jsonb`, arrays and full-text search that the fact model wants, and the author already runs a Neon project.
+- **Reason:** Cloudflare is the only one of the three candidate platforms whose cost stays flat and low forever rather than expiring after twelve months, and **Cloudflare Workflows is a better answer to this application's hardest runtime problem than anything the alternatives offer**: the import pipeline is roughly 95% waiting on an LLM, Workflows bills only while code executes so waiting on a third-party API costs nothing, and durable multi-step execution survives a redeploy mid-import, retries a failed chunk without redoing the rest, and produces the incremental progress that `10-screen-specifications.md` requires. Drizzle was chosen over Prisma because its migrations are readable SQL and its TypeScript schema can be kept literally in sync with `04-database-schema.md`, so the document cannot drift from the code.
+- **Known cost of this choice:** a Vite/Hono SPA is less defaulted-to by coding agents than Next.js. Judged smaller than the complexity of the OpenNext adapter.
+- **Revisit if:** the app acquires a public surface (the portfolio site is explicitly a separate product), or Workers CPU limits become binding on `.docx` generation.
+
+---
+
+### [2026-08-12] No object storage in v1
+
+- **Decision:** Source documents, extracted text and generated `.docx` renders are stored **in Postgres** — original bytes in `bytea`, extracted text alongside. No S3, Azure Blob or R2.
+- **Alternatives considered:** Object storage for uploaded documents and generated files, which the author's initial infrastructure list assumed.
+- **Reason:** The PRD puts the entire existing corpus at roughly **2.4 MB of prose**. Source documents, extracted text and generated renders together are single-digit megabytes for years. Object storage would add a second credential, a second failure mode and a second thing to back up, in order to store less data than a phone photo.
+- **Revisit if:** the record starts holding binary assets that are genuinely large — scanned certificates, portfolio images. Moving to object storage is then a one-table migration.
+
+---
+
+### [2026-08-12] Local development shares the schema, never the data
+
+- **Decision:** Migrations are applied to both local and production databases, so the **schema** stays in sync. **Data does not.** Local development runs Docker Postgres seeded with invented data; production is the only place the author's real record exists.
+- **Alternatives considered:** Cloning production into local development, or using a Neon branch of the production database for local work — the obvious reading of "local dev should sync with the deployed stuff".
+- **Reason:** The real record is NDA-bound client material plus the author's home address, phone number and date of birth. Copying it into a development database multiplies the number of places it exists for no benefit, and `CLAUDE.md` already requires that test fixtures and seed data be invented rather than sampled.
+- **Revisit if:** a production data bug proves impossible to reproduce against invented data — in which case the answer is a better anonymised fixture, not a copy.
+
+---
+
+### [2026-08-12] Generation layer: Anthropic `claude-opus-5`, behind a two-function provider seam
+
+- **Decision:** The generation layer runs on **Anthropic, model `claude-opus-5`**, for both fact extraction and render generation. This settles the choice deliberately deferred on 2026-08-11. The provider is reached through a **two-function seam** — `extractFacts(sourceText, context) → CandidateFact[]` and `generateRender(facts, renderSpec) → string` — and nothing else in the application knows a model exists.
+- **Alternatives considered:**
+  - *Claude Opus 4.8* — rejected outright. Previous generation at an identical $5 / $25 per million tokens, so choosing it buys nothing.
+  - *GPT-5.6 Sol* ($5 / $30, rising to $10 / $45 on long-context requests) — rejected: costs more per output token than Opus 5 with no capability this product can name in exchange.
+  - *GPT-5.6 Terra* ($2.50 / $15) — **not rejected; queued for the M2 bake-off.**
+  - *Kimi K3* ($3 / $15, 1M context) — **not rejected; queued for the M2 bake-off, and the challenger most worth beating.** Moonshot published its weights publicly, which is the same insurance one layer down that story S15 (export the record) provides at the data layer — relevant because the brief intends this to be a permanent system of record maintained over years.
+  - *Grok 4.5* ($2 / $6) — rejected on two concrete grounds: per-call tool billing ($5 per 1,000 calls) is a poor fit for a pipeline built on function calls, and xAI's current API data-retention and training terms have not been read by either the author or the agent. Routing NDA-bound client material through unread terms is not acceptable.
+- **Reason:** At this workload the entire cost spread between the cheapest and most expensive candidate is roughly **$15 per year** — extracting the whole 2.4 MB corpus once costs about $3.00 at Opus 5 rates — so cost decides nothing and the best available output should simply be bought. Long context and strict-schema function calling are available on every candidate, so they decide nothing either. What genuinely differentiates them is **Japanese generation quality in two specific registers** (the flat factual voice 職務経歴書 rewards, and the persuasive voice of 自己PR and キャリアストーリー), which no public benchmark measures. That question is answered empirically, not by specification — and the ground truth already exists in `local/JAPANESE/`.
+- **Consequence — the M2 bake-off:** when the Japanese renders are built, generate 職務経歴書 from identical facts on `claude-opus-5`, Kimi K3 and GPT-5.6 Terra, and compare each against the author's existing hand-produced document. Cost of the experiment is roughly $2.
+- **Standing rule before committing to any provider:** read that provider's current API data-retention and training policy. Anthropic does not train on API inputs by default; the others must be verified rather than assumed.
+- **Revisit if:** the M2 bake-off shows a challenger writes materially better Japanese — the seam makes the swap a config value and one adapter file.
+
+---
+
+### [2026-08-12] BudouX resolves the Japanese word-diff problem
+
+- **Decision:** Japanese prose is segmented for diffing with **[BudouX](https://github.com/google/budoux)** (Google, ~15 KB, no runtime dependencies), which splits text at 文節-scale phrase boundaries — the exact unit `10-screen-specifications.md` §Japanese variant specifies for diff marks.
+- **Alternatives considered:**
+  - *`Intl.Segmenter` with `granularity: 'word'`* — built into Node and every modern browser, zero dependencies, and therefore the first thing tried. **Rejected on measured evidence:** it over-splits badly, breaking `そごう` into `そご`/`う` and `レイテンシ` into `レイ`/`テン`/`シ`. Marks on those boundaries would be close to unreadable.
+  - *kuromoji.js (MeCab/IPADIC port)* — morphologically accurate, but ships a ~15 MB dictionary, which is a poor fit for a Worker and far more precision than a diff needs.
+  - *Character-level diffing* — already forbidden by the PRD and the design system.
+- **Reason:** Verified against the author's real 職務経歴書 in `local/JAPANESE/` — 62 long paragraphs parsed. Chunks average 7–9 characters, boundaries land at phrase scale, mixed Latin/Japanese runs stay intact, and parenthesised technology lists segment cleanly. The one observed flaw is an occasional split of `〜に|よる` where `による` is a single unit; an over-split boundary yields a slightly smaller changed span, never an unreadable one.
+- **Consequence:** the "hardest known technical problem" flagged on 2026-08-11 is a library call plus a token-level diff, not a research task.
+- **Revisit if:** review of real diffs shows the `〜による` class of over-split is actually distracting — the fallback is a small post-processing rule that merges known particle-plus-auxiliary pairs, not a different segmenter.
+
+---
+
+### [2026-08-12] Better Auth with Google OIDC; no Cloudflare Access
+
+- **Decision:** Authentication is **Better Auth**, with **Google as the OIDC provider**, running in the Hono API on Workers with the Drizzle adapter against Neon. The application is **publicly reachable**. Cloudflare Access is not used.
+- **Alternatives considered:**
+  - *Cloudflare Access (Zero Trust, free to 50 users)* — recommended first and **withdrawn**. It is the stronger pure-security answer, because no unauthenticated request reaches application code at all. Rejected on two grounds: it is an internal-tools gate priced at $7/user that **cannot become product authentication**, so it would have to be ripped out precisely when the author had other priorities; and the author has shipped Better Auth with Google OIDC repeatedly, which defeats the generic "hand-rolled auth is a liability" argument that motivated the recommendation.
+  - *Hand-rolled email-and-password* — not seriously considered once Better Auth was on the table.
+- **Reason:** Better Auth supplies the `user` table that PRD §1's "no design decision may assume exactly one person exists" requires — every Employer, Role, Project, Fact and Credential foreign-keys to `user.id` — so the constraint is satisfied by a library that was going to be installed anyway rather than by an invented parallel table. It is also the only option of the two that survives the brief's stated product wedge.
+- **Accepted cost, and its mitigation:** a publicly reachable app means an unprotected route is a real leak rather than an inconvenience. Mitigation is **deny-by-default routing** — Hono middleware requires a valid session on everything except the auth callback routes, so a forgotten route fails closed. This is asserted by test, not by convention.
+- **Revisit if:** never expected; the fallback if the app is compromised is to put Access in front temporarily, which requires no code change.
+
+---
+
+### [2026-08-12] Publicly reachable, allowlisted sign-up, isolation tested from day one
+
+- **Decision:** The application is reachable by the public, because the author may ship it for other users in future. **Sign-up is allowlisted to the author's Google account.** Multi-user features are not built. Every data query filters by `user_id`, and that filtering is covered by tests from the first query written.
+- **Alternatives considered:** open sign-up (rejected — the database holds NDA-bound client material today, and a stranger creating an account against that deployment is not a risk worth carrying for an option that may never be exercised); keeping the app private and revisiting later (rejected by the author).
+- **Reason:** "Reachable by the public" and "supports other users" are different decisions, and the brief puts the second firmly out of scope while naming perfectionism as the risk most likely to kill the project. The schema and auth layer never assume the author is alone; nothing else is built for anyone else. The one thing that genuinely changes engineering *today* is row-level isolation: a missing `where user_id = ?` is invisible in a single-user app and hands one person's career record to another in a multi-user one. Enforcing it from the first query costs nothing; retrofitting it means auditing every query ever written.
+- **Revisit if:** a second real user is actually onboarded — at which point removing the allowlist is a config change and the isolation tests already exist.
+
+---
+
+### [2026-08-12] Re-import extracts only from changed passages; fact identity is anchored to the source quote
+
+- **Decision:** Every import is stored as a **version of a source document**, retaining full text. On re-import, the new text is diffed against the previous version and **only changed or added passages are sent to the model**. Untouched passages are never re-read, so no fact drawn from them is ever re-proposed. As a secondary guard, every fact stores a normalised hash of the **verbatim quote** it was extracted from; a candidate whose quote and claim both match an already-judged fact is dropped before the author sees it.
+- **Alternatives considered:**
+  - *Compare candidate claim text against existing facts* — rejected. The model rephrases, so `Cut deploy time by 40%` and `Reduced deployment time 40%` are one fact and two strings; the author would be re-asked constantly.
+  - *Semantic deduplication by embedding similarity* — rejected. It would work, but requires a vector column, an embedding model and a similarity threshold to tune, in order to answer probabilistically a question that document diffing answers **exactly**. "Which parts of this document are new" has a correct answer, not a likely one.
+- **Reason:** This satisfies all three clauses of PRD §8's re-import row at once — accepted facts are not duplicated, only genuinely new content is proposed, and previously rejected facts stay rejected — without the app needing to reason about fact identity at all. It reuses the diff machinery the review screen requires anyway, and re-importing a 15%-changed document costs roughly 15% of a fresh extraction.
+- **Deferred to M2 as a named open problem:** PRD §8 also requires that **two documents asserting different numbers for the same thing** be surfaced as a conflict. That needs a notion of "the same thing" across documents, which is a harder modelling problem than anything above. It is **impossible in M1** (one document, one employer), so it is recorded in `03-technical-design.md` as an open problem rather than half-solved now.
+- **Revisit if:** authors of the same document reorder passages wholesale, making the diff report near-total change — in which case the quote-hash guard carries more weight and may need to become the primary mechanism.
+
+---
+
+### [2026-08-12] Renders are stored as structured content; `.docx` is built on download
+
+- **Decision:** A generated render is stored as **structured content** — an ordered list of sections, each holding blocks, and **every block carries the IDs of the facts it was generated from**. `.docx` is assembled from that structure **on demand at download time** and never stored. Markdown is generated from the same structure for on-screen reading. The two career stories are stored as an ordered list of **chapters**, not as a prose blob.
+- **Alternatives considered:**
+  - *Store the generated `.docx` as the canonical version* — rejected. Two Word files cannot be meaningfully compared, so the entire diff-review gate (S5) would not function.
+  - *Store renders as Markdown* — the obvious choice, and rejected for one specific reason: a Markdown bullet is a line of text with nowhere to record which facts produced it. Story S6 requires every rendered line to resolve to exactly one fact, and the diff screen's rationale bar must state *"From 2 measured facts · <source>, L63 and L79"*. Markdown cannot carry that mapping.
+  - *Store career stories as two Markdown documents* — rejected. S11 requires EN and JA chapters to correspond one-to-one; two blobs make that unenforceable, while two chapter lists make it checkable.
+- **Reason:** The author raised this as a cost question — that Word generation is token-heavy and regenerating during early iteration would be expensive and slow. **The premise does not hold in this architecture: the model never produces the `.docx`.** The model produces content; the application assembles the file deterministically in code, which costs zero tokens and takes milliseconds. What costs money is generating the words, once per regeneration, regardless of output format. For reference, a résumé regeneration is roughly 7k tokens in / 3k out — about **$0.11** — so a hundred regenerations while tuning prompts costs around **$15**, and the `.docx` assembly across all hundred costs nothing. The conclusion the author reached is correct; the reason is that a binary rebuildable in 20 ms is not worth storing, not that it saves tokens.
+- **Revisit if:** a render needs formatting that cannot be expressed in the block structure — in which case the structure gains a block type, not a change of storage format.
+
+---
+
+### [2026-08-12] Two `.docx` strategies, because 履歴書 is a form and the others are documents
+
+- **Decision:** The **English résumé and 職務経歴書 are built programmatically** with the `docx` npm library. **履歴書 is filled into a blank template** using `docxtemplater`, whose open-source core covers the table-row loop the 学歴・職歴 table needs. The two career stories are **not `.docx` at all** — they are read on screen.
+- **Alternatives considered:**
+  - *One strategy for all three* — rejected in both directions. Building 履歴書's grid programmatically means recreating dozens of table cells and hoping the result passes, against an acceptance criterion that is literally "submit it without a Japanese hiring manager noticing anything off". Templating the résumé and 職務経歴書 is worse, because their length and section count vary with the record.
+  - *HTML or Markdown converted via pandoc/LibreOffice* — rejected: not runnable in a Worker.
+- **Reason:** 履歴書 is a **form** — a fixed grid whose correctness is conventional and non-negotiable — so the layout should be preserved rather than reconstructed. The résumé and 職務経歴書 are **flowing documents** with nothing fixed to preserve.
+- **Confidentiality note:** the 履歴書 template committed to this public repo must be the author's real file **with every value stripped** — no name, address, date of birth, and empty tables. The populated file never enters the repo.
+- **Scope:** only the English résumé is required for M1. 履歴書 and 職務経歴書 are M2; the direction is recorded now because it costs nothing and prevents a wrong assumption hardening.
+- **Known unknown, recorded rather than guessed:** neither `docx` nor `docxtemplater` has been verified to run on Cloudflare Workers, which is a constrained runtime and both libraries assume Node. This is roughly an hour of testing and does not block M1. Fallbacks if either fails: generate the file in the browser, or move that one step to a Node-compatible runtime.
+- **Revisit if:** the Workers spike fails for both libraries.
+
+---
+
+### [2026-08-12] Neon branching: dev branches copy production data
+
+- **Decision:** Development uses **Neon branches created from `main`**, carrying a full copy of the production data. The earlier "local development shares the schema, never the data" entry is **narrowed**: it still forbids committing data to the repo and still requires invented fixtures for tests, but it no longer forbids a dev branch holding the real record.
+- **Alternatives considered:** a long-lived `dev` branch seeded with invented data, plus ephemeral branches off `main` used only for migration dry-runs and deleted immediately. Recommended, and **overruled by the author.**
+- **Reason (author's):** it is the author's own data and the author is the only developer, so a second copy under the same account is not a meaningful increase in exposure.
+- **Standing constraint that survives this:** **no database dump is ever committed to the repo**, which is public. Test fixtures and seed data remain invented, per `CLAUDE.md`.
+- **Revisit if:** a second developer joins, at which point dev branches must be reseeded rather than copied.
+
+---
+
+### [2026-08-12] Zustand for UI state, TanStack Query for server state
+
+- **Decision:** **Zustand** is installed from the start for client UI state. **TanStack Query** owns all server data. The boundary is explicit: Zustand holds only ephemeral interface state — which fact card is selected, which filter pill is active, which diff change is highlighted. It never holds records fetched from the API.
+- **Alternatives considered:** plain React state until a screen felt awkward, then adding Zustand. Recommended on the grounds that the app's client state is per-screen and shared only between sibling components. **Overruled by the author**, whose argument is that retrofitting state management once the screen count grows costs far more than installing it now.
+- **Reason:** the author's reasoning is sound, and the risk it introduces is not the library but the boundary. Server data duplicated into a client store produces two copies of the same record with no rule for which is authoritative — the exact mess the decision is meant to avoid. Writing the boundary down is what makes the choice safe.
+- **Revisit if:** Zustand ends up holding anything that came from the database.
+
+---
+
+### [2026-08-12] Diff engine: Myers over tokens, not over lines — two-pass
+
+- **Decision:** Diffing uses the **`diff` library (jsdiff), `diffArrays` over a token list** — the same Myers algorithm git uses, applied at word and phrase granularity instead of line granularity. Two passes: **first align paragraphs between versions by similarity, then diff tokens inside each matched pair.** Tokens are words and punctuation for English, **BudouX phrases** for Japanese.
+- **Alternatives considered:**
+  - *Git-style line diffing* — rejected. Git compares lines because in code a line is a meaningful unit; in prose a paragraph is one very long line, so a two-word edit would mark the whole paragraph changed.
+  - *Single-pass token diff with no paragraph alignment* — rejected. An inserted sentence shifts every following token out of alignment, so the rest of the document reads as changed. The alignment pass is what allows unchanged paragraphs to render identically at full opacity, which `10-screen-specifications.md` requires.
+  - *`diff-match-patch` (character-level with semantic cleanup)* — rejected: character granularity is explicitly forbidden for Japanese by the design system.
+- **Reason:** the author asked for GitHub's diff model. GitHub's *interaction* model was already adopted in Phase 3; this adopts its algorithm while correcting the granularity. Verified end to end on Japanese prose — BudouX tokens through `diffArrays` produce marks on phrase spans, with a changed figure rendered as one phrase replaced rather than a scatter of single characters.
+- **Revisit if:** paragraph alignment produces poor matches on heavily restructured renders — the fallback is a similarity threshold tuned against real proposals, not a different algorithm.
+
+---
+
+### [2026-08-12] One `facts` table holds candidates, accepted and rejected facts
+
+- **Decision:** Candidate facts, accepted facts and rejected facts are **one table** distinguished by a `status` column (`candidate` / `accepted` / `rejected`). Rejected rows are **retained forever**.
+- **Alternatives considered:** a separate `fact_candidates` table promoted into `facts` on acceptance (rejected — the quote, offsets, provenance and disclosure would have to exist on both, and deduplication would need to query two tables); deleting rejected candidates (rejected — retaining them is precisely what stops a re-import re-proposing something already judged).
+- **Reason:** review is a state change on one object, not a move between two. A single table makes the unique `(user_id, dedupe_hash)` index a one-lookup answer to "have I already judged this?"
+- **Revisit if:** rejected candidates grow large enough to affect index performance — the answer is a partial index, not a second table.
+
+---
+
+### [2026-08-12] `credentials` gains `started_on` and `expires_on`; still no seventh entity
+
+- **Decision:** `credentials` carries `kind` (`education` / `certification`), **`started_on`** and **`expires_on`** in addition to the Phase 1 shape of institution, name and date.
+- **Reason:** the 履歴書 学歴 section requires **two** dated rows per education entry — 入学 from `started_on` and 卒業 from `awarded_on` — which a single-date shape cannot produce. `expires_on` drives the overview tile's `1 expires Mar 2027` sub-note. This is exactly the case the 2026-08-11 entity decision anticipated: *"a render turns out to need a field no entity carries — the field is added to an existing entity before any new entity is introduced."* Education stays in `credentials`; no seventh entity is created.
+- **Revisit if:** education acquires fields certifications cannot share at all.
+
+---
+
+### [2026-08-12] No separate `person` table — `users.id` is the person
+
+- **Decision:** PRD §1's "no design decision may assume exactly one person exists" is satisfied by every record-bearing table carrying `user_id` referencing Better Auth's `users`. **No parallel `person` or `profile_owner` table is created.**
+- **Alternatives considered:** a `persons` table separate from auth identity, so the record could outlive an auth provider change (rejected — it duplicates identity across two tables with no rule for which is authoritative, and an auth migration is a data migration either way).
+- **Reason:** the constraint is about foreign keys existing, not about a particular table name. `profiles` holds the 履歴書 identity fields and is 1:1 with `users`, which keeps PII in one governed place.
+- **Revisit if:** the app ever needs to represent a person who cannot sign in.
+
+---
+
+### [2026-08-12] Education and certifications are separate tables — supersedes the Phase 1 combination
+
+- **Decision:** `credentials` is split into **`educations`** and **`certifications`**.
+- **Supersedes:** the 2026-08-11 entity decision, which rejected *"Separate Certification and Education entities … as an unnecessary split of identical shapes."* The shapes turned out not to be identical. `02-product-requirements.md` §2's row *"Credential — one shape covers both"* is stale as of this entry; the PRD is a Phase 1 document and is left as written, with this entry as the correction.
+- **Reason:** the split was already visible as strain in the combined table — `started_on` was meaningful for only one kind, `expires_on` for only the other, and a `kind` enum gated which columns were legal. The fields genuinely diverge: education carries faculty (学部・学科), degree, field of study and an **outcome**; a certification carries an issuing organisation, a credential ID and a verification URL. Two tables with honest columns beat one table with half its columns conditionally null.
+- **`educations.outcome`** (`graduated` / `completed` / `withdrawn` / `expected`) is a correctness requirement, not decoration: 履歴書 convention requires a withdrawal to read **中退**, not 卒業. Rendering it wrong is a misrepresentation rather than a formatting slip.
+- **Two LinkedIn certification fields deliberately not adopted:**
+  - *Skills association* — LinkedIn attaches skills directly to a certification. Rejected: it creates a second, hand-authored source of skills alongside the derived one, which is the drift PRD §9.8 exists to prevent. `certifications.technologies` feeds the **same** candidate pool as `facts.technologies` instead, so there is still exactly one place skills come from.
+  - *Media attachments* — rejected: there is no object storage, and no render displays them.
+- **`credential_id` and `credential_url` are stored but not rendered in v1** — useless to the five renders, useful to the author at renewal time, and two nullable columns.
+- **Consequence:** the record now has **seven** entities rather than six. The overview screen's Credentials tile counts both tables together, so no interface change follows.
+- **Revisit if:** never expected.
+
+---
+
+### [2026-08-12] Month precision, not day precision, on every calendar column
+
+- **Decision:** Every calendar column in the schema stores a `date` **with the day always `01`**, and the day is **never rendered**. Forms collect month and year only.
+- **Alternatives considered:** full `date` precision (rejected — it implies a precision no render uses and forces the author to invent the day they started a job in 2016); a `year`/`month` integer pair (rejected — loses ordinary Postgres date sorting, comparison and arithmetic for no gain).
+- **Reason:** noticed while reviewing LinkedIn's certification form, which collects month and year only. 履歴書's 学歴・職歴 and 免許・資格 tables have `年` and `月` columns and nothing finer, and the English résumé and 職務経歴書 are the same. The first draft of `04-database-schema.md` used full dates throughout, which was wrong in a way that would have surfaced as awkward data entry rather than as a bug.
+- **Revisit if:** a render ever needs a day. None of the five does.
+
+---
+
+### [2026-08-12] Bootstrap flow: entity extraction from documents the author already holds
+
+- **Decision:** A second extraction target is added — **entity extraction** — which proposes `employers`, `roles`, `educations`, `certifications` and `profiles` fields from an existing 履歴書, 職務経歴書 or résumé. It reuses the same import pipeline and the same card-review interaction as fact extraction; only the target schema differs. **M2.** Added as `09-user-flows.md` Flow 7.
+- **Reason:** every flow written before this one assumed an empty record, which is not the author's actual starting position. The existing 履歴書 already contains four employers with industries and dates, seven education entries with 入学 and 卒業, and eighteen certifications. Typing that into forms is an hour of data entry that will be deferred and then skipped; extracting it from a file that already exists is one import. This is the difference between M3 taking an afternoon and taking a month.
+- **Rules that fall out of it:**
+  - **Entities carry no provenance or disclosure.** Those belong to facts — claims about what the author did. An employer is not a claim.
+  - **PII extracted from a 履歴書 populates `profiles` and never becomes a fact.** The author's address is a per-render field rule, not a career claim.
+  - **An ambiguous 卒業 / 中退 is never guessed** — `outcome` stays unset until the author chooses. Rendering a withdrawal as a graduation is a misrepresentation.
+  - **The bootstrap document is a source document like any other** and, per PRD §6.1, never renders or exports. Importing one's own 履歴書 does not make it emittable.
+- **Alternatives considered:** manual forms only (rejected — data entry is what gets skipped on a busy week, which is the same reasoning that produced the import pipeline in the first place).
+- **Revisit if:** entity extraction proves less accurate than typing, in which case it becomes a pre-fill for the forms rather than a review flow.
+
+---
+
+### [2026-08-12] An existing hand-written render is never adopted as version 1
+
+- **Decision:** The app does **not** import the author's existing résumé, 履歴書 or 職務経歴書 as `v1` of the corresponding render. Every render version is generated from facts. Existing documents are only ever imported as **source documents** (for entity or fact extraction), never as render versions.
+- **Alternatives considered:** seeding `render_versions` with the author's current hand-tuned documents, so the first proposal diffs against the real thing rather than against nothing.
+- **Reason:** a seeded version would not be derived from facts, so **no line in it would have a supporting fact**. The rationale bar is required on every change, and it would read *"Removed — no fact in your record supports it"* across the entire document. The first diff the author ever saw would be noise, on the screen the whole review gate depends on. M1's success criterion is a **by-eye** comparison of the generated résumé against the existing one — a better test that requires no feature.
+- **Revisit if:** never expected. If the first generated résumé is worse than the hand-written one, the fix is a richer fact model (per the brief's riskiest assumption), not adopting the old file.
+
+---
+
+### [2026-08-12] Sign-up is invite-only — as the model, not as a temporary restriction
+
+- **Decision:** Registration is **invite-only, permanently.** Open sign-up is not a later default that invite-only is holding back; opening it would be a separate decision gated on three concrete preconditions. Today the invite list is a single-address environment variable (`ALLOWED_SIGNUP_EMAILS`); when a second user exists it becomes an `invites` table at the same enforcement point, returning the same `403` and creating no `users` row.
+- **Alternatives considered:**
+  - *Open sign-up once the app is stable* — rejected. Every user spends the operator's Anthropic budget, so one account importing a 500-page PDF is an unbounded bill against a personal credit card. Growth here is a cost and a legal exposure before it is validation.
+  - *A waitlist* — rejected as a product surface for demand that does not exist.
+- **Reason (author's, verbatim in substance):** *"I don't want to suddenly have hundreds of users."*
+- **Gates that must exist before open registration is even discussable:** (1) a hard per-user spend cap on model calls; (2) per-user rate limiting on the import and generate endpoints; (3) a privacy policy, terms, and an account-deletion path that actually deletes — a legal obligation once strangers store their own PII and their employers' confidential material. A fourth, product-level gate: 履歴書 and 職務経歴書 are currently assumed rather than optional, so a user with a purely Western career would be shown two renders they cannot use.
+- **Revisit if:** all four gates are met **and** the author actively wants growth. Meeting the gates alone is not a trigger.
+
+---
+
+### [2026-08-12] One end-to-end smoke test, not an E2E suite — and agent browsing is not testing
+
+- **Decision:** **One** Playwright test in CI, covering the critical path end to end: sign in → import → accept a fact → generate the résumé → accept the proposal → download the `.docx`, asserting a valid zip with the correct MIME type. No broader end-to-end suite. Separately, **Claude Code's browser tooling may drive manual-checklist items 5–7** as exploratory verification.
+- **Supersedes:** the first draft of `11-testing-plan.md`, which stated *"explicitly acceptable for v1: no end-to-end browser tests."*
+- **Alternatives considered:**
+  - *No E2E at all* — recommended first and **withdrawn on the author's challenge.** It left a real hole: nothing would catch **wiring breakage** — auth middleware misconfigured, static assets not served, a route not mounted, the download endpoint returning HTML instead of a file. Every one of those passes unit and API tests and fails the moment the app is opened.
+  - *Agent-driven browsing instead of Playwright* — the author's suggestion, and **rejected as a substitute** while adopted as a complement. Three different activities were being conflated: automated regression tests in CI (deterministic, free, every push), agent-driven verification during development (interactive, exploratory, costs tokens per run), and human manual checking. Agent browsing does the second well and part of the third; it cannot do the first, because CI needs determinism and zero marginal cost.
+  - *A full E2E suite* — rejected: at three screens and one developer, broad E2E rots fastest and catches least.
+- **Reason:** the smoke test is the cheapest possible proof that the deployed application actually works, and it fails for reasons no other test in the plan can see.
+- **Revisit if:** a second smoke path is justified — it would be 履歴書 generation, which can fail in ways the résumé cannot.
+
+---
+
+### [2026-08-12] No test coverage target
+
+- **Decision:** The project sets **no coverage percentage**. The eight must-have suites in `11-testing-plan.md` §2 are the target.
+- **Alternatives considered:** a conventional 80% line-coverage gate.
+- **Reason:** coverage measures lines executed, not failures prevented. It is possible to reach 90% while never asserting that a Private fact stays out of a résumé — which is the single assertion this project most needs. A named list of silent failures is a target that cannot be satisfied by executing code that checks nothing.
+- **Revisit if:** a second developer joins, where a coverage floor has value as a social norm rather than as a quality measure.
+
+---
+
+### [2026-08-12] Deploy on merge to `main`; rollback and restore rehearsed before M1 is done
+
+- **Decision:** GitHub Actions deploys on every merge to `main` — type check, tests, migrate, build, deploy, smoke-check `/api/health`. Manual `wrangler deploy` remains available. **The rollback procedure and a database point-in-time restore are each executed once, deliberately, before M1 is called done.**
+- **Alternatives considered:** manual deploys only (rejected — the value of CI here is that the tests run, not that the deploy is automated); leaving rollback documented but unrehearsed (rejected — a rollback procedure nobody has run is a hypothesis, and it is exercised for the first time during the incident it was written for).
+- **Reason:** migrations run before the Worker deploys, which makes backward-compatible migrations mandatory and makes rollback safe by construction — but only if the path has actually been walked once.
+- **Revisit if:** CI outages start blocking urgent fixes; the manual path already exists for that case.
+
+---
+
+### [2026-08-12] A consolidated deferred-work register replaces scattered "later" notes
+
+- **Decision:** `03-technical-design.md` §12 holds a **single register of every deferred item**, each with the trigger that unblocks it, grouped as M2 / M3 / gated-on-second-user / indefinite-with-a-named-fallback. Items leave the table when they ship or when a decision-log entry retires them.
+- **Reason:** requested by the author when deferring rate limiting. Deferrals scattered across eight documents are functionally forgotten, and "later" without a trigger is indistinguishable from "never". The register also makes the second-user gates legible as a **group** — rate limiting, spend cap, account deletion, legal documents, error alerting and optional Japanese renders are six items that must land together, and reading them in one block makes clear that inviting a second person is a project rather than a config change.
+- **Revisit if:** the register grows past roughly 30 items, at which point it wants to become GitHub issues rather than a table.
