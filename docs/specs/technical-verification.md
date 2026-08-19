@@ -351,7 +351,31 @@ for partial indexes. Every index in `04` §3.7 is expressible.
 
 ---
 
-### 14 🔬 Drizzle `db.transaction()` over `neon-http` — **documentation does not settle this**
+### 14 ✅ Drizzle `db.transaction()` over `neon-http` — **RESOLVED: it throws; use `db.batch()`**
+
+**Settled 2026-08-12 by reading the shipped driver source**, which is more definitive than any doc
+page. `drizzle-orm@0.45.2`, `neon-http/session.js`:
+
+```js
+// line 151
+async transaction(_transaction, _config = {}) {
+  throw new Error("No transactions support in neon-http driver");
+}
+
+// line 131 — inside the BATCH implementation
+const batchResults = await this.client.transaction(builtQueries, queryConfig);
+```
+
+**`db.transaction()` throws. `db.batch([...])` works, and runs through the Neon driver's real
+non-interactive transaction — so it is atomic.** That is precisely the "fixed sequence of statements"
+shape already recorded as a constraint, so the design needs no change: the API call does.
+
+**Amended:** `03` §5, `04` §7. **Version-specific** — recheck if Drizzle's neon-http driver gains
+transaction support.
+
+---
+
+### 14a (original, superseded) — documentation did not settle this
 
 Drizzle documents `neon-http` and `neon-websockets` drivers and repeats Neon's framing — HTTP is for
 "single, non-interactive transactions", WebSockets for "session or interactive transaction support".
@@ -372,7 +396,7 @@ underlying driver's `sql.transaction([...])`, which is confirmed to work over HT
 | B | `docx` / `docxtemplater` on Workers | M2 |
 | C | `.docx` assembly inside the CPU budget | M1 measurement |
 | D | Citations alongside *strict tool use* (optional redundancy) | nothing |
-| **14** | **Drizzle `db.transaction()` on `neon-http`** | **M1 — do this first** |
+| ~~14~~ | ~~Drizzle `db.transaction()` on `neon-http`~~ | ✅ **resolved 2026-08-12 from source** |
 
-No documentation can settle these four. Everything else in `docs/01`–`13` now rests on a primary
-source.
+Three spikes remain, all requiring code to be run rather than read. Everything else in `docs/01`–`13`
+now rests on a primary source.

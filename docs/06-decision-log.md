@@ -587,3 +587,14 @@ Append-only. The answer to every future "why is it like this?"
   5. **One language means one type contract.** The Drizzle schema, the API and the React client share types end to end. Two languages means maintaining that boundary by hand, which for a solo developer is a standing tax.
 - **Alternatives considered:** Go on Cloudflare Workers via TinyGo/WASM (rejected — ecosystem and bundle cost for no gain); Go on Fly / Railway / Cloud Run (rejected — forfeits Workflows and the cost shape, and reopens a settled decision); Rust (same objections, plus a steeper cost to a solo maintainer).
 - **Revisit if:** this becomes a genuinely multi-tenant product with sustained traffic, **or** profiling shows CPU rather than model latency as the bottleneck. Neither is plausible at one user — and if it ever happens, the two-function model seam and a Postgres database mean the API layer is the **cheapest** component to rewrite.
+
+---
+
+### [2026-08-12] Multi-statement writes use `db.batch()`; `db.transaction()` throws on `neon-http`
+
+- **Decision:** Every multi-statement write goes through **`db.batch([...])`**. **`db.transaction()` is never used** while the application is on the `neon-http` driver.
+- **How this was settled:** by reading the **shipped driver source**, not documentation — which had left the question open. In `drizzle-orm@0.45.2`, `neon-http/session.js:151` is literally `throw new Error("No transactions support in neon-http driver")`. The same file's batch path (line 131) calls the Neon driver's `client.transaction(builtQueries, queryConfig)`, so **`db.batch([...])` executes as a genuine single non-interactive Postgres transaction and is atomic.**
+- **Why this is a non-event for the design:** the constraint `db.batch` imposes — a fixed statement list decided up front, with no read-then-decide-then-write step inside the transaction — is the same constraint already recorded when the HTTP driver was chosen. The two places it matters, accepting a proposal and finishing an import, both satisfy it. Only the API call changes, not the architecture.
+- **Alternatives if it had gone the other way:** the underlying `sql.transaction([...])` from `@neondatabase/serverless` directly, bypassing Drizzle; or moving to the `neon-websockets` driver, which supports interactive transactions but whose `Pool`/`Client` **cannot outlive a single request handler** in Workers.
+- **This finding is version-specific.** Recheck if Drizzle's `neon-http` driver ever gains transaction support.
+- **Revisit if:** a feature genuinely requires reading inside a transaction and deciding what to write next — at which point the driver, not the query, is what changes.
