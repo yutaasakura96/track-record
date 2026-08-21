@@ -15,7 +15,8 @@ survives only in git history.
 
 ## Stack (decided 2026-08-12 — see the decision log)
 
-Cloudflare Workers (paid) · Hono API · React + Vite SPA · Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
+Cloudflare Workers (paid) · Hono API · React + Vite SPA · TanStack Router + Query · Zustand ·
+Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
 Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
 two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
 `docxtemplater` for Word output.

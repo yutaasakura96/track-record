@@ -16,6 +16,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | Client | **React + Vite**, served as Workers static assets | Three screens, no public surface, nothing to server-render |
 | Styling | **Tailwind v4** — `@theme` generated from `05-design-system.md` | In v4 tokens *are* utilities, so the design system stays the single source |
 | Components | **shadcn/ui**, selectively, restyled to doc 05 on add | Copied into the repo and owned, not a runtime dependency |
+| Client routing | **TanStack Router** | Type-safe, Vite-native. Three screens — a small file, not a framework |
 | Client server-state | **TanStack Query** | Caching, refetch, mutation lifecycle |
 | Client UI-state | **Zustand** | Selection, filters, highlighted change — never server data |
 | Database | **Neon Postgres** (free tier) | Scale-to-zero, branching, no forced unpause |

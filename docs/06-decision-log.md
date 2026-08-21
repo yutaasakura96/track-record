@@ -598,3 +598,40 @@ Append-only. The answer to every future "why is it like this?"
 - **Alternatives if it had gone the other way:** the underlying `sql.transaction([...])` from `@neondatabase/serverless` directly, bypassing Drizzle; or moving to the `neon-websockets` driver, which supports interactive transactions but whose `Pool`/`Client` **cannot outlive a single request handler** in Workers.
 - **This finding is version-specific.** Recheck if Drizzle's `neon-http` driver ever gains transaction support.
 - **Revisit if:** a feature genuinely requires reading inside a transaction and deciding what to write next — at which point the driver, not the query, is what changes.
+
+---
+
+### [2026-08-21] Next.js reconsidered and rejected again — on corrected grounds
+
+- **Decision:** The client stays a **Vite + React SPA with a Hono API**. Next.js is not adopted, in any configuration.
+- **Why this entry exists:** the 2026-08-12 stack entry rejected Next.js partly on grounds that **have since been withdrawn as inaccurate**, and a decision resting on a bad argument is worth re-deciding even when the outcome is unchanged.
+- **What was withdrawn:** that entry described the OpenNext adapter as "a translation layer … and a standing source of works-locally-breaks-deployed." **That is not supported by the current state.** Cloudflare publishes an official Next.js framework guide, and the support matrix is nearly complete — App Router, Pages Router, Route Handlers, React Server Components, SSR, SSG, ISR, Server Actions, response streaming and middleware are all supported; only Node.js middleware is not. Next.js 15 and 16 are supported. "It does not work well on Cloudflare" is no longer a valid objection.
+- **A middle option was raised by the author and taken seriously: Hono mounted inside Next.js**, at a catch-all route handler. It is coherent, and it **removes the strongest objection** — the route registry and deny-by-default middleware survive intact, because they depend on Hono owning the API surface, not on Vite. It was briefly recommended.
+- **Why it was rejected anyway, on the author's instinct that it "feels weird" — which was correct:** it means running a server-rendering framework whose entire value proposition is bypassed twice. The API is bypassed because Hono owns it; the UI is bypassed because every screen is client-side interactive behind authentication. The result carries Next.js, the OpenNext adapter, and a custom worker wrapper for the Workflow exports, in order to ship what is functionally a single-page application.
+- **The fluency argument, weighed properly rather than assumed:** the flip to Next.js rested on "agents write Next.js better", the same argument that won for Tailwind. Measured, the delta here is **roughly twenty lines of routing setup instead of file-system conventions** — React components, the Hono router and the data layer are identical either way. That is not comparable to plain CSS versus Tailwind, where the gap was large *and* the tool actively enforced the design system. The precedent was over-applied.
+- **Also corrected:** shadcn/ui is not a reason to choose Next.js. It is a code generator that works with Vite + React.
+- **The governing principle, recorded because this question will recur:** *choose the smallest thing that spans the requirements.* Every gap between what a framework assumes and what is being built resurfaces later as configuration, and configuration is where "works locally, breaks deployed" lives. More importantly — the hard parts of this project are Japanese phrase-level diffing, quote-anchored extraction, 履歴書 fidelity and four-point confidentiality. **None of them is a frontend framework problem.** The stack should be boring so that attention goes to the parts that are not.
+- **Revisit if:** the portfolio site (explicitly a separate product) is ever merged into this application, which would introduce a genuine public, SEO-sensitive surface.
+
+---
+
+### [2026-08-21] TanStack Router for client routing
+
+- **Decision:** **TanStack Router** handles client-side routing.
+- **Note on provenance:** this had **not** been decided before. `TanStack Query` (server state) was chosen on 2026-08-12 and is a different library; the two were briefly conflated. Recorded here so the log does not imply a decision that was never made.
+- **Alternatives considered:** React Router v7 (equally fine; the choice is close to arbitrary at three screens); Next.js file-system routing (see the entry above).
+- **Reason:** type-safe, Vite-native, and small. Three screens plus the M2 forms do not need more.
+- **Revisit if:** never expected.
+
+---
+
+### [2026-08-21] The stack is frozen
+
+- **Decision:** The stack below is **settled**. Changing any part of it now requires a decision-log entry naming a **triggering problem** — something that does not work, or a requirement that cannot be met — **not a preference, a comparison, or a newer alternative.**
+
+  Cloudflare Workers (paid) · Cloudflare Workflows · Hono · React + Vite · TanStack Router · TanStack Query · Zustand · Tailwind v4 · shadcn/ui · Neon Postgres · Drizzle · Better Auth with Google OIDC · Anthropic `claude-opus-5` · BudouX · jsdiff · `docx` · `docxtemplater` · `fflate`
+
+- **Alternatives surveyed and closed:** Next.js in three configurations (see above); Go and other compiled languages (2026-08-12); Python with Django or FastAPI — **rejected because it forfeits the entire infrastructure plan**: Python does not run on Cloudflare Workers with these libraries, so leaving Cloudflare means losing Workflows (which is why the import pipeline is nine steps rather than a job queue, a retry table and a dead-letter mechanism), losing $5/month flat with scale-to-zero, and reopening roughly twenty settled entries plus two verification rounds — in exchange for a better `.docx` library. Svelte, Vue, Nuxt and Astro — rejected as frontend-only changes that alter nothing about the API, data, pipelines or infrastructure; Astro is additionally built for content sites, while the two core screens are heavy stateful interaction. VoidZero — not a framework; it is the company behind Vite, Rolldown, Oxc and Vitest, all of which this stack already uses.
+- **Reason:** `01-project-brief.md` names **perfectionism as the second-order risk most likely to kill this project** — "never actually used" as a realistic failure mode. Re-evaluating an already-verified stack is precisely what that failure looks like from the inside, and the cost of continuing to choose now exceeds the difference between the options. Two verification rounds, 53 prior decisions and two resolved spikes all rest on this stack; each re-litigation risks invalidating work that is finished.
+- **This freeze is not permanent and not bureaucratic.** Its only function is to convert "I could use X" from an open question re-litigated late at night into a closed one that needs a reason to reopen.
+- **Revisit if:** a triggering problem appears. The November 2026 checkpoint asks whether the project is still moving — **not** whether the stack is still optimal.
