@@ -49,7 +49,7 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 | 4 | Anthropic unavailable mid-import | Import pauses at the failed chunk. **Chunks already completed keep their candidates.** Retry resumes from the failure, not from the start |
 | 4 | A candidate's quote is not verbatim in the source | Silently discarded before the author sees it. Counted in `candidatesDiscarded`, never shown as content |
 | 5 | Author sets **Measured** on a fact with no evidence | `422`: *"A Measured fact needs a passage in the source that proves it."* |
-| 5 | Author accepts a **Generated** fact | **Succeeds.** It enters the record flagged and is excluded at render time — the block is at render time, not review time |
+| 5 | Author accepts a **Generated** fact | **Succeeds.** It is accepted, flagged, and excluded at render time — the block is at render time, not review time |
 | 5 | Author accepts a **Private** fact | Succeeds normally. The button reads `Accept · private` |
 
 **If abandoned mid-review:** every decision already made is **already saved** — accept, reject and
@@ -133,7 +133,7 @@ diff-against-previous baseline is correct on the next import.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 3 | Author abandons mid-interrogation | Draft retained. **No facts enter the record** until accepted |
+| 3 | Author abandons mid-interrogation | Draft retained. **No facts are created** until accepted |
 | 4 | A numeric claim with no source | Stays **Attested**, not Measured. There is no passage to point at |
 
 **Target: under a minute for a simple entry** (S12).
@@ -150,11 +150,11 @@ one import. This flow is the difference between M3 taking an afternoon and takin
 1. Empty-state overview offers two paths: **Import a case study** and **I already have a 履歴書 or
    résumé**.
 2. Author uploads an existing 履歴書, 職務経歴書 or résumé.
-3. The pipeline runs with an **entity extraction target** instead of the fact target — proposing
+3. The pipeline runs with an **entity extraction target** instead of the fact target — extracting
    `employers`, `roles`, `educations`, `certifications` and `profiles` fields.
-4. Review screen, **same card interaction as Flow 2**, but each card proposes an *entity* rather
+4. Review screen, **same card interaction as Flow 2**, but each card carries an *entity* rather
    than a fact. Fields are editable inline before accepting.
-5. Accept → rows are created. Reject → nothing is created and the entity is not re-proposed.
+5. Accept → rows are created. Reject → nothing is created and the entity is not re-offered.
 6. Author proceeds to Flow 2 for each case study, now that employers and projects exist to attach
    facts to.
 

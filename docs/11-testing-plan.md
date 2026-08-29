@@ -140,9 +140,9 @@ Then paragraphs after it are still reported as UNCHANGED
 Given a document imported once, with some facts accepted and some rejected
 When an edited version of the same document is imported
 Then only changed and added passages are sent to the model
-And no accepted fact is re-proposed
-And no rejected fact is re-proposed
-And an unchanged re-import proposes zero candidates and is NOT reported as a failure
+And no accepted fact is re-offered
+And no rejected fact is re-offered
+And an unchanged re-import extracts zero candidates and is NOT reported as a failure
 ```
 
 ### 2.7 Failure never destroys a stored version

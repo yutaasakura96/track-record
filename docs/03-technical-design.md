@@ -242,7 +242,7 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 > request handler**.
 
 **Step 3 is the answer to PRD §8's re-import row** — all three clauses at once. Accepted facts are
-not duplicated, only genuinely new content is proposed, and rejected facts stay rejected, without
+not duplicated, only genuinely new content is extracted, and rejected facts stay rejected, without
 the app ever reasoning about fact identity. A 15%-changed document costs roughly 15% of a fresh
 extraction.
 

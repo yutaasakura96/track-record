@@ -77,10 +77,10 @@ full-width primary button: `Add N facts to record`, disabled reading `Nothing ac
 
 ### Rules
 
-- **A Generated fact can be accepted.** It enters the record flagged and is excluded at render time. The prototype blocks acceptance outright; that is wrong — see the decision log entry of 2026-08-12. Accept must remain enabled, with the card clearly marked as not renderable.
+- **A Generated fact can be accepted.** It is accepted, flagged, and excluded at render time. The prototype blocks acceptance outright; that is wrong — see the decision log entry of 2026-08-12. Accept must remain enabled, with the card clearly marked as not renderable.
 - **Private facts are accepted normally.** The accept button reads `Accept · private`.
 - **No confidence score.** The prototype shows `p 0.96`; it is cut.
-- Re-importing an updated document must not re-propose facts already accepted or rejected.
+- Re-importing an updated document must not re-surface facts already accepted or rejected.
 
 ### States
 

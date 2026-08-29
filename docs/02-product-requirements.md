@@ -49,14 +49,14 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S1 · Import a case study** — `MUST` · M1
 > As the Author, I want to import the long technical document I generate per project, so that its content becomes reusable facts instead of prose I have to re-read.
 
-**Acceptance:** A document is imported. The app proposes a list of candidate facts, each with a pointer to the passage it came from. No fact enters the record until reviewed (S2).
+**Acceptance:** A document is imported. The app extracts a list of candidate facts, each with a pointer to the passage it came from. No fact is accepted until reviewed (S2).
 
 ---
 
-**S2 · Review proposed facts** — `MUST` · M1
-> As the Author, I want to accept, edit or reject each proposed fact and set its provenance and disclosure, so that the record contains only claims I stand behind.
+**S2 · Review candidate facts** — `MUST` · M1
+> As the Author, I want to accept, edit or reject each candidate fact and set its provenance and disclosure, so that the record contains only claims I stand behind.
 
-**Acceptance:** Each candidate can be accepted, edited then accepted, or rejected. Every accepted fact has a provenance value (Measured / Attested / Generated) and a disclosure value (Public / Restricted / Private). Rejecting is one action and does not re-propose the same fact on a later import of the same document.
+**Acceptance:** Each candidate can be accepted, edited then accepted, or rejected. Every accepted fact has a provenance value (Measured / Attested / Generated) and a disclosure value (Public / Restricted / Private). Rejecting is one action and does not re-offer the same fact on a later import of the same document.
 
 ---
 
@@ -207,7 +207,7 @@ The ugliest case per feature, and what happens.
 | Feature | Ugly case | Required behaviour |
 |---|---|---|
 | Import | A very large document (the existing corpus is ~2.4 MB of prose) | Must not fail, block the interface, or silently truncate. Partial progress is visible |
-| Import | The **same document re-imported** after being updated at work — the normal case, since case studies are regenerated | Facts already accepted are recognised, not duplicated. Only genuinely new content is proposed. Previously rejected facts stay rejected |
+| Import | The **same document re-imported** after being updated at work — the normal case, since case studies are regenerated | Facts already accepted are recognised, not duplicated. Only genuinely new content is extracted. Previously rejected facts stay rejected |
 | Import | Two documents assert **different numbers for the same thing** | Surfaced as a conflict for the author to resolve. Never silently last-write-wins |
 | Import | The model invents a plausible fact absent from the source | Contained by design: everything model-produced starts **Generated**, and Generated never renders |
 | Scrub | A confidential identifier is missed by the scrub | Mitigated, not solved: scrubbing is a default, not a guarantee. Review is the real control, and the review UI must make unreviewed material obvious |

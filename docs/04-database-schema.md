@@ -260,7 +260,7 @@ Source documents **never render, export, or appear in any output.** They exist t
 ### 3.7 `facts` — the core object
 
 **One table holds candidates, accepted facts and rejected facts.** `status` distinguishes them.
-Rejected rows are retained forever, because that is what stops a re-import re-proposing them.
+Rejected rows are retained forever, because that is what stops a re-import re-offering them.
 
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
@@ -540,7 +540,7 @@ technologies: {AWS, VPC, IAM}
 | `render_versions` | **Never deleted.** Restoring creates a new version (S14) |
 | `render_proposals` (dismissed) | Retained. Generation is non-deterministic, so a dismissed draft may hold phrasing worth recovering. Age out only if they become noise |
 | `source_document_versions` | **Never deleted.** They are the evidence every Measured fact points at |
-| `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-proposing them |
+| `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-offering them |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
 | Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |
