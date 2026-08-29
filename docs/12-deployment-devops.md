@@ -124,6 +124,14 @@ record ever starts feeling irreplaceable.
 **A restore is tested once before M1 is done** — restore a branch to a point in time, confirm the
 record is intact. Untested backups are not backups.
 
+**And then monthly, automatically — the restore drill.** Decided 2026-08-29. A scheduled job loads
+the most recent `GET /api/export` output into a scratch database and asserts row counts per table
+and referential integrity across every foreign key. It fails loudly. This is what converts the
+six-hour window from a risk that is *accepted* into one that is *tested*: the export is the only
+recovery path for anything older than six hours, and an export that has never been restored is a
+belief, not a backup. **Passing the drill once is an M1 exit criterion**, alongside the rollback
+rehearsal in §4.
+
 ---
 
 ## 6. Incident: a leaked key

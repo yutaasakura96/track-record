@@ -124,9 +124,19 @@ generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
 Swapping providers is a config value plus one adapter file. This is what makes the M2 bake-off
 (Opus 5 vs Kimi K3 vs GPT-5.6 Terra) cheap enough to actually run.
 
+**The seam distinguishes calls a human is waiting on from calls nobody is watching.** Decided
+2026-08-29. `ExtractionContext` carries that flag from the start, even though M1 has only one
+setting for it. Interactive single-document import **streams**, so review cards appear incrementally
+rather than after one long silence (`09` Flow 2). Bulk work — the M2 bootstrap flow, and
+re-extraction after a parser upgrade — goes through **Message Batches at 50%**. That second half is
+worth more than it looks: because a parser upgrade creates a new source document version rather than
+re-extracting in place, full-corpus re-extraction is a *recurring* cost, and Batch halves it
+permanently. **Nothing batched is built in M1** — where there is one document and one employer,
+there is no bulk. The M1 obligation is only that the signature can express it without a rewrite.
+
 ### 4.1 Extraction contract — quote anchoring
 
-The extractor is a **strict-schema tool call**. The model calls `propose_fact` once per candidate.
+The extractor is a **strict-schema tool call**. The model calls `extract_fact` once per candidate.
 One required field is `quote`: the **verbatim** span from the source that supports the claim.
 
 The application then locates that quote in the stored source text **by exact string match** to

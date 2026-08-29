@@ -635,3 +635,33 @@ Append-only. The answer to every future "why is it like this?"
 - **Reason:** `01-project-brief.md` names **perfectionism as the second-order risk most likely to kill this project** — "never actually used" as a realistic failure mode. Re-evaluating an already-verified stack is precisely what that failure looks like from the inside, and the cost of continuing to choose now exceeds the difference between the options. Two verification rounds, 53 prior decisions and two resolved spikes all rest on this stack; each re-litigation risks invalidating work that is finished.
 - **This freeze is not permanent and not bureaucratic.** Its only function is to convert "I could use X" from an open question re-litigated late at night into a closed one that needs a reason to reopen.
 - **Revisit if:** a triggering problem appears. The November 2026 checkpoint asks whether the project is still moving — **not** whether the stack is still optimal.
+
+---
+
+### [2026-08-29] The AWS alternative was surveyed and does not reopen the freeze
+
+- **Decision:** A full AWS design — CloudFront + Lambda Function URL + Aurora Serverless v2 over the RDS Data API + Step Functions + S3 with versioning and Object Lock, and **no VPC anywhere** — was worked out in detail and is **closed**. The stack frozen on 2026-08-21 stands unchanged.
+- **What motivated it:** immutable evidence storage (S3 Object Lock makes a source document physically incapable of being overwritten, and the S3 version ID becomes the anchor fact offsets reference), IAM-based credentials (no long-lived API key to leak from a public repo or rotate), and vendor API stability over a decade.
+- **Why none of it clears the bar:** the freeze requires a **triggering problem** — something that does not work, or a requirement that cannot be met. Immutability is a *strengthening* of an invariant the code already holds (a source document version is never re-extracted in place), not a repair of a broken one. IAM is a better credential model, not a response to a leak. Stability is a comparison. All three are preferences, which is exactly what the freeze exists to exclude.
+- **Cost was a tie, not a saving:** ~$6–26/month against the current $5 plus the same model tokens — bought at the price of roughly ten IaC components to maintain instead of one Worker, plus cold-start stacking (Lambda cold start on top of Aurora resume from zero) on a project whose named failure mode is *"never actually used."*
+- **What to reach for instead, if immutability is the part worth having:** **Cloudflare R2 supports bucket locks** — retention policies preventing overwrite and deletion, for a period or indefinitely. Narrower than S3 (no governance/compliance split, no legal hold) but it covers the core requirement with no new vendor and no egress fees. That is the move, not a platform migration.
+- **Two findings kept, independent of platform:** a monthly automated restore drill (see `12` §5) and splitting model calls by whether a human is waiting (see `03` §4). Both are recorded as separate decisions of the same date.
+- **The exploration document** is archived outside this repository. It is not needed to act on this entry.
+- **Revisit if:** the triggering-problem bar is met — not because the comparison is revisited.
+
+---
+
+### [2026-08-29] A monthly restore drill, because an untested export is not a backup
+
+- **Decision:** A scheduled monthly job loads the most recent `GET /api/export` output into a scratch database and asserts per-table row counts and referential integrity across every foreign key. Failing loudly is the point. **Passing it once is an M1 exit criterion**, alongside the rollback rehearsal (`12` §4).
+- **Reason:** the 2026-08-12 entry accepted Neon Free's **six-hour** restore window and promoted `GET /api/export` to M1 as the recovery path for anything older. That makes the export the *only* thing standing between a Wednesday discovery of a Monday corruption and total loss — and it had never been restored. The drill is what turns an accepted risk into a tested one.
+- **Not decided:** automating the export itself nightly. The manual export plus a proven restore path is enough while the record is small; `12` §5 already names automation as the first thing to revisit if the record starts feeling irreplaceable.
+- **Independent of platform.** This surfaced during the AWS survey (same date) and was kept when that was closed.
+
+---
+
+### [2026-08-29] The model seam distinguishes calls a human is waiting on from calls nobody is watching
+
+- **Decision:** `ExtractionContext` carries that flag from the first commit, though M1 has only one setting for it. Interactive import **streams** so review cards appear incrementally (`09` Flow 2). Bulk work — the M2 bootstrap flow and post-parser-upgrade re-extraction — goes through **Message Batches at 50%**. **No batch path is built in M1.**
+- **Reason:** the rule that a parser upgrade creates a new source document version rather than re-extracting in place makes full-corpus re-extraction a **recurring** cost, not a one-off, so Batch halves it permanently rather than once. Building it in M1 would be speculative — one document and one employer is not bulk — but a seam that cannot express "nobody is waiting" has to be reopened to add it later. The cost now is a parameter; the cost later is a signature change through every caller.
+- **Independent of platform.** Surfaced during the AWS survey (same date) and kept when that was closed.
