@@ -190,7 +190,7 @@ appearance of cards in the fact rail.
   "status": "extracting",
   "chunksTotal": 12,
   "chunksDone": 7,
-  "candidatesProposed": 23,
+  "candidatesExtracted": 23,
   "candidatesDiscarded": 2,
   "wordCount": 6142,
   "changedRegionShare": 0.15,
@@ -282,8 +282,7 @@ an empty success.
 - **`quote` text is not returned.** The client already has the source text and the offsets, so
   sending the quote again would duplicate record content into another response.
 
-**`POST /api/facts/:id/accept` → 200.** Accepting a **Generated** fact **succeeds** — it enters the
-record flagged and is excluded at render time. The block lives at render time, not review time.
+**`POST /api/facts/:id/accept` → 200.** Accepting a **Generated** fact **succeeds** — it is accepted, flagged, and is excluded at render time. The block lives at render time, not review time.
 
 **`PATCH /api/facts/:id` → 422** when a `measured` provenance is set on a fact with no evidence:
 
