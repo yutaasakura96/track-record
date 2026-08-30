@@ -83,6 +83,8 @@ create type render_kind   as enum ('english_resume', 'rirekisho', 'shokumu_keire
                                    'career_story_en', 'career_story_ja');
 create type proposal_status as enum ('pending', 'accepted', 'dismissed');
 create type import_status as enum ('queued', 'extracting', 'ready', 'failed');
+create type generation_status as enum ('generating', 'ready', 'failed');
+create type chunk_status  as enum ('pending', 'done', 'failed');
 ```
 
 ---
@@ -247,10 +249,38 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `word_count` | integer | no | Shown in the source pane label strip |
 | `import_status` | import_status | no | |
 | `import_error` | text | yes | Populated when `failed` — PRD §7 requires a *reason* |
+| `chunks_total` | integer | no | Default `0`. Drives the progress bar |
+| `chunks_done` | integer | no | Default `0` |
+| `candidates_discarded` | integer | no | Default `0`. Candidates whose `quote` was not found verbatim. **A count and never content** (`03` §5, `07` §5) |
+| `changed_region_share` | double precision | yes | Fraction of the document changed since the previous version. `null` on a first import |
 | `imported_at` | timestamptz | no | |
 
 **Unique:** `(source_document_id, version_no)`.
 **Never deleted.** Deleting evidence would break every Measured fact that points at it.
+
+---
+
+### 3.6b `import_chunks`
+
+One row per chunk of changed text an import must extract from. **The row is the durable
+checkpoint**: a chunk that succeeded is never re-sent to the model, so a retry resumes at the first
+failed chunk rather than at chunk 1 (`11-testing-plan.md` §2.7).
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `source_document_version_id` | text | no | FK → `source_document_versions.id` **cascade** |
+| `chunk_index` | integer | no | 0-based, in document order |
+| `start_offset` | integer | no | Into `extracted_text` |
+| `end_offset` | integer | no | Exclusive |
+| `status` | chunk_status | no | Default `'pending'`. `pending` · `done` · `failed` |
+| `error` | text | yes | A reason. **Never a model response body and never source text** |
+
+**Unique:** `(source_document_version_id, chunk_index)`. **Index:** `(user_id)`.
+
+The chunk **body is not stored here**. Offsets index into the version's `extracted_text`, so no
+step ever carries text across a workflow step boundary — steps pass IDs, never text (`03` §5).
 
 > **No object storage.** The corpus is ~2.4 MB in total. `bytea` is correct until it is not, and
 > moving out is a one-table migration.
@@ -392,8 +422,10 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 |---|---|---|---|
 | `id` / `user_id` | text | no | |
 | `render_id` | text | no | FK **cascade** |
-| `content` | jsonb | no | |
-| `status` | proposal_status | no | |
+| `content` | jsonb | no | `{ "sections": [] }` until generation lands |
+| `status` | proposal_status | no | The author's decision: pending, accepted, dismissed |
+| `generation_status` | generation_status | no | Default `'generating'`. The row exists from the moment generation starts, because `POST /api/renders/:kind/generate` returns `202` with a resource to poll. **This is what the poll reads** |
+| `generation_error` | text | yes | A stated reason, populated when `failed`. A failure never mutates a stored version |
 | `based_on_version_id` | text | yes | What it was diffed against |
 | `reason` | text | yes | `Regenerated after 3 new facts entered your record` |
 | `generated_at` / `decided_at` | timestamptz | | |

@@ -1,0 +1,23 @@
+# Copy to .dev.vars (gitignored) and fill in. Never commit the real file.
+# Production values live in Cloudflare Workers secrets: `wrangler secret put NAME`.
+
+# Neon branch connection string — a DEV branch, not main.
+DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
+
+# Anthropic. Use a WORKSPACE-SCOPED key with its own spend limit, not the
+# account key — see docs/13-infrastructure-security.md §5.
+ANTHROPIC_API_KEY="sk-ant-..."
+ANTHROPIC_MODEL="claude-opus-5"
+
+# Better Auth. Generate with: openssl rand -base64 32
+BETTER_AUTH_SECRET=""
+BETTER_AUTH_URL="http://localhost:8787"
+
+# Google OAuth — a SEPARATE client from production, because redirect URIs differ.
+# Scopes must be exactly: openid email profile. Never Gmail, Drive or Calendar.
+GOOGLE_CLIENT_ID=""
+GOOGLE_CLIENT_SECRET=""
+
+# Invite gate. Comma-separated. Sign-up is invite-only by design, not by default
+# — see docs/08-auth-and-permissions.md §2.
+ALLOWED_SIGNUP_EMAILS=""

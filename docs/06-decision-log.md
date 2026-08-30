@@ -681,3 +681,31 @@ Append-only. The answer to every future "why is it like this?"
 - **How this rejection differs from the two before it:** those rested on redundancy and on the governing principle. This one does not. It is a **verified incompatibility** between the proposed configuration and an invariant already asserted by test — the triggering-problem bar the 2026-08-21 freeze asks for, met and pointing at staying.
 - **Verification is version-specific.** Checked 2026-08-30 against Better Auth's Next.js integration documentation and the `opennextjs-cloudflare` build source.
 - **Revisit if:** OpenNext Cloudflare gains Node.js middleware support. Pure Next.js would then be merely redundant rather than incompatible — at which point the 2026-08-21 reasoning governs again and the answer is still no, but for softer reasons.
+
+---
+
+### [2026-08-30] Import progress and chunk checkpoints are rows, not workflow-engine state
+
+- **Decision:** `source_document_versions` gains `chunks_total`, `chunks_done`, `candidates_discarded` and `changed_region_share`; a new `import_chunks` table holds one row per chunk of changed text, carrying offsets into `extracted_text`, a status of `pending`/`done`/`failed`, and a reason on failure. `04-database-schema.md` §3.6 and §3.6b are updated to match.
+- **Reason:** `07-api-design.md` §5 already specifies `GET /api/imports/:id` returning `chunksTotal`, `chunksDone`, `candidatesDiscarded` and `changedRegionShare`, and `11-testing-plan.md` §2.7 already requires that a failure on chunk 7 of 12 keeps chunks 1–6 and that retry resumes at chunk 7. Neither was expressible against the schema as written — the polling endpoint had nothing to read and the resume guarantee had nowhere to remember what had already succeeded. The columns are the contract catching up with the endpoints, not new scope.
+- **Why rows rather than Workflow instance state:** the resume guarantee is then true of the *pipeline*, not of the engine running it, so it is asserted by the same over-HTTP tests as everything else rather than requiring a Workflow harness. It also holds when the Workflow binding is absent, which is the case in test and in local development.
+- **The chunk body is not stored.** `import_chunks` carries offsets, so no step returns text and the 1 MiB step-result cap is structurally unreachable (`03` §5).
+- **`candidates_discarded` is a count and stays one.** No column holds discarded candidate text, in the database or in a log line.
+
+---
+
+### [2026-08-30] The import pipeline is one function; the Workflow is an adapter over it
+
+- **Decision:** The pipeline lives in `src/pipeline/import.ts` as `runImport(deps)`, taking a step-runner. `ImportWorkflow` (`src/pipeline/workflow.ts`) is the production adapter, wrapping each step in `step.do`. When the `IMPORT_WORKFLOW` binding is absent — tests, and local development without a Workflows-capable dev server — the same function runs inline behind `ctx.waitUntil`.
+- **Reason:** every durability guarantee the pipeline makes is already a database row (see the entry above), so the step runner controls *retry and checkpoint granularity*, not correctness. Making it a parameter means the pipeline is exercised by ordinary API tests, and the Workflow adapter carries no logic that could drift from what is tested.
+- **What is not claimed:** the adapter itself is not covered by an automated test. It is ten lines of `step.do` calls and is verified by the one end-to-end smoke path (`11` §2.9).
+- **Revisit if:** a step ever needs to `sleep` or wait on an external event, which the inline runner cannot express.
+
+---
+
+### [2026-08-30] A render proposal row exists from the moment generation starts
+
+- **Decision:** `render_proposals` gains `generation_status` (`generating` · `ready` · `failed`) and `generation_error`. The row is inserted when generation begins, with `content` as `{ "sections": [] }`, and `GET /api/proposals/:id` polls it. `04-database-schema.md` §3.10 is updated to match.
+- **Reason:** `07-api-design.md` §7 already specifies `POST /api/renders/:kind/generate` returning `202` **with a `proposalId` to poll**, and `10-screen-specifications.md` already specifies a *Generating* state (proposed column skeletal, current column fully readable) and a *Generation failed* state that states a reason. Neither was expressible: the row did not exist until generation finished, so there was nothing to poll, and a failure had nowhere to record why.
+- **`status` and `generation_status` are two different questions.** `status` is the author's decision — pending, accepted, dismissed. `generation_status` is whether the model has answered yet. Collapsing them would make "dismissed while still generating" unrepresentable and put a machine state into a column the author owns.
+- **This is what keeps the failure rule true.** A failed generation writes `generation_status = 'failed'` and a reason on the proposal; it touches no `render_versions` row and does not move `renders.current_version_id`, so the stored version is byte-identical and readable afterwards (`11` §2.7).
