@@ -192,6 +192,14 @@ Assert: the response is a valid zip with the .docx MIME type and a non-trivial b
 faster than it catches anything. If a second smoke path is ever justified it will be 履歴書
 generation, because that render can fail in ways the résumé cannot.
 
+> **Status, 2026-08-30: the Playwright half is not built.** `tests/smoke.test.ts` walks the whole
+> path above through the real Hono application, with only the session resolver and the model seam
+> stubbed — so *a route not mounted*, *auth middleware misconfigured*, *the download endpoint
+> returning HTML instead of a file* and *the path breaking between stages* all fail it today.
+> **Not covered: static assets not served, and the SPA failing to mount.** Both are on §3 until the
+> gap closes. The reason it is open, and the shape of the fix — an OIDC issuer run as a fixture,
+> rather than a sign-in bypass living in shippable code — are in the decision log, 2026-08-30.
+
 ---
 
 ## 3. Tested manually, from a written checklist
@@ -207,6 +215,7 @@ Run before each milestone is called done.
 | 5 | Fact-review scroll sync in both directions; selected mark lands ~34% from the top | Interaction feel |
 | 6 | Design-system conformance: no off-scale spacing, no new colours, mixed font stack on every Japanese surface | Visual |
 | 7 | Full keyboard pass through fact review | Interaction |
+| 8 | **The application loads**: static assets served, the SPA mounts, sign-in reachable | Standing in for the unbuilt half of §2.9 |
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 

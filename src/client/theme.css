@@ -1,0 +1,333 @@
+/*
+ * Generated from docs/05-design-system.md. Every value here comes from that
+ * document; nothing is invented at the call site.
+ *
+ * `--*: initial` DISABLES EVERY DEFAULT THEME VARIABLE. With it set, only the
+ * tokens below generate utilities — so `bg-red-500`, `p-7` and `rounded-xl` do
+ * not exist. "No new colours" and "no off-scale spacing" stop being things to
+ * remember in review and become things the compiler cannot express
+ * (`docs/05` §8b).
+ *
+ * Spacing tokens are NAMED FOR THEIR PIXEL VALUE and only the scale exists:
+ * `p-14` is 14px, and `p-13` is a build error.
+ */
+@import "tailwindcss";
+
+@theme {
+  --*: initial;
+
+  /* ---------------------------------------------------------- surfaces */
+  --color-bg: #08090a;
+  --color-surface: #0a0b0c;
+  --color-surface-raised: #0d0e10;
+  --color-card: #101113;
+  --color-card-selected: #13141a;
+  --color-card-recessed: #0b0c0d;
+  --color-chip: #131416;
+  --color-hover: #17181b;
+
+  /* ------------------------------------------------------------ borders */
+  --color-border: #1a1b1e;
+  --color-border-subtle: #141517;
+  --color-border-inner: #17181b;
+  --color-border-control: #1f2023;
+  --color-border-strong: #232427;
+  --color-border-active: #2c2e33;
+  --color-border-dashed: #26282c;
+
+  /* --------------------------------------------------------------- text */
+  --color-text-bright: #f2f3f5;
+  --color-text: #e8e8ea;
+  --color-text-strong: #e2e4e7;
+  --color-text-secondary: #c9ccd1;
+  --color-text-body: #a8acb3;
+  --color-text-muted: #8a8f98;
+  --color-text-dim: #7c8189;
+  --color-text-dimmer: #62666d;
+  --color-text-faint: #54585e;
+  --color-text-ghost: #3c3f45;
+
+  /* ----------------------------------------------- accent and semantics */
+  --color-accent: #5e6ad2;
+  --color-accent-text: #a3abf0;
+  --color-accent-link: #8b93e8;
+  --color-accent-link-hover: #a8afef;
+
+  /* Green means VERIFIED OR ADDED. Amber means NOT USABLE YET. Red means
+   * REMOVED. Never decorative — these carry provenance meaning (`docs/05` §9). */
+  --color-measured: #4cb782;
+  --color-measured-text: #5ec99a;
+  --color-generated: #e0a851;
+  --color-generated-text: #c2a06a;
+  --color-generated-claim: #a9a290;
+  --color-removed: #c25a5f;
+  --color-restricted: #a6b3c6;
+  --color-restricted-bg: rgba(126, 146, 178, 0.16);
+  --color-private: #cfd2d6;
+  --color-private-bg: #2b2d31;
+
+  /* Mark and diff tints, at the exact opacities the document specifies. */
+  --color-mark-idle: rgba(94, 106, 210, 0.07);
+  --color-mark-rule: rgba(94, 106, 210, 0.4);
+  --color-mark-selected: rgba(94, 106, 210, 0.26);
+  --color-generated-mark: rgba(224, 168, 81, 0.07);
+  --color-generated-rule: rgba(224, 168, 81, 0.6);
+  --color-private-mark: rgba(255, 255, 255, 0.04);
+  --color-private-rule: #4a4d53;
+  --color-rejected-rule: #3a3d42;
+  --color-add-idle: rgba(76, 183, 130, 0.11);
+  --color-add-selected: rgba(76, 183, 130, 0.26);
+  --color-add-row: rgba(76, 183, 130, 0.05);
+  --color-remove-idle: rgba(194, 90, 95, 0.11);
+  --color-remove-selected: rgba(194, 90, 95, 0.26);
+  --color-remove-row: rgba(194, 90, 95, 0.05);
+  --color-progress-track: #1c1d20;
+  --color-disabled-bg: #141518;
+
+  /* ----------------------------------------------------------- typography */
+  --font-sans: "Geist", system-ui, -apple-system, sans-serif;
+  /* ANY surface that can contain Japanese uses this. Geist has no Japanese
+   * coverage, and without the fallback the browser picks one for you. */
+  --font-mixed:
+    "Geist", "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Hiragino Sans", "Yu Gothic Medium",
+    "Yu Gothic", "Meiryo", system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  --text-doc-title: 22px;
+  --text-doc-title--line-height: 1.25;
+  --text-page: 19px;
+  --text-page--line-height: 1.3;
+  --text-stat: 23px;
+  --text-stat--line-height: 1.1;
+  --text-render-heading: 11px;
+  --text-render-heading--line-height: 1;
+  --text-panel: 12.5px;
+  --text-panel--line-height: 1.3;
+  --text-row: 13px;
+  --text-row--line-height: 1.3;
+  --text-claim: 13px;
+  --text-claim--line-height: 1.55;
+  --text-doc-body: 14.5px;
+  --text-doc-body--line-height: 1.78;
+  --text-doc-compact: 13.5px;
+  --text-doc-compact--line-height: 1.72;
+  --text-render-body: 13.5px;
+  --text-render-body--line-height: 1.68;
+  --text-ui: 13px;
+  --text-ui--line-height: 1.4;
+  --text-small: 11.5px;
+  --text-small--line-height: 1.5;
+  --text-smaller: 11px;
+  --text-smaller--line-height: 1.55;
+  --text-micro: 10.5px;
+  --text-micro--line-height: 1.4;
+  --text-mono-label: 9.5px;
+  --text-mono-label--line-height: 1;
+
+  /* Three weights, and only three. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+
+  --tracking-tight: -0.02em;
+  --tracking-snug: -0.01em;
+  --tracking-ja: 0.04em;
+  --tracking-mono: 0.05em;
+  --tracking-heading: 0.08em;
+
+  /* -------------------------------------------------------------- spacing */
+  --spacing-0: 0px;
+  --spacing-2: 2px;
+  --spacing-4: 4px;
+  --spacing-6: 6px;
+  --spacing-8: 8px;
+  --spacing-10: 10px;
+  --spacing-12: 12px;
+  --spacing-14: 14px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-26: 26px;
+  --spacing-32: 32px;
+  --spacing-40: 40px;
+  --spacing-60: 60px;
+
+  /* Fixed dimensions the document names. */
+  --spacing-header: 46px;
+  --spacing-toolbar: 38px;
+  --spacing-strip: 34px;
+  --spacing-avatar: 22px;
+  --spacing-icon: 24px;
+  --spacing-progress: 96px;
+  --spacing-sidebar: 212px;
+  --spacing-rail: 412px;
+  --spacing-rail-compact: 380px;
+  --spacing-measure: 740px;
+  --spacing-content: 940px;
+  --spacing-full: 100%;
+  --spacing-screen: 100vh;
+
+  /* --------------------------------------------------------------- radius */
+  --radius-mark: 2px;
+  --radius-chip: 4px;
+  --radius-control: 6px;
+  --radius-tile: 8px;
+  --radius-panel: 10px;
+  --radius-full: 50%;
+
+  /* ------------------------------------------------------------ elevation */
+  --shadow-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  --shadow-selected: 0 0 0 1px rgba(94, 106, 210, 0.5);
+  --shadow-lifted: 0 0 0 1px rgba(94, 106, 210, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
+  --shadow-lifted-generated: 0 0 0 1px rgba(224, 168, 81, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
+  --shadow-lifted-private: 0 0 0 1px rgba(108, 112, 120, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.5), 0 0 22px rgba(94, 106, 210, 0.18);
+
+  /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
+  --breakpoint-wide: 1280px;
+}
+
+/* ------------------------------------------------------------------ base */
+
+@layer base {
+  html {
+    background: var(--color-bg);
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-mixed);
+    font-size: var(--text-ui);
+    line-height: 1.4;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Japanese prose must not break mid-phrase (`docs/05` §9, rule 10). */
+  p,
+  li,
+  .prose {
+    text-wrap: pretty;
+    word-break: normal;
+    line-break: strict;
+    overflow-wrap: break-word;
+  }
+
+  ::selection {
+    background: rgba(94, 106, 210, 0.35);
+  }
+
+  * {
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background: var(--color-border-strong);
+    border: 3px solid var(--color-bg);
+    border-radius: 6px;
+  }
+
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input,
+  textarea,
+  select {
+    font: inherit;
+    color: inherit;
+  }
+}
+
+/* -------------------------------------------------------------- utilities */
+
+@utility mark-base {
+  border-radius: var(--radius-mark);
+  padding-left: 1px;
+  padding-right: 1px;
+  cursor: pointer;
+  transition:
+    background 0.12s ease,
+    box-shadow 0.14s ease;
+}
+
+/* Border STYLE carries meaning and must not be restyled: solid = normal,
+ * dashed = Generated, dotted = Private, strikethrough = rejected. */
+@utility mark-normal {
+  background: var(--color-mark-idle);
+  border-bottom: 1px solid var(--color-mark-rule);
+}
+
+@utility mark-generated {
+  background: var(--color-generated-mark);
+  border-bottom: 1px dashed var(--color-generated-rule);
+}
+
+@utility mark-private {
+  background: var(--color-private-mark);
+  border-bottom: 1px dotted var(--color-private-rule);
+  color: #8d9198;
+}
+
+@utility mark-accepted {
+  background: var(--color-add-idle);
+  border-bottom: 1px solid var(--color-measured);
+}
+
+@utility mark-rejected {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-rejected-rule);
+  color: var(--color-text-faint);
+}
+
+@utility mark-selected {
+  background: var(--color-mark-selected);
+  box-shadow: var(--shadow-glow);
+  color: var(--color-text-bright);
+}
+
+/* Motion, from §8. Each property has one duration, and it lives here rather
+ * than in an arbitrary `transition-[…]` at every call site. */
+@utility motion-tone {
+  transition:
+    background 0.12s ease,
+    color 0.12s ease;
+}
+
+@utility motion-elevation {
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    opacity 0.14s ease;
+}
+
+@utility motion-surface {
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+@utility motion-progress {
+  transition: width 0.25s ease;
+}
+
+/* The 16px app mark — the ONE gradient in the product (§9, rule 2). */
+@utility app-mark {
+  background: linear-gradient(160deg, #5e6ad2, #3d4699);
+}

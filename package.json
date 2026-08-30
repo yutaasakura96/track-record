@@ -5,15 +5,17 @@
   "scripts": {
     "dev": "vite",
     "dev:worker": "wrangler dev",
-    "build": "tsc --noEmit && vite build",
-    "deploy": "wrangler deploy",
+    "build": "npm run lint && tsc --noEmit && vite build",
+    "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
+    "db:up": "docker compose up -d --wait",
+    "db:down": "docker compose down -v",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
     "auth:generate": "better-auth generate",
-    "lint": "eslint .",
+    "lint": "node scripts/check-design-tokens.mjs",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

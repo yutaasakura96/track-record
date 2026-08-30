@@ -3,8 +3,14 @@
 A web application that turns a hand-maintained career record into a structured source of truth
 with derived renders (résumé, 履歴書, 職務経歴書, interview stories).
 
-**Phases 1–4 are complete. There is no code yet.** `docs/` is the source of truth; the prototype in
-`design/prototype/` is a visual reference only. Where they disagree, the docs win.
+**Phases 1–4 are complete. The M1 vertical tracer is built** (issue #1) — sign-in through an accepted
+English résumé, every stage present and no stage elaborated past what the path needs. `docs/` remains
+the source of truth; the prototype in `design/prototype/` is a visual reference only. Where they
+disagree, the docs win.
+
+Run it: `npm run db:up` (Postgres + the Neon HTTP proxy), then `npm run dev:worker` and `npm run dev`.
+`npm test` needs the database up. `npm run build` runs the design-token check, the type check and the
+client build, in that order.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
@@ -33,7 +39,11 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 - **No secret and no database dump is ever committed.** This repo is public.
 - **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
 - **Every design value comes from `@theme`, generated from `docs/05-design-system.md`.** Arbitrary
-  Tailwind values (`p-[13px]`, `text-[#fff]`) are lint-banned — they are how the forbidden list dies.
+  Tailwind values (`p-[13px]`, `text-[#fff]`) and raw colour literals are banned by
+  `scripts/check-design-tokens.mjs`, which `npm run lint` runs — they are how the forbidden list dies.
+- **Every route is registered through `routes(app)`** in `src/server/http/registry.ts`. A route added
+  any other way is invisible to the enumeration test, which is the only thing making deny-by-default
+  real rather than aspirational.
 - **A source document version is never re-extracted in place.** Fact quote offsets index into its
   text; a parser upgrade creates a new version.
 - **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
