@@ -8,7 +8,7 @@
  */
 import type { Hono } from "hono";
 import { and, asc, eq, sql } from "drizzle-orm";
-import { facts, importChunks, sourceDocuments, sourceDocumentVersions } from "../db/schema";
+import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import { ApiError, notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
@@ -38,12 +38,24 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     const projectId = stringOrNull(form.get("projectId"));
     const sourceDocumentId = stringOrNull(form.get("sourceDocumentId"));
 
+    // A foreign key alone would let one user file a document under another
+    // user's project. Ownership is checked in the same query that reads it.
+    if (projectId) {
+      const [owned] = await db
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.userId, user.id), eq(projects.id, projectId)))
+        .limit(1);
+      if (!owned) throw notFound("That project");
+    }
+
     // Type and size are rejected here, before storage and before a single model
     // token is spent — the author is never billed for a doomed import.
     const upload = await extractUpload(file);
 
     let documentId = sourceDocumentId;
     let versionNo = 1;
+    let isNewDocument = true;
     if (documentId) {
       const [existing] = await db
         .select({ id: sourceDocuments.id })
@@ -61,19 +73,14 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
           ),
         );
       versionNo = highest + 1;
-    } else {
-      documentId = newId("sourceDocument");
-      await db.insert(sourceDocuments).values({
-        id: documentId,
-        userId: user.id,
-        projectId,
-        filename: file.name,
-        mimeType: upload.mimeType,
-      });
+      isNewDocument = false;
     }
+    // A first import creates the document; a re-import is a new version of one
+    // that already exists.
+    documentId ??= newId("sourceDocument");
 
     const versionId = newId("sourceDocumentVersion");
-    await db.insert(sourceDocumentVersions).values({
+    const version = db.insert(sourceDocumentVersions).values({
       id: versionId,
       userId: user.id,
       sourceDocumentId: documentId,
@@ -87,6 +94,23 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       wordCount: upload.wordCount,
       importStatus: "queued",
     });
+
+    // Two tables, one transaction. A failure between them would leave a source
+    // document with no version — a row the author can see and cannot use.
+    if (isNewDocument) {
+      await db.batch([
+        db.insert(sourceDocuments).values({
+          id: documentId,
+          userId: user.id,
+          projectId,
+          filename: file.name,
+          mimeType: upload.mimeType,
+        }),
+        version,
+      ]);
+    } else {
+      await version;
+    }
 
     await startImport(importStart(c, versionId));
 
@@ -115,22 +139,28 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
 
     // Resume from the first failed step. Chunks already marked done are never
     // re-sent, so the author does not pay again for work that succeeded.
-    await db
-      .update(importChunks)
-      .set({ status: "pending", error: null, updatedAt: new Date() })
-      .where(
-        and(
-          eq(importChunks.userId, user.id),
-          eq(importChunks.sourceDocumentVersionId, versionId),
-          eq(importChunks.status, "failed"),
+    //
+    // Two tables, one transaction: a version reopened without its failed chunks
+    // reopened would report itself as running and then never run them.
+    const now = new Date();
+    await db.batch([
+      db
+        .update(importChunks)
+        .set({ status: "pending", error: null, updatedAt: now })
+        .where(
+          and(
+            eq(importChunks.userId, user.id),
+            eq(importChunks.sourceDocumentVersionId, versionId),
+            eq(importChunks.status, "failed"),
+          ),
         ),
-      );
-    await db
-      .update(sourceDocumentVersions)
-      .set({ importStatus: "queued", importError: null, updatedAt: new Date() })
-      .where(
-        and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.id, versionId)),
-      );
+      db
+        .update(sourceDocumentVersions)
+        .set({ importStatus: "queued", importError: null, updatedAt: now })
+        .where(
+          and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.id, versionId)),
+        ),
+    ]);
 
     await startImport(importStart(c, versionId));
     return c.json(await importStatus(db, user.id, versionId));

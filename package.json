@@ -16,7 +16,8 @@
     "db:studio": "drizzle-kit studio",
     "auth:generate": "better-auth generate",
     "lint": "node scripts/check-design-tokens.mjs",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "restore:drill": "node scripts/restore-drill.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
@@ -24,15 +25,11 @@
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.32",
     "better-auth": "^1.7.1",
-    "budoux": "^0.9.0",
     "diff": "^9.0.0",
     "docx": "^9.7.1",
-    "docxtemplater": "^3.69.3",
     "drizzle-orm": "^0.45.2",
-    "fflate": "^0.8.3",
     "hono": "^4.13.3",
     "nanoid": "^6.0.1",
-    "pizzip": "^3.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "zod": "^4.4.3",

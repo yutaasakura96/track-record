@@ -179,7 +179,12 @@ document). → **`202 Accepted`**
 ```
 
 Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`).
-Accepted types: `.docx`, `.pdf`, `.md`, `.txt`.
+
+**Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
+supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
+type M1 never sees (`03-technical-design.md` §5.1). `.docx` arrives with the bootstrap flow in M2;
+`.pdf` is deferred indefinitely. The endpoint names the reason it rejected a type, so an author who
+tries a `.docx` is told it is not built yet rather than that it is wrong.
 
 **`GET /api/imports/:id` → 200** — the polling target. Drives the progress bar and the incremental
 appearance of cards in the fact rail.

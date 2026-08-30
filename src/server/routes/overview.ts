@@ -6,7 +6,7 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import {
   certifications,
   educations,
@@ -90,6 +90,21 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
     const documents = await renderState(db, userId);
     const totalFacts = provenance.measured + provenance.attested + provenance.generated;
 
+    // What generation would actually be given. The client disables Generate with
+    // this reason rather than enabling it into a 428 (`docs/05` §6: a disabled
+    // control always states why).
+    const [{ usable } = { usable: 0 }] = await db
+      .select({ usable: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(
+        and(
+          eq(facts.userId, userId),
+          eq(facts.status, "accepted"),
+          ne(facts.disclosure, "private"),
+          ne(facts.provenance, "generated"),
+        ),
+      );
+
     return c.json({
       lastImportAt: latestImport?.importedAt.toISOString() ?? null,
       activeImport: active,
@@ -111,6 +126,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       },
       factsByProvenance: provenance,
       documents,
+      canGenerate: usable > 0,
       /** The empty state is a different screen, not a variant of this one. */
       isEmpty: totalFacts === 0 && employerRows.length === 0 && latestImport === undefined,
     });

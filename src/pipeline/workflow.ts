@@ -7,7 +7,7 @@
  */
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 import { createDb } from "~/server/db/client";
-import { createAnthropicSeam } from "~/model";
+import { createModelSeam } from "~/model";
 import { runImport, type StepRunner } from "./import";
 import type { Bindings } from "~/server/env";
 
@@ -26,10 +26,7 @@ export class ImportWorkflow extends WorkflowEntrypoint<Bindings, ImportWorkflowP
     };
     await runImport({
       db: createDb(this.env.DATABASE_URL),
-      model: createAnthropicSeam({
-        apiKey: this.env.ANTHROPIC_API_KEY,
-        model: this.env.ANTHROPIC_MODEL,
-      }),
+      model: createModelSeam(this.env),
       userId: event.payload.userId,
       versionId: event.payload.versionId,
       step: runner,

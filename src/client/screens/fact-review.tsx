@@ -13,6 +13,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
+  isImportRunning,
+  POLL_MS,
   useFactAction,
   useFacts,
   useImportStatus,
@@ -22,7 +24,7 @@ import {
 } from "../api";
 import { Button, Chip, FilterPill, Mono, Notice, ProgressBar, SegmentedControl } from "../components/ui";
 import { useReviewStore, type FactFilter } from "../stores/review";
-import { relative } from "./overview";
+import { relative } from "../format";
 
 export function FactReview() {
   const { importId } = useParams({ from: "/imports/$importId" });
@@ -30,8 +32,7 @@ export function FactReview() {
   const facts = useFacts(importId, {
     // Cards appear incrementally as extraction progresses, rather than after
     // one long silence.
-    refetchInterval:
-      status.data?.status === "queued" || status.data?.status === "extracting" ? 1500 : false,
+    refetchInterval: isImportRunning(status.data?.status) ? POLL_MS : false,
   });
   const source = useSourceText(status.data?.sourceDocumentId ?? "", status.data?.versionNo ?? 1);
   const select = useReviewStore((s) => s.select);

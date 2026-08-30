@@ -12,6 +12,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ApiError, useProfile, useSaveProfile } from "../api";
 import { Button, Panel } from "../components/ui";
+import { fromMonth, toMonth } from "~/shared/calendar";
 
 interface FieldSpec {
   name: string;
@@ -39,7 +40,7 @@ const CONTACT: FieldSpec[] = [
   { name: "addressKana", label: "ふりがな · Address (kana)" },
 ];
 
-const monthValue = (isoDate: string | undefined) => (isoDate ? isoDate.slice(0, 7) : "");
+
 
 export function ProfileForm() {
   const existing = useProfile();
@@ -54,7 +55,7 @@ export function ProfileForm() {
   const valueOf = (field: FieldSpec) => {
     if (values[field.name] !== undefined) return values[field.name]!;
     const stored = current?.[field.name as keyof typeof current];
-    if (field.type === "month") return monthValue(stored as string | undefined);
+    if (field.type === "month") return toMonth(stored as string | undefined);
     return stored === null || stored === undefined ? "" : String(stored);
   };
 
@@ -65,7 +66,7 @@ export function ProfileForm() {
     for (const field of [...IDENTITY, ...CONTACT]) {
       const raw = String(form.get(field.name) ?? "").trim();
       // A month input yields `YYYY-MM`; the day is pinned here and never shown.
-      body[field.name] = field.type === "month" && raw ? `${raw}-01` : raw || null;
+      body[field.name] = field.type === "month" ? fromMonth(raw) || null : raw || null;
     }
     body.contactSameAsAddress = true;
     try {

@@ -114,8 +114,15 @@ Created and migrated by Better Auth. **Do not hand-edit.**
 separate `person` table exists; inventing one would duplicate identity across two tables with no
 rule for which is authoritative.
 
-`users.id` **is the person.** No separate `person` table exists; inventing one would duplicate
-identity across two tables with no rule for which is authoritative.
+**Four tables, not one.** Better Auth's core schema is `users`, `sessions`, `accounts` and
+**`verifications`** — the last of which this section did not name until 2026-08-30 and which
+`0000_init.sql` has always created. It holds short-lived tokens; nothing in this application reads
+it. `accounts` holds the OAuth tokens and a `password` column that stays null forever, because
+**there are no passwords in this system** (`08` §1).
+
+Their columns are Better Auth's to define. This document deliberately does not restate them: a
+column list copied out of a library's schema is a copy that goes stale silently, and §0's naming
+conventions are enforced by the `modelName` overrides above rather than by this table.
 
 ---
 

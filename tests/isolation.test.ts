@@ -105,6 +105,9 @@ beforeAll(async () => {
 describe("one user's record is unreachable from another's session", () => {
   it("returns nothing belonging to the other user from any collection", async () => {
     const collections = [
+      // /api/profile first: it is the only endpoint that returns the author's
+      // address, phone and date of birth.
+      "/api/profile",
       "/api/employers",
       "/api/projects",
       "/api/facts",
@@ -165,6 +168,25 @@ describe("one user's record is unreachable from another's session", () => {
       employerId: b.employerId,
     });
     expect(response.status).toBe(404);
+  });
+
+  it("cannot file an imported document under another user's project", async () => {
+    const form = uploadForm(CASE_STUDY, "borrowed.md");
+    form.set("projectId", b.projectId);
+    const response = await a.client.request("/api/imports", { method: "POST", body: form });
+    expect(response.status).toBe(404);
+    await settle();
+  });
+
+  it("shows each user only their own profile, PII included", async () => {
+    const mine = await a.client.json<{ nameLatin: string; phone: string; address: string }>(
+      "/api/profile",
+    );
+    expect(mine.nameLatin).toBe("Alpha Author");
+
+    const theirs = await b.client.json<{ nameLatin: string }>("/api/profile");
+    expect(theirs.nameLatin).toBe("Bravo Author");
+    expect(mine.nameLatin).not.toBe(theirs.nameLatin);
   });
 
   it("still serves each user their own record in full", async () => {

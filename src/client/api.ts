@@ -140,6 +140,8 @@ export interface Overview {
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
   documents: RenderRow[];
+  /** False when no accepted fact may be used in a document. */
+  canGenerate: boolean;
   isEmpty: boolean;
 }
 
@@ -190,7 +192,11 @@ export const keys = {
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
-const POLL_MS = 1500;
+export const POLL_MS = 1500;
+
+/** An import is still working, and its resources are still worth re-reading. */
+export const isImportRunning = (status: ImportStatus["status"] | undefined) =>
+  status === "queued" || status === "extracting";
 
 export const useSession = () =>
   useQuery({
@@ -219,10 +225,7 @@ export function useImportStatus(importId: string) {
   return useQuery({
     queryKey: keys.importStatus(importId),
     queryFn: () => api<ImportStatus>(`/api/imports/${importId}`),
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "queued" || status === "extracting" ? POLL_MS : false;
-    },
+    refetchInterval: (query) => (isImportRunning(query.state.data?.status) ? POLL_MS : false),
   });
 }
 

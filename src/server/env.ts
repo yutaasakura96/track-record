@@ -3,14 +3,17 @@
  *
  * Secrets are never defaulted and never logged. `docs/13-infrastructure-security.md` §5.
  */
-import type { ModelSeam } from "~/model/types";
+import type { ModelBindings, ModelSeam } from "~/model";
 import type { Db } from "./db/client";
 
-export interface Bindings {
+/**
+ * `ModelBindings` is extended rather than restated: the provider's key names are
+ * `src/model/`'s business, and naming them here would make swapping providers an
+ * edit to the server (`docs/03` §4).
+ */
+export interface Bindings extends ModelBindings {
   /** Neon connection string. A DEV branch locally, never main. */
   DATABASE_URL: string;
-  ANTHROPIC_API_KEY: string;
-  ANTHROPIC_MODEL: string;
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   GOOGLE_CLIENT_ID: string;

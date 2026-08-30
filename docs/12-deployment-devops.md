@@ -95,6 +95,12 @@ habit.
 **The rollback path is exercised once, deliberately, before M1 is called done.** A rollback
 procedure that has never been run is a hypothesis.
 
+> **Status, 2026-08-30: NOT YET REHEARSED.** It cannot be: `wrangler rollback` needs a real
+> deployment and a Neon point-in-time restore needs a real Neon project, and neither exists yet.
+> This is the one M1 exit criterion still open — the restore drill in §5 is built and passing.
+> **Rehearse it immediately after the first deploy**, on a dev branch, before any real record
+> exists to lose.
+
 ---
 
 ## 5. Backups
@@ -131,6 +137,21 @@ six-hour window from a risk that is *accepted* into one that is *tested*: the ex
 recovery path for anything older than six hours, and an export that has never been restored is a
 belief, not a backup. **Passing the drill once is an M1 exit criterion**, alongside the rollback
 rehearsal in §4.
+
+**Built and passed, 2026-08-30.** `npm run restore:drill -- --export <file>` creates a scratch
+database, applies the committed migrations, loads the export, and asserts per-table row counts,
+every foreign key, and the Measured-facts-carry-evidence invariant. It runs through `psql` rather
+than the application's own driver, deliberately: a restore must not depend on the application being
+able to run.
+
+> **What an export cannot restore, and why that is correct.** Source documents never render, export,
+> or appear in any output (PRD §6.1), so `extracted_text` and `original_bytes` are not in the file.
+> Versions restore as **evidence stubs** — `import_status = 'failed'` with a stated reason — and the
+> drill reports how many. **The evidence pointers survive**: every fact keeps its quote, its offsets
+> and its line number, so re-importing the original file restores the evidence and the quotes can be
+> re-verified against it. The author holds those originals; they are what the corpus is.
+>
+> Stated plainly: an export restores **the record**, not the documents the record was read from.
 
 ---
 

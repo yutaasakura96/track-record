@@ -12,8 +12,8 @@ import { ApiError, errorResponse } from "./http/errors";
 import { isPublicPath } from "./http/registry";
 import { createDb } from "./db/client";
 import { betterAuthSessions, isAllowedEmail, type SessionResolver } from "./auth";
-import { createAnthropicSeam } from "~/model";
-import type { ModelSeam } from "~/model/types";
+import { createModelSeam } from "~/model";
+import type { ModelSeam } from "~/model";
 import type { AppEnv } from "./env";
 
 import { registerAuthRoutes } from "./routes/auth";
@@ -34,10 +34,7 @@ export interface AppOptions {
 export function createApp(options: AppOptions = {}) {
   const app = new Hono<AppEnv>();
   const resolveSession = options.sessions ?? betterAuthSessions;
-  const modelFor =
-    options.model ??
-    ((env: AppEnv["Bindings"]) =>
-      createAnthropicSeam({ apiKey: env.ANTHROPIC_API_KEY, model: env.ANTHROPIC_MODEL }));
+  const modelFor = options.model ?? createModelSeam;
 
   app.use("*", async (c, next) => {
     c.set("db", createDb(c.env.DATABASE_URL));

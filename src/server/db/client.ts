@@ -16,7 +16,19 @@ export type Db = ReturnType<typeof createDb>;
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "db.localtest.me", "postgres"]);
 
 export function createDb(connectionString: string) {
-  const url = new URL(connectionString);
+  // A missing binding otherwise surfaces as `Invalid URL string` on every route,
+  // which reads as an application bug rather than as unset configuration.
+  if (!connectionString) {
+    throw new Error(
+      "DATABASE_URL is not set. Locally, copy .dev.vars.example to .dev.vars; in production, `wrangler secret put DATABASE_URL`.",
+    );
+  }
+  let url: URL;
+  try {
+    url = new URL(connectionString);
+  } catch {
+    throw new Error("DATABASE_URL is not a valid connection string.");
+  }
   if (LOCAL_HOSTS.has(url.hostname)) {
     // Plain Postgres does not speak Neon's HTTP protocol. Local and CI runs put
     // the Neon HTTP proxy from docker-compose.yml in front of it — without this,

@@ -7,13 +7,16 @@
  *      not by position. Without this, a single inserted sentence shifts
  *      everything after it and the whole document reads as changed.
  *   2. Diff tokens inside each matched pair — Myers, the same algorithm git
- *      uses, at word granularity for English and 文節 granularity for Japanese.
+ *      uses, at word granularity instead of line granularity.
  *
  * Computed server-side. The client renders what this returns.
+ *
+ * **English only.** `docs/03` §6.1 specifies BudouX phrase tokens for Japanese;
+ * that half arrives with the first Japanese render and is out of scope here
+ * (issue #1, Out of Scope).
  */
 import { diffArrays } from "diff";
 import type { Block, RenderContent } from "~/shared/render-content";
-import { segment } from "~/segment";
 
 export type TokenOp = "equal" | "add" | "remove";
 
@@ -58,7 +61,13 @@ export interface RenderDiff {
 const ALIGNMENT_THRESHOLD = 0.4;
 
 export interface DiffOptions {
-  language: "en" | "ja";
+  /**
+   * M1 renders one document, in English. Japanese word-level diffing and the
+   * BudouX segmentation wrapper it needs arrive with the first Japanese render
+   * and are deliberately not built here (issue #1, Out of Scope; `docs/03` §6.1
+   * specifies them for when they do).
+   */
+  language: "en";
   /** Supplies the rationale for each change. A change without one is a defect. */
   explain: (input: {
     currentBlock: Block | null;
@@ -82,8 +91,8 @@ export function diffRenders(
   for (const section of proposed.sections) {
     seenSections.add(section.key);
     const before = currentSections.get(section.key)?.blocks ?? [];
-    for (const pair of alignBlocks(before, section.blocks, options.language)) {
-      const tokens = tokenDiff(pair.current, pair.proposed, options.language);
+    for (const pair of alignBlocks(before, section.blocks)) {
+      const tokens = tokenDiff(pair.current, pair.proposed);
       if (tokens.every((t) => t.op === "equal")) continue;
 
       if (pair.proposed && !pair.current) additions++;
@@ -137,16 +146,12 @@ interface AlignedPair {
  * similarity so that an insertion does not shunt every later block into
  * looking changed.
  */
-export function alignBlocks(
-  current: Block[],
-  proposed: Block[],
-  language: "en" | "ja",
-): AlignedPair[] {
+export function alignBlocks(current: Block[], proposed: Block[]): AlignedPair[] {
   const tokenSets = new Map<Block, Set<string>>();
   const tokensOf = (block: Block) => {
     let set = tokenSets.get(block);
     if (!set) {
-      set = new Set(segment(block.text, language).map((t) => t.trim()).filter(Boolean));
+      set = new Set(tokenize(block.text).map((t) => t.trim()).filter(Boolean));
       tokenSets.set(block, set);
     }
     return set;
@@ -202,21 +207,20 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 
 /* ------------------------------------------------------------ pass 2: tokens */
 
-export function tokenDiff(
-  current: Block | null,
-  proposed: Block | null,
-  language: "en" | "ja",
-): DiffToken[] {
+/**
+ * Words and punctuation runs, with the whitespace that follows each token kept
+ * attached, so joining the tokens reproduces the input exactly.
+ */
+export const tokenize = (text: string): string[] => text.match(/\S+\s*/gu) ?? [];
+
+export function tokenDiff(current: Block | null, proposed: Block | null): DiffToken[] {
   if (!current) return proposed ? [{ op: "add", text: proposed.text }] : [];
   if (!proposed) return [{ op: "remove", text: current.text }];
   if (current.text === proposed.text) return [{ op: "equal", text: current.text }];
 
-  return diffArrays(segment(current.text, language), segment(proposed.text, language)).map(
-    (part) => ({
-      op: part.added ? "add" : part.removed ? "remove" : "equal",
-      // Both segmenters produce tokens that concatenate back to the original —
-      // Latin tokens carry their trailing space, Japanese phrases are adjacent.
-      text: part.value.join(""),
-    }),
-  );
+  return diffArrays(tokenize(current.text), tokenize(proposed.text)).map((part) => ({
+    op: part.added ? "add" : part.removed ? "remove" : "equal",
+    // Tokens concatenate back to the original — each carries its trailing space.
+    text: part.value.join(""),
+  }));
 }

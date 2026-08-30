@@ -13,16 +13,13 @@ import { notFound } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
+import { MONTH_DATE_PATTERN } from "~/shared/calendar";
 import type { AppEnv } from "../env";
 
-/**
- * Calendar fields are month precision: a `date` with the day pinned to `01`,
- * never rendered. Forms collect month and year only
- * (`docs/04-database-schema.md` §0).
- */
+/** Month precision, from the one place the rule lives. */
 export const monthDate = z
   .string()
-  .regex(/^\d{4}-(0[1-9]|1[0-2])-01$/, "Use a month, as YYYY-MM-01.");
+  .regex(MONTH_DATE_PATTERN, "Use a month, as YYYY-MM-01.");
 
 const required = (label: string) => z.string().trim().min(1, `${label} is required.`);
 

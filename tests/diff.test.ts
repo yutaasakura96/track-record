@@ -1,18 +1,19 @@
 /**
- * The diff engine (`docs/11-testing-plan.md` §2.5).
+ * The diff engine's alignment pass.
  *
- * This is the most likely thing to regress silently when a dependency updates:
- * a character-level Japanese diff still *renders*, it is just unreadable.
+ * Asserted against the engine rather than over HTTP because a proposal that
+ * restructures a document cannot be produced through the API without a second
+ * generation, and alignment is the half that is unreadable when it regresses.
+ * The English token behaviour is also asserted over HTTP, in `renders.test.ts`.
  *
- * The Japanese cases are asserted against the engine rather than over HTTP
- * because M1 builds no Japanese render — `GET /api/proposals/:id/diff` cannot
- * be handed a Japanese document until 職務経歴書 exists. The English behaviour
- * IS asserted over HTTP, in `renders.test.ts`.
+ * `docs/11-testing-plan.md` §2.5 additionally requires phrase-level marks on
+ * JAPANESE prose. That is not tested here because it is not built: Japanese
+ * diffing and the BudouX wrapper arrive with the first Japanese render (issue
+ * #1, Out of Scope).
  */
 import { describe, expect, it } from "vitest";
 import { diffRenders } from "~/diff";
 import type { Block, RenderContent } from "~/shared/render-content";
-import { segmentJapanese } from "~/segment";
 
 const rationale = () => ({ kind: "from_facts" as const, text: "From 1 measured fact", factIds: [] });
 
@@ -20,7 +21,7 @@ const paragraphs = (texts: string[]): RenderContent => ({
   sections: [
     {
       key: "body",
-      heading: "職務経歴",
+      heading: "Experience",
       blocks: texts.map(
         (text, i): Block => ({ id: `blk_${i + 1}`, kind: "paragraph", text, factIds: [] }),
       ),
@@ -28,42 +29,8 @@ const paragraphs = (texts: string[]): RenderContent => ({
   ],
 });
 
-const diff = (before: string[], after: string[], language: "en" | "ja") =>
-  diffRenders(paragraphs(before), paragraphs(after), { language, explain: rationale });
-
-describe("Japanese diffing produces phrase-level marks", () => {
-  const before = "ベンダー依存の既存システムを内製プラットフォームへ置き換えるDX推進に従事し、レイテンシを40%削減しました。";
-  const after = "ベンダー依存の既存システムをイベント駆動型の内製プラットフォームへ置き換えるDX推進に従事し、レイテンシを55%削減しました。";
-
-  it("marks whole phrases, never single characters", () => {
-    const result = diff([before], [after], "ja");
-    expect(result.changes).toHaveLength(1);
-
-    const phrases = new Set(segmentJapanese(before).concat(segmentJapanese(after)));
-    for (const token of result.changes[0]!.tokens) {
-      if (token.op === "equal") continue;
-      // Every mark is a run of whole 文節-scale phrases.
-      expect(token.text.length).toBeGreaterThan(1);
-      const covered = segmentJapanese(token.text);
-      for (const phrase of covered) expect(phrases.has(phrase)).toBe(true);
-    }
-  });
-
-  it("replaces one phrase when a figure changes", () => {
-    const result = diff([before], [after], "ja");
-    const removed = result.changes[0]!.tokens.filter((t) => t.op === "remove").map((t) => t.text);
-    const added = result.changes[0]!.tokens.filter((t) => t.op === "add").map((t) => t.text);
-    expect(removed.join("")).toContain("40%削減しました。");
-    expect(added.join("")).toContain("55%削減しました。");
-  });
-
-  it("reports no changes for identical paragraphs", () => {
-    const result = diff([before], [before], "ja");
-    expect(result.changes).toHaveLength(0);
-    expect(result.additions).toBe(0);
-    expect(result.removals).toBe(0);
-  });
-});
+const diff = (before: string[], after: string[]) =>
+  diffRenders(paragraphs(before), paragraphs(after), { language: "en", explain: rationale });
 
 describe("paragraph alignment", () => {
   const a = "The nightly settlement batch had grown to six hours.";
@@ -74,7 +41,7 @@ describe("paragraph alignment", () => {
   it("leaves later paragraphs unchanged when one is inserted in the middle", () => {
     // Without alignment by similarity, an insertion shifts everything after it
     // and the whole document reads as changed.
-    const result = diff([a, b, c], [a, inserted, b, c], "en");
+    const result = diff([a, b, c], [a, inserted, b, c]);
     expect(result.additions).toBe(1);
     expect(result.removals).toBe(0);
     expect(result.changes).toHaveLength(1);
@@ -84,7 +51,7 @@ describe("paragraph alignment", () => {
 
   it("reports an edited paragraph as one change, not a removal and an addition", () => {
     const edited = "The nightly settlement batch had grown to seven hours.";
-    const result = diff([a, b], [edited, b], "en");
+    const result = diff([a, b], [edited, b]);
     expect(result.changes).toHaveLength(1);
     const change = result.changes[0]!;
     expect(change.currentBlockId).not.toBeNull();
@@ -93,7 +60,7 @@ describe("paragraph alignment", () => {
   });
 
   it("reports a genuinely removed paragraph as a removal with an explanation", () => {
-    const result = diff([a, b, c], [a, c], "en");
+    const result = diff([a, b, c], [a, c]);
     expect(result.removals).toBe(1);
     const removal = result.changes.find((ch) => ch.proposedBlockId === null)!;
     expect(removal.tokens.every((t) => t.op === "remove")).toBe(true);
@@ -101,7 +68,7 @@ describe("paragraph alignment", () => {
   });
 
   it("renders a wholly rewritten document normally", () => {
-    const result = diff([a, b, c], ["Totally different.", "Nothing alike.", "Not a word shared."], "en");
+    const result = diff([a, b, c], ["Totally different.", "Nothing alike.", "Not a word shared."]);
     expect(result.changes.length).toBeGreaterThan(0);
     for (const change of result.changes) expect(change.rationale.text.length).toBeGreaterThan(0);
   });
@@ -112,7 +79,6 @@ describe("English tokens", () => {
     const result = diff(
       ["Reduced nightly batch runtime from 6 hours to 3 hours"],
       ["Reduced nightly batch runtime from 6 hours to 90 minutes"],
-      "en",
     );
     const tokens = result.changes[0]!.tokens;
     expect(tokens[0]!.op).toBe("equal");

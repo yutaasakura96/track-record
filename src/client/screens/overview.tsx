@@ -22,6 +22,7 @@ import {
 } from "../api";
 import { Button, Dot, Mono, Panel, ProgressBar } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
+import { relative } from "../format";
 
 export function Overview() {
   const overview = useOverview();
@@ -95,7 +96,8 @@ function PopulatedRecord({ data }: { data: OverviewData }) {
 
           <AtAGlance tiles={data.tiles} />
           <Provenance counts={data.factsByProvenance} />
-          <Documents rows={data.documents} />
+          <Documents rows={data.documents} canGenerate={data.canGenerate} />
+          <Backup />
         </div>
       </div>
     </>
@@ -184,7 +186,7 @@ function Provenance({ counts }: { counts: OverviewData["factsByProvenance"] }) {
   );
 }
 
-function Documents({ rows }: { rows: RenderRow[] }) {
+function Documents({ rows, canGenerate }: { rows: RenderRow[]; canGenerate: boolean }) {
   const navigate = useNavigate();
   const generate = useGenerate();
   const [failure, setFailure] = useState<string | null>(null);
@@ -215,6 +217,7 @@ function Documents({ rows }: { rows: RenderRow[] }) {
               <StatusText row={row} />
               <Action
                 row={row}
+                canGenerate={canGenerate}
                 busy={generate.isPending}
                 onOpen={() =>
                   row.pendingProposalId &&
@@ -269,11 +272,13 @@ function StatusText({ row }: { row: RenderRow }) {
 
 function Action({
   row,
+  canGenerate,
   busy,
   onOpen,
   onGenerate,
 }: {
   row: RenderRow;
+  canGenerate: boolean;
   busy: boolean;
   onOpen: () => void;
   onGenerate: () => void;
@@ -292,15 +297,23 @@ function Action({
       </Button>
     );
   }
+  // Disabled with a stated reason rather than enabled into a 428: the tool never
+  // looks as though it will produce a document it cannot.
+  if (!canGenerate) {
+    return (
+      <span className="flex items-center gap-8">
+        {row.currentVersionId ? <DownloadLink kind={row.kind} /> : null}
+        <Button disabled disabledReason="No accepted facts can be used in a document yet.">
+          {row.status === "never_generated" ? "Generate" : "Regenerate"}
+        </Button>
+      </span>
+    );
+  }
+
   return (
     <span className="flex items-center gap-8">
       {row.currentVersionId ? (
-        <a
-          href={downloadUrl(row.kind, "docx")}
-          className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
-        >
-          Download .docx
-        </a>
+        <DownloadLink kind={row.kind} />
       ) : null}
       <Button variant="primary" onClick={onGenerate} disabled={busy} disabledReason={busy ? "Generating…" : undefined}>
         {row.status === "never_generated" ? "Generate" : "Regenerate"}
@@ -308,6 +321,15 @@ function Action({
     </span>
   );
 }
+
+const DownloadLink = ({ kind }: { kind: RenderRow["kind"] }) => (
+  <a
+    href={downloadUrl(kind, "docx")}
+    className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+  >
+    Download .docx
+  </a>
+);
 
 /* ------------------------------------------------------------------- empty */
 
@@ -353,6 +375,28 @@ function EmptyRecord() {
   );
 }
 
+/**
+ * The export in one action. Neon's free plan retains a six-hour restore window,
+ * so this is the recovery path for anything older — which makes it a thing to
+ * reach for, not an endpoint to know about (S15).
+ */
+const Backup = () => (
+  <Panel heading="Backup">
+    <div className="flex items-center gap-12">
+      <p className="text-smaller text-text-dim">
+        Your whole record as one JSON file — every entity, every provenance and disclosure value, and
+        every evidence pointer. Imported documents are never exported; they exist to prove facts.
+      </p>
+      <a
+        href="/api/export"
+        className="ml-auto shrink-0 border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
+      >
+        Export my record
+      </a>
+    </div>
+  </Panel>
+);
+
 /* ------------------------------------------------------------------ shared */
 
 /**
@@ -387,15 +431,4 @@ function useImportPicker() {
   );
 
   return { control, error, choose: () => input.current?.click() };
-}
-
-export function relative(iso: string): string {
-  const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours} h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 30) return `${days} d ago`;
-  return new Date(iso).toISOString().slice(0, 7);
 }

@@ -197,7 +197,10 @@ Not a variant of the populated screen — a different screen.
 
 - Heading `Your record is empty`
 - One paragraph explaining the loop: import a document you already have, review the facts it extracts
-- A dashed drop target: icon tile, `Import your first document`, `Drop a file here, or choose one. PDF, Word, Markdown and plain text.`, and a `Choose a file` primary button
+- A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
+  **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
+  grows as `07-api-design.md` §5 grows. Offering Word or PDF here and rejecting them at upload is a
+  worse empty state than a narrower one
 - Footnote: `Quick capture and document generation open up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
 - Stat tiles and the documents list are absent entirely
