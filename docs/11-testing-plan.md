@@ -21,7 +21,7 @@ test fixture containing a real client name would be committed to a public repo f
 | Unit and integration | **Vitest** |
 | API integration | Vitest against the Hono app, with a real Postgres |
 | Server-side tests | **`@cloudflare/vitest-pool-workers`** — runs tests *inside* the Workers runtime via Miniflare, with bindings and isolated per-test-file storage |
-| Test database | **Docker Postgres + a Neon HTTP proxy** — see below |
+| Test database | **`track_record_test`, the suite's own** — Docker Postgres + a Neon HTTP proxy, see below |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |
 
@@ -33,6 +33,31 @@ protocol**, which plain Postgres does not implement. Local and CI runs therefore
 (the official Docker image) or the community `local-neon-http-proxy` Compose file in front of
 Postgres. Without it, every database test fails at connection time — this was found during
 verification, not during the build.
+
+**Every run starts from nothing.** `tests/global-setup.ts` drops `public`, recreates it, and applies
+the committed migrations in order — so a migration that does not apply cleanly fails the suite there
+rather than in an unrelated assertion later.
+
+**Why the suite has a database of its own.** That drop is total, and for a while it landed on the
+database the dev worker was using: three times during the 2026-09-01 walk, running the suite
+destroyed the signed-in session, the profile, the imported documents and the accepted render
+versions (issue #4). The docker-compose Postgres now holds two databases: `track_record_dev`, which
+`.dev.vars` points at, and `track_record_test`, which is the suite's alone. `npm run db:up` creates
+whichever is missing. One proxy serves both: its `PG_CONNECTION_STRING` is an *auth* backend, and
+the database each query runs against comes from the connection string the client sends.
+
+**Two guards make that real rather than assumed** (`tests/database-guard.ts`). Before the suite
+connects, it refuses to run if `TEST_DATABASE_URL` names `track_record_dev`, or names the same
+database on the same server as a dev `DATABASE_URL` — read from `.dev.vars` and from the
+environment, since a shell can export one in front of `wrangler dev`. After it connects, it asks
+`current_database()` and refuses if the answer is not the database it aimed at: the URL says where a
+query was sent, the proxy decides where it lands. Both failures are silent and total without a
+guard, which is what makes a cheap check worth having.
+
+**The guards fail closed.** A `TEST_DATABASE_URL` that cannot be parsed, or a `DATABASE_URL` that is
+set but unreadable, is a refusal rather than a shrug — a drop cannot be undone, and the run nobody
+could explain is the one to stop. The single silence is a dev URL that is genuinely absent, which is
+CI, where there is nothing to lose.
 
 ---
 

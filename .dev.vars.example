@@ -1,8 +1,14 @@
 # Copy to .dev.vars (gitignored) and fill in. Never commit the real file.
 # Production values live in Cloudflare Workers secrets: `wrangler secret put NAME`.
 
-# Neon branch connection string — a DEV branch, not main.
-DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
+# The docker-compose Postgres, started by `npm run db:up`. Its DEV database —
+# never `track_record_test`, which the suite drops and rebuilds on every run
+# (docs/11 §1). src/server/db/client.ts sees a localhost host and routes queries
+# through the Neon HTTP proxy on :4444 automatically.
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/track_record_dev?sslmode=disable"
+
+# Against a real Neon instead, use a DEV branch, not main:
+# DATABASE_URL="postgresql://user:password@host/dbname?sslmode=require"
 
 # Anthropic. Use a WORKSPACE-SCOPED key with its own spend limit, not the
 # account key — see docs/13-infrastructure-security.md §5.

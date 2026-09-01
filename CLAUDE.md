@@ -8,9 +8,14 @@ English résumé, every stage present and no stage elaborated past what the path
 the source of truth; the prototype in `design/prototype/` is a visual reference only. Where they
 disagree, the docs win.
 
-Run it: `npm run db:up` (Postgres + the Neon HTTP proxy), then `npm run dev:worker` and `npm run dev`.
-`npm test` needs the database up. `npm run build` runs the design-token check, the type check and the
-client build, in that order.
+Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and both databases), `npm run db:migrate:local`
+on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up.
+`npm run build` runs the design-token check, the type check and the client build, in that order.
+
+**Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
+The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
+destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
+keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
