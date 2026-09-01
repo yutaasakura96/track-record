@@ -10,5 +10,13 @@ export default defineConfig({
   resolve: {
     alias: { "~": fileURLToPath(new URL("./src", import.meta.url)) },
   },
-  server: { proxy: { "/api": "http://localhost:8787" } },
+  server: {
+    // The key is a REGEX, not the plain string "/api", because Vite matches a
+    // string key as a PREFIX — which also captures `/api.ts`, this client's own
+    // API module. That request is then proxied to the Worker, answered with the
+    // SPA fallback, and every module importing it fails MIME checking: the app
+    // serves its HTML and mounts nothing. Anchoring on `^/api/` proxies the API
+    // and leaves sibling source paths alone.
+    proxy: { "^/api/": "http://localhost:8787" },
+  },
 });
