@@ -22,6 +22,13 @@
       "when": 1788073926667,
       "tag": "0002_proposal_generation_state",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788262340020,
+      "tag": "0003_account_issuer",
+      "breakpoints": true
     }
   ]
 }

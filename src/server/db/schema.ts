@@ -86,6 +86,13 @@ export const accounts = pgTable("accounts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   accountId: text("account_id").notNull(),
+  // The OIDC issuer — `https://accounts.google.com` — NOT the provider id.
+  // Better Auth looks an account up by (issuer, account_id) when linking an
+  // identity: an account is unique to the identity provider that asserted it,
+  // and two providers may issue the same subject id. Required by the library,
+  // and a missing column here surfaces as a SQL syntax error rather than a
+  // missing-column error, because the adapter maps the unknown field to nothing.
+  issuer: text("issuer").notNull(),
   providerId: text("provider_id").notNull(),
   accessToken: text("access_token"),
   refreshToken: text("refresh_token"),
@@ -95,7 +102,10 @@ export const accounts = pgTable("accounts", {
   idToken: text("id_token"),
   password: text("password"),
   ...timestamps,
-}, (t) => [index("accounts_user_idx").on(t.userId)]);
+}, (t) => [
+  index("accounts_user_idx").on(t.userId),
+  uniqueIndex("accounts_issuer_account_idx").on(t.issuer, t.accountId),
+]);
 
 export const verifications = pgTable("verifications", {
   id: text("id").primaryKey(),
