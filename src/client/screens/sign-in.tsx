@@ -57,6 +57,7 @@ export function SignIn({ reason }: { reason?: ApiError }) {
             variant="primary"
             className="px-16 py-8"
             disabled={starting}
+            disabledReason={starting ? "Opening Google…" : undefined}
             onClick={startGoogleSignIn}
           >
             Continue with Google
