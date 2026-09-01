@@ -6,11 +6,35 @@
  * — the app is publicly reachable, sign-up is not
  * (`docs/08-auth-and-permissions.md` §1–2).
  */
-import type { ApiError } from "../api";
+import { useState } from "react";
+import { api, type ApiError } from "../api";
 import { Button } from "../components/ui";
 
 export function SignIn({ reason }: { reason?: ApiError }) {
   const rejected = reason?.status === 403;
+  const [starting, setStarting] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  /**
+   * A POST, not a link. Better Auth exposes social sign-in only as
+   * `POST /sign-in/social`, which answers with the Google authorization URL
+   * rather than redirecting — there is no `GET /sign-in/{provider}` to point a
+   * plain form at. The redirect is therefore ours to perform.
+   */
+  async function startGoogleSignIn() {
+    setStarting(true);
+    setFailed(false);
+    try {
+      const { url } = await api<{ url: string }>("/api/auth/sign-in/social", {
+        method: "POST",
+        body: JSON.stringify({ provider: "google", callbackURL: "/" }),
+      });
+      window.location.href = url;
+    } catch {
+      setStarting(false);
+      setFailed(true);
+    }
+  }
 
   return (
     <main className="min-h-screen grid place-items-center px-20">
@@ -27,11 +51,23 @@ export function SignIn({ reason }: { reason?: ApiError }) {
           </p>
         ) : null}
 
-        <form method="get" action="/api/auth/sign-in/google" className="mt-26">
-          <Button type="submit" variant="primary" className="px-16 py-8">
+        <div className="mt-26">
+          <Button
+            type="button"
+            variant="primary"
+            className="px-16 py-8"
+            disabled={starting}
+            onClick={startGoogleSignIn}
+          >
             Continue with Google
           </Button>
-        </form>
+        </div>
+
+        {failed ? (
+          <p className="mt-16 text-small text-text-muted">
+            Could not reach Google. Check your connection and try again.
+          </p>
+        ) : null}
 
         <p className="mt-16 text-smaller text-text-faint">
           Requests your name and email address, and nothing else. Never your mail, your files or
