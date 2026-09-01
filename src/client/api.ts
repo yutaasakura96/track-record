@@ -205,10 +205,27 @@ export const useSession = () =>
     retry: false,
   });
 
+/**
+ * The profile, or `null` when there is not one yet.
+ *
+ * A first run has no profile, and the server says so with a 404. That is a
+ * STATE, not a failure, and it must be modelled as data: a query that never
+ * holds data is reset to `pending` by React Query on every refetch, which makes
+ * `isLoading` true again, which unmounts whatever the gate was rendering, which
+ * remounts and refetches — an unbreakable loop. Returning `null` settles the
+ * query and the question with it.
+ */
 export const useProfile = () =>
   useQuery({
     queryKey: keys.profile,
-    queryFn: () => api<Profile>("/api/profile"),
+    queryFn: async () => {
+      try {
+        return await api<Profile>("/api/profile");
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) return null;
+        throw error;
+      }
+    },
     retry: false,
   });
 

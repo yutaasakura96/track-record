@@ -10,7 +10,7 @@
  */
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ApiError, useProfile, useSaveProfile } from "../api";
+import { ApiError, useProfile, useSaveProfile, type Profile } from "../api";
 import { Button, Panel } from "../components/ui";
 import { fromMonth, toMonth } from "~/shared/calendar";
 
@@ -54,7 +54,7 @@ export function ProfileForm() {
 
   const valueOf = (field: FieldSpec) => {
     if (values[field.name] !== undefined) return values[field.name]!;
-    const stored = current?.[field.name as keyof typeof current];
+    const stored = current?.[field.name as keyof Profile];
     if (field.type === "month") return toMonth(stored as string | undefined);
     return stored === null || stored === undefined ? "" : String(stored);
   };

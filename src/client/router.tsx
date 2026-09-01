@@ -40,7 +40,8 @@ function Gate({ children }: { children: ReactNode }) {
   const path = useRouterState({ select: (s) => s.location.pathname });
 
   const signedOut = session.error instanceof ApiError && session.error.status !== 500;
-  const missingProfile = profile.error instanceof ApiError && profile.error.status === 404;
+  // `null` is the settled answer "there is no profile yet" — see `useProfile`.
+  const missingProfile = profile.data === null;
 
   useEffect(() => {
     // Every render needs a name to put on it, so identity comes first and
@@ -50,9 +51,12 @@ function Gate({ children }: { children: ReactNode }) {
     }
   }, [signedOut, missingProfile, path, navigate]);
 
-  if (session.isLoading) return <Loading />;
+  // `isPending`, not `isLoading`: the latter is true again on every refetch of a
+  // query holding no data, and gating the tree on it unmounts and remounts the
+  // very screen that triggers the refetch.
+  if (session.isPending) return <Loading />;
   if (signedOut) return <SignIn reason={session.error as ApiError} />;
-  if (profile.isLoading) return <Loading />;
+  if (profile.isPending) return <Loading />;
   return <>{children}</>;
 }
 
