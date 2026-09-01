@@ -283,8 +283,14 @@ export function useSaveProfile() {
   return useMutation({
     mutationFn: (profile: Record<string, unknown>) =>
       api<Profile>("/api/profile", { method: "PUT", ...json(profile) }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.profile });
+    onSuccess: (saved) => {
+      // Seed the cache with the saved profile rather than only invalidating it.
+      // The first save is followed immediately by a navigation away from the
+      // form, and the gate redirects back while the profile still reads as
+      // missing — so an invalidate alone leaves the first run stranded on the
+      // form until a refetch it never waits for. Writing the answer in makes
+      // the gate correct on the very next render.
+      queryClient.setQueryData(keys.profile, saved);
       void queryClient.invalidateQueries({ queryKey: keys.overview });
     },
   });
