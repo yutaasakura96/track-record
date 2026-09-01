@@ -87,7 +87,14 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
 
     async generateRender(facts: RenderFact[], spec: RenderSpec): Promise<RenderContent> {
       try {
-        const message = await client.messages.create({
+        // STREAMED, like extraction, and not by preference: the SDK refuses a
+        // non-streaming request whose `max_tokens` could take it past ten
+        // minutes, and 32k qualifies. `messages.create` here threw
+        // "Streaming is required…" on every generation, which the error mapper
+        // below reported as an unreachable service — so this path had never
+        // produced a document. `finalMessage()` restores the single-message
+        // shape the rest of this function expects.
+        const stream = client.messages.stream({
           model: config.model,
           max_tokens: 32000,
           system: [{ type: "text", text: buildGenerationPrompt(spec), cache_control: { type: "ephemeral" } }],
@@ -95,6 +102,7 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
           tool_choice: { type: "tool", name: EMIT_RENDER_TOOL.name },
           messages: [{ role: "user", content: JSON.stringify({ facts }) }],
         });
+        const message = await stream.finalMessage();
         const block = message.content.find((b) => b.type === "tool_use" && b.name === EMIT_RENDER_TOOL.name);
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
