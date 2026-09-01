@@ -56,6 +56,35 @@ describe("the profile form", () => {
     ).toContain("dateOfBirth");
   });
 
+  it("rejects katakana in a kana field and saves nothing", async () => {
+    // ふりがな is hiragana (`docs/04` §139-148) and prints above the kanji in
+    // 履歴書 row 1. Katakana used to save silently and render a wrong document.
+    const response = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      familyNameKana: "アオキ",
+    });
+
+    expect(response.status).toBe(422);
+    const body = (await response.json()) as {
+      error: { code: string; message: string; details: { fields: string[] } };
+    };
+    expect(body.error.code).toBe("validation_failed");
+    expect(body.error.details.fields).toContain("familyNameKana");
+    expect(body.error.message).toMatch(/hiragana/i);
+
+    expect((await client.get("/api/profile")).status).toBe(404);
+  });
+
+  it("accepts a hiragana address reading carrying digits and hyphens", async () => {
+    // The rule names katakana rather than demanding pure hiragana: a reading
+    // legitimately carries digits, spaces and hyphens.
+    const response = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      addressKana: "とうきょうと ちよだく 1-1-1",
+    });
+    expect(response.status).toBe(200);
+  });
+
   it("saves the profile and never inlines the photo", async () => {
     const saved = (await (await client.put("/api/profile", PROFILE_FIXTURE)).json()) as Record<
       string,

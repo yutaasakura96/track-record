@@ -25,8 +25,8 @@ interface FieldSpec {
 const IDENTITY: FieldSpec[] = [
   { name: "familyNameKanji", label: "姓 · Family name" },
   { name: "givenNameKanji", label: "名 · Given name" },
-  { name: "familyNameKana", label: "せい · Family name (kana)" },
-  { name: "givenNameKana", label: "めい · Given name (kana)" },
+  { name: "familyNameKana", label: "せい · Family name (kana)", hint: "Hiragana." },
+  { name: "givenNameKana", label: "めい · Given name (kana)", hint: "Hiragana." },
   { name: "nameLatin", label: "Name in Latin script", hint: "As it appears on the English résumé." },
   { name: "dateOfBirth", label: "生年月日 · Date of birth", type: "month", hint: "Month and year." },
   { name: "gender", label: "性別 · Gender", optional: true },
@@ -37,7 +37,7 @@ const CONTACT: FieldSpec[] = [
   { name: "email", label: "メールアドレス · Email", type: "email" },
   { name: "postalCode", label: "郵便番号 · Postal code" },
   { name: "address", label: "住所 · Address" },
-  { name: "addressKana", label: "ふりがな · Address (kana)" },
+  { name: "addressKana", label: "ふりがな · Address (kana)", hint: "Hiragana." },
 ];
 
 

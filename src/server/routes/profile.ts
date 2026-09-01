@@ -23,11 +23,30 @@ export const monthDate = z
 
 const required = (label: string) => z.string().trim().min(1, `${label} is required.`);
 
+/**
+ * Katakana, full-width and half-width. Not a "hiragana only" test on purpose:
+ * an address reading legitimately carries digits, spaces and hyphens, and
+ * demanding pure hiragana would reject correct input. What is actually wrong is
+ * KATAKANA, so that is what is named.
+ */
+const KATAKANA = /[ァ-ヺｦ-ﾝ]/;
+
+/**
+ * ふりがな columns are hiragana (`docs/04-database-schema.md` §139–148) and are
+ * printed above the kanji in 履歴書 row 1 (§479). Katakana here is not a
+ * formatting preference — it renders a wrong 履歴書, and it used to save
+ * silently because neither the form nor this schema said which kana it wanted.
+ */
+const kana = (label: string) =>
+  required(label).refine((value) => !KATAKANA.test(value), {
+    message: `${label} is written in hiragana, not katakana.`,
+  });
+
 const profileBody = z.object({
   familyNameKanji: required("Family name"),
   givenNameKanji: required("Given name"),
-  familyNameKana: required("Family name (kana)"),
-  givenNameKana: required("Given name (kana)"),
+  familyNameKana: kana("Family name (kana)"),
+  givenNameKana: kana("Given name (kana)"),
   nameLatin: required("Name in Latin script"),
   dateOfBirth: monthDate,
   gender: z.string().trim().nullish(),
@@ -35,11 +54,13 @@ const profileBody = z.object({
   email: z.string().trim().email("That is not an email address."),
   postalCode: required("Postal code"),
   address: required("Address"),
-  addressKana: required("Address (kana)"),
+  addressKana: kana("Address (kana)"),
   contactSameAsAddress: z.boolean().default(true),
   contactPostalCode: z.string().trim().nullish(),
   contactAddress: z.string().trim().nullish(),
-  contactAddressKana: z.string().trim().nullish(),
+  contactAddressKana: z.string().trim().nullish().refine((v) => !v || !KATAKANA.test(v), {
+    message: "Address (kana) is written in hiragana, not katakana.",
+  }),
   desiredRoleNote: z.string().trim().nullish(),
 });
 
