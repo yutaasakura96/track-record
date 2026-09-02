@@ -43,7 +43,7 @@ export function DiffReview() {
     <div className="h-screen flex flex-col">
       <Header proposal={proposal.data} />
       {proposal.data.generationStatus === "generating" ? (
-        <Generating />
+        <Generating proposal={proposal.data} />
       ) : proposal.data.generationStatus === "failed" ? (
         <Failed proposal={proposal.data} />
       ) : proposal.data.status !== "pending" ? (
@@ -73,11 +73,20 @@ function Header({ proposal }: { proposal: Proposal }) {
 
 /* ------------------------------------------------------------------ states */
 
-/** The current version stays fully readable throughout — never a blank screen. */
-const Generating = () => (
+/**
+ * The current version stays fully readable throughout — never a blank screen.
+ *
+ * On a FIRST generation there is no current version to reassure anyone about:
+ * `basedOnVersionNo` is null, the header reads v0, and promising a download that
+ * does not exist is worst at the one moment the author knows least about what
+ * the application is doing (issue #12).
+ */
+const Generating = ({ proposal }: { proposal: Proposal }) => (
   <main className="flex-1 grid place-items-center px-20">
     <p className="text-ui text-text-dim">
-      Writing the proposed version. Your current version is untouched and still downloadable.
+      {proposal.basedOnVersionNo === null
+        ? "Writing the first version. Nothing is saved until you accept it."
+        : "Writing the proposed version. Your current version is untouched and still downloadable."}
     </p>
   </main>
 );

@@ -164,7 +164,7 @@ function Provenance({ counts }: { counts: OverviewData["factsByProvenance"] }) {
               }`}
             >
               <Dot tone={row.tone} />
-              <span className="text-row font-medium text-text-strong w-60">{row.label}</span>
+              <span className="text-row font-medium text-text-strong w-label shrink-0">{row.label}</span>
               <span className="text-smaller text-text-dim">{row.note}</span>
               <span className="ml-auto flex items-center gap-12">
                 <Mono className={row.count === 0 ? "text-text-ghost" : "text-text-dimmer"}>

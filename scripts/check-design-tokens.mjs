@@ -8,6 +8,8 @@
  *      escape hatch.
  *   2. No raw colour literals in client source. Every colour comes from a token,
  *      and the tokens live in exactly one file.
+ *   3. `mark-base` declares a `color`. Not a design-system rule but a browser
+ *      one: see `checkMarkBase` below.
  *
  * Run by `npm run lint`. See docs/06, 2026-08-30, for why this is a script
  * rather than `eslint-plugin-tailwindcss`.
@@ -66,7 +68,48 @@ function check(path) {
   });
 }
 
+/**
+ * Chrome's UA stylesheet is `mark { background-color: Mark; color: MarkText }`,
+ * and `MarkText` computes to BLACK even with `color-scheme: dark` on the root.
+ * Any `<mark>` whose classes set a background but no colour therefore renders
+ * black on the near-black page — 1.05:1, and invisible to both of the rules
+ * above, because the defect is an OMITTED declaration rather than a wrong one.
+ * It cost the whole diff-review screen once (issue #5).
+ *
+ * The rule checked is deliberately narrow: `mark-base` must declare a `color`.
+ * Every `<mark>` in the client carries `mark-base`, so one declaration there
+ * makes the UA default unreachable no matter what a variant does or forgets.
+ * The broader rule — "every mark-targeting utility declares a colour" — is the
+ * wrong shape twice over: it would demand a colour from variants that correctly
+ * inherit one (`mark-normal`, `mark-generated`, `mark-accepted`), and it would
+ * still miss the plain background utilities the diff pane puts on a `<mark>`
+ * (`bg-add-idle`), which are not mark utilities at all.
+ */
+function checkMarkBase() {
+  const source = readFileSync(THEME, "utf8");
+  const block = source.match(/@utility\s+mark-base\s*\{([^}]*)\}/);
+  if (!block) {
+    failures.push({
+      path: THEME,
+      line: 1,
+      rule: "mark-needs-color",
+      found: "@utility mark-base",
+      why: "The utility every <mark> depends on is gone. Every mark now inherits the UA's black `MarkText`.",
+    });
+    return;
+  }
+  if (/(^|;|\{)\s*color\s*:/.test(block[1])) return;
+  failures.push({
+    path: THEME,
+    line: source.slice(0, block.index).split("\n").length,
+    rule: "mark-needs-color",
+    found: "@utility mark-base { … } declares no color",
+    why: "Chrome's `mark { color: MarkText }` computes to black in dark mode. Without a colour here every unstyled mark is black-on-black.",
+  });
+}
+
 walk(CLIENT);
+checkMarkBase();
 
 if (failures.length === 0) {
   console.log("design tokens: clean");

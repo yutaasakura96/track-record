@@ -254,10 +254,18 @@ export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ i
   });
 }
 
+/**
+ * `enabled` is not an optimisation. The caller learns the document id from the
+ * import status, so on the first render it has none, and an unguarded query
+ * requests `/api/source-documents//versions/1/text` — a 404 in the console and
+ * the worker log, in exactly the place a real 404 would need to be noticed
+ * (issue #11).
+ */
 export const useSourceText = (documentId: string, versionNo: number) =>
   useQuery({
     queryKey: keys.sourceText(documentId, versionNo),
     queryFn: () => api<SourceText>(`/api/source-documents/${documentId}/versions/${versionNo}/text`),
+    enabled: documentId !== "",
   });
 
 export function useProposal(proposalId: string) {

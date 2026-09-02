@@ -10,10 +10,20 @@
 import { Link, useRouterState } from "@tanstack/react-router";
 import { Mono } from "./ui";
 
-const NAV: { label: string; to: string }[] = [
+/**
+ * `docs/10` specifies five rows; M1 builds one destination. The other rows stay
+ * visible so the shape of the application is legible, but they are DISABLED and
+ * they say why (`docs/05` §6) — a row that navigates to Home while reading as
+ * Facts is a lie about where it goes, and an active test of `path === to` with
+ * every `to` set to "/" marked all three rows active at once (issue #10).
+ *
+ * A row earns a `to` when its route exists. `to` is what makes it navigable and
+ * what makes exactly one row active, so the two cannot drift apart.
+ */
+const NAV: ({ label: string } & ({ to: string } | { unbuilt: string }))[] = [
   { label: "Home", to: "/" },
-  { label: "Facts", to: "/" },
-  { label: "Documents", to: "/" },
+  { label: "Facts", unbuilt: "Browsing facts outside an import is not built yet." },
+  { label: "Documents", unbuilt: "Browsing source documents is not built yet." },
 ];
 
 export function Sidebar({ name }: { name: string }) {
@@ -28,12 +38,26 @@ export function Sidebar({ name }: { name: string }) {
 
       <ul className="p-10 grid gap-2">
         {NAV.map((item) => {
+          const row = "flex items-center px-10 py-6 rounded-control text-row";
+          if (!("to" in item)) {
+            return (
+              <li key={item.label}>
+                <span
+                  aria-disabled="true"
+                  title={item.unbuilt}
+                  className={`${row} text-text-ghost cursor-not-allowed`}
+                >
+                  {item.label}
+                </span>
+              </li>
+            );
+          }
           const active = path === item.to;
           return (
             <li key={item.label}>
               <Link
                 to={item.to}
-                className={`flex items-center px-10 py-6 rounded-control text-row ${
+                className={`${row} ${
                   active ? "bg-hover text-text font-medium" : "text-text-dim hover:bg-hover"
                 }`}
               >

@@ -143,6 +143,9 @@ Common applications:
 - Gap between cards: `8px`
 - Header height: **46px**. Sub-toolbar height: **38px**. Pane label strip: **34px**
 - Sidebar width: **212px**. Fact rail width: **412px** comfortable / **380px** compact
+- Label column, where a row aligns its notes behind a word: **80px**. The longest label
+  this has to hold is `Generated` at 13px/medium, which measures 67.33px; 60px broke it
+  mid-word (issue #9). Composed from the scale, 40 + 40
 
 ---
 

@@ -158,6 +158,9 @@
   --spacing-avatar: 22px;
   --spacing-icon: 24px;
   --spacing-progress: 96px;
+  /* A row that aligns its note behind a word. Holds `Generated` at 13px/medium
+   * (67.33px) with room; at 60px it broke inside the word (issue #9). */
+  --spacing-label: 80px;
   --spacing-sidebar: 212px;
   --spacing-rail: 412px;
   --spacing-rail-compact: 380px;
@@ -256,7 +259,16 @@
 
 /* -------------------------------------------------------------- utilities */
 
+/* `color: inherit` is load-bearing, not tidiness. Chrome's UA stylesheet is
+ * `mark { background-color: Mark; color: MarkText }`, and `MarkText` computes to
+ * black even under `color-scheme: dark` — so a variant that sets only a
+ * background renders black on the near-black page (1.05:1, issue #5). The mark
+ * is a highlight, not a recolouring: it takes the colour of the prose around it
+ * unless a variant states otherwise. Variants that DO carry a colour of their
+ * own — mark-private, mark-rejected, mark-selected — still win.
+ * `scripts/check-design-tokens.mjs` fails the build if this declaration goes. */
 @utility mark-base {
+  color: inherit;
   border-radius: var(--radius-mark);
   padding-left: 1px;
   padding-right: 1px;
