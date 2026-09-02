@@ -23,9 +23,14 @@ export default defineConfig({
           ANTHROPIC_API_KEY: "test-key-never-used",
           ANTHROPIC_MODEL: "claude-opus-5",
           BETTER_AUTH_SECRET: "test-secret-not-a-real-one",
-          BETTER_AUTH_URL: "http://localhost:8787",
-          GOOGLE_CLIENT_ID: "test-client",
-          GOOGLE_CLIENT_SECRET: "test-secret",
+          // The origin the harness makes every request to. Better Auth builds
+          // the OAuth `redirect_uri` from this, and the sign-in walk follows
+          // that redirect back into the same application (issue #3).
+          BETTER_AUTH_URL: "https://track-record.test",
+          // The credentials the local OIDC fixture issues for. There is no
+          // Google client behind them and no deployment uses them.
+          GOOGLE_CLIENT_ID: "oidc-fixture-client",
+          GOOGLE_CLIENT_SECRET: "oidc-fixture-secret",
           ALLOWED_SIGNUP_EMAILS: "author@example.invalid,second@example.invalid",
         },
       },

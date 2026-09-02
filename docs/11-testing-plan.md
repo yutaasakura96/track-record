@@ -23,6 +23,7 @@ test fixture containing a real client name would be committed to a public repo f
 | Server-side tests | **`@cloudflare/vitest-pool-workers`** — runs tests *inside* the Workers runtime via Miniflare, with bindings and isolated per-test-file storage |
 | Test database | **`track_record_test`, the suite's own** — Docker Postgres + a Neon HTTP proxy, see below |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
+| Sign-in | **A local OIDC issuer run as a fixture** (`tests/helpers/oidc.ts`). Better Auth's own path runs end to end; there is no authentication bypass in `src/server` |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |
 
 **Why a real Postgres and not an in-memory fake:** the isolation guarantee this project depends on
@@ -217,13 +218,16 @@ Assert: the response is a valid zip with the .docx MIME type and a non-trivial b
 faster than it catches anything. If a second smoke path is ever justified it will be 履歴書
 generation, because that render can fail in ways the résumé cannot.
 
-> **Status, 2026-08-30: the Playwright half is not built.** `tests/smoke.test.ts` walks the whole
-> path above through the real Hono application, with only the session resolver and the model seam
-> stubbed — so *a route not mounted*, *auth middleware misconfigured*, *the download endpoint
-> returning HTML instead of a file* and *the path breaking between stages* all fail it today.
-> **Not covered: static assets not served, and the SPA failing to mount.** Both are on §3 until the
-> gap closes. The reason it is open, and the shape of the fix — an OIDC issuer run as a fixture,
-> rather than a sign-in bypass living in shippable code — are in the decision log, 2026-08-30.
+> **Status, 2026-09-02: sign-in is real; the Playwright half is still not built.**
+> `tests/smoke.test.ts` walks the whole path above through the real Hono application. **The session
+> resolver is no longer stubbed** — the walk signs in through `POST /api/auth/sign-in/social`, a
+> local OIDC issuer run as a fixture (`tests/helpers/oidc.ts`), Better Auth's own callback, and the
+> session cookie that callback sets. Only the model seam is stubbed, as §1 requires. So *a route not
+> mounted*, *auth middleware misconfigured*, *the download endpoint returning HTML instead of a
+> file*, *the path breaking between stages* and now *the sign-in path itself* all fail it today.
+> **Not covered: static assets not served, and the SPA failing to mount.** Both are single-request,
+> browser-only failures and both stay on §3. The fixture, and what it does and does not close, are
+> in the decision log — 2026-08-30 for the shape, 2026-09-02 for the build.
 
 ---
 
@@ -240,7 +244,7 @@ Run before each milestone is called done.
 | 5 | Fact-review scroll sync in both directions; selected mark lands ~34% from the top | Interaction feel |
 | 6 | Design-system conformance: no off-scale spacing, no new colours, mixed font stack on every Japanese surface | Visual |
 | 7 | Full keyboard pass through fact review | Interaction |
-| 8 | **The application loads**: static assets served, the SPA mounts, sign-in reachable | Standing in for the unbuilt half of §2.9 |
+| 8 | **The application loads**: static assets served, the SPA mounts, the sign-in button reaches Google | Standing in for the unbuilt half of §2.9. The *server's* sign-in path is now automated (§2.9); what is left here is the browser: the bundle, the SPA mount, and the button that starts the redirect |
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 
@@ -260,7 +264,7 @@ in §2. Items 1–4 stay human — they are judgement calls about a document a p
 | A broad end-to-end suite | One smoke test exists (§2.9). Beyond that, E2E suites rot fastest and catch least at three screens and one developer |
 | Visual regression / screenshot diffing | One developer, three screens, dark theme only. The setup cost exceeds the bugs it would catch |
 | Load and performance | One user. Revisit at the first invited second user |
-| Better Auth internals | Testing a maintained library's own behaviour. **Our allowlist and session middleware are tested; their implementation is not** |
+| Better Auth internals | Testing a maintained library's own behaviour. **Our allowlist and session middleware are tested; its storage, crypto and cookie attributes are not.** Since 2026-09-02 the sign-in *path* is walked end to end against a local issuer fixture (§2.9) — that asserts our wiring through Better Auth, not Better Auth |
 | Browser compatibility beyond current Chrome and Safari | Desktop only, one known user |
 | `.docx` byte-level output | Brittle and meaningless. Structure is asserted; fidelity is checklist item 1 |
 

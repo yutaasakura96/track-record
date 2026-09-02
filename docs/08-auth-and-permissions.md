@@ -182,6 +182,7 @@ future work is a known quantity rather than a rewrite.
 | Identity is a real `users` table from a real auth library | Done — Better Auth, not a hard-coded constant |
 | Deny-by-default routing | Done, asserted by test |
 | Sign-up model | **Invite-only**, permanently (§2). Growing it is adding invites, never removing the gate |
+| The allowlist gate on the sign-in path | Done, and **asserted by test** — Better Auth's own OIDC path runs against a local issuer fixture, for an invited identity and for one off the list, which must leave no `users` row (`11` §2.9, decision log 2026-09-02) |
 
 **What a second real user would require, none of it structural:**
 
