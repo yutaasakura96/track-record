@@ -91,22 +91,37 @@ const Generating = ({ proposal }: { proposal: Proposal }) => (
   </main>
 );
 
+/**
+ * The same first-generation branch `Generating` carries (issue #12), for the
+ * same reason and on the same discriminator — filed separately as #13 because
+ * it was outside that issue's scope. On a first generation there is no current
+ * version: "unchanged and still readable" reassures the reader about a document
+ * that does not exist, and **Download the current version** offers an accepted
+ * version that was never created. A failure screen is the worst place to
+ * describe a state the author does not have.
+ */
 function Failed({ proposal }: { proposal: Proposal }) {
   const navigate = useNavigate();
+  const first = proposal.basedOnVersionNo === null;
   return (
     <main className="flex-1 grid place-items-center px-20">
       <div className="w-measure max-w-full text-center">
         <p className="text-row font-medium text-text-strong">This document could not be generated.</p>
         <p className="mt-8 text-ui text-text-dim">
-          {proposal.error?.message} Your current version is unchanged and still readable.
+          {proposal.error?.message}{" "}
+          {first
+            ? "Nothing was saved, and your record is unchanged."
+            : "Your current version is unchanged and still readable."}
         </p>
         <div className="mt-20 flex items-center justify-center gap-10">
-          <a
-            href={downloadUrl(proposal.renderKind, "docx")}
-            className="border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
-          >
-            Download the current version
-          </a>
+          {first ? null : (
+            <a
+              href={downloadUrl(proposal.renderKind, "docx")}
+              className="border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
+            >
+              Download the current version
+            </a>
+          )}
           <Button variant="primary" onClick={() => void navigate({ to: "/" })}>
             Back to your record
           </Button>

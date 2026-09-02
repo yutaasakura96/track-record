@@ -9,8 +9,17 @@
  *     excluded when a document is produced. Accept stays enabled.
  *   - **Private facts are accepted normally**, with the action labelled.
  *   - **No confidence score.** Provenance is the only trust signal.
+ *
+ * **The keyboard surface is the rail** (issue #8, and `docs/06` 2026-09-03).
+ * Choosing which passage to look at is a traversal of the fact list, and the
+ * fact list is the rail; the document is the evidence view and follows. So the
+ * *card* is the focusable unit — one roving tab stop for the whole rail, arrows
+ * to move fact to fact, and selection follows focus wherever it lands inside a
+ * card. The marks stay a pointer shortcut and add no tab stops: making all 11
+ * of them focusable would double the cost of reaching the same 11 facts.
  */
 import { useEffect, useMemo, useRef } from "react";
+import type { KeyboardEvent } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   isImportRunning,
@@ -24,6 +33,7 @@ import {
 } from "../api";
 import { Button, Chip, FilterPill, Mono, Notice, ProgressBar, SegmentedControl } from "../components/ui";
 import { useReviewStore, type FactFilter } from "../stores/review";
+import { revealInBand, scrollToBand } from "../scroll";
 import { relative } from "../format";
 
 export function FactReview() {
@@ -117,19 +127,20 @@ function SourcePane({
   facts: Fact[];
 }) {
   const selectedFactId = useReviewStore((s) => s.selectedFactId);
+  const origin = useReviewStore((s) => s.selectionOrigin);
   const select = useReviewStore((s) => s.select);
   const pane = useRef<HTMLDivElement>(null);
 
   const marked = useMemo(() => markUp(text, facts), [text, facts]);
 
-  // Selecting a card scrolls the document so the mark sits ~34% from the top.
+  // Selecting a card scrolls the document so the mark sits ~34% from the top —
+  // but not when the selection came from a click in this pane, which would move
+  // the passage out from under the pointer that chose it (issue #6).
   useEffect(() => {
-    if (!selectedFactId || !pane.current) return;
+    if (!selectedFactId || !pane.current || origin === "document") return;
     const mark = pane.current.querySelector(`[data-fact="${selectedFactId}"]`);
-    if (!(mark instanceof HTMLElement)) return;
-    const offset = mark.offsetTop - pane.current.clientHeight * 0.34;
-    pane.current.scrollTo({ top: Math.max(0, offset), behavior: "smooth" });
-  }, [selectedFactId]);
+    if (mark instanceof HTMLElement) scrollToBand(pane.current, mark);
+  }, [selectedFactId, origin]);
 
   return (
     <div className="flex-1 min-w-0 flex flex-col">
@@ -147,7 +158,7 @@ function SourcePane({
               <mark
                 key={`${piece.fact.id}-${index}`}
                 data-fact={piece.fact.id}
-                onClick={() => select(piece.fact!.id)}
+                onClick={() => select(piece.fact!.id, "document")}
                 className={`mark-base ${markClass(piece.fact, piece.fact.id === selectedFactId)}`}
               >
                 {piece.text}
@@ -213,8 +224,12 @@ function FactRail({
 }) {
   const filter = useReviewStore((s) => s.filter);
   const setFilter = useReviewStore((s) => s.setFilter);
+  const selectedFactId = useReviewStore((s) => s.selectedFactId);
+  const origin = useReviewStore((s) => s.selectionOrigin);
+  const select = useReviewStore((s) => s.select);
   const { finish, retry } = useFactAction(importId);
   const navigate = useNavigate();
+  const list = useRef<HTMLDivElement>(null);
 
   const open = facts.filter((f) => f.status === "candidate");
   const resolved = facts.filter((f) => f.status !== "candidate");
@@ -230,6 +245,48 @@ function FactRail({
     ["open", `Open ${open.length}`],
     ["resolved", `Resolved ${resolved.length}`],
   ];
+
+  // The direction that did not exist (issue #6): clicking a passage never
+  // brought its card into view, on a rail showing 622px of 2663. `revealInBand`
+  // leaves an already-visible card where it is, so this cannot fight a reader
+  // scrolling the rail; and it stays out of the way entirely when the selection
+  // came from the rail, where the keyboard handler below does its own reveal.
+  useEffect(() => {
+    if (!selectedFactId || !list.current || origin === "rail") return;
+    const card = list.current.querySelector(`[data-fact-card="${selectedFactId}"]`);
+    if (card instanceof HTMLElement) revealInBand(list.current, card);
+  }, [selectedFactId, origin]);
+
+  /**
+   * One roving tab stop for the whole rail; arrows move fact to fact. Only when
+   * the card ITSELF holds focus — inside the claim editor the arrows move the
+   * caret, and inside a segmented control they belong to the radio group.
+   */
+  const moveCard = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (!(event.target instanceof HTMLElement) || !event.target.dataset.factCard) return;
+    const cards = [...(list.current?.querySelectorAll<HTMLElement>("[data-fact-card]") ?? [])];
+    const at = cards.indexOf(event.target);
+    const next =
+      event.key === "ArrowDown"
+        ? Math.min(cards.length - 1, at + 1)
+        : event.key === "ArrowUp"
+          ? Math.max(0, at - 1)
+          : event.key === "Home"
+            ? 0
+            : event.key === "End"
+              ? cards.length - 1
+              : null;
+    if (next === null || next === at) return;
+    event.preventDefault();
+    // `preventScroll` and an explicit reveal, so the rail uses the same band as
+    // the document instead of the browser's own idea of "into view".
+    cards[next]!.focus({ preventScroll: true });
+    if (list.current) revealInBand(list.current, cards[next]!);
+  };
+
+  // Which card is tabbable. The selected one, or the first, so the rail is
+  // always reachable in one Tab from the filter pills.
+  const tabbable = visible.some((f) => f.id === selectedFactId) ? selectedFactId : (visible[0]?.id ?? null);
 
   return (
     <aside className="w-rail shrink-0 bg-surface border-l border-border flex flex-col">
@@ -258,7 +315,11 @@ function FactRail({
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-16 py-14 grid gap-8 content-start">
+      <div
+        ref={list}
+        onKeyDown={moveCard}
+        className="flex-1 overflow-y-auto px-16 py-14 grid gap-8 content-start"
+      >
         {status.status === "failed" ? (
           <FailedState status={status} onRetry={() => retry.mutate()} busy={retry.isPending} />
         ) : null}
@@ -274,7 +335,13 @@ function FactRail({
         ) : null}
 
         {visible.map((fact) => (
-          <FactCard key={fact.id} importId={importId} fact={fact} />
+          <FactCard
+            key={fact.id}
+            importId={importId}
+            fact={fact}
+            tabbable={fact.id === tabbable}
+            onSelect={() => select(fact.id, "rail")}
+          />
         ))}
       </div>
 
@@ -326,19 +393,43 @@ function FailedState({ status, onRetry, busy }: { status: ImportStatus; onRetry:
 
 /* ---------------------------------------------------------------- fact card */
 
-function FactCard({ importId, fact }: { importId: string; fact: Fact }) {
+function FactCard({
+  importId,
+  fact,
+  tabbable,
+  onSelect,
+}: {
+  importId: string;
+  fact: Fact;
+  tabbable: boolean;
+  onSelect: () => void;
+}) {
   const { patch, resolve } = useFactAction(importId);
   const selectedFactId = useReviewStore((s) => s.selectedFactId);
-  const select = useReviewStore((s) => s.select);
   const selected = fact.id === selectedFactId;
   const claim = useRef<HTMLDivElement>(null);
+
+  /**
+   * What makes the card the focusable unit (issue #8). `onFocusCapture` rather
+   * than `onFocus` so that focus landing on any control *inside* the card
+   * selects it too — Tab walks the controls and the source pane keeps up,
+   * where before only a click on the article itself ever set the selection.
+   */
+  const handle = {
+    "data-fact-card": fact.id,
+    tabIndex: tabbable ? 0 : -1,
+    "aria-current": selected,
+    onClick: onSelect,
+    onFocusCapture: onSelect,
+  } as const;
 
   if (fact.status !== "candidate") {
     return (
       <article
-        className={`bg-card-recessed border border-border-subtle rounded-tile px-12 py-10 ${
-          fact.status === "accepted" ? "opacity-80" : "opacity-50"
-        }`}
+        {...handle}
+        className={`bg-card-recessed border rounded-tile px-12 py-10 outline-none focus-visible:shadow-ring ${
+          selected ? "border-border-control" : "border-border-subtle"
+        } ${fact.status === "accepted" ? "opacity-80" : "opacity-50"}`}
       >
         <p className={`text-claim text-text-strong ${fact.status === "rejected" ? "line-through" : ""}`}>
           {fact.claim}
@@ -376,8 +467,8 @@ function FactCard({ importId, fact }: { importId: string; fact: Fact }) {
 
   return (
     <article
-      onClick={() => select(fact.id)}
-      className={`border rounded-tile px-14 py-12 motion-elevation ${surface} ${lift} ${
+      {...handle}
+      className={`border rounded-tile px-14 py-12 motion-elevation outline-none focus-visible:shadow-ring ${surface} ${lift} ${
         selected ? "bg-card-selected" : ""
       }`}
     >

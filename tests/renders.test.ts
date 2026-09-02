@@ -449,6 +449,51 @@ describe("documents and downloads", () => {
     expect([bytes[0], bytes[1], bytes[2], bytes[3]]).toEqual([0x50, 0x4b, 0x03, 0x04]);
   });
 
+  /**
+   * Issue #7: the `.docx` opened, was structurally sound, and carried the
+   * subject's name nowhere — no contact block, and `docProps/core.xml` reading
+   * the `docx` library's `Un-named`. The router gates the whole application on
+   * collecting a name *because* every render needs one to put on it.
+   *
+   * Unlike the rest of the 2026-09-02 walk's findings this one is not a
+   * property of rendered pixels, so it has an automated home. It is asserted on
+   * the Markdown download, which is built from the same `identityLines` the
+   * `.docx` is: a `.docx` is a zip, and unzipping one to read it back would be
+   * testing the `docx` library rather than this decision.
+   */
+  it("puts the subject's name and contact on every download", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const markdown = await (await client.get("/api/renders/english_resume/download?format=md")).text();
+    expect(markdown).toContain(PROFILE_FIXTURE.nameLatin);
+    expect(markdown).toContain(PROFILE_FIXTURE.email);
+  });
+
+  /**
+   * `docs/11` §2.3, second half, and the reason the identity block is composed
+   * by the renderer from a narrow projection rather than written by the model:
+   * `date_of_birth`, `phone`, `postal_code` and `address` are readable only by
+   * the 履歴書 spec (`docs/04` §3.2). A header the model wrote would need the
+   * profile in the prompt to write it.
+   */
+  it("keeps 履歴書-only PII out of the English résumé", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const markdown = await (await client.get("/api/renders/english_resume/download?format=md")).text();
+    expect(markdown).not.toContain(PROFILE_FIXTURE.phone);
+    expect(markdown).not.toContain(PROFILE_FIXTURE.address);
+    expect(markdown).not.toContain(PROFILE_FIXTURE.postalCode);
+    expect(markdown).not.toContain(PROFILE_FIXTURE.dateOfBirth);
+  });
+
   it("emits no source document text in a render or its download", async () => {
     const record = await seedRecord();
     const created = (await (

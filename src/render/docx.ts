@@ -10,19 +10,47 @@
  * Microsoft Word is release-blocking checklist item 1 (`docs/11` §3).
  */
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
-import type { RenderContent } from "~/shared/render-content";
+import type { RenderContent, RenderKind } from "~/shared/render-content";
+import { documentAuthor, identityLines, type RenderIdentity } from "./identity";
 
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-export async function toDocx(content: RenderContent, title: string): Promise<Uint8Array> {
+export async function toDocx(
+  content: RenderContent,
+  title: string,
+  kind: RenderKind,
+  identity: RenderIdentity,
+): Promise<Uint8Array> {
   const children: Paragraph[] = [
     new Paragraph({
       alignment: AlignmentType.CENTER,
       children: [new TextRun({ text: title, bold: true, size: 32 })],
-      spacing: { after: 240 },
+      spacing: { after: 120 },
     }),
   ];
+
+  // The identity block — the only content not written from facts. See
+  // `./identity.ts` for why the renderer writes it and the model does not.
+  const [name, ...contact] = identityLines(kind, identity);
+  if (name) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: name, bold: true, size: 26 })],
+        spacing: { after: contact.length > 0 ? 40 : 240 },
+      }),
+    );
+  }
+  if (contact.length > 0) {
+    children.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: contact.join(" · "), size: 20 })],
+        spacing: { after: 240 },
+      }),
+    );
+  }
 
   for (const section of content.sections) {
     if (section.blocks.length === 0) continue;
@@ -44,7 +72,14 @@ export async function toDocx(content: RenderContent, title: string): Promise<Uin
     }
   }
 
-  const document = new Document({ sections: [{ children }] });
+  // Without these, `docProps/core.xml` carries the library's `Un-named`
+  // placeholder — a file whose properties disown its author (issue #7).
+  const author = documentAuthor(kind, identity);
+  const document = new Document({
+    title,
+    ...(author ? { creator: author, lastModifiedBy: author } : {}),
+    sections: [{ children }],
+  });
   // `toBuffer` returns a Uint8Array-compatible buffer; the Worker hands it
   // straight to the response body without ever writing it anywhere.
   return new Uint8Array(await Packer.toBuffer(document));

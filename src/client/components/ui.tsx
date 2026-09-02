@@ -5,7 +5,7 @@
  * **a disabled control always states why**, and **green, amber and red are
  * never decorative** — they mean Measured/added, Generated/blocked, and removed.
  */
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, KeyboardEvent, ReactNode } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "bare";
 
@@ -87,6 +87,27 @@ const TONES: Record<Segment<string>["tone"], string> = {
   private: "bg-private-bg text-private",
 };
 
+/** Arrow keys that move within a radio group, and by how much. */
+const STEP: Record<string, number> = {
+  ArrowRight: 1,
+  ArrowDown: 1,
+  ArrowLeft: -1,
+  ArrowUp: -1,
+};
+
+/**
+ * A WAI-ARIA radio group, which means **one tab stop, arrow keys inside it**.
+ *
+ * It was `role="radiogroup"` with `role="radio"` children and neither of those
+ * behaviours: every radio carried `tabIndex 0` and there was no `onKeyDown`, so
+ * each card contributed six tab stops instead of two and ArrowRight did nothing
+ * (issue #8). Two of the 11-card screen's 103 tab stops out of every three were
+ * this control.
+ *
+ * Roving tabindex: exactly the checked radio is tabbable. Selection follows
+ * focus, as the pattern specifies for a radio group — arrowing onto a value
+ * chooses it, which is what makes a group operable without a second keystroke.
+ */
 export function SegmentedControl<T extends string>({
   label,
   value,
@@ -98,6 +119,27 @@ export function SegmentedControl<T extends string>({
   segments: Segment<T>[];
   onChange: (value: T) => void;
 }) {
+  const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const current = segments.findIndex((s) => s.value === value);
+    const next =
+      event.key in STEP
+        ? (Math.max(0, current) + STEP[event.key]! + segments.length) % segments.length
+        : event.key === "Home"
+          ? 0
+          : event.key === "End"
+            ? segments.length - 1
+            : null;
+    if (next === null) return;
+
+    // The card above listens for the same arrows to move between facts. Inside
+    // a radio group they belong to the group, and only to it.
+    event.preventDefault();
+    event.stopPropagation();
+    onChange(segments[next]!.value);
+    const radios = event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]');
+    radios[next]?.focus();
+  };
+
   return (
     <div className="flex items-center gap-8">
       <span className="text-mono-label font-mono uppercase tracking-mono text-text-faint w-60 shrink-0">
@@ -106,6 +148,7 @@ export function SegmentedControl<T extends string>({
       <div
         role="radiogroup"
         aria-label={label}
+        onKeyDown={move}
         className="flex gap-2 p-2 bg-surface-raised border border-border-control rounded-control"
       >
         {segments.map((segment) => {
@@ -116,6 +159,7 @@ export function SegmentedControl<T extends string>({
               type="button"
               role="radio"
               aria-checked={active}
+              tabIndex={active ? 0 : -1}
               onClick={() => onChange(segment.value)}
               className={`px-8 py-4 rounded-chip text-micro font-medium motion-tone ${
                 active

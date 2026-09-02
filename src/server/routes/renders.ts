@@ -23,6 +23,7 @@ import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
 import { DOCX_MIME, downloadFilename, toDocx } from "~/render/docx";
+import type { RenderIdentity } from "~/render/identity";
 import {
   RENDER_KINDS,
   RENDER_TITLE,
@@ -241,9 +242,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const content = version.content as RenderContent;
     const title = RENDER_TITLE[kind];
     const filename = downloadFilename(kind, format, version.acceptedAt);
+    // Read at download rather than stored with the version: the identity block
+    // is not a claim about a career, and an accepted version must not go stale
+    // because a phone number changed (`src/render/identity.ts`).
+    const identity = await renderIdentity(db, user.id);
 
     if (format === "md") {
-      return new Response(toMarkdown(content, title), {
+      return new Response(toMarkdown(content, title, kind, identity), {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
           "content-disposition": `attachment; filename="${filename}"`,
@@ -253,7 +258,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     let bytes: Uint8Array;
     try {
-      bytes = await toDocx(content, title);
+      bytes = await toDocx(content, title, kind, identity);
     } catch {
       // The download fails; the stored content is untouched and the next
       // download can succeed.
@@ -274,6 +279,41 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
 const alreadyDecided = () =>
   new ApiError("conflict", "That proposal has already been decided.");
+
+/**
+ * The identity block's source, narrowed to the three fields a header may read.
+ * The restricted PII columns are never selected, so they cannot reach a render
+ * by accident — `src/render/identity.ts` and `docs/04` §3.2.
+ *
+ * A missing profile is a precondition failure, not a nameless document: nothing
+ * can be generated without one (`requiredProfileFields`), so its absence at
+ * download time means the row went away underneath an existing version.
+ */
+async function renderIdentity(db: Db, userId: string): Promise<RenderIdentity> {
+  const [profile] = await db
+    .select({
+      nameLatin: profiles.nameLatin,
+      familyNameKanji: profiles.familyNameKanji,
+      givenNameKanji: profiles.givenNameKanji,
+      email: profiles.email,
+    })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
+
+  if (!profile) {
+    throw preconditionFailed(
+      "That document cannot be assembled without your name. Add it to your profile and download again.",
+      ["nameLatin"],
+    );
+  }
+
+  return {
+    nameLatin: profile.nameLatin,
+    nameKanji: `${profile.familyNameKanji} ${profile.givenNameKanji}`.trim(),
+    email: profile.email,
+  };
+}
 
 function requireKind(value: string | undefined): RenderKind {
   if (!value || !(RENDER_KINDS as readonly string[]).includes(value)) {
