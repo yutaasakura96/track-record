@@ -248,6 +248,20 @@ Run before each milestone is called done.
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 
+**Items 2, 3 and 4 cannot be run until the renders they check exist.** 履歴書, 職務経歴書 and both
+career stories are `buildable: false` in `src/render/spec.ts` through M1, so those three items have
+nothing to open, print or read and are **not part of the M1 bar**. They arrive with the renders.
+"Never been run" and "cannot be run yet" are different states, and only the second one is true of
+them today.
+
+**Two of these items need a browser that the Claude Code Browser pane is not.** Item 7 needs
+keystrokes the pane does not deliver — a capture-phase `keydown` listener there records nothing and
+focus never moves — and the pane also renders the app's minimum-width gate. Item 5 needs a window
+that is genuinely in front: a tab reporting `document.visibilityState === "hidden"` does not animate
+smooth scrolling, so `scrollTo({behavior: "smooth"})` is a silent no-op and a scroll that appears not
+to happen proves nothing. Both want real Chrome, wider than 1280px, visible, and clicked into once
+before the first key — see the 2026-09-03 decision-log entry.
+
 **Items 5, 6 and 7 may be driven by an agent** — Claude Code's browser tooling can open the app,
 interact with it and report what it sees, which is faster and more consistent than the author doing
 it by hand. This is **exploratory verification, not testing**: it is non-deterministic, it costs

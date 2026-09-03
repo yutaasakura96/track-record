@@ -847,3 +847,46 @@ Append-only. The answer to every future "why is it like this?"
 - **The gap: this Browser pane does not deliver keystrokes to the page.** No `keydown` reaches the document from the pane's key action, fronted or hidden, so the key handlers were exercised with dispatched `KeyboardEvent`s — which genuinely run them and everything downstream — and the tab-stop count is computed from `tabIndex` and contenteditable rather than walked with 60 presses of Tab. Smooth scrolling is also unreliable there, so scroll targets were read from the intercepted `scrollTo` call and applied. **`docs/11` §3 item 7 is not signed off by this session**; what is established is that the handlers do what they are written to do.
 - **Two hand edits to `track_record_dev`, both restored, both stated because the walk's data is the fixture.** All 11 facts were set to `candidate` to reproduce the open-card screen the tab-stop count was measured on, and restored from a `pg_dump` snapshot afterwards — provenance and disclosure included, since arrowing a radio group writes to the database. `render_proposals.generation_status` and `based_on_version_id` were flipped to reach the `Failed` state's two branches, and set back. This is the same technique #12 was verified with on 2026-09-03.
 - **`docs/11` §3 items 5 and 6 now pass; item 7 does not, for the reason above. Issue #1 stays open.**
+
+---
+
+### [2026-09-03] `11` §3 items 1 and 7 ran on surfaces that could actually run them; issue #1 is reopened and the bar it now waits on is not a checklist item
+
+- **Decision:** issue #1 is **reopened**, not superseded. `docs/11` §3 items **1 and 7 now pass**, so the checklist half of the M1 bar is met in full; **items 2, 3 and 4 are not part of the M1 bar at all** and this entry says why. What #1 now waits on is its own Further Notes — the generated English résumé beside the hand-produced one — which is a judgement the author makes and no agent can make for them.
+
+#### The log and GitHub had been disagreeing for two days
+
+- **#1 was closed 2026-09-01T12:47** — the day *before* the walk that found #5–#12 — and both entries since state plainly that it stays open. Neither noticed it was already closed. The disagreement was real and it was invisible from either side alone.
+- **Reopening was the cheaper resolution, and it is not a stretch of the issue's terms.** The close rested on a green suite plus item 8, which is exactly the evidence the 2026-09-02 entry concluded does not establish what it was taken to establish; the close is a casualty of its own finding rather than a policy that later changed. Moving the bar to a second issue instead would have relitigated a decision taken twice in 48 hours on grounds of tidiness, and left two artifacts explaining each other. #1's Further Notes already set a bar no test can reach — "finished when a generated English résumé can be put beside the hand-produced one and judged" — so it was never a pure build ticket.
+
+#### Items 2, 3 and 4 are not runnable at M1, and that is a property of the milestone
+
+- 履歴書 (item 2), 職務経歴書 (item 3) and both career stories (item 4) are `buildable: false` in `src/render/spec.ts`, and the overview renders them as **Never generated** with Generate disabled. Those three items have nothing to open, print or read. They are not outstanding work against M1; they arrive with the renders. `docs/11` §3 gains a line saying so, because "never been run" and "cannot be run yet" are different states and the table did not distinguish them.
+
+#### Item 7 — the keyboard pass, walked rather than computed
+
+- **The 2026-09-03 gap is confirmed, not assumed.** A capture-phase `keydown` listener in the Claude Code Browser pane recorded `[]` for a Tab press and `document.activeElement` never left `BODY`. That pane also renders the app's minimum-width gate, so fact review is not even on screen there. It cannot run this item, and the reason is now measured rather than reported.
+- **The surface that works is Chrome driven over CDP, with one precondition: a real click first.** Before any click, Tab produced nothing there either; after one click into the page, every key arrived with `isTrusted: true`. That precondition is the whole difference between this session and the last one.
+- **All six checks pass.** Tab from the last filter pill lands on card 0's article and exactly one card is tabbable. Arrow moves card to card and the document follows to the specified band — **34.0%** measured at cards 0, 1, 4 and 5; card 2 lands at 47.2% because the pane is already at `scrollTop` 412 of a maximum 412 and the document is too short to place it lower, which is the clamp working rather than the band failing. Each of a card's five controls holds `aria-current` on its own card. Tab out of the Worth group lands on the Who group's checked radio, skipping the two unchecked siblings. Arrow inside a group moved Attested → Generated, carried `aria-checked` and the roving `tabIndex` with it, and **persisted to the database** — the write path is real, not just the ARIA.
+- **60 tab stops, walked with 65 real presses.** The count matches the 2026-09-03 figure; the *composition* does not, and the difference is worth having. That entry accounted for the rail's one roving stop. In a continuous forward walk that stop never materialises — selection follows focus, so the tabbable card is always the one just passed — and the sixtieth stop is instead the **source pane's scroll container**, which Chrome makes focusable because it holds no focusable children. That stop is not a defect: it is the keyboard's only way to scroll the source document. The article stop is real on fresh entry into the rail, which is where it was observed. Same total, different sixty.
+- **A first count of 62 was wrong and the error is instructive.** Three consecutive stops on one card's claim editor turned out to be `focusin` refiring at a tool-call boundary. Re-walking in a single uninterrupted run gave 60 with zero refocus events. A tab-stop count taken across batch boundaries is not a tab-stop count.
+
+#### The standing constraint this session found, which will outlive it
+
+- **A hidden tab does not animate smooth scrolling, and the app scrolls smoothly.** With `document.visibilityState === "hidden"`, `pane.scrollTo({behavior: "smooth"})` is a silent no-op: instrumenting the call showed the app asking for `top: 0` and `top: 762.27` — both arithmetically correct against the pane geometry — while `scrollTop` stayed at 169. Direct assignment and `behavior: "auto"` both worked on the same element in the same moment, which is what isolates it. **Any future check of scroll behaviour needs the window genuinely in front**, and a scroll that appears not to happen in a background window is evidence of nothing. This is the same root cause as React Query pausing its polling while the pane is hidden.
+
+#### Item 1 — the release blocker, in real Microsoft Word
+
+- **It opens clean.** A freshly downloaded `resume-2026-09-02.docx` (9,424 bytes) opened in Microsoft Word for Mac with **no repair prompt and no unreadable-content warning** — one page, 189 words, `Accessibility: Good to go`.
+- **The identity block renders as specified**: a centred title, then the name centred and bold, then the email centred beneath it. `Résumé` renders with its accents intact.
+- **Word's own Properties dialog reads `Title: Résumé (English)` and `Author: Taro Yamada`.** That is the half of #7 that mattered most and the only place it could be confirmed — the defect was that Word showed the `docx` library's `Un-named` placeholder, and a reader of `docProps/core.xml` would have believed the fix either way.
+- **The PII rule holds in the artifact, not just in the type.** A scan of every `<w:t>` run in the body found no phone number, no `〒`, and no date of birth. `HEADER_FIELDS` is doing what `identity.ts` says it does.
+
+#### What #1 still waits on, and why this session could not do it
+
+- Every applicable checklist item now passes: **1, 5, 6, 7 and 8**. What remains is the comparison #1 calls its deliverable, and it is **not reachable from this data**. `track_record_dev` holds an invented fixture — an invented person at an invented employer — so the generated résumé has no hand-produced counterpart to sit beside. Reaching that comparison means importing the author's real case studies, which is an act with its own consequences and is the author's to start. The bar is no longer "can the screens be used"; it is the question the project was built to answer.
+
+#### The dev database was changed and restored, and one column deliberately was not
+
+- All 11 facts were set to `candidate` to reach the open-card screen the tab-stop count needs, and restored from a `pg_dump` snapshot taken first. A `pg_dump` diff afterwards is byte-identical across every business column — provenance, disclosure, status, `resolved_at`, claim, quote and offsets.
+- **`facts.updated_at` on `fct_97DyfaC5mBYOOIoE` was left at its new value.** That row genuinely was written when its Worth control was arrowed from Attested to Generated and back. Resetting an audit column to hide a write that happened would put a false statement in the database to make a diff look tidy, which is the wrong trade.
