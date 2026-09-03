@@ -267,6 +267,19 @@ export const importChunks = pgTable("import_chunks", {
   status: chunkStatus("status").notNull().default("pending"),
   /** A reason, never a model response body and never source text. */
   error: text("error"),
+  /**
+   * What this chunk's extraction call cost, in tokens. Nullable because a
+   * version is never re-extracted in place — rows written before this column
+   * existed stay null forever, and null means "not recorded", not "free".
+   *
+   * `cache_read_input_tokens` is the column with a question attached: the
+   * extraction system prompt carries a 1-hour cache breakpoint, and across a
+   * multi-chunk import every chunk after the first should be reading from it.
+   */
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  cacheCreationInputTokens: integer("cache_creation_input_tokens"),
+  cacheReadInputTokens: integer("cache_read_input_tokens"),
   ...timestamps,
 }, (t) => [
   uniqueIndex("import_chunks_sdv_index_uq").on(t.sourceDocumentVersionId, t.chunkIndex),
@@ -405,6 +418,11 @@ export const renderProposals = pgTable("render_proposals", {
    * readable, and the author retries.
    */
   generationError: text("generation_error"),
+  /** What the generation call cost, in tokens. Null until it completes. */
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  cacheCreationInputTokens: integer("cache_creation_input_tokens"),
+  cacheReadInputTokens: integer("cache_read_input_tokens"),
   basedOnVersionId: text("based_on_version_id"),
   reason: text("reason"),
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),

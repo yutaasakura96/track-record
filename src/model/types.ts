@@ -19,6 +19,29 @@ export interface CandidateFact {
   technologies: string[];
 }
 
+/**
+ * What one model call cost, in tokens. The four fields are the provider's own
+ * `usage` accounting and nothing else — no prices, no derived totals. Money is
+ * a function of these numbers, a model id and a rate card, and rate cards
+ * change; the durable thing to record is the count.
+ *
+ * These are counts, never content, so they are safe to log and safe to store.
+ */
+export interface ModelUsage {
+  /** Uncached input. Billed at full rate. */
+  inputTokens: number;
+  outputTokens: number;
+  /** Input written to the cache on this call (~1.25×). */
+  cacheCreationInputTokens: number;
+  /**
+   * Input served FROM the cache (~0.1×). This is the number that says whether
+   * the 1-hour breakpoint in `providers/anthropic.ts` is actually paying off.
+   * Zero across a multi-chunk import means something is invalidating the
+   * prefix.
+   */
+  cacheReadInputTokens: number;
+}
+
 export interface ExtractionContext {
   /**
    * Is a human waiting on this call?
@@ -36,6 +59,12 @@ export interface ExtractionContext {
    * do not, and leave this unset.
    */
   onCandidate?: (candidate: CandidateFact) => void;
+  /**
+   * Called once, after the call completes, with what it cost. Not called when
+   * the call throws — a failed call's usage is not recoverable from the SDK's
+   * error, and inventing a zero row would understate the bill.
+   */
+  onUsage?: (usage: ModelUsage) => void;
   signal?: AbortSignal;
 }
 
@@ -68,9 +97,22 @@ export interface RenderSpec {
   projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
 }
 
+/**
+ * Generation's counterpart to `ExtractionContext`. It carries one field and is
+ * optional, so the seam is still two functions — this is a reporting channel,
+ * not a third capability.
+ */
+export interface GenerationContext {
+  onUsage?: (usage: ModelUsage) => void;
+}
+
 export interface ModelSeam {
   extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>;
-  generateRender(facts: RenderFact[], spec: RenderSpec): Promise<RenderContent>;
+  generateRender(
+    facts: RenderFact[],
+    spec: RenderSpec,
+    ctx?: GenerationContext,
+  ): Promise<RenderContent>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

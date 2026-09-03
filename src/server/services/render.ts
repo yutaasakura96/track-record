@@ -16,7 +16,7 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { employers, facts, projects, renderProposals } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
-import { ModelUnavailableError } from "~/model/types";
+import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 
@@ -143,7 +143,12 @@ export interface GenerateArgs {
 export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
   const { db, model, userId, proposalId, inputs } = args;
   try {
-    const content = await model.generateRender(inputs.facts, inputs.spec);
+    let usage: ModelUsage | null = null;
+    const content = await model.generateRender(inputs.facts, inputs.spec, {
+      onUsage: (u) => {
+        usage = u;
+      },
+    });
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
@@ -151,6 +156,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         content: stripUnknownFactIds(content, allowed),
         generationStatus: "ready",
         generationError: null,
+        // Four keys, four columns of the same name. See `ModelUsage`.
+        ...(usage ?? {}),
         updatedAt: new Date(),
       })
       .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));

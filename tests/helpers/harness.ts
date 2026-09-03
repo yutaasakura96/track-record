@@ -13,7 +13,7 @@ import { env } from "cloudflare:test";
 import { createApp } from "~/server/app";
 import { createDb } from "~/server/db/client";
 import type { Bindings, SessionUser } from "~/server/env";
-import type { CandidateFact, ModelSeam, RenderFact, RenderSpec } from "~/model/types";
+import type { CandidateFact, ModelSeam, ModelUsage, RenderFact, RenderSpec } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
 import type { AuthorizationRequest, FixtureIssuer, OidcIdentity } from "./oidc";
 
@@ -36,6 +36,12 @@ export interface StubModel extends ModelSeam {
   /** Every set of facts generation was actually given. */
   generationInputs: { facts: RenderFact[]; spec: RenderSpec }[];
   extractCalls: string[];
+  /**
+   * Reported through `onUsage` on every call, extraction and generation alike.
+   * Left unset to model a provider that reports nothing, which is what the
+   * columns' nullability exists for.
+   */
+  usage?: ModelUsage;
 }
 
 export function stubModel(): StubModel {
@@ -47,14 +53,18 @@ export function stubModel(): StubModel {
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
       const next = stub.extractions.shift() ?? [];
+      // Thrown BEFORE any usage is reported: a call that fails reports nothing,
+      // which is what the real seam does.
       if (next instanceof Error) throw next;
       for (const candidate of next) ctx.onCandidate?.(candidate);
+      if (stub.usage) ctx.onUsage?.(stub.usage);
       return next;
     },
-    async generateRender(facts, spec) {
+    async generateRender(facts, spec, ctx) {
       stub.generationInputs.push({ facts, spec });
       const next = stub.generations.shift();
       if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next ?? { sections: [] };
     },
   };

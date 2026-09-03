@@ -15,7 +15,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import { facts, importChunks, sourceDocumentVersions } from "~/server/db/schema";
 import { newId } from "~/server/http/ids";
-import { ModelUnavailableError, type ModelSeam } from "~/model/types";
+import { ModelUnavailableError, type ModelSeam, type ModelUsage } from "~/model/types";
 import { planChunks } from "./chunk";
 import { anchorQuote } from "./quote";
 import { scrub } from "./scrub";
@@ -143,8 +143,14 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
   const body = text.slice(chunk.startOffset, chunk.endOffset);
 
   let candidates;
+  let usage: ModelUsage | null = null;
   try {
-    candidates = await model.extractFacts(body, { waiting: "interactive" });
+    candidates = await model.extractFacts(body, {
+      waiting: "interactive",
+      onUsage: (u) => {
+        usage = u;
+      },
+    });
   } catch (err) {
     const reason =
       err instanceof ModelUnavailableError
@@ -212,7 +218,10 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
     ...(fresh.length > 0 ? [db.insert(facts).values(fresh)] : []),
     db
       .update(importChunks)
-      .set({ status: "done", error: null, updatedAt: new Date() })
+      // `ModelUsage`'s four keys are deliberately the four column names, so the
+      // spread is the whole mapping. A null spreads nothing and the columns
+      // stay null, which reads as "not recorded" rather than "cost zero".
+      .set({ status: "done", error: null, ...(usage ?? {}), updatedAt: new Date() })
       .where(and(eq(importChunks.userId, userId), eq(importChunks.id, chunkId))),
     db
       .update(sourceDocumentVersions)
@@ -224,13 +233,15 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
       .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId))),
   ]);
 
-  // Counts only. The discarded candidates' content is never surfaced or logged.
+  // Counts only. The discarded candidates' content is never surfaced or logged,
+  // and token counts are counts — they carry no claim, quote or source text.
   log({
     event: "import_chunk_done",
     versionId,
     chunkIndex: chunk.chunkIndex,
     kept: fresh.length,
     discarded,
+    ...(usage ?? {}),
   });
   return "done";
 }

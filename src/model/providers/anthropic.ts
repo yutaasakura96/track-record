@@ -9,7 +9,9 @@ import {
   ModelUnavailableError,
   type CandidateFact,
   type ExtractionContext,
+  type GenerationContext,
   type ModelSeam,
+  type ModelUsage,
   type RenderFact,
   type RenderSpec,
 } from "../types";
@@ -78,14 +80,23 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
             ctx.onCandidate?.(candidate);
           }
         }
-        await stream.done();
+        // `finalMessage()` rather than `done()`: it resolves the accumulated
+        // message, which is where `usage` lives. Assembling the same totals by
+        // hand from `message_start` and `message_delta` would be reimplementing
+        // what the SDK already guarantees.
+        const message = await stream.finalMessage();
+        ctx.onUsage?.(readUsage(message.usage));
       } catch (err) {
         throw asModelError(err);
       }
       return candidates;
     },
 
-    async generateRender(facts: RenderFact[], spec: RenderSpec): Promise<RenderContent> {
+    async generateRender(
+      facts: RenderFact[],
+      spec: RenderSpec,
+      ctx?: GenerationContext,
+    ): Promise<RenderContent> {
       try {
         // STREAMED, like extraction, and not by preference: the SDK refuses a
         // non-streaming request whose `max_tokens` could take it past ten
@@ -103,6 +114,10 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
           messages: [{ role: "user", content: JSON.stringify({ facts }) }],
         });
         const message = await stream.finalMessage();
+        // Reported BEFORE the unusable-response check below. A call that
+        // returned the wrong shape still ran and is still billed; suppressing
+        // its usage would make the cheapest-looking imports the broken ones.
+        ctx?.onUsage?.(readUsage(message.usage));
         const block = message.content.find((b) => b.type === "tool_use" && b.name === EMIT_RENDER_TOOL.name);
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
@@ -135,6 +150,21 @@ function readCandidate(json: string): CandidateFact | null {
     claim,
     quote,
     technologies: Array.isArray(technologies) ? technologies.filter((t): t is string => typeof t === "string") : [],
+  };
+}
+
+/**
+ * The SDK leaves the two cache fields nullable — they are absent, not zero,
+ * when a request carries no `cache_control`. Both of this file's calls do carry
+ * one, so a null here is worth reading as "no cache activity" rather than
+ * "unknown", and 0 is the honest projection of that onto an integer column.
+ */
+function readUsage(usage: Anthropic.Usage): ModelUsage {
+  return {
+    inputTokens: usage.input_tokens,
+    outputTokens: usage.output_tokens,
+    cacheCreationInputTokens: usage.cache_creation_input_tokens ?? 0,
+    cacheReadInputTokens: usage.cache_read_input_tokens ?? 0,
   };
 }
 

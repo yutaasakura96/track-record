@@ -931,3 +931,33 @@ Append-only. The answer to every future "why is it like this?"
 - A `pg_dump` snapshot was taken first and the record tables were then truncated, leaving `users`, `accounts` and `sessions` intact. **The fixture's home is the snapshot, not the live database**, and restoring it is how `docs/11` §3 items 5, 6 and 7 are re-run — the same technique the 2026-09-02 and 2026-09-03 entries used twice.
 - **One caveat is recorded because it is a claim about truth, not a mechanical step.** All 112 facts were promoted to `attested` in one pass, on the reasoning that a self-authored case study asserts its own claims. `measured` was not used and the API would have refused it without evidence rows. The record therefore says Attested for facts the author has not personally graded, and the provenance of this import is an agent's default rather than the author's judgement until re-reviewed.
 - **`docs/11` §3 is unchanged by this entry.** Item 1 remains signed off only for the file the 2026-09-03 entry opened; the document produced here has been checked for zip integrity and properties, which is not the same as Word opening it, and item 1 is a human check by the table's own terms.
+
+### [2026-09-04] The seam reports what each call cost, and the cache breakpoint stops being arithmetic
+
+- **Decision:** both model calls now report a `ModelUsage` — input, output, cache-creation and cache-read tokens — and both persist it. Extraction lands on the `import_chunks` row it already owns; generation lands on the `render_proposals` row that already exists from the moment generation starts. The previous entry recorded that the seam "streams and discards `usage` entirely"; that is no longer true.
+
+#### Why this went first, ahead of the `thinking` decision
+
+- The previous entry left four things open and named the `thinking` parameter as wanting "an explicit decision before the first bulk import". That decision cannot be made well without numbers. The question is not "is adaptive thinking at effort `high` expensive in principle" but "what is it costing per import here", and nothing in the system could answer it.
+- Telemetry is also the cheaper half. Both call sites already had the data in hand: extraction iterates stream events and threw the final message away, generation already called `finalMessage()` and read only the tool block.
+- **The two API facts this rests on were verified against the current documentation rather than recalled**, because the reason item 3 exists at all is that this behaviour changed under the code during a model migration. Confirmed: on `claude-opus-5`, omitting `thinking` runs adaptive — unlike Opus 4.8/4.7, where omitting it meant no thinking — and `output_config.effort` defaults to `high`. The previous entry's reading of the situation is correct.
+
+#### What the shape of the change protects
+
+- **`finalMessage()`, not a hand-rolled accumulation.** The totals could have been assembled from `message_start` plus `message_delta`, and that is the documented wire shape. It would also be reimplementing what the SDK already guarantees, in the one file that exists to keep provider detail out of everything above it.
+- **The four columns are nullable, and null means "not recorded" — never "cost nothing".** A version is never re-extracted in place, so every chunk row written before today keeps a null forever. That includes all nine chunks of the real import the previous entry reports: **the 112-fact run stays unmeasured and cannot be measured retroactively.** These columns answer questions about future imports only.
+- **Generation reports usage BEFORE the unusable-response check.** A call that returns the wrong shape still ran and is still billed. Reporting after the check would have made the broken imports look like the cheap ones.
+- **A failed call reports nothing.** The SDK's error does not carry usage, and writing a zero row would understate the bill in exactly the situation — a retry loop — where the bill is worst.
+- **`ModelUsage`'s four keys are deliberately the four column names**, so the mapping at both call sites is a spread and there is no translation layer to drift.
+- Token counts are counts. They carry no claim, no quote and no source text, so `import_chunk_done` now logs them without touching the rule in `docs/03` §7.
+
+#### One testing-plan exception, taken deliberately
+
+- `tests/usage.test.ts` asserts on columns rather than through the API, which `docs/11` §2 otherwise rules out. **The exception is that here the stored row IS the deliverable.** No screen and no endpoint reports token counts, so there is no higher seam to observe, and asserting through the API would have meant inventing a surface for the test's benefit. What the test protects is narrow and real: the way this silently reverts is a refactor that drops the callback, and no other test would notice.
+- Writing it surfaced the render-time provenance gate doing its job — an accepted fact still at the extraction default of Generated leaves nothing to generate from, and the request is refused with `precondition_failed`. That is `docs/02`'s block working, observed from the outside rather than asserted about.
+
+#### What this does not do
+
+- **It records tokens, not money.** No prices are stored and no cost is computed. Rate cards change and models change; the durable quantity is the count, and a price belongs wherever someone is reading a report, not in a row that will outlive the rate.
+- **Nothing surfaces it yet.** Reading a run's cost today means a SQL query or the log line. Whether that earns a screen is a separate question and no screen specification calls for one.
+- **The `thinking` decision is still open**, and is now answerable: the next real import produces the numbers it needs. The 1-hour cache breakpoint likewise stays a reasoned choice until a `cache_read_input_tokens` reading confirms it — the 933-versus-512-token arithmetic is unchanged, but arithmetic is what this entry exists to stop relying on.
