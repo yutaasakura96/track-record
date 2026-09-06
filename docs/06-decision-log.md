@@ -961,3 +961,36 @@ Append-only. The answer to every future "why is it like this?"
 - **It records tokens, not money.** No prices are stored and no cost is computed. Rate cards change and models change; the durable quantity is the count, and a price belongs wherever someone is reading a report, not in a row that will outlive the rate.
 - **Nothing surfaces it yet.** Reading a run's cost today means a SQL query or the log line. Whether that earns a screen is a separate question and no screen specification calls for one.
 - **The `thinking` decision is still open**, and is now answerable: the next real import produces the numbers it needs. The 1-hour cache breakpoint likewise stays a reasoned choice until a `cache_read_input_tokens` reading confirms it — the 933-versus-512-token arithmetic is unchanged, but arithmetic is what this entry exists to stop relying on.
+
+---
+
+### [2026-09-06] Three guards in front of the first bulk import, and the scrub finally met the material it was written for
+
+- **Decision:** the `thinking` parameter is now stated in the code rather than inherited from a model default, the dev server no longer serves the repository root, and `SHAPES` gains four entries after a dry run measured what it was missing. None of these changes what the system produces. All three close a gap between what the code does and what anyone reading it would believe it does. Two ADRs were written alongside them, in a new `docs/adr/`.
+
+#### Thinking and effort are written down, and the level is still open
+
+- Both call sites in `providers/anthropic.ts` now send `thinking: {type: "adaptive"}` and `output_config: {effort: "high"}`. These are the values that were already running. On `claude-opus-5` an absent `thinking` runs adaptive and an absent effort runs at `high`, which is what the 2026-09-04 entry recorded and what the current API reference confirms.
+- **The defect was never the cost. It was that nobody chose it.** Adaptive thinking at effort `high` arrived when `ANTHROPIC_MODEL` moved to Opus 5, silently, because the same absent parameter meant no thinking at all on Opus 4.8. Writing the values down costs nothing and stops the next model change from moving them the same way.
+- **Lowering `effort` is still an open decision and still wants numbers.** The previous entry made it answerable by recording token counts per call. The next real import produces them. This entry deliberately does not pre-empt that.
+
+#### The dev server's file scope, where the smaller finding led to a larger one
+
+- `vite.config.ts` now names `server.fs.allow` as `src` and `node_modules`, by absolute path. Naming it turns off Vite's workspace search, so the repository root leaves the served scope entirely instead of being denied file by file. `server.fs.deny` is deliberately left alone, because overriding it would drop Vite's own defaults for `.env`, keys, certificates and `.git`.
+- **`.dev.vars` mattered more than `local/` did.** The 2026-09-04 entry recorded that `local/` was fetchable over `/@fs/`. Fixing it surfaced the reason: Vite walks up for a lockfile, finds `package-lock.json` at the repository root, and serves everything under it. That includes `.dev.vars`, which holds `DATABASE_URL`, `ANTHROPIC_API_KEY` and `BETTER_AUTH_SECRET`. Vite's default deny list covers `.env` and `.env.*` and has never heard of `.dev.vars`, which is a Cloudflare convention.
+- **Verified in the browser rather than reasoned about.** With the dev server running, `.dev.vars`, `local/README.md` and `docs/06-decision-log.md` all return 403 over `/@fs/`, `src/shared/calendar.ts` still returns 200, and the application loads with every module served and no console error. The only failing requests are the two API calls, because the Worker was not running.
+
+#### The scrub, run against the portfolios it exists for
+
+- The 2026-09-04 entry recorded that 112 restricted and 0 client-identifying was the correct answer for a first-person narrative and was not evidence about the per-employer portfolios. Those portfolios have now been scanned: **10 documents, 4,405 paragraphs, across the four employer folders.**
+- **The guard is not vacuous on this material. 170 paragraphs came back Private before the change.** IPv4 fired 282 times, the ticket-key shape 72, IPv6 9, email 3, UNC path 2. GUID and employee-number never fired at all.
+- **It also had four countable gaps**, ranked by how often each appeared in text no existing shape caught: drive-letter paths such as `C:\` at 63, cloud resource identifiers at 26, URLs at 22, and hostnames on an internal suffix at 17. The UNC shape catches `\\server\share` and walks straight past `C:\`, which is the form these documents actually use and the one carrying a client's directory structure.
+- **Four shapes were added, and one of them is deliberately narrower than the finding.** Drive-letter path, internal-suffix hostname, cloud resource identifier, and URL naming an explicit port. The URL shape is scoped to a port rather than matching every URL, because a public postmortem link is exactly the kind of evidence a résumé should be able to cite, and marking it Private would mean it never renders. A port is the signal that separates an internal service endpoint from a published page.
+- **The measured effect is 170 Private paragraphs becoming 229.** Two controls confirm the narrowing works: a plain outcome sentence and a public documentation URL both stay Restricted.
+- **Two limits on what this establishes.** It scanned raw document text, not extracted quotes, so it says what the guard can see in the material rather than what it will see in a candidate. And the IPv4 shape cannot tell an address from a four-part version string, so some of those 282 are false positives, in the direction `scrub.ts` already argues for.
+- **It is not retroactive.** The scrub runs at ingestion, so the 112 facts already in `track_record_dev` keep the disclosure they were given. The widened list governs the next import.
+
+#### What is written down, and what is not verified
+
+- **`docs/adr/` now exists**, with ADR-0001 recording why facts stay atomic while bullets are welded at render time, and ADR-0002 recording why the first real import is Attested by an agent's default with a re-review gate before M3. Both were written because a future reader would look at the code and reasonably conclude a mistake had been made.
+- **The four new shapes have API-level tests that have not been run.** `tests/import.test.ts` gains one case per shape, each on its own invented document so the shared fixture's offsets and line numbers stay where the tests above them assert they are. The suite needs Postgres and the Docker daemon was not running. What was verified is narrower and was verified directly: `scrub()` returns Private for all four invented quotes and Restricted for both controls.

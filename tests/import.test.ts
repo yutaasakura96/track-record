@@ -182,6 +182,28 @@ describe("what a candidate arrives as", () => {
     expect(items[0]!.disclosure).toBe("private");
   });
 
+  // The shapes added on 2026-09-06, each on its own invented document so the
+  // shared fixture's offsets and line numbers stay where the tests above
+  // assert they are. A quote must appear verbatim in its source, so the
+  // document carries the sentence the candidate quotes.
+  const identifierCases: [string, string][] = [
+    ["a drive-letter path", "Runbooks lived at D:\\aozora\\settlement on the batch host."],
+    ["an internal hostname", "The scheduler ran on aozora-batch01.corp and nothing else reached it."],
+    ["a URL naming a port", "The staging dashboard was at http://aozora-staging:8443/settlement."],
+    ["a cloud resource identifier", "Snapshots landed in arn:aws:s3:::aozora-ledger-archive."],
+  ];
+
+  for (const [label, quote] of identifierCases) {
+    it(`marks a candidate carrying ${label} Private, without asking`, async () => {
+      model.extractions = [[{ claim: "Owned the batch platform", quote, technologies: [] }]];
+      const document = `# Aozora batch\n\n${quote}\n`;
+      const created = (await (await importDocument(document)).json()) as { importId: string };
+      const { items } = await factsOf(created.importId);
+      expect(items).toHaveLength(1);
+      expect(items[0]!.disclosure).toBe("private");
+    });
+  }
+
   it("carries no confidence score anywhere in the response", async () => {
     model.extractions = [
       [

@@ -27,6 +27,17 @@ const SHAPES: RegExp[] = [
   /\b(?:emp(?:loyee)?|staff|badge|社員)\s*(?:no\.?|number|id|番号)?\s*[:#]?\s*\d{3,}\b/i,
   // Bare long identifier runs — ticket keys, account numbers, system codes
   /\b[A-Z]{2,}[-_]\d{4,}\b/,
+  // Drive-letter path. The UNC shape above catches `\\server\share` and walks
+  // straight past `C:\`, which is the form the portfolios actually use and the
+  // one that carries a client's directory structure.
+  /\b[A-Za-z]:\\[^\s]+/,
+  // Hostname on an internal suffix, inside a URL or standing alone.
+  /\b[a-z0-9][a-z0-9-]*\.(?:corp|local|internal|intra|lan|ad)\b/i,
+  // A URL naming an explicit port. Public sites do not publish one; an internal
+  // service endpoint is the reason this appears in a case study at all.
+  /\bhttps?:\/\/[^\s\/]+:\d{2,5}\b/i,
+  // Cloud resource identifier. Carries the account id in its third field.
+  /\barn:aws:[a-z0-9-]+:/i,
 ];
 
 export interface ScrubResult {

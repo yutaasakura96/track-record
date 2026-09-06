@@ -19,6 +19,22 @@ import type { RenderContent } from "~/shared/render-content";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
 import { EMIT_RENDER_TOOL, buildGenerationPrompt, parseRenderContent } from "../generate";
 
+/**
+ * Thinking and effort are stated rather than inherited.
+ *
+ * On `claude-opus-5` an absent `thinking` parameter runs adaptive thinking, and
+ * an absent `output_config.effort` runs at `high`. On Opus 4.8 and 4.7 an absent
+ * `thinking` ran without thinking at all. Nobody chose adaptive-at-high here: it
+ * arrived when `ANTHROPIC_MODEL` moved to Opus 5, and it is the dominant cost
+ * term in every import (`docs/06`, 2026-09-04).
+ *
+ * These are the values already in force, written down so the next model change
+ * cannot move them silently. Lowering `effort` is a separate decision and wants
+ * the token counts from a real import first.
+ */
+const THINKING = { type: "adaptive" } as const;
+const OUTPUT_CONFIG = { effort: "high" } as const;
+
 export interface AnthropicSeamConfig {
   apiKey: string;
   model: string;
@@ -41,6 +57,8 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
           {
             model: config.model,
             max_tokens: 32000,
+            thinking: THINKING,
+            output_config: OUTPUT_CONFIG,
             system: [
               {
                 type: "text",
@@ -108,6 +126,8 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         const stream = client.messages.stream({
           model: config.model,
           max_tokens: 32000,
+          thinking: THINKING,
+          output_config: OUTPUT_CONFIG,
           system: [{ type: "text", text: buildGenerationPrompt(spec), cache_control: { type: "ephemeral" } }],
           tools: [EMIT_RENDER_TOOL],
           tool_choice: { type: "tool", name: EMIT_RENDER_TOOL.name },
