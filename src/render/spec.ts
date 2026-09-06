@@ -16,6 +16,16 @@ export interface RenderDefinition {
   language: "en" | "ja";
   /** Built in M1? The rest are listed on the overview and cannot be generated. */
   buildable: boolean;
+  /**
+   * The direction the document reads its dated lists in — employers, education
+   * and certifications alike. It belongs to the document, not to the record:
+   * the English résumé is reverse-chronological throughout, and the 履歴書's
+   * 学歴・職歴 table is chronological ascending and complete (`docs/02` §101,
+   * `docs/04` §4). `null` on a kind whose direction nothing has decided yet —
+   * the same placeholder the empty register is, and unreachable while the kind
+   * cannot generate, which `renders.test.ts` asserts.
+   */
+  chronology: "newest_first" | "oldest_first" | null;
   register: string;
   /** Profile fields generation is blocked without (`docs/07` §7). */
   requiredProfileFields: string[];
@@ -51,6 +61,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     kind: "english_resume",
     language: RENDER_LANGUAGE.english_resume,
     buildable: true,
+    chronology: "newest_first",
     register: RESUME_REGISTER,
     requiredProfileFields: ["nameLatin"],
   },
@@ -58,6 +69,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     kind: "rirekisho",
     language: RENDER_LANGUAGE.rirekisho,
     buildable: false,
+    chronology: "oldest_first",
     register: "",
     requiredProfileFields: ["dateOfBirth", "address", "addressKana"],
   },
@@ -65,6 +77,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     kind: "shokumu_keirekisho",
     language: RENDER_LANGUAGE.shokumu_keirekisho,
     buildable: false,
+    chronology: null,
     register: "",
     requiredProfileFields: [],
   },
@@ -72,6 +85,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     kind: "career_story_en",
     language: RENDER_LANGUAGE.career_story_en,
     buildable: false,
+    chronology: null,
     register: "",
     requiredProfileFields: [],
   },
@@ -79,6 +93,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     kind: "career_story_ja",
     language: RENDER_LANGUAGE.career_story_ja,
     buildable: false,
+    chronology: null,
     register: "",
     requiredProfileFields: [],
   },

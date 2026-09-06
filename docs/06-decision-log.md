@@ -1324,3 +1324,46 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The education ordering thread is still open and still the author's.** Renders print oldest-first, the hand-produced document prints newest-first, and the query ordering must not be touched. Nothing here touched it.
 - **Six pending render proposals, none accepted.**
+
+---
+
+### [2026-09-07] The order a document reads in is a property of the document, and the résumé had been disagreeing with itself
+
+- **Decision:** each render kind states the direction it reads its dated lists in. `RenderDefinition` gains `chronology`, the English résumé states `newest_first`, and `collectRenderInputs` applies it to employers, education and certifications at the render boundary. No query was reordered and no generation was spent.
+- **Reason:** the open thread was recorded as the renders printing education oldest-first while the hand-produced document prints it newest-first — a disagreement between the generated document and the author's. It is smaller and more decidable than that. **The résumé disagreed with itself.**
+
+#### The finding that decided it
+
+- `employers` is queried `desc(started_on)`. `certifications` is queried `desc(issued_on)`. `educations` is queried ascending, on the coalesce. The register says **"in the order that list gives"** for all three.
+- So one document was printing experience newest-first, certifications newest-first and education oldest-first, and had been since education reached the spec on 2026-09-06. The question was never which convention an English résumé follows. It was whether one document may order two of its lists one way and the third the other.
+- The direction had been living in the queries, where it was three independent decisions nobody had ever seen side by side. It is one decision, and it belongs to the render.
+
+#### Why the reversal is at the boundary and not in the query
+
+- **The education query ordering stays exactly as it was.** It orders on `coalesce(started_on, ended_on)` so a row carrying only a graduation month sorts by the date it has. Flipping that query to `desc` would put that row at the wrong end again — nulls change which end they sort to, the coalesce does not. `inDocumentOrder` reverses the finished list instead, which keeps the coalesce and inverts only the `id` tie-break.
+- **The register line was not touched either.** "In the order that list gives" is what keeps the model out of sorting dates. Asking it to sort newest-first would buy nothing and add a way to get a date wrong.
+
+#### What the other four kinds state
+
+- **`rirekisho` states `oldest_first`.** That is not a new decision: `docs/02` §101 and `docs/04` §4 already require the 学歴・職歴 table to be complete and chronological. Recording it here means the 履歴書 gets the right order from the day it becomes buildable, including for employers and certifications, whose queries run the other way.
+- **`shokumu_keirekisho` and both career stories state `null`.** A 職務経歴書 is written 編年体 or 逆編年体 and nothing in this project has chosen; a career story's direction is a question about the story. `null` is the same placeholder the empty register already is. A test asserts that a **buildable** kind states a direction, so a kind cannot become generatable while its direction is still unstated.
+
+#### Found and not fixed
+
+- **`certifications` is ordered `desc(issued_on)`, and `issued_on` is nullable.** Postgres sorts nulls FIRST in `desc`, so a certification with no issue date currently leads the résumé's certifications list. The education query has a coalesce for exactly this class of problem and this query has nothing. Not touched here, because it is a different question — where an undated qualification belongs — and it wants the author, not a default.
+
+#### What was corrected in the docs
+
+- `docs/04` §3.6's index note said **"every render lists employers in reverse chronological order"**, which contradicted §4 of the same file, where the 履歴書's 職歴 block is ascending. It now says the direction belongs to the document.
+- §3.8's and §3.9's index notes say the same thing from the other side: ascending is canonical, and the résumé reads the index backwards.
+
+#### What was verified
+
+- **137 tests across 14 files, up from 135; type check and build green.** Two tests were added: the résumé's education and certification lists both arrive newest-first with the graduation-month-only row at the month it has, and every buildable kind states a direction.
+- **The assertion is on the payload the model is given, not on what the model writes**, which is why this cost no generation. A rendered document has not been produced from the new order, and doing so costs one.
+
+#### What was not done
+
+- **Six pending render proposals, none accepted.** Unchanged.
+- **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.
+- **The measurement script is still uncommitted.**

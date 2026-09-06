@@ -26,7 +26,7 @@ import {
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
-import { RENDER_DEFINITIONS } from "~/render/spec";
+import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
 
 export interface RenderInputs {
   facts: RenderFact[];
@@ -37,6 +37,23 @@ export interface RenderInputs {
   generatedFactCount: number;
   /** Every accepted fact, however excluded — what staleness is measured against. */
   acceptedFactCount: number;
+}
+
+type Chronology = NonNullable<RenderDefinition["chronology"]>;
+
+/**
+ * Turns a list's SQL order into the order the document reads in.
+ *
+ * The SQL order is canonical and load-bearing — `educations` orders on
+ * `coalesce(started_on, ended_on)` precisely so a row carrying only a
+ * graduation month does not sort last — so a document that reads the other way
+ * is served by reversing here, never by reordering the query. Reversing keeps
+ * the coalesce and inverts only the `id` tie-break, which orders nothing a
+ * reader can see. A `null` chronology belongs to a kind that cannot generate;
+ * it takes the query's order and reaches no document.
+ */
+function inDocumentOrder<T>(rows: T[], sqlOrder: Chronology, document: Chronology | null): T[] {
+  return document === null || document === sqlOrder ? rows : [...rows].reverse();
 }
 
 export async function collectRenderInputs(
@@ -71,10 +88,12 @@ export async function collectRenderInputs(
     .select()
     .from(educations)
     .where(eq(educations.userId, userId))
-    // Chronological, because that is the order 学歴 is read in. Ordered on the
-    // coalesce rather than on `started_on`, because a row that carries only a
-    // graduation month has a null there and Postgres sorts nulls LAST in ASC —
-    // which would put the author's oldest schooling at the bottom of the list.
+    // Ascending is the canonical order, because that is the order 学歴 is read
+    // in. A document that reads the other way reverses it at the boundary
+    // below, never here. Ordered on the coalesce rather than on `started_on`,
+    // because a row that carries only a graduation month has a null there and
+    // Postgres sorts nulls LAST in ASC — which would put the author's oldest
+    // schooling at the bottom of the list, in either direction.
     .orderBy(asc(sql`coalesce(${educations.startedOn}, ${educations.endedOn})`), asc(educations.id));
   const certificationRows = await db
     .select()
@@ -133,7 +152,9 @@ export async function collectRenderInputs(
       language: definition.language,
       subjectName,
       register: definition.register,
-      employers: employerRows.map((e) => ({
+      // Newest-first out of SQL; the document decides whether it stays that
+      // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
+      employers: inDocumentOrder(employerRows, "newest_first", definition.chronology).map((e) => ({
         id: e.id,
         name: e.nameLatin ?? e.nameJa,
         industry: e.industryJa,
@@ -161,7 +182,7 @@ export async function collectRenderInputs(
       // The same language rule a role title follows, with one difference: the
       // Latin name is required by the schema and the Japanese one is optional,
       // so only the Japanese render needs a fallback.
-      educations: educationRows.map((e) => ({
+      educations: inDocumentOrder(educationRows, "oldest_first", definition.chronology).map((e) => ({
         id: e.id,
         institution:
           definition.language === "ja" ? (e.institutionJa ?? e.institution) : e.institution,
@@ -176,7 +197,7 @@ export async function collectRenderInputs(
         // back to reading the institution's name (`docs/06`, 2026-09-06).
         level: e.level,
       })),
-      certifications: certificationRows.map((c) => ({
+      certifications: inDocumentOrder(certificationRows, "newest_first", definition.chronology).map((c) => ({
         id: c.id,
         name: definition.language === "ja" ? (c.nameJa ?? c.name) : c.name,
         issuingOrganization: c.issuingOrganization,

@@ -9,7 +9,15 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
+import {
+  CERTIFICATION_FIXTURE,
+  EDUCATION_FIXTURE,
+  EMPLOYER_FIXTURE,
+  PROFILE_FIXTURE,
+  seedAllowedUser,
+  uploadForm,
+} from "./helpers/seed";
+import { RENDER_DEFINITIONS } from "~/render/spec";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
 
@@ -199,6 +207,69 @@ describe("what generation is given", () => {
       await client.get("/api/renders/english_resume/download?format=md")
     ).text();
     expect(download).not.toContain(record.measuredPrivate.id);
+  });
+});
+
+/**
+ * The direction a document reads in belongs to the document, not to the record
+ * (`docs/06`, 2026-09-07). Before that, it lived in the queries: the résumé
+ * printed experience and certifications newest-first and education oldest-first,
+ * because `educations` is queried ascending for 学歴 and the other two
+ * descending. One document, two directions.
+ */
+describe("the order a document reads in", () => {
+  it("hands the résumé every dated list newest-first", async () => {
+    await seedRecord();
+    // A row recorded only by the month it finished — the case migration 0005
+    // exists for. `vocational` rather than a school rung so that the register
+    // would actually print it: this asserts the order of the list, and a list
+    // whose rows the résumé drops would assert nothing a reader sees.
+    await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      institution: "Sakaide Technical College",
+      startedOn: null,
+      endedOn: "2013-03-01",
+      outcome: "completed",
+      level: "vocational",
+    });
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      institution: "Midorikawa Graduate School",
+      startedOn: "2017-04-01",
+      endedOn: "2019-03-01",
+      level: "postgraduate",
+    });
+    await client.post("/api/certifications", CERTIFICATION_FIXTURE);
+    await client.post("/api/certifications", {
+      ...CERTIFICATION_FIXTURE,
+      name: "Database Specialist",
+      nameJa: "データベーススペシャリスト試験",
+      issuedOn: "2021-06-01",
+    });
+
+    await generate(resumeFrom([{ text: "A bullet", factIds: [] }]));
+    const sent = model.generationInputs.at(-1)!.spec;
+
+    // Newest first, and the undated-start row sits at the month it does have
+    // rather than at whichever end nulls sort to.
+    expect(sent.educations.map((e) => e.institution)).toEqual([
+      "Midorikawa Graduate School",
+      "Midorikawa Institute of Technology",
+      "Sakaide Technical College",
+    ]);
+    // The same direction, from a list whose query runs the other way round.
+    expect(sent.certifications.map((c) => c.name)).toEqual([
+      "Database Specialist",
+      "Applied Information Technology Engineer",
+    ]);
+  });
+
+  it("states a direction on every render that can be generated", () => {
+    for (const definition of Object.values(RENDER_DEFINITIONS)) {
+      if (!definition.buildable) continue;
+      expect(definition.chronology, `${definition.kind} states no chronology`).not.toBeNull();
+    }
   });
 });
 

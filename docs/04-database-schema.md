@@ -180,7 +180,9 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `leaving_reason_ja` | text | yes | `null` | 退職理由, e.g. 一身上の都合により |
 | `sort_order` | integer | no | `0` | Author-controlled ordering within a date tie |
 
-**Index:** `(user_id, started_on desc)` — every render lists employers in reverse chronological order.
+**Index:** `(user_id, started_on desc)` — the descending order the English résumé reads in. The
+direction is a property of the document rather than of the record: the 履歴書's 職歴 block reads
+ascending (§4), and the render boundary reverses this list for it rather than the query changing.
 
 **Delete behaviour:** deleting an employer with facts, roles or projects attached is **blocked**
 (`on delete restrict` from the child side). PRD §8 requires facts never be silently orphaned; the
@@ -383,9 +385,12 @@ programme is what `13` §6 prints under 免許・資格 (decision log, 2026-09-0
 **A row with no `level` is printed, never dropped.** Losing a real education to a missing
 classification is the worse failure, and the register says so in as many words.
 
-**Index:** `(user_id, started_on asc)` — 学歴 renders chronologically ascending. The queries order
-by `coalesce(started_on, ended_on)` rather than by `started_on`, so that a row carrying only a
-graduation month sorts by the date it has instead of sorting last.
+**Index:** `(user_id, started_on asc)` — ascending is the canonical order, because that is the
+order 学歴 is read in. The queries order by `coalesce(started_on, ended_on)` rather than by
+`started_on`, so that a row carrying only a graduation month sorts by the date it has instead of
+sorting last. **The English résumé prints education newest-first**, like its experience and its
+certifications; that reversal happens at the render boundary and never by reordering the query,
+which would put the graduation-month-only row at the wrong end (decision log, 2026-09-07).
 
 ---
 
@@ -415,7 +420,8 @@ LinkedIn, minus two fields deliberately not adopted (see below).
   the author still curates, and there is still exactly one place skills come from.
 - **Media.** There is no object storage, and no render displays it.
 
-**Index:** `(user_id, issued_on asc)` — 免許・資格 renders chronologically ascending.
+**Index:** `(user_id, issued_on asc)` — 免許・資格 renders chronologically ascending; the English
+résumé reads the same index backwards, for the same reason employers do.
 **Partial index:** `(user_id, expires_on) where expires_on is not null` — the expiry sub-note.
 
 ---
