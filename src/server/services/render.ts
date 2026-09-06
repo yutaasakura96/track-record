@@ -12,9 +12,17 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { employers, facts, projects, renderProposals, roles } from "../db/schema";
+import {
+  certifications,
+  educations,
+  employers,
+  facts,
+  projects,
+  renderProposals,
+  roles,
+} from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
@@ -55,6 +63,21 @@ export async function collectRenderInputs(
     .from(roles)
     .where(eq(roles.userId, userId))
     .orderBy(desc(roles.startedOn));
+  // 学歴 and 免許・資格. Neither reached this spec until 2026-09-06, and the
+  // consequence was not a thinner education section but no education section
+  // at all: a career fact that happened at no employer and on no project had
+  // nowhere in the register to land, so it left the document (`docs/06`).
+  const educationRows = await db
+    .select()
+    .from(educations)
+    .where(eq(educations.userId, userId))
+    // Chronological, because that is the order 学歴 is read in.
+    .orderBy(asc(educations.startedOn), asc(educations.id));
+  const certificationRows = await db
+    .select()
+    .from(certifications)
+    .where(eq(certifications.userId, userId))
+    .orderBy(desc(certifications.issuedOn), asc(certifications.id));
   const employerById = new Map(employerRows.map((e) => [e.id, e]));
   const projectById = new Map(projectRows.map((p) => [p.id, p]));
   const rolesByEmployer = new Map<string, typeof roleRows>();
@@ -131,6 +154,28 @@ export async function collectRenderInputs(
         name: p.name,
         employerId: p.employerId,
         summary: p.summary,
+      })),
+      // The same language rule a role title follows, with one difference: the
+      // Latin name is required by the schema and the Japanese one is optional,
+      // so only the Japanese render needs a fallback.
+      educations: educationRows.map((e) => ({
+        id: e.id,
+        institution:
+          definition.language === "ja" ? (e.institutionJa ?? e.institution) : e.institution,
+        faculty: e.faculty,
+        degree: e.degree,
+        fieldOfStudy: e.fieldOfStudy,
+        startedOn: e.startedOn,
+        endedOn: e.endedOn,
+        outcome: e.outcome,
+      })),
+      certifications: certificationRows.map((c) => ({
+        id: c.id,
+        name: definition.language === "ja" ? (c.nameJa ?? c.name) : c.name,
+        issuingOrganization: c.issuingOrganization,
+        issuedOn: c.issuedOn,
+        expiresOn: c.expiresOn,
+        technologies: c.technologies,
       })),
     },
     privateFactCount: privateFacts.length,

@@ -114,6 +114,36 @@ export interface RenderSpec {
     roles: { title: string; startedOn: string; endedOn: string | null }[];
   }[];
   projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
+  /**
+   * 学歴 as rows rather than as prose, for the same reason `employers` is a
+   * list: the institution, the dates and the OUTCOME are data. An outcome
+   * inferred from the wording of a fact is a misrepresentation, not a
+   * formatting slip (`docs/04` §3.8).
+   */
+  educations: {
+    id: string;
+    institution: string;
+    faculty: string | null;
+    degree: string | null;
+    fieldOfStudy: string | null;
+    startedOn: string;
+    endedOn: string | null;
+    outcome: "graduated" | "completed" | "withdrawn" | "expected";
+  }[];
+  /**
+   * 免許・資格. Without this list a certification could reach a render only as
+   * whatever a fact happened to say about it, which is how fourteen of them
+   * became one sentence and then left the document entirely (`docs/06`,
+   * 2026-09-06).
+   */
+  certifications: {
+    id: string;
+    name: string;
+    issuingOrganization: string;
+    issuedOn: string | null;
+    expiresOn: string | null;
+    technologies: string[];
+  }[];
 }
 
 /**

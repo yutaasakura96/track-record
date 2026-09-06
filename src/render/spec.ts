@@ -23,17 +23,26 @@ export interface RenderDefinition {
 
 const RESUME_REGISTER = `Write a résumé for a technical audience reading in English.
 
-Sections, in this order, omitting any with no facts behind it:
+Sections, in this order, omitting any with nothing behind it:
 - "summary": one short paragraph. key "summary".
-- "experience": one section per employer in the Employers list, in the order that list gives, and no employer that is not on it. The heading carries the employer's name, the role titles held there and the employer's dates, all copied from the list rather than written from the facts. Blocks are bullets, one outcome each. key "experience".
+- "experience": one section per employer in the Employers list, in the order that list gives, and no employer that is not on it. The heading carries the employer's name, the role titles held there and the employer's dates, all copied from the list rather than written from the facts. Blocks are bullets. key "experience".
 - "projects": independent projects only — projects with no employer. key "projects".
-- "skills": one paragraph listing the technologies the facts actually name. key "skills".
+- "education": one row per entry in the Education list, in the order that list gives. Institution, qualification, outcome and dates are copied from the list. Omit schooling below university level when the list holds a university or a programme of study: an English résumé does not carry it. An entry whose outcome says the course was left unfinished is written as unfinished, never as a completion. key "education".
+- "certifications": technical certifications only, one row each, in the order the Certifications list gives. Name, issuer and date are copied from the list. A driving licence is not a technical certification and does not appear here; a language qualification belongs in "summary" if anywhere. key "certifications".
+- "skills": one paragraph listing the technologies the facts and the Certifications list actually name. key "skills".
 
 Register:
 - Bullets open with a past-tense action verb and state the outcome. "Reduced nightly batch runtime from 6 hours to 90 minutes."
 - No adjectives of self-assessment: no "successfully", "expertly", "cutting-edge", "passionate".
 - No first-person pronouns.
-- Keep each bullet to one sentence.`;
+
+How to compose a bullet:
+- One bullet is written from SEVERAL facts, and usually should be. The facts arrive atomic — what was built, how it was built and what it changed each arrive as their own fact. Putting them back together is this document's job, not the record's.
+- Weld facts that describe the same piece of work at the same employer, and list every fact you used in factIds. Never weld across two employers, and never weld two unrelated pieces of work merely to make a longer bullet.
+- Keep the number. If any fact behind a bullet carries a quantity, a duration, a count, a version or a percentage, the finished bullet states it. Dropping a number to keep a bullet short is a defect, not concision.
+- A bullet runs to one sentence, or to two when the second carries the result. Never three.
+- The hand-maintained résumé this one replaces runs about 30 experience bullets averaging about 190 characters. That shape is the target, and it is reached by composing — never by padding a thin bullet with words no fact supports. If you have written two bullets about one piece of work, that was one bullet.
+- A fact that carries no employer belongs in summary, projects, education or certifications. It is never placed under an employer.`;
 
 export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
   english_resume: {

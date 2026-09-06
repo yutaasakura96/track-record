@@ -14,7 +14,12 @@ export interface Block {
   text: string;
   /**
    * The facts that produced this block. What makes a weak bullet traceable to a
-   * weak fact. Empty is legal only for headings and fixed scaffolding.
+   * weak fact — and a list rather than a single id because a bullet is composed
+   * from several atomic facts (`docs/adr/0001-facts-stay-atomic.md`).
+   *
+   * Empty is legal for headings, for fixed scaffolding, and for a row copied
+   * from an entity table rather than written from a claim: an education or a
+   * certification row is data, and has no fact behind it by construction.
    */
   factIds: string[];
 }
