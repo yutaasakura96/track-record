@@ -87,6 +87,9 @@ export interface Fact {
   provenance: "measured" | "attested" | "generated";
   disclosure: "public" | "restricted" | "private";
   status: "candidate" | "accepted" | "rejected";
+  /** Which employer the fact is filed under. `null` until it is linked. */
+  employerId: string | null;
+  projectId: string | null;
   evidence: {
     sourceDocumentVersionId: string;
     lineNumber: number;
@@ -96,6 +99,69 @@ export interface Fact {
   technologies: string[];
   isClientIdentifying: boolean;
 }
+
+export interface Employer {
+  id: string;
+  nameJa: string;
+  nameLatin: string | null;
+  industryJa: string | null;
+  businessDescription: string | null;
+  capitalYen: number | null;
+  headcount: number | null;
+  employmentType: "full_time" | "contract" | "dispatch" | "part_time" | "independent";
+  startedOn: string;
+  endedOn: string | null;
+  leavingReasonJa: string | null;
+  sortOrder: number;
+}
+
+export interface Role {
+  id: string;
+  employerId: string;
+  titleJa: string | null;
+  titleLatin: string | null;
+  shokushuJa: string | null;
+  startedOn: string;
+  endedOn: string | null;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  nameJa: string | null;
+  employerId: string | null;
+  summary: string | null;
+  startedOn: string | null;
+  endedOn: string | null;
+  clientIsNamed: boolean;
+}
+
+export interface Education {
+  id: string;
+  institution: string;
+  institutionJa: string | null;
+  faculty: string | null;
+  degree: string | null;
+  fieldOfStudy: string | null;
+  startedOn: string;
+  endedOn: string | null;
+  outcome: "graduated" | "completed" | "withdrawn" | "expected";
+}
+
+export interface Certification {
+  id: string;
+  name: string;
+  nameJa: string | null;
+  issuingOrganization: string;
+  issuedOn: string | null;
+  expiresOn: string | null;
+  credentialId: string | null;
+  credentialUrl: string | null;
+  technologies: string[];
+}
+
+/** The five hand-entered entity types, keyed by their collection path. */
+export type EntityKey = "employers" | "roles" | "projects" | "educations" | "certifications";
 
 export interface ImportStatus {
   importId: string;
@@ -182,7 +248,7 @@ export const keys = {
   profile: ["profile"] as const,
   overview: ["overview"] as const,
   renders: ["renders"] as const,
-  employers: ["employers"] as const,
+  entity: (key: EntityKey) => [key] as const,
   importStatus: (id: string) => ["import", id] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
@@ -228,6 +294,56 @@ export const useProfile = () =>
     },
     retry: false,
   });
+
+/**
+ * One of the five hand-entered collections.
+ *
+ * They are read together on the record screen and they reference one another —
+ * a role needs its employer's name, a project may name one — so each is its own
+ * query keyed by its collection name and nothing composes them on the server.
+ */
+export function useEntities<T>(key: EntityKey) {
+  return useQuery({
+    queryKey: keys.entity(key),
+    queryFn: () => api<{ items: T[] }>(`/api/${key}`),
+  });
+}
+
+/**
+ * Create, edit and delete for one collection.
+ *
+ * Deleting an employer that something still points at answers `409 conflict`
+ * with the counts of what is attached. That is surfaced as it arrives rather
+ * than pre-empted by a check in the client: the server owns the rule, and a
+ * client that guessed it would drift (`docs/07` §4).
+ */
+export function useEntityActions(key: EntityKey) {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.entity(key) });
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    // An employer's name and dates are part of every render's structure, so
+    // changing one is what makes a generated document out of date.
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
+  };
+
+  const create = useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<{ id: string }>(`/api/${key}`, { method: "POST", ...json(body) }),
+    onSuccess: refresh,
+  });
+  const update = useMutation({
+    mutationFn: (input: { id: string; body: Record<string, unknown> }) =>
+      api<{ id: string }>(`/api/${key}/${input.id}`, { method: "PATCH", ...json(input.body) }),
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>(`/api/${key}/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
+  });
+
+  return { create, update, remove };
+}
 
 export const useOverview = () =>
   useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/api/overview") });
@@ -329,7 +445,10 @@ export function useFactAction(importId: string) {
   const refresh = () => queryClient.invalidateQueries({ queryKey: keys.facts(importId) });
 
   const patch = useMutation({
-    mutationFn: (input: { id: string; body: Partial<Pick<Fact, "claim" | "provenance" | "disclosure">> }) =>
+    mutationFn: (input: {
+      id: string;
+      body: Partial<Pick<Fact, "claim" | "provenance" | "disclosure" | "employerId">>;
+    }) =>
       api<Fact>(`/api/facts/${input.id}`, { method: "PATCH", ...json(input.body) }),
     onSuccess: () => void refresh(),
   });

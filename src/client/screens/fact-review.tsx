@@ -24,10 +24,12 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   isImportRunning,
   POLL_MS,
+  useEntities,
   useFactAction,
   useFacts,
   useImportStatus,
   useSourceText,
+  type Employer,
   type Fact,
   type ImportStatus,
 } from "../api";
@@ -446,6 +448,18 @@ function FactCard({
             Undo
           </button>
         </div>
+        {/*
+          An accepted fact can still be filed. This is the surface the 112 facts
+          of the first real import are linked through: re-importing to gain the
+          foreign key would create a new source version and orphan every accept
+          decision made against the old one (issue #14).
+        */}
+        <div className="mt-8">
+          <EmployerPicker
+            value={fact.employerId}
+            onChange={(employerId) => patch.mutate({ id: fact.id, body: { employerId } })}
+          />
+        </div>
       </article>
     );
   }
@@ -528,6 +542,10 @@ function FactCard({
             { value: "private", label: "Private", tone: "private" },
           ]}
         />
+        <EmployerPicker
+          value={fact.employerId}
+          onChange={(employerId) => patch.mutate({ id: fact.id, body: { employerId } })}
+        />
       </div>
 
       {patch.error ? (
@@ -558,5 +576,53 @@ function FactCard({
         </Button>
       </div>
     </article>
+  );
+}
+
+/**
+ * Which employer a fact belongs to.
+ *
+ * A plain select rather than a segmented control: employers are data and there
+ * may be any number of them, where provenance and disclosure are fixed vocabularies.
+ *
+ * With no employers recorded the control states that rather than offering an
+ * empty list — the record screen is where they are entered, and a fact filed
+ * under nothing is what the résumé's employer sections used to be inferred from.
+ */
+function EmployerPicker({
+  value,
+  onChange,
+}: {
+  value: string | null;
+  onChange: (employerId: string | null) => void;
+}) {
+  const employers = useEntities<Employer>("employers");
+  const items = employers.data?.items ?? [];
+
+  return (
+    <div className="flex items-center gap-8">
+      <span className="text-mono-label font-mono uppercase tracking-mono text-text-faint w-60 shrink-0">
+        Where
+      </span>
+      {items.length === 0 ? (
+        <span className="text-smaller text-text-faint">
+          No employers recorded — add one under Record.
+        </span>
+      ) : (
+        <select
+          aria-label="Employer"
+          value={value ?? ""}
+          onChange={(event) => onChange(event.target.value || null)}
+          className="bg-surface-raised border border-border-control rounded-control px-8 py-4 text-smaller text-text-secondary outline-none focus:shadow-ring"
+        >
+          <option value="">Unfiled</option>
+          {items.map((employer) => (
+            <option key={employer.id} value={employer.id}>
+              {employer.nameLatin ?? employer.nameJa}
+            </option>
+          ))}
+        </select>
+      )}
+    </div>
   );
 }

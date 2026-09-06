@@ -11,7 +11,7 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import { Mono } from "./ui";
 
 /**
- * `docs/10` specifies five rows; M1 builds one destination. The other rows stay
+ * `docs/10` specifies five rows; two are built. The other rows stay
  * visible so the shape of the application is legible, but they are DISABLED and
  * they say why (`docs/05` §6) — a row that navigates to Home while reading as
  * Facts is a lie about where it goes, and an active test of `path === to` with
@@ -22,6 +22,7 @@ import { Mono } from "./ui";
  */
 const NAV: ({ label: string } & ({ to: string } | { unbuilt: string }))[] = [
   { label: "Home", to: "/" },
+  { label: "Record", to: "/record" },
   { label: "Facts", unbuilt: "Browsing facts outside an import is not built yet." },
   { label: "Documents", unbuilt: "Browsing source documents is not built yet." },
 ];

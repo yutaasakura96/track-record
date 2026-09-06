@@ -14,6 +14,7 @@ import {
   CASE_STUDY,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  ROLE_FIXTURE,
   SECOND_EMAIL,
   seedAllowedUser,
   uploadForm,
@@ -24,6 +25,7 @@ interface Populated {
   profileName: string;
   employerId: string;
   projectId: string;
+  roleId: string;
   factId: string;
   importId: string;
   sourceDocumentId: string;
@@ -44,6 +46,9 @@ async function populate(client: Client, marker: string): Promise<Populated> {
   ).json()) as { id: string };
   const project = (await (
     await client.post("/api/projects", { name: `${marker} project`, employerId: employer.id })
+  ).json()) as { id: string };
+  const role = (await (
+    await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id, titleLatin: `${marker} Engineer` })
   ).json()) as { id: string };
 
   model.extractions = [[{ claim: `${marker} claim`, quote: QUOTE, technologies: ["Airflow"] }]];
@@ -87,6 +92,7 @@ async function populate(client: Client, marker: string): Promise<Populated> {
     profileName: `${marker} Author`,
     employerId: employer.id,
     projectId: project.id,
+    roleId: role.id,
     factId: facts[0]!.id,
     importId: imported.importId,
     sourceDocumentId: imported.sourceDocumentId,
@@ -109,7 +115,10 @@ describe("one user's record is unreachable from another's session", () => {
       // address, phone and date of birth.
       "/api/profile",
       "/api/employers",
+      "/api/roles",
       "/api/projects",
+      "/api/educations",
+      "/api/certifications",
       "/api/facts",
       "/api/renders",
       "/api/overview",
@@ -149,6 +158,7 @@ describe("one user's record is unreachable from another's session", () => {
     for (const [path, body] of [
       [`/api/employers/${b.employerId}`, { nameJa: "取得済み" }],
       [`/api/projects/${b.projectId}`, { name: "taken" }],
+      [`/api/roles/${b.roleId}`, { titleLatin: "taken" }],
       [`/api/facts/${b.factId}`, { claim: "taken" }],
     ] as [string, unknown][]) {
       const response = await a.client.patch(path, body);
@@ -160,6 +170,40 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/employers",
     );
     expect(employers.items.find((e) => e.id === b.employerId)!.nameJa).toContain("Bravo");
+  });
+
+  it("cannot file a fact under another user's employer", async () => {
+    // The linkage rule worth protecting: a foreign key alone would let one
+    // user's fact hang off another user's employer, and the employer's name and
+    // dates are what a render's sections are built from.
+    const response = await a.client.patch(`/api/facts/${a.factId}`, {
+      employerId: b.employerId,
+    });
+    expect(response.status).toBe(404);
+
+    // And the fact is unchanged — a refused link leaves no partial write.
+    const { items } = await a.client.json<{ items: { id: string; employerId: string | null }[] }>(
+      "/api/facts",
+    );
+    expect(items.find((f) => f.id === a.factId)!.employerId).toBeNull();
+  });
+
+  it("cannot attach a role to another user's employer", async () => {
+    const created = await a.client.post("/api/roles", {
+      ...ROLE_FIXTURE,
+      employerId: b.employerId,
+    });
+    expect(created.status).toBe(404);
+
+    const moved = await a.client.patch(`/api/roles/${a.roleId}`, { employerId: b.employerId });
+    expect(moved.status).toBe(404);
+  });
+
+  it("cannot delete another user's employer, and reports nothing about it", async () => {
+    const response = await a.client.delete(`/api/employers/${b.employerId}`);
+    expect(response.status).toBe(404);
+    // A 409 here would confirm the employer exists and how much hangs off it.
+    expect(((await response.json()) as { error: { code: string } }).error.code).toBe("not_found");
   });
 
   it("cannot attach a project to another user's employer", async () => {

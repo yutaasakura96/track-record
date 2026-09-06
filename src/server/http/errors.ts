@@ -62,6 +62,14 @@ export const validationFailed = (message: string, fields: string[]) =>
 export const preconditionFailed = (message: string, fields: string[]) =>
   new ApiError("precondition_failed", message, { fields });
 
+/**
+ * A row that something else still points at. `details` carries the COUNTS of
+ * the referring rows and never their content, so the message can say what is in
+ * the way without naming a fact or a claim (`docs/07` §4).
+ */
+export const conflict = (message: string, details: Record<string, number>) =>
+  new ApiError("conflict", message, details);
+
 export function errorResponse(c: Context, err: unknown) {
   if (err instanceof ApiError) return c.json(err.toBody(), err.status);
 

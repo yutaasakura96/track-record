@@ -71,6 +71,33 @@ export const EMPLOYER_FIXTURE = {
   leavingReasonJa: "一身上の都合により",
 };
 
+export const ROLE_FIXTURE = {
+  titleLatin: "Backend Engineer",
+  titleJa: "バックエンドエンジニア",
+  shokushuJa: "システムエンジニア",
+  startedOn: "2022-04-01",
+  endedOn: "2023-09-01",
+};
+
+export const EDUCATION_FIXTURE = {
+  institution: "Midorikawa Institute of Technology",
+  institutionJa: "緑川工科大学",
+  faculty: "情報工学部",
+  degree: "B.Eng.",
+  fieldOfStudy: "Information Engineering",
+  startedOn: "2013-04-01",
+  endedOn: "2017-03-01",
+  outcome: "graduated" as const,
+};
+
+export const CERTIFICATION_FIXTURE = {
+  name: "Applied Information Technology Engineer",
+  nameJa: "応用情報技術者試験",
+  issuingOrganization: "情報処理推進機構",
+  issuedOn: "2019-06-01",
+  technologies: ["SQL"],
+};
+
 /** An invented case study, in the shape the author's are written in. */
 export const CASE_STUDY = `# Aozora nightly batch
 

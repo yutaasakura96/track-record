@@ -25,7 +25,7 @@ const RESUME_REGISTER = `Write a résumé for a technical audience reading in En
 
 Sections, in this order, omitting any with no facts behind it:
 - "summary": one short paragraph. key "summary".
-- "experience": one section per employer, most recent first. Blocks are bullets, one outcome each. key "experience".
+- "experience": one section per employer in the Employers list, in the order that list gives, and no employer that is not on it. The heading carries the employer's name, the role titles held there and the employer's dates, all copied from the list rather than written from the facts. Blocks are bullets, one outcome each. key "experience".
 - "projects": independent projects only — projects with no employer. key "projects".
 - "skills": one paragraph listing the technologies the facts actually name. key "skills".
 

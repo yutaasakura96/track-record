@@ -19,6 +19,7 @@ import type { AppEnv } from "./env";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerProfileRoutes } from "./routes/profile";
 import { registerRecordRoutes } from "./routes/record";
+import { registerCredentialRoutes } from "./routes/credentials";
 import { registerImportRoutes } from "./routes/imports";
 import { registerFactRoutes } from "./routes/facts";
 import { registerRenderRoutes } from "./routes/renders";
@@ -52,6 +53,7 @@ export function createApp(options: AppOptions = {}) {
   registerAuthRoutes(app, resolveSession);
   registerProfileRoutes(app);
   registerRecordRoutes(app);
+  registerCredentialRoutes(app);
   registerImportRoutes(app);
   registerFactRoutes(app);
   registerRenderRoutes(app);

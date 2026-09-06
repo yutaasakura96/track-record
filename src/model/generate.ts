@@ -53,12 +53,17 @@ export const EMIT_RENDER_TOOL = {
 
 export function buildGenerationPrompt(spec: RenderSpec): string {
   const employers = spec.employers
-    .map(
-      (e) =>
-        `- id ${e.id} · ${e.name}${e.industry ? ` (${e.industry})` : ""} · ${monthOf(e.startedOn)} – ${
-          e.endedOn ? monthOf(e.endedOn) : "present"
-        }${e.businessDescription ? ` · ${e.businessDescription}` : ""}`,
-    )
+    .map((e) => {
+      const held = e.roles
+        .map(
+          (r) =>
+            `\n    - ${r.title} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
+        )
+        .join("");
+      return `- id ${e.id} · ${e.name}${e.industry ? ` (${e.industry})` : ""} · ${monthOf(e.startedOn)} – ${
+        e.endedOn ? monthOf(e.endedOn) : "present"
+      }${e.businessDescription ? ` · ${e.businessDescription}` : ""}${held}`;
+    })
     .join("\n");
   const projects = spec.projects
     .map((p) => `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${p.summary ? ` · ${p.summary}` : ""}`)
@@ -73,12 +78,14 @@ You are given a list of facts. Each has an id, a claim, a provenance and the emp
 Rules:
 - Every block you emit must list the ids of the facts it was written from, in factIds. A block written from no fact is a defect unless it is fixed scaffolding.
 - Do not introduce a number, a date, a technology or an outcome that no fact states.
+- Employer names, role titles and every employment date come from the Employers list below and from nowhere else. Do not infer any of them from the wording of a fact, and do not restate a date less precisely than the list gives it.
+- Group a fact under the employer whose id it carries. A fact carrying no employer id must not be placed under one.
 - Do not merge two facts into a claim stronger than either.
 - Facts marked restricted must be generalised: describe the work without naming the client or any system that identifies them.
 - Never emit a date more precise than a month.
 - Use the call it "${spec.language === "ja" ? "Japanese" : "English"}" register throughout.
 
-Employers:
+Employers, most recent first, with the roles held at each:
 ${employers || "- none recorded"}
 
 Projects:

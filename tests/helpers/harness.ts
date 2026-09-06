@@ -116,6 +116,7 @@ export interface Client {
   post(path: string, body?: unknown): Promise<Response>;
   patch(path: string, body: unknown): Promise<Response>;
   put(path: string, body: unknown): Promise<Response>;
+  delete(path: string): Promise<Response>;
   json<T = unknown>(path: string): Promise<T>;
 }
 
@@ -166,6 +167,7 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
       post: send("POST"),
       patch: send("PATCH") as Client["patch"],
       put: send("PUT") as Client["put"],
+      delete: (path) => request(path, { method: "DELETE" }),
       json: async <T>(path: string) => (await request(path)).json() as Promise<T>,
     };
   };

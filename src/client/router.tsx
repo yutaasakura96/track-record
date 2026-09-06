@@ -19,6 +19,7 @@ import { ApiError, useProfile, useSession } from "./api";
 import { SignIn } from "./screens/sign-in";
 import { ProfileForm } from "./screens/profile-form";
 import { Overview } from "./screens/overview";
+import { Record } from "./screens/record";
 import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { TooNarrow } from "./components/too-narrow";
@@ -78,6 +79,12 @@ const profileRoute = createRoute({
   component: ProfileForm,
 });
 
+const recordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/record",
+  component: Record,
+});
+
 const factReviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/imports/$importId",
@@ -93,6 +100,7 @@ const diffReviewRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   profileRoute,
+  recordRoute,
   factReviewRoute,
   diffReviewRoute,
 ]);

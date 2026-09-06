@@ -15,6 +15,7 @@ import { facts } from "../db/schema";
 import { notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
+import { requireOwnedEmployer } from "./record";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
 import type { Db } from "../db/client";
@@ -25,6 +26,18 @@ const patchBody = z.object({
   claim: z.string().trim().min(1, "A claim cannot be empty.").optional(),
   provenance: z.enum(["measured", "attested", "generated"]).optional(),
   disclosure: z.enum(["public", "restricted", "private"]).optional(),
+  /**
+   * Which employer this fact belongs to. `null` detaches it.
+   *
+   * Employer structure used to be reconstructed by the model from the claim
+   * prose, which worked only because the imported source happened to name its
+   * employers inside the sentences that became claims (`docs/06`, 2026-09-04).
+   * This is the column that replaces that inference with data — set here rather
+   * than at extraction, because a source document version is never re-extracted
+   * in place and re-importing to gain a foreign key would orphan every accept
+   * decision already made against it.
+   */
+  employerId: z.string().trim().min(1).nullish(),
 });
 
 export function registerFactRoutes(app: Hono<AppEnv>) {
@@ -76,12 +89,17 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       ]);
     }
 
+    // A foreign key alone would let one user file a fact under another user's
+    // employer. The check is a read filtered by `user_id`, and a miss is a 404.
+    if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
+
     const [updated] = await db
       .update(facts)
       .set({
         ...(body.claim === undefined ? {} : { claim: body.claim }),
         ...(body.provenance === undefined ? {} : { provenance: body.provenance }),
         ...(body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
+        ...(body.employerId === undefined ? {} : { employerId: body.employerId }),
         updatedAt: new Date(),
       })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
@@ -157,6 +175,9 @@ export function toResponse(fact: typeof facts.$inferSelect) {
     provenance: fact.provenance,
     disclosure: fact.disclosure,
     status: fact.status,
+    /** Which employer the fact is filed under — `null` until it is linked. */
+    employerId: fact.employerId,
+    projectId: fact.projectId,
     evidence: hasEvidence(fact)
       ? {
           sourceDocumentVersionId: fact.sourceDocumentVersionId,

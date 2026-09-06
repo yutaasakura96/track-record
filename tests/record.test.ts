@@ -9,8 +9,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import {
   CASE_STUDY,
+  CERTIFICATION_FIXTURE,
+  EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  ROLE_FIXTURE,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -129,6 +132,236 @@ describe("employers and projects", () => {
       nameJa: "",
     });
     expect(response.status).toBe(422);
+  });
+});
+
+describe("the entity layer", () => {
+  beforeEach(async () => {
+    await client.put("/api/profile", PROFILE_FIXTURE);
+  });
+
+  const addEmployer = async (overrides: Record<string, unknown> = {}) =>
+    (await (await client.post("/api/employers", { ...EMPLOYER_FIXTURE, ...overrides })).json()) as {
+      id: string;
+    };
+
+  it("records several roles at one employer, because a promotion is a second row", async () => {
+    const employer = await addEmployer();
+    await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
+    const second = await client.post("/api/roles", {
+      ...ROLE_FIXTURE,
+      employerId: employer.id,
+      titleLatin: "Senior Backend Engineer",
+      startedOn: "2023-10-01",
+      endedOn: null,
+    });
+    expect(second.status).toBe(201);
+
+    const { items } = await client.json<{ items: { titleLatin: string; endedOn: string | null }[] }>(
+      "/api/roles",
+    );
+    expect(items).toHaveLength(2);
+    // Most recent first — the order every render lists them in.
+    expect(items[0]!.titleLatin).toBe("Senior Backend Engineer");
+    expect(items[0]!.endedOn).toBeNull();
+  });
+
+  it("refuses a role with no employer", async () => {
+    const response = await client.post("/api/roles", ROLE_FIXTURE);
+    expect(response.status).toBe(422);
+    expect(
+      ((await response.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+    ).toContain("employerId");
+  });
+
+  it("refuses to delete an employer while facts, roles or projects reference it", async () => {
+    const employer = await addEmployer();
+    await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
+    await client.post("/api/projects", { name: "Batch rewrite", employerId: employer.id });
+
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    const imported = (await (
+      await client.request("/api/imports", { method: "POST", body: uploadForm(CASE_STUDY) })
+    ).json()) as { importId: string };
+    await settle();
+    const { items } = await client.json<{ items: { id: string }[] }>(
+      `/api/facts?importId=${imported.importId}`,
+    );
+    await client.patch(`/api/facts/${items[0]!.id}`, { employerId: employer.id });
+
+    const refused = await client.delete(`/api/employers/${employer.id}`);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as {
+      error: { code: string; message: string; details: Record<string, number> };
+    };
+    expect(body.error.code).toBe("conflict");
+    // Counts, so the refusal can say what is in the way without naming any of it.
+    expect(body.error.details).toEqual({ facts: 1, roles: 1, projects: 1 });
+    expect(body.error.message).not.toContain("Reduced nightly batch runtime");
+
+    // And nothing was deleted.
+    const stillThere = await client.json<{ items: { id: string }[] }>("/api/employers");
+    expect(stillThere.items.map((e) => e.id)).toContain(employer.id);
+  });
+
+  it("deletes an employer nothing references", async () => {
+    const employer = await addEmployer();
+    expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(204);
+    expect((await client.json<{ items: unknown[] }>("/api/employers")).items).toHaveLength(0);
+    // Repeating it is a 404, not a second success.
+    expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(404);
+  });
+
+  it("frees an employer for deletion once its facts are refiled", async () => {
+    const employer = await addEmployer();
+    const role = (await (
+      await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id })
+    ).json()) as { id: string };
+
+    expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(409);
+    expect((await client.delete(`/api/roles/${role.id}`)).status).toBe(204);
+    expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(204);
+  });
+
+  it("requires the month an education finished unless it is still expected", async () => {
+    const { endedOn: _omitted, ...unfinished } = EDUCATION_FIXTURE;
+    const refused = await client.post("/api/educations", unfinished);
+    expect(refused.status).toBe(422);
+    expect(
+      ((await refused.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+    ).toContain("endedOn");
+
+    // 卒業見込 is the one outcome that has not happened yet.
+    const expected = await client.post("/api/educations", {
+      ...unfinished,
+      outcome: "expected",
+    });
+    expect(expected.status).toBe(201);
+  });
+
+  it("holds an outcome to the same rule when it is edited onto a finished row", async () => {
+    const created = (await (
+      await client.post("/api/educations", { ...EDUCATION_FIXTURE, outcome: "expected", endedOn: null })
+    ).json()) as { id: string };
+
+    // The rule is about the finished row, not about the fields the PATCH names.
+    const refused = await client.patch(`/api/educations/${created.id}`, { outcome: "graduated" });
+    expect(refused.status).toBe(422);
+
+    const accepted = await client.patch(`/api/educations/${created.id}`, {
+      outcome: "graduated",
+      endedOn: "2017-03-01",
+    });
+    expect(accepted.status).toBe(200);
+    expect(((await accepted.json()) as { outcome: string }).outcome).toBe("graduated");
+  });
+
+  it("records a certification and returns its technologies", async () => {
+    const created = await client.post("/api/certifications", CERTIFICATION_FIXTURE);
+    expect(created.status).toBe(201);
+    expect(((await created.json()) as { technologies: string[] }).technologies).toEqual(["SQL"]);
+
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/certifications");
+    expect(items).toHaveLength(1);
+    expect((await client.delete(`/api/certifications/${items[0]!.id}`)).status).toBe(204);
+  });
+});
+
+describe("filing a fact under an employer", () => {
+  let employerId: string;
+  let factId: string;
+
+  beforeEach(async () => {
+    await client.put("/api/profile", PROFILE_FIXTURE);
+    employerId = (
+      (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string }
+    ).id;
+
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    const imported = (await (
+      await client.request("/api/imports", { method: "POST", body: uploadForm(CASE_STUDY) })
+    ).json()) as { importId: string };
+    await settle();
+    factId = (
+      await client.json<{ items: { id: string }[] }>(`/api/facts?importId=${imported.importId}`)
+    ).items[0]!.id;
+  });
+
+  it("arrives unfiled, because extraction never invents an employer", async () => {
+    const { items } = await client.json<{ items: { employerId: string | null }[] }>("/api/facts");
+    expect(items[0]!.employerId).toBeNull();
+  });
+
+  it("files a fact, and files an already-accepted one without re-importing", async () => {
+    // The 112 facts of the first real import were already accepted when the
+    // employer rows arrived. Linkage must not require a new source version.
+    await client.patch(`/api/facts/${factId}`, { provenance: "attested" });
+    await client.post(`/api/facts/${factId}/accept`);
+
+    const filed = await client.patch(`/api/facts/${factId}`, { employerId });
+    expect(filed.status).toBe(200);
+    const body = (await filed.json()) as { employerId: string; status: string };
+    expect(body.employerId).toBe(employerId);
+    // Filing it did not undo the accept decision.
+    expect(body.status).toBe("accepted");
+
+    const filtered = await client.json<{ items: { id: string }[] }>(
+      `/api/facts?employerId=${employerId}`,
+    );
+    expect(filtered.items.map((f) => f.id)).toEqual([factId]);
+  });
+
+  it("unfiles a fact when the employer is cleared", async () => {
+    await client.patch(`/api/facts/${factId}`, { employerId });
+    const cleared = await client.patch(`/api/facts/${factId}`, { employerId: null });
+    expect(((await cleared.json()) as { employerId: string | null }).employerId).toBeNull();
+  });
+
+  it("gives generation the employer rows, their roles and the fact's employer id", async () => {
+    await client.post("/api/roles", { ...ROLE_FIXTURE, employerId });
+    await client.patch(`/api/facts/${factId}`, { provenance: "attested", disclosure: "public" });
+    await client.patch(`/api/facts/${factId}`, { employerId });
+    await client.post(`/api/facts/${factId}/accept`);
+
+    model.generations = [
+      {
+        sections: [
+          {
+            key: "experience",
+            heading: "Experience",
+            blocks: [{ id: "blk_1", kind: "bullet", text: "A bullet", factIds: [factId] }],
+          },
+        ],
+      },
+    ];
+    await client.post("/api/renders/english_resume/generate");
+    await settle();
+
+    const sent = model.generationInputs.at(-1)!;
+    // The section's name, order and dates are rows now, not inference.
+    const employer = sent.spec.employers.find((e) => e.id === employerId)!;
+    expect(employer.name).toBe("Aozora Logistics K.K.");
+    expect(employer.startedOn).toBe("2022-04-01");
+    expect(employer.endedOn).toBe("2024-09-01");
+    // And the title comes from a role rather than from the claim prose.
+    expect(employer.roles.map((r) => r.title)).toEqual(["Backend Engineer"]);
+    expect(sent.facts[0]!.employer?.id).toBe(employerId);
   });
 });
 

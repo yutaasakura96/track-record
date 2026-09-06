@@ -75,7 +75,18 @@ export interface RenderFact {
   provenance: "measured" | "attested" | "generated";
   disclosure: "public" | "restricted";
   technologies: string[];
-  employer?: { name: string; startedOn: string; endedOn: string | null; industry?: string | null };
+  /**
+   * The employer this fact is filed under, by id as well as by name. The id is
+   * what ties it to the matching entry in `RenderSpec.employers`, so grouping
+   * is a join rather than a name match on prose.
+   */
+  employer?: {
+    id: string;
+    name: string;
+    startedOn: string;
+    endedOn: string | null;
+    industry?: string | null;
+  };
   project?: { name: string; summary?: string | null };
 }
 
@@ -86,6 +97,12 @@ export interface RenderSpec {
   subjectName: string;
   /** Register instruction. The same fact renders two ways; that is a prompt difference. */
   register: string;
+  /**
+   * The employer sections a render is built from, and the ONLY source of their
+   * names, order and dates. Before this list was populated the model inferred
+   * all three from claim prose, which held only while every claim happened to
+   * name its employer (`docs/06`, 2026-09-04).
+   */
   employers: {
     id: string;
     name: string;
@@ -93,6 +110,8 @@ export interface RenderSpec {
     startedOn: string;
     endedOn: string | null;
     businessDescription: string | null;
+    /** Titles held there, most recent first. A promotion is a second role. */
+    roles: { title: string; startedOn: string; endedOn: string | null }[];
   }[];
   projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
 }

@@ -12,9 +12,9 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { employers, facts, projects, renderProposals } from "../db/schema";
+import { employers, facts, projects, renderProposals, roles } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
@@ -42,10 +42,27 @@ export async function collectRenderInputs(
     .from(facts)
     .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
 
-  const employerRows = await db.select().from(employers).where(eq(employers.userId, userId));
+  const employerRows = await db
+    .select()
+    .from(employers)
+    .where(eq(employers.userId, userId))
+    .orderBy(desc(employers.startedOn));
   const projectRows = await db.select().from(projects).where(eq(projects.userId, userId));
+  // Roles are what give an employer section its TITLE. Without them the model
+  // had only the claim prose to take one from (`docs/06`, 2026-09-04).
+  const roleRows = await db
+    .select()
+    .from(roles)
+    .where(eq(roles.userId, userId))
+    .orderBy(desc(roles.startedOn));
   const employerById = new Map(employerRows.map((e) => [e.id, e]));
   const projectById = new Map(projectRows.map((p) => [p.id, p]));
+  const rolesByEmployer = new Map<string, typeof roleRows>();
+  for (const role of roleRows) {
+    const held = rolesByEmployer.get(role.employerId) ?? [];
+    held.push(role);
+    rolesByEmployer.set(role.employerId, held);
+  }
 
   const privateFacts = accepted.filter((f) => f.disclosure === "private");
   const generatedFacts = accepted.filter(
@@ -70,6 +87,7 @@ export async function collectRenderInputs(
       ...(employer
         ? {
             employer: {
+              id: employer.id,
               name: employer.nameLatin ?? employer.nameJa,
               startedOn: employer.startedOn,
               endedOn: employer.endedOn,
@@ -96,6 +114,17 @@ export async function collectRenderInputs(
         startedOn: e.startedOn,
         endedOn: e.endedOn,
         businessDescription: e.businessDescription,
+        // An English render prefers the Latin title and a Japanese one the
+        // Japanese title, but either is better than none, so each falls back to
+        // the other. A role with neither carries no title and is dropped: it
+        // still bounds the employer's dates, which the employer row already has.
+        roles: (rolesByEmployer.get(e.id) ?? []).flatMap((r) => {
+          const title =
+            definition.language === "ja"
+              ? (r.titleJa ?? r.titleLatin)
+              : (r.titleLatin ?? r.titleJa);
+          return title ? [{ title, startedOn: r.startedOn, endedOn: r.endedOn }] : [];
+        }),
       })),
       projects: projectRows.map((p) => ({
         id: p.id,
