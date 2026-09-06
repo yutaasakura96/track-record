@@ -1085,3 +1085,52 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The proposal was left pending, not accepted.** It is a proposal for the author to judge, and accepting it is a judgement about the author's own career document rather than a step in a comparison. The record still holds one accepted version.
 - **The suite was not run and nothing was built during this session**, per the previous entry's rule: the Worker serves `dist/` through its `ASSETS` binding and a build hot-reloads it under an open session. The employer, role and fact-linkage code was unchanged by this session, so there is nothing here a green suite would have told us.
+
+---
+
+### [2026-09-06] Bullets are welded from several facts, and a career fact that happened nowhere finally has somewhere to go
+
+- **Decision:** issue #15's two render-layer changes are built and measured. Bullet composition is a `RESUME_REGISTER` change, exactly as ADR-0001 predicted; education and certification sections are a register change plus two tables reaching `RenderSpec`. Against the hand-produced document's **30 bullets averaging 191 characters with 57% carrying a number**, the experience section moved from **52 / 130 / 25%** to **29 / 230 / 38%**. Count is on target, quantification recovered 13 of the 32 points it was short, and length overshot by 39 characters.
+
+#### The measurement, and why it is trustworthy
+
+- The same three numbers as 2026-09-04 and the entry above: blocks of kind `bullet` in the section keyed `experience`, their mean character length, and the share matching `/\d/`.
+- The script was validated before it was used. Run against the previous proposal it returns **52 / 130 / 25%** — the recorded figures, to the digit. Run against the hand-produced document's own bulleted paragraphs it returns **30 / 192 / 57%**, which is the recorded target with one character of rounding. Neither number was taken on trust.
+
+#### Composition
+
+- The register now says a bullet is written from several facts and usually should be; that facts arrive atomic because review needs them atomic, and putting them back together is the document's job rather than the record's; that welding never crosses an employer or joins unrelated work; and that a number carried by any contributing fact must survive into the finished bullet, because dropping it is a defect rather than concision.
+- **24 of the 29 bullets were composed from more than one fact**, against 20 of 52 before. Fact references rose from 82 to 88 while bullet count nearly halved.
+- **The register was told the target shape** — about 30 bullets of about 190 characters — and told in the same breath that the shape is reached by composing and never by padding. That is tuning a register to the author's own house style, which is what a register is for, but a future reader should know the number was given rather than discovered.
+- **Length overshot: 230 against 191.** Welding is easier to overdo than to underdo, and the instruction that permits a second sentence "when it carries the result" is the obvious suspect. This is the one measure that now misses the target from the wrong side.
+- **Quantification improved but is still 19 points short.** Composition lifts it mechanically — a numeric fact welded to a non-numeric one produces a numeric bullet — and 38% is roughly what that mechanism alone predicts. Closing the rest is not a register problem; the remaining non-numeric bullets are non-numeric because the facts behind them carry no number.
+
+#### The facts that had left the document
+
+- `collectRenderInputs` now puts `educations` and `certifications` in `RenderSpec`, and the register defines a section for each. Both tables and all eight routes already existed; nothing reached a render.
+- **Four education rows and seventeen certification rows were entered through `POST /api/educations` and `POST /api/certifications`**, one request each, against the real routes.
+- The generated document carries **three education rows and fifteen certification rows**. The difference is the register, not the record: it omits schooling below university level, and it keeps the certifications section technical, so the two entered rows that are not technical certifications do not appear in it. One of the two is a language qualification, which the register sends to the summary, and that is where it appeared.
+- **An education's outcome is data, never inference.** The prompt spells the enum out in words and says in as many words that a course left unfinished is never written as a completion. A withdrawal rendered as a graduation is a misrepresentation, not a formatting slip, and this is the one place a model's instinct to phrase things kindly would produce one.
+
+#### Four things the entry surfaced that the record could not hold
+
+- **One 学歴 row could not be entered at all.** `educations.startedOn` is `notNull`, and the author's own table records that row as a graduation month with no matching entry month. The row is real, it is in the hand-maintained document, and there is no honest value for the column, so it was left out rather than invented. A 履歴書 render built today would be missing a line the author's own 履歴書 has.
+- **The two hand-maintained documents disagree about where a completed non-degree course belongs** — one files it as education, the other under 免許・資格 — and about the month it finished, by one month. It was entered as an education, because the outcome enum already has a value for a course that is not a degree, and the finishing month was taken from the table, following the precedent set one entry above. A 履歴書 register will need to print a completed non-degree education under 免許・資格 to match the hand document.
+- **They also disagree about an outcome.** One records a course as left unfinished; the other presents the same course as a plain degree line. The table was taken as authoritative, so the generated résumé now states plainly what the hand-produced résumé softens. That is the structured record refusing to blur something, which is the point of having one, and it is the author's call whether to keep it.
+- **A row entered in both tables printed twice.** Entering the same course as an education and as a certification produced two rows in one document. The certification row was deleted. Nothing in the schema prevents this, because the two tables have no relationship to each other; the render is where it becomes visible.
+- **Issuers absent from the source table were supplied from the certifying body's own name**, never guessed. `issuingOrganization` is `notNull` and the author's table names an award without naming who awards it.
+
+#### The invariants, checked rather than assumed
+
+- **Zero unfiled facts used in an employer section, and zero facts placed under a heading naming a different employer**, across 88 fact references. The rule the entity layer added held again, under a register that now actively encourages welding — which was the obvious way for it to break.
+- **The suite is green: 128 tests, 13 files.** Run before the model call and after the code changes, with no OAuth round trip open.
+
+#### What the call cost
+
+- One generation call: **17,337 input, 7,431 output, 3,629 cache-creation and 0 cache-read tokens.**
+- **The uncached input is identical to the previous call's, to the token.** That is the expected shape rather than a coincidence: the facts block did not change, and the register and the two new lists landed in the cached prefix, where cache-creation rose from 1,583 to 3,629. Cache reads are zero again because the prefix changed, which is the third generation in a row to produce no reading for the breakpoint. A second generation with an unchanged prompt is the only thing that will.
+
+#### What was not done
+
+- **The proposal was left pending again.** The record still holds one accepted version, from 2026-09-04. Accepting is a judgement about the author's own career document.
+- **The register was not re-tuned after the overshoot, and no second generation was run.** One call was authorised and one was made. Correcting a 39-character overshoot costs another call, and the number it would move is already known and recorded.
