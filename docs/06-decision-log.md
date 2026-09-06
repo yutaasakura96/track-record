@@ -1295,3 +1295,32 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The bullet count was still not chased**, and it moved on its own to 31. It remains the author's call on reading a document.
 - **There are now six pending proposals**, none accepted. Two of them were produced by this session.
+
+---
+
+### [2026-09-07] The schema doc catches up with the schema, and the 履歴書 rule for a missing entry month is stated
+
+- **Decision:** `docs/04-database-schema.md` is brought back in step with `src/server/db/schema.ts`. No code changed and no generation was spent.
+- **Reason:** `docs/` is the source of truth, and it had been behind the last two schema changes. The doc listed neither the `education_level` enum nor the `level` column, and its `educations.started_on` row still read **Null: no** although migration `0005` made it nullable. A source of truth that lags the code teaches the next session the wrong shape of the record.
+
+#### What was corrected
+
+- **§2** gains `create type education_level as enum ('secondary_lower', 'secondary_upper', 'vocational', 'tertiary', 'postgraduate')`.
+- **§3.8** gains a `level` row, and `started_on` moves to **Null: yes**. Both carry the reasoning the log already holds: the nullable-in-database / required-by-`credentials.ts` split, the stage-neutral enum, `vocational` as a rung rather than a track, and the rule that **a row with no level is printed, never dropped**.
+- **The index note** now says the queries order on `coalesce(started_on, ended_on)` rather than on `started_on`, which is the thing that keeps a graduation-month-only row from sorting last.
+- **`docs/10` §Screen 4** now says Education carries a required level, not only an outcome. It is the interface contract, and the form grew a required field.
+
+#### The one thing here that is a decision rather than a sync
+
+- The 履歴書 rule in §4 said **two** rows per `educations` record, an 入学 from `started_on` and a closing row from `ended_on`. Since `0005` that is not always possible. It now reads: **a record whose `started_on` is null contributes the closing row only** — no 入学 row with a guessed month, and the record is not dropped.
+- This follows from what `0005` was for (the author's 中学校 is recorded as a graduation month with no entry month, which is 履歴書 convention rather than a gap) and from the rule already stated for a missing `level`: print what the record has, never drop a real row. **No 履歴書 render exists yet**, so this is a spec statement ahead of the code and the cheapest possible thing to supersede if the author reads it differently.
+
+#### What was checked and found clean
+
+- Every `pgTable` in the schema was compared column-by-column against its §3 section. **`educations` was the only table out of step**; the other differences were the combined sections (`3.6`, `3.10`, `3.11`) and the Better Auth tables the doc deliberately does not enumerate.
+- No other doc asserted the old `started_on` nullability or was missing the level.
+
+#### What was not done
+
+- **The education ordering thread is still open and still the author's.** Renders print oldest-first, the hand-produced document prints newest-first, and the query ordering must not be touched. Nothing here touched it.
+- **Six pending render proposals, none accepted.**

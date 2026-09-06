@@ -79,6 +79,8 @@ create type disclosure   as enum ('public', 'restricted', 'private');
 create type fact_status  as enum ('candidate', 'accepted', 'rejected');
 create type employment_type as enum ('full_time', 'contract', 'dispatch', 'part_time', 'independent');
 create type education_outcome as enum ('graduated', 'completed', 'withdrawn', 'expected');
+create type education_level as enum ('secondary_lower', 'secondary_upper', 'vocational',
+                                     'tertiary', 'postgraduate');
 create type render_kind   as enum ('english_resume', 'rirekisho', 'shokumu_keirekisho',
                                    'career_story_en', 'career_story_ja');
 create type proposal_status as enum ('pending', 'accepted', 'dismissed');
@@ -354,17 +356,36 @@ One row per school. **履歴書 学歴 rows derive from this** — two rows per 
 | `faculty` | text | yes | 学部・学科 — appears on the 履歴書 卒業 line |
 | `degree` | text | yes | English résumé only |
 | `field_of_study` | text | yes | English résumé only |
-| `started_on` | date | no | **入学** |
+| `started_on` | date | yes | **入学**. Null when the author records only a graduation month |
 | `ended_on` | date | yes | **卒業 / 修了 / 中退**. `null` only when `outcome = 'expected'` |
 | `outcome` | education_outcome | no | `graduated` / `completed` / `withdrawn` / `expected` |
+| `level` | education_level | yes | The rung this schooling sits on. Required by the API on every row it accepts |
 
 **`outcome` is not decoration.** 履歴書 convention requires a withdrawal to be stated as **中退**,
 not quietly rendered as 卒業. Getting this wrong is a misrepresentation, not a formatting slip.
 
-**Non-Japanese institutions render as written.** The author's education is largely outside Japan,
-so `institution_ja` is usually null and the Latin name appears in the 学歴 table unchanged.
+**`started_on` is nullable, and a row still needs one date.** A 学歴 row the author records only
+as a graduation month has no honest entry month. Making the column `not null` did not force the
+value to be found — it forced the row out of the record entirely. The rule that a row carries at
+least one of `started_on` / `ended_on` is enforced in `credentials.ts`, not by the column
+(decision log, 2026-09-06).
 
-**Index:** `(user_id, started_on asc)` — 学歴 renders chronologically ascending.
+**`level` is nullable in the database and required by the API**, the same split `started_on` uses
+and for the same reason: a migration cannot classify rows that already exist. It exists because the
+English résumé register has to select rows below university level, and asking the model to classify
+a row by the institution's name is a question the record could not answer — `San Beda College
+Alabang` survived a cut that `Westfield Science Oriented School` did not, on the word "College"
+alone. The enum is **stage-neutral rather than 中学校/高校/大学**, because most of this record's
+schooling is not Japanese; the 履歴書 register maps a rung to Japanese wording where Japanese
+wording belongs. `vocational` is a rung rather than a track, because a completed non-degree
+programme is what `13` §6 prints under 免許・資格 (decision log, 2026-09-06).
+
+**A row with no `level` is printed, never dropped.** Losing a real education to a missing
+classification is the worse failure, and the register says so in as many words.
+
+**Index:** `(user_id, started_on asc)` — 学歴 renders chronologically ascending. The queries order
+by `coalesce(started_on, ended_on)` rather than by `started_on`, so that a row carrying only a
+graduation month sorts by the date it has instead of sorting last.
 
 ---
 
@@ -486,7 +507,9 @@ a compliance bug late. This is the non-negotiable part.
 
 1. Centred header row `学歴`
 2. **Two** rows per `educations` record, chronological ascending — an **入学** row from `started_on`,
-   and a closing row from `ended_on` whose wording follows `outcome`: **卒業** / **修了** / **中退**
+   and a closing row from `ended_on` whose wording follows `outcome`: **卒業** / **修了** / **中退**.
+   A record whose `started_on` is null contributes the closing row only; it does not get an 入学 row
+   with a guessed month, and it is not dropped
 3. Centred header row `職歴`
 4. Per employer, chronological ascending: an **入社** row (`name_ja` + `industry_ja` + business note)
    and, where `ended_on` is set, a **退社** row carrying `leaving_reason_ja`
@@ -556,7 +579,7 @@ quote: null    # no verbatim support — inferred by the importer
 ```
 id: edu_Q3v9   institution: 桜台工科大学      institution_ja: 桜台工科大学
 faculty: 情報工学部 情報工学科              degree: B.Eng.   field_of_study: Computer Engineering
-started_on: 2016-04-01   ended_on: 2020-03-01   outcome: graduated
+started_on: 2016-04-01   ended_on: 2020-03-01   outcome: graduated   level: tertiary
 # 履歴書 renders two rows:  2016 / 4 / 桜台工科大学 情報工学部 情報工学科 入学
 #                          2020 / 3 / 同上 卒業
 ```

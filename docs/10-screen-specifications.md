@@ -224,7 +224,10 @@ chrome, one `Panel` per collection, each listing its rows with an inline form be
 edited.
 
 **Employer** carries 資本金 and 従業員数; **Education** carries an **outcome**, and a withdrawal must
-read 中退 rather than 卒業. All calendar fields collect **month and year only**.
+read 中退 rather than 卒業. **Education also carries a required level** — the rung the schooling sits
+on, which is what the English résumé selects rows by; the field is required on the form because the
+alternative is a render classifying a school by its name. All calendar fields collect **month and
+year only**.
 
 Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
 employer exists, because a role belongs to one; and deleting an employer something still references
