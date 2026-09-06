@@ -1240,3 +1240,58 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The five pending proposals were left pending**, and there are now five. Accepting one is a judgement about the author's own career document.
 - **The bullet count was not chased.** The obvious next move is to strengthen the do-not-split instruction, but that is a second change on top of an unmeasured one, and the count overshoot is three bullets against a length win of 35 characters. The register is left where it is until the author reads the document.
+
+### [2026-09-06] The record carries the schooling level, and a field reached the payload without reaching the model
+
+- **Decision:** `educations` gains a `level` column, and `RESUME_REGISTER` selects education rows by it instead of asking the model to classify an institution by its name. **The previous entry's finding is now closed: the education section prints three rows against the hand-produced document's three, and the set matches exactly.** Both pre-university rows are gone, and neither the register nor the model had to read a name to do it.
+
+#### The column
+
+- `education_level` is an enum of `secondary_lower`, `secondary_upper`, `vocational`, `tertiary`, `postgraduate`. **Stage-neutral rather than 中学校/高校/大学**, because most of this record's schooling is not Japanese and a Japanese ladder would be the wrong label at the point the row is stored. The 履歴書 register maps a rung to Japanese wording where Japanese wording belongs.
+- `vocational` is a rung rather than a track on purpose. A completed non-degree programme is what `13` §6 needs to print under 免許・資格, and that is a question about level and outcome together — a `below_university` boolean cannot answer it.
+- **Nullable in the database, required by `credentials.ts` on every row the API accepts.** The same split `started_on` uses, for the same reason: a migration cannot classify rows that already exist. Migration 0006 adds the column and classifies nothing; the five dev rows were classified by hand and the statement was not committed, because it maps real institution names.
+- **A row with no level is PRINTED, never dropped.** Losing a real education to a missing classification is the worse failure, and the wording sent to the model says so in as many words.
+
+#### The defect, which is the more useful half of this entry
+
+- The column was added to the schema, to the API, to `RenderSpec` and to the payload `render.ts` builds. **The type check passed, the suite was green, and the field still never reached the model.** `buildGenerationPrompt` hand-formats the education line, and it was not updated.
+- The register had already been rewritten to say "each entry states its level". So the model was **told to read a field it could not see**, and did the only honest thing available: it printed all five rows and wrote **"level not stated"** into two of them. That string reached a real document. The failure was not the model's.
+- **TypeScript cannot see this class of bug.** The payload is built inside `.map()`, and an object literal returned from a callback carries an excess property to a typed destination without an excess-property check. `level: e.level` compiled cleanly against a `RenderSpec` that had no `level`.
+- It was caught by reading the rendered output, not by any check in the repository. **One generation, ~$0.55, was spent producing the evidence.**
+
+#### What now catches it
+
+- `tests/prompt.test.ts` is new, and `buildGenerationPrompt` had **no test at all** before it — which is the reason a payload field could vanish silently on the way to the model.
+- It asserts the level reaches the prompt TEXT for all five rungs and for null, that the two below-university rungs are distinguished from the three that are kept, and that the pre-existing 中退 wording still survives.
+- **Verified as a negative control:** with the level removed from the prompt line, three of its four tests fail. The fourth is the outcome invariant and correctly still passes.
+- The general rule this encodes: **a field is not delivered when it reaches the payload, only when it reaches the prompt string.** Every future `RenderSpec` field needs a line here.
+
+#### The measurement, and a caveat that changes how the noise band should be read
+
+- Against the hand-produced **30 / 191 / 57%**, and the previous best of **33 / 190 / 39%**:
+  - **level column: 31 / 195 / 35%**
+- **Nothing in this change touches experience bullets**, and the experience section still moved: count 33 → 31, mean 190 → 195. Both are outside the ±1 band.
+- **The ±1 band was measured on a BYTE-IDENTICAL prompt, and does not transfer to a changed one.** Three runs across three prompts now read 33/190, 33/183 and 31/195 — a spread of 2 bullets and 12 characters from changes aimed at a different section entirely. The honest reading is that **an edit anywhere in the prefix perturbs the whole document**, and any comparison across two different prompts carries roughly ±2 count and ±6 mean before it means anything.
+- This retires nothing already recorded — the 225 → 190 move was 35 characters and stays far outside even the wider band — but it means **a future single-sample difference of 2 bullets is not a result.**
+- Quantification 39% → 35% is inside even the narrow band and is the expected non-result; the cause remains that the facts behind those bullets carry no number.
+
+#### A finding that is not in any thread, and was not changed
+
+- **Every generated render prints education oldest-first. The hand-produced document prints it newest-first.** The register says "in the order that list gives" and the list is ordered `coalesce(started_on, ended_on)` ascending, so the renders have been obeying the instruction exactly and the instruction disagrees with the document.
+- Not changed here. The query ordering is load-bearing for a different reason (nulls sorting last would bury the oldest row) and must not be touched; this is a presentation instruction, and reversing it silently would also spend the track record of an instruction the log is counting wobbles against. **Filed for the author.**
+
+#### Invariants and cost
+
+- **Cache-read is 0 again, as expected** — the register and the prompt formatter both land in the prefix. Cache-creation 4,004 → 4,107. **The extraction breakpoint still has no reading.**
+- The suite is green: **134 tests, 14 files**, up from 129/13. `npm run build` passes, design tokens clean. No OAuth round trip was open; the API was reached with a minted cookie throughout.
+- **Two generations were run, ~$1.10, and one of them bought only the defect.** That is the honest price of shipping the register change and the prompt formatter separately.
+
+#### The measurement script, rebuilt and validated again
+
+- Rebuilt from the definition in this log and **validated against all four prior proposals before any new number was trusted** — 52/130/25%, 29/230/38%, 29/226/45% and 30/225/40%, reproduced exactly, along with the recorded longest-bullet, over-250 and facts-per-bullet figures.
+- Still not committed, and still rebuilt from scratch every session.
+
+#### What was not done
+
+- **The bullet count was still not chased**, and it moved on its own to 31. It remains the author's call on reading a document.
+- **There are now six pending proposals**, none accepted. Two of them were produced by this session.
