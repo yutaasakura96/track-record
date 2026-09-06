@@ -9,7 +9,7 @@
  * Nothing references either table, so deletion here needs no conflict check.
  */
 import type { Hono } from "hono";
-import { asc, and, desc, eq } from "drizzle-orm";
+import { asc, and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { certifications, educations } from "../db/schema";
 import { notFound, pathParam } from "../http/errors";
@@ -33,7 +33,13 @@ const educationFields = z.object({
   faculty: z.string().trim().nullish(),
   degree: z.string().trim().nullish(),
   fieldOfStudy: z.string().trim().nullish(),
-  startedOn: monthDate,
+  /**
+   * Optional, because the author's own 学歴 table records one row as a
+   * graduation month with no matching entry month. Requiring it did not
+   * produce the missing value; it kept a real row out of the record
+   * (`docs/06`, 2026-09-06).
+   */
+  startedOn: monthDate.nullish(),
   endedOn: monthDate.nullish(),
   outcome: z.enum(["graduated", "completed", "withdrawn", "expected"]),
 });
@@ -49,6 +55,15 @@ const educationBody = educationFields.superRefine((value, ctx) => {
       code: z.ZodIssueCode.custom,
       path: ["endedOn"],
       message: "An education that has finished needs the month it finished.",
+    });
+  }
+  // Dropping `notNull` from `started_on` must not turn into a row that says
+  // when nothing. One endpoint is what a 学歴 line needs to be placed in time.
+  if (!value.startedOn && !value.endedOn) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["startedOn"],
+      message: "An education needs the month it started, the month it ended, or both.",
     });
   }
 });
@@ -75,8 +90,11 @@ export function registerCredentialRoutes(app: Hono<AppEnv>) {
       .select()
       .from(educations)
       .where(eq(educations.userId, c.get("user").id))
-      // Chronological, because that is the order 学歴 is read in.
-      .orderBy(asc(educations.startedOn), asc(educations.id));
+      // Chronological, because that is the order 学歴 is read in. On the
+      // coalesce, not on `started_on`: a row carrying only a graduation month
+      // has a null there, and Postgres sorts nulls LAST in ASC — which put the
+      // author's oldest schooling at the bottom of the list.
+      .orderBy(asc(sql`coalesce(${educations.startedOn}, ${educations.endedOn})`), asc(educations.id));
     return c.json({ items: rows.map(stripInternals) });
   });
 

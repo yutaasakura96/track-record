@@ -1,0 +1,1 @@
+ALTER TABLE "educations" ALTER COLUMN "started_on" DROP NOT NULL;

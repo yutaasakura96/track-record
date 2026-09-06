@@ -247,6 +247,31 @@ describe("the entity layer", () => {
     expect(expected.status).toBe(201);
   });
 
+  it("takes an education recorded only as the month it finished, and refuses one with no date at all", async () => {
+    // The row this exists for is real: the author's 学歴 table records one
+    // course as a graduation month with no matching entry month, and while
+    // `started_on` was notNull that row could not be entered (`docs/06`).
+    const graduationOnly = await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      startedOn: null,
+    });
+    expect(graduationOnly.status).toBe(201);
+    expect(((await graduationOnly.json()) as { startedOn: string | null }).startedOn).toBeNull();
+
+    // Nullable is not dateless. One endpoint places the row in time; none
+    // leaves a 学歴 line that cannot be ordered or read.
+    const undated = await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      startedOn: null,
+      endedOn: null,
+      outcome: "expected",
+    });
+    expect(undated.status).toBe(422);
+    expect(
+      ((await undated.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+    ).toContain("startedOn");
+  });
+
   it("holds an outcome to the same rule when it is edited onto a finished row", async () => {
     const created = (await (
       await client.post("/api/educations", { ...EDUCATION_FIXTURE, outcome: "expected", endedOn: null })

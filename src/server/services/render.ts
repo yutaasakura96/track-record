@@ -12,7 +12,7 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import {
   certifications,
@@ -71,8 +71,11 @@ export async function collectRenderInputs(
     .select()
     .from(educations)
     .where(eq(educations.userId, userId))
-    // Chronological, because that is the order 学歴 is read in.
-    .orderBy(asc(educations.startedOn), asc(educations.id));
+    // Chronological, because that is the order 学歴 is read in. Ordered on the
+    // coalesce rather than on `started_on`, because a row that carries only a
+    // graduation month has a null there and Postgres sorts nulls LAST in ASC —
+    // which would put the author's oldest schooling at the bottom of the list.
+    .orderBy(asc(sql`coalesce(${educations.startedOn}, ${educations.endedOn})`), asc(educations.id));
   const certificationRows = await db
     .select()
     .from(certifications)

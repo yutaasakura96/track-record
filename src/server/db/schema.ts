@@ -338,7 +338,14 @@ export const educations = pgTable("educations", {
   faculty: text("faculty"),
   degree: text("degree"),
   fieldOfStudy: text("field_of_study"),
-  startedOn: date("started_on", { mode: "string" }).notNull(),
+  /**
+   * Nullable, because a 学歴 row the author records only as a graduation month
+   * has no honest entry month. Making this `notNull` did not force the value to
+   * be found — it forced the row out of the record entirely, and a 履歴書 built
+   * from it was short a line the hand-maintained one has (`docs/06`, 2026-09-06).
+   * A row still needs one date: the rule is enforced in `credentials.ts`.
+   */
+  startedOn: date("started_on", { mode: "string" }),
   /** null only when outcome = 'expected'. */
   endedOn: date("ended_on", { mode: "string" }),
   /**

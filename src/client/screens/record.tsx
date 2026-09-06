@@ -208,7 +208,13 @@ const EDUCATIONS: Section<Education> = {
     { name: "degree", label: "Degree", optional: true },
     { name: "fieldOfStudy", label: "Field of study", optional: true },
     { name: "outcome", label: "Outcome", type: "select", options: OUTCOMES },
-    { name: "startedOn", label: "入学 · Started", type: "month" },
+    {
+      name: "startedOn",
+      label: "入学 · Started",
+      type: "month",
+      optional: true,
+      hint: "Leave empty when the record holds only the month it finished.",
+    },
     {
       name: "endedOn",
       label: "卒業・修了・中退 · Ended",

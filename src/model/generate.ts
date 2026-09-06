@@ -76,9 +76,9 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
       (e) =>
         `- id ${e.id} · ${e.institution}${e.faculty ? ` · ${e.faculty}` : ""}${
           e.degree ? ` · ${e.degree}` : ""
-        }${e.fieldOfStudy ? ` · ${e.fieldOfStudy}` : ""} · ${monthOf(e.startedOn)} – ${
-          e.endedOn ? monthOf(e.endedOn) : "present"
-        } · ${OUTCOME_WORDING[e.outcome]}`,
+        }${e.fieldOfStudy ? ` · ${e.fieldOfStudy}` : ""} · ${educationSpan(e)} · ${
+          OUTCOME_WORDING[e.outcome]
+        }`,
     )
     .join("\n");
   const certifications = spec.certifications
@@ -122,6 +122,21 @@ Call emit_render exactly once.`;
 }
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);
+
+/**
+ * A 学歴 row may carry only the month it finished — the author's own table
+ * records one that way, and `started_on` was made nullable rather than have the
+ * row invented or dropped (`docs/06`, 2026-09-06). The absent endpoint is
+ * spelled out rather than left as a dangling dash, because a model handed
+ * "– 2015-03" will supply the missing side.
+ */
+function educationSpan(e: RenderSpec["educations"][number]): string {
+  if (e.startedOn) return `${monthOf(e.startedOn)} – ${e.endedOn ? monthOf(e.endedOn) : "present"}`;
+  if (e.endedOn) {
+    return `finished ${monthOf(e.endedOn)} · no start month is recorded — write only the month given and do not supply the other side`;
+  }
+  return "no dates recorded";
+}
 
 /**
  * The outcome, spelled out. `withdrawn` is the reason this map exists: a

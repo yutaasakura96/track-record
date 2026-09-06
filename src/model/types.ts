@@ -126,7 +126,8 @@ export interface RenderSpec {
     faculty: string | null;
     degree: string | null;
     fieldOfStudy: string | null;
-    startedOn: string;
+    /** Null when the record holds only the month the course finished. */
+    startedOn: string | null;
     endedOn: string | null;
     outcome: "graduated" | "completed" | "withdrawn" | "expected";
   }[];
