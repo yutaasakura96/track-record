@@ -231,6 +231,26 @@ describe("the entity layer", () => {
     expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(204);
   });
 
+  it("requires an education to state its level, because the résumé cannot read it off the name", async () => {
+    // The register has to decide whether a row is below university level. Until
+    // the record carried the rung, the only signal was the institution's name,
+    // and a senior high school whose name contains "College" survived three
+    // samples while a middle school was dropped (`docs/06`, 2026-09-06).
+    const { level: _omitted, ...unlevelled } = EDUCATION_FIXTURE;
+    const refused = await client.post("/api/educations", unlevelled);
+    expect(refused.status).toBe(422);
+    expect(
+      ((await refused.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+    ).toContain("level");
+
+    const stated = await client.post("/api/educations", {
+      ...unlevelled,
+      level: "secondary_upper",
+    });
+    expect(stated.status).toBe(201);
+    expect(((await stated.json()) as { level: string }).level).toBe("secondary_upper");
+  });
+
   it("requires the month an education finished unless it is still expected", async () => {
     const { endedOn: _omitted, ...unfinished } = EDUCATION_FIXTURE;
     const refused = await client.post("/api/educations", unfinished);
@@ -270,6 +290,26 @@ describe("the entity layer", () => {
     expect(
       ((await undated.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
     ).toContain("startedOn");
+  });
+
+  it("goes on editing a row that states no level, which is what a row entered before the column does", async () => {
+    // The column is nullable because a migration cannot classify a row that
+    // already exists, and an unstated level PRINTS rather than dropping the
+    // row. Validating a PATCH against the create schema refused every such
+    // row — a patch naming only `degree` came back 422 on `level`.
+    const created = (await (
+      await client.post("/api/educations", EDUCATION_FIXTURE)
+    ).json()) as { id: string };
+
+    const cleared = await client.patch(`/api/educations/${created.id}`, { level: null });
+    expect(cleared.status).toBe(200);
+    expect(((await cleared.json()) as { level: string | null }).level).toBeNull();
+
+    const renamed = await client.patch(`/api/educations/${created.id}`, { degree: "BSc" });
+    expect(renamed.status).toBe(200);
+    const row = (await renamed.json()) as { level: string | null; degree: string };
+    expect(row.degree).toBe("BSc");
+    expect(row.level).toBeNull();
   });
 
   it("holds an outcome to the same rule when it is edited onto a finished row", async () => {

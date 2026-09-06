@@ -26,6 +26,11 @@ import type { AppEnv } from "../env";
  * than a formatting slip (`docs/04` §3.8). `endedOn` is null only for a course
  * still running, which is what `expected` means.
  */
+/** The rung. Mirrors the `education_level` enum in `db/schema.ts`. */
+const educationLevel = z.enum([
+  "secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate",
+]);
+
 const educationFields = z.object({
   institution: z.string().trim().min(1, "An institution name is required."),
   institutionJa: z.string().trim().nullish(),
@@ -42,14 +47,39 @@ const educationFields = z.object({
   startedOn: monthDate.nullish(),
   endedOn: monthDate.nullish(),
   outcome: z.enum(["graduated", "completed", "withdrawn", "expected"]),
+  /**
+   * Required on a row this endpoint CREATES, although the column is nullable.
+   * The résumé register asks whether a row is below university level, and
+   * before this field the only answer available was the institution's name —
+   * which reads "College" on a senior high school (`docs/06`, 2026-09-06).
+   * Every row entered from now on answers it from the record.
+   */
+  level: educationLevel,
 });
 
 /**
- * The fields plus the rule between them. Kept separate from `educationFields`
- * because a refinement cannot be made `.partial()` — a PATCH validates its own
- * fields against the loose schema and the RESULTING ROW against this one.
+ * The same row as it may already EXIST. A row entered before migration 0006
+ * carries no level, and the column is nullable precisely because a migration
+ * cannot classify one. Validating a PATCH against the create schema refused
+ * every such row — a patch naming only `degree` came back 422 on `level`, a
+ * field it never mentioned, leaving the row uneditable.
+ *
+ * Null is also what the form sends when the author picks 未記入 on a row whose
+ * rung is genuinely unknown. That is a statement, not a gap: an unstated level
+ * PRINTS, so the worst this can do is carry a row the register cannot place
+ * below university level — never drop a real education.
  */
-const educationBody = educationFields.superRefine((value, ctx) => {
+const educationRowFields = educationFields.extend({ level: educationLevel.nullish() });
+
+/**
+ * The rule between the fields, shared by both shapes above. Written once
+ * because it is one rule: what makes a finished 学歴 row coherent does not
+ * depend on whether the row is arriving or already stored.
+ */
+function educationRules(
+  value: { outcome: string; startedOn?: string | null; endedOn?: string | null },
+  ctx: z.RefinementCtx,
+) {
   if (value.outcome !== "expected" && !value.endedOn) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -66,7 +96,15 @@ const educationBody = educationFields.superRefine((value, ctx) => {
       message: "An education needs the month it started, the month it ended, or both.",
     });
   }
-});
+}
+
+/**
+ * The fields plus the rule between them. Kept separate from `educationFields`
+ * because a refinement cannot be made `.partial()` — a PATCH validates its own
+ * fields against the loose schema and the RESULTING ROW against `educationRow`.
+ */
+const educationBody = educationFields.superRefine(educationRules);
+const educationRow = educationRowFields.superRefine(educationRules);
 
 const certificationBody = z.object({
   name: z.string().trim().min(1, "A certification name is required."),
@@ -123,8 +161,11 @@ export function registerCredentialRoutes(app: Hono<AppEnv>) {
       .limit(1);
     if (!existing) throw notFound("That education");
 
-    const patch = await parseBody(c, educationFields.partial());
-    parse(educationBody, { ...stripInternals(existing), ...nullish(patch) });
+    // The loose shape a PATCH may name is the EXISTING row's, not the created
+    // row's: a stored level of null has to survive a patch that says nothing
+    // about it, and has to be nameable by a form that sends the whole row.
+    const patch = await parseBody(c, educationRowFields.partial());
+    parse(educationRow, { ...stripInternals(existing), ...nullish(patch) });
 
     const [row] = await db
       .update(educations)

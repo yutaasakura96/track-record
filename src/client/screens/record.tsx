@@ -42,6 +42,13 @@ interface FieldSpec {
   options?: { value: string; label: string }[];
   /** Options come from a collection loaded on this screen, not from a constant. */
   optionsFrom?: "employers";
+  /**
+   * A required select that must not answer for the user. Without it the browser
+   * — and React, which selects the first option when the value matches none —
+   * answers with whichever option happens to be first, and a row saved without
+   * the field ever being touched carries a value nobody chose.
+   */
+  unset?: string;
   optional?: boolean;
   /** Spans both columns. For prose and for a control with a long label. */
   wide?: boolean;
@@ -53,6 +60,19 @@ const EMPLOYMENT_TYPES = [
   { value: "dispatch", label: "派遣 · Dispatch" },
   { value: "part_time", label: "アルバイト · Part time" },
   { value: "independent", label: "個人事業主 · Independent" },
+];
+
+/**
+ * The rung, stage-neutral rather than 中学校/高校 — most of this record's
+ * schooling is not Japanese. The English résumé drops the two secondary rungs;
+ * the 履歴書 prints them all (`docs/06`, 2026-09-06).
+ */
+const LEVELS = [
+  { value: "secondary_lower", label: "中学校 · Lower secondary" },
+  { value: "secondary_upper", label: "高校 · Upper secondary" },
+  { value: "vocational", label: "専門・非学位 · Vocational, non-degree" },
+  { value: "tertiary", label: "大学 · University" },
+  { value: "postgraduate", label: "大学院 · Postgraduate" },
 ];
 
 const OUTCOMES = [
@@ -208,6 +228,20 @@ const EDUCATIONS: Section<Education> = {
     { name: "degree", label: "Degree", optional: true },
     { name: "fieldOfStudy", label: "Field of study", optional: true },
     { name: "outcome", label: "Outcome", type: "select", options: OUTCOMES },
+    {
+      name: "level",
+      label: "Level",
+      type: "select",
+      options: LEVELS,
+      // No default rung. The first option would otherwise be selected for a row
+      // that has none — a row entered before the column existed, or a new one
+      // whose author never opened this select — and the first option is
+      // `secondary_lower`, which is exactly the rung the English résumé drops.
+      // An empty value is refused by the server on a new row and preserved as
+      // "not recorded" on an old one, which prints.
+      unset: "— 未記入 · Not recorded —",
+      hint: "The English résumé omits the two secondary rungs. It cannot tell them from an institution's name.",
+    },
     {
       name: "startedOn",
       label: "入学 · Started",
@@ -525,6 +559,7 @@ function EntityField({
       {spec.type === "select" ? (
         <select name={spec.name} defaultValue={defaultValue} className={`${CONTROL} ${border}`}>
           {spec.optional ? <option value="">—</option> : null}
+          {spec.unset ? <option value="">{spec.unset}</option> : null}
           {options.map((option) => (
             <option key={option.value} value={option.value}>
               {option.label}

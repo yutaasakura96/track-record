@@ -1,0 +1,99 @@
+/**
+ * `buildGenerationPrompt` — the step between the render payload and the model.
+ *
+ * This file exists because of a defect it would have caught. `educations.level`
+ * was added to the schema, to the API, to `RenderSpec` and to the payload
+ * `render.ts` builds, the type check passed, and the field still never reached
+ * the model: the prompt's education line is hand-formatted here, and it was not
+ * updated. The register meanwhile had been rewritten to say "each entry states
+ * its level", so the model was told to read a field it could not see and wrote
+ * "level not stated" into two rows of a real document (`docs/06`, 2026-09-06).
+ *
+ * The general shape of that bug is a payload field that no formatter prints,
+ * and TypeScript cannot see it: an object literal built inside `.map()` carries
+ * an excess property to a typed destination without complaint. What catches it
+ * is asserting that the value reaches the prompt TEXT.
+ */
+import { describe, expect, it } from "vitest";
+import { buildGenerationPrompt } from "~/model/generate";
+import type { RenderSpec } from "~/model/types";
+
+type Education = RenderSpec["educations"][number];
+
+const education = (over: Partial<Education> = {}): Education => ({
+  id: "edu_test",
+  institution: "Midorikawa Institute of Technology",
+  faculty: null,
+  degree: null,
+  fieldOfStudy: null,
+  startedOn: "2013-04-01",
+  endedOn: "2017-03-01",
+  outcome: "graduated",
+  level: "tertiary",
+  ...over,
+});
+
+const spec = (educations: Education[]): RenderSpec => ({
+  kind: "english_resume",
+  language: "en",
+  subjectName: "Taro Yamada",
+  register: "REGISTER",
+  employers: [],
+  projects: [],
+  educations,
+  certifications: [],
+});
+
+describe("the generation prompt", () => {
+  it("states every education's level, so the register never has to read the institution's name", () => {
+    // The register selects rows by level. A level that does not reach the
+    // prompt leaves the institution name as the only signal, which is how a
+    // senior high school whose name contains "College" survived three samples.
+    const levels: NonNullable<Education["level"]>[] = [
+      "secondary_lower",
+      "secondary_upper",
+      "vocational",
+      "tertiary",
+      "postgraduate",
+    ];
+    for (const level of levels) {
+      const prompt = buildGenerationPrompt(spec([education({ level })]));
+      const line = prompt.split("\n").find((l) => l.includes("edu_test"));
+      expect(line, `no education line for level ${level}`).toBeDefined();
+      expect(line, `level ${level} did not reach the prompt`).toMatch(/ · level: /);
+    }
+  });
+
+  it("distinguishes the two levels an English résumé drops from the ones it keeps", () => {
+    const below = (level: NonNullable<Education["level"]>) =>
+      buildGenerationPrompt(spec([education({ level })]))
+        .split("\n")
+        .find((l) => l.includes("edu_test"))!;
+
+    // Wording, not the enum value: the model is told what the rung MEANS, the
+    // same way `withdrawn` is spelled out rather than passed through.
+    expect(below("secondary_lower")).toContain("below university level");
+    expect(below("secondary_upper")).toContain("below university level");
+    expect(below("vocational")).not.toContain("below university level");
+    expect(below("tertiary")).not.toContain("below university level");
+    expect(below("postgraduate")).not.toContain("below university level");
+  });
+
+  it("tells the model to keep a row whose level was never recorded", () => {
+    // Nullable, because a migration cannot classify rows that already exist.
+    // Dropping a real education over a missing classification is the worse
+    // failure, so an unstated level is explicitly a keep.
+    const prompt = buildGenerationPrompt(spec([education({ level: null })]));
+    const line = prompt.split("\n").find((l) => l.includes("edu_test"))!;
+    expect(line).toContain("not recorded");
+    expect(line).toContain("keep the row");
+    expect(line).not.toContain("below university level");
+  });
+
+  it("still spells out an outcome, which is the invariant this line already carried", () => {
+    const prompt = buildGenerationPrompt(spec([education({ outcome: "withdrawn" })]));
+    const line = prompt.split("\n").find((l) => l.includes("edu_test"))!;
+    // 中退 rendered as a graduation is a misrepresentation (`docs/04` §3.8).
+    expect(line).toContain("never write this as a graduation");
+  });
+});

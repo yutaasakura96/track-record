@@ -1,0 +1,2 @@
+CREATE TYPE "public"."education_level" AS ENUM('secondary_lower', 'secondary_upper', 'vocational', 'tertiary', 'postgraduate');--> statement-breakpoint
+ALTER TABLE "educations" ADD COLUMN "level" "education_level";

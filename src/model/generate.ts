@@ -78,7 +78,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
           e.degree ? ` · ${e.degree}` : ""
         }${e.fieldOfStudy ? ` · ${e.fieldOfStudy}` : ""} · ${educationSpan(e)} · ${
           OUTCOME_WORDING[e.outcome]
-        }`,
+        } · level: ${LEVEL_WORDING[e.level ?? "unstated"]}`,
     )
     .join("\n");
   const certifications = spec.certifications
@@ -137,6 +137,29 @@ function educationSpan(e: RenderSpec["educations"][number]): string {
   }
   return "no dates recorded";
 }
+
+/**
+ * The rung, spelled out. It exists so a register can select rows by level
+ * instead of guessing from the institution's name — which kept a senior high
+ * school whose name happens to contain the word "College" and dropped a middle
+ * school, three samples running (`docs/06`, 2026-09-06).
+ *
+ * This is a SELECTOR, not content. A register decides from it whether a row
+ * belongs in the document; no register writes it into the row. `unstated`
+ * prints, because losing a real education to a missing classification is worse
+ * than carrying an unclassified one.
+ */
+const LEVEL_WORDING: Record<
+  NonNullable<RenderSpec["educations"][number]["level"]> | "unstated",
+  string
+> = {
+  secondary_lower: "lower secondary school — below university level",
+  secondary_upper: "upper secondary school — below university level, whatever the institution is named",
+  vocational: "post-secondary vocational, non-degree",
+  tertiary: "university",
+  postgraduate: "postgraduate",
+  unstated: "not recorded — treat as at or above university level and keep the row",
+};
 
 /**
  * The outcome, spelled out. `withdrawn` is the reason this map exists: a

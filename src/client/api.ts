@@ -147,6 +147,8 @@ export interface Education {
   startedOn: string | null;
   endedOn: string | null;
   outcome: "graduated" | "completed" | "withdrawn" | "expected";
+  /** Null only on a row entered before the column existed. */
+  level: "secondary_lower" | "secondary_upper" | "vocational" | "tertiary" | "postgraduate" | null;
 }
 
 export interface Certification {

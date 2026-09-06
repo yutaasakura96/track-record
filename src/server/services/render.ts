@@ -171,6 +171,10 @@ export async function collectRenderInputs(
         startedOn: e.startedOn,
         endedOn: e.endedOn,
         outcome: e.outcome,
+        // The rung the register tests. Sent even when null: the register is
+        // told that an unstated level prints, so the model never has to fall
+        // back to reading the institution's name (`docs/06`, 2026-09-06).
+        level: e.level,
       })),
       certifications: certificationRows.map((c) => ({
         id: c.id,

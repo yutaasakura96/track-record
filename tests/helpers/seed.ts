@@ -88,6 +88,7 @@ export const EDUCATION_FIXTURE = {
   startedOn: "2013-04-01",
   endedOn: "2017-03-01",
   outcome: "graduated" as const,
+  level: "tertiary" as const,
 };
 
 export const CERTIFICATION_FIXTURE = {

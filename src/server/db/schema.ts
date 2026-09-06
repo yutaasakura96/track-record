@@ -42,6 +42,22 @@ export const employmentType = pgEnum("employment_type", [
 export const educationOutcome = pgEnum("education_outcome", [
   "graduated", "completed", "withdrawn", "expected",
 ]);
+/**
+ * The rung, not the country's name for it. The English résumé register has to
+ * decide whether a row is below university level, and until this column existed
+ * the only signal on the row was the institution's NAME — which kept a
+ * Philippine senior high school whose name contains "College" and dropped a
+ * middle school, three samples running (`docs/06`, 2026-09-06).
+ *
+ * Stage-neutral on purpose. Most of this record's schooling is not Japanese, so
+ * 中学校/高校 would be the wrong label at the point the row is stored; the 履歴書
+ * register maps a rung to Japanese wording where Japanese wording belongs.
+ * `vocational` is a rung rather than a track because a completed non-degree
+ * programme is what the 履歴書 prints under 免許・資格 (`docs/06`, 2026-09-06).
+ */
+export const educationLevel = pgEnum("education_level", [
+  "secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate",
+]);
 export const renderKind = pgEnum("render_kind", [
   "english_resume", "rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja",
 ]);
@@ -353,6 +369,16 @@ export const educations = pgTable("educations", {
    * Rendering it wrong is a misrepresentation, not a formatting slip.
    */
   outcome: educationOutcome("outcome").notNull(),
+  /**
+   * Nullable in the database, required by `credentials.ts` on every row the API
+   * accepts — the same split `startedOn` uses, and for the same reason: a
+   * migration cannot classify a row that already exists, and inferring the rung
+   * from the institution name is the exact failure this column ends.
+   *
+   * A row that reaches a render with no level stated is PRINTED, never dropped.
+   * Losing a real education to a missing classification is the worse failure.
+   */
+  level: educationLevel("level"),
   ...timestamps,
 }, (t) => [index("educations_user_started_idx").on(t.userId, t.startedOn)]);
 

@@ -130,6 +130,12 @@ export interface RenderSpec {
     startedOn: string | null;
     endedOn: string | null;
     outcome: "graduated" | "completed" | "withdrawn" | "expected";
+    /**
+     * The rung. It decides whether the row belongs in a given document — it is
+     * never written into the row. Null on a row entered before the column
+     * existed; such a row is printed rather than dropped.
+     */
+    level: "secondary_lower" | "secondary_upper" | "vocational" | "tertiary" | "postgraduate" | null;
   }[];
   /**
    * 免許・資格. Without this list a certification could reach a render only as

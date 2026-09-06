@@ -43,6 +43,13 @@
       "when": 1788688480971,
       "tag": "0005_education_start_optional",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788732745350,
+      "tag": "0006_education_level",
+      "breakpoints": true
     }
   ]
 }
