@@ -1040,3 +1040,48 @@ Append-only. The answer to every future "why is it like this?"
 - **The employer picker is on all 112 accepted cards of the first real import, every one reading "Unfiled".** That is the 2026-09-04 finding rendered as an interface: the facts exist, they are accepted, and nothing says where any of them happened. Filing them is now a select on the card rather than a re-import.
 - **The sign-in that made this possible failed twice first, and the second failure was mine.** Better Auth rejected the callback with `state_mismatch` and then `state_security_mismatch`; the state row was in `verifications` and unexpired, so the failure was the browser-side cookie, overwritten by overlapping sign-in attempts. What made them overlap was `npm run build` rewriting `dist/`, which the Worker serves through its `ASSETS` binding, so wrangler hot-reloaded mid-flow. **Do not build or run the suite while an OAuth round trip is open.**
 - **The numeric definition of done is not met yet and could not be.** #14 asks for the English résumé to be regenerated once employers and roles carry the structure, and compared against the hand-produced document — specifically that the employment dates stop being less precise. That needs the author's real entities entered through the forms and a real model call. The plumbing is in place and tested; the comparison is the next session's work, and the issue should not be closed before it is run.
+
+---
+
+### [2026-09-06] The comparison #14 was built to reach was run; the dates came from rows and the bullets did not improve
+
+- **Decision:** issue #14's numeric definition of done is **met**, and the issue can be closed. The English résumé was regenerated through the real route with a real `claude-opus-5` call, against the author's own entities entered through the API, and compared against the hand-produced document with the same measurement the 2026-09-04 entry used. The employer sections stop being inference. The bullet-composition gap does not close, and on one of its three measures it moves the wrong way.
+
+#### What was entered, and how
+
+- **Four employers and six roles**, hand-entered through `POST /api/employers` and `POST /api/roles` from the signed-in browser — the entities are hand-entered by decision, and this is that decision being exercised for the first time on real material rather than on a walk-through row. Two employers carry more than one role, so the promotion-is-a-second-row rule (`docs/04` §3.4) is exercised too.
+- **90 of the 112 accepted facts were filed** through `PATCH /api/facts/:id`, one request each, against the real route and the real ownership check. All 112 were still `accepted` afterwards, which is the property the linkage test asserts and which is why re-importing was refused as the path to a foreign key.
+- **22 facts were left unfiled on purpose.** They are training, certifications, language ability, the degree, independent projects and statements that span the whole career. None of them happened *at* an employer, and filing them under one to make a section look fuller would be the same inference this issue exists to remove. This number matters below.
+- **Neither educations nor certifications were entered**, though the forms exist. `collectRenderInputs` puts neither in `RenderSpec`, so entering them could not have changed this render and would only have moved a second variable during a measurement.
+
+#### The dates, which is the bar the issue actually set
+
+- **The M1 render's employer headings carried eight date endpoints and two of them were year-only.** One was the start of the oldest employment; the other was the end date of the employer the 2026-09-04 entry singled out — "the generated employment dates are less precise than the hand-produced ones at exactly the employer whose end date no row carries."
+- **This render carries eight endpoints and none is year-only.** Every one is month-precision and every one is character-for-character the value in the employer or role row.
+- **The end date in question exists in no fact.** Zero of the 112 accepted claims contain it in any form; the claim that mentions leaving that employer gives a reason and no date. The M1 render printed a bare year because a bare year was all the prose could support. This render prints the month, and the only place the month exists is the row.
+- **One employer's name appears in zero of the 112 accepted claims**, and all three industry labels appear in zero. All four render anyway, with the industry attached. That is the cleanest available proof that the section names are a join and not a reconstruction: the model could not have inferred what it was never given.
+- **The two hand-maintained documents disagree with each other by one month on one employment start date.** The table was taken as authoritative, so the generated document now differs from the hand-produced résumé at that endpoint. That is a disagreement between two hand records, surfaced by having a single structured one — not a loss of precision.
+- **One judgement call is recorded rather than buried.** The employment table names one role at one employer; a promotion part-way through is documented elsewhere in the same material and is dated only as "around" a month. Two rows were entered, using that month. A future reader comparing the table to the rows will find one more role than the table shows, and this is why.
+
+#### Grouping, checked rather than eyeballed
+
+- **82 fact references across the experience bullets, none under the wrong employer, and no unfiled fact used in an employer section.** The rule the entity layer added — a fact carrying no employer must not be placed under one — held on the first real run.
+
+#### The bullets, which did not improve, and one measure that got worse
+
+- Against the hand-produced document's **30 bullets averaging 191 characters with 57% carrying a number**:
+  - **M1 (2026-09-04): 58 bullets, 125 characters, 33% numeric.**
+  - **This render: 52 bullets, 130 characters, 25% numeric.**
+- **Bullet count moved 10% toward the target, length moved 3%, and quantification moved 8 points away from it.** The issue predicted employer structure would not close this gap. It did not, and on the numeric measure it made the printed document worse.
+- **The cause of the quantification drop is measurable and is not the model.** The 22 unfiled facts are **73% numeric** against the filed facts' **42%** — certification counts, a test score, degree years, personal-project metrics. In M1 every accepted fact competed for the experience section, so that dense numeric material was printed there. Now the section holds employer work only, which is correct, and the densest numbers left it.
+- **They left the document, not just the section.** The register defines four sections — summary, experience, projects, skills — and independent projects are the only home outside experience. The training facts that appeared in the M1 render are absent from this one. **The register has nowhere to put a career fact that did not happen at an employer and is not a project**, and that was invisible while everything was an experience bullet.
+- This does not change ADR-0001's prescription; it adds a second, separate one. Welding bullets is a `RESUME_REGISTER` change. Education and certifications sections are a register change plus the two entity tables reaching `RenderSpec`, which `collectRenderInputs` does not do today.
+
+#### What the call cost
+
+- One generation call: **17,337 input, 6,751 output, 1,583 cache-creation and 0 cache-read tokens.** First use of this prefix, so a zero read is expected rather than a finding. The extraction breakpoint the 2026-09-04 entry wanted a reading for is a different call and still has none — the next import produces it.
+
+#### What was not done
+
+- **The proposal was left pending, not accepted.** It is a proposal for the author to judge, and accepting it is a judgement about the author's own career document rather than a step in a comparison. The record still holds one accepted version.
+- **The suite was not run and nothing was built during this session**, per the previous entry's rule: the Worker serves `dist/` through its `ASSETS` binding and a build hot-reloads it under an open session. The employer, role and fact-linkage code was unchanged by this session, so there is nothing here a green suite would have told us.
