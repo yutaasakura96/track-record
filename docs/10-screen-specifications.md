@@ -216,6 +216,27 @@ Not a variant of the populated screen — a different screen.
 
 ---
 
+## Screen 4 — Your record
+
+The five hand-entered entity types on one screen: employers, roles, projects, education and
+certifications. **Each is a plain form** — no import, no extraction, no diff review (S7). Sidebar
+chrome, one `Panel` per collection, each listing its rows with an inline form below the row being
+edited.
+
+**Employer** carries 資本金 and 従業員数; **Education** carries an **outcome**, and a withdrawal must
+read 中退 rather than 卒業. All calendar fields collect **month and year only**.
+
+Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
+employer exists, because a role belongs to one; and deleting an employer something still references
+surfaces the server's `409` message in place, rather than being pre-empted by a check the client
+would have to keep in step with the server.
+
+The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of
+reading it, and it appears on a resolved card as well as a candidate one so an already-reviewed
+import can be filed without re-importing.
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -223,8 +244,6 @@ Needed before their milestones; not blocking M1.
 | Screen | Milestone | Note |
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
-| Employer / Role forms | M2 | Plain forms. 資本金 and 従業員数 on Employer |
-| Education / Certification forms | M2 | Two forms, not one. Education carries an **outcome**; certification follows the shape the author maintains on LinkedIn. Both collect **month and year only** |
 | Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
 | Version history | M2 | Accepted versions and dismissed proposals, visibly distinct |
 | Skills curation | M2 | Derived candidates, author-ordered; stale skills flagged, not removed |

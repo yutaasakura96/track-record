@@ -240,7 +240,7 @@ an empty success.
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`. Commits on blur in the UI |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI |
 | `POST` | `/api/facts/:id/accept` | |
 | `POST` | `/api/facts/:id/reject` | |
 | `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate` |
@@ -256,6 +256,8 @@ an empty success.
       "provenance": "measured",
       "disclosure": "public",
       "status": "candidate",
+      "employerId": "emp_2Kd9",
+      "projectId": null,
       "evidence": {
         "sourceDocumentVersionId": "sdv_7Yh1",
         "lineNumber": 79,
@@ -271,6 +273,8 @@ an empty success.
       "provenance": "generated",
       "disclosure": "public",
       "status": "candidate",
+      "employerId": null,
+      "projectId": null,
       "evidence": null,
       "technologies": [],
       "isClientIdentifying": false
@@ -286,6 +290,13 @@ an empty success.
   cannot be rendered by accident (decision log, 2026-08-12).
 - **`quote` text is not returned.** The client already has the source text and the offsets, so
   sending the quote again would duplicate record content into another response.
+- **`employerId` is `null` on every extracted fact and is set from the fact list.** Extraction never
+  guesses one. Setting it on an accepted fact does not disturb the accept decision, which is what
+  makes an already-reviewed import linkable without a re-import (issue #14). An `employerId` naming
+  another user's employer answers `404`.
+
+**`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
+same answer a missing employer gets, because a `403` would confirm it exists.
 
 **`POST /api/facts/:id/accept` → 200.** Accepting a **Generated** fact **succeeds** — it is accepted, flagged, and is excluded at render time. The block lives at render time, not review time.
 

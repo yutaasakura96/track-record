@@ -994,3 +994,49 @@ Append-only. The answer to every future "why is it like this?"
 
 - **`docs/adr/` now exists**, with ADR-0001 recording why facts stay atomic while bullets are welded at render time, and ADR-0002 recording why the first real import is Attested by an agent's default with a re-review gate before M3. Both were written because a future reader would look at the code and reasonably conclude a mistake had been made.
 - **The four new shapes have API-level tests that have not been run.** `tests/import.test.ts` gains one case per shape, each on its own invented document so the shared fixture's offsets and line numbers stay where the tests above them assert they are. The suite needs Postgres and the Docker daemon was not running. What was verified is narrower and was verified directly: `scrub()` returns Private for all four invented quotes and Restricted for both controls.
+
+---
+
+### [2026-09-06] The entity layer is entered rather than inferred, and the résumé's employer sections stop being luck
+
+- **Decision:** issue #14's M2 entity layer is built. Employers, roles, projects, education and certifications each have a full CRUD surface and a form; facts carry an `employer_id` set from the fact list; and `RenderSpec.employers` now carries the roles held at each employer. The 2026-09-04 entry recorded that the M1 résumé *looked* as though it had employer structure and did not. It has one now, and it is rows rather than prose.
+
+#### What the model is no longer allowed to infer
+
+- **Employer names, role titles and every employment date come from the Employers list in the generation prompt and from nowhere else**, stated as a rule in `buildGenerationPrompt` and again in `RESUME_REGISTER`. The register previously asked for "one section per employer, most recent first" against a `spec.employers` that was an empty array — an instruction with nothing behind it. It now names the list as the source of the section's name, order and dates.
+- **A fact is grouped by the employer id it carries, and a fact carrying none must not be placed under one.** `RenderFact.employer` gained an `id` so the grouping is a join rather than a match on a name that happens to appear in a claim.
+- **Roles are what give a section its title.** An employer with no role renders untitled rather than with a guessed one, which is the honest failure. A role with neither a Latin nor a Japanese title is dropped from the spec entirely — it still bounds nothing the employer row does not already say.
+
+#### Five decisions taken in the grilling session, and what each cost
+
+- **Entities are hand-entered.** One career has a handful of employers and that number does not grow; facts arrive in hundreds per import. The forms were a `MUST` for M2 regardless, so this cost nothing extra and carries no extraction risk. **No entity extraction was built and none is planned.**
+- **Forms for all five types, fact linkage for employers only.** Once one CRUD surface existed the other four were nearly free — they are the same four handlers with a different schema. Facts have no `role_id` in `docs/04` and did not gain one: a role hangs off an employer, so linking a fact to an employer already places it under the right roles. Project linkage waits for 職務経歴書, the only render that needs it.
+- **The 112 existing facts are linked from the fact list, not by re-importing.** A source document version is never re-extracted in place, so re-importing to gain a foreign key would create a new version and orphan 112 accept decisions. The employer picker is therefore on the *resolved* card as well as the candidate one, and a test asserts that filing an already-accepted fact leaves it accepted.
+- **The 履歴書 bootstrap import stays unbuilt**, in reserve as decided.
+- **Facts stay atomic.** The bullet-composition gap belongs in `RESUME_REGISTER` and is not touched here (ADR-0001).
+
+#### Deletion, which is where the "never silently orphaned" rule became code
+
+- `DELETE /api/employers/:id` answers **`409 conflict`** when facts, roles or projects reference it, with `details` carrying the three counts. The `on delete restrict` foreign keys would have refused it anyway — as a database error nobody could act on. The counts are read first so the refusal can say what is in the way.
+- **The conflict body carries counts and never content.** A test asserts the message does not contain the claim of the fact blocking the delete.
+- **Another user's employer answers `404`, not `409`.** A conflict there would confirm the row exists and report how much hangs off it, which is the same leak a `403` would be.
+- Roles, educations and certifications delete without a conflict check, because nothing references them. Projects still have no `DELETE`, per `docs/07` §4 — reassignment is the offered path.
+
+#### The linkage rule the isolation test now protects
+
+- **A fact whose `employerId` points at another user's employer is refused with `404`, and the fact is left untouched.** This is a new place to get "every query filters by `user_id`" wrong, and it is the one the issue named. The same check covers creating and moving a role.
+- `/api/roles`, `/api/educations` and `/api/certifications` joined the collection sweep that asserts one user's marker never appears in another's response.
+
+#### One rule that was nearly lost to a Zod detail
+
+- The education outcome rule — **`ended_on` is null only when the outcome is 卒業見込** — is a rule about the finished row, not about the fields a request names. A PATCH therefore validates its own fields against the loose schema and the *resulting row* against the strict one.
+- Writing it that way surfaced the defect: `.partial()` does not exist on a refined schema, so `educationBody.partial()` threw and the endpoint answered **500 instead of 422**. The fields and the rule between them are now separate schemas. The test that caught it asserts the rule holds when an outcome is edited onto a row that has no end date — the path a form actually takes when a course finishes.
+
+#### What is verified, and what is not
+
+- **The suite is green: 128 tests, 13 files, against real Postgres.** That includes the four scrub cases the 2026-09-06 entry above recorded as written but never run — the Docker daemon was started this session and they pass.
+- **`npm run build` passes**, design-token check included. The five forms use no arbitrary Tailwind value.
+- **The `/record` screen was walked in a browser against the dev record.** An employer saved and rendered with month-precision dates and no day; Roles' **Add** was disabled with its stated reason until an employer existed, then enabled; a role saved and rendered under its employer; and deleting that employer answered the `409` in place, reading *"This employer has 1 role attached"* — singular, from the same count the API returns. The role and the employer were then deleted and the dev record left exactly as found: 0 employers, 0 roles, 256 facts, none filed.
+- **The employer picker is on all 112 accepted cards of the first real import, every one reading "Unfiled".** That is the 2026-09-04 finding rendered as an interface: the facts exist, they are accepted, and nothing says where any of them happened. Filing them is now a select on the card rather than a re-import.
+- **The sign-in that made this possible failed twice first, and the second failure was mine.** Better Auth rejected the callback with `state_mismatch` and then `state_security_mismatch`; the state row was in `verifications` and unexpired, so the failure was the browser-side cookie, overwritten by overlapping sign-in attempts. What made them overlap was `npm run build` rewriting `dist/`, which the Worker serves through its `ASSETS` binding, so wrangler hot-reloaded mid-flow. **Do not build or run the suite while an OAuth round trip is open.**
+- **The numeric definition of done is not met yet and could not be.** #14 asks for the English résumé to be regenerated once employers and roles carry the structure, and compared against the hand-produced document — specifically that the employment dates stop being less precise. That needs the author's real entities entered through the forms and a real model call. The plumbing is in place and tested; the comparison is the next session's work, and the issue should not be closed before it is run.

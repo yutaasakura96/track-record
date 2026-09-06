@@ -18,6 +18,25 @@ _Avoid_: "enters the record" as a way of saying a review gate was passed — say
 One claim about the author's work, carrying Provenance, Disclosure and Evidence. The core object;
 the only entity that arrives through the import path rather than a form.
 
+**Employer**:
+An organisation the author worked for, and the unit every render's employment sections are built
+from — its name, its dates and its order come from this row and from nowhere else. One row per
+employer, entered by hand. A fact is **filed under** an employer; an employer is never inferred from
+the wording of a fact.
+_Avoid_: company, workplace, organisation. Client is a different thing entirely — a client is
+someone an employer did work for, and is not named by default.
+
+**Role**:
+A title held at an employer, with its own dates. **A promotion is a second Role**, not an edit to
+the first: both were true, and 職務経歴書 shows the progression. An employer with no Role renders
+without a title rather than with a guessed one.
+_Avoid_: position, job, title-on-its-own.
+
+**Project**:
+A body of work, optionally at an employer. **A Project with no employer is independent**, and the
+English résumé gives those their own section. The only entity a source document can be filed under.
+_Avoid_: engagement, assignment, case.
+
 ## Evidence and worth
 
 **Provenance**:
