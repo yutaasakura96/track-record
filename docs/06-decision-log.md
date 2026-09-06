@@ -1134,3 +1134,60 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The proposal was left pending again.** The record still holds one accepted version, from 2026-09-04. Accepting is a judgement about the author's own career document.
 - **The register was not re-tuned after the overshoot, and no second generation was run.** One call was authorised and one was made. Correcting a 39-character overshoot costs another call, and the number it would move is already known and recorded.
+
+---
+
+### [2026-09-06] The register's length overshoot was blamed on the wrong line, and the cache breakpoint finally read
+
+- **Decision:** the second-sentence permission is tightened, `educations.started_on` becomes nullable, and the register is told to print a qualification recorded in both lists only once. Two generations were run back to back on an unchanged prompt. The tightening did **not** close the length overshoot, and the measurement says why the previous entry's suspect was wrong. The cache breakpoint produced its first reading in four generations.
+
+#### The length overshoot: the recorded suspect was not the cause
+
+- The previous entry named the instruction permitting a second sentence "when it carries the result" as the obvious suspect for 230 characters against a 191 target. It was tightened to a budget — a second sentence is the exception, two or three bullets in a document of thirty — and the result moved almost nothing.
+- Against the hand-produced document's **30 / 191 / 57%**:
+  - **composition, before the tweak: 29 / 230 / 38%**
+  - **tweak, run 1: 29 / 226 / 45%**
+  - **tweak, run 2: 30 / 225 / 40%**
+- **The permission was never being used. Zero of the 29 bullets in the pre-tweak render had a second sentence.** Tightening an instruction the model was already obeying could not have reduced anything, and did not: 230 → 225 is a 2% move against a 20% overshoot. The suspect was recorded from reading the register rather than from counting the document, and counting the document refutes it.
+- **The overshoot is a small number of very long single sentences, not many slightly long ones.** The longest bullet runs **384, 469 and 395 characters** across the three renders, and **9 to 10 of about 30 bullets exceed 250 characters**. A mean of 225 with a maximum of 469 is a tail, and the register currently bounds neither: it gives a target mean and a sentence count, and a single sentence has no length limit. **The next attempt should bound the bullet, not the sentence.**
+
+#### What two runs on one register bought, which no previous entry had
+
+- Every earlier number in this log is a single sample, and differences between them were read as effects. **Two generations on a byte-identical prompt give the first variance reading:** count 29 → 30, mean 226 → 225, numeric 45% → 40%.
+- **Length is stable and quantification is not.** One character of spread on the mean means the 225 is a real property of this register. Five points of spread on the numeric share means **the apparent 38% → 45% jump in run 1 was mostly noise**, and the honest reading of the tweak's effect on quantification is "no measurable change, ±5 points".
+- This is a standing caution for every number above: a difference of a few points between two renders generated from different prompts is within the noise of two renders generated from the same one.
+- Quantification remains roughly 15 points short of 57%, which is the previous entry's finding unchanged and its recorded cause — the facts behind the remaining bullets carry no number — untouched by anything here.
+
+#### The 学歴 row that could not be entered
+
+- **`educations.started_on` is nullable**, migration `0005_education_start_optional`. The author's 学歴 table records 中学校 as a graduation month with no entry month, which is 履歴書 convention rather than a gap in the record. `notNull` did not produce the missing value; it kept a real row out, and a 履歴書 built from the record would have been short a line.
+- **Nullable is not dateless.** A row still needs one endpoint, enforced in `credentials.ts` on the resulting row rather than on the fields a PATCH names, following the precedent the outcome rule set. A row with neither date answers **422** naming `startedOn`.
+- **The nulls-last trap, which was live in two places.** Postgres sorts nulls LAST in `ASC`, so a row carrying only a graduation month sorted to the *bottom* of a chronological 学歴 list — the author's oldest schooling printed last. Both the render service and `GET /api/educations` now order on `coalesce(started_on, ended_on)`. The second one was missed on the first pass and caught by listing the rows back rather than by reading the code.
+- The row was entered through the real route and the list now reads oldest-first in exactly the author's own 学歴 order, five rows.
+
+#### One thing the new row surfaced that no one asked about
+
+- **The register's "omit schooling below university level" is ambiguous, and the model moved the line when the list changed.** With three education rows it omitted high school. With the middle-school row added it *included* high school and omitted middle school — it drew the boundary one level lower rather than applying a fixed rule. The English render is not where this matters, but the instruction is doing less work than it appears to.
+- **Run 2 printed the education section in reverse chronological order**, against a register that says "in the order that list gives" and a list that is oldest first. Run 1 obeyed. One compliance wobble in two samples, on an instruction that is stated plainly.
+
+#### The duplicate guard, which is written and has not been exercised
+
+- The register now says a qualification appearing in both the Education and Certifications lists is one qualification recorded twice, and is written once under education.
+- **It caught nothing, because there is nothing to catch.** The duplicate the previous entry found was deleted from the record in that session, so no duplicate reached these renders. The certifications section went from 15 rows to 14 for that reason and not because of this line — an attribution that was made and then checked against the table, which holds no such row.
+- The count that *is* explained: 16 certifications, minus a driving licence and a language qualification the register routes elsewhere, is 14. **The line is a render-time guard with no test behind it.** Nothing in the schema prevents the duplicate, because the two tables have no relationship, and the next duplicate entered is the first thing that will exercise it.
+
+#### The cache breakpoint, after three generations of zeroes
+
+- **Generation 1: 17,337 input, 7,541 output, 3,775 cache-creation, 0 cache-read.** The prefix changed — the register tweak and the new education row both land in it — so a zero read is the expected shape.
+- **Generation 2, prompt untouched: 17,337 input, 7,513 output, 0 cache-creation, 3,775 cache-read.** The 1-hour breakpoint reads back exactly what the previous call wrote, to the token. **This is the first cache read this project has recorded**, and it is the reading the 2026-09-04 entry asked for.
+- The extraction breakpoint still has none. The next import produces it.
+
+#### The invariants, checked on both runs
+
+- **88 and 90 fact references across the experience bullets; zero unfiled facts used in an employer section, zero facts placed under a heading naming a different employer, zero ids the record does not hold.** Held under a register that actively encourages welding, on two independent samples.
+- **The suite is green: 129 tests, 13 files**, one more than the previous entry — the new case asserts a graduation-only row is accepted and a dateless one is refused. `npm run build` passes. Both were run with no OAuth round trip open; the session was a minted cookie throughout.
+
+#### What was not done
+
+- **The register was not re-tuned after the overshoot survived the tweak.** Two calls were authorised and two were made. What the next attempt needs is now specific — a per-bullet length bound rather than a sentence count — and it is one register change and one generation.
+- **Both proposals were left pending.** The record still holds one accepted version, from 2026-09-04, and now four pending proposals. Accepting is a judgement about the author's own career document.
