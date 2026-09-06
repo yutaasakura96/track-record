@@ -1191,3 +1191,52 @@ Append-only. The answer to every future "why is it like this?"
 
 - **The register was not re-tuned after the overshoot survived the tweak.** Two calls were authorised and two were made. What the next attempt needs is now specific — a per-bullet length bound rather than a sentence count — and it is one register change and one generation.
 - **Both proposals were left pending.** The record still holds one accepted version, from 2026-09-04, and now four pending proposals. Accepting is a judgement about the author's own career document.
+
+### [2026-09-06] The bullet was bounded rather than the sentence, and the schooling rule turned out to be unanswerable from the data
+
+- **Decision:** `RESUME_REGISTER` gains a per-bullet length bound and an instruction on what to cut when a bullet exceeds it. One generation was run. **The overshoot closed: 225 → 190 characters against a 191 target.** The previous entry's prediction — bound the bullet, not the sentence — was correct, and this is the first register change in the sequence whose effect is larger than the noise band. The education-boundary finding recorded in that entry is superseded: the model is not applying a rule loosely, it is being asked a question the record cannot answer.
+
+#### The bound, and what it moved
+
+- Against the hand-produced document's **30 / 191 / 57%**, and the previous best of **30 / 225 / 40%**:
+  - **bullet bound: 33 / 190 / 39%**
+- **Mean length is on target for the first time.** 225 → 190 against 191, a 35-character move where the sentence tightening moved 5. The tail came with it: the longest bullet ran **395 → 287** characters, and bullets over 250 went **9 → 5**.
+- **Quantification did not move: 40% → 39%**, comfortably inside the ±5-point noise band. This is the expected result and not a disappointment — the recorded cause is that the facts behind the remaining bullets carry no number, and nothing here touched that.
+
+#### What the bound cost, which was bullet count and not composition
+
+- **Count rose 30 → 33 against a target of 30**, which is outside the ±1 noise band and therefore a real effect. The register explicitly says not to split an over-long bullet into two, and three splits happened anyway.
+- **Nothing was dropped to achieve it.** Fact references held at **90, identical to the previous run**, so the three extra bullets are a redistribution rather than a loss. Facts per bullet went 3.00 → 2.73, and the shape of the change is precise: **the two 5-fact bullets disappeared and the 2-fact bullets went 5 → 8, while all three 6-fact bullets survived.** The heaviest welds were trimmed at the edges, which is the mechanism the instruction asked for. The welding that ADR 0001 argued for is intact.
+- The honest cost, then, is three bullets of count in exchange for 35 characters of mean and 108 characters off the tail. Whether that trade is right is the author's call on reading the document, not a number.
+
+#### How the model treats a stated number, which is worth knowing before writing the next one
+
+- **The ceiling was stated at 240 characters and the longest bullet came back at 287** — overshot by 20%. A stated bound is not a hard limit and should not be written as if the next one will be obeyed exactly.
+- **But the mean landed exactly on the stated 190.** The mean instruction had been in the register all along and was being missed by 18%; adding a per-item bound is what made it bind. The reading is that **a mean is not something the model can check while writing, and a per-bullet ceiling is** — the ceiling works by giving each bullet a local test, and the mean then falls out. This is the transferable lesson for the 履歴書 and 職務経歴書 registers: bound the item, state the aggregate as shape.
+
+#### The schooling rule: the previous entry's diagnosis was wrong, and the data is the reason
+
+- The previous entry recorded that the model "moved the boundary when the list changed" and read the instruction as behaving like a preference. **A third sample says otherwise, and the record explains it.** The render again kept 高校 and dropped 中学校 — four education rows printed from five.
+- **The row it kept is `San Beda College Alabang`, and the row it dropped is `Westfield Science Oriented School`.** Both are pre-university, both carry an empty `degree`. The register says to omit schooling below university level. **`educations` has no column stating level** — it holds institution, faculty, degree, field of study, dates and outcome, and nothing else — so the only signal available is the institution's name, and one of these two names contains the word "College".
+- **The instruction is not ambiguous; it is unanswerable.** It asks the model to classify a row by a property the row does not carry, and the model does the only thing it can, which is read the name. This is not fixed by rewording the register. It is fixed by the record carrying the level, or by the register naming the rows rather than the category — and the first is the one that survives a second user.
+- Filed as a finding, not a change. Nothing was edited here.
+
+#### The ordering wobble did not recur
+
+- The education section printed **oldest first, in the order the list gives**, matching the `coalesce(started_on, ended_on)` ordering the previous entry fixed. Run 2 was the only disobedience; the count is now one wobble in three samples on that instruction.
+
+#### The cache breakpoint, and the invariants
+
+- **17,337 input, 7,453 output, 4,004 cache-creation, 0 cache-read.** A zero read is the expected shape: the register changed and it lands in the prefix. The 4,004 against the previous 3,775 is the three added lines. **The extraction breakpoint still has no reading.**
+- **90 fact references, zero unknown ids, zero unfiled facts used in an employer section, zero facts placed under a heading naming a different employer.** Held again, on a register that now asks the model to cut facts out of bullets — the cutting did not corrupt the attribution of what remained.
+- **The suite is green: 129 tests, 13 files.** `npm run build` passes, design tokens clean. Both run against a minted cookie with no OAuth round trip open.
+
+#### The measurement script, still not committed
+
+- Rebuilt from the definition in the log and **validated against all four prior proposals before being trusted** — it reproduces 52/130/25%, 29/230/38%, 29/226/45% and 30/225/40% exactly, and the recorded longest-bullet figures with them. That validation is the reason the 190 is believable.
+- It still lives in a scratchpad. **Every session that wants this number rebuilds it**, and the rebuild is only safe because the log records enough prior readings to check it against. A committed script would be cheaper and would remove the chance of a session measuring something subtly different, but it would also be the first piece of comparison scaffolding to enter the repository, and nothing has decided that it belongs there.
+
+#### What was not done
+
+- **The five pending proposals were left pending**, and there are now five. Accepting one is a judgement about the author's own career document.
+- **The bullet count was not chased.** The obvious next move is to strengthen the do-not-split instruction, but that is a second change on top of an unmeasured one, and the count overshoot is three bullets against a length win of 35 characters. The register is left where it is until the author reads the document.
