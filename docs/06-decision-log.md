@@ -1367,3 +1367,41 @@ Append-only. The answer to every future "why is it like this?"
 - **Six pending render proposals, none accepted.** Unchanged.
 - **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.
 - **The measurement script is still uncommitted.**
+
+---
+
+### [2026-09-07] An undated certification reads last, and the placement is the document's rather than the query's
+
+- **Decision:** `inDocumentOrder` takes an optional accessor for a list's date, and moves the rows carrying none to the end of the document's list. `certifications` passes it. No query was reordered, no register changed and no generation was spent.
+- **Reason:** `certifications` is queried `desc(issued_on)` and `issued_on` is nullable. Postgres sorts nulls FIRST in `desc`, so **an undated licence had been leading the résumé's certifications list** — filed as found-and-not-fixed on 2026-09-07 because where an undated qualification belongs wanted an answer rather than a default.
+
+#### The answer, and the reason it is the tail
+
+- In a list ordered by date, **position is a claim about when**. A row with no date makes no such claim, so leading with it lets an absence displace the most recent real certification from the one position in that list a reader weighs. The tail asserts least and displaces nothing.
+- **Never dropped, in the résumé.** This is the same posture the `level` rule already states for `educations`: print the row, and do not let missing data speak for it.
+- **The 履歴書 is the exception and was already decided.** `docs/04` §4 omits a null-`issued_on` row from 免許・資格, because that table is 年 / 月 / 名称 and has nowhere to put it. That is a register rule for a render that does not exist yet; until it does, the tail is where the row does least damage.
+
+#### Why the fix is at the boundary and not in the query — the transferable half
+
+- **Null placement does not survive a reversal.** Nulls sort first in `desc` and last in `asc`, so `nulls last` in the query would read correctly for the résumé and put the undated row at the HEAD of the 履歴書's ascending list. The identical defect, mirrored.
+- So the rule has to be applied **after** `inDocumentOrder` reverses, not before. This is the same shape as the 2026-09-07 chronology entry and is worth stating as a rule: **anything that depends on which end of a list a row lands at belongs to the document, not to the query.** The query owns the canonical order; the boundary owns everything about how the document reads it.
+- `certifications` is **the only list reaching a render whose sort key can be null.** `employers.started_on` is `not null`, and `credentials.ts` refuses an education carrying neither a start nor an end, so its coalesce can never be null either. The accessor is optional for that reason and is passed by exactly one caller.
+
+#### What was rejected: a coalesce onto `expires_on`
+
+- `educations` answers this class of problem with `coalesce(started_on, ended_on)`, and the obvious echo is `coalesce(issued_on, expires_on)`. It is wrong. Education's fallback is a **near miss for the same event** — a graduation month is months from the entry month it stands in for. An expiry is typically **years** after the issue it would stand in for, and most certifications have none at all. It would place an undated certification later than every dated one on the strength of a number that means something else. A guess dressed as data is worse than an admitted absence.
+
+#### What was verified
+
+- **139 tests across 14 files, up from 137. Type check and build green, design tokens clean.**
+- Two tests were added: the résumé reads an undated licence behind both dated ones, and `inDocumentOrder` keeps an undated row at the tail in **both** directions — the second is the one that would catch a future 履歴書 inheriting the mirrored defect.
+- **Verified as a negative control.** With the accessor removed from the call site, the résumé test fails with the undated licence at the head of the list. The nulls-first behaviour was confirmed against the real database rather than assumed from the documentation.
+- The assertion is on the payload the model is given, not on what the model writes, which is why this cost nothing.
+
+#### What was not done
+
+- **The API list route was left alone.** `GET /api/certifications` still orders `desc(issued_on)` and still leads with an undated row. A management list has a different job from a document — an incomplete row surfaced first is arguably where it should be, because that screen exists to complete it. Named here so the divergence is deliberate rather than overlooked.
+- **The query was not normalised to ascending.** `educations` is queried ascending and reversed at the boundary; `employers` and `certifications` are queried descending and are not. Both work, but `docs/04`'s phrase "reads the same index backwards" describes only the first. Tidying it touches two more queries for no behaviour, and is not worth doing on the way past.
+- **Six pending render proposals, none accepted.** Unchanged, and still the oldest thread here.
+- **The new ordering still has not been seen in a rendered document.** Both the chronology change and this one are asserted on the payload. Confirming them costs one generation.
+- **The measurement script is still uncommitted.**

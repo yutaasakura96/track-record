@@ -420,6 +420,16 @@ LinkedIn, minus two fields deliberately not adopted (see below).
   the author still curates, and there is still exactly one place skills come from.
 - **Media.** There is no object storage, and no render displays it.
 
+**A certification with a null `issued_on` reads LAST, in whichever direction the document runs.**
+This is the only list reaching a render whose sort key can be null — `employers.started_on` is not
+null, and an education is required to carry a start, an end or both — and the placement is decided
+at the render boundary rather than in the query, because null placement does not survive a
+reversal: Postgres sorts nulls first in `desc` and last in `asc`, so a query-level rule would read
+correctly for the résumé and put the undated row at the head of the 履歴書's 免許・資格. There is no
+coalesce onto `expires_on`, the way `educations` coalesces onto `ended_on`: an expiry is typically
+years after the issue it stands in for, and most certifications have none. §4's rule for the 履歴書
+is unchanged — that table is 年 / 月 / 名称 and omits the row outright (decision log, 2026-09-07).
+
 **Index:** `(user_id, issued_on asc)` — 免許・資格 renders chronologically ascending; the English
 résumé reads the same index backwards, for the same reason employers do.
 **Partial index:** `(user_id, expires_on) where expires_on is not null` — the expiry sub-note.

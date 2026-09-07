@@ -51,9 +51,23 @@ type Chronology = NonNullable<RenderDefinition["chronology"]>;
  * the coalesce and inverts only the `id` tie-break, which orders nothing a
  * reader can see. A `null` chronology belongs to a kind that cannot generate;
  * it takes the query's order and reaches no document.
+ *
+ * `dateOf` is passed by the one list whose sort key can be null, and moves the
+ * rows carrying no date to the end of THE DOCUMENT'S list — after the direction
+ * is applied, never before. Null placement does not survive a reversal:
+ * Postgres sorts nulls first in `desc` and last in `asc`, so a rule fixed in
+ * the query reads correctly in one direction and backwards in the other
+ * (`docs/06`, 2026-09-07).
  */
-function inDocumentOrder<T>(rows: T[], sqlOrder: Chronology, document: Chronology | null): T[] {
-  return document === null || document === sqlOrder ? rows : [...rows].reverse();
+export function inDocumentOrder<T>(
+  rows: T[],
+  sqlOrder: Chronology,
+  document: Chronology | null,
+  dateOf?: (row: T) => string | null,
+): T[] {
+  const read = document === null || document === sqlOrder ? rows : [...rows].reverse();
+  if (!dateOf) return read;
+  return [...read.filter((r) => dateOf(r) !== null), ...read.filter((r) => dateOf(r) === null)];
 }
 
 export async function collectRenderInputs(
@@ -95,6 +109,9 @@ export async function collectRenderInputs(
     // Postgres sorts nulls LAST in ASC — which would put the author's oldest
     // schooling at the bottom of the list, in either direction.
     .orderBy(asc(sql`coalesce(${educations.startedOn}, ${educations.endedOn})`), asc(educations.id));
+  // Nulls sort FIRST in `desc`, so this query leads with the undated rows. That
+  // is not corrected here: where an undated certification belongs is a question
+  // about the document, and the boundary below answers it in both directions.
   const certificationRows = await db
     .select()
     .from(certifications)
@@ -197,7 +214,19 @@ export async function collectRenderInputs(
         // back to reading the institution's name (`docs/06`, 2026-09-06).
         level: e.level,
       })),
-      certifications: inDocumentOrder(certificationRows, "newest_first", definition.chronology).map((c) => ({
+      // The only list here whose sort key can be null: `employers.started_on`
+      // is not null, and an education is required to carry a start, an end or
+      // both. A certification with no issue date is printed, and printed last —
+      // position in a dated list is a claim about when, and this row makes none.
+      // The 履歴書 omits it outright, because 免許・資格 is 年 / 月 / 名称 and has
+      // nowhere to put it (`docs/04` §4); that is the register's rule, not this
+      // boundary's, and until it exists the tail is where the row does least.
+      certifications: inDocumentOrder(
+        certificationRows,
+        "newest_first",
+        definition.chronology,
+        (c) => c.issuedOn,
+      ).map((c) => ({
         id: c.id,
         name: definition.language === "ja" ? (c.nameJa ?? c.name) : c.name,
         issuingOrganization: c.issuingOrganization,

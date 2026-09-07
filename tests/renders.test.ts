@@ -18,6 +18,7 @@ import {
   uploadForm,
 } from "./helpers/seed";
 import { RENDER_DEFINITIONS } from "~/render/spec";
+import { inDocumentOrder } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
 
@@ -262,6 +263,61 @@ describe("the order a document reads in", () => {
     expect(sent.certifications.map((c) => c.name)).toEqual([
       "Database Specialist",
       "Applied Information Technology Engineer",
+    ]);
+  });
+
+  /**
+   * `issued_on` is nullable and the query runs `desc`, which sorts nulls FIRST.
+   * Until 2026-09-07 that put an undated licence at the head of the résumé's
+   * certifications list, displacing the most recent real one from the only
+   * position in that list a reader weighs.
+   */
+  it("reads a certification with no issue date last", async () => {
+    await seedRecord();
+    await client.post("/api/certifications", CERTIFICATION_FIXTURE);
+    await client.post("/api/certifications", {
+      ...CERTIFICATION_FIXTURE,
+      name: "Ordinary Driving Licence",
+      nameJa: "普通自動車第一種運転免許",
+      issuedOn: null,
+    });
+    await client.post("/api/certifications", {
+      ...CERTIFICATION_FIXTURE,
+      name: "Database Specialist",
+      issuedOn: "2021-06-01",
+    });
+
+    await generate(resumeFrom([{ text: "A bullet", factIds: [] }]));
+    const sent = model.generationInputs.at(-1)!.spec;
+
+    // The dated rows keep their direction, and the undated one is behind both
+    // rather than in front of them.
+    expect(sent.certifications.map((c) => c.name)).toEqual([
+      "Database Specialist",
+      "Applied Information Technology Engineer",
+      "Ordinary Driving Licence",
+    ]);
+  });
+
+  /**
+   * Why that rule is at the boundary and not in the query: null placement flips
+   * with the list. Nulls sort first in `desc` and last in `asc`, so a
+   * query-level fix reads correctly for the résumé and puts the undated row at
+   * the HEAD of the 履歴書's 免許・資格 — the same defect, mirrored.
+   */
+  it("keeps an undated row at the tail whichever direction the document reads", () => {
+    const rows = [{ on: null }, { on: "2021-06-01" }, { on: "2019-06-01" }];
+    const dateOf = (row: { on: string | null }) => row.on;
+
+    expect(inDocumentOrder(rows, "newest_first", "newest_first", dateOf)).toEqual([
+      { on: "2021-06-01" },
+      { on: "2019-06-01" },
+      { on: null },
+    ]);
+    expect(inDocumentOrder(rows, "newest_first", "oldest_first", dateOf)).toEqual([
+      { on: "2019-06-01" },
+      { on: "2021-06-01" },
+      { on: null },
     ]);
   });
 
