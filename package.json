@@ -17,6 +17,7 @@
     "db:studio": "drizzle-kit studio",
     "auth:generate": "better-auth generate",
     "lint": "node scripts/check-design-tokens.mjs",
+    "measure": "node scripts/measure-render.mjs",
     "typecheck": "tsc --noEmit",
     "restore:drill": "node scripts/restore-drill.mjs"
   },
