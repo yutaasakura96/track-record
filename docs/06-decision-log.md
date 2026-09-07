@@ -1405,3 +1405,56 @@ Append-only. The answer to every future "why is it like this?"
 - **Six pending render proposals, none accepted.** Unchanged, and still the oldest thread here.
 - **The new ordering still has not been seen in a rendered document.** Both the chronology change and this one are asserted on the payload. Confirming them costs one generation.
 - **The measurement script is still uncommitted.**
+
+---
+
+### [2026-09-08] The measurement script enters the repository, and the oldest reading in this log turns out to be one character out
+
+- **Decision:** the comparison instrument is committed. `src/render/metrics.ts` holds the definition, `scripts/measure-render.mjs` is the CLI, `npm run measure` runs it, and `tests/render-metrics.test.ts` pins what it counts. No generation was spent.
+- **Reason:** every register decision recorded since 2026-09-04 is argued against three numbers, and until now the thing producing them was **rebuilt from prose in this log at the start of every session**. Four entries record the rebuild and record it being validated against prior readings before it was trusted. That is a manual safety net over a growing corpus, and it frays: it depends on the log continuing to record enough readings, and on each session bothering to run them.
+
+#### The objection that turned out not to hold
+
+- The open question was recorded as whether **comparison scaffolding belongs in the repository at all**, since it would be the first of its kind. It would not have been. **`scripts/restore-drill.mjs` is already committed non-product scaffolding** — a monthly operations drill that no route calls — and `scripts/ensure-databases.mjs` with it. The precedent was set on 2026-08-29 and this is the second instance, not the first.
+
+#### Where it lives, and why it is split in two
+
+- **The definition is `src/render/metrics.ts`, and it has no imports at all.** That is what lets `node` load it directly for the CLI, and it is why the module declares its own structural input type instead of importing `RenderContent`. The test passes a real `RenderContent` value into it, and that assignability is the coupling check — the two shapes cannot drift without the type checker saying so.
+- `src/` rather than `scripts/` for the definition, deliberately, because **`src` and `tests` are the only trees `tsc --noEmit` and the suite both reach.** An instrument that is not type-checked and not tested is the thing this entry exists to stop. **It costs nothing to ship: the client bundle is byte-identical after the change** — same filename hash, same size — because nothing imports it.
+- The CLI stays in `scripts/`, untyped, alongside its neighbours, and reaches the database through **psql rather than the application's driver** — the same reason the restore drill does: a measurement is an operations task and must not depend on the Worker being able to run.
+
+#### The output contract, which is a reason to commit rather than a detail
+
+- **It prints numbers and never text.** Not the longest bullet, not a sample, not an excerpt in an error message. A render is built from the author's real career record, `local/` material and NDA-bound client names reach it, and "logs never contain render content" does not stop applying because the output is called a measurement.
+- **An ad-hoc script rebuilt each session has no such contract**, and nothing stopped a rebuild from printing the longest bullet to a terminal to see what it was. Committing the instrument is what makes the rule enforceable.
+- It reads `track_record_dev` and never `track_record_test`, which is dropped and rebuilt by every run of the suite and holds invented fixtures.
+
+#### What it counts, now stated once
+
+- Blocks of kind `bullet` in the section keyed `experience`: **count, mean character length, and the share matching `/\d/`** — the same three numbers as every entry since 2026-09-04. Underneath them the longest bullet, bullets over 250 characters, fact references, facts per bullet and multi-fact bullets.
+- **`--markdown` reads a hand-written document as bullet LINES**, which is how the 30 / 191 / 57% target every comparison runs against was produced. An ASCII marker must be followed by a space or `*emphasis*` opening a line would count; `•` and `・` need not be, because a Japanese document writes ・項目 with nothing between and a 職務経歴書 will be measured here too.
+- **The digit rule is crude on purpose.** It counts `two thirds` as unquantified, and it has counted it that way in every reading this log holds. A better rule would make the next reading incomparable with all of them.
+
+#### The validation, and the one figure that does not reproduce
+
+- All **eight** stored proposals were measured in generation order. **Seven reproduce the recorded reading to the digit**: 52 / 130 / 25%, 29 / 230 / 38%, 29 / 226 / 45%, 30 / 225 / 40%, 33 / 190 / 39%, 33 / 183 / 36% and 31 / 195 / 35%.
+- **The oldest does not.** 2026-09-04 records **58 bullets averaging 126 characters**; the instrument reads **58 / 125 / 33%**, and the exact mean is **125.379**, which rounds to 125 under any convention. The count and the quantified share match.
+- **That reading predates the script.** The 2026-09-06 entry says as much from the other side: it validated against 52 / 130 / 25% and describes the hand document coming back as 192 characters, "the recorded target with one character of rounding", where **191** has been used in every comparison since. The same entry carries the same ±1 imprecision on both its figures.
+- **Nothing was edited.** This log is append-only, and a one-character correction to a superseded baseline is not worth a supersession — it is worth knowing that **the only reading that does not reproduce is the only one taken before there was an instrument.** That is the argument for committing it, made by the data rather than by me.
+
+#### What it deliberately does not do
+
+- **None of the attribution invariants.** Unknown fact ids, unfiled facts used in an employer section, facts placed under a heading naming a different employer — those are questions about the record as well as the render, and they are still checked by hand.
+- **It does not fetch.** There is no mode that generates, and no mode that reaches the API. It reads a proposal already stored, a JSON file, or a document.
+
+#### What was verified
+
+- **149 tests across 15 files, up from 139. Type check and build green, design tokens clean, client bundle unchanged.**
+- Ten new cases pin the definition against invented fixtures: which blocks count, which sections count, how each figure rounds, that an empty section returns zeros rather than `NaN`, that a written-out quantity counts as carrying no number, and that the line reader takes ASCII, `・` and numbered markers while leaving prose alone.
+- The CLI was run end to end against an invented JSON fixture and against the dev database.
+
+#### What was not done
+
+- **Six pending render proposals, none accepted.** Unchanged, and now the oldest open thread by a wide margin.
+- **The chronology work still has not been seen in a rendered document.** Both 2026-09-07 entries are asserted on the payload. Confirming them costs one generation.
+- **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.

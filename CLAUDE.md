@@ -11,6 +11,9 @@ disagree, the docs win.
 Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and both databases), `npm run db:migrate:local`
 on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up.
 `npm run build` runs the design-token check, the type check and the client build, in that order.
+`npm run measure -- --latest` prints the experience-section figures every register decision in the
+decision log is argued against — count, mean length, share carrying a number. **Do not rebuild it
+by hand**; that is what it is committed for, and it prints numbers and never render text.
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
