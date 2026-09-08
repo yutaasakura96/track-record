@@ -1506,3 +1506,48 @@ Positions and dates only; the ordering was derived programmatically rather than 
 - **The attribution invariants were not checked.** Unknown fact ids, unfiled facts under an employer heading, and facts placed under the wrong employer are unchanged by this entry and still checked by hand.
 - **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.
 - **`GET /api/certifications` was left alone**, and its divergence from the document is now moot in practice for want of an undated row.
+
+---
+
+### [2026-09-08] Spike #5 closes, and half of it was already being answered by the suite on every run
+
+- **Decision:** the `docx` / `docxtemplater` Workers spike is **done, and both libraries run on workerd unmodified.** No fallback is needed — not building in the browser, not moving the step to a Node-compatible runtime. `docs/03` §11 row 2 and §12 row 5 are marked closed. **履歴書 work is no longer gated on a spike.**
+- **Reason:** §12 row 5 listed the spike as due *before* 履歴書 work starts, which made it the first thing to do on the top agent-actionable thread. It was scoped at ~1 hour on the belief that neither library had been verified on a constrained runtime.
+
+#### `docx` was already verified, and the docs had not noticed
+
+- **The suite runs inside workerd** — `vitest.config.ts` uses `@cloudflare/vitest-pool-workers` with `nodejs_compat` and the deployed compatibility date. It is not a Node harness that stands in for one.
+- `smoke.test.ts` downloads a real `.docx` through the route, and `renders.test.ts` asserts it is a zip with the Word MIME type. **`docx` has therefore been exercised on workerd on every suite run since M1**, months before the spike it was waiting for.
+- **A stale open-problem row is not free.** It kept a milestone behind a prerequisite that the test suite had already discharged, and nothing in the repository would have said so. Worth remembering the next time a row here says "unverified": check what the suite already runs before scoping a spike to find out.
+- What genuinely remained was **`docxtemplater`, which was not installed and had never been run at all.** That is the whole of what this session tested.
+
+#### What was actually run
+
+Two runtimes, because passing in one would not have answered the question.
+
+- **In the suite** — a `docx`-built template carrying `{name}` and `{birth}`, fed to PizZip and Docxtemplater, rendered, and read back out of `word/document.xml`. Placeholders gone, values in, output a zip by its local file header. Passed first attempt.
+- **Under `wrangler dev`** — the same round trip in a throwaway single-file Worker with its own config, on a real request. **This is the half the suite cannot answer**: the test pool and `wrangler` are different bundlers, and a library that survives Vite's pre-bundling can still fail wrangler's. It did not. Both are gone now; the scratch Worker was deleted.
+
+#### One finding that the 履歴書 render has to act on
+
+- **PizZip's `generate` STOREs by default.** On a two-line template that was **25,930 bytes uncompressed against 8,513 with `compression: "DEFLATE"`** — a `.docx` three times the size it needs to be. It opens perfectly well, so nothing would ever complain.
+- The 履歴書 render **must pass `compression: "DEFLATE"`**. Pinned by a test rather than left as a sentence here, because a sentence in this log is exactly the kind of thing that gets read after the bug.
+
+#### The spike test was kept rather than thrown away
+
+- `tests/docxtemplater.test.ts` — two cases, and **it has no consumer**, which is unusual enough to say why. The 履歴書 is form-filled rather than built (`docs/03` §30) and no code fills a form yet, so the test stands in for the render until the render exists.
+- It is a **runtime-compatibility guard, not a library test**. `renders.test.ts` declines to unzip a `.docx` to check its contents on the grounds that that tests the `docx` library; this asks a different question — whether the library is *available on this runtime* — which a compatibility-date or `nodejs_compat` change can silently answer differently between now and M3.
+- **Delete it once the 履歴書 render exercises the path for real.** Said here so the instruction outlives the comment in the file.
+- `docxtemplater@3.69.3` and `pizzip@3.2.0` are now dependencies. **`tests/docxtemplater.test.ts` is the only file in `src`, `tests` or `scripts` that imports either**, so neither reaches the Worker bundle or the client bundle — the client build is `index-BemTM3to.js`, 364.40 kB, recorded here so a later session can tell whether adding the render moved it.
+
+#### What was verified
+
+- **151 tests across 16 files, up from 149 across 15** — the two new cases and their file. `npm run build` green: design tokens clean, type check clean, client build clean.
+- The `npm audit` moderate findings are pre-existing and unrelated — `drizzle-kit` → `esbuild` dev-server, unchanged by this session's two dependencies.
+
+#### What was not done
+
+- **No 履歴書 render, no `templates/` directory and no `rirekisho.blank.docx`.** `RENDER_DEFINITIONS.rirekisho` is still `buildable: false` with an empty register. The spike removes the technical gate; the blank grid still has to take its structure from the author's real 履歴書 with every value stripped, which is the next piece of M3 and is not a spike.
+- **Eight pending render proposals, none accepted.** Unchanged and still the oldest thread. No generation was spent this session.
+- **The attribution invariants are still checked by hand** — unknown fact ids, unfiled facts under an employer heading, facts under the wrong employer. Still the obvious second instrument, and still costs no generation.
+- **The two 履歴書 rules stated ahead of the code** — the null-`started_on` record and the null-`issued_on` certification — remain unexercisable until the render exists.

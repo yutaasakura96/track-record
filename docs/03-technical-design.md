@@ -426,7 +426,7 @@ by blocking generation on missing fields, and by warning on unexplained gaps. M2
 | # | Item | Status |
 |---|---|---|
 | 1 | **Cross-document numeric conflicts** — PRD §8 requires two documents asserting different numbers for the same thing to be surfaced. Needs a notion of "the same thing" across documents | **Deferred to M2.** Impossible in M1 (one document, one employer). Not half-solved now |
-| 2 | **`docx` / `docxtemplater` on Workers** — neither verified on a constrained runtime; both assume Node | **Spike before M2**, ~1 hour. Fallbacks: build in the browser, or move that step to a Node-compatible runtime. Does not block M1 |
+| 2 | **`docx` / `docxtemplater` on Workers** — both assume Node | **Closed 2026-09-08.** Both run on workerd unmodified, under the suite and under `wrangler dev`. `docx` is exercised end to end by `smoke.test.ts`; `docxtemplater` by `docxtemplater.test.ts`. No fallback needed |
 | 3 | **Workers CPU budget for `.docx` assembly and long diffs** — **verified**: paid plan gives 30 s CPU per invocation, raisable to **5 minutes** via `limits.cpu_ms`; subrequests 10,000, raisable to 10M. Generous, but a high ceiling does not prove our code fits under it | Measure during M1 |
 | 3b | **Anthropic strict-schema complexity limits** — ~24 optional parameters combined across all strict schemas per request, plus internal compiled-grammar limits, returning `400 "Schema is too complex for compilation."` | Headroom, not a risk — **provided extraction stays one small, mostly-required strict tool** |
 | 4 | **Paragraph-alignment quality** on heavily restructured renders | Tune the similarity threshold against real proposals |
@@ -447,7 +447,7 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | When 職務経歴書 generation exists. Ground truth is in `local/JAPANESE/` |
 | 3 | **Entity extraction / bootstrap flow** (`09` Flow 7) | Before importing the back catalogue in bulk |
 | 4 | **Batch import** (`09` Flow 8) | With Flow 7 |
-| 5 | **`docx` / `docxtemplater` Workers spike** | ~1 hour, before 履歴書 work starts. **Smaller than first scoped** — file *reading* no longer needs a library (§5.1), so the spike covers writing only |
+| 5 | **`docx` / `docxtemplater` Workers spike** | **Done 2026-09-08** (`docs/06`). Both libraries run on workerd; 履歴書 work is no longer gated on it |
 | 5b | **`.docx` text extraction** via `fflate` + OOXML walk | With the bootstrap flow |
 | 6 | **Skills curation** and **per-render inclusion rules** | S9 and S13 |
 | 7 | **Version history UI** — accepted versions and dismissed proposals, visibly distinct | S14 |
