@@ -43,3 +43,12 @@ ANTHROPIC_MODEL = "claude-opus-5"
 name = "track-record-import"
 binding = "IMPORT_WORKFLOW"
 class_name = "ImportWorkflow"
+
+# The 履歴書 template is a binary module. Without a rule wrangler tries to parse
+# the .docx as JavaScript; `Data` imports it as an ArrayBuffer.
+# `fallthrough` keeps wrangler's implicit default rules (notably `.bin` as Data)
+# in play; without it wrangler warns that this rule shadows them.
+[[rules]]
+type = "Data"
+globs = ["**/*.docx"]
+fallthrough = true

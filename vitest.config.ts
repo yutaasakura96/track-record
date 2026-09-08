@@ -15,6 +15,7 @@ export default defineConfig({
     cloudflareTest({
       miniflare: {
         compatibilityDate: "2026-08-12",
+        modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }],
         compatibilityFlags: ["nodejs_compat"],
         bindings: {
           DATABASE_URL: TEST_DATABASE_URL,
