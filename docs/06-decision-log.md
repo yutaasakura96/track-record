@@ -1640,3 +1640,63 @@ the author's machine.
 - **Eight pending render proposals, none accepted.** Unchanged, and now much the oldest thread.
 - **The attribution invariants are still checked by hand.** Still the obvious second instrument,
   still costs no generation.
+
+### [2026-09-09] The template becomes a module the runtime can load, and the guard test finds its consumer
+
+- **Decision:** `templates/rirekisho.blank.docx` is imported as a wrangler **`Data` module**, and
+  `src/render/rirekisho-template.ts` is the seam that holds the import, the placeholder shape and
+  the one function that fills it. `tests/rirekisho-template.test.ts` drives that seam inside
+  workerd against the committed binary.
+- **Reason:** this was the one undecided piece left by 2026-09-09's template entry, and it is the
+  piece everything downstream sits on. A Worker has no filesystem; a template it cannot load is a
+  template it does not have.
+
+#### The candidate was right, and checking it was not wasted
+
+- A `Data` module rule was the obvious candidate and it is the correct one. It was **not** taken on
+  that basis: it was checked against the installed wrangler's own config schema and then against a
+  `--dry-run` build, which emits the 13,864-byte `.docx` **beside** the entry point rather than
+  inlining it into the JavaScript. The binary stays a binary.
+- Checking turned up the part memory would have missed. Wrangler warns that a rule without
+  `fallthrough` **silently shadows its implicit defaults** — the rule as first written would have
+  taken `.bin` as `Data` away from any later use. `fallthrough = true` is not decoration.
+
+#### The rule has to be stated twice, and that is not duplication to remove
+
+`@cloudflare/vitest-pool-workers` takes module rules from its own options. It reads them from
+`wrangler.toml` only when pointed at that file, which would also pull in the bindings the suite
+deliberately replaces — the test database among them. So `vitest.config.ts` states the rule a second
+time. Without it the import fails in **Vite**, before workerd is ever reached: *"the content
+contains invalid JS syntax… add `**/*.docx` to `assetsInclude`"*, which is Vite offering the wrong
+answer, since an asset URL is not an `ArrayBuffer`. The two statements are one fact about two build
+paths, and a test that loads the template is what keeps them honest.
+
+#### What the test asserts, and why each one
+
+- **The binary reaches the runtime.** An `ArrayBuffer` whose first four bytes are a zip local
+  header. This is the Data-module guard: if either rule is dropped, this fails first.
+- **The template's placeholder set equals the fill function's field set**, compared both ways. A
+  placeholder nothing supplies renders as an empty cell; a field no placeholder carries is silently
+  discarded. Both are invisible in the output, which is this document's whole failure mode.
+- **The three loops expand and no placeholder survives.**
+- **The address's second line is one `<w:br/>`** — the reason `linebreaks: true` is not optional.
+- **Every entry it writes is DEFLATE**, read from the zip's central directory rather than from the
+  library that wrote it.
+- **The form furniture is still there** after filling — 名前, ふりがな, 学歴, 職歴, 以上, 免許.
+
+Every value in the fixture is invented and visibly so.
+
+#### The stand-in test goes
+
+`tests/docxtemplater.test.ts` was a runtime-compatibility guard with no consumer, standing in for
+the render. Its condition for deletion was a render exercising the path for real; the author called
+it met, and it is: `src/` now imports both libraries, and the new test drives them on workerd
+against the committed template rather than one the test builds for itself. A weaker duplicate of a
+guard is not a second guard. `docs/03` §11 row 2 now names the test that actually exercises
+`docxtemplater`.
+
+#### What was not done
+
+- **Still no 履歴書 render.** `RENDER_DEFINITIONS.rirekisho` remains `buildable: false` with an
+  empty register. This session built the mechanism under it, not the document.
+- **Eight pending render proposals, none accepted.** Unchanged, and older every session.

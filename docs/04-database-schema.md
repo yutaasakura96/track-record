@@ -594,6 +594,8 @@ failure mode `docs/03` §12 describes: invisible to the author, obvious to a Jap
   departure from the source: under autofit a long certification name widens the 年 and 月 columns
   away from the widths the author's own document shows. Fixed layout is the more faithful choice
   under substitution, not the less.
+- **The Worker loads it as a `Data` module**, not from a filesystem it does not have —
+  `docs/03` §6.2 for the rule, which `wrangler.toml` and `vitest.config.ts` each state once.
 - **Render with `linebreaks: true` and generate with `compression: "DEFLATE"`.** PizZip stores by
   default, which yields a `.docx` around three times the necessary size that opens perfectly well
   and so never complains (`docs/06`, 2026-09-08).

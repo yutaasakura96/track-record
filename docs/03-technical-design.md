@@ -102,7 +102,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   │   ├── generate.ts
 │   │   └── providers/anthropic.ts
 │   ├── pipeline/               # Workflow definitions
-│   ├── render/                 # docx builders, markdown builder
+│   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
 │   ├── diff/                   # paragraph alignment + token diff
 │   └── segment/                # BudouX wrapper
 ├── tests/
@@ -317,6 +317,30 @@ Marks land on phrase spans. A changed figure is one phrase replaced, not a scatt
 **Every change must carry a rationale** (`10-screen-specifications.md`): the `factIds` on each block
 resolve to the facts and source passages behind it. A change with no explanation is a defect.
 
+### 6.2 How the 履歴書 template reaches the runtime
+
+§30 draws the line: documents are built, forms are filled. The English résumé is assembled
+paragraph by paragraph; the 履歴書 is `templates/rirekisho.blank.docx` with its placeholders
+substituted. That template is a binary file, and a Worker has no filesystem to read it from.
+
+**It is a `Data` module.** `[[rules]] type = "Data", globs = ["**/*.docx"], fallthrough = true` in
+`wrangler.toml` makes `import template from "…/rirekisho.blank.docx"` an `ArrayBuffer`, emitted
+beside the bundle as its own module rather than inlined into the JavaScript. `fallthrough` keeps
+wrangler's implicit default rules — notably `.bin` as `Data` — in play. Verified against the
+installed wrangler's own config schema and by a `--dry-run` build, which carries the 13,864-byte
+module alongside the entry point.
+
+**The suite needs the same rule stated a second time.** `@cloudflare/vitest-pool-workers` reads
+module rules from its own options, not from `wrangler.toml`, unless it is pointed at that file —
+which would also pull in bindings the suite deliberately replaces. So `vitest.config.ts` carries
+`modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }]`. Without it Vite tries
+to parse the `.docx` as JavaScript and the import fails before workerd sees it.
+
+`src/render/rirekisho-template.ts` is the whole of the seam: the `ArrayBuffer`, the placeholder
+shape, and one `fillRirekishoTemplate()` that renders with `linebreaks: true` and generates with
+`compression: "DEFLATE"`. Deriving the rows that go into it is the render's job and
+`docs/04` §4 is their contract.
+
 ---
 
 ## 7. Confidentiality enforcement points
@@ -426,7 +450,7 @@ by blocking generation on missing fields, and by warning on unexplained gaps. M2
 | # | Item | Status |
 |---|---|---|
 | 1 | **Cross-document numeric conflicts** — PRD §8 requires two documents asserting different numbers for the same thing to be surfaced. Needs a notion of "the same thing" across documents | **Deferred to M2.** Impossible in M1 (one document, one employer). Not half-solved now |
-| 2 | **`docx` / `docxtemplater` on Workers** — both assume Node | **Closed 2026-09-08.** Both run on workerd unmodified, under the suite and under `wrangler dev`. `docx` is exercised end to end by `smoke.test.ts`; `docxtemplater` by `docxtemplater.test.ts`. No fallback needed |
+| 2 | **`docx` / `docxtemplater` on Workers** — both assume Node | **Closed 2026-09-08.** Both run on workerd unmodified, under the suite and under `wrangler dev`. `docx` is exercised end to end by `smoke.test.ts`; `docxtemplater` by `rirekisho-template.test.ts`, which fills the committed 履歴書 template. No fallback needed |
 | 3 | **Workers CPU budget for `.docx` assembly and long diffs** — **verified**: paid plan gives 30 s CPU per invocation, raisable to **5 minutes** via `limits.cpu_ms`; subrequests 10,000, raisable to 10M. Generous, but a high ceiling does not prove our code fits under it | Measure during M1 |
 | 3b | **Anthropic strict-schema complexity limits** — ~24 optional parameters combined across all strict schemas per request, plus internal compiled-grammar limits, returning `400 "Schema is too complex for compilation."` | Headroom, not a risk — **provided extraction stays one small, mostly-required strict tool** |
 | 4 | **Paragraph-alignment quality** on heavily restructured renders | Tune the similarity threshold against real proposals |
