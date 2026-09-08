@@ -1551,3 +1551,92 @@ Two runtimes, because passing in one would not have answered the question.
 - **Eight pending render proposals, none accepted.** Unchanged and still the oldest thread. No generation was spent this session.
 - **The attribution invariants are still checked by hand** — unknown fact ids, unfiled facts under an employer heading, facts under the wrong employer. Still the obvious second instrument, and still costs no generation.
 - **The two 履歴書 rules stated ahead of the code** — the null-`started_on` record and the null-`issued_on` certification — remain unexercisable until the render exists.
+
+---
+
+### [2026-09-09] The 履歴書 grid is stripped into a template, and seven details of the field contract were wrong
+
+- **Decision:** `templates/rirekisho.blank.docx` exists, built by a committed script from the
+  author's own 履歴書 with every value removed. `docs/04` §4 is **corrected in place** on seven
+  points — it is a contract, not a log, and a wrong contract is worse than a stale one.
+- **Reason:** `docs/03` §12 names the 履歴書 risk as a rigid grid whose errors are invisible to the
+  author and obvious to a Japanese reader. The answer that doc gives is *fill a template rather
+  than rebuild the grid*, which requires the real grid. The spike of 2026-09-08 removed the
+  technical gate; this is the piece that was actually left.
+
+#### What the field contract had wrong
+
+Extracted 2026-08-12, re-read against the same file this session. The structure was broadly right
+and the details were not.
+
+- **The identity label is 名前, not 氏名.** Kept as the author wrote it.
+- **`以上` is centred, not right-aligned.**
+- **Identity rows 2 and 3 have no label cell.** Both span the label column; 電話 and Email are
+  prefixes inside the value string and 生年月日 has no label at all. The contract modelled all
+  three as label/value pairs.
+- **The 学歴・職歴 column header is 学歴・職歴, not 内容**, and it is a real first row the
+  contract's numbered steps did not include.
+- **免許・資格 rows end in a verb** — 取得 by default, 修了 for courses, confirmed by the author.
+  The contract said "年 / 月 / 名称" and specified no suffix. This is exactly the §12 failure:
+  a table of bare names opens fine and reads as wrong.
+- **退社 rows put the reason first** — `<leaving_reason_ja>` + employer + 退社. The contract said
+  the row "carries" the reason without fixing the order.
+- **現住所 is three lines, not two** — kana, 〒, then a street address that may carry a building
+  name and room number on a second line. Handled with one `{address}` placeholder and
+  `linebreaks: true`, so no second column is needed and an author without a building name gets no
+  blank line.
+
+#### One rule moves from unexercisable to live
+
+- 2026-09-08 recorded the **null-`started_on` education rule** as unexercised, because the only such
+  row is `secondary_lower` and the register drops everything below university level. **That is a
+  fact about the English résumé, not about the rule.** 履歴書 is required to be complete, so the row
+  reaches this table and the rule fires on the first render. The author's own file already opens
+  学歴 with a closing row that has no 入学 above it.
+- The null-`issued_on` certification rule is **unchanged** and still unexercisable: every
+  certification in the record is dated, and inventing one to turn a check green is not a thing to do.
+
+#### Two gates, because the interesting failures here are silent
+
+The build script is committed for the same reason `npm run measure` is — the stripping becomes
+auditable, and a guard beats a promise in a commit message. It reads `local/`, so it runs only on
+the author's machine.
+
+- **A PII gate.** Every remaining text node must be form furniture or a placeholder; anything else
+  aborts the build. **It earned its place immediately.** The first version of the script mis-sliced
+  the table spans, dropped the `<w:tbl>` open tags, and applied every edit to the wrong table — the
+  output kept the author's real employers, schools, certifications and self-PR. Reviewing the
+  output caught it; the gate is what makes catching it automatic rather than lucky.
+- **A schema gate.** `<w:tblPr>` children must follow the CT_TblPrBase sequence. Setting the table
+  layout to `fixed` by anchoring the insert on `<w:tblW>` put `tblLayout` before `tblBorders`,
+  which is invalid and surfaces only as *"Word found unreadable content"*. The correct position was
+  settled empirically — by reading what the `docx` library emits — rather than from memory.
+
+#### The one deliberate departure from the source
+
+- **Column layout is `fixed`; the author's file is autofit.** Under autofit a long certification
+  name widens the 年 and 月 columns away from the widths the author's own document shows. Under
+  substitution, fixed is the *more* faithful choice, which is why it is not filed as a liberty.
+- Everything else is preserved: A4, 12.7 mm margins, five tables at 9360 twips, borders, fonts,
+  `MS Mincho` / `MS Gothic`, and the ideographic spacing in `履 歴 書`.
+
+#### What was verified
+
+- The template renders through PizZip and Docxtemplater with invented data: **17 rows expand to 21**,
+  no placeholder survives, the address line-break emits one `<w:br/>`, and every XML part parses.
+- The committed script reproduces the reviewed file **byte for byte**, and every non-directory zip
+  entry is DEFLATE.
+- The photo is **not** filled. It is an anchored 35.1 × 34.1 mm image — near-square, not the
+  conventional 30 × 40 mm — and docxtemplater needs a separate image module to place one. The cell
+  ships empty and the dependency has not been chosen. A known gap, recorded rather than hidden.
+
+#### What was not done
+
+- **No 履歴書 render.** `RENDER_DEFINITIONS.rirekisho` is still `buildable: false`. How the Worker
+  loads the template at runtime — a wrangler `Data` module rule is the obvious candidate — is a
+  render decision and was not taken here, which is also why no suite test loads the binary yet.
+- **`tests/docxtemplater.test.ts` still stands**, and still has no consumer. It is deleted when the
+  render exercises the path for real, which this template does not yet do.
+- **Eight pending render proposals, none accepted.** Unchanged, and now much the oldest thread.
+- **The attribution invariants are still checked by hand.** Still the obvious second instrument,
+  still costs no generation.

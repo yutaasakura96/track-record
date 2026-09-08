@@ -84,7 +84,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 ├── design/prototype/           # visual reference only
 ├── local/                      # gitignored — the author's real documents
 ├── templates/
-│   └── rirekisho.blank.docx    # 履歴書 grid, every value stripped
+│   └── rirekisho.blank.docx    # 履歴書 grid, every value stripped (built by scripts/)
 ├── src/
 │   ├── client/                 # React SPA
 │   │   ├── screens/            # fact-review, diff-review, overview

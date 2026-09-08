@@ -501,35 +501,62 @@ absence of a row means included (S13). Excluding never deletes or hides the unde
 generic template. Phase 1 deferred this deliberately, on the grounds that guessing would surface as
 a compliance bug late. This is the non-negotiable part.
 
+**Re-read against the same file on 2026-09-09**, when the grid was stripped into
+`templates/rirekisho.blank.docx`. Seven details below were wrong or missing; they are corrected in
+place, because this section is a contract rather than a log. The reasoning is in `docs/06`
+(2026-09-09). **The template is the authority on layout; this section is the authority on which
+column feeds which cell.**
+
 **Document scaffolding**
 
 | Element | Source |
 |---|---|
-| Title 履歴書 | Fixed |
-| Submission date (`YYYY年M月D日`) | **Stamped at generation.** Not stored |
-| 写真 cell | `profiles.photo` |
+| Title `履 歴 書` (ideographic spaces) | Fixed |
+| Submission date (`YYYY年 M月 D日`, space after 年 and 月) | **Stamped at generation.** Not stored |
+| 写真 cell | `profiles.photo` — **anchored, 35.1 × 34.1 mm**, merged across identity rows 1–3 |
+
+The 写真 cell is a floating (`wp:anchor`) image, not an inline one, and it is nearly square rather
+than the conventional 30 × 40 mm. **The template ships with the cell empty.** Filling it is not text
+substitution — docxtemplater needs a separate image module — and that dependency has not been
+chosen. A 履歴書 render that omits the photo is a known gap, not a silent one.
 
 **Identity block** — a five-row table
 
 | Row | Fields | Column |
 |---|---|---|
-| 1 | ふりがな / 氏名 | `family_name_kana` + `given_name_kana` / `family_name_kanji` + `given_name_kanji` |
-| 2 | 生年月日 + 満N歳 + 性別 | `date_of_birth` (**age computed against the submission date**), `gender` |
-| 3 | 電話 / Email | `phone` / `email` |
+| 1 | ふりがな / **名前** | `family_name_kana` + `given_name_kana` / `family_name_kanji` + `given_name_kanji` |
+| 2 | 生年月日 + 満N歳 + 性別 — **no label cell** | `date_of_birth` (**age computed against the submission date**), `gender` |
+| 3 | 電話 / Email — **no label cell** | `phone` / `email` |
 | 4 | ふりがな / 〒 + 現住所 | `address_kana` / `postal_code` + `address` |
 | 5 | ふりがな / 〒 + 連絡先 | Renders **同上** when `contact_same_as_address` |
 
-**学歴・職歴 table** — 年 / 月 / 内容. A single table, **derived, never stored**:
+- The label is **名前**, not 氏名. The author's file says 名前 and the template keeps it.
+- **Rows 2 and 3 carry no label cell at all.** Both span the label column (`gridSpan=2`), and 電話
+  and Email are prefixes inside the value string rather than cells of their own. 生年月日 has no
+  label anywhere. Do not add the labels back to make the block look regular.
+- **`address` may carry a second line** — the author's file puts a building name and room number on
+  its own line under the street address. The template holds one `{address}` placeholder and is
+  rendered with docxtemplater's `linebreaks: true`, so an embedded newline becomes the second line.
+  No second column is needed, and an author with no building name gets no blank line.
 
-1. Centred header row `学歴`
-2. **Two** rows per `educations` record, chronological ascending — an **入学** row from `started_on`,
+**学歴・職歴 table** — a single table, **derived, never stored**:
+
+1. Column header row `年` / `月` / **`学歴・職歴`** — the third column is headed 学歴・職歴, not 内容
+2. Centred header row `学歴`
+3. **Two** rows per `educations` record, chronological ascending — an **入学** row from `started_on`,
    and a closing row from `ended_on` whose wording follows `outcome`: **卒業** / **修了** / **中退**.
    A record whose `started_on` is null contributes the closing row only; it does not get an 入学 row
    with a guessed month, and it is not dropped
-3. Centred header row `職歴`
-4. Per employer, chronological ascending: an **入社** row (`name_ja` + `industry_ja` + business note)
-   and, where `ended_on` is set, a **退社** row carrying `leaving_reason_ja`
-5. Right-aligned final row `以上`
+4. Centred header row `職歴`
+5. Per employer, chronological ascending: an **入社** row (`name_ja` + `industry_ja` + business note)
+   and, where `ended_on` is set, a **退社** row reading
+   **`<leaving_reason_ja>` + employer + 退社** — the reason comes **first**, not last
+6. **Centred** final row `以上`
+
+**The null-`started_on` rule is live here.** The English résumé cannot exercise it, because its
+register drops every entry below university level; 履歴書 is required to be complete, so the record's
+one such row reaches this table and contributes its closing row alone. The author's own file already
+opens 学歴 with a closing row that has no 入学 above it.
 
 **Generation rules**
 
@@ -541,14 +568,37 @@ a compliance bug late. This is the non-negotiable part.
 - An **unexplained gap** between consecutive 学歴・職歴 entries produces a **warning, not a block**.
   The convention treats gaps as a defect.
 
-**免許・資格 table** — 年 / 月 / 名称, ascending by `issued_on`, from `certifications`. Rows with a
-null `issued_on` are omitted, because the table is dated by construction.
+**免許・資格 table** — column header `年` / `月` / `免許・資格`, then one row per certification
+ascending by `issued_on`. Rows with a null `issued_on` are omitted, because the table is dated by
+construction.
+
+**Every row ends in a verb.** The name alone is not a row. **`取得` is the default; `修了` is used
+for courses** — a completed course of study is 修了, an examination or licence is 取得. The verb is
+composed by the render, not stored on `certifications` and not held in the template, which carries a
+single `{text}` per row exactly as the 学歴・職歴 table does. A render that emits bare names is the
+failure mode `docs/03` §12 describes: invisible to the author, obvious to a Japanese reader.
 
 **Prose blocks** — generated from facts, subject to the diff gate:
 `志望動機・特技・アピールポイントなど` and `本人希望欄` (seeded from `desired_role_note`).
 
 > **Fields this template does not have:** 通勤時間, 扶養家族数, 配偶者, 配偶者の扶養義務. The author's
 > file follows the post-2024 JIS-style layout that drops them. **Do not add them back.**
+
+**Template mechanics** — `templates/rirekisho.blank.docx`, built by
+`scripts/build-rirekisho-template.mjs` from the author's file with every value stripped.
+
+- A4 portrait, 12.7 mm margins, five tables each exactly 9360 twips wide, `MS Mincho` / `MS Gothic`.
+- The three repeating tables each keep **one** loop row: `{#gakureki}`, `{#shokureki}`, `{#shikaku}`,
+  every one of them `{year}` / `{month}` / `{text}`.
+- **Column layout is `fixed`, where the author's file was autofit.** This is the one deliberate
+  departure from the source: under autofit a long certification name widens the 年 and 月 columns
+  away from the widths the author's own document shows. Fixed layout is the more faithful choice
+  under substitution, not the less.
+- **Render with `linebreaks: true` and generate with `compression: "DEFLATE"`.** PizZip stores by
+  default, which yields a `.docx` around three times the necessary size that opens perfectly well
+  and so never complains (`docs/06`, 2026-09-08).
+- The source document runs to two pages **with no explicit page break**, so the break falls wherever
+  the rows land. A render with a different row count breaks in a different place.
 
 ---
 
