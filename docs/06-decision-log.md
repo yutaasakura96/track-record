@@ -1458,3 +1458,51 @@ Append-only. The answer to every future "why is it like this?"
 - **Six pending render proposals, none accepted.** Unchanged, and now the oldest open thread by a wide margin.
 - **The chronology work still has not been seen in a rendered document.** Both 2026-09-07 entries are asserted on the payload. Confirming them costs one generation.
 - **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.
+
+---
+
+### [2026-09-08] The chronology is read in a written document at last, and the undated rule turns out to be unexercisable against this record
+
+- **Decision:** the two 2026-09-07 chronology changes are **confirmed in a generated document**. One generation was spent, with approval, against the author's own record through the real route. The undated-certification rule is **not** confirmed, and the reason is stronger than "not yet": this record cannot exercise it.
+- **Reason:** every ordering decision since 2026-09-07 was asserted on the `RenderSpec` payload. That establishes what the model is handed and says nothing about what it writes back, and a model free to reorder a list it is given would have defeated the fix silently. It no longer can.
+
+#### What the document reads
+
+Positions and dates only; the ordering was derived programmatically rather than by eye, and no prose left the database.
+
+- **Experience: 4 employer headings of 4, strictly non-increasing by start month.** Every employer in the record reached the document.
+- **Certifications: 14 rows, strictly non-increasing at MONTH precision.** Year precision would not have been evidence — seven rows share two months — so the document order was matched back to `issued_on` per row.
+- **Education: 3 rows, newest-first.** The list is queried `asc(coalesce(started_on, ended_on))` and reversed at the boundary, and it arrives descending, which is the whole of the 2026-09-07 chronology fix. The one document now reads all three of its dated lists in one direction.
+
+#### The undated rule could not be reached, and the entry that stated it was reading a fixture
+
+- **No certification in the record carries a null `issued_on`.** All sixteen are dated. The driving licence — the row the 2026-09-07 entry describes as leading the list — carries an issue date, and its `created_at` and `updated_at` are the same instant. **It has never been edited, so it was never undated.**
+- The undated licence in that entry was therefore **the test fixture**, not this record. The fix is real, the tests pin it in both directions, and the negative control that entry records was genuine. What is not true is that entry's present tense about the live list — `GET /api/certifications` does not lead with an undated row, because there is no undated row to lead with. Stated here rather than edited there.
+- **Confirming the rule against real data would require inventing a certification in the author's record.** That is not a thing to do for a green check, so the rule stays payload-and-fixture-proven, and is marked here as unexercisable rather than pending.
+- **The null-`started_on` education rule is unexercised for the same class of reason.** The one such row is `secondary_lower`, and the register omits every entry below university level before the rule could apply.
+
+#### Two certifications are absent from the document, and both absences are instructed
+
+- Sixteen certifications reach the payload — `render_inclusions` is **empty**, so nothing is configured out, and `collectRenderInputs` filters none. Fourteen rows appear. **The gap is the register doing what it says**, not the model dropping rows: `spec.ts` tells it a driving licence is not a technical certification, and that a language qualification belongs in "summary" if anywhere.
+- **Both instructions were obeyed.** The licence appears nowhere in the document, and the language qualification was verified present in the summary rather than merely gone. Checking that the row moved rather than vanished is the part worth keeping — an omission and a relocation look identical from a row count.
+
+#### The register did not move
+
+- **31 bullets / 192 mean characters / 35% carrying a number**, against the immediately preceding proposal's **31 / 195 / 35%**. The payload changed, so the ±2 and ±6 band applies, and the reading sits well inside it. **Reordering the lists did not disturb the prose**, which is the result to want.
+- **17,337 input tokens — identical to both 2026-09-06 generations.** Reordering a list changes where its rows sit and not how many tokens they cost. 7,281 output, 4,107 cache-creation, **0 cache-read**: the last generation was two days ago and the 1-hour breakpoint had long expired, so a zero read is arithmetic rather than a finding.
+
+#### A count this log has had wrong since 2026-09-06
+
+- The last three entries say **six** pending proposals. There were **seven**. With this generation there are now **eight pending and one accepted, nine in total** — and the 2026-09-08 entry's "all eight stored proposals were measured" counted the accepted one to reach eight. Corrected here, not there.
+
+#### What was verified
+
+- No code changed this session, so the suite stands where 2026-09-08 left it at **149 tests across 15 files**. Nothing here is a code claim; the evidence is a stored proposal and the record it was generated from.
+- The generation completed `ready` with a null error, no warnings, and `privateFactCount` and `generatedFactCount` both **0** — the render-time disclosure block had nothing to withhold on this pass.
+
+#### What was not done
+
+- **Eight pending render proposals, none accepted.** Still the oldest thread here, and still a judgement about the author's own career document.
+- **The attribution invariants were not checked.** Unknown fact ids, unfiled facts under an employer heading, and facts placed under the wrong employer are unchanged by this entry and still checked by hand.
+- **Quantification at 35% against the hand document's 57%**, still a fact-layer shortage rather than a register problem.
+- **`GET /api/certifications` was left alone**, and its divergence from the document is now moot in practice for want of an undated row.
