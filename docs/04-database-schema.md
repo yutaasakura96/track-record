@@ -542,16 +542,36 @@ chosen. A 履歴書 render that omits the photo is a known gap, not a silent one
 **学歴・職歴 table** — a single table, **derived, never stored**:
 
 1. Column header row `年` / `月` / **`学歴・職歴`** — the third column is headed 学歴・職歴, not 内容
-2. Centred header row `学歴`
+   · **template furniture**
+2. Centred header row `学歴` · **template furniture**
 3. **Two** rows per `educations` record, chronological ascending — an **入学** row from `started_on`,
    and a closing row from `ended_on` whose wording follows `outcome`: **卒業** / **修了** / **中退**.
    A record whose `started_on` is null contributes the closing row only; it does not get an 入学 row
-   with a guessed month, and it is not dropped
-4. Centred header row `職歴`
-5. Per employer, chronological ascending: an **入社** row (`name_ja` + `industry_ja` + business note)
-   and, where `ended_on` is set, a **退社** row reading
-   **`<leaving_reason_ja>` + employer + 退社** — the reason comes **first**, not last
-6. **Centred** final row `以上`
+   with a guessed month, and it is not dropped. A record whose `outcome` is **`expected`** is the
+   mirror case: it contributes the **入学 row alone, marked `入学（在学中）`**. Its `ended_on` is an
+   expectation rather than an event, and the author's file prints no closing row against it
+4. Centred header row `職歴` · **template furniture**
+5. Per employer, chronological ascending: an **入社** row reading
+   **`name_ja` + `industry_ja` + `<職種>として入社`**, where the 職種 is the `shokushu_ja` of the role
+   held **on entry**, and `industry_ja` and the 職種 are each dropped when the record has none; and,
+   where `ended_on` is set, a **退社** row reading **`<leaving_reason_ja>` + employer + `を退社`** —
+   the reason comes **first**, not last. A record with **no `leaving_reason_ja` renders
+   `employer + を退社`** and no reason is supplied: `一身上の都合により` asserts a voluntary
+   departure, and asserting that about a contract that simply ended is a misstatement on a document
+   that is signed
+6. **Centred** final row `以上` · **template furniture**
+
+**Rows 1, 2, 4 and 6 are in the template, not in the render.** `templates/rirekisho.blank.docx`
+carries the column headers, both centred bands and the closing 以上; `{#gakureki}` and `{#shokureki}`
+carry entries only. A render that emitted them would print them twice.
+
+**Parts within a row are joined with an ideographic space (U+3000).** The author's file is not
+perfectly consistent about this — two rows use an ASCII space and one omits the separator after a
+full-width bracket — and the render normalises rather than reproducing the inconsistency: an ASCII
+space sits visibly narrow beside the rest in `MS Mincho`.
+
+**`business_description` feeds no row.** It is empty on every employer in the record and appears
+nowhere in the author's file; the third element of the 入社 row is the 職種.
 
 **The null-`started_on` rule is live here.** The English résumé cannot exercise it, because its
 register drops every entry below university level; 履歴書 is required to be complete, so the record's
@@ -568,12 +588,21 @@ opens 学歴 with a closing row that has no 入学 above it.
 - An **unexplained gap** between consecutive 学歴・職歴 entries produces a **warning, not a block**.
   The convention treats gaps as a defect.
 
-**免許・資格 table** — column header `年` / `月` / `免許・資格`, then one row per certification
-ascending by `issued_on`. Rows with a null `issued_on` are omitted, because the table is dated by
-construction.
+**免許・資格 table** — column header `年` / `月` / `免許・資格` (**template furniture**), then rows
+ascending by date from **two** sources:
+
+- every `certifications` row, dated by `issued_on`. Rows with a null `issued_on` are omitted, because
+  the table is dated by construction
+- every **finished vocational `educations` row** — `level = 'vocational'` with an `ended_on` and an
+  outcome of `completed` or `graduated` — dated by `ended_on`. A completed non-degree programme is
+  what the 履歴書 prints here rather than under 学歴 (`docs/06`, 2026-09-06), and the author's file
+  does exactly that. The qualifier is *finished*: a vocational course left unfinished or still
+  running stays in 学歴, because 免許・資格 is a list of things held
 
 **Every row ends in a verb.** The name alone is not a row. **`取得` is the default; `修了` is used
-for courses** — a completed course of study is 修了, an examination or licence is 取得. The verb is
+for courses** — a completed course of study is 修了, an examination or licence is 取得. The two
+sources above are what makes that choice mechanical rather than a judgement: a `certifications` row
+takes 取得 and a vocational `educations` row takes 修了. The verb is
 composed by the render, not stored on `certifications` and not held in the template, which carries a
 single `{text}` per row exactly as the 学歴・職歴 table does. A render that emits bare names is the
 failure mode `docs/03` §12 describes: invisible to the author, obvious to a Japanese reader.

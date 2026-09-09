@@ -1700,3 +1700,70 @@ guard is not a second guard. `docs/03` §11 row 2 now names the test that actual
 - **Still no 履歴書 render.** `RENDER_DEFINITIONS.rirekisho` remains `buildable: false` with an
   empty register. This session built the mechanism under it, not the document.
 - **Eight pending render proposals, none accepted.** Unchanged, and older every session.
+
+---
+
+### [2026-09-09] The 履歴書 rows are derived, and five details of the field contract were wrong
+
+- **Decision:** `src/render/rirekisho-rows.ts` composes the three loop bodies —
+  `gakureki`, `shokureki`, `shikaku` — from narrow projections of `educations`,
+  `employers` and `certifications`. `tests/rirekisho-rows.test.ts` holds it to
+  `docs/04` §4, and §4 itself is corrected in five places, in place, because it is a
+  contract rather than a log.
+- **Reason:** this half of the 履歴書 costs no generation and is decidable entirely from
+  the record and the author's own file. Building it first separates what can be
+  test-driven from what needs a register and a model call.
+
+#### The contract was re-read against the source document, and it moved
+
+§4 was extracted on 2026-08-12 and re-read on 2026-09-09 when the grid was stripped. It
+was read a third time here, against the rows rather than the layout, and five details
+were wrong or missing. Each is a claim about wording that no test could have caught,
+because nothing was composing wording yet.
+
+1. **The 入社 row carries the 職種, not a business note.** §4 said
+   `name_ja` + `industry_ja` + business note. The author's file reads
+   `employer　industry　<職種>として入社`, and `business_description` is empty on every
+   employer in the record. `roles.shokushu_ja` of the role held **on entry** is the third
+   element — on entry, because that is the clause the sentence makes.
+2. **`outcome = 'expected'` prints `入学（在学中）` and no closing row.** §4 described only
+   the null-`started_on` case. This is its mirror, it is equally live, and the author's
+   file already carries such a row: the `ended_on` on an expected record is an
+   expectation, not an event.
+3. **免許・資格 has two sources, not one.** §4 said one row per certification. A finished
+   vocational education prints here too — which is what the `education_level` enum's own
+   comment says (2026-09-06) and what the author's file does. The consequence is that the
+   verb stops being a judgement: a certification takes 取得, a vocational education takes
+   修了.
+4. **The column headers, both centred bands and 以上 are template furniture.** §4 listed
+   them as numbered items of the table, which reads as though the render composes them.
+   The template carries them; a render that emitted them would print each twice.
+5. **The separator is U+3000.** Not stated anywhere. The source is inconsistent — two rows
+   use an ASCII space, one omits the separator after a full-width bracket — and the render
+   normalises, because an ASCII space sits visibly narrow beside the rest in `MS Mincho`.
+
+#### A null 退職理由 supplies nothing
+
+Every employer in the record has `leaving_reason_ja` null, and the author's own file puts
+`一身上の都合により` on every 退社 row. The tempting default is that string. It is refused:
+it asserts a **voluntary** departure, and asserting that about a contract that simply ended
+is a false statement on a document that is signed. The row renders `employer + を退社` and
+the author supplies the reason to the record if they want it on the page. Author's call,
+2026-09-09.
+
+#### What the test holds
+
+Twenty-six cases, every fixture invented and visibly so. The ones that matter are the ones
+whose breach is invisible to the author and obvious to a Japanese reader: a 中退 printed as
+卒業; a 免許・資格 row that stops at the name; a 退社 row with the reason trailing; a record
+dropped for having no entry month; the 職歴 table grouped by employer instead of
+interleaved by date, which two overlapping employments would expose. It also asserts the
+render emits none of the furniture the template already holds.
+
+#### What was not done
+
+- **Still no 履歴書 render.** `RENDER_DEFINITIONS.rirekisho` remains `buildable: false`.
+  The rows exist; the prose blocks — 志望動機・特技・アピールポイントなど and 本人希望欄 —
+  need a register and a generation, and that has not been spent.
+- The 写真 cell still ships empty; no image module has been chosen.
+- **Eight pending render proposals, none accepted.** Unchanged, and older again.
