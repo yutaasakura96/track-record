@@ -319,12 +319,12 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` | `/api/renders` | M1 | All five, with status. Backs the overview's Documents section |
-| `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` |
+| `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
 | `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
-| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored** |
+| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**. 履歴書 is `docx` only |
 | `GET` | `/api/renders/:kind/versions` | M2 | Accepted versions **and** dismissed proposals, visibly distinct |
 | `POST` | `/api/renders/:kind/versions/:id/restore` | M2 | Creates a **new** version; history is never erased |
 
@@ -445,6 +445,18 @@ Accepting an already-decided proposal → `409 conflict`.
 `Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
 Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
+
+**`GET /api/renders/rirekisho/download` is `.docx` only** — `?format=md` → `409 conflict`. The other
+renders are documents built as text, and markdown is a readable form of one; a 履歴書 is a form whose
+meaning is its grid, and a markdown table of it is not a 履歴書. It is also the one download assembled
+from the **record** rather than from the stored version: the 学歴・職歴 and 免許・資格 tables are
+derived on each request, the identity block is read from the profile row, the submission date is
+stamped in Tokyo and 満N歳 computed against it, and the only generated text in the file is the two
+prose cells (`docs/04` §4).
+
+**`warnings`** on the `202` is an array of strings, advisory and never blocking — it never delays or
+prevents the generation it is returned with. Today only 履歴書 produces one, for an unexplained gap
+between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`.
 
 ---
 

@@ -1767,3 +1767,77 @@ render emits none of the furniture the template already holds.
   need a register and a generation, and that has not been spent.
 - The 写真 cell still ships empty; no image module has been chosen.
 - **Eight pending render proposals, none accepted.** Unchanged, and older again.
+
+---
+
+### [2026-09-09] The 履歴書 is assembled around the rows, and the flip to `buildable` is refused
+
+- **Decision:** `src/render/rirekisho.ts` assembles the whole form — the identity block, the
+  submission date, 満N歳, the three tables and the two prose cells — and
+  `src/server/services/rirekisho.ts` reads what it needs out of the database.
+  `GET /api/renders/rirekisho/download` fills the committed template instead of building a
+  document. `RENDER_DEFINITIONS.rirekisho.buildable` **stays `false`**.
+- **Reason:** everything the 履歴書 takes from the record is now decidable and testable
+  without a model. What is left is the register, and the register is what costs money.
+
+#### Why the flip is refused, and what it is waiting for
+
+Flipping `buildable` would make `POST /api/renders/rirekisho/generate` reachable, and two
+things behind it are not ready. The register is `""`, so the first author who pressed the
+button would spend a generation on an empty prompt. And `GET /api/proposals/:id/diff`
+passes `diffRenders` the literal `language: "en"` — the option's type admits nothing else
+— so a Japanese proposal would be diffed with English word rules and no BudouX. The flip
+is one line and it belongs in the same commit as the register, not before it.
+
+#### Four decisions §4 does not cover
+
+1. **The submission date is stamped in Tokyo.** The Worker's clock is UTC, which is
+   yesterday in Japan for nine hours of every day. The date a 履歴書 carries is the date it
+   is handed over, and the zone is fixed rather than taken from the runtime.
+2. **A gap is three uncovered months.** §4 requires a warning for an unexplained gap and
+   does not say how wide one is. One is wrong: 3月卒業 followed by 4月入社 is the ordinary
+   transition. Two is wrong: leaving in June and starting in September is an ordinary job
+   change. Three is where a reader starts to read the space as something to ask about. A
+   judgement, and the one number in this work most likely to want the author's opinion.
+3. **The name cells join with U+3000.** §4 states the rule for the rows of the three
+   tables. The 名前 and ふりがな cells are not rows, so this is an extension rather than a
+   transcription — made for the same reason, that an ASCII space sits visibly narrow in
+   `MS Mincho`, and 名前 is the most-read cell on the page.
+4. **A 履歴書 is produced as `.docx` only.** `?format=md` on the other renders is a
+   readable text form of a document that was built as text. A form has no such thing: its
+   meaning is the grid. The route answers `409` rather than emitting a markdown table that
+   is not a 履歴書.
+
+`address_kana` is **not** on the blocking list, because §4 does not put it there. An empty
+ふりがな over 現住所 is a blank line; an empty 現住所 is a defective document. The eight
+fields §4 names are the list, and `REQUIRED_PROFILE_FIELDS` is now their single source —
+the spec imports it rather than restating it, which is how the old three-field list drifted
+out of agreement with the contract unnoticed.
+
+#### The PII rule gets its second enforcement point
+
+`src/render/identity.ts` declines to model 履歴書 and says why: the other four renders must
+never be able to reach `date_of_birth`, `phone`, `postal_code`, `address` or `contact_*`.
+`collectRirekishoProfile` is the only query in the codebase that names those columns, and
+its select list is the enforcement — `photo` and everything else the form has no cell for
+are never read. The 履歴書's own type is separate from `RenderIdentity` for the same
+reason: a shared identity type carrying these fields is how one of them eventually reaches
+an English résumé.
+
+#### What the test holds
+
+Twenty-four cases. The ones that matter: 満N歳 computed against the submission date rather
+than stored, including the 29 February birth and the day the age turns over; the Tokyo
+stamp, asserted against a UTC instant that falls on the previous day; 同上 with an empty 〒
+beside it; the gap threshold from both sides, and two overlapping employments treated as
+one covered stretch rather than a gap; and the whole chain filling the committed template,
+with an assertion that **no placeholder survives into the output**.
+
+#### What was not done
+
+- **No register, no generation, no flip.** Unchanged from the last entry and now the only
+  thing between the record and a 履歴書.
+- The 写真 cell still ships empty; no image module has been chosen.
+- The 連絡先 row's ふりがな has no placeholder — recorded in §4 rather than fixed, because
+  fixing it means regenerating the template on the author's machine.
+- **Eight pending render proposals, none accepted.** Older again.

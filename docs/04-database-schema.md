@@ -534,6 +534,11 @@ chosen. A 履歴書 render that omits the photo is a known gap, not a silent one
 - **Rows 2 and 3 carry no label cell at all.** Both span the label column (`gridSpan=2`), and 電話
   and Email are prefixes inside the value string rather than cells of their own. 生年月日 has no
   label anywhere. Do not add the labels back to make the block look regular.
+- **Row 5 has a ふりがな label and no ふりがな placeholder.** The template's contact row carries
+  `〒{contactPostalCode}` and `{contactLine}` only, so an author whose 連絡先 differs from their
+  現住所 gets that address with an empty ふりがな above it. `contact_address_kana` is stored and
+  is not printed. A template gap, recorded rather than worked around: closing it means
+  regenerating the template, which only runs on the author's machine.
 - **`address` may carry a second line** — the author's file puts a building name and room number on
   its own line under the street address. The template holds one `{address}` placeholder and is
   rendered with docxtemplater's `linebreaks: true`, so an embedded newline becomes the second line.
