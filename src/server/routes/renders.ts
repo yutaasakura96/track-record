@@ -23,6 +23,8 @@ import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
 import { DOCX_MIME, downloadFilename, toDocx } from "~/render/docx";
+import { buildRirekisho, gapWarnings, tokyoToday } from "~/render/rirekisho";
+import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import type { RenderIdentity } from "~/render/identity";
 import {
   RENDER_KINDS,
@@ -84,6 +86,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       );
     }
 
+    // Advisory and never blocking (`docs/04` §4). The 履歴書 is the only kind
+    // with a rule about gaps, because it is the only one required to be
+    // complete: the English résumé's register drops entries by level.
+    const warnings = kind === "rirekisho" ? gapWarnings(inputs.spec) : [];
+
     const render = await ensureRender(db, user.id, kind);
     const proposalId = newId("renderProposal");
     await db.insert(renderProposals).values({
@@ -108,7 +115,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     });
     c.executionCtx.waitUntil(run);
 
-    return c.json({ proposalId, renderKind: kind, status: "generating" }, 202);
+    return c.json({ proposalId, renderKind: kind, status: "generating", warnings }, 202);
   });
 
   api.get("/api/proposals/:id", async (c) => {
@@ -242,6 +249,36 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const content = version.content as RenderContent;
     const title = RENDER_TITLE[kind];
     const filename = downloadFilename(kind, format, version.acceptedAt);
+
+    // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
+    // derived from the record rather than read out of the version, its identity
+    // block comes from the profile row, and the only generated text in it is
+    // the two prose blocks. The submission date is stamped now, in Tokyo, and
+    // the age is computed against it (`docs/04` §4).
+    if (kind === "rirekisho") {
+      if (format === "md") {
+        throw new ApiError("conflict", "A 履歴書 is a form and is produced as .docx only.");
+      }
+      const profile = await collectRirekishoProfile(db, user.id);
+      const record = await collectRirekishoRecord(db, user.id);
+      let filled: Uint8Array;
+      try {
+        filled = buildRirekisho({ profile, record, submittedOn: tokyoToday(), content });
+      } catch {
+        console.error(JSON.stringify({ event: "docx_build_failed", versionId }));
+        throw new ApiError(
+          "internal",
+          "That document could not be assembled. Your saved version is unchanged.",
+        );
+      }
+      return new Response(filled as BodyInit, {
+        headers: {
+          "content-type": DOCX_MIME,
+          "content-disposition": `attachment; filename="${filename}"`,
+        },
+      });
+    }
+
     // Read at download rather than stored with the version: the identity block
     // is not a claim about a career, and an accepted version must not go stale
     // because a phone number changed (`src/render/identity.ts`).

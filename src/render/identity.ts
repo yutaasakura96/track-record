@@ -41,12 +41,12 @@ import type { RenderKind } from "~/shared/render-content";
  * than the `profiles` row: a field that is not on this type cannot reach a
  * render by accident, and the restricted PII columns are not on it.
  *
- * 履歴書 is the exception the PII rule exists for and it is **not built in M1**
- * (`src/render/spec.ts`, `buildable: false`). When it is, it takes the full
- * conventional identity block — 氏名・ふりがな・生年月日・現住所・連絡先 — from
- * the profile row directly, and `docs/11` §2.4 is the test that governs it.
- * It is not modelled here, because a partial version of it would look like the
- * whole thing.
+ * 履歴書 is the exception the PII rule exists for, and it is modelled in
+ * `src/render/rirekisho.ts` rather than here: it takes the full conventional
+ * identity block — 氏名・ふりがな・生年月日・現住所・連絡先 — from the profile
+ * row directly, through the one query allowed to read those columns. Keeping it
+ * out of this type is the enforcement. A shared identity carrying a phone number
+ * is how a phone number eventually reaches an English résumé.
  */
 export interface RenderIdentity {
   /** `name_latin` — the English renders' heading. */
@@ -60,8 +60,9 @@ export interface RenderIdentity {
 const HEADER_FIELDS: Record<RenderKind, (id: RenderIdentity) => string[]> = {
   // A résumé is read by someone who may want to reply to it.
   english_resume: (id) => [id.nameLatin, id.email],
-  // Placeholder until 履歴書 is built: the name alone is correct but nowhere
-  // near sufficient, and the missing fields are conventional, not optional.
+  // Unused by the 履歴書 itself, which fills a template rather than composing a
+  // header (`src/render/rirekisho.ts`). This entry exists because the map is
+  // total over `RenderKind`; the name alone would be nowhere near sufficient.
   rirekisho: (id) => [id.nameKanji],
   // 職務経歴書 convention is 氏名 and the date; contact details live in 履歴書.
   shokumu_keirekisho: (id) => [id.nameKanji],

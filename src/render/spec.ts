@@ -10,6 +10,7 @@
  * overview can show them as never generated, which is distinct from up to date.
  */
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
+import { REQUIRED_PROFILE_FIELDS } from "./rirekisho";
 
 export interface RenderDefinition {
   kind: RenderKind;
@@ -65,13 +66,29 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     register: RESUME_REGISTER,
     requiredProfileFields: ["nameLatin"],
   },
+  /**
+   * Everything the 履歴書 needs from the record is built — the three derived
+   * tables (`src/render/rirekisho-rows.ts`), the identity block, the submission
+   * stamp and the gap warning (`src/render/rirekisho.ts`), and the template
+   * that carries them (`src/render/rirekisho-template.ts`).
+   *
+   * **`buildable` stays false until the register below is written**, which is
+   * the one part a model does: 志望動機・特技・アピールポイントなど and
+   * 本人希望欄. Flipping it early would let the author spend a generation on an
+   * empty register, and `GET /api/proposals/:id/diff` still diffs with English
+   * word rules — `diffRenders`' `language` option is the literal `"en"`, and
+   * Japanese segmentation (BudouX) arrives with the first Japanese render.
+   */
   rirekisho: {
     kind: "rirekisho",
     language: RENDER_LANGUAGE.rirekisho,
     buildable: false,
     chronology: "oldest_first",
     register: "",
-    requiredProfileFields: ["dateOfBirth", "address", "addressKana"],
+    // `docs/04` §4, verbatim: a 履歴書 missing a conventional field is worse
+    // than no 履歴書 at all. `address_kana` is deliberately not on the list —
+    // see `REQUIRED_PROFILE_FIELDS` in `src/render/rirekisho.ts`.
+    requiredProfileFields: [...REQUIRED_PROFILE_FIELDS],
   },
   shokumu_keirekisho: {
     kind: "shokumu_keirekisho",
