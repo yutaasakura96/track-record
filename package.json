@@ -18,6 +18,7 @@
     "auth:generate": "better-auth generate",
     "lint": "node scripts/check-design-tokens.mjs",
     "measure": "node scripts/measure-render.mjs",
+  "check:attribution": "node scripts/check-attribution.mjs",
     "typecheck": "tsc --noEmit",
     "restore:drill": "node scripts/restore-drill.mjs"
   },

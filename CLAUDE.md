@@ -14,6 +14,10 @@ on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs th
 `npm run measure -- --latest` prints the experience-section figures every register decision in the
 decision log is argued against — count, mean length, share carrying a number. **Do not rebuild it
 by hand**; that is what it is committed for, and it prints numbers and never render text.
+`npm run check:attribution -- --latest` is the second instrument: it checks a render's facts against
+the record — unknown fact ids, unfiled facts used under an employer, facts under a heading naming a
+different employer — and exits non-zero on a finding. It prints ids and counts and never render
+text, and it is not to be rebuilt by hand either.
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`

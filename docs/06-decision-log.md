@@ -1841,3 +1841,103 @@ with an assertion that **no placeholder survives into the output**.
 - The 連絡先 row's ふりがな has no placeholder — recorded in §4 rather than fixed, because
   fixing it means regenerating the template on the author's machine.
 - **Eight pending render proposals, none accepted.** Older again.
+
+### [2026-09-10] The attribution invariants enter the repository, and the accepted baseline turns out to carry two misfiled facts
+
+The second committed instrument, built the same way as the first and for the same reason.
+`npm run measure` answers whether a render's bullets are the right SHAPE. This answers
+whether they are attached to the right FACTS — three invariants that had been checked by
+hand at the end of every generation, against a record that grows with every import. A hand
+check that must be repeated is a hand check that will eventually be skipped, and the
+skipped run is the one that matters.
+
+The split is deliberately the same: `src/render/attribution.ts` is the definition, with no
+imports so that Node can load it directly and a test asserting a real `RenderContent`
+satisfies its structural input; `scripts/check-attribution.mjs` is the thing you run.
+Exit status is 1 when anything is found, so it can be a check and not only a report.
+
+    npm run check:attribution -- --latest
+    npm run check:attribution -- --proposal prp_H8t4
+
+#### What it checks, and the fourth thing it reports
+
+1. **unknown-fact** — a block cites a fact id the record does not contain.
+2. **unfiled-fact** — a fact filed to no employer is used under an employer heading.
+3. **misfiled-fact** — a fact is used under a heading naming a DIFFERENT employer.
+
+`unresolved-heading` is not an invariant about the render. It reports a group whose
+employer the checker could not identify, and it exists because the alternative is checking
+nothing there and saying nothing about it. Silence is the one failure mode a checker must
+not have, and this finding is what turned a clean-looking baseline into a reported one.
+
+#### The heading is the anchor, because nothing else is
+
+`RenderContent` carries no employer ids. The experience section is a flat run of blocks in
+which a `paragraph` opens a group and the bullets after it belong to it, and the only thing
+naming the employer is the paragraph's own prose. So the heading is matched against the
+record's employer names — which is the invariant exactly as it was checked by hand, a fact
+sitting under a heading that names someone else.
+
+Matching runs in **two passes, and the order carries the argument**. The exact name is
+tried first, so a heading writing the legal name in full is never loosened and two
+employers differing only in corporate form stay distinct. Only when that finds nothing does
+a normalised pass run — corporate form and separating punctuation removed — which is what
+lifts a heading writing 架空商事 where the record stores 架空商事株式会社. Normalisation can
+therefore only ADD an answer where there was none; it can never overturn one. A tie does
+not fall through to it: two employers named equally well in one heading is a genuine
+ambiguity, and normalising can only blur the thing that would have told them apart.
+
+Whitespace is **collapsed, never removed**. Both rules were run over every proposal in the
+dev database and resolved exactly the same groups, and removing whitespace would let a
+short name match across a word boundary — finding `abc` inside `lab candidate`. Equal
+recall at strictly less risk is not a trade-off.
+
+#### What the first run found
+
+Every one of the eight pending proposals is clean: four employer groups resolved, no
+unknown, unfiled or misfiled fact among 128–138 fact references each.
+
+The **currently accepted 09-03 baseline is not**. It reports two misfiled facts and one
+unresolved heading. The two sit in adjacent bullets and both cite facts filed to the same
+other employer, which reads as a group-boundary error rather than two independent slips —
+a run of bullets that ended up under the neighbouring heading. It is worth stating plainly
+that this is the render currently standing as the baseline, and that it had passed the hand
+check.
+
+The unresolved heading is a true negative rather than a matcher failure: that heading names
+its employer in no form the record holds, under either pass.
+
+#### What is deliberately not checked
+
+- **Whether a cited fact is ACCEPTED.** A render should draw only on accepted facts, but
+  "cited a candidate fact" and "cited an id that does not exist" are different faults, and
+  folding them together would make the first look like data corruption. The record the
+  instrument builds carries every fact whatever its status, so `unknown-fact` means
+  genuinely unknown.
+- **Provenance and disclosure.** Generated-provenance and Private-disclosure facts never
+  reaching a render is enforced at render time, which is the right place for it. A checker
+  running afterwards would be a second, weaker copy of a rule that already holds.
+- **Anything about the bullets themselves.** That is `npm run measure`.
+
+#### The output contract
+
+Ids and counts, never text — no bullet, no heading, no fact claim, not in an error message
+either. Renders are built from the author's real career record, and the rule that logs
+never contain render content does not stop applying because the output is a diagnostic.
+The same contract the measurement script carries, for the same reason.
+
+A fact's EFFECTIVE employer is its own, or its project's when it is filed to a project
+rather than straight to an employer. That hop is resolved in SQL so the definition module
+stays a pure function of what it is given. The record query filters by `user_id` like every
+other query in the codebase; an operations script is not an exception, and a proposal is
+always checked against its own user's record — `--user` cannot override that, because a
+check against the wrong record would come back clean.
+
+#### What was not done
+
+- **The two misfiled facts in the baseline are reported, not fixed.** Which employer those
+  bullets belong under is a question about the record, and the answer is the author's.
+- **No register, no generation, no flip.** Unchanged, and still the only thing between the
+  record and a 履歴書.
+- **Eight pending render proposals, none accepted.** Older again — though they are now the
+  only renders known to satisfy the invariants.
