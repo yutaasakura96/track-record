@@ -1987,3 +1987,54 @@ The superseded baseline was the one render reporting misfiled facts. The accepte
 clean under `npm run check:attribution`, as were all eight pending proposals. So the two
 misfiled facts were a property of that render's grouping rather than of the record, and
 accepting a clean render retires the question rather than leaving it open.
+
+---
+
+### [2026-09-11] The two hand edits land as version 3, and a hand edit has no route
+
+`english_resume` is at version 3. Version 2 is unchanged and still readable; the two edits the
+previous entry carried forward are applied, and both were decided by reading rather than by
+measuring.
+
+**The transplanted bullet is half of what was carried forward.** The line judged strongest in
+any of the three finalists exists only in a proposal that was not accepted, and its fact carries
+two clauses. The accepted version already renders the second of them, on a neighbouring bullet
+whose own fact overlaps it. Pasting the line in as it stood would have said the same thing twice
+within two bullets, so only the clause the accepted version never says was inserted, as a bullet
+of its own directly after the one that carries the other clause. Citing the one fact behind it is
+correct: the block renders part of that claim, and no other fact is involved.
+
+**Age at promotion comes off the English résumé.** The line stating it was left alone for the
+author to confirm and has been cut down to the progression and its span. Age on an English
+résumé is off-convention where that document is read, invites a bias the render has no reason to
+invite, and the span the bullet already states carries the trajectory without it. The 履歴書 carries date of
+birth by construction and is the document where that belongs — the two renders having different
+conventions is the reason they are different renders. The fact stops being cited by that block,
+because the block no longer renders its claim.
+
+**The pair presenting a failure alongside its control stays exactly as it is.** The admission is
+only legible as a strength because the control follows it immediately and quantifies what it
+bought. Shortening the failure to make the control carry more weight would leave the control
+measuring something the reader can no longer see.
+
+#### What the edits cost, measured
+
+31 / 192 / 35% before, 32 / 187 / 31% after. Both edits removed digits: the age was one, and the
+transplanted bullet spells its interval out the way the rest of the register spells small numbers
+out. The share carrying a number is a digit test and always has been, so it reads the loss
+correctly and there is nothing to fix in the test. Writing the new bullet with a numeral to hold
+the percentage up would be gaming an instrument, and the cause of the shortfall against the hand
+document's 57% is unchanged and recorded: the facts behind these bullets carry no numbers.
+
+#### A hand edit has no route, and that is now visible
+
+Version 3 was written with SQL, the way the restore drill reaches the database, because there is
+no endpoint that edits a version. `POST /api/proposals/:id/accept` is the only writer of
+`render_versions`, and it needs a proposal. This is the first time the record needed a change
+that no generation produced, and the shape of the answer is already in the schema — restoring
+creates a new version rather than erasing one, and so did this. A manual-edit route is a real
+gap rather than a chore, but it is not M1's: the two edits owed are applied, and the next one
+would be the third occasion, not the first.
+
+Both instruments were run against the edited content before it was written and both pass:
+attribution clean at 135 fact references across 58 blocks, four employer groups resolved.
