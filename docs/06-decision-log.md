@@ -2127,3 +2127,39 @@ advisory, it is a comment.
   output is unread, and what it produces is the next thing to look at.
 - The 写真 cell still ships empty, and the 連絡先 ふりがな row still prints a bare label. Both
   are recorded in `docs/04` §4 and both need the template regenerated on the author's machine.
+
+---
+
+### [2026-09-11] The first 履歴書 generation, and the one rule the register was missing
+
+The button was pressed. The proposal is pending, unaccepted, and correct in every way the
+register asked for except one it did not think to ask.
+
+**What held.** Two sections and no third, both keys as `PROSE_SECTION_KEYS` fixes them, every
+block a paragraph. です・ます体 throughout, in the humble register the document is read in. No
+志望動機, no company named, no 貴社 in the motivation cell. 本人希望欄 came back as
+`貴社規定に従います。` exactly, with no `factIds` — the conventional answer for an author who
+has stated no preference, which is what the record holds. Heavily quantified: eight figures
+across three paragraphs, every one of them traceable. `npm run check:attribution --proposal`
+reports clean at 13 fact references across 4 blocks, and 0 employer groups, which is the right
+answer rather than a missing one — a 履歴書's prose cells carry no employer headings to resolve.
+Both warnings reached the response, and the gap warning found a real 3-month gap in the record.
+
+**What failed, and it is the register's fault rather than the model's.** The third paragraph
+lists the certification count, the test score and the graduation year — and all three of those
+tables print in full a few centimetres above the cell, on the same page. The register forbade
+restating the 職歴 table and said nothing about 学歴 or 免許・資格, so the model obeyed the rule
+it was given. That paragraph is also the whole of the length overrun: the cell runs 348
+characters against a stated bound of about 300, and the two paragraphs that are not duplication
+come to 218.
+
+The rule is now stated for all three tables, with the reason — a paragraph that recites what the
+form already prints spends the one free cell on the page saying nothing. A qualification may be
+named where the point is what it lets the author *do*.
+
+**The register was changed; the proposal was not regenerated.** Seeing the fix take effect costs
+another generation, and that is the author's call to make, not a correctness question. The
+pending proposal stands as the first evidence that the path works end to end.
+
+Cost: 17,337 input tokens, 3,804 cache-creation, 740 output. Well under the estimate the résumé
+set, because a 履歴書 asks a model for two paragraphs rather than a document.
