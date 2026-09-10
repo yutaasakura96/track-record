@@ -22,6 +22,7 @@ import {
 } from "../api";
 import { Button, Chip, Dot, Mono } from "../components/ui";
 import { useDiffStore } from "../stores/review";
+import { RENDER_TITLE } from "~/shared/render-content";
 
 export function DiffReview() {
   const { proposalId } = useParams({ from: "/proposals/$proposalId" });
@@ -62,7 +63,11 @@ function Header({ proposal }: { proposal: Proposal }) {
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
       <span className="text-panel font-semibold tracking-snug text-text-strong">Outputs</span>
       <span className="text-text-faint">/</span>
-      <span className="text-panel font-semibold tracking-snug text-text-strong">Résumé (English)</span>
+      {/* The proposal's own kind. This said "Résumé (English)" while only one
+          render could generate, and would have put that title over a 履歴書. */}
+      <span className="text-panel font-semibold tracking-snug text-text-strong">
+        {RENDER_TITLE[proposal.renderKind]}
+      </span>
       <Chip className="ml-4">proposed v{proposal.proposedVersionNo}</Chip>
       {proposal.reason ? (
         <span className="ml-auto text-smaller text-text-dimmer">{proposal.reason}</span>
@@ -263,8 +268,16 @@ function Review({
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
           <p className="text-smaller text-text-secondary">
-            Accepting replaces your résumé with v{proposal.proposedVersionNo}.
+            Accepting replaces your {RENDER_TITLE[proposal.renderKind]} with v{proposal.proposedVersionNo}.
           </p>
+          {/* Advisory findings about the record — an unexplained gap in the
+              学歴・職歴 table, or the half of a cell the register refuses to
+              write. Never blocking, and never silent. */}
+          {proposal.warnings.map((warning) => (
+            <p key={warning} className="text-smaller text-text-secondary">
+              {warning}
+            </p>
+          ))}
           <p className="text-smaller text-text-dimmer">
             v{proposal.basedOnVersionNo ?? 0} and every earlier version stay restorable.
             {proposal.withheld.privateFactCount > 0

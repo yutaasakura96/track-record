@@ -19,6 +19,7 @@ import {
   educations,
   employers,
   facts,
+  profiles,
   projects,
   renderProposals,
   roles,
@@ -87,6 +88,13 @@ export async function collectRenderInputs(
     .where(eq(employers.userId, userId))
     .orderBy(desc(employers.startedOn));
   const projectRows = await db.select().from(projects).where(eq(projects.userId, userId));
+  // One column, not the row: `profiles` carries the restricted PII the 履歴書
+  // spec alone may read (`docs/04` §3.2), and this payload goes to a model.
+  const [profileRow] = await db
+    .select({ desiredRoleNote: profiles.desiredRoleNote })
+    .from(profiles)
+    .where(eq(profiles.userId, userId))
+    .limit(1);
   // Roles are what give an employer section its TITLE. Without them the model
   // had only the claim prose to take one from (`docs/06`, 2026-09-04).
   const roleRows = await db
@@ -196,6 +204,13 @@ export async function collectRenderInputs(
         employerId: p.employerId,
         summary: p.summary,
       })),
+      // Read from the profile row the caller already fetched? No — this
+      // function owns the payload, and a field the route had to remember to
+      // pass is a field the route will one day forget. Empty string and null
+      // are the same absence here: `profiles.desired_role_note` is nullable and
+      // the profile form writes `null`, but a whitespace-only note would
+      // otherwise reach the prompt as a stated preference.
+      desiredRoleNote: profileRow?.desiredRoleNote?.trim() || null,
       // The same language rule a role title follows, with one difference: the
       // Latin name is required by the schema and the Japanese one is optional,
       // so only the Japanese render needs a fallback.

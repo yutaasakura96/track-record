@@ -100,9 +100,9 @@ export const REQUIRED_PROFILE_FIELDS = [
 
 /**
  * The two generated blocks, by `RenderSection.key`. Stated here rather than in
- * the register so that the register (`src/render/spec.ts`, still empty — the
- * 履歴書 is `buildable: false`) and the reader of the content agree by
- * construction.
+ * the register so that `RIREKISHO_REGISTER` (`src/render/spec.ts`) and the
+ * reader of the content agree by construction. A section under any other key is
+ * discarded unread by {@link proseText}, which is why the register says so.
  */
 export const PROSE_SECTION_KEYS = {
   /** 志望動機・特技・アピールポイントなど */
@@ -240,7 +240,22 @@ export function unexplainedGaps(record: {
   return gaps;
 }
 
-/** The gaps as sentences, for the generation response. Never blocking. */
+/**
+ * What the 履歴書 deliberately does not write, told to the author rather than
+ * left for them to notice.
+ *
+ * The register writes 特技 and アピールポイント and refuses to write a 志望動機,
+ * because the record holds no company and no posting to write one against and
+ * inventing the target is the one thing that cell must not do. Silence about
+ * that would read as a model that forgot half its instruction; a warning is a
+ * known gap rather than a silent one, and it travels the same channel a gap in
+ * the 学歴・職歴 table does.
+ */
+export const MOTIVATION_NOTICE =
+  "志望動機 is not generated: the record holds no company or posting to write one against. " +
+  "The cell states 特技 and アピールポイント; the 志望動機 sentence is yours to add.";
+
+/** The gaps as sentences. Never blocking. */
 export function gapWarnings(record: {
   educations: CareerSpan[];
   employers: CareerSpan[];
@@ -249,6 +264,25 @@ export function gapWarnings(record: {
     (gap) =>
       `${gap.months} months between ${gap.after} and ${gap.before} are covered by no 学歴・職歴 entry.`,
   );
+}
+
+/**
+ * Everything advisory a 履歴書 has to say, in one list.
+ *
+ * Two callers need it and must not drift: `POST /api/renders/:kind/generate`
+ * answers with it, and the proposal the author actually reviews carries it too
+ * — the generation response is a 202 the author may never see, and the review
+ * screen is where the decision is taken.
+ *
+ * The gaps come first because a gap is a finding about THIS record and may not
+ * be there next time; the notice is unconditional and true of every 履歴書 this
+ * tool will ever produce.
+ */
+export function rirekishoWarnings(record: {
+  educations: CareerSpan[];
+  employers: CareerSpan[];
+}): string[] {
+  return [...gapWarnings(record), MOTIVATION_NOTICE];
 }
 
 /* -------------------------------------------------------------- assembly */

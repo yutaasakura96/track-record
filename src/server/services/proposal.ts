@@ -12,6 +12,7 @@ import { facts, renderProposals, renderVersions, renders, sourceDocuments, sourc
 import type { Rationale } from "~/diff";
 import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
+import { rirekishoWarnings } from "~/render/rirekisho";
 
 export async function proposalResponse(
   db: Db,
@@ -53,7 +54,9 @@ export async function proposalResponse(
     proposedVersionNo: (basedOnVersionNo ?? 0) + 1,
     generatedAt: proposal.generatedAt.toISOString(),
     reason: proposal.reason,
-    warnings: [] as string[],
+    // Advisory and never blocking, and stated HERE as well as on the 202,
+    // because this is the response the review screen reads.
+    warnings: kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [],
     /**
      * Told when nothing changed, rather than shown an empty diff — a no-op
      * regeneration must not look like a broken screen.

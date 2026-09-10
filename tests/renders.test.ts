@@ -18,6 +18,7 @@ import {
   uploadForm,
 } from "./helpers/seed";
 import { RENDER_DEFINITIONS } from "~/render/spec";
+import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
@@ -136,6 +137,34 @@ function resumeFrom(blocks: { text: string; factIds: string[] }[]): RenderConten
 async function generate(content: RenderContent | Error) {
   model.generations = [content as RenderContent];
   const response = await client.post("/api/renders/english_resume/generate");
+  await settle();
+  return response;
+}
+
+/**
+ * The 履歴書's two prose cells, under the keys `PROSE_SECTION_KEYS` fixes. Every
+ * Japanese fixture here is INVENTED and visibly so.
+ */
+function rirekishoFrom(motivation: string, factIds: string[], kibou = "貴社規定に従います。"): RenderContent {
+  return {
+    sections: [
+      {
+        key: "motivation",
+        heading: "志望動機・特技・アピールポイントなど",
+        blocks: [{ id: "blk_1", kind: "paragraph", text: motivation, factIds }],
+      },
+      {
+        key: "kibou",
+        heading: "本人希望欄",
+        blocks: [{ id: "blk_2", kind: "paragraph", text: kibou, factIds: [] }],
+      },
+    ],
+  };
+}
+
+async function generateRirekisho(content: RenderContent) {
+  model.generations = [content];
+  const response = await client.post("/api/renders/rirekisho/generate");
   await settle();
   return response;
 }
@@ -326,6 +355,26 @@ describe("the order a document reads in", () => {
       if (!definition.buildable) continue;
       expect(definition.chronology, `${definition.kind} states no chronology`).not.toBeNull();
     }
+  });
+
+  /**
+   * The failure this exists to prevent is a specific one: `buildable` flipped
+   * ahead of the register, so the first press of the button spends a real
+   * generation on an empty prompt and produces a document from nothing
+   * (`docs/06`, 2026-09-09).
+   */
+  it("states a register on every render that can be generated", () => {
+    for (const definition of Object.values(RENDER_DEFINITIONS)) {
+      if (!definition.buildable) continue;
+      expect(definition.register.trim(), `${definition.kind} has an empty register`).not.toBe("");
+    }
+  });
+
+  it("names both prose keys in the 履歴書 register, which is the reader's contract", () => {
+    // `PROSE_SECTION_KEYS` is the reader's half; a register that emitted other
+    // keys would produce a proposal whose cells are silently empty.
+    const register = RENDER_DEFINITIONS.rirekisho.register;
+    for (const key of Object.values(PROSE_SECTION_KEYS)) expect(register).toContain(`"${key}"`);
   });
 });
 
@@ -677,5 +726,94 @@ describe("export", () => {
     expect(versions[0]).not.toHaveProperty("extractedText");
     expect(versions[0]).not.toHaveProperty("originalBytes");
     expect(JSON.stringify(body)).not.toContain("We replaced the row-by-row");
+  });
+});
+
+/**
+ * The second buildable render, and the first Japanese one. What is asserted
+ * here is the path the flip opened — the register reaching the model, the
+ * warning reaching the author, and the diff reading the proposal with Japanese
+ * rules — not the prose itself, which is the model's to write.
+ */
+describe("the 履歴書 is generable, and is generated in Japanese", () => {
+  it("hands the model the 履歴書 register rather than the résumé's", async () => {
+    await seedRecord();
+    const response = await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));
+    expect(response.status).toBe(202);
+
+    const sent = model.generationInputs.at(-1)!.spec;
+    expect(sent.kind).toBe("rirekisho");
+    expect(sent.language).toBe("ja");
+    expect(sent.register).toBe(RENDER_DEFINITIONS.rirekisho.register);
+    // The 職歴 table reads ascending, and the payload is what decides it.
+    expect(sent.register).not.toBe(RENDER_DEFINITIONS.english_resume.register);
+  });
+
+  it("says out loud that the 志望動機 half is not generated", async () => {
+    await seedRecord();
+    const response = await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));
+    const body = (await response.json()) as { warnings: string[] };
+
+    // A known gap rather than a silent one: the register refuses to invent a
+    // company, and the author is told so rather than left to notice.
+    expect(body.warnings).toContain(MOTIVATION_NOTICE);
+  });
+
+  it("repeats the notice on the proposal the author actually reviews", async () => {
+    await seedRecord();
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []))
+    ).json()) as { proposalId: string };
+
+    // The 202 is a response the author may never see; the review screen reads
+    // this one, and it is where the decision is taken.
+    const proposal = await client.json<{ warnings: string[] }>(`/api/proposals/${created.proposalId}`);
+    expect(proposal.warnings).toContain(MOTIVATION_NOTICE);
+  });
+
+  it("carries no such notice on the English résumé", async () => {
+    await seedRecord();
+    const response = await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));
+    const { proposalId, warnings } = (await response.json()) as {
+      proposalId: string;
+      warnings: string[];
+    };
+    expect(warnings).toEqual([]);
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${proposalId}`)).warnings).toEqual([]);
+  });
+
+  it("seeds 本人希望欄 from the author's own note", async () => {
+    await seedRecord();
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, desiredRoleNote: "在宅勤務を希望します。" });
+    await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));
+
+    expect(model.generationInputs.at(-1)!.spec.desiredRoleNote).toBe("在宅勤務を希望します。");
+  });
+
+  it("diffs a Japanese proposal at phrase granularity, not as a whole rewritten cell", async () => {
+    const record = await seedRecord();
+    const first = (await (
+      await generateRirekisho(
+        rirekishoFrom("社内システムの移行を担当し、処理時間を40%短縮しました。", [record.measuredPublic.id]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${first.proposalId}/accept`);
+
+    const second = (await (
+      await generateRirekisho(
+        rirekishoFrom("社内システムの移行を担当し、処理時間を55%短縮しました。", [record.measuredPublic.id]),
+      )
+    ).json()) as { proposalId: string };
+
+    const diff = await client.json<{
+      changes: { tokens: { op: string; text: string }[] }[];
+    }>(`/api/proposals/${second.proposalId}/diff`);
+
+    const change = diff.changes[0]!;
+    // Under the English tokenizer the whole sentence is one token, and this
+    // whole cell reads as removed and re-added.
+    expect(change.tokens.some((t) => t.op === "equal" && t.text.includes("社内システム"))).toBe(true);
+    expect(change.tokens.some((t) => t.op === "remove" && t.text.includes("40%"))).toBe(true);
+    expect(change.tokens.some((t) => t.op === "add" && t.text.includes("55%"))).toBe(true);
   });
 });

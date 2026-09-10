@@ -11,12 +11,23 @@
  *
  * Computed server-side. The client renders what this returns.
  *
- * **English only.** `docs/03` §6.1 specifies BudouX phrase tokens for Japanese;
- * that half arrives with the first Japanese render and is out of scope here
- * (issue #1, Out of Scope).
+ * **Both languages, and the language is the only thing that differs.** Tokens
+ * are words and punctuation for English and BudouX phrases for Japanese
+ * (`docs/03` §6.1, `docs/07` §API). Everything downstream of the tokenizer —
+ * alignment, Myers, the rationale — is identical, which is the point: Japanese
+ * support is a different token list, not a different engine.
  */
 import { diffArrays } from "diff";
+import { segmentJapanese } from "~/segment";
 import type { Block, RenderContent } from "~/shared/render-content";
+
+/**
+ * Which tokenizer the two passes run on. It comes from the render kind
+ * (`RENDER_LANGUAGE`), never from inspecting the text: a Japanese document
+ * whose one generated paragraph happens to be mostly Latin is still a Japanese
+ * document, and a guess would diff it two ways on two days.
+ */
+export type DiffLanguage = "en" | "ja";
 
 export type TokenOp = "equal" | "add" | "remove";
 
@@ -61,13 +72,8 @@ export interface RenderDiff {
 const ALIGNMENT_THRESHOLD = 0.4;
 
 export interface DiffOptions {
-  /**
-   * M1 renders one document, in English. Japanese word-level diffing and the
-   * BudouX segmentation wrapper it needs arrive with the first Japanese render
-   * and are deliberately not built here (issue #1, Out of Scope; `docs/03` §6.1
-   * specifies them for when they do).
-   */
-  language: "en";
+  /** The render's own language, from `RENDER_LANGUAGE`. Never inferred. */
+  language: DiffLanguage;
   /** Supplies the rationale for each change. A change without one is a defect. */
   explain: (input: {
     currentBlock: Block | null;
@@ -91,8 +97,8 @@ export function diffRenders(
   for (const section of proposed.sections) {
     seenSections.add(section.key);
     const before = currentSections.get(section.key)?.blocks ?? [];
-    for (const pair of alignBlocks(before, section.blocks)) {
-      const tokens = tokenDiff(pair.current, pair.proposed);
+    for (const pair of alignBlocks(before, section.blocks, options.language)) {
+      const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
 
       if (pair.proposed && !pair.current) additions++;
@@ -146,12 +152,19 @@ interface AlignedPair {
  * similarity so that an insertion does not shunt every later block into
  * looking changed.
  */
-export function alignBlocks(current: Block[], proposed: Block[]): AlignedPair[] {
+export function alignBlocks(
+  current: Block[],
+  proposed: Block[],
+  language: DiffLanguage = "en",
+): AlignedPair[] {
   const tokenSets = new Map<Block, Set<string>>();
   const tokensOf = (block: Block) => {
     let set = tokenSets.get(block);
     if (!set) {
-      set = new Set(tokenize(block.text).map((t) => t.trim()).filter(Boolean));
+      // The same tokenizer pass 2 uses. On Japanese, `tokenize` returns the
+      // whole paragraph as a single token — every similarity would be 0 or 1,
+      // and alignment would degrade to exact-match.
+      set = new Set(tokensFor(block.text, language).map((t) => t.trim()).filter(Boolean));
       tokenSets.set(block, set);
     }
     return set;
@@ -210,17 +223,35 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 /**
  * Words and punctuation runs, with the whitespace that follows each token kept
  * attached, so joining the tokens reproduces the input exactly.
+ *
+ * English only, and unusable on Japanese: the pattern splits on whitespace, and
+ * Japanese has none between words, so a whole paragraph comes back as one
+ * token. That is what {@link segmentJapanese} is for.
  */
 export const tokenize = (text: string): string[] => text.match(/\S+\s*/gu) ?? [];
 
-export function tokenDiff(current: Block | null, proposed: Block | null): DiffToken[] {
+/**
+ * The token list for a language. Both sides hold the same contract — the pieces
+ * concatenate back to the input — so the two passes below never learn which
+ * language they are running on.
+ */
+export const tokensFor = (text: string, language: DiffLanguage): string[] =>
+  language === "ja" ? segmentJapanese(text) : tokenize(text);
+
+export function tokenDiff(
+  current: Block | null,
+  proposed: Block | null,
+  language: DiffLanguage = "en",
+): DiffToken[] {
   if (!current) return proposed ? [{ op: "add", text: proposed.text }] : [];
   if (!proposed) return [{ op: "remove", text: current.text }];
   if (current.text === proposed.text) return [{ op: "equal", text: current.text }];
 
-  return diffArrays(tokenize(current.text), tokenize(proposed.text)).map((part) => ({
+  return diffArrays(tokensFor(current.text, language), tokensFor(proposed.text, language)).map((part) => ({
     op: part.added ? "add" : part.removed ? "remove" : "equal",
-    // Tokens concatenate back to the original — each carries its trailing space.
+    // Tokens concatenate back to the original — an English one carries its
+    // trailing space, and a BudouX phrase carries whatever punctuation and line
+    // break sat inside it.
     text: part.value.join(""),
   }));
 }

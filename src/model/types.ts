@@ -115,6 +115,16 @@ export interface RenderSpec {
   }[];
   projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
   /**
+   * `profiles.desired_role_note`, in the author's own words — the seed for the
+   * 履歴書's 本人希望欄 (`docs/04` §4). Null when the author has stated nothing,
+   * which is the ordinary case and has a conventional answer of its own.
+   *
+   * It is not a fact and never becomes one: it is a preference the author
+   * typed, so a block written from it carries no `factIds`, exactly as a row
+   * copied from the employer list does.
+   */
+  desiredRoleNote: string | null;
+  /**
    * 学歴 as rows rather than as prose, for the same reason `employers` is a
    * list: the institution, the dates and the OUTCOME are data. An outcome
    * inferred from the wording of a fact is a misrepresentation, not a

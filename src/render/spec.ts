@@ -6,8 +6,9 @@
  * 職務経歴書 expects. That is a prompt difference, not a data difference
  * (`docs/03-technical-design.md` §4.2).
  *
- * M1 builds the English résumé only. The other four are declared so the
- * overview can show them as never generated, which is distinct from up to date.
+ * M1 builds the English résumé and the 履歴書. The other three are declared so
+ * the overview can show them as never generated, which is distinct from up to
+ * date.
  */
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import { REQUIRED_PROFILE_FIELDS } from "./rirekisho";
@@ -15,7 +16,11 @@ import { REQUIRED_PROFILE_FIELDS } from "./rirekisho";
 export interface RenderDefinition {
   kind: RenderKind;
   language: "en" | "ja";
-  /** Built in M1? The rest are listed on the overview and cannot be generated. */
+  /**
+   * Can this kind be generated? A kind that cannot is listed on the overview as
+   * never generated and refuses `POST /api/renders/:kind/generate` — which is
+   * what stops a generation being spent on an empty register.
+   */
   buildable: boolean;
   /**
    * The direction the document reads its dated lists in — employers, education
@@ -57,6 +62,36 @@ How to compose a bullet:
 - The hand-maintained résumé this one replaces runs about 30 experience bullets averaging about 190 characters — about 28 words. That average is the shape to aim at: most bullets sit comfortably below the 240 bound, which is there for the few that do not. It is reached by composing — never by padding a thin bullet with words no fact supports. If you have written two bullets about one piece of work, that was one bullet.
 - A fact that carries no employer belongs in summary, projects, education or certifications. It is never placed under an employer.`;
 
+const RIREKISHO_REGISTER = `Write the two prose cells of a Japanese 履歴書, and nothing else.
+
+The rest of the form is not yours to write. The identity block, 学歴・職歴, 免許・資格 and both dates are filled from the record onto a committed template; anything you emit under another key is discarded unread.
+
+Sections, both of them, in this order:
+- "motivation": 志望動機・特技・アピールポイントなど. Blocks are paragraphs. key "motivation".
+- "kibou": 本人希望欄. One paragraph. key "kibou".
+
+Emit no third section, and no block of kind "bullet" or "row". Both cells are prose in a form that has no bullets anywhere on it.
+
+Language:
+- Japanese, です・ます体, consistently. Never plain form, and never 体言止め in the middle of a です・ます passage.
+- No 御社 anywhere: it is the spoken form. The written form is 貴社.
+- Half-width digits for numbers, and full-width Japanese punctuation (、。).
+
+"motivation" — what it says, and what it may not:
+- This cell states 特技 and アピールポイント: what the author can do, evidenced by the facts.
+- **You are not told where the author is applying, so do not write a 志望動機.** The record holds no job posting, no company and no role being applied for. Naming one, characterising one, or writing 貴社 in this cell would be inventing the one thing this cell would otherwise be about. The heading ends in など and the other two headings under it are answerable from the record; answer those.
+- Two or three paragraphs, and about 300 characters for the whole cell. The cell grows to fit what it is given and the form is two pages with no page break, so a long one pushes the layout apart.
+- Open with the through-line — the thing the career is consistently about — and then what the author can do that a reader should know. One concrete piece of evidence, not a tour of the employment history: the 職歴 table is on the same page and this cell must not restate it.
+- Keep the number. A fact behind a sentence that carries a quantity, a duration, a count or a percentage keeps it.
+- No self-assessment: not 優秀, not 抜群, not 圧倒的, not 誰よりも, not 情熱を持って. State what was done and let it be the claim.
+- Every paragraph lists the ids of the facts it was written from, in factIds.
+- A 特技 the facts do not support is not a 特技. If the facts support none, the cell is the through-line and the evidence, and stops there.
+
+"kibou" — the conventional cell, and the one place a preference belongs:
+- If the author's stated preference is given above, write it as one or two sentences in です・ます体 and add nothing it does not say. factIds is empty: a preference the author typed is not a fact drawn from the record.
+- If no preference is given, this cell is exactly 貴社規定に従います。 — the conventional wording, and correct rather than empty. factIds is empty.
+- Salary, hours, location and start date appear here only if the stated preference names them. Never invent a condition, and never soften or negotiate one the author wrote.`;
+
 export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
   english_resume: {
     kind: "english_resume",
@@ -67,24 +102,26 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     requiredProfileFields: ["nameLatin"],
   },
   /**
-   * Everything the 履歴書 needs from the record is built — the three derived
-   * tables (`src/render/rirekisho-rows.ts`), the identity block, the submission
-   * stamp and the gap warning (`src/render/rirekisho.ts`), and the template
-   * that carries them (`src/render/rirekisho-template.ts`).
+   * The second buildable render, and the first Japanese one.
    *
-   * **`buildable` stays false until the register below is written**, which is
-   * the one part a model does: 志望動機・特技・アピールポイントなど and
-   * 本人希望欄. Flipping it early would let the author spend a generation on an
-   * empty register, and `GET /api/proposals/:id/diff` still diffs with English
-   * word rules — `diffRenders`' `language` option is the literal `"en"`, and
-   * Japanese segmentation (BudouX) arrives with the first Japanese render.
+   * Almost none of it is generated: the three derived tables
+   * (`src/render/rirekisho-rows.ts`), the identity block, the submission stamp
+   * and the gap warning (`src/render/rirekisho.ts`) are read from the record
+   * onto a committed template. {@link RIREKISHO_REGISTER} writes the two prose
+   * cells and nothing else, under the two keys in `PROSE_SECTION_KEYS`.
+   *
+   * The flip to `buildable` waited for both things behind it, and they landed
+   * in the same commit as this line: a register that is not empty, so the first
+   * press of the button is not a generation spent on nothing, and Japanese
+   * diffing, so a Japanese proposal is reviewed with BudouX phrases instead of
+   * English word rules (`docs/06`, 2026-09-09 and 2026-09-11).
    */
   rirekisho: {
     kind: "rirekisho",
     language: RENDER_LANGUAGE.rirekisho,
-    buildable: false,
+    buildable: true,
     chronology: "oldest_first",
-    register: "",
+    register: RIREKISHO_REGISTER,
     // `docs/04` §4, verbatim: a 履歴書 missing a conventional field is worse
     // than no 履歴書 at all. `address_kana` is deliberately not on the list —
     // see `REQUIRED_PROFILE_FIELDS` in `src/render/rirekisho.ts`.

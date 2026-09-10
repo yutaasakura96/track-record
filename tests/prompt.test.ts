@@ -33,15 +33,17 @@ const education = (over: Partial<Education> = {}): Education => ({
   ...over,
 });
 
-const spec = (educations: Education[]): RenderSpec => ({
+const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSpec => ({
   kind: "english_resume",
   language: "en",
   subjectName: "Taro Yamada",
   register: "REGISTER",
   employers: [],
   projects: [],
+  desiredRoleNote: null,
   educations,
   certifications: [],
+  ...over,
 });
 
 describe("the generation prompt", () => {
@@ -95,5 +97,40 @@ describe("the generation prompt", () => {
     const line = prompt.split("\n").find((l) => l.includes("edu_test"))!;
     // 中退 rendered as a graduation is a misrepresentation (`docs/04` §3.8).
     expect(line).toContain("never write this as a graduation");
+  });
+});
+
+/**
+ * The same class of defect as the education level, on the field the 履歴書's
+ * 本人希望欄 is seeded from: it reaches `RenderSpec` and the payload, and the
+ * only thing that proves it reaches the MODEL is asserting on the prompt text.
+ */
+describe("the author's stated preference", () => {
+  it("reaches the prompt in the author's own words", () => {
+    const prompt = buildGenerationPrompt(
+      spec([], { kind: "rirekisho", language: "ja", desiredRoleNote: "在宅勤務を希望します。" }),
+    );
+    expect(prompt).toContain("在宅勤務を希望します。");
+    // Labelled as the author's, not as a fact — the register writes it with no
+    // factIds, and a preference presented as evidence would be a lie about
+    // where it came from.
+    expect(prompt).toMatch(/Their words, not a fact/);
+  });
+
+  it("says nothing at all when the author has stated no preference", () => {
+    // The four other renders have no cell to put one in. A labelled
+    // "none recorded" would reach every prompt for a field only one uses.
+    const prompt = buildGenerationPrompt(spec([], { desiredRoleNote: null }));
+    expect(prompt).not.toContain("stated preference");
+  });
+
+  it("names the language the document is written in", () => {
+    // The one line that tells the model which language to write. It carried a
+    // garbled instruction — "Use the call it \"English\" register" — for as long
+    // as only one render was buildable and English was the only answer.
+    expect(buildGenerationPrompt(spec([]))).toContain("Write the document in English.");
+    expect(
+      buildGenerationPrompt(spec([], { kind: "rirekisho", language: "ja" })),
+    ).toContain("Write the document in Japanese.");
   });
 });

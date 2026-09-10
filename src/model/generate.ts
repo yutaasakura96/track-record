@@ -90,6 +90,13 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     )
     .join("\n");
 
+  // Printed only when the author has written one. A labelled "none recorded"
+  // would reach every render's prompt, including the four that have no cell to
+  // put a stated preference in.
+  const desiredRoleNote = spec.desiredRoleNote
+    ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${spec.desiredRoleNote}\n`
+    : "";
+
   return `You are producing one career document for ${spec.subjectName}.
 
 ${spec.register}
@@ -104,7 +111,7 @@ Rules:
 - You may write one block from several facts, and the register below says when to. What you may not do is state something the facts together do not support: no cause they do not claim, no total they do not add up to, no outcome stronger than the strongest of them.
 - Facts marked restricted must be generalised: describe the work without naming the client or any system that identifies them.
 - Never emit a date more precise than a month.
-- Use the call it "${spec.language === "ja" ? "Japanese" : "English"}" register throughout.
+- Write the document in ${spec.language === "ja" ? "Japanese" : "English"}.
 
 Employers, most recent first, with the roles held at each:
 ${employers || "- none recorded"}
@@ -117,7 +124,7 @@ ${educations || "- none recorded"}
 
 Certifications, most recently awarded first:
 ${certifications || "- none recorded"}
-
+${desiredRoleNote}
 Call emit_render exactly once.`;
 }
 

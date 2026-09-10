@@ -18,7 +18,7 @@
     "auth:generate": "better-auth generate",
     "lint": "node scripts/check-design-tokens.mjs",
     "measure": "node scripts/measure-render.mjs",
-  "check:attribution": "node scripts/check-attribution.mjs",
+    "check:attribution": "node scripts/check-attribution.mjs",
     "typecheck": "tsc --noEmit",
     "restore:drill": "node scripts/restore-drill.mjs"
   },
@@ -28,6 +28,7 @@
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.32",
     "better-auth": "^1.7.1",
+    "budoux": "^0.9.1",
     "diff": "^9.0.0",
     "docx": "^9.7.1",
     "docxtemplater": "^3.69.3",

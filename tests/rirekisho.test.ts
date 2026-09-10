@@ -302,11 +302,25 @@ describe("the spec", () => {
     ]);
   });
 
-  it("is not buildable until the register is written", () => {
-    // The register is the one part a model does. Flipping `buildable` before it
-    // exists would let a generation be spent on an empty prompt.
-    expect(RENDER_DEFINITIONS.rirekisho.register).toBe("");
-    expect(RENDER_DEFINITIONS.rirekisho.buildable).toBe(false);
+  it("is buildable, and its register is not empty", () => {
+    // This asserted the refusal until 2026-09-11: `buildable` was false and the
+    // register was `""`, and the pair was the guard against spending a
+    // generation on an empty prompt. The flip does not retire the guard, it
+    // inverts it — the two must move together, in either direction.
+    expect(RENDER_DEFINITIONS.rirekisho.buildable).toBe(true);
+    expect(RENDER_DEFINITIONS.rirekisho.register.trim()).not.toBe("");
+  });
+
+  it("writes the two prose cells and claims nothing else", () => {
+    const register = RENDER_DEFINITIONS.rirekisho.register;
+    // Both keys the reader looks under, and the refusal that keeps a 志望動機
+    // from being written against a company the record does not hold.
+    expect(register).toContain('"motivation"');
+    expect(register).toContain('"kibou"');
+    expect(register).toContain("do not write a 志望動機");
+    // The conventional 本人希望欄 wording, so an unstated preference is a
+    // correct cell rather than an empty one.
+    expect(register).toContain("貴社規定に従います。");
   });
 });
 

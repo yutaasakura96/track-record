@@ -23,11 +23,12 @@ import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
 import { DOCX_MIME, downloadFilename, toDocx } from "~/render/docx";
-import { buildRirekisho, gapWarnings, tokyoToday } from "~/render/rirekisho";
+import { buildRirekisho, rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import type { RenderIdentity } from "~/render/identity";
 import {
   RENDER_KINDS,
+  RENDER_LANGUAGE,
   RENDER_TITLE,
   type RenderContent,
   type RenderKind,
@@ -88,8 +89,10 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     // Advisory and never blocking (`docs/04` §4). The 履歴書 is the only kind
     // with a rule about gaps, because it is the only one required to be
-    // complete: the English résumé's register drops entries by level.
-    const warnings = kind === "rirekisho" ? gapWarnings(inputs.spec) : [];
+    // complete: the English résumé's register drops entries by level. The
+    // notice is unconditional and comes last, so a gap — which is about this
+    // record, and may not be there next time — is read first.
+    const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [];
 
     const render = await ensureRender(db, user.id, kind);
     const proposalId = newId("renderProposal");
@@ -141,9 +144,14 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const proposed = proposal.content as RenderContent;
     const explain = await rationaleFor(db, user.id, current, proposed);
 
-    // Only the English résumé is buildable in M1, so only English content can
-    // reach this. Japanese diffing arrives with the first Japanese render.
-    const diff = diffRenders(current, proposed, { language: "en", explain });
+    // The render's own language decides the tokenizer — words for English,
+    // BudouX phrases for Japanese. Taken from `RENDER_LANGUAGE` rather than
+    // from the content, which would make the diff a property of what the model
+    // happened to write.
+    const diff = diffRenders(current, proposed, {
+      language: RENDER_LANGUAGE[render.kind as RenderKind],
+      explain,
+    });
     return c.json(diff);
   });
 

@@ -2038,3 +2038,92 @@ would be the third occasion, not the first.
 
 Both instruments were run against the edited content before it was written and both pass:
 attribution clean at 135 fact references across 58 blocks, four employer groups resolved.
+
+---
+
+### [2026-09-11] The 履歴書 register is written, Japanese diffing lands, and `buildable` flips
+
+- **Decision:** `RENDER_DEFINITIONS.rirekisho.register` is written, `diffRenders` takes
+  `language: "en" | "ja"` and segments Japanese with BudouX, and
+  `RENDER_DEFINITIONS.rirekisho.buildable` is **`true`**. One commit, as the 2026-09-09 entry
+  said it had to be.
+- **Reason:** both things that entry refused the flip for are gone. The register is not empty,
+  so the first press of the button is not a generation spent on nothing; and
+  `GET /api/proposals/:id/diff` now passes `RENDER_LANGUAGE[kind]` instead of the literal
+  `"en"`, so a Japanese proposal is reviewed with phrase tokens rather than English word rules.
+
+#### The register refuses to write a 志望動機, and says so
+
+The cell is headed 志望動機・特技・アピールポイントなど, and the record answers two of those
+three headings. It holds no job posting, no company and no role being applied for — nothing a
+motivation could be *for*. A model told to write one anyway would invent the target, which is
+the single thing that cell must not contain, and it would do it in the register's own confident
+voice.
+
+So the register writes 特技 and アピールポイント from the facts and stops. The omission travels
+back to the author as a warning on the generation response, beside the unexplained-gap warnings
+and through the same channel: `MOTIVATION_NOTICE`, unconditional, listed after any gap so that a
+finding about *this* record is read first. A silent half-answer would read as a model that
+forgot its instruction.
+
+**The cell is bounded at about 300 characters over two or three paragraphs.** A judgement, like
+`GAP_MONTHS`: the prose rows carry no fixed height, so the cell grows to fit and the form is two
+pages with no explicit page break. A long cell does not overflow — it pushes the layout apart.
+
+#### BudouX enters through `Parser`, not through the convenience loader
+
+`loadDefaultJapaneseParser()` returns an `HTMLProcessingParser`, whose module statically imports
+a DOM implementation for a capability nothing here uses. `new Parser(jaModel)` is the same
+segmenter — verified to produce identical output on the same input — without that edge of the
+import graph. Confirmed rather than assumed: a `wrangler deploy --dry-run` bundle contains no
+`linkedom`, no `DOMParser` and no `HTMLProcessingParser`.
+
+**A correction to the 2026-08-12 entry, which called BudouX dependency-free.** That is true of
+the segmenter and no longer true of the published package: `budoux@0.9.1` declares three runtime
+dependencies, all of them for the CLI and the HTML processor. The original claim is why the
+entry point matters rather than why it does not.
+
+The wrapper lives at `src/segment/`, where `docs/03` §3 already put it. Its whole contract is
+that the pieces concatenate back to the input, the same contract `tokenize` holds for English —
+a segmenter that dropped or normalised a character would quietly rewrite the document on the
+review screen. Asserted in both directions on both texts.
+
+#### Two smaller things the flip exposed
+
+**The prompt's language instruction was garbled** — it read "Use the call it "English" register
+throughout", which survived because English was the only answer any buildable render could
+produce. It now reads "Write the document in Japanese." for a Japanese render, and a test asserts
+both. The same file's education line has its own entry (2026-09-06) for the same reason: this is
+hand-formatted prompt text, and nothing but an assertion on the text can see it.
+
+**`profiles.desired_role_note` reaches `RenderSpec` and the prompt**, which is what 本人希望欄 is
+seeded from. It is printed only when the author has written one — four of the five renders have
+no cell to put a preference in — and the register writes it with no `factIds`, because a
+preference the author typed is not a fact drawn from the record. Where none is written, the cell
+is 貴社規定に従います。, which is the conventional answer rather than an empty cell.
+
+#### What the flip exposed on the review screen
+
+Making a second render generable turned three things from unreachable into wrong, all of them
+invisible while the English résumé was the only document that could produce a proposal.
+
+- **The review screen was titled `Résumé (English)` in literal text**, and would have put that
+  heading over a 履歴書. It now reads `RENDER_TITLE[proposal.renderKind]`, as does the footer
+  line that says what accepting replaces.
+- **`warnings` on the proposal response was `[] as string[]`** — a declared field that was always
+  empty. The gap warnings existed and reached the 202 from
+  `POST /api/renders/:kind/generate`, which is a response the author may never see; the screen
+  where the decision is actually taken had nothing. Both responses now call
+  `rirekishoWarnings`, one definition so the two cannot drift, and the review screen renders them
+  above the line about restorable versions.
+
+That second one is the more interesting failure: the warning was built, tested and correct, and
+still could not reach a human. A finding that arrives only on a response nobody reads is not an
+advisory, it is a comment.
+
+#### What was not done
+
+- **No generation has been spent.** The path is open and unpressed; the register's first real
+  output is unread, and what it produces is the next thing to look at.
+- The 写真 cell still ships empty, and the 連絡先 ふりがな row still prints a bare label. Both
+  are recorded in `docs/04` §4 and both need the template regenerated on the author's machine.
