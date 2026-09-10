@@ -1941,3 +1941,49 @@ check against the wrong record would come back clean.
   record and a 履歴書.
 - **Eight pending render proposals, none accepted.** Older again — though they are now the
   only renders known to satisfy the invariants.
+
+### [2026-09-10] The composition-era résumé is accepted, and the three finalists turned out to differ less than the figures implied
+
+`english_resume` is at version 2, from `prp_i4pd` (09-07). The 09-03 render had stood as the
+baseline since it was accepted; seven proposals remain pending and are now superseded rather
+than undecided.
+
+**The reading settled it, not the measurement.** The three finalists were put side by side
+and read in full, and about four fifths of their bullets are identical or differ by a single
+word. Whole runs are verbatim across all three, and the shortest employer section is the same
+two bullets three times. The figures the log records — count, mean, share carrying a number —
+had implied three distinct documents. They were three renderings of one.
+
+What actually separated them:
+
+1. **The systematic twenty characters were a formatting defect, not content.** The two longer
+   proposals print a single-role employer's date range twice, once beside the role and again
+   after it. The accepted proposal does not. It is the weaker of the two formats for a
+   two-role employer, though, where it gives no overall span and the others do. The format
+   wanted is the accepted one plus an overall span where there is more than one role — a
+   generator behaviour to fix in the register work, and independent of which proposal won.
+2. **One proposal welds two unrelated items into its closing bullet**, which the register
+   forbids in as many words. The accepted one keeps them as separate bullets, one of them
+   very short.
+3. **The accepted proposal names no client sector; the other two do.** That is a disclosure
+   decision rather than a stylistic one — `facts.is_client_identifying` exists because this
+   distinction is load-bearing — and the accepted proposal is the one that does not make it
+   on the author's behalf.
+4. It also preserves a progression the other two flatten into a plain statement of the later
+   role.
+
+#### Carried forward rather than done
+
+- **One bullet exists only in the proposal that was not accepted** and has no equivalent in
+  the accepted version. It was judged the strongest single line in any of the three. Moving
+  it across is a hand edit against the accepted version, not a regeneration.
+- Two passages in the accepted version were put to the author and deliberately left alone:
+  a pair presenting a failure alongside the control built to prevent its recurrence, and a
+  line stating an age at a promotion. Both are choices to confirm, not defects to fix.
+
+#### The attribution finding closes itself
+
+The superseded baseline was the one render reporting misfiled facts. The accepted version is
+clean under `npm run check:attribution`, as were all eight pending proposals. So the two
+misfiled facts were a property of that render's grouping rather than of the record, and
+accepting a clean render retires the question rather than leaving it open.
