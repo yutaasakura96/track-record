@@ -2163,3 +2163,38 @@ pending proposal stands as the first evidence that the path works end to end.
 
 Cost: 17,337 input tokens, 3,804 cache-creation, 740 output. Well under the estimate the résumé
 set, because a 履歴書 asks a model for two paragraphs rather than a document.
+
+---
+
+### [2026-09-11] The first 履歴書 exists, and the duplicated paragraph came off by hand
+
+`rirekisho` is at version 2 and `GET /api/renders/rirekisho/download` returns a filled `.docx`.
+That is the whole path — record to accepted version to document — closed for a second render
+kind, and the first one that is Japanese.
+
+Version 1 is the generation exactly as it arrived. Version 2 is that minus its third paragraph,
+the one reciting the certification count, the test score and the graduation year that the
+免許・資格 and 学歴 tables already print on the same page. The register was corrected earlier
+today; correcting the *document* is a hand edit, because a register fix does not reach a
+proposal that has already been generated and regenerating to remove a paragraph would spend a
+generation to do what deleting it does.
+
+The cell now runs 218 characters over two paragraphs — the through-line, then one piece of
+evidence — against the register's bound of about 300. `npm run check:attribution --json` reports
+clean at 8 fact references across 3 blocks.
+
+**The rendered document was verified, not assumed.** Five tables, no unconsumed placeholder
+anywhere in `document.xml`, and both prose cells filled. The 写真 cell is empty, which is the
+known gap `docs/04` §4 records rather than a fault in this render.
+
+#### The second hand edit against a render, and the same missing route
+
+This is the second time in one day that the right change to a stored version was a hand edit
+with no endpoint behind it — the résumé this morning, the 履歴書 this afternoon. The first time
+it was a one-off; twice in a day with two different causes is a pattern, and the causes are
+different in an instructive way. The résumé's edit moved content the generator had not produced.
+This one removed content a corrected register would no longer produce. Neither is a regeneration
+and neither is recoverable through the API.
+
+`POST /api/proposals/:id/accept` remains the only writer of `render_versions`. A manual-edit
+route is now the clearest gap in the product rather than a speculative one.
