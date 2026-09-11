@@ -2306,3 +2306,109 @@ the moment it lands.
 Suite: 261 tests across 19 files, green. Ten of them are this route.
 
 ---
+
+### [2026-09-12] Restore gets a screen first, and a restored version is re-checked before it becomes current
+
+The edit route shipped without a screen on 2026-09-11 and the argument was sound at the time. The
+screen it belonged on did not exist, and a textarea built in a hurry would have been something that
+screen had to absorb later. That argument does not survive being made twice. Restore is the second
+writer to arrive with nowhere to be read, and a version history that exists only as curl output is
+the database with extra validation in front of it.
+
+So this one goes the other way. `docs/10` Screen 5 was written before any code, and the route, the
+list endpoint and the screen land together.
+
+#### Two refusals, not four
+
+The edit route refuses on four conditions. Only one transfers unchanged. A proposal waiting against
+the render still blocks, for the same reason it blocks an edit, because accepting that proposal
+afterwards would discard the restore without saying so.
+
+The other three do not survive contact. "The base version is no longer current" is meaningless when
+the whole operation targets a version that is deliberately not current. "The edit empties the
+document" cannot happen, because the content passed that check when it was accepted. "Changes
+nothing" survives only in a different shape, as a refusal to restore the version that is already
+current. Reimplementing all four for symmetry would have produced two checks that can never fire
+and one that reads backwards.
+
+#### A restored version is re-validated, and that turned up a hole
+
+`version-edit.ts` refuses a hand edit that cites a fact the record does not hold, has not accepted,
+or that carries Private disclosure or Generated provenance. Restore now runs the same check and
+refuses on a finding with a `422` naming the ids.
+
+The reason is that a version is a snapshot of what could be rendered in August, and a fact can be
+set Private in September. Restoring that version makes its content current again. `CLAUDE.md`
+states the block sits at render time rather than review time, and the moment the author chooses what
+the document is now is exactly render time. A restore that quietly reinstates a Private claim is
+the failure this rule exists to prevent.
+
+This can leave the author with no way forward except changing the fact back or picking a different
+version, and that dead end is correct. The alternative is a route whose purpose is to put a
+withheld claim into the live document.
+
+**The check also exposed something that is not this work.** `GET /api/renders/:kind/download`
+accepts `?versionId=` and serves any stored version without re-checking its facts. A version citing
+a fact that has since been set Private is downloadable today. That is a real gap and it gets its own
+issue rather than being fixed quietly inside a feature.
+
+#### Staleness moves, and the edit route's reasoning is why
+
+An edit does not touch `stale_since_fact_count`, because an edit consumes no facts. A restore is the
+opposite case and gets the opposite answer. It moves the document's content back to a version
+generated from a smaller record, and the staleness number describes the content rather than the act
+that produced it. A render that was current before a restore is usually stale after one, and saying
+so is the honest reading.
+
+That needs the restored version's era, which nothing stored. Migration 0008 adds `fact_count_at` to
+`render_versions`, written by accept, edit and restore alike, holding the accepted-fact count at the
+moment the row was created. Accept already computes that number to set `stale_since_fact_count`.
+
+Rows created before 0008 get a one-time backfill in the migration itself, counting facts whose
+`resolved_at` falls at or before the version's `accepted_at`. **That derivation is approximate** and
+worth stating plainly. A fact accepted and later returned to candidate, or one whose `resolved_at`
+is null, will not be counted the way it was counted on the day. Deriving at read time instead would
+carry the same inexactness forever and force every reader to handle a null. Writing it back lazily
+would put a write on a read path, in a table whose rows are supposed to be immutable. One `UPDATE`
+over a handful of rows, recorded here, is the cheapest honest answer.
+
+#### The comparison is not a proposal
+
+Restore commits from behind a read-only diff, never from a button on a history row. Screen 2 already
+puts two documents side by side, and reusing it costs one endpoint and no schema. The current
+version reads as the left column so the diff reports what the commit will change, rather than what
+it will undo.
+
+`GET /api/renders/:kind/diff?from=&to=` addresses versions and nothing else. Letting `to` name a
+dismissed proposal would make one handler guess what an id is, and a `404` would then mean three
+different things. Proposals keep their own diff route, which already exists and already works.
+
+Nothing about this preview writes to `render_proposals`. That table holds what a generation
+produced, and putting a restore in it would make a history that can never be cleaned up claim a
+model wrote something the author picked.
+
+#### Two endpoints for the history, not one merged payload
+
+`GET /api/renders/:kind/versions` returns versions. Dismissed proposals come from the proposals
+route. The screen interleaves them, because `docs/03` §477 item 7 wants both visible and visibly
+distinct, but a merged payload would hand every consumer a discriminated union to unpack before it
+could answer which row is current. The merge belongs in the one place that needs it.
+
+#### The 履歴書 restores less than it appears to
+
+A 履歴書 version stores two prose blocks. The three tables are filled from the record at download
+time, so restoring a 履歴書 version restores the summary text and leaves the tables reading as they
+do today. Refusing restore for that kind would be wrong, since the prose is exactly what both real
+hand edits changed. Shipping it silently would be worse. Screen 5 says so in one line on the
+`rirekisho` history, and that line is a requirement rather than copy.
+
+#### Still undecided, and named rather than assumed
+
+The edit route returns attribution warnings on its `201` for unfiled facts, misfiled facts and
+unresolved headings. The 2026-09-11 entry said those warnings need somewhere to land the day a
+screen calls the route. Screen 5 carries no editor, so that day has not arrived and the question
+stays open. It is postponed, not answered.
+
+Written before the build, which is the reverse of the previous entry and the reason this one exists.
+
+---

@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12
+**Status:** Phase 3 · written 2026-08-12 · Screen 5 (version history) added 2026-09-12
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -240,6 +240,106 @@ import can be filed without re-importing.
 
 ---
 
+## Screen 5 — Version history
+
+**Added 2026-09-12.** S14 (restore) and S16 (hand edit). The edit route landed on 2026-09-11 with
+no surface; this is the screen that makes a stored version readable, comparable and restorable.
+
+**Purpose.** Show every version of one document, how each came to exist, and put an earlier one
+back. It is also where the two proposal outcomes stop being invisible: an accepted proposal became
+a version, a dismissed one did not, and both are retained.
+
+**Interaction model:** a read destination, not a focused task — it keeps the **sidebar**, unlike
+fact review and diff review. The restore *preview* is a focused task and borrows Screen 2 whole.
+
+Reached from the Documents row on Screen 3 and from the `Version history` ghost button already
+specced in the Screen 2 header. Route: `/renders/:kind/history`.
+
+### Layout
+
+| Region | Spec |
+|---|---|
+| Header (46px) | Title `<render name> · version history` · contextual note `N versions · current v<n>` in `text-dimmer` · right: `Download current` (ghost) |
+| Content column | `max-width 940px`, centred. One `Panel`, one row per entry, `border-inner` separators, newest first |
+
+**Japanese render names use the mixed font stack**, as on Screen 3.
+
+### The row
+
+Four entry kinds share one row shape. The kind is carried by the mono meta line, never by colour
+alone — `origin` and a dismissal are facts about provenance, and the palette's green/amber/red are
+already spoken for (`05-design-system.md` §1).
+
+1. **Version chip** — mono `v4`. The current version additionally carries a `measured` dot and the
+   label `Current`, matching "up to date" on Screen 3.
+2. **Date** — accepted date, absolute, month precision never applies here; this is a system
+   timestamp, not a calendar column.
+3. **Origin meta** — mono, `text-dimmer`, one of `ACCEPTED · from a proposal` · `RESTORED` ·
+   `EDITED BY HAND`.
+4. **Ancestry line** — present whenever `source_version_id` is set: `Restored from v2` /
+   `Edited from v4`. A history that shows the origin but not the parent says an edit happened
+   without saying to what.
+5. **Actions**, right-aligned — `Download` (ghost) and `Compare` (ghost). `Compare` opens the
+   restore preview; it is absent on the current version, which has nothing to be restored from.
+
+**Dismissed proposals** render on `card-recessed` at `.5` opacity with the mono meta
+`DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
+existing proposal diff. They carry no version chip, because they never received a version number.
+
+**Download honours the existing rules** — `?versionId=` serves any version, and a 履歴書 offers
+`.docx` only.
+
+### Restore
+
+**Restore is never a button on a row.** The action is `Compare`, which opens the preview; the
+commit lives there. Replacing a document with one the author may not remember, in one click, is the
+failure mode this screen exists to prevent.
+
+**The preview is Screen 2's split view**, read-only, with three differences:
+
+- Columns read **Current** `v<n>` and **Restoring** `v<m>` — the current version is *before*, the
+  target is *after*, so the diff reads as the change the commit will make.
+- The toolbar, rationale bar and per-change navigation behave as specced. A change's rationale is
+  the fact behind the *target* version's text.
+- The footer reads `Restoring v<m> saves it as a new version v<n+1>. v<n> stays readable and
+  downloadable.` with `Cancel` (secondary) and `Restore v<m>` (primary).
+
+**Nothing is written to the proposal table.** This comparison is not a proposal and must never
+create one — that table is what a generation produced.
+
+### 履歴書 only — the tables are always current
+
+A 履歴書 version stores the two prose blocks; its three tables are filled from the record at
+download time (`03-technical-design.md` §30). The history for `rirekisho` therefore carries one
+line of copy below the panel header: **`Restoring changes the summary text only — the education,
+employment and qualification tables always reflect your record as it is now.`** Without it the
+screen promises a document it does not produce.
+
+### Rules
+
+- **No editor here.** The screen reads versions and restores them; the hand-edit route stays
+  API-only until the editing surface gets its own specification. A textarea added to this screen
+  would also have nowhere to put the route's attribution warnings.
+- **Rows are keyboard-operable** — each row is focusable, `Enter` opens `Compare`, and the preview
+  is dismissible with `Escape`. Screens 1 and 2 both shipped without this and both needed a bug.
+- **Nothing on this screen deletes anything.** There is no discard, no prune, no "clean up old
+  versions" — the never-delete rule is the product, and a control that appears to offer it is worse
+  than its absence.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | Panel shows skeleton rows. The header count waits rather than rendering `0 versions` |
+| **No versions yet** | Not an error. `This document has not been generated yet.` with `Generate` as the action — the same sentence whether the generator for that kind is built or not |
+| **Only one version** | Renders normally. `Compare` is absent throughout; no empty comparison affordance |
+| **Restore refused — a proposal is waiting** | The server's `409` message in place on the preview footer, naming the proposal and linking to it. The author decides the proposal first |
+| **Restore refused — the target cites a fact that can no longer be rendered** | The server's `422` in place, listing the fact ids and the reason per id (unknown · not accepted · Private · Generated). Stated as a dead end with a route out — fix the fact, or restore a different version — never as a retry |
+| **Restore succeeded** | Return to the history with the new version at the top, marked `Current`, its ancestry line reading `Restored from v<m>` |
+| **Staleness after a restore** | Screen 3 may now report the document as stale where it did not before. This is correct and is not an error state — the content moved back to an older era of the record |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -248,7 +348,6 @@ Needed before their milestones; not blocking M1.
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
 | Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
-| Version history | M2 | Accepted versions and dismissed proposals, visibly distinct |
 | Skills curation | M2 | Derived candidates, author-ordered; stale skills flagged, not removed |
 | Import list | M2 | Documents imported, with re-import and re-extract |
 
