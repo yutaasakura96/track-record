@@ -817,3 +817,228 @@ describe("the 履歴書 is generable, and is generated in Japanese", () => {
     expect(change.tokens.some((t) => t.op === "add" && t.text.includes("55%"))).toBe(true);
   });
 });
+
+/**
+ * A hand edit (`docs/02` S16).
+ *
+ * The second writer of `render_versions`, and the first that no model touches.
+ * What is asserted is that it APPENDS — the version an edit was made from stays
+ * readable and downloadable afterwards — and that the four refusals hold, since
+ * each of them exists to stop a silent loss rather than to be tidy.
+ */
+describe("a version is edited by hand", () => {
+  interface Version {
+    id: string;
+    versionNo: number;
+    origin: string;
+    sourceVersionId: string | null;
+    content: RenderContent;
+  }
+
+  async function acceptedResume() {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    return { record, version: await currentVersion() };
+  }
+
+  async function currentVersion(): Promise<Version> {
+    const { items } = await client.json<{ items: { kind: string; currentVersionId: string }[] }>(
+      "/api/renders",
+    );
+    const id = items.find((i) => i.kind === "english_resume")!.currentVersionId;
+    return client.json<Version>(`/api/renders/english_resume/versions/${id}`);
+  }
+
+  const edit = (basedOnVersionId: string, content: unknown) =>
+    client.post("/api/renders/english_resume/versions", { basedOnVersionId, content });
+
+  /** The 履歴書 edit, in shape: one block comes off. */
+  function without(content: RenderContent, index: number): RenderContent {
+    return {
+      sections: content.sections.map((s) => ({ ...s, blocks: s.blocks.filter((_, i) => i !== index) })),
+    };
+  }
+
+  it("appends a version and leaves the one it was made from readable", async () => {
+    const { version } = await acceptedResume();
+    expect(version.versionNo).toBe(1);
+    expect(version.origin).toBe("accepted");
+    expect(version.sourceVersionId).toBeNull();
+
+    const response = await edit(version.id, without(version.content, 1));
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { newVersionNo: number; origin: string; sourceVersionId: string };
+    expect(body.newVersionNo).toBe(2);
+    expect(body.origin).toBe("edited");
+    expect(body.sourceVersionId).toBe(version.id);
+
+    const now = await currentVersion();
+    expect(now.content.sections[0]!.blocks).toHaveLength(1);
+
+    // The point of the never-delete rule: what the edit removed is still there,
+    // in the version it was removed from, and still assembles into a document.
+    const v1 = await client.json<Version>(`/api/renders/english_resume/versions/${version.id}`);
+    expect(v1.content.sections[0]!.blocks).toHaveLength(2);
+    const download = await client.get(`/api/renders/english_resume/download?format=md&versionId=${version.id}`);
+    expect(await download.text()).toContain("trunk-based development");
+  });
+
+  it("keeps the ids of the blocks it did not change and mints for the ones it adds", async () => {
+    const { record, version } = await acceptedResume();
+    const kept = version.content.sections[0]!.blocks[0]!;
+
+    // The résumé edit, in shape: a bullet is transplanted in beside one that
+    // stays. A client cannot mint an id, so the one it offers is discarded.
+    const response = await edit(version.id, {
+      sections: [
+        {
+          ...version.content.sections[0],
+          blocks: [
+            { ...kept, text: `${kept.text}, sustained` },
+            { id: "blk_whatever", kind: "bullet", text: "Ran the migration in a single window", factIds: [record.measuredPublic.id] },
+          ],
+        },
+      ],
+    });
+    expect(response.status).toBe(201);
+
+    const blocks = (await currentVersion()).content.sections[0]!.blocks;
+    expect(blocks[0]!.id).toBe(kept.id);
+    expect(blocks[0]!.text).toBe(`${kept.text}, sustained`);
+    expect(blocks[1]!.id).not.toBe("blk_whatever");
+    expect(blocks[1]!.id).not.toBe(kept.id);
+    // Above every id the previous version used, so it cannot land on the id of
+    // a block the same edit deleted.
+    expect(blocks[1]!.id).toBe("blk_3");
+  });
+
+  it("refuses an edit while a proposal is waiting", async () => {
+    const { record, version } = await acceptedResume();
+    await generate(resumeFrom([{ text: "A regenerated bullet", factIds: [record.measuredPublic.id] }]));
+
+    const response = await edit(version.id, without(version.content, 1));
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string; details: { proposalId: string } } };
+    expect(body.error.message).toContain("proposal");
+    expect(body.error.details.proposalId).toMatch(/^prp_/);
+
+    // And the stored version is untouched by the refusal.
+    expect((await currentVersion()).id).toBe(version.id);
+  });
+
+  it("refuses an edit made against a version that is no longer current", async () => {
+    const { version } = await acceptedResume();
+    await edit(version.id, without(version.content, 1));
+
+    const stale = await edit(version.id, without(version.content, 0));
+    expect(stale.status).toBe(409);
+    expect((await currentVersion()).versionNo).toBe(2);
+  });
+
+  it("refuses an edit that changes nothing", async () => {
+    const { version } = await acceptedResume();
+    const response = await edit(version.id, version.content);
+    expect(response.status).toBe(409);
+    expect((await currentVersion()).versionNo).toBe(1);
+  });
+
+  it("refuses an edit that empties the document", async () => {
+    const { version } = await acceptedResume();
+    const response = await edit(version.id, {
+      sections: version.content.sections.map((s) => ({ ...s, blocks: [] })),
+    });
+    expect(response.status).toBe(422);
+    expect((await currentVersion()).versionNo).toBe(1);
+  });
+
+  /**
+   * Enforcement point 4. A hand-typed block is the one way into a render that
+   * generation's two filters never see, so the citations it carries are held to
+   * the same rule they are.
+   */
+  it("refuses a block citing a Private, Generated, unaccepted or unknown fact", async () => {
+    const { record, version } = await acceptedResume();
+    const block = version.content.sections[0]!.blocks[0]!;
+
+    const cases: [string, string][] = [
+      [record.measuredPrivate.id, "Private"],
+      [record.generatedPublic.id, "Generated"],
+      ["fct_nosuchfactatall", "not in your record"],
+    ];
+    for (const [factId, reason] of cases) {
+      const response = await edit(version.id, {
+        sections: [
+          {
+            ...version.content.sections[0],
+            blocks: [{ ...block, text: "A hand-typed line", factIds: [factId] }],
+          },
+        ],
+      });
+      expect(response.status, reason).toBe(422);
+      const body = (await response.json()) as { error: { message: string } };
+      expect(body.error.message).toContain(factId);
+      // Ids and reasons, never claim text.
+      expect(body.error.message).not.toContain("settlement ledger");
+    }
+    expect((await currentVersion()).versionNo).toBe(1);
+  });
+
+  it("does not report a stale document as current because it was edited", async () => {
+    const record = await seedRecord();
+    // Held back so that accepting it AFTER the version makes the render stale
+    // by exactly one fact. It is cited by nothing, so no edit below depends on
+    // its status.
+    await client.post(`/api/facts/${record.measuredPrivate.id}/reject`);
+
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    await client.post(`/api/facts/${record.measuredPrivate.id}/accept`);
+
+    const version = await currentVersion();
+    const before = await client.json<{ items: RenderRow[] }>("/api/renders");
+    expect(before.items.find((i) => i.kind === "english_resume")!.newFactsSince).toBe(1);
+
+    await edit(version.id, without(version.content, 1));
+
+    // An edit consumes no fact. Resetting the counter here would report a
+    // document as current because the author fixed a sentence in it.
+    const after = await client.json<{ items: RenderRow[] }>("/api/renders");
+    const row = after.items.find((i) => i.kind === "english_resume")!;
+    expect(row.currentVersionNo).toBe(2);
+    expect(row.status).toBe("stale");
+    expect(row.newFactsSince).toBe(1);
+  });
+
+  it("refuses two blocks claiming one id rather than guessing which is which", async () => {
+    const { version } = await acceptedResume();
+    const block = version.content.sections[0]!.blocks[0]!;
+    const response = await edit(version.id, {
+      sections: [
+        { ...version.content.sections[0], blocks: [block, { ...block, text: "A second line" }] },
+      ],
+    });
+    expect(response.status).toBe(422);
+    expect((await currentVersion()).versionNo).toBe(1);
+  });
+
+  it("does not hand out a version belonging to another render kind", async () => {
+    const { version } = await acceptedResume();
+    const response = await client.get(`/api/renders/rirekisho/versions/${version.id}`);
+    expect(response.status).toBe(404);
+  });
+});

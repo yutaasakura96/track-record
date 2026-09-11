@@ -9,7 +9,7 @@
 import type { Hono } from "hono";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
-import { ApiError, notFound, preconditionFailed, pathParam } from "../http/errors";
+import { ApiError, notFound, preconditionFailed, pathParam, validationFailed } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { collectRenderInputs, generateIntoProposal } from "../services/render";
@@ -19,6 +19,13 @@ import {
   rationaleFor,
   regenerationReason,
 } from "../services/proposal";
+import {
+  badCitations,
+  citationMessage,
+  collectEditableRecord,
+  editWarnings,
+} from "../services/version-edit";
+import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/render/edit";
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
@@ -229,6 +236,185 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposal.id)));
 
     return c.json({ proposalId: proposal.id, status: "dismissed" });
+  });
+
+  /**
+   * One stored version, as content rather than as a document.
+   *
+   * The companion to the edit below, and the reason it exists: an edit sends
+   * the whole document back, so something has to hand the whole document out.
+   * `download` assembles a `.docx` or Markdown and cannot be edited and
+   * returned; this is the structure itself, block ids included, which is what
+   * an edit addresses.
+   *
+   * `:id` rather than "the current one" because a version never stops being
+   * readable — the one an edit was made from is still here afterwards.
+   */
+  api.get("/api/renders/:kind/versions/:id", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(pathParam(c, "kind"));
+
+    const [row] = await db
+      .select({ version: renderVersions, renderKind: renders.kind })
+      .from(renderVersions)
+      .innerJoin(renders, eq(renders.id, renderVersions.renderId))
+      .where(
+        and(eq(renderVersions.userId, user.id), eq(renderVersions.id, pathParam(c, "id"))),
+      )
+      .limit(1);
+    // A version of another kind is not this render's, and saying so would
+    // confirm it exists.
+    if (!row || row.renderKind !== kind) throw notFound("That version");
+
+    return c.json({
+      id: row.version.id,
+      renderKind: kind,
+      versionNo: row.version.versionNo,
+      origin: row.version.origin,
+      sourceVersionId: row.version.sourceVersionId,
+      acceptedAt: row.version.acceptedAt.toISOString(),
+      content: row.version.content,
+    });
+  });
+
+  /**
+   * A hand edit (`docs/02` S16, `docs/06` 2026-09-11).
+   *
+   * The second writer of `render_versions`, and it APPENDS. An edit is a new
+   * version pointing at the one it was made from, which is the shape
+   * `source_version_id` already held for restore: nothing is deleted and
+   * nothing is overwritten, so the version the author edited stays readable and
+   * downloadable beside the one they produced.
+   *
+   * It does not go through the diff gate. The gate exists to review a MODEL's
+   * work; showing the author the sentence they just typed is ceremony, and the
+   * version history is where an edit is read back.
+   */
+  api.post("/api/renders/:kind/versions", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(pathParam(c, "kind"));
+
+    const body = await c.req.json().catch(() => null);
+    if (typeof body !== "object" || body === null) {
+      throw validationFailed("That edit is not a document.", ["content"]);
+    }
+    const { basedOnVersionId, content: submitted } = body as Record<string, unknown>;
+    if (typeof basedOnVersionId !== "string") {
+      throw validationFailed(
+        "An edit must say which version it was made from.",
+        ["basedOnVersionId"],
+      );
+    }
+
+    const [render] = await db
+      .select()
+      .from(renders)
+      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
+      .limit(1);
+    if (!render?.currentVersionId) throw notFound("A version of that document");
+
+    // A proposal generated against the version being edited would still be
+    // accepted afterwards, and its accept would silently discard the edit. The
+    // author decides it first; deciding it for them is not this route's call.
+    const [pending] = await db
+      .select({ id: renderProposals.id })
+      .from(renderProposals)
+      .where(
+        and(
+          eq(renderProposals.userId, user.id),
+          eq(renderProposals.renderId, render.id),
+          eq(renderProposals.status, "pending"),
+        ),
+      )
+      .limit(1);
+    if (pending) {
+      throw new ApiError(
+        "conflict",
+        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before editing.`,
+        { proposalId: pending.id },
+      );
+    }
+
+    // Editing anything but the current version is refused rather than merged:
+    // the author is looking at a document that has moved underneath them.
+    if (basedOnVersionId !== render.currentVersionId) {
+      throw new ApiError(
+        "conflict",
+        "That edit was made against a version that is no longer current. Reload and edit again.",
+        { currentVersionId: render.currentVersionId },
+      );
+    }
+
+    const [current] = await db
+      .select()
+      .from(renderVersions)
+      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.id, basedOnVersionId)))
+      .limit(1);
+    if (!current) throw notFound("That version");
+
+    let content: RenderContent;
+    try {
+      content = parseEditedContent(submitted, current.content as RenderContent);
+    } catch (err) {
+      if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
+      throw err;
+    }
+    if (sameContent(content, current.content as RenderContent)) {
+      throw new ApiError("conflict", "That edit changes nothing.");
+    }
+
+    const record = await collectEditableRecord(db, user.id);
+    const bad = badCitations(citedFactIds(content), record);
+    if (bad.length > 0) {
+      throw new ApiError("validation_failed", citationMessage(bad), {
+        facts: bad.map((b) => ({ factId: b.factId, problem: b.problem })),
+      });
+    }
+
+    const [{ highest } = { highest: 0 }] = await db
+      .select({ highest: sql<number>`coalesce(max(${renderVersions.versionNo}), 0)::int` })
+      .from(renderVersions)
+      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.renderId, render.id)));
+
+    const versionId = newId("renderVersion");
+    const acceptedAt = new Date();
+
+    // `staleSinceFactCount` is deliberately NOT touched. An edit consumes no
+    // facts, so a render that was stale before it is still stale after it —
+    // resetting the counter would report a document as current because the
+    // author fixed a sentence in it.
+    await db.batch([
+      db.insert(renderVersions).values({
+        id: versionId,
+        userId: user.id,
+        renderId: render.id,
+        versionNo: highest + 1,
+        content,
+        acceptedAt,
+        origin: "edited",
+        sourceVersionId: current.id,
+      }),
+      db
+        .update(renders)
+        .set({ currentVersionId: versionId, updatedAt: acceptedAt })
+        .where(and(eq(renders.userId, user.id), eq(renders.id, render.id))),
+    ]);
+
+    return c.json(
+      {
+        renderKind: kind,
+        newVersionNo: highest + 1,
+        origin: "edited" as const,
+        sourceVersionId: current.id,
+        acceptedAt: acceptedAt.toISOString(),
+        // Read by definition: the only caller of this route is a human making
+        // a deliberate call. That stops being true the day a screen calls it.
+        warnings: editWarnings(content, record.record),
+      },
+      201,
+    );
   });
 
   /** Assembled from the stored content on each request. NEVER stored. */

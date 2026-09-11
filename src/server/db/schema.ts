@@ -61,6 +61,7 @@ export const educationLevel = pgEnum("education_level", [
 export const renderKind = pgEnum("render_kind", [
   "english_resume", "rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja",
 ]);
+export const versionOrigin = pgEnum("version_origin", ["accepted", "restored", "edited"]);
 export const proposalStatus = pgEnum("proposal_status", ["pending", "accepted", "dismissed"]);
 export const generationStatus = pgEnum("generation_status", ["generating", "ready", "failed"]);
 export const importStatus = pgEnum("import_status", ["queued", "extracting", "ready", "failed"]);
@@ -423,8 +424,20 @@ export const renderVersions = pgTable("render_versions", {
   /** RenderContent — sections → blocks → factIds. jsonb, because the diff reads structure. */
   content: jsonb("content").notNull(),
   acceptedAt: timestamp("accepted_at", { withTimezone: true }).notNull().defaultNow(),
-  /** Restoring creates a NEW version rather than erasing history (S14). */
-  restoredFromVersionId: text("restored_from_version_id"),
+  /**
+   * The version this one was made from. Null only for a version accepted from
+   * a proposal, which is made from a record rather than from another version.
+   * Restoring and editing both create a NEW version rather than erasing one
+   * (S14, S16), and both point back here.
+   */
+  sourceVersionId: text("source_version_id"),
+  /**
+   * How this version came to exist. Three writers, one column: a proposal
+   * accepted, an older version restored, a version edited by hand. Without it
+   * the never-delete rule is only inferable — a history where every row looks
+   * the same cannot say which rows the author typed.
+   */
+  origin: versionOrigin("origin").notNull().default("accepted"),
   ...timestamps,
 }, (t) => [
   uniqueIndex("render_versions_render_no_uq").on(t.renderId, t.versionNo),
