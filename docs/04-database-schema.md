@@ -456,7 +456,8 @@ résumé reads the same index backwards, for the same reason employers do.
 | `version_no` | integer | no | Displayed as `v4` |
 | `content` | jsonb | no | `RenderContent` — sections → blocks → `factIds` (see `03` §4.2) |
 | `accepted_at` | timestamptz | no | |
-| `restored_from_version_id` | text | yes | Restoring creates a **new** version rather than erasing history (S14) |
+| `source_version_id` | text | yes | The version this one was made from. Null only for a version accepted from a proposal, which is made from a record rather than from a version |
+| `origin` | enum | no | `accepted` · `restored` · `edited`. Default `accepted`. Three writers, one column — without it a history where every row looks alike cannot say which rows the author typed (S14, S16) |
 
 **Unique:** `(render_id, version_no)`.
 
@@ -701,7 +702,7 @@ technologies: {AWS, VPC, IAM}
 
 | Data | Rule |
 |---|---|
-| `render_versions` | **Never deleted.** Restoring creates a new version (S14) |
+| `render_versions` | **Never deleted.** Restoring and editing both create a new version (S14, S16) |
 | `render_proposals` (dismissed) | Retained. Generation is non-deterministic, so a dismissed draft may hold phrasing worth recovering. Age out only if they become noise |
 | `source_document_versions` | **Never deleted.** They are the evidence every Measured fact points at |
 | `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-offering them |

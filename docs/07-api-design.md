@@ -325,6 +325,8 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**. 履歴書 is `docx` only |
+| `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
+| `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
 | `GET` | `/api/renders/:kind/versions` | M2 | Accepted versions **and** dismissed proposals, visibly distinct |
 | `POST` | `/api/renders/:kind/versions/:id/restore` | M2 | Creates a **new** version; history is never erased |
 

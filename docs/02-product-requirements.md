@@ -144,6 +144,15 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 
 ---
 
+**S16 · Edit a document by hand** — `MUST` · M2
+> As the Author, I want to change a stored version directly, so that a correction the generator will not produce does not require spending a generation or reaching into the database.
+
+**Acceptance:** An edit produces a **new version** pointing at the one it was made from; nothing is mutated and nothing is deleted, so the version edited stays readable and downloadable. Structural edits are supported — a block added, removed or reordered — because both real edits were structural. A block may not cite a fact the record does not hold, nor one a generation would have been forbidden to use. An edit **does not** settle staleness: it consumes no facts. An edit is refused while a proposal is waiting, because accepting that proposal afterwards would silently discard it.
+
+**Added 2026-09-11**, after two hand edits in one day were applied with SQL because no route existed. It is `MUST` rather than `SHOULD` because the alternative is not "the author waits" — it is the author writing to the database directly, which is how a version with no provenance gets created.
+
+---
+
 **S15 · Export the record** — `MUST` · M1
 > As the Author, I want to export the entire record in an open format, so that my career data is not trapped in an application I might stop maintaining.
 

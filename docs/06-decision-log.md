@@ -2198,3 +2198,111 @@ and neither is recoverable through the API.
 
 `POST /api/proposals/:id/accept` remains the only writer of `render_versions`. A manual-edit
 route is now the clearest gap in the product rather than a speculative one.
+
+### [2026-09-11] A hand edit gets a route, and `render_versions` gets a second writer
+
+`POST /api/renders/:kind/versions` writes a version the author typed. Two hand edits in one day,
+with two different causes and neither recoverable through the API, is what turned this from a
+chore into `docs/02` S16 — and the honest reading of the second one was that the next edit would
+be the third occasion, not the first.
+
+**The edit APPENDS, and that is the whole shape of it.** A new version, `origin: "edited"`,
+`source_version_id` pointing at the one it was made from. The version edited stays readable and
+downloadable beside the one it produced, which is what makes this a route rather than a way of
+losing a document quietly. The schema already held this shape: `restored_from_version_id` has
+been sitting in `render_versions` since the initial migration, unread by any code, because
+restore is specced at M2 and unbuilt.
+
+**So "accept is the only writer" was never an invariant — it was an unbuilt feature.** Restore
+is a second writer by design (S14), and it appends for the same reason. Discovering that is what
+settled the shape: an edit and a restore are the same row written two ways — content from a
+payload or content from an older version — and giving each its own column would have left every
+reader checking two nullable fields to answer one question. 0007 renames the dead column to
+`source_version_id` and adds `origin` — `accepted` · `restored` · `edited`. The rename was free
+exactly once, because the column held no data, and it will never be free again. Restore is now a
+handler rather than a migration.
+
+**It does not go through the diff gate.** The gate reviews a *model's* work; showing the author
+the sentence they just typed is ceremony, and it would put an edit into `render_proposals`, which
+is the table for things a generation produced. The version history is where an edit is read back.
+
+#### Enforcement point 4, and the part that cannot be enforced
+
+A hand-typed block is the one way into a render that neither of generation's two filters sees.
+Private facts are filtered out of the model's input; Generated facts are excluded at render time;
+a sentence the author types passes both without being looked at.
+
+What it CITES is checked, and refused: a fact the record does not hold, one that is Private, one
+that is Generated-provenance, one not yet accepted. Four mechanical refusals, ids and reasons in
+the message and never a claim.
+
+What it SAYS is not checked, and the route does not pretend to. There is no way to know what a
+typed sentence discloses, and a check that looked like one would be read as a guarantee it is
+not. The author is the discloser. That is the boundary, stated rather than papered over.
+
+The attribution instrument's other three findings — unfiled, misfiled, unresolved heading — come
+back as **warnings on the 201**, not refusals. They are judgements about headings, and an author
+restructuring a section by hand may be right where the checker is wrong; refusing on them would
+block the edit this route exists to serve. The 2026-09-11 complaint about warnings nobody reads
+does not bite yet: the only caller is a human making a deliberate call who reads the response.
+The day a screen calls this route, that stops being true and the warnings need somewhere to land.
+
+#### Four refusals that each stop a silent loss
+
+- **A proposal is waiting** → `409`, naming it. A proposal generated against the version being
+  edited would still be accepted afterwards, and its accept would discard the edit without
+  saying so. The author decides it first; deciding it for them is not this route's call.
+- **The base version is no longer current** → `409`. The author is looking at a document that
+  moved underneath them, and merging is not something this route knows how to do.
+- **The edit empties the document** → `422`, the same rule `parseRenderContent` already enforces
+  on a generation. The tool does not produce an empty document and does not accept one.
+- **The edit changes nothing** → `409`. A version identical to its predecessor is noise in a
+  history that can never be cleaned up.
+
+**Staleness is deliberately untouched.** `stale_since_fact_count` is what an accept sets and what
+`newFactsSince` is measured against. An edit consumes no facts, so a render stale before an edit
+is still stale after it — resetting the counter would report a document as current because the
+author fixed a sentence in it. Asserted by test.
+
+#### Block ids, and why an edit is not a JSON parse
+
+The diff addresses blocks by id, so an edit that renumbered every block would make the next
+proposal read as a total rewrite of a document nobody rewrote. An id the previous version carried
+is kept — a reworded bullet is the same bullet — and anything else is minted server-side above
+every id the document already uses, so a new block cannot land on the id of one the same edit
+deleted. The client does not choose ids, which is the rule generation already follows. Two blocks
+claiming one previous id is refused rather than repaired: whichever the diff matched, it would
+report the other wrongly, and no client can recover from that.
+
+#### What an edit does not survive, and why that is the right answer
+
+The next generation reads facts and a register. It will re-produce the paragraph the author
+deleted and lose the bullet the author inserted. That is the brief's own third complaint —
+*"updates are wholesale rewrites rather than reviewable diffs, so prior hand-tuning is lost each
+pass"* — reappearing inside the tool built to remove it.
+
+It is accepted, with the difference that matters: the loss is now **reviewable** rather than
+silent. The diff gate puts the edit and its replacement side by side before anything is written.
+Carrying an edit forward would mean re-applying the author's prose over content it no longer
+fits, which is the version of this that would be quietly wrong. Both real edits also point at
+their own correct fix — one at the register, one at a fact — and that is the loop that should
+close, not a merge algorithm.
+
+#### One thing the design session did not surface
+
+Nothing returned a stored version's content as JSON. `download` assembles a `.docx` or Markdown,
+and neither can be edited and sent back; `/api/export` carries the rows but is the whole record.
+An edit route that sends the whole document therefore needs something that hands the whole
+document out, so `GET /api/renders/:kind/versions/:id` lands with it — the structure itself, block
+ids included, addressed by id because a version never stops being readable. It is also the read
+the M2 versions list will want.
+
+**No UI.** The screen an edit belongs on is the version history (S14, `docs/03` §477 item 7),
+which does not exist, and a textarea over `RenderContent` built now is a surface that screen would
+have to absorb. The author has been driving these edits from outside the app already; a route that
+validates, versions and records provenance is the whole improvement over SQL, and it is available
+the moment it lands.
+
+Suite: 261 tests across 19 files, green. Ten of them are this route.
+
+---
