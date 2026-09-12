@@ -128,6 +128,47 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     return c.json({ proposalId, renderKind: kind, status: "generating", warnings }, 202);
   });
 
+  /**
+   * One render's proposals, decided and undecided.
+   *
+   * The other half of the version history: a dismissed proposal is retained
+   * and is not a version, and Screen 5 shows both outcomes of a generation
+   * rather than only the one that produced a document. It stays on the
+   * proposals route instead of being merged into the versions payload
+   * (`docs/06`, 2026-09-12).
+   */
+  api.get("/api/proposals", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(c.req.query("kind"));
+
+    const rows = await db
+      .select({
+        id: renderProposals.id,
+        status: renderProposals.status,
+        generationStatus: renderProposals.generationStatus,
+        generatedAt: renderProposals.generatedAt,
+        decidedAt: renderProposals.decidedAt,
+        reason: renderProposals.reason,
+      })
+      .from(renderProposals)
+      .innerJoin(renders, eq(renders.id, renderProposals.renderId))
+      .where(and(eq(renderProposals.userId, user.id), eq(renders.kind, kind)))
+      .orderBy(desc(renderProposals.generatedAt));
+
+    return c.json({
+      renderKind: kind,
+      items: rows.map((row) => ({
+        id: row.id,
+        status: row.status,
+        generationStatus: row.generationStatus,
+        generatedAt: row.generatedAt.toISOString(),
+        decidedAt: row.decidedAt?.toISOString() ?? null,
+        reason: row.reason,
+      })),
+    });
+  });
+
   api.get("/api/proposals/:id", async (c) => {
     const { proposal, render } = await requireProposal(
       c.get("db"),
@@ -174,17 +215,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       throw new ApiError("conflict", "This proposal has not finished generating.");
     }
 
-    const [{ highest } = { highest: 0 }] = await db
-      .select({ highest: sql<number>`coalesce(max(${renderVersions.versionNo}), 0)::int` })
-      .from(renderVersions)
-      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.renderId, render.id)));
+    const highest = await highestVersionNo(db, user.id, render.id);
 
     const versionId = newId("renderVersion");
     const acceptedAt = new Date();
-    const [{ accepted } = { accepted: 0 }] = await db
-      .select({ accepted: sql<number>`count(*)::int` })
-      .from(facts)
-      .where(and(eq(facts.userId, user.id), eq(facts.status, "accepted")));
+    const accepted = await acceptedFactCount(db, user.id);
 
     // Three statements, one transaction. `db.transaction()` throws on the
     // neon-http driver; `db.batch([...])` reaches the driver's own
@@ -197,6 +232,10 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         versionNo: highest + 1,
         content: proposal.content,
         acceptedAt,
+        // The same number `staleSinceFactCount` is being set to, kept on the
+        // version as well as on the render: the render only ever remembers its
+        // CURRENT era, and restore needs an older one (`docs/06`, 2026-09-12).
+        factCountAt: accepted,
       }),
       db
         .update(renders)
@@ -239,6 +278,223 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
   });
 
   /**
+   * The version history (S14, `docs/10` Screen 5).
+   *
+   * **Versions only.** A dismissed proposal is retained and the screen shows
+   * it, but it comes from the proposals route and is merged in the one place
+   * that needs it — a merged payload would hand every consumer a discriminated
+   * union to unpack before it could answer which row is current
+   * (`docs/06`, 2026-09-12).
+   *
+   * Ancestry is resolved to a version NUMBER here, because "Restored from v2"
+   * is what the row says and an id is not a thing the author has ever seen.
+   * A never-generated render answers `200` with nothing in it: having no
+   * history is a state, not a missing resource.
+   */
+  api.get("/api/renders/:kind/versions", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(pathParam(c, "kind"));
+
+    const [render] = await db
+      .select()
+      .from(renders)
+      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
+      .limit(1);
+    if (!render) {
+      return c.json({ renderKind: kind, currentVersionId: null, currentVersionNo: null, items: [] });
+    }
+
+    const rows = await db
+      .select({
+        id: renderVersions.id,
+        versionNo: renderVersions.versionNo,
+        origin: renderVersions.origin,
+        sourceVersionId: renderVersions.sourceVersionId,
+        acceptedAt: renderVersions.acceptedAt,
+      })
+      .from(renderVersions)
+      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.renderId, render.id)))
+      .orderBy(desc(renderVersions.versionNo));
+
+    const numberById = new Map(rows.map((r) => [r.id, r.versionNo]));
+    return c.json({
+      renderKind: kind,
+      currentVersionId: render.currentVersionId,
+      currentVersionNo: render.currentVersionId
+        ? (numberById.get(render.currentVersionId) ?? null)
+        : null,
+      items: rows.map((row) => ({
+        id: row.id,
+        versionNo: row.versionNo,
+        origin: row.origin,
+        sourceVersionId: row.sourceVersionId,
+        sourceVersionNo: row.sourceVersionId ? (numberById.get(row.sourceVersionId) ?? null) : null,
+        acceptedAt: row.acceptedAt.toISOString(),
+        isCurrent: row.id === render.currentVersionId,
+      })),
+    });
+  });
+
+  /**
+   * Two versions of one render, side by side — the restore preview
+   * (`docs/10` Screen 5).
+   *
+   * `from` is the LEFT column, and the screen passes the current version as
+   * `from`, so the diff reports what committing the restore will change rather
+   * than what it will undo.
+   *
+   * It addresses versions and nothing else. Letting `to` name a dismissed
+   * proposal would make one handler guess what an id is, and its `404` would
+   * then mean three different things; proposals keep their own diff route
+   * (`docs/06`, 2026-09-12). **Nothing here writes to `render_proposals`** —
+   * this comparison is not a proposal.
+   */
+  api.get("/api/renders/:kind/diff", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(pathParam(c, "kind"));
+
+    const from = c.req.query("from");
+    const to = c.req.query("to");
+    if (!from || !to) {
+      throw validationFailed("A comparison needs two versions.", ["from", "to"]);
+    }
+
+    const before = await requireVersion(db, user.id, kind, from);
+    const after = await requireVersion(db, user.id, kind, to);
+
+    const beforeContent = before.content as RenderContent;
+    const afterContent = after.content as RenderContent;
+    const explain = await rationaleFor(db, user.id, beforeContent, afterContent);
+
+    return c.json(
+      diffRenders(beforeContent, afterContent, { language: RENDER_LANGUAGE[kind], explain }),
+    );
+  });
+
+  /**
+   * Restore (S14, `docs/06` 2026-09-12).
+   *
+   * The third writer of `render_versions`, and it APPENDS like the other two:
+   * the restored version is copied forward as a new one, and every version in
+   * between stays readable and downloadable.
+   *
+   * It refuses in exactly TWO cases, and the edit route's other two refusals
+   * deliberately do not transfer — restoring is not made against the current
+   * version, and the content it produces is by definition not new.
+   */
+  api.post("/api/renders/:kind/versions/:id/restore", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const kind = requireKind(pathParam(c, "kind"));
+
+    const [render] = await db
+      .select()
+      .from(renders)
+      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
+      .limit(1);
+    if (!render) throw notFound("That version");
+
+    // The same reason the edit route refuses: a proposal generated against the
+    // current version would still be accepted afterwards, and its accept would
+    // silently discard the restore. The author decides it first.
+    const [pending] = await db
+      .select({ id: renderProposals.id })
+      .from(renderProposals)
+      .where(
+        and(
+          eq(renderProposals.userId, user.id),
+          eq(renderProposals.renderId, render.id),
+          eq(renderProposals.status, "pending"),
+        ),
+      )
+      .limit(1);
+    if (pending) {
+      throw new ApiError(
+        "conflict",
+        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before restoring.`,
+        { proposalId: pending.id },
+      );
+    }
+
+    const target = await requireVersion(db, user.id, kind, pathParam(c, "id"));
+    // Not an error the author can act on by retrying, and not a silent no-op
+    // that appends an identical version to the history.
+    if (target.id === render.currentVersionId) {
+      throw new ApiError("conflict", `v${target.versionNo} is already the current version.`, {
+        currentVersionId: render.currentVersionId,
+      });
+    }
+
+    /**
+     * **Enforcement point 4 again, at the moment it becomes render time.** A
+     * version is a snapshot of what could be rendered in August, and a fact can
+     * be set Private in September. Restoring makes that content current, so the
+     * citations are held to the rule the edit route holds them to — and the
+     * dead end this can leave the author in is correct: the alternative is a
+     * route whose purpose is to put a withheld claim back into the live
+     * document.
+     */
+    const content = target.content as RenderContent;
+    const record = await collectEditableRecord(db, user.id);
+    const bad = badCitations(citedFactIds(content), record);
+    if (bad.length > 0) {
+      throw new ApiError("validation_failed", citationMessage(bad), {
+        facts: bad.map((b) => ({ factId: b.factId, problem: b.problem })),
+      });
+    }
+
+    const highest = await highestVersionNo(db, user.id, render.id);
+    const versionId = newId("renderVersion");
+    const acceptedAt = new Date();
+    const accepted = await acceptedFactCount(db, user.id);
+
+    await db.batch([
+      db.insert(renderVersions).values({
+        id: versionId,
+        userId: user.id,
+        renderId: render.id,
+        versionNo: highest + 1,
+        content,
+        acceptedAt,
+        origin: "restored",
+        sourceVersionId: target.id,
+        factCountAt: accepted,
+      }),
+      db
+        .update(renders)
+        .set({
+          currentVersionId: versionId,
+          /**
+           * Staleness MOVES, which is the opposite of what the edit route does
+           * and for the opposite reason. An edit consumes no facts; a restore
+           * moves the document's content back to a version generated from a
+           * smaller record, and the number describes the content rather than
+           * the act that produced it. A render that was current before a
+           * restore is usually stale after one, and saying so is the honest
+           * reading (`docs/06`, 2026-09-12).
+           */
+          staleSinceFactCount: target.factCountAt,
+          updatedAt: acceptedAt,
+        })
+        .where(and(eq(renders.userId, user.id), eq(renders.id, render.id))),
+    ]);
+
+    return c.json(
+      {
+        renderKind: kind,
+        newVersionNo: highest + 1,
+        origin: "restored" as const,
+        sourceVersionId: target.id,
+        sourceVersionNo: target.versionNo,
+        acceptedAt: acceptedAt.toISOString(),
+      },
+      201,
+    );
+  });
+
+  /**
    * One stored version, as content rather than as a document.
    *
    * The companion to the edit below, and the reason it exists: an edit sends
@@ -255,26 +511,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const kind = requireKind(pathParam(c, "kind"));
 
-    const [row] = await db
-      .select({ version: renderVersions, renderKind: renders.kind })
-      .from(renderVersions)
-      .innerJoin(renders, eq(renders.id, renderVersions.renderId))
-      .where(
-        and(eq(renderVersions.userId, user.id), eq(renderVersions.id, pathParam(c, "id"))),
-      )
-      .limit(1);
-    // A version of another kind is not this render's, and saying so would
-    // confirm it exists.
-    if (!row || row.renderKind !== kind) throw notFound("That version");
+    const version = await requireVersion(db, user.id, kind, pathParam(c, "id"));
 
     return c.json({
-      id: row.version.id,
+      id: version.id,
       renderKind: kind,
-      versionNo: row.version.versionNo,
-      origin: row.version.origin,
-      sourceVersionId: row.version.sourceVersionId,
-      acceptedAt: row.version.acceptedAt.toISOString(),
-      content: row.version.content,
+      versionNo: version.versionNo,
+      origin: version.origin,
+      sourceVersionId: version.sourceVersionId,
+      acceptedAt: version.acceptedAt.toISOString(),
+      content: version.content,
     });
   });
 
@@ -373,11 +619,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       });
     }
 
-    const [{ highest } = { highest: 0 }] = await db
-      .select({ highest: sql<number>`coalesce(max(${renderVersions.versionNo}), 0)::int` })
-      .from(renderVersions)
-      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.renderId, render.id)));
-
+    const highest = await highestVersionNo(db, user.id, render.id);
     const versionId = newId("renderVersion");
     const acceptedAt = new Date();
 
@@ -395,6 +637,10 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         acceptedAt,
         origin: "edited",
         sourceVersionId: current.id,
+        // Written even though this route does not READ it: the column holds
+        // the era of every row alike, and a restore of this version later is
+        // what reads it back.
+        factCountAt: await acceptedFactCount(db, user.id),
       }),
       db
         .update(renders)
@@ -644,6 +890,44 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
       pendingProposalId,
     };
   });
+}
+
+/**
+ * One version of one render kind, or a 404.
+ *
+ * A version of another kind is not this render's, and saying so would confirm
+ * it exists — so the wrong kind and a missing row give the same answer.
+ */
+async function requireVersion(db: Db, userId: string, kind: RenderKind, id: string) {
+  const [row] = await db
+    .select({ version: renderVersions, renderKind: renders.kind })
+    .from(renderVersions)
+    .innerJoin(renders, eq(renders.id, renderVersions.renderId))
+    .where(and(eq(renderVersions.userId, userId), eq(renderVersions.id, id)))
+    .limit(1);
+  if (!row || row.renderKind !== kind) throw notFound("That version");
+  return row.version;
+}
+
+/** The next version number for a render. Versions are numbered per render. */
+async function highestVersionNo(db: Db, userId: string, renderId: string): Promise<number> {
+  const [{ highest } = { highest: 0 }] = await db
+    .select({ highest: sql<number>`coalesce(max(${renderVersions.versionNo}), 0)::int` })
+    .from(renderVersions)
+    .where(and(eq(renderVersions.userId, userId), eq(renderVersions.renderId, renderId)));
+  return highest;
+}
+
+/**
+ * The staleness number, counted the one way `renders.stale_since_fact_count`
+ * and `render_versions.fact_count_at` both mean it.
+ */
+async function acceptedFactCount(db: Db, userId: string): Promise<number> {
+  const [{ accepted } = { accepted: 0 }] = await db
+    .select({ accepted: sql<number>`count(*)::int` })
+    .from(facts)
+    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+  return accepted;
 }
 
 async function requireProposal(db: Db, userId: string, id: string) {

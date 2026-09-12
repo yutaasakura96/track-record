@@ -16,3 +16,13 @@ export function relative(iso: string): string {
   // never displayed anywhere in this product.
   return new Date(iso).toISOString().slice(0, 7);
 }
+
+/**
+ * An absolute date, for a SYSTEM timestamp — when a version was saved, when a
+ * proposal was decided. The record's calendar columns are month precision and
+ * never render a day (`CLAUDE.md`); this is not one of them, and a history that
+ * said "2026-09" for three versions saved in the same month would be useless.
+ */
+export function absolute(iso: string): string {
+  return new Date(iso).toISOString().slice(0, 10);
+}

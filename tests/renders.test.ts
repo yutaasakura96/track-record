@@ -1042,3 +1042,239 @@ describe("a version is edited by hand", () => {
     expect(response.status).toBe(404);
   });
 });
+
+/**
+ * Restore, the version list and the version diff (S14, `docs/06` 2026-09-12).
+ *
+ * The third writer of `render_versions`, and the one that can put a document
+ * back into an era the record has moved on from. What is asserted is that it
+ * APPENDS, that staleness MOVES with the content — the opposite of what an edit
+ * does, deliberately — and that both refusals hold, since each exists to stop a
+ * silent loss rather than to be tidy.
+ */
+describe("a version is restored", () => {
+  interface Version {
+    id: string;
+    versionNo: number;
+    origin: string;
+    sourceVersionId: string | null;
+    sourceVersionNo: number | null;
+    acceptedAt: string;
+    isCurrent: boolean;
+    content: RenderContent;
+  }
+
+  const history = () =>
+    client.json<{ currentVersionNo: number | null; items: Version[] }>(
+      "/api/renders/english_resume/versions",
+    );
+
+  const version = (id: string) =>
+    client.json<Version>(`/api/renders/english_resume/versions/${id}`);
+
+  const restore = (id: string) =>
+    client.post(`/api/renders/english_resume/versions/${id}/restore`);
+
+  /** The new version as BOTH the list reports it and the content route does. */
+  async function accept(content: RenderContent): Promise<Version> {
+    const created = (await (await generate(content)).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    const listed = (await history()).items[0]!;
+    return { ...listed, ...(await version(listed.id)) };
+  }
+
+  /**
+   * Two versions, and one accepted fact that entered the record between them —
+   * so v1 belongs to a three-fact era and v2 to a four-fact one, which is what
+   * makes the staleness assertion below mean anything.
+   */
+  async function twoVersions() {
+    const record = await seedRecord();
+    // Held back so it can enter the record BETWEEN the two versions. It is
+    // cited by neither, so no restore below depends on its status.
+    await client.post(`/api/facts/${record.measuredPrivate.id}/reject`);
+
+    const v1 = await accept(
+      resumeFrom([
+        { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+        { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+      ]),
+    );
+    await client.post(`/api/facts/${record.measuredPrivate.id}/accept`);
+    const v2 = await accept(
+      resumeFrom([{ text: "Ran the migration in a single window", factIds: [record.measuredPublic.id] }]),
+    );
+    return { record, v1, v2 };
+  }
+
+  it("appends a version, leaves the one it replaced readable, and moves staleness back", async () => {
+    const { v1, v2 } = await twoVersions();
+
+    const before = await client.json<{ items: RenderRow[] }>("/api/renders");
+    expect(before.items.find((i) => i.kind === "english_resume")!.status).toBe("up_to_date");
+
+    const response = await restore(v1.id);
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as {
+      newVersionNo: number;
+      origin: string;
+      sourceVersionId: string;
+      sourceVersionNo: number;
+    };
+    expect(body.newVersionNo).toBe(3);
+    expect(body.origin).toBe("restored");
+    expect(body.sourceVersionId).toBe(v1.id);
+    expect(body.sourceVersionNo).toBe(1);
+
+    // The content came back...
+    const now = (await history()).items[0]!;
+    expect(now.versionNo).toBe(3);
+    expect((await version(now.id)).content).toEqual(v1.content);
+
+    // ...and nothing was erased on the way: v2 is still readable and still
+    // assembles into a document.
+    expect((await version(v2.id)).content.sections[0]!.blocks).toHaveLength(1);
+    const download = await client.get(
+      `/api/renders/english_resume/download?format=md&versionId=${v2.id}`,
+    );
+    expect(download.status).toBe(200);
+    expect(await download.text()).toContain("single window");
+
+    // Staleness MOVED. The document's content is back in the three-fact era, so
+    // the fact accepted after v1 is new again — the opposite of what an edit
+    // does, and the honest reading of what a restore changed.
+    const after = await client.json<{ items: RenderRow[] }>("/api/renders");
+    const row = after.items.find((i) => i.kind === "english_resume")!;
+    expect(row.currentVersionNo).toBe(3);
+    expect(row.status).toBe("stale");
+    expect(row.newFactsSince).toBe(1);
+  });
+
+  it("refuses a restore while a proposal is waiting", async () => {
+    const { record, v1 } = await twoVersions();
+    await generate(resumeFrom([{ text: "A regenerated bullet", factIds: [record.measuredPublic.id] }]));
+
+    const response = await restore(v1.id);
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as {
+      error: { message: string; details: { proposalId: string } };
+    };
+    expect(body.error.message).toContain("proposal");
+    expect(body.error.details.proposalId).toMatch(/^prp_/);
+    expect((await history()).currentVersionNo).toBe(2);
+  });
+
+  it("refuses restoring the version that is already current", async () => {
+    const { v2 } = await twoVersions();
+    const response = await restore(v2.id);
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string } };
+    expect(body.error.message).toContain("already the current version");
+    // No identical version was appended to the history to say so.
+    expect((await history()).items).toHaveLength(2);
+  });
+
+  /**
+   * A version is a snapshot of what could be rendered in August, and a fact can
+   * be set Private in September. The block sits at RENDER time, and the moment
+   * the author chooses what the document is now is exactly render time.
+   */
+  it("refuses a restore whose target cites a fact that can no longer be rendered", async () => {
+    const { record, v1 } = await twoVersions();
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+
+    const response = await restore(v1.id);
+    expect(response.status).toBe(422);
+    const body = (await response.json()) as {
+      error: { message: string; details: { facts: { factId: string; problem: string }[] } };
+    };
+    expect(body.error.message).toContain(record.measuredPublic.id);
+    expect(body.error.details.facts).toEqual([
+      { factId: record.measuredPublic.id, problem: "private" },
+    ]);
+    // Ids and reasons, never claim text.
+    expect(body.error.message).not.toContain("nightly batch");
+    expect((await history()).currentVersionNo).toBe(2);
+  });
+
+  it("does not restore a version belonging to another render kind", async () => {
+    const { v1 } = await twoVersions();
+    const response = await client.post(`/api/renders/rirekisho/versions/${v1.id}/restore`);
+    expect(response.status).toBe(404);
+  });
+
+  it("reports how every version came to exist, and what each was made from", async () => {
+    const { v1 } = await twoVersions();
+    await restore(v1.id);
+
+    const listed = await history();
+    expect(listed.currentVersionNo).toBe(3);
+    // Newest first.
+    expect(listed.items.map((v) => v.versionNo)).toEqual([3, 2, 1]);
+    expect(listed.items.map((v) => v.origin)).toEqual(["restored", "accepted", "accepted"]);
+    // A history that shows the origin but not the parent says a restore
+    // happened without saying to what.
+    expect(listed.items[0]!.sourceVersionNo).toBe(1);
+    expect(listed.items[1]!.sourceVersionNo).toBeNull();
+    expect(listed.items.map((v) => v.isCurrent)).toEqual([true, false, false]);
+  });
+
+  it("answers with an empty history rather than a 404 before anything is generated", async () => {
+    const listed = await history();
+    expect(listed.currentVersionNo).toBeNull();
+    expect(listed.items).toEqual([]);
+  });
+
+  it("compares two versions with the current one on the left", async () => {
+    const { v1, v2 } = await twoVersions();
+
+    const diff = await client.json<{
+      additions: number;
+      removals: number;
+      changes: { tokens: { op: string; text: string }[]; rationale: { text: string } }[];
+    }>(`/api/renders/english_resume/diff?from=${v2.id}&to=${v1.id}`);
+
+    // `from` is the left column, so the diff reports what restoring v1 would
+    // ADD rather than what it would undo.
+    const added = diff.changes.flatMap((c) => c.tokens.filter((t) => t.op === "add").map((t) => t.text));
+    expect(added.join(" ")).toContain("trunk-based");
+    const removed = diff.changes.flatMap((c) => c.tokens.filter((t) => t.op === "remove").map((t) => t.text));
+    expect(removed.join(" ")).toContain("single window");
+    // Every change carries a rationale; one with none is a defect.
+    expect(diff.changes.every((c) => c.rationale.text.length > 0)).toBe(true);
+  });
+
+  it("refuses a comparison that names only one version, and one of another kind", async () => {
+    const { v1 } = await twoVersions();
+    const incomplete = await client.get(`/api/renders/english_resume/diff?from=${v1.id}`);
+    expect(incomplete.status).toBe(422);
+    const wrongKind = await client.get(
+      `/api/renders/rirekisho/diff?from=${v1.id}&to=${v1.id}`,
+    );
+    expect(wrongKind.status).toBe(404);
+  });
+
+  /**
+   * The other half of the history. A dismissed proposal is retained and is not
+   * a version, and it stays on the proposals route rather than being merged
+   * into the versions payload.
+   */
+  it("lists a dismissed proposal separately from the versions", async () => {
+    const { record } = await twoVersions();
+    const created = (await (
+      await generate(resumeFrom([{ text: "A bullet nobody wanted", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/dismiss`);
+
+    const listed = await client.json<{
+      items: { id: string; status: string; decidedAt: string | null }[];
+    }>("/api/proposals?kind=english_resume");
+    const dismissed = listed.items.find((p) => p.id === created.proposalId)!;
+    expect(dismissed.status).toBe("dismissed");
+    expect(dismissed.decidedAt).not.toBeNull();
+
+    // It never became a version, and the versions payload does not pretend it
+    // did.
+    expect((await history()).items).toHaveLength(2);
+  });
+});

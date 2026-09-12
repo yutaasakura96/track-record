@@ -10,8 +10,8 @@
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
-import { useEffect, useMemo } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useMemo } from "react";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   downloadUrl,
   useDecideProposal,
@@ -21,7 +21,7 @@ import {
   type Proposal,
 } from "../api";
 import { Button, Chip, Dot, Mono } from "../components/ui";
-import { useDiffStore } from "../stores/review";
+import { DiffPanes } from "../components/diff-view";
 import { RENDER_TITLE } from "~/shared/render-content";
 
 export function DiffReview() {
@@ -29,12 +29,7 @@ export function DiffReview() {
   const proposal = useProposal(proposalId);
   const ready = proposal.data?.generationStatus === "ready";
   const diff = useDiff(proposalId, ready);
-  const select = useDiffStore((s) => s.select);
-
   const changes = useMemo(() => diff.data?.changes ?? [], [diff.data]);
-  useEffect(() => {
-    select(changes[0]?.changeId ?? null);
-  }, [changes, select]);
 
   if (!proposal.data) {
     return <div className="min-h-screen grid place-items-center text-small text-text-dim">Loading the proposal…</div>;
@@ -69,9 +64,20 @@ function Header({ proposal }: { proposal: Proposal }) {
         {RENDER_TITLE[proposal.renderKind]}
       </span>
       <Chip className="ml-4">proposed v{proposal.proposedVersionNo}</Chip>
-      {proposal.reason ? (
-        <span className="ml-auto text-smaller text-text-dimmer">{proposal.reason}</span>
-      ) : null}
+      <div className="ml-auto flex items-center gap-10">
+        {proposal.reason ? (
+          <span className="text-smaller text-text-dimmer">{proposal.reason}</span>
+        ) : null}
+        {/* Specced in this header since `docs/10` Screen 2 and only now
+            navigable: the screen it points at exists (Screen 5). */}
+        <Link
+          to="/renders/$kind/history"
+          params={{ kind: proposal.renderKind }}
+          className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+        >
+          Version history
+        </Link>
+      </div>
     </header>
   );
 }
@@ -204,66 +210,24 @@ function Review({
   additions: number;
   removals: number;
 }) {
-  const selectedChangeId = useDiffStore((s) => s.selectedChangeId);
-  const select = useDiffStore((s) => s.select);
   const { accept, dismiss } = useDecideProposal(proposalId);
   const navigate = useNavigate();
 
-  const index = Math.max(0, changes.findIndex((c) => c.changeId === selectedChangeId));
-  const selected = changes[index];
-  const step = (delta: number) => {
-    const next = changes[(index + delta + changes.length) % changes.length];
-    if (next) select(next.changeId);
-  };
-
   return (
     <>
-      <div className="h-toolbar shrink-0 flex items-center gap-14 px-20 border-b border-border-subtle">
-        <span className="flex items-center gap-6 text-smaller text-measured-text">
-          <Dot tone="measured" /> {additions} additions
-        </span>
-        <span className="flex items-center gap-6 text-smaller text-removed">
-          <Dot tone="removed" /> {removals} removals
-        </span>
-        <div className="ml-auto flex items-center gap-8">
-          <span className="text-smaller text-text-dimmer">
-            Change {changes.length === 0 ? 0 : index + 1} of {changes.length}
-          </span>
-          <Button variant="bare" onClick={() => step(-1)} aria-label="Previous change">
-            ←
-          </Button>
-          <Button variant="bare" onClick={() => step(1)} aria-label="Next change">
-            →
-          </Button>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 grid grid-cols-2">
-        <Column
-          title="Current"
-          badge={<Mono className="text-text-dimmer">v{proposal.basedOnVersionNo ?? 0}</Mono>}
-          side="current"
-          changes={changes}
-          selectedChangeId={selected?.changeId ?? null}
-          onSelect={select}
-        />
-        <Column
-          title="Proposed"
-          badge={<Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>}
-          side="proposed"
-          changes={changes}
-          selectedChangeId={selected?.changeId ?? null}
-          onSelect={select}
-        />
-      </div>
-
-      {/* The rationale bar is required, not decorative. */}
-      <div className="shrink-0 flex items-center gap-8 px-20 py-10 border-t border-border-subtle">
-        <Dot tone={selected?.rationale.kind.startsWith("removed") ? "removed" : "measured"} />
-        <span className="text-smaller text-text-dim">
-          {selected?.rationale.text ?? "Select a change to see where it came from."}
-        </span>
-      </div>
+      <DiffPanes
+        before={{
+          title: "Current",
+          badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo ?? 0}</Mono>,
+        }}
+        after={{
+          title: "Proposed",
+          badge: <Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>,
+        }}
+        changes={changes}
+        additions={additions}
+        removals={removals}
+      />
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
@@ -309,91 +273,5 @@ function Review({
         </div>
       </footer>
     </>
-  );
-}
-
-/**
- * One side of the split view. Unchanged content renders identically in both
- * columns at full opacity — this is a document being read, not a patch being
- * applied.
- */
-function Column({
-  title,
-  badge,
-  side,
-  changes,
-  selectedChangeId,
-  onSelect,
-}: {
-  title: string;
-  badge: React.ReactNode;
-  side: "current" | "proposed";
-  changes: DiffChange[];
-  selectedChangeId: string | null;
-  onSelect: (id: string) => void;
-}) {
-  const keep = side === "current" ? "remove" : "add";
-
-  return (
-    <section className="min-w-0 flex flex-col border-r border-border last:border-r-0">
-      <header className="h-strip shrink-0 flex items-center gap-8 px-20 border-b border-border-subtle">
-        <span className="text-panel font-semibold tracking-snug text-text-strong">{title}</span>
-        {badge}
-      </header>
-      <div className="flex-1 overflow-y-auto px-20 py-32">
-        <div className="mx-auto w-measure max-w-full grid gap-14">
-          {changes.map((change) => {
-            const absent = side === "current" ? change.currentBlockId === null : change.proposedBlockId === null;
-            const selected = change.changeId === selectedChangeId;
-            if (absent) {
-              return (
-                <p
-                  key={change.changeId}
-                  onClick={() => onSelect(change.changeId)}
-                  className="text-render-body text-text-ghost border border-dashed border-border-dashed rounded-control px-12 py-10"
-                >
-                  {side === "current" ? "no matching line" : "removed"}
-                </p>
-              );
-            }
-            return (
-              <p
-                key={change.changeId}
-                onClick={() => onSelect(change.changeId)}
-                className={`text-render-body text-text-body px-12 py-10 rounded-control cursor-pointer ${
-                  side === "current" ? "bg-remove-row" : "bg-add-row"
-                } ${selected ? "shadow-ring" : ""}`}
-              >
-                {change.tokens
-                  .filter((token) => token.op === "equal" || token.op === keep)
-                  .map((token, i) =>
-                    token.op === "equal" ? (
-                      <span key={i}>{token.text}</span>
-                    ) : (
-                      <mark
-                        key={i}
-                        className={`mark-base ${
-                          token.op === "add"
-                            ? selected
-                              ? "bg-add-selected text-text-bright"
-                              : "bg-add-idle"
-                            : selected
-                              ? "bg-remove-selected text-text-bright line-through"
-                              : "bg-remove-idle line-through"
-                        }`}
-                      >
-                        {token.text}
-                      </mark>
-                    ),
-                  )}
-              </p>
-            );
-          })}
-          {changes.length === 0 ? (
-            <p className="text-render-body text-text-dim">No changes.</p>
-          ) : null}
-        </div>
-      </div>
-    </section>
   );
 }

@@ -438,6 +438,18 @@ export const renderVersions = pgTable("render_versions", {
    * the same cannot say which rows the author typed.
    */
   origin: versionOrigin("origin").notNull().default("accepted"),
+  /**
+   * The accepted-fact count at the moment this row was created, written by all
+   * three writers alike (`docs/06`, 2026-09-12).
+   *
+   * It exists so a RESTORE can move the render's `stale_since_fact_count` back
+   * to the era the restored content was generated from — a document restored to
+   * an August version is usually stale in September, and nothing else stored
+   * the number needed to say so. Rows created before migration 0008 carry a
+   * one-time backfill derived from `facts.resolved_at`, which is approximate;
+   * the migration and the decision log both say so.
+   */
+  factCountAt: integer("fact_count_at").notNull(),
   ...timestamps,
 }, (t) => [
   uniqueIndex("render_versions_render_no_uq").on(t.renderId, t.versionNo),

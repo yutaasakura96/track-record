@@ -9,7 +9,7 @@
  * there is nothing to capture against yet.
  */
 import { useRef, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ApiError,
   downloadUrl,
@@ -215,6 +215,18 @@ function Documents({ rows, canGenerate }: { rows: RenderRow[]; canGenerate: bool
             </div>
             <div className="ml-auto flex items-center gap-12">
               <StatusText row={row} />
+              {/* Screen 5. Offered only once there is something to read: a
+                  history of nothing is the screen's own empty state, and this
+                  row already says `Never generated`. */}
+              {row.currentVersionId ? (
+                <Link
+                  to="/renders/$kind/history"
+                  params={{ kind: row.kind }}
+                  className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+                >
+                  Version history
+                </Link>
+              ) : null}
               <Action
                 row={row}
                 canGenerate={canGenerate}

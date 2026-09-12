@@ -15,7 +15,7 @@ import {
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 
 export interface ApiErrorBody {
-  error: { code: string; message: string; details?: { fields?: string[] } };
+  error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
 }
 
 export class ApiError extends Error {
@@ -24,6 +24,13 @@ export class ApiError extends Error {
     readonly code: string,
     message: string,
     readonly fields: string[] = [],
+    /**
+     * The rest of `error.details`, verbatim. A refusal that names WHICH facts
+     * or WHICH proposal is in the way is only actionable if the screen can read
+     * them — a restore refused at `422` lists ids and a reason per id
+     * (`docs/10` Screen 5), and none of that fits `fields`.
+     */
+    readonly details: Record<string, unknown> = {},
   ) {
     super(message);
     this.name = "ApiError";
@@ -48,6 +55,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
       body?.error.code ?? "internal",
       body?.error.message ?? "Something went wrong.",
       body?.error.details?.fields ?? [],
+      body?.error.details ?? {},
     );
   }
   return (isJson ? await response.json() : await response.text()) as T;
@@ -229,6 +237,38 @@ export interface Proposal {
   withheld: { privateFactCount: number; generatedFactCount: number };
 }
 
+/** One row of the version history (`docs/10` Screen 5). */
+export interface RenderVersion {
+  id: string;
+  versionNo: number;
+  origin: "accepted" | "restored" | "edited";
+  sourceVersionId: string | null;
+  /** Resolved server-side: the row says `Restored from v2`, never an id. */
+  sourceVersionNo: number | null;
+  acceptedAt: string;
+  isCurrent: boolean;
+}
+
+export interface VersionHistory {
+  renderKind: RenderKind;
+  currentVersionId: string | null;
+  currentVersionNo: number | null;
+  items: RenderVersion[];
+}
+
+/**
+ * A proposal as the history reads it. The screen shows the DISMISSED ones —
+ * an accepted proposal is already in the history as the version it became.
+ */
+export interface ProposalRow {
+  id: string;
+  status: "pending" | "accepted" | "dismissed";
+  generationStatus: "generating" | "ready" | "failed";
+  generatedAt: string;
+  decidedAt: string | null;
+  reason: string | null;
+}
+
 export interface DiffChange {
   changeId: string;
   sectionKey: string;
@@ -258,6 +298,10 @@ export const keys = {
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
   diff: (id: string) => ["proposal", id, "diff"] as const,
+  versions: (kind: RenderKind) => ["renders", kind, "versions"] as const,
+  proposals: (kind: RenderKind) => ["renders", kind, "proposals"] as const,
+  versionDiff: (kind: RenderKind, from: string, to: string) =>
+    ["renders", kind, "diff", from, to] as const,
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
@@ -396,6 +440,33 @@ export function useProposal(proposalId: string) {
   });
 }
 
+/**
+ * The two halves of the history, read separately and merged in the one place
+ * that needs them merged (`docs/06`, 2026-09-12).
+ */
+export const useVersionHistory = (kind: RenderKind) =>
+  useQuery({
+    queryKey: keys.versions(kind),
+    queryFn: () => api<VersionHistory>(`/api/renders/${kind}/versions`),
+  });
+
+export const useRenderProposals = (kind: RenderKind) =>
+  useQuery({
+    queryKey: keys.proposals(kind),
+    queryFn: () => api<{ items: ProposalRow[] }>(`/api/proposals?kind=${kind}`),
+  });
+
+/**
+ * The restore preview's diff. `from` is the current version, so the split view
+ * reports what committing the restore will CHANGE rather than what it undoes.
+ */
+export const useVersionDiff = (kind: RenderKind, from: string | null, to: string | null) =>
+  useQuery({
+    queryKey: keys.versionDiff(kind, from ?? "", to ?? ""),
+    queryFn: () => api<RenderDiff>(`/api/renders/${kind}/diff?from=${from}&to=${to}`),
+    enabled: from !== null && to !== null,
+  });
+
 export const useDiff = (proposalId: string, enabled: boolean) =>
   useQuery({
     queryKey: keys.diff(proposalId),
@@ -505,7 +576,28 @@ export function useDecideProposal(proposalId: string) {
   return { accept, dismiss };
 }
 
-export const downloadUrl = (kind: RenderKind, format: "docx" | "md") =>
-  `/api/renders/${kind}/download?format=${format}`;
+/**
+ * Restore (S14). It APPENDS a version rather than erasing the ones after it,
+ * so everything that reads a version list or a render's status is refreshed.
+ */
+export function useRestoreVersion(kind: RenderKind) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (versionId: string) =>
+      api<{ newVersionNo: number; sourceVersionNo: number }>(
+        `/api/renders/${kind}/versions/${versionId}/restore`,
+        { method: "POST" },
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.versions(kind) });
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
+  });
+}
+
+/** `versionId` omitted means the current version — the server's own default. */
+export const downloadUrl = (kind: RenderKind, format: "docx" | "md", versionId?: string) =>
+  `/api/renders/${kind}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
 
 export type { RenderContent };

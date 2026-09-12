@@ -22,6 +22,7 @@ import { Overview } from "./screens/overview";
 import { Record } from "./screens/record";
 import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
+import { VersionHistoryScreen } from "./screens/version-history";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -97,12 +98,19 @@ const diffReviewRoute = createRoute({
   component: DiffReview,
 });
 
+const versionHistoryRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/renders/$kind/history",
+  component: VersionHistoryScreen,
+});
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   profileRoute,
   recordRoute,
   factReviewRoute,
   diffReviewRoute,
+  versionHistoryRoute,
 ]);
 
 export const router = createRouter({
@@ -117,4 +125,4 @@ declare module "@tanstack/react-router" {
   }
 }
 
-export { factReviewRoute, diffReviewRoute };
+export { factReviewRoute, diffReviewRoute, versionHistoryRoute };
