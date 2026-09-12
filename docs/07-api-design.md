@@ -468,9 +468,28 @@ derived on each request, the identity block is read from the profile row, the su
 stamped in Tokyo and 満N歳 computed against it, and the only generated text in the file is the two
 prose cells (`docs/04` §4).
 
+**`POST /api/renders/:kind/versions` refuses four ways and warns a fifth.** It edits the CURRENT
+version and nothing else: an edit whose `basedOnVersionId` is not current → `409 conflict` with
+`details.currentVersionId`, and an edit made while a proposal is pending → `409 conflict` with
+`details.proposalId`, because accepting that proposal afterwards would silently discard the edit.
+A payload that changes nothing → `409`; one that is malformed, empties the document, or has two
+blocks claiming one id → `422 validation_failed`. A block citing a fact the record does not hold,
+or one a generation would have been forbidden to use, → `422` with `details.facts` carrying
+`{ factId, problem }` — the same shape a refused download returns, and never any claim text.
+
+**The `201` carries `warnings`**, from the attribution instrument's three judgement findings: a
+fact filed to no employer sitting under an employer heading, a fact filed to a different employer
+than its heading names, and a heading naming no employer in the record. They are advisory
+**because they are judgements about headings**, and an author restructuring a section by hand may
+be right where the checker is wrong; refusing on them would block the edit this route exists to
+serve. They arrive after the write, which is why they land on the editor's saved state rather than
+beside the draft (`docs/10` Screen 6).
+
 **`warnings`** on the `202` is an array of strings, advisory and never blocking — it never delays or
 prevents the generation it is returned with. Today only 履歴書 produces one, for an unexplained gap
-between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`.
+between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`. The `warnings` on a hand
+edit's `201` are a different set from a different check, described above, and share only the rule
+that neither ever blocks.
 
 ---
 

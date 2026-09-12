@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screen 5 (version history) added 2026-09-12
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -279,8 +279,10 @@ already spoken for (`05-design-system.md` §1).
 4. **Ancestry line** — present whenever `source_version_id` is set: `Restored from v2` /
    `Edited from v4`. A history that shows the origin but not the parent says an edit happened
    without saying to what.
-5. **Actions**, right-aligned — `Download` (ghost) and `Compare` (ghost). `Compare` opens the
-   restore preview; it is absent on the current version, which has nothing to be restored from.
+5. **Actions**, right-aligned — `Download` (ghost), `Compare` (ghost) and `Edit` (ghost).
+   `Compare` opens the restore preview; it is absent on the current version, which has nothing to
+   be restored from. `Edit` opens Screen 6 and is present **only** on the current version, because
+   the route refuses an edit made against any other and a control that is refused is not offered.
 
 **Dismissed proposals** render on `card-recessed` at `.5` opacity with the mono meta
 `DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
@@ -327,9 +329,11 @@ screen promises a document it does not produce.
 
 ### Rules
 
-- **No editor here.** The screen reads versions and restores them; the hand-edit route stays
-  API-only until the editing surface gets its own specification. A textarea added to this screen
-  would also have nowhere to put the route's attribution warnings.
+- **No editing here — the editor is its own screen.** This screen reads versions and restores
+  them; `Edit` is a link to Screen 6 and nothing on this one is typeable. The earlier rule said
+  the hand-edit route stays API-only "until the editing surface gets its own specification", and
+  the reason it gave for keeping a textarea off this screen — the route's attribution warnings
+  would have nowhere to land — is what Screen 6 §Saved answers.
 - **Rows are keyboard-operable** — each row is focusable, `Enter` opens `Compare`, and the preview
   is dismissible with `Escape`. Screens 1 and 2 both shipped without this and both needed a bug.
 - **Nothing on this screen deletes anything.** There is no discard, no prune, no "clean up old
@@ -347,6 +351,130 @@ screen promises a document it does not produce.
 | **Restore refused — the target cites a fact that can no longer be rendered** | The server's `422` in place, listing the fact ids in the mono IDENTIFIER role (`docs/05` §2) and the reason per id (unknown · not accepted · Private · Generated). Stated as a dead end with a route out — fix the fact, or restore a different version — never as a retry |
 | **Restore succeeded** | Return to the history with the new version at the top, marked `Current`, its ancestry line reading `Restored from v<m>` |
 | **Staleness after a restore** | Screen 3 may now report the document as stale where it did not before. This is correct and is not an error state — the content moved back to an older era of the record |
+
+---
+
+## Screen 6 — Edit a version
+
+**Added 2026-09-12** (issue #18). S16. The hand-edit route landed on 2026-09-11 and Screen 5
+deliberately refused to host it; this is the surface it was waiting for.
+
+**Purpose.** Change the current version of one document by hand and save the change as a new
+version. It is the only place in the app where the author's own sentence enters a render, and the
+only place a block citing a fact that can no longer be rendered can be edited out.
+
+**Interaction model:** a **focused task** — no sidebar, like fact review and diff review. There is
+unsaved work on this screen, and a nav row that discards it on a click is the failure mode.
+
+Reached from `Edit` on the current-version row of Screen 5. Route: `/renders/:kind/edit`.
+
+**It always edits the current version.** The route refuses an edit made against any other
+(`docs/07` §7), so the screen never asks which version it is editing; it reads the current one and
+says so in the header.
+
+### Layout
+
+| Region | Spec |
+|---|---|
+| Header (46px) | Title `<render name> · editing v<n>` · contextual note `Saving creates v<n+1>. v<n> stays readable and downloadable.` in `text-dimmer` · right: `Cancel` (secondary) and `Save as v<n+1>` (primary) |
+| Content column | `max-width 940px`, centred. One `Panel` per section, newest-to-oldest order untouched — the document's own order is the only order |
+| Block text | Capped at the long-form reading measure, **740px**. Its controls sit in the gutter to the right of that measure |
+
+**Japanese render names and Japanese block text use the mixed font stack**, as everywhere a render
+is shown.
+
+### The section
+
+A section is its **heading**, editable inline, and its blocks. Section `key` is never shown and
+never editable: it is how the builder finds a section (`PROSE_SECTION_KEYS` for 履歴書), and an
+author cannot be asked to preserve a value they are not shown.
+
+**Sections are not added or removed on this screen.** A section is a property of the render's
+shape, not of one version of it.
+
+**A section with no blocks disappears from the document and keeps its heading.** Both builders skip
+an empty section (`src/render/markdown.ts`, `src/render/docx.ts`), so emptying one is a legal way
+to drop a section from the output without losing the ability to refill it. The panel states this
+where it happens, rather than leaving a heading that looks broken: `This section is empty and will
+not appear in the document.`
+
+### The block
+
+| Part | Spec |
+|---|---|
+| Text | Inline `contenteditable`, not a boxed input — the fact-claim control of `05-design-system.md` §7, at the render body size. Commits on blur |
+| Kind | A bullet shows its `•`; a paragraph shows nothing. The kind is not a control |
+| Citations | Below the text: each cited fact id in the mono IDENTIFIER role (`05` §2), each with a bare `×` labelled `Remove citation`. A block citing nothing shows nothing |
+| Controls (gutter) | `Move up` · `Move down` · `Delete`, all bare. Each is absent, not disabled, where it cannot apply — the first block has no `Move up` |
+
+**`Escape` inside a block's text abandons that block's uncommitted change** and restores the text
+as it was when focus entered. Every other screen commits on blur with no way back; here a block is
+the unit of work and it needs one.
+
+### What an edit may change, and what it may not
+
+- **Text, freely.** What a hand-typed sentence *says* is not checkable by any code — the author is
+  the discloser, and a check that pretended otherwise would read as a guarantee it is not.
+- **Structure, freely within a section.** A block added, deleted, or moved up and down. This is the
+  S16 acceptance verbatim, and both real hand edits were structural.
+- **A block does not move between sections.** Moving it changes which employer heading it sits
+  under, which changes what the document claims about whose work it was. Deleting it and typing it
+  where it belongs is one action longer and says what happened.
+- **Citations are removed, never added.** Removal is the stated way out of a version citing a fact
+  that has since gone Private, Generated or un-accepted (Screen 5, `docs/07` §7). Adding is a fact
+  picker, which S16 does not ask for and which an empty `factIds` list makes unnecessary: empty is
+  legal by construction. **A hand-typed block therefore cites nothing**, which is the honest
+  reading of it — it is the author's sentence, not a fact's.
+- **New blocks are paragraphs or bullets.** `row` is a legal kind that no generator produces and
+  that both builders render as a paragraph; it is not offered. An existing `row` block is edited as
+  prose and keeps its kind.
+- **Block ids are never the client's to choose.** An id is a handle on a block's history and the
+  diff addresses blocks by it. A new block carries a client-local key that the server discards and
+  replaces (`src/render/edit.ts`).
+
+### 履歴書 only — the same caveat as Screen 5
+
+`Editing changes the summary text only — the education, employment and qualification tables always
+reflect your record as it is now.` Stated below the header, for the same reason Screen 5 states it:
+without the line the screen promises a document it does not produce.
+
+### Saving
+
+`Save as v<n+1>` is **disabled with its reason stated** (`05` §6) until the draft differs from the
+loaded version. Sameness is decided by `sameContent` from `src/render/edit.ts` — **the client
+imports the server's own comparison** rather than writing a second one, so "That edit changes
+nothing" cannot mean two different things on the two sides of the request.
+
+`Cancel` with unsaved work asks in place — `Discard your changes?` with `Discard` and
+`Keep editing`. With no unsaved work it returns to the version history without asking.
+
+### Saved
+
+**This is where the route's attribution warnings land**, and the reason the editor is a screen
+rather than a control on Screen 5.
+
+`POST /api/renders/:kind/versions` returns `201` with `warnings`: a fact filed to no employer
+sitting under an employer heading, a fact filed to a different employer than its heading names, a
+heading naming no employer in the record. They are **advisory and never refusals** — an author
+restructuring a section by hand may be right where the checker is wrong (`docs/07` §7).
+
+- **No warnings:** the work is done and there is nothing to say. Go to the version history, where
+  the new version is at the top marked `Current`, its ancestry line reading `Edited from v<n>`.
+- **Warnings:** stay, and replace the editor with a saved panel — `Saved as v<n+1>.`, then
+  `Worth checking:` and one line per warning, then `Back to version history` (primary) and a
+  `Download v<n+1>` control. The version is already saved and nothing here can undo it; the panel
+  informs, it does not ask.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | Panel skeletons. The header shows the render name and waits for the version number rather than rendering `v0` |
+| **Not generated yet** | `This document has not been generated yet.` — the Screen 5 sentence, because reaching the editor for a render with no current version is the same nothing. The action is `Go to version history` rather than a second `Generate`: generation belongs on the screen that reads what it produced, and a second copy of that control is a second place to keep right |
+| **Refused — a proposal is waiting** | The server's `409` in the footer, naming the proposal and linking to it. The author decides the proposal first. The draft is **kept**: nothing was saved, and discarding the author's typing to report someone else's proposal would be the second loss |
+| **Refused — the version moved underneath** | The server's `409`, with `Reload and edit again` as the action. The draft cannot be carried across: it was made against a document that no longer exists as current |
+| **Refused — a block cites a fact that can no longer be rendered** | The server's `422` in the footer, then the way out: `Remove the citation, or delete the block, and save again.` **The blocks citing those ids are marked in place** — amber, which is "not usable yet" (`05` §1) and not a generic warning — so the author reads the refusal and sees where it lives. The ids are listed under the message, in the mono IDENTIFIER role with the reason per id (unknown · not accepted · Private · Generated), **only when there are two or more**: with one fact the server's own sentence already names it, and repeating it says the same thing twice. With two or more the message names the first plus `(and N others)`, so the list is the only place the rest are said |
+| **Refused — the edit empties the document** | Prevented rather than reported: `Save` is disabled, stating `An edit cannot empty the document.` |
 
 ---
 

@@ -2518,3 +2518,74 @@ No new token. The identifier role reuses the existing 11px body size, which is a
 around it is set in, so the id sits on the line correctly instead of sinking below it.
 
 ---
+
+### [2026-09-12] S16 gets a screen, and the warnings postponed twice finally have somewhere to land
+
+The hand-edit route landed on 2026-09-11 and nothing called it. Screen 5 was specified the next day
+with the rule "No editor here", and gave two reasons: the editing surface had no specification, and
+a textarea on a read destination would have nowhere to put the warnings the route returns on its
+`201`. Both were right, and both were answers to "not on this screen" rather than to "where".
+
+Screen 6 is where. It is a **focused task with no sidebar**, on the same grounds as fact review and
+diff review: there is unsaved work on it, and a nav row that discards that work on a click is the
+failure mode. It always edits the CURRENT version, because the route refuses anything else, so the
+screen never asks which version it is editing and `Edit` appears only on the current row of the
+history. A control that would be refused is not offered.
+
+**The saved state is the whole reason it is a screen.** `editWarnings` runs after the write, so its
+findings cannot sit beside the draft the way a validation message would. With no warnings the work
+is done and there is nothing to say, so the screen leaves for the version history, where the new
+version is at the top marked `Current`. With warnings it stays and replaces the editor with a panel
+that states them. The version is already saved and nothing on that panel can undo it: it informs,
+it does not ask. That asymmetry is deliberate. A confirmation with nothing to confirm is ceremony,
+and the only thing that ever justifies keeping the author here is something they have not read yet.
+
+Four scope decisions, each of which could have gone the other way:
+
+**Citations are removed, never added.** Removal had to exist: a version citing a fact that has since
+gone Private is refused on download and on restore, and Screen 5 already told the author to "edit
+the block out into a new version" on a surface that did not exist. Adding is a fact picker, which
+S16 does not ask for and which an empty `factIds` list makes unnecessary, since empty is legal by
+construction for headings, scaffolding and rows copied from an entity table. So a hand-typed block
+cites nothing. That reads as a gap against S6 and is not one: the sentence is the author's, not a
+fact's, and attaching a fact to it would claim evidence that the author did not draw it from.
+
+**A block does not move between sections.** Within a section it moves freely. Across one it would
+change which employer heading it sits under, and therefore what the document claims about whose
+work it was. Deleting it and typing it where it belongs is one action longer and says what happened.
+
+**Section headings are editable; section keys are not shown.** The key is how the builder finds a
+section, `PROSE_SECTION_KEYS` being the sharpest case, and an author cannot be asked to preserve a
+value they are never shown.
+
+**A section emptied of blocks is legal and says so.** Both builders skip a section with no blocks,
+so emptying one drops it from the output while keeping the heading for a later edit to refill. The
+panel states that where it happens, because a heading with nothing under it otherwise reads as
+something broken rather than as something chosen.
+
+The client imports `sameContent` from `src/render/edit.ts` to decide whether `Save` is enabled,
+rather than writing a second comparison. "That edit changes nothing" is a refusal the server issues,
+and two implementations of it would eventually disagree about a trimmed space.
+
+What is still open is unchanged by this: the editor is reachable only from Screen 5, and Screen 3's
+Documents row still offers no route to it. That is a wayfinding gap, not a missing capability.
+
+---
+
+### [2026-09-12] A refusal names one id once
+
+The `422` in the editor was verified in a browser and read: "fct_0PeEhGWW2BvUtV0l is Private and
+never reaches a document. fct_0PeEhGWW2BvUtV0l is Private." The server's sentence names the fact,
+and the list under it named the same fact again.
+
+It is only a duplication in the single-fact case. From two facts up the message names the first plus
+"(and N others)", and the list becomes the only place the rest are said. So the rule is: render the
+list from two facts, and nothing at one.
+
+It was already known on the download dialog and left unfixed, and it would have shipped a third time
+here. Three surfaces state this refusal now: the download dialog, the restore footer on Screen 5 and
+the editor. The rule went into `WithheldFacts` in `download-button.tsx`, beside the `CITATION_PROBLEM`
+vocabulary it reads, and all three call it. Leaving the new screen right and the two old ones wrong
+would have been a worse outcome than either fixing all three or fixing none.
+
+---
