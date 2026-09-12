@@ -33,6 +33,35 @@ export interface WithheldFact {
 export const withheldFacts = (error: ApiError): WithheldFact[] =>
   (error.details.facts ?? []) as WithheldFact[];
 
+/**
+ * The ids under the refusal, on all three surfaces that state one: this dialog,
+ * the restore footer and the editor.
+ *
+ * **It renders nothing for a single fact.** The server's own sentence already
+ * names that one (`<id> is Private and never reaches a document`), and a list
+ * under it repeats the id to say the same thing twice. From two facts up the
+ * message names only the first plus `(and N others)`, so the list becomes the
+ * only place the rest are said, and it earns its space.
+ */
+export function WithheldFacts({
+  facts,
+  className = "text-smaller text-text-dimmer",
+}: {
+  facts: readonly WithheldFact[];
+  className?: string;
+}) {
+  if (facts.length < 2) return null;
+  return (
+    <>
+      {facts.map((fact) => (
+        <span key={fact.factId} className={`block mt-4 ${className}`}>
+          <MonoId>{fact.factId}</MonoId> {CITATION_PROBLEM[fact.problem] ?? "cannot be rendered"}.
+        </span>
+      ))}
+    </>
+  );
+}
+
 export function DownloadButton({
   kind,
   versionId,
@@ -103,11 +132,7 @@ function Refusal({ error, onClose }: { error: ApiError; onClose: () => void }) {
         <p role="alert" className="text-smaller text-text-secondary">
           {error.message}
         </p>
-        {facts.map((fact) => (
-          <p key={fact.factId} className="text-smaller text-text-dimmer">
-            <MonoId>{fact.factId}</MonoId> {CITATION_PROBLEM[fact.problem] ?? "cannot be rendered"}.
-          </p>
-        ))}
+        <WithheldFacts facts={facts} />
         {facts.length > 0 ? (
           <p className="text-smaller text-text-dimmer">
             A document obeys your record as it is today, not as it was when this version was
