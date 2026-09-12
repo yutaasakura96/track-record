@@ -5,17 +5,21 @@
  * Assembled on demand and never stored (`docs/03-technical-design.md` §6).
  */
 import type { RenderContent, RenderKind } from "~/shared/render-content";
-import { identityLines, type RenderIdentity } from "./identity";
+import { documentDate, identityLines, type RenderIdentity } from "./identity";
 
 export function toMarkdown(
   content: RenderContent,
   title: string,
   kind: RenderKind,
   identity: RenderIdentity,
+  today: string,
 ): string {
   const lines: string[] = [`# ${title}`, ""];
-  // The same identity block the `.docx` carries, from the same source, so the
-  // two formats of one version cannot disagree about whose document it is.
+  // The same 作成日 and the same identity block the `.docx` carries, from the
+  // same source, so the two formats of one version cannot disagree about whose
+  // document it is or when it was submitted.
+  const stamp = documentDate(kind, today);
+  if (stamp) lines.push(stamp, "");
   const header = identityLines(kind, identity);
   if (header.length > 0) lines.push(`**${header[0]}**`, ...header.slice(1), "");
   for (const section of content.sections) {

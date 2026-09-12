@@ -81,6 +81,50 @@ export function identityLines(kind: RenderKind, identity: RenderIdentity): strin
 }
 
 /**
+ * Does this kind carry a 作成日, and is its header therefore right-aligned?
+ *
+ * A third thing the renderer writes rather than the model, on the same argument
+ * as the name above: a date the model may drop or invent is not a guarantee,
+ * and this one is a fact about the submission rather than about the career.
+ *
+ * **Only the 職務経歴書.** A Japanese application document is dated at the top
+ * right, above 氏名, and one submitted undated reads as a draft — the author's
+ * own carries it. The English résumé is deliberately not dated: it is read
+ * months after it is written and a date on it only makes it look stale. The
+ * 履歴書 IS dated, but stamps its own date into a template cell
+ * (`src/render/rirekisho.ts`), so it takes nothing from here. The career
+ * stories are read on screen and are not documents to submit.
+ *
+ * The alignment travels with the date rather than living in a second map,
+ * because they are one convention: a dated Japanese application document puts
+ * the date and the name together in the top right corner.
+ */
+const STAMPS_A_DATE: Record<RenderKind, boolean> = {
+  english_resume: false,
+  rirekisho: false,
+  shokumu_keirekisho: true,
+  career_story_en: false,
+  career_story_ja: false,
+};
+
+export const isDated = (kind: RenderKind): boolean => STAMPS_A_DATE[kind];
+
+/**
+ * The 作成日 line, or null for a kind that carries none.
+ *
+ * `today` is `YYYY-MM-DD` in Japan Standard Time — see `tokyoToday`, and the
+ * reason the zone is fixed rather than the Worker's. Written 2026年9月12日 with
+ * no leading zeros, which is how a Japanese document writes a date and how the
+ * author's own 職務経歴書 writes it.
+ */
+export function documentDate(kind: RenderKind, today: string): string | null {
+  if (!STAMPS_A_DATE[kind]) return null;
+  const [year, month, day] = today.split("-");
+  if (!year || !month || !day) return null;
+  return `${Number(year)}年${Number(month)}月${Number(day)}日`;
+}
+
+/**
  * The name for `docProps/core.xml`. Latin for the English renders and kanji for
  * the Japanese ones, so the file's author reads the way the file does.
  */

@@ -756,7 +756,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const identity = await renderIdentity(db, user.id);
 
     if (format === "md") {
-      return new Response(toMarkdown(content, title, kind, identity), {
+      return new Response(toMarkdown(content, title, kind, identity, tokyoToday()), {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
           "content-disposition": `attachment; filename="${filename}"`,
@@ -766,7 +766,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     let bytes: Uint8Array;
     try {
-      bytes = await toDocx(content, title, kind, identity);
+      bytes = await toDocx(content, title, kind, identity, tokyoToday());
     } catch {
       // The download fails; the stored content is untouched and the next
       // download can succeed.

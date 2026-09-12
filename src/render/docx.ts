@@ -11,7 +11,7 @@
  */
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
-import { documentAuthor, identityLines, type RenderIdentity } from "./identity";
+import { documentAuthor, documentDate, identityLines, isDated, type RenderIdentity } from "./identity";
 
 export const DOCX_MIME =
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -21,6 +21,7 @@ export async function toDocx(
   title: string,
   kind: RenderKind,
   identity: RenderIdentity,
+  today: string,
 ): Promise<Uint8Array> {
   const children: Paragraph[] = [
     new Paragraph({
@@ -30,13 +31,28 @@ export async function toDocx(
     }),
   ];
 
+  // A dated Japanese application document puts the 作成日 and 氏名 together in
+  // the top right corner; an undated one reads as a draft. Which kinds are
+  // dated, and therefore right-aligned, is decided in `./identity.ts`.
+  const align = isDated(kind) ? AlignmentType.RIGHT : AlignmentType.CENTER;
+  const stamp = documentDate(kind, today);
+  if (stamp) {
+    children.push(
+      new Paragraph({
+        alignment: align,
+        children: [new TextRun({ text: stamp, size: 20 })],
+        spacing: { after: 40 },
+      }),
+    );
+  }
+
   // The identity block — the only content not written from facts. See
   // `./identity.ts` for why the renderer writes it and the model does not.
   const [name, ...contact] = identityLines(kind, identity);
   if (name) {
     children.push(
       new Paragraph({
-        alignment: AlignmentType.CENTER,
+        alignment: align,
         children: [new TextRun({ text: name, bold: true, size: 26 })],
         spacing: { after: contact.length > 0 ? 40 : 240 },
       }),
@@ -45,7 +61,7 @@ export async function toDocx(
   if (contact.length > 0) {
     children.push(
       new Paragraph({
-        alignment: AlignmentType.CENTER,
+        alignment: align,
         children: [new TextRun({ text: contact.join(" · "), size: 20 })],
         spacing: { after: 240 },
       }),
