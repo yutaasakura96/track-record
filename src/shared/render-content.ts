@@ -52,6 +52,27 @@ export const RENDER_LANGUAGE: Record<RenderKind, "en" | "ja"> = {
   career_story_ja: "ja",
 };
 
+/**
+ * The format a render is taken away in.
+ *
+ * Three of the five are documents somebody is sent, and a Japanese hiring
+ * process expects a file it can open in Word. The two career stories are not
+ * sent to anybody: they are read by the author before an interview, and
+ * `docs/06` (2026-08-20) put them outside the `.docx` path for that reason.
+ * Offering one a `.docx` button would be offering to produce a submission
+ * document out of the one render that is not one.
+ *
+ * The download route serves either format for any kind — this decides which the
+ * screen offers, so that the affordance and the decision agree.
+ */
+export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, "docx" | "md"> = {
+  english_resume: "docx",
+  rirekisho: "docx",
+  shokumu_keirekisho: "docx",
+  career_story_en: "md",
+  career_story_ja: "md",
+};
+
 export const RENDER_TITLE: Record<RenderKind, string> = {
   english_resume: "Résumé (English)",
   rirekisho: "履歴書",

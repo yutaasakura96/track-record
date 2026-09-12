@@ -14,7 +14,7 @@
 import { useEffect, useState } from "react";
 import { ApiError, downloadRender } from "../api";
 import { MonoId } from "./ui";
-import type { RenderKind } from "~/shared/render-content";
+import { RENDER_DOWNLOAD_FORMAT, type RenderKind } from "~/shared/render-content";
 
 /** What a refusal says per id, in the author's words rather than the column's. */
 export const CITATION_PROBLEM: Record<string, string> = {
@@ -65,7 +65,7 @@ export function WithheldFacts({
 export function DownloadButton({
   kind,
   versionId,
-  label = "Download .docx",
+  label,
   className = "border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary",
 }: {
   kind: RenderKind;
@@ -75,6 +75,10 @@ export function DownloadButton({
 }) {
   const [refusal, setRefusal] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
+  // The two career stories are read on screen and are not submission documents,
+  // so what they offer is the Markdown they are read in rather than a `.docx`
+  // nobody will be sent (`~/shared/render-content`).
+  const format = RENDER_DOWNLOAD_FORMAT[kind];
 
   return (
     <>
@@ -86,7 +90,7 @@ export function DownloadButton({
           setRefusal(null);
           setBusy(true);
           try {
-            await downloadRender(kind, "docx", versionId);
+            await downloadRender(kind, format, versionId);
           } catch (error) {
             if (error instanceof ApiError) setRefusal(error);
             else throw error;
@@ -95,7 +99,7 @@ export function DownloadButton({
           }
         }}
       >
-        {busy ? "Preparing…" : label}
+        {busy ? "Preparing…" : (label ?? `Download .${format}`)}
       </button>
       {refusal ? <Refusal error={refusal} onClose={() => setRefusal(null)} /> : null}
     </>
