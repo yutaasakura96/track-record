@@ -327,8 +327,10 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**. 履歴書 is `docx` only |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
-| `GET` | `/api/renders/:kind/versions` | M2 | Accepted versions **and** dismissed proposals, visibly distinct |
-| `POST` | `/api/renders/:kind/versions/:id/restore` | M2 | Creates a **new** version; history is never erased |
+| `GET` | `/api/renders/:kind/versions` | M1 | The version history. **Versions only** — the screen merges the dismissed proposals in, and a merged payload would hand every consumer a discriminated union to unpack (decision log, 2026-09-12) |
+| `GET` | `/api/proposals?kind=` | M1 | One render's proposals, decided and undecided. The other half of the history: a **dismissed** proposal is retained and is not a version |
+| `GET` | `/api/renders/:kind/diff` | M1 | `?from=&to=` — two **versions** of one render, the restore preview. `from` is the left column. Never names a proposal; proposals keep their own diff route |
+| `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
 
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.
