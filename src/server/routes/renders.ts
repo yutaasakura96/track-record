@@ -89,7 +89,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       throw preconditionFailed(
         inputs.acceptedFactCount === 0
           ? "There are no accepted facts to generate from yet."
-          : "Every accepted fact is either unverified or private, so none can be used in a document.",
+          : "Every accepted fact is either unverified or private, or belongs to an entry left out of this document, so none can be used.",
         ["facts"],
       );
     }

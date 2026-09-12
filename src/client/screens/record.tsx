@@ -21,16 +21,20 @@ import {
   useEntities,
   useEntityActions,
   useProfile,
+  useRenderInclusions,
+  useSetRenderInclusion,
   type Certification,
   type Education,
   type Employer,
   type EntityKey,
+  type IncludableEntity,
   type Project,
   type Role,
 } from "../api";
 import { Button, Mono, Panel } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
 import { fromMonth, toMonth } from "~/shared/calendar";
+import { RENDER_KINDS, RENDER_TITLE } from "~/shared/render-content";
 
 /* ------------------------------------------------------------------ fields */
 
@@ -317,10 +321,10 @@ export function Record() {
 
         <div className="flex-1 overflow-y-auto px-20 py-26">
           <div className="mx-auto w-content max-w-full grid gap-20">
-            <EntitySection section={EMPLOYERS} employers={rows} />
+            <EntitySection section={EMPLOYERS} employers={rows} inclusion="employer" />
             <EntitySection section={ROLES} employers={rows} />
-            <EntitySection section={PROJECTS} employers={rows} />
-            <EntitySection section={EDUCATIONS} employers={rows} />
+            <EntitySection section={PROJECTS} employers={rows} inclusion="project" />
+            <EntitySection section={EDUCATIONS} employers={rows} inclusion="education" />
             <EntitySection section={CERTIFICATIONS} employers={rows} />
           </div>
         </div>
@@ -332,9 +336,12 @@ export function Record() {
 function EntitySection<T extends { id: string }>({
   section,
   employers,
+  inclusion,
 }: {
   section: Section<T>;
   employers: Employer[];
+  /** The three S13 names carry it. A role follows its employer; certifications carry none. */
+  inclusion?: IncludableEntity;
 }) {
   const query = useEntities<T>(section.key);
   const actions = useEntityActions(section.key);
@@ -406,6 +413,7 @@ function EntitySection<T extends { id: string }>({
                     </Button>
                   </div>
                 </div>
+                {inclusion ? <AppearsIn entityType={inclusion} entityId={item.id} /> : null}
                 {open ? (
                   <EntityForm
                     section={section}
@@ -429,6 +437,51 @@ function EntitySection<T extends { id: string }>({
         />
       ) : null}
     </Panel>
+  );
+}
+
+/**
+ * Which renders this entry appears in (S13, `docs/10` Screen 4).
+ *
+ * Checked unless the author unchecked it. Unchecking takes the entry and the
+ * facts filed under it out of that render's generation input and changes
+ * nothing else on this screen. Nothing renders until the settings have loaded,
+ * because every box would otherwise read as checked for a moment and a box
+ * that flips on its own is a box nobody trusts.
+ */
+function AppearsIn({ entityType, entityId }: { entityType: IncludableEntity; entityId: string }) {
+  const inclusions = useRenderInclusions();
+  const setInclusion = useSetRenderInclusion();
+  if (!inclusions.data) return null;
+
+  const excluded = new Set(
+    inclusions.data.items
+      .filter((i) => i.entityType === entityType && i.entityId === entityId && !i.included)
+      .map((i) => i.kind),
+  );
+
+  return (
+    <div role="group" aria-label="Appears in" className="flex flex-wrap items-center gap-12 px-10 pb-10">
+      <span className="text-smaller text-text-faint">Appears in</span>
+      {RENDER_KINDS.map((kind) => (
+        <label key={kind} className="flex items-center gap-6 text-smaller text-text-dim">
+          <input
+            type="checkbox"
+            className="size-icon accent-accent"
+            checked={!excluded.has(kind)}
+            onChange={(event) =>
+              setInclusion.mutate({ entityType, entityId, kind, included: event.target.checked })
+            }
+          />
+          {RENDER_TITLE[kind]}
+        </label>
+      ))}
+      {setInclusion.error ? (
+        <span role="alert" className="text-smaller text-removed">
+          That setting was not saved.
+        </span>
+      ) : null}
+    </div>
   );
 }
 

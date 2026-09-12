@@ -28,6 +28,7 @@ import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
+import { excludesProject, exclusionsFor } from "./inclusion";
 
 export interface RenderInputs {
   facts: RenderFact[];
@@ -159,10 +160,27 @@ export async function collectRenderInputs(
     (f) => f.disclosure !== "private" && f.provenance === "generated",
   );
 
-  // Both filters run here, before the request is built. Nothing downstream can
+  // S13. An entry left out of THIS render takes its facts with it: a fact filed
+  // under an employer the document has no section for is a fact the model has
+  // nowhere to put, and that is what `unfiled-fact` reports (`docs/06`,
+  // 2026-09-13). A role follows its employer: roles are read only through the
+  // employers that remain.
+  const excluded = await exclusionsFor(db, userId, kind);
+  const includedEmployers = employerRows.filter((e) => !excluded.employer.has(e.id));
+  const includedProjects = projectRows.filter((p) => !excludesProject(excluded, p));
+  const includedEducations = educationRows.filter((e) => !excluded.education.has(e.id));
+  const excludedProjectIds = new Set(
+    projectRows.filter((p) => excludesProject(excluded, p)).map((p) => p.id),
+  );
+
+  // Every filter runs here, before the request is built. Nothing downstream can
   // reintroduce an excluded fact, because nothing downstream ever sees one.
   const usable = accepted.filter(
-    (f) => f.disclosure !== "private" && f.provenance !== "generated",
+    (f) =>
+      f.disclosure !== "private" &&
+      f.provenance !== "generated" &&
+      !(f.employerId !== null && excluded.employer.has(f.employerId)) &&
+      !(f.projectId !== null && excludedProjectIds.has(f.projectId)),
   );
 
   // Bound before the facts are mapped, not after: the employer and project
@@ -205,7 +223,7 @@ export async function collectRenderInputs(
       register: definition.register,
       // Newest-first out of SQL; the document decides whether it stays that
       // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
-      employers: inDocumentOrder(employerRows, "newest_first", definition.chronology).map((e) => ({
+      employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e) => ({
         id: e.id,
         // The same language rule the role titles below follow, and for the same
         // reason. This read `nameLatin ?? nameJa` until the first 職務経歴書 was
@@ -237,7 +255,7 @@ export async function collectRenderInputs(
           return title ? [{ title, startedOn: r.startedOn, endedOn: r.endedOn }] : [];
         }),
       })),
-      projects: projectRows.map((p) => ({
+      projects: includedProjects.map((p) => ({
         id: p.id,
         // As above. The register copies this into a プロジェクト row, so a
         // Japanese document wants the Japanese name where the record has one.
@@ -251,7 +269,7 @@ export async function collectRenderInputs(
       // to put them in (`docs/06`, 2026-09-13).
       workOutsideEmployment:
         renderFacts.some((f) => f.employer === undefined) ||
-        projectRows.some((p) => p.employerId === null),
+        includedProjects.some((p) => p.employerId === null),
       // Read from the profile row the caller already fetched? No — this
       // function owns the payload, and a field the route had to remember to
       // pass is a field the route will one day forget. Empty string and null
@@ -262,7 +280,7 @@ export async function collectRenderInputs(
       // The same language rule a role title follows, with one difference: the
       // Latin name is required by the schema and the Japanese one is optional,
       // so only the Japanese render needs a fallback.
-      educations: inDocumentOrder(educationRows, "oldest_first", definition.chronology).map((e) => ({
+      educations: inDocumentOrder(includedEducations, "oldest_first", definition.chronology).map((e) => ({
         id: e.id,
         institution:
           definition.language === "ja" ? (e.institutionJa ?? e.institution) : e.institution,

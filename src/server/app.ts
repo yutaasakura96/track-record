@@ -20,6 +20,7 @@ import { registerAuthRoutes } from "./routes/auth";
 import { registerProfileRoutes } from "./routes/profile";
 import { registerRecordRoutes } from "./routes/record";
 import { registerCredentialRoutes } from "./routes/credentials";
+import { registerInclusionRoutes } from "./routes/inclusions";
 import { registerImportRoutes } from "./routes/imports";
 import { registerFactRoutes } from "./routes/facts";
 import { registerRenderRoutes } from "./routes/renders";
@@ -54,6 +55,7 @@ export function createApp(options: AppOptions = {}) {
   registerProfileRoutes(app);
   registerRecordRoutes(app);
   registerCredentialRoutes(app);
+  registerInclusionRoutes(app);
   registerImportRoutes(app);
   registerFactRoutes(app);
   registerRenderRoutes(app);

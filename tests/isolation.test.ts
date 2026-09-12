@@ -206,6 +206,24 @@ describe("one user's record is unreachable from another's session", () => {
     expect(((await response.json()) as { error: { code: string } }).error.code).toBe("not_found");
   });
 
+  it("cannot set another user's entry in or out of a render", async () => {
+    // The table names its entry by id with no foreign key, so ownership is the
+    // route's to check. Without it one user could empty another's documents.
+    for (const [entityType, entityId] of [
+      ["employer", b.employerId],
+      ["project", b.projectId],
+    ]) {
+      const response = await a.client.put("/api/render-inclusions", {
+        entityType,
+        entityId,
+        kind: "english_resume",
+        included: false,
+      });
+      expect(response.status, entityType).toBe(404);
+    }
+    expect((await b.client.json<{ items: unknown[] }>("/api/render-inclusions")).items).toEqual([]);
+  });
+
   it("cannot attach a project to another user's employer", async () => {
     const response = await a.client.post("/api/projects", {
       name: "borrowed",

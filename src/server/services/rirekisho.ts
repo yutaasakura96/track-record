@@ -16,6 +16,7 @@ import type { Db } from "../db/client";
 import { certifications, educations, employers, profiles, roles } from "../db/schema";
 import { preconditionFailed } from "../http/errors";
 import type { RirekishoProfile, RirekishoRecord } from "~/render/rirekisho";
+import { exclusionsFor } from "./inclusion";
 
 /**
  * The profile, narrowed to the columns the form has cells for.
@@ -110,8 +111,13 @@ export async function collectRirekishoRecord(
     .where(and(eq(certifications.userId, userId)))
     .orderBy(asc(certifications.issuedOn), asc(certifications.id));
 
+  // Left out of the 履歴書 by the author (S13). Filtered here as well as in
+  // `collectRenderInputs`, so the form that downloads is built from the rows
+  // the gap warning was computed over.
+  const excluded = await exclusionsFor(db, userId, "rirekisho");
+
   return {
-    educations: educationRows.map((e) => ({
+    educations: educationRows.filter((e) => !excluded.education.has(e.id)).map((e) => ({
       institution: e.institution,
       institutionJa: e.institutionJa,
       faculty: e.faculty,
@@ -120,7 +126,7 @@ export async function collectRirekishoRecord(
       outcome: e.outcome,
       level: e.level,
     })),
-    employers: employerRows.map((e) => ({
+    employers: employerRows.filter((e) => !excluded.employer.has(e.id)).map((e) => ({
       nameJa: e.nameJa,
       industryJa: e.industryJa,
       // Null when the employer has no role recorded, or when the entry role

@@ -321,6 +321,7 @@ export const keys = {
   overview: ["overview"] as const,
   renders: ["renders"] as const,
   entity: (key: EntityKey) => [key] as const,
+  inclusions: ["render-inclusions"] as const,
   importStatus: (id: string) => ["import", id] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
@@ -422,6 +423,36 @@ export function useEntityActions(key: EntityKey) {
   });
 
   return { create, update, remove };
+}
+
+export type IncludableEntity = "employer" | "education" | "project";
+
+export interface RenderInclusion {
+  entityType: IncludableEntity;
+  entityId: string;
+  kind: RenderKind;
+  included: boolean;
+}
+
+/**
+ * Which renders each employer, project and education appears in (S13).
+ *
+ * The server stores only the departures from the default, so an entry with no
+ * row is in every render and the screen reads it that way.
+ */
+export const useRenderInclusions = () =>
+  useQuery({
+    queryKey: keys.inclusions,
+    queryFn: () => api<{ items: RenderInclusion[] }>("/api/render-inclusions"),
+  });
+
+export function useSetRenderInclusion() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: RenderInclusion) =>
+      api<RenderInclusion>("/api/render-inclusions", { method: "PUT", ...json(body) }),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.inclusions }),
+  });
 }
 
 export const useOverview = () =>
