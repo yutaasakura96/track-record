@@ -2797,3 +2797,124 @@ optional. One side is always present, which is why it returns a name rather than
 which side at each call is what keeps a non-null assertion out of four call sites.
 
 ---
+
+### [2026-09-13] A career story's chapters are computed from the record, not chosen by the model
+
+S11 asks for two stories whose chapters "correspond one-to-one between languages". Every other
+register in this project names its sections and lets the model write them, and that cannot produce
+this. The two stories are two separate generations from the same facts; asked to invent their own
+chapters they will invent different ones, and a check run afterwards can only report that they did,
+after both have been paid for.
+
+So `src/render/chapters.ts` computes the chapters from the record and both prompts are handed the
+same list: an opening, one chapter per employer in the order the document reads them, the work done
+outside employment when the record holds a project belonging to no employer, where the career is
+going, and then the two tables S11 names. Correspondence is a property of the pair rather than a
+hope about it. It is the same move the Employers list already makes for names and dates: the thing
+that has to be exact is data the app supplies, not prose the model is asked to get right.
+
+It does not make the Japanese story a translation, which is the other half of the same acceptance
+criterion. The plan carries keys and a scope and never a sentence of the story, and neither call
+sees the other's output. Both are written from the facts into the same shape, which is what S11 asks
+for in as many words.
+
+**Every employer gets a chapter, including one with no facts behind it.** A story that skips an
+employment has a gap in it, and a gap is the first thing an interviewer asks about. That chapter is
+short and written from the Employers list, with no fact ids on it, exactly as the 職務経歴書's
+opening paragraph already is.
+
+**A generation whose chapters do not match the plan is refused rather than repaired.** Which chapter
+went missing is a question about prose nobody has read yet, and the pair is only a pair if both were
+written to the same plan. The call is billed either way; a stored document that silently fails the
+acceptance criterion is the more expensive of the two, because the diff gate would present it as
+finished.
+
+**The chronology is `oldest_first` for both.** 2026-09-10 left it null because "a career story's
+direction is a question about the story". The question has an answer the two dated documents do not
+share: this one is read as a narrative rather than scanned, and the author's own pair opens before
+the career was in software at all. Both stories state the same direction, and they have to. The plan
+is built from the employer list after the ordering has been applied, so two directions would be two
+plans and the correspondence would be gone.
+
+---
+
+### [2026-09-13] A planned chapter carries its employer's id, which is stronger than a heading
+
+`attribution.ts` resolves an employer group by matching its opening paragraph against the record's
+employer names, because the experience section carries no ids anywhere in it. A career story has no
+experience section at all: its employer chapters are separate sections, so invariants 2 and 3 would
+have passed over the longest employer prose in the system reporting nothing. That is the same
+blindness `uncited-copy` was built for a day earlier, and the second time it has been the checker
+rather than the register that had the gap.
+
+A chapter planned by the app knows which employer it is for, so its key says so and the check reads
+the id off the key. No name matching, no `unresolved-heading` on a heading that is a line of a story
+and may never name the employer. A key naming an employer the record does not hold still resolves to
+nothing and reports, because guessing is the one thing that module does not do.
+
+The prefix is duplicated in `attribution.ts` rather than imported from `chapters.ts`, which is the
+cost of that module having no imports so plain Node can load it. A test asserts the two are equal,
+the way `EXPERIENCE_SECTION` is already kept in step with `metrics.ts`.
+
+---
+
+### [2026-09-13] The button offers the format the render is actually taken away in
+
+Three of the five renders are documents somebody is sent and a Japanese hiring process expects a file
+Word can open. The two career stories are sent to nobody: 2026-08-20 put them outside the `.docx`
+path because they are read by the author before an interview, and `identity.ts` already states they
+carry no 作成日 for the same reason.
+
+The download control offered "Download .docx" for every kind regardless, so the first story generated
+would have offered to produce a submission document out of the one render that is not one. The format
+per kind is now stated once in `src/shared/render-content.ts` and the button reads it, so the
+affordance and the decision agree. The route still serves either format for any kind; what changed is
+what the screen offers.
+
+---
+
+### [2026-09-13] The first career story put a personal project under an employer
+
+The first English story generated came back structurally perfect and carried seven findings, every
+one of them `unfiled-fact`. Six were facts about a personal project, cited inside the current
+employer's chapter. The seventh was a fact recording a course taken between two employments, cited
+at the end of the earlier employer's chapter.
+
+Two faults, and only one of them was the register's.
+
+The register was missing the rule. Every other register in this project carries a line saying where
+a fact with no employer goes, and the story register said only that an employer chapter uses that
+employer's facts. It now says the rule outright, and says which sentence breaks it: the end of a
+chapter, where the job ends and the next thing the author did reaches for the fact that records it.
+
+The plan was missing the chapter. The independent-work chapter was conditioned on the Projects list
+holding a project with no employer, and this record holds that work as seven facts and no project
+row at all. So the register's rule, had it been there, would have had nowhere to send six facts. A
+rule with nowhere to send a fact is a rule a model will break, and the condition now reads the facts
+as well: the chapter exists when the record holds work outside employment, however that work is
+recorded. `RenderSpec` carries the answer as a field, computed where the facts and the projects are
+both in hand.
+
+With both fixed, the English story came back clean at 240 fact references in 68 blocks and the
+Japanese one clean at 249 in 61, four employer groups resolved in each. The Japanese story needed the
+second sentence of the register rule to get there: its first generation repeated the one citation at
+the end of a chapter, which is exactly the case that sentence names.
+
+**The check reached those chapters at all because the plan put the employer id in the key.** A story
+chapter is headed by a line of the story, and half of the pair's headings name no employer at all.
+Name matching had nothing to match.
+
+---
+
+### [2026-09-13] A document with no bullets is not a failed measurement
+
+`npm run measure` exited 1 on a career story, saying "No experience bullets found". Both stories are
+prose and two tables and carry no bullet anywhere by design, so that is an instrument reporting
+failure against a correct document, and an instrument that does that is one nobody can put in a
+check.
+
+The refusal was written for an empty render (2026-09-12) and the script could not tell the two apart,
+because it only ever read the bullets. It now reads the blocks as well. No blocks is still a refusal
+and still says a generation may be running; blocks with no bullets prints that there is nothing to
+measure and exits 0. "I cannot answer this question about this render" and "this render is wrong"
+are different answers, and the exit status is the half a script reads.

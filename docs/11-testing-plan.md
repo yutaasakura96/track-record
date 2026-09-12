@@ -248,10 +248,17 @@ Run before each milestone is called done.
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 
-**Item 4 cannot be run until the renders it checks exist.** Both career stories are
-`buildable: false` in `src/render/spec.ts`, so it has nothing to read and is **not part of the M1
-bar**. It arrives with the renders. "Never been run" and "cannot be run yet" are different states,
-and only the second one is true of it today.
+**Item 4 is runnable, and its structural half was run on 2026-09-13** against the first generated
+pair. Both stories became `buildable` that day. The structure is not a judgement and is not read by
+hand: both are generated from one computed chapter plan and a generation whose chapters do not match
+it is refused (`src/render/chapters.ts`, `docs/06` 2026-09-13). The pair came back with identical
+section keys in identical order, nine chapters each, block counts within one of each other in six of
+the nine, and the Japanese half running 9,558 characters to the English half's 22,003, which is the
+ratio the register asks for. Neither carries 貴社 or 御社; 98% of Japanese sentences end です・ます.
+
+**What is left of item 4 is the judgement, and only the author can make it**: whether the two
+chapters under one key tell the same story, and whether the Japanese one reads as Japanese rather
+than as the English one translated. Read the pair side by side, chapter by chapter.
 
 **Item 3 was run on 2026-09-12, against the second 職務経歴書 generated that day.** The register
 holds: no bullet ends in です・ます, no bullet uses a first-person pronoun, 体言止め is consistent
