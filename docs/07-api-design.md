@@ -535,7 +535,7 @@ its `Review N →` action.
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` `PUT` | `/api/skills/curation` | M2 | Derived candidates from `facts.technologies` ∪ `certifications.technologies`; author selects and orders. Stale skills flagged, never removed |
-| `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion. 履歴書 defaults to everything |
+| `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again |
 | `POST` | `/api/capture` | M3 | Free text in, a short interrogation, **Attested** facts out |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15) |
 

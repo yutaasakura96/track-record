@@ -234,6 +234,15 @@ employer exists, because a role belongs to one; and deleting an employer somethi
 surfaces the server's `409` message in place, rather than being pre-empted by a check the client
 would have to keep in step with the server.
 
+**Per-render inclusion** (S13, added 2026-09-13). Employer, project and education rows carry an
+`Appears in` line beneath the row: one checkbox per render, labelled with the render's name and
+checked unless the author has unchecked it. Unchecking leaves the entry out of that render's
+generation input and nothing else — the row stays on this screen, every other render still reads it,
+and the facts filed under it leave that render with it. A project under an unchecked employer leaves
+too. Saving is immediate, as it is for the forms. Roles and certifications carry no setting: a role
+follows its employer, and S13 does not name certifications. Changing a setting does not mark a
+document out of date, because staleness counts facts (`docs/06`, 2026-09-13).
+
 The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of
 reading it, and it appears on a resolved card as well as a candidate one so an already-reviewed
 import can be filed without re-importing.

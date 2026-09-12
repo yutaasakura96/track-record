@@ -2918,3 +2918,34 @@ because it only ever read the bullets. It now reads the blocks as well. No block
 and still says a generation may be running; blocks with no bullets prints that there is nothing to
 measure and exits 0. "I cannot answer this question about this render" and "this render is wrong"
 are different answers, and the exit status is the half a script reads.
+
+---
+
+### [2026-09-13] An entry left out of a render takes its facts with it
+
+S13 is a filter at the two collectors, `collectRenderInputs` and `collectRirekishoRecord`, reading
+`render_inclusions` for the one kind being built. A missing row means included, for every kind. The
+履歴書's default of everything is therefore the table's default rather than a rule someone has to
+remember, and an author who never opens the setting sees no change anywhere.
+
+**Excluding an employer removes its facts from that render too** (the author's call, taken before the
+issue was filed). So does excluding a project, and a project under an excluded employer leaves with
+the employer. Kept, those facts would reach the model with no section to be filed under, which is the
+shape of every `unfiled-fact` finding S10 and S11 produced. The rejected alternative was to drop only
+the heading and dates and let the facts surface in the summary or the skills.
+
+The career story needed no change for it. An excluded employer gets no chapter because the chapter
+plan is computed from the employers that reach the spec, and `workOutsideEmployment` is computed after
+the filter, so a project left out of a story does not conjure an independent-work chapter either.
+
+The 履歴書 gap warning runs over what the 履歴書 includes. Leaving an employer out of it opens a gap,
+and the warning says so. It still never blocks.
+
+Two limits are known and left:
+
+- **Changing an inclusion does not mark a document out of date.** `stale_since_fact_count` counts
+  facts, and an inclusion is not a fact. Revisit if a document generated before an exclusion is
+  submitted without being regenerated.
+- **Deleting an employer or an education leaves its inclusion rows behind.** The table has no foreign
+  key, because one column names three tables. The rows match no entry and filter nothing, but
+  `GET /api/render-inclusions` still returns them.
