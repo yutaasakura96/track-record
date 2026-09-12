@@ -1150,6 +1150,33 @@ describe("a version is restored", () => {
     expect(row.newFactsSince).toBe(1);
   });
 
+  /**
+   * The era travels with the content. A restore copies a version forward
+   * unchanged, so the new row records the era of what it is carrying rather
+   * than the day it was made — otherwise a restore of a restore would read its
+   * own creation date as the content's age and report a document from the
+   * three-fact era as current with the record (`docs/06`, 2026-09-12 second
+   * entry).
+   */
+  it("restores staleness through a restore of a restore", async () => {
+    const { v1, v2 } = await twoVersions();
+
+    await restore(v1.id); // v3, carrying the three-fact era
+    await restore(v2.id); // v4, carrying the four-fact one
+    const backUpToDate = await client.json<{ items: RenderRow[] }>("/api/renders");
+    expect(backUpToDate.items.find((i) => i.kind === "english_resume")!.status).toBe("up_to_date");
+
+    const v3 = (await history()).items.find((i) => i.versionNo === 3)!;
+    const response = await restore(v3.id); // v5, carrying v1's era through v3
+    expect(response.status).toBe(201);
+
+    const after = await client.json<{ items: RenderRow[] }>("/api/renders");
+    const row = after.items.find((i) => i.kind === "english_resume")!;
+    expect(row.currentVersionNo).toBe(5);
+    expect(row.status).toBe("stale");
+    expect(row.newFactsSince).toBe(1);
+  });
+
   it("refuses a restore while a proposal is waiting", async () => {
     const { record, v1 } = await twoVersions();
     await generate(resumeFrom([{ text: "A regenerated bullet", factIds: [record.measuredPublic.id] }]));

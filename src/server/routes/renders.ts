@@ -448,7 +448,6 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const highest = await highestVersionNo(db, user.id, render.id);
     const versionId = newId("renderVersion");
     const acceptedAt = new Date();
-    const accepted = await acceptedFactCount(db, user.id);
 
     await db.batch([
       db.insert(renderVersions).values({
@@ -460,7 +459,15 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         acceptedAt,
         origin: "restored",
         sourceVersionId: target.id,
-        factCountAt: accepted,
+        /**
+         * The TARGET's era, not today's. The column describes the content, and
+         * a restore copies the content forward unchanged, so the era comes
+         * with it. Writing today's count here would make a restore of a
+         * restore silently forget how old the content is, because the second
+         * restore would read the first one's creation date as its era
+         * (`docs/06`, 2026-09-12 second entry, superseding the first).
+         */
+        factCountAt: target.factCountAt,
       }),
       db
         .update(renders)
@@ -473,7 +480,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
            * smaller record, and the number describes the content rather than
            * the act that produced it. A render that was current before a
            * restore is usually stale after one, and saying so is the honest
-           * reading (`docs/06`, 2026-09-12).
+           * reading (`docs/06`, 2026-09-12). It is the new row's own
+           * `factCountAt` because the two now mean the same thing.
            */
           staleSinceFactCount: target.factCountAt,
           updatedAt: acceptedAt,
