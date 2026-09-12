@@ -110,6 +110,15 @@ export interface RenderSpec {
     startedOn: string;
     endedOn: string | null;
     businessDescription: string | null;
+    /**
+     * 資本金, in yen, and 従業員数. Conventional required fields of a 職務経歴書
+     * with no English-résumé equivalent (`docs/06`, 2026-08-12), which is why
+     * they are on the employer row rather than being facts. Null is ordinary
+     * and prints nothing: a private company does not always publish either, and
+     * a figure invented to fill the line is worse than an absent line.
+     */
+    capitalYen: number | null;
+    headcount: number | null;
     /** Titles held there, most recent first. A promotion is a second role. */
     roles: { title: string; startedOn: string; endedOn: string | null }[];
   }[];

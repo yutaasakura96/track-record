@@ -186,6 +186,13 @@ export async function collectRenderInputs(
         startedOn: e.startedOn,
         endedOn: e.endedOn,
         businessDescription: e.businessDescription,
+        // 資本金 and 従業員数. Carried on the employer row since the schema was
+        // first drawn and read by nothing until the 職務経歴書 register existed
+        // (`docs/06`, 2026-08-12). Passed through as stored — in yen, and as a
+        // headcount — because how they are WRITTEN is a question about the
+        // document: 400万円 is one render's wording of 4000000, not the record's.
+        capitalYen: e.capitalYen,
+        headcount: e.headcount,
         // An English render prefers the Latin title and a Japanese one the
         // Japanese title, but either is better than none, so each falls back to
         // the other. A role with neither carries no title and is dropped: it

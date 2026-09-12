@@ -93,6 +93,72 @@ Language:
 - If no preference is given, this cell is exactly 貴社規定に従います。 — the conventional wording, and correct rather than empty. factIds is empty.
 - Salary, hours, location and start date appear here only if the stated preference names them. Never invent a condition, and never soften or negotiate one the author wrote.`;
 
+const SHOKUMU_REGISTER = `Write a 職務経歴書 for a Japanese hiring manager who already has the author's 履歴書 in front of them.
+
+Sections, in this order, omitting any with nothing behind it:
+- "summary": 経歴要約. One paragraph. key "summary".
+- "skills": 活かせるスキル・経験. key "skills".
+- "experience": 職務経歴. key "experience".
+- "certifications": 保有資格. One row per entry. key "certifications".
+- "education": 学歴. One row per entry. key "education".
+- "self_pr": 自己PR. Paragraphs. key "self_pr".
+
+Language and voice:
+- Japanese. Half-width digits, full-width Japanese punctuation (、。).
+- TWO voices, and which goes where is convention rather than preference. "summary" and "self_pr" are written in です・ます体. "skills" and every bullet in "experience" are written 体言止め — the sentence ends on a noun or a 連用形 and never on です・ます. Never mix the two inside one section.
+- This document names no company it is being sent to. Neither 貴社 nor 御社 appears anywhere in it: 貴社 is the 履歴書's word for an employer it is addressed to, and this document is addressed to no one.
+- No self-assessment: not 優秀, not 抜群, not 圧倒的, not 誰よりも, not 情熱を持って. State what was done and let it be the claim.
+
+**The register, and it is the reason this document exists separately from the English résumé.** Both are written from the same facts. The English résumé opens each bullet on a past-tense action verb and leads with the outcome, because that is what its reader rewards. This one does not. Write what was built or done first and what it changed second, flatly, and let the number carry the claim. A sentence that would read as selling in Japanese reads as a defect here — the format rewards a reader being able to check you, not a reader being impressed.
+
+"experience" — the structure is FIXED, and getting it wrong silently breaks the checks that read this section:
+- Each employer is a GROUP. A group opens with exactly ONE block of kind "paragraph" and contains no other paragraph anywhere in it. Every other block in the group is "row" or "bullet". A second paragraph does not read as a sub-heading; it starts a new employer.
+- The opening paragraph carries the employer's name, the employment period and the role titles held there, all copied from the Employers list rather than written from the facts. factIds empty.
+- Then, in this order:
+  - "row" 事業内容：… — the employer's business description, copied from the Employers list. Omit the row entirely when the list gives none. factIds empty.
+  - "row" 資本金：…　従業員数：…名 — copied from the Employers list. **The list gives 資本金 already written the way this document writes it — copy that string and never convert the yen figure yourself.** Omit whichever of the two the list does not give, and omit the row when it gives neither.
+  - For each project in the Projects list belonging to this employer, in turn:
+    - "row" プロジェクト：<name> — the project name and, where the list gives one, its summary. factIds empty.
+    - "row" 技術的成果：
+    - the bullets for that project.
+  - "row" 主な実績： followed by the bullets written from this employer's facts that name no project — the employer-level outcomes. Omit the row and the bullets when every fact at this employer belongs to a project.
+  - "row" 技術スタック：… — the technologies the facts under THIS employer actually name, comma-separated, nothing invented and nothing carried over from another employer. This row lists factIds: it is assembled from facts, unlike the rows above it, which are copied from a list.
+- An employer with no projects in the Projects list has no プロジェクト rows and no 技術的成果 row. All of its bullets sit under 主な実績.
+
+How to write a bullet:
+- One bullet is written from SEVERAL facts, and usually should be. The facts arrive atomic — what was built, how it was built and what it changed each arrive as their own fact — and putting them back together is this document's job, not the record's. List every fact you used in factIds.
+- Weld facts describing the same piece of work at the same employer. Never weld across two employers, and never weld two unrelated pieces of work to make a longer bullet.
+- Keep the number. If any fact behind a bullet carries a quantity, a duration, a count, a version or a percentage, the finished bullet states it. Dropping a number to keep a bullet short is a defect, not concision.
+- No bullet runs longer than 120 characters. That is about half the English résumé's bound and carries about the same content, because Japanese says in one character roughly what English says in two. Check each bullet against the bound as you finish writing it.
+- A bullet over the bound is over because it welded one fact too many, not because its wording is loose. Cut the least load-bearing fact — the background, the tooling aside, the second consequence — and leave the rest whole. Do not split it into two bullets, which undoes the composition, and do not drop the number, which is what the bullet is for.
+- The hand-maintained 職務経歴書 this one replaces runs 21 outcome bullets averaging about 65 characters, and about three quarters of them carry a number. That average is the shape to aim at: most bullets sit well below the 120 bound, which is there for the few that do not. It is reached by composing, never by padding a thin bullet with words no fact supports.
+- A fact carrying no employer belongs in "summary", "skills" or "self_pr". It is never placed under an employer.
+
+"summary" — 経歴要約:
+- One paragraph, about 300 characters, in です・ます体. It is read first and often alone.
+- What the author does, the shape of the career, and the two or three pieces of evidence a reader would want before reading further. It may state a certification count; it does not list certifications, which print in full below.
+
+"skills" — 活かせるスキル・経験:
+- Three or four groups. Each group is a "row" holding a short noun-phrase label with factIds empty, followed by ONE "paragraph" of about 200 characters, 体言止め, listing factIds.
+- Group by what the author can DO, not by employer and not by technology family alone. The employment history is printed below and must not be restated here.
+
+"certifications" — 保有資格:
+- One row per entry in the Certifications list, in the order the list gives, copied from it. factIds empty.
+- 名称（YYYY年M月取得）. A qualification with no date recorded is written with the name alone.
+- **A driving licence DOES belong here.** 保有資格 is its conventional home in a Japanese application, which is the opposite of the English résumé's rule and is deliberate. A language qualification belongs here too, with its score.
+
+"education" — 学歴:
+- One row per entry in the Education list, in the order the list gives, copied from it. Institution, faculty or programme, and dates.
+- The level decides whether an entry belongs: omit one below upper-secondary level, and keep every other entry including a vocational programme and one whose level is not recorded. Never decide the level from the institution's name, and never write the level into the row.
+- An entry whose outcome says the course was left unfinished is written 中退, never as a completion. An entry still in progress is written 在学中. An entry giving only the month it finished is written with that month alone — do not supply a start month it does not give.
+- factIds empty.
+
+"self_pr" — 自己PR:
+- Three or four paragraphs, about 750 characters in total, です・ます体. Every paragraph lists the ids of the facts it was written from.
+- It is the one section that argues rather than reports, and it argues from the same facts: the through-line of the career, the strongest concrete piece of evidence for it, and what the author is looking to do next. Written from facts, not from adjectives.
+- It must not restate 職務経歴 employer by employer. That section is immediately above it.
+- No contact details, no portfolio link, no GitHub link. Those are the 履歴書's, and nothing in the record holds them.`;
+
 export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
   english_resume: {
     kind: "english_resume",
@@ -128,13 +194,39 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     // see `REQUIRED_PROFILE_FIELDS` in `src/render/rirekisho.ts`.
     requiredProfileFields: [...REQUIRED_PROFILE_FIELDS],
   },
+  /**
+   * The third buildable render, and the second Japanese one.
+   *
+   * Unlike the 履歴書 it is a FLOWING document with nothing fixed to preserve,
+   * so it takes the generic `toDocx` path the English résumé takes rather than
+   * a template (`docs/06`, 2026-08-20). Almost all of it is generated: the
+   * renderer writes only the title and the 氏名 header
+   * (`src/render/identity.ts`), and {@link SHOKUMU_REGISTER} writes the rest.
+   *
+   * The flip to `buildable` waited on the two things the other flips waited on
+   * and one more: a register that is not empty, a chronology, and 資本金 and
+   * 従業員数 reaching the prompt at all. The columns have been on `employers`
+   * since the schema was first drawn (`docs/06`, 2026-08-12) and were read by
+   * nothing until this register existed, so the acceptance criterion naming
+   * them was unmeetable however the register was written.
+   */
   shokumu_keirekisho: {
     kind: "shokumu_keirekisho",
     language: RENDER_LANGUAGE.shokumu_keirekisho,
-    buildable: false,
-    chronology: null,
-    register: "",
-    requiredProfileFields: [],
+    buildable: true,
+    // 逆編年体. `docs/06`, 2026-09-10 left this null because "a 職務経歴書 is
+    // written 編年体 or 逆編年体 and nothing in this project has chosen"; the
+    // author's own 職務経歴書 is written newest-first, and a document whose
+    // purpose is to be read against a career that is still moving leads with
+    // where that career is now. The 履歴書 remains the ascending one: its
+    // 学歴・職歴 table is a chronology, and this is an argument.
+    chronology: "newest_first",
+    register: SHOKUMU_REGISTER,
+    // The header is 氏名 in kanji (`src/render/identity.ts`), so a kanji name
+    // is what generation is blocked without. None of the restricted PII the
+    // 履歴書 requires appears on this document: 生年月日, 現住所 and 連絡先 live
+    // on the 履歴書 it is submitted alongside (`docs/04` §3.2).
+    requiredProfileFields: ["familyNameKanji", "givenNameKanji"],
   },
   career_story_en: {
     kind: "career_story_en",

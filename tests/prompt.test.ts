@@ -33,6 +33,21 @@ const education = (over: Partial<Education> = {}): Education => ({
   ...over,
 });
 
+type Employer = RenderSpec["employers"][number];
+
+const employer = (over: Partial<Employer> = {}): Employer => ({
+  id: "emp_test",
+  name: "架空商事株式会社",
+  industry: null,
+  startedOn: "2024-10-01",
+  endedOn: "2025-03-01",
+  businessDescription: null,
+  capitalYen: null,
+  headcount: null,
+  roles: [],
+  ...over,
+});
+
 const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSpec => ({
   kind: "english_resume",
   language: "en",
@@ -132,5 +147,62 @@ describe("the author's stated preference", () => {
     expect(
       buildGenerationPrompt(spec([], { kind: "rirekisho", language: "ja" })),
     ).toContain("Write the document in Japanese.");
+  });
+});
+
+/**
+ * 資本金 and 従業員数 — the same bug shape this file was opened for, on the
+ * fields S10's acceptance names. Both columns have been on `employers` since
+ * the schema was first drawn and were read by nothing for a month; a register
+ * that names them is worth nothing if the formatter here does not print them.
+ */
+describe("the employer line", () => {
+  it("states 資本金 and 従業員数 when the record holds them", () => {
+    const prompt = buildGenerationPrompt(
+      spec([], { employers: [employer({ capitalYen: 4_000_000, headcount: 12 })] }),
+    );
+    expect(prompt).toContain("資本金 400万円");
+    expect(prompt).toContain("従業員数 12");
+  });
+
+  it("gives the 万円 wording as well as the yen, so the model never divides", () => {
+    // The prompt forbids introducing a total the facts do not state, and the
+    // 万円 form IS a total computed from the yen figure. Doing the arithmetic
+    // here makes the register's job a copy rather than a calculation.
+    const prompt = buildGenerationPrompt(
+      spec([], { employers: [employer({ capitalYen: 4_000_000 })] }),
+    );
+    expect(prompt).toContain("400万円");
+    expect(prompt).toContain("4000000 yen");
+  });
+
+  it("prints nothing at all for a figure the record does not hold", () => {
+    // Not "capital: not recorded". A labelled absence on a line about company
+    // scale is an invitation to supply one, and a private company genuinely
+    // may not publish either figure.
+    const prompt = buildGenerationPrompt(spec([], { employers: [employer()] }));
+    expect(prompt).not.toContain("資本金");
+    expect(prompt).not.toContain("従業員数");
+  });
+
+  it("prints the figure the record holds when it holds only one of the two", () => {
+    const prompt = buildGenerationPrompt(spec([], { employers: [employer({ headcount: 12 })] }));
+    expect(prompt).toContain("従業員数 12");
+    expect(prompt).not.toContain("資本金");
+  });
+});
+
+/**
+ * The dated lists arrive already in the order the document reads them, so the
+ * prompt labels them by position. They named a direction until 2026-09-12,
+ * which was true for one render and false for the other.
+ */
+describe("the list labels", () => {
+  it("names no direction it cannot keep for every render", () => {
+    const prompt = buildGenerationPrompt(spec([education()]));
+    expect(prompt).toContain("in the order this document lists them");
+    expect(prompt).not.toContain("oldest first");
+    expect(prompt).not.toContain("most recent first");
+    expect(prompt).not.toContain("most recently awarded first");
   });
 });

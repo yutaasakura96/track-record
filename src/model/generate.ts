@@ -51,6 +51,18 @@ export const EMIT_RENDER_TOOL = {
   },
 } satisfies Anthropic.Tool;
 
+/**
+ * The three dated lists are labelled by their POSITION, not by a direction.
+ *
+ * They are already in the order the document reads them: `collectRenderInputs`
+ * applies `inDocumentOrder` before the spec is built, so the same list arrives
+ * newest-first for the résumé and oldest-first for the 履歴書. The labels used
+ * to name a direction each — "most recent first", "oldest first" — which was
+ * therefore true for one render and false for the other, and contradicted the
+ * registers, which all say to take the order the list gives. A third render
+ * with a third combination is what made a latent contradiction worth fixing
+ * rather than noting (`docs/06`, 2026-09-12).
+ */
 export function buildGenerationPrompt(spec: RenderSpec): string {
   const employers = spec.employers
     .map((e) => {
@@ -62,7 +74,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
         .join("");
       return `- id ${e.id} · ${e.name}${e.industry ? ` (${e.industry})` : ""} · ${monthOf(e.startedOn)} – ${
         e.endedOn ? monthOf(e.endedOn) : "present"
-      }${e.businessDescription ? ` · ${e.businessDescription}` : ""}${held}`;
+      }${companyScale(e)}${e.businessDescription ? ` · ${e.businessDescription}` : ""}${held}`;
     })
     .join("\n");
   const projects = spec.projects
@@ -113,22 +125,59 @@ Rules:
 - Never emit a date more precise than a month.
 - Write the document in ${spec.language === "ja" ? "Japanese" : "English"}.
 
-Employers, most recent first, with the roles held at each:
+Employers, in the order this document lists them, with the roles held at each:
 ${employers || "- none recorded"}
 
 Projects:
 ${projects || "- none recorded"}
 
-Education, oldest first:
+Education, in the order this document lists them:
 ${educations || "- none recorded"}
 
-Certifications, most recently awarded first:
+Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
 ${desiredRoleNote}
 Call emit_render exactly once.`;
 }
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);
+
+/**
+ * 資本金 and 従業員数, for the one render whose convention requires them
+ * (`docs/02` S10). Absent fields print nothing at all rather than a labelled
+ * absence: a private company does not always publish either figure, and a line
+ * reading "capital: not recorded" is an invitation to supply one.
+ *
+ * The 資本金 is given in BOTH forms, and that is the whole point of this
+ * function. The record stores yen and the document writes 万円, so a register
+ * asked for one from the other would be asking the model to divide — against a
+ * prompt rule that forbids introducing a total the facts do not state, on the
+ * figure a reader is most likely to check. The arithmetic is done here, where
+ * it is a pure function with a test, and the register copies a string.
+ */
+function companyScale(e: RenderSpec["employers"][number]): string {
+  const parts: string[] = [];
+  if (e.capitalYen !== null) parts.push(`資本金 ${capitalInJapanese(e.capitalYen)} (${e.capitalYen} yen)`);
+  if (e.headcount !== null) parts.push(`従業員数 ${e.headcount}`);
+  return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
+}
+
+/**
+ * Yen as a 職務経歴書 writes it: 400万円, 1億円, 1億5000万円.
+ *
+ * A figure that does not divide evenly into 万 is written out in full yen
+ * instead. Rounding a capital figure to the nearest 万円 would be a
+ * misstatement of a published number rather than a formatting choice, and a
+ * company whose capital is not a round 万 is a company whose exact figure is
+ * the interesting part.
+ */
+export function capitalInJapanese(yen: number): string {
+  if (!Number.isInteger(yen) || yen <= 0 || yen % 10_000 !== 0) return `${yen}円`;
+  const oku = Math.floor(yen / 100_000_000);
+  const man = (yen % 100_000_000) / 10_000;
+  if (oku === 0) return `${man}万円`;
+  return man === 0 ? `${oku}億円` : `${oku}億${man}万円`;
+}
 
 /**
  * A 学歴 row may carry only the month it finished — the author's own table
