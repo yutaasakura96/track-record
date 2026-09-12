@@ -20,6 +20,8 @@ import {
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
+import { chaptersOf } from "~/model/generate";
+import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
 
@@ -1455,5 +1457,52 @@ describe("a fact withheld after acceptance stops the download", () => {
     expect(body.error.details.facts).toEqual([
       { factId: record.measuredPublic.id, problem: "private" },
     ]);
+  });
+});
+
+/**
+ * The half of S11 the payload decides.
+ *
+ * `chapterPlan` is a pure function and is tested as one in
+ * `tests/career-story.test.ts`. What cannot be tested there is whether the
+ * record actually reaches it: `workOutsideEmployment` is a payload field that
+ * no formatter prints, which is the shape of bug `tests/prompt.test.ts` exists
+ * for, and a `false` that should have been `true` costs a chapter rather than
+ * an error.
+ */
+describe("a career story is planned from the record before it is written", () => {
+  const STORY: RenderContent = {
+    sections: [
+      { key: "opening", heading: "How it started", blocks: [{ id: "blk_1", kind: "paragraph", text: "架空の導入。", factIds: [] }] },
+    ],
+  };
+
+  async function generateStory() {
+    await seedRecord();
+    model.generations = [STORY];
+    const response = await client.post("/api/renders/career_story_en/generate");
+    await settle();
+    expect(response.status).toBe(202);
+    return model.generationInputs.at(-1)!;
+  }
+
+  it("hands the model the story register and a chapter for every employer", async () => {
+    const sent = await generateStory();
+    expect(sent.spec.register).toBe(RENDER_DEFINITIONS.career_story_en.register);
+
+    const keys = chaptersOf(sent.spec).map((c) => c.key);
+    expect(keys[0]).toBe("opening");
+    expect(keys.filter((k) => k.startsWith(EMPLOYER_CHAPTER_PREFIX))).toHaveLength(
+      sent.spec.employers.length,
+    );
+    expect(keys.slice(-2)).toEqual(["anchors", "routing"]);
+  });
+
+  it("says whether the record holds work outside employment, from the facts it is sending", async () => {
+    const sent = await generateStory();
+    expect(sent.spec.workOutsideEmployment).toBe(
+      sent.facts.some((f) => f.employer === undefined) ||
+        sent.spec.projects.some((p) => p.employerId === null),
+    );
   });
 });

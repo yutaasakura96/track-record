@@ -124,6 +124,18 @@ export interface RenderSpec {
   }[];
   projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
   /**
+   * Does the record hold work that belongs to no employer?
+   *
+   * A fact filed to no employer, or a project belonging to none. Read by
+   * `src/render/chapters.ts` alone, and it decides whether a career story is
+   * planned with a chapter for work done outside employment. Keyed off the
+   * FACTS as well as the projects because the first story generated had six
+   * facts about a personal project and no project row to hang them on, and the
+   * register's rule against citing an unfiled fact under an employer had
+   * nowhere to send them (`docs/06`, 2026-09-13).
+   */
+  workOutsideEmployment: boolean;
+  /**
    * `profiles.desired_role_note`, in the author's own words — the seed for the
    * 履歴書's 本人希望欄 (`docs/04` §4). Null when the author has stated nothing,
    * which is the ordinary case and has a conventional answer of its own.

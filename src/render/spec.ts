@@ -159,6 +159,93 @@ How to write a bullet:
 - It must not restate 職務経歴 employer by employer. That section is immediately above it.
 - No contact details, no portfolio link, no GitHub link. Those are the 履歴書's, and nothing in the record holds them.`;
 
+/**
+ * The shared half of both story registers.
+ *
+ * Both stories are the same document in two languages — same chapters, same
+ * blocks, same rules about what may be said — and the only things that differ
+ * are the voice and the length of a paragraph. Writing the structure twice is
+ * how the two drift apart one edit at a time, which is the failure S11 is
+ * about. It is interpolated rather than shared by reference so that each
+ * register is still one readable string.
+ */
+const STORY_STRUCTURE = `**The chapters are given to you.** The Chapters list below fixes the key and the order of every chapter in this document. Emit exactly those keys, all of them, in that order, and no others. A chapter you add, drop, merge or reorder is the one failure this structure exists to prevent.
+
+Write the heading yourself. A chapter heading is a line of the story and should read like one. The key is machine scaffolding and never appears in the document.
+
+Blocks:
+- A chapter is paragraphs: kind "paragraph". Every paragraph lists the ids of the facts it was written from, in factIds.
+- The last two chapters, "anchors" and "routing", are rows: kind "row".
+- There are no bullets anywhere in this document. It is prose and two tables.
+
+The employer chapters, one per employer, keyed by that employer's id:
+- Open by placing the reader: when it was, what the employer does, and what the author was there to do. Those come from the Employers list, not from the facts.
+- Then the work, written from THAT employer's facts and no other employer's.
+- An employer the facts are thin on gets a SHORT chapter, never no chapter. Write it from the Employers list alone, with factIds empty on those paragraphs. A story that skips an employment has a gap in it, and a gap is the first thing an interviewer asks about.
+- **A fact that carries no employer id is never cited in an employer's chapter**, however well it fits the moment being told. The commonest way to break this is the end of a chapter: the job ended, and the sentence that says what the author did next reaches for the fact that records it. Say the job ended and stop there. What came next is the opening's or the independent-work chapter's, and so is the fact behind it. Work done outside employment, a course taken, a qualification earned: those belong in the opening, in the independent-work chapter where the plan gives one, or in the closing chapters. A fact filed to nobody, told under somebody, is the story saying an employer paid for work they did not.
+
+"anchors" — the table of figures:
+- One row per employer, in the order their chapters run, carrying that employer's dates and the figures its chapter used. Then one row for each remaining thing a reader would ask a number about: the independent work, the certifications, the education, the languages.
+- A row is a label and its values, compressed. Not a sentence, and never a paragraph.
+- Every number in this table appears in a chapter above. This table is not where a number is introduced; it is where the author finds it again under questioning. A number here that appears in no chapter means a chapter dropped it.
+- A row lists the ids of the facts its numbers came from. A row carrying only dates copied from the Employers list carries no fact ids.
+
+"routing" — where each question lands:
+- One row per question the author should expect: the question as a person would actually ask it, then the chapter that answers it and the evidence to reach for.
+- About fifteen rows. Cover the ones this record invites: why the direction changed, why each employer was left, the largest figure in the table above, the thing that went wrong, and what the author wants next.
+- A row points at a chapter by the heading you gave it above, and may not point at a chapter that does not exist.
+- Where a row names its evidence, list those fact ids.`;
+
+/**
+ * The fourth buildable render, and the first that is not a document anybody is
+ * sent. It is read on screen by the author before an interview
+ * (`src/render/identity.ts`: no 作成日, and `docs/06` 2026-08-20: not a `.docx`
+ * at all), which is what licenses the first person and the failures. Every
+ * other register in this project writes for a reader who is screening.
+ */
+const CAREER_STORY_EN_REGISTER = `Write a long-form career story for the author to read before an interview.
+
+It is prepared FOR the author and is sent to nobody. It is not a résumé in paragraphs and nobody screens on it. Its one job is to make the career recallable and defensible under questioning: what was walked into, what was actually done, what changed because of it, what it cost, and what was learned.
+
+${STORY_STRUCTURE}
+
+Register:
+- First person, and past tense for what happened. "I" is correct here and is forbidden in every other document written from this record: this one is the author talking.
+- Tell it, do not sell it. What makes this document worth having is that it survives the follow-up question. A paragraph written to impress does not.
+- What went wrong belongs in the story wherever the facts record it: the thing that broke, the approach abandoned, the estimate that was wrong. This is the one document that is better for carrying them, and an interviewer asks for one inside the first ten minutes.
+- No adjectives of self-assessment: no "successfully", no "expertly", no "passionate", no "cutting-edge".
+- Keep the number. If a fact behind a paragraph carries a quantity, a duration, a count, a version or a percentage, the paragraph states it.
+- A paragraph runs about 400 characters. The hand-maintained story this one replaces runs about 17,000 characters across 39 paragraphs, and its longest chapter is the employer it has the most facts about. That is the shape to aim at, and it is reached by having something to say rather than by padding a thin paragraph with words no fact supports.
+- No chapter restates another, and no chapter summarises the whole story. The closing chapter is about what comes next, not a recap.`;
+
+/**
+ * The fifth buildable render, and the JA half of S11's pair.
+ *
+ * Chapter-parallel with {@link CAREER_STORY_EN_REGISTER} and **not a
+ * translation of it**: this call never sees the English story, and both are
+ * written from the same facts into the same computed plan
+ * (`src/render/chapters.ts`).
+ */
+const CAREER_STORY_JA_REGISTER = `Write a long-form career story in Japanese for the author to read before an interview.
+
+It is prepared FOR the author and is sent to nobody. It is not a 職務経歴書 in paragraphs and nobody screens on it. Its one job is to make the career recallable and defensible under questioning: what was walked into, what was actually done, what changed because of it, what it cost, and what was learned.
+
+An English story is written from these same facts, with these same chapters. **This one is not a translation of it and you are not shown it.** Write Japanese from the facts. A sentence that reads as translated English is a defect here however faithful it is.
+
+${STORY_STRUCTURE}
+
+Register:
+- Japanese, です・ます体, consistently. Half-width digits, full-width Japanese punctuation (、。).
+- First person. 私 and 自分 are correct here and are forbidden in every other document written from this record: this one is the author talking. Use them where a sentence needs them and drop them where Japanese would.
+- This document is addressed to nobody. 貴社 and 御社 appear nowhere in it.
+- 体言止め is the 職務経歴書's device and is not this document's. This is prose, and a chapter written in noun-stopped fragments reads as notes rather than as a story.
+- Tell it, do not sell it. What makes this document worth having is that it survives the follow-up question. A paragraph written to impress does not.
+- What went wrong belongs in the story wherever the facts record it: the thing that broke, the approach abandoned, the estimate that was wrong. This is the one document that is better for carrying them, and an interviewer asks for one early.
+- No self-assessment: not 優秀, not 抜群, not 圧倒的, not 誰よりも, not 情熱を持って. State what was done and let it be the claim.
+- Keep the number. If a fact behind a paragraph carries a quantity, a duration, a count, a version or a percentage, the paragraph states it.
+- A paragraph runs about 200 characters. The hand-maintained story this one replaces runs about 8,500 characters across 39 paragraphs — half the English story's characters for the same content, because Japanese says in one character roughly what English says in two — and its longest chapter is the employer it has the most facts about. That is the shape to aim at, and it is reached by having something to say rather than by padding.
+- No chapter restates another, and no chapter summarises the whole story. The closing chapter is about what comes next, not a recap.`;
+
 export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
   english_resume: {
     kind: "english_resume",
@@ -228,20 +315,46 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     // on the 履歴書 it is submitted alongside (`docs/04` §3.2).
     requiredProfileFields: ["familyNameKanji", "givenNameKanji"],
   },
+  /**
+   * The fourth and fifth buildable renders, and the only pair: they are one
+   * document in two languages and S11 holds them to corresponding chapters.
+   *
+   * What the correspondence rests on is `src/render/chapters.ts`, not either
+   * register. The chapters are computed from the record and handed to both
+   * prompts, so the two stories receive the same keys in the same order and
+   * cannot disagree about what a chapter is. The registers below differ only in
+   * voice and in how long a paragraph runs; the structure is one string they
+   * share.
+   *
+   * The flip to `buildable` waited on the same two things every flip has waited
+   * on — a register that is not empty, so the first press of the button is not
+   * a generation spent on nothing, and a chronology — plus the plan, without
+   * which "chapters correspond one-to-one" is a hope rather than a property.
+   */
   career_story_en: {
     kind: "career_story_en",
     language: RENDER_LANGUAGE.career_story_en,
-    buildable: false,
-    chronology: null,
-    register: "",
-    requiredProfileFields: [],
+    buildable: true,
+    // A story is told forwards. `docs/06`, 2026-09-10 left this null because "a
+    // career story's direction is a question about the story"; the question has
+    // an answer the other two dated documents do not share, because this one is
+    // read as a narrative rather than scanned. The author's own pair runs
+    // oldest-first, opening before the career was in software at all.
+    chronology: "oldest_first",
+    register: CAREER_STORY_EN_REGISTER,
+    // `identity.ts` heads this one with the Latin name and the email.
+    requiredProfileFields: ["nameLatin"],
   },
   career_story_ja: {
     kind: "career_story_ja",
     language: RENDER_LANGUAGE.career_story_ja,
-    buildable: false,
-    chronology: null,
-    register: "",
-    requiredProfileFields: [],
+    buildable: true,
+    // The same direction as its counterpart, and it has to be: the chapter plan
+    // is built from the employer list AFTER the chronology has ordered it, so
+    // two directions would be two plans and the correspondence would be gone.
+    chronology: "oldest_first",
+    register: CAREER_STORY_JA_REGISTER,
+    // `identity.ts` heads this one with the kanji name.
+    requiredProfileFields: ["familyNameKanji", "givenNameKanji"],
   },
 };

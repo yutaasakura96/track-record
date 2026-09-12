@@ -17,7 +17,7 @@ import {
 } from "../types";
 import type { RenderContent } from "~/shared/render-content";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
-import { EMIT_RENDER_TOOL, buildGenerationPrompt, parseRenderContent } from "../generate";
+import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent } from "../generate";
 
 /**
  * Thinking and effort are stated rather than inherited.
@@ -142,7 +142,7 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
         }
-        return parseRenderContent(block.input);
+        return parseRenderContent(block.input, chaptersOf(spec));
       } catch (err) {
         throw asModelError(err);
       }

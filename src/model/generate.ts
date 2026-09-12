@@ -11,6 +11,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ModelUnavailableError, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
+import {
+  chapterPlan,
+  chapterPlanForPrompt,
+  chaptersMatchPlan,
+  type PlannedChapter,
+} from "~/render/chapters";
 
 export { capitalInJapanese };
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
@@ -67,6 +73,14 @@ export const EMIT_RENDER_TOOL = {
  * rather than noting (`docs/06`, 2026-09-12).
  */
 export function buildGenerationPrompt(spec: RenderSpec): string {
+  // Empty for every render but the two stories, and printed only when it is
+  // not: a "Chapters: none" heading in the résumé's prompt would be an
+  // instruction about a structure that render does not have.
+  const chapters = chaptersOf(spec);
+  const chapterList =
+    chapters.length > 0
+      ? `\nChapters, in this order. Emit exactly these keys and no others:\n${chapterPlanForPrompt(chapters)}\n`
+      : "";
   const employers = spec.employers
     .map((e) => {
       const held = e.roles
@@ -127,7 +141,7 @@ Rules:
 - Facts marked restricted must be generalised: describe the work without naming the client or any system that identifies them.
 - Never emit a date more precise than a month.
 - Write the document in ${spec.language === "ja" ? "Japanese" : "English"}.
-
+${chapterList}
 Employers, in the order this document lists them, with the roles held at each:
 ${employers || "- none recorded"}
 
@@ -141,6 +155,15 @@ Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
 ${desiredRoleNote}
 Call emit_render exactly once.`;
+}
+
+/**
+ * The chapter plan for this spec, computed from the same lists the prompt
+ * prints. One function called from both sides, so that the chapters the model
+ * is asked for and the chapters it is checked against cannot drift apart.
+ */
+export function chaptersOf(spec: RenderSpec): PlannedChapter[] {
+  return chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment);
 }
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);
@@ -223,8 +246,19 @@ const KINDS = new Set<BlockKind>(["paragraph", "bullet", "row"]);
  * Block ids are assigned here rather than by the model: the diff addresses
  * blocks by id, and an id the model chose would not be stable across a
  * regeneration.
+ *
+ * `chapters` is the plan a chaptered render was asked for, and empty for every
+ * other kind. A story whose chapters do not match it is REFUSED rather than
+ * repaired: which chapter went missing is a question about prose nobody has
+ * read, and the pair of stories S11 asks for is only a pair if both were
+ * written to the same plan. The call is billed either way; a stored document
+ * that silently fails the acceptance criterion is the more expensive of the
+ * two, because the diff gate would present it as finished.
  */
-export function parseRenderContent(input: unknown): RenderContent {
+export function parseRenderContent(
+  input: unknown,
+  chapters: readonly PlannedChapter[] = [],
+): RenderContent {
   if (typeof input !== "object" || input === null || !Array.isArray((input as { sections?: unknown }).sections)) {
     throw new ModelUnavailableError("The model returned a document in an unusable shape.");
   }
@@ -251,6 +285,14 @@ export function parseRenderContent(input: unknown): RenderContent {
 
   if (sections.every((s) => s.blocks.length === 0)) {
     throw new ModelUnavailableError("The model returned an empty document.");
+  }
+  if (chapters.length > 0 && !chaptersMatchPlan(sections.map((s) => s.key), chapters)) {
+    // Counts only. The keys are the app's own and would be safe to print, but
+    // this message reaches the proposal row and the screen, and a generation
+    // error is not a place to start making exceptions about render content.
+    throw new ModelUnavailableError(
+      `The model returned ${sections.length} chapters where the story has ${chapters.length}, or returned them out of order.`,
+    );
   }
   return { sections };
 }

@@ -245,6 +245,13 @@ export async function collectRenderInputs(
         employerId: p.employerId,
         summary: p.summary,
       })),
+      // Facts first, projects second, and the facts are the half that matters:
+      // this record holds a personal project as seven facts and no project row,
+      // and a career story planned from the Projects list alone had no chapter
+      // to put them in (`docs/06`, 2026-09-13).
+      workOutsideEmployment:
+        renderFacts.some((f) => f.employer === undefined) ||
+        projectRows.some((p) => p.employerId === null),
       // Read from the profile row the caller already fetched? No — this
       // function owns the payload, and a field the route had to remember to
       // pass is a field the route will one day forget. Empty string and null

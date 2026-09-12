@@ -324,8 +324,13 @@ export function experienceGroups(
   employers: readonly RecordEmployer[],
 ): AttributionGroup[] {
   const section = content.sections.find((s) => s.key === EXPERIENCE_SECTION);
-  if (!section) return [];
+  return section ? splitByHeading(section, employers) : [];
+}
 
+function splitByHeading(
+  section: AttributedSection,
+  employers: readonly RecordEmployer[],
+): AttributionGroup[] {
   const groups: AttributionGroup[] = [];
   for (const block of section.blocks) {
     if (block.kind === "paragraph") {
@@ -344,6 +349,66 @@ export function experienceGroups(
       groups.push(current);
     }
     current.blocks.push(block);
+  }
+  return groups;
+}
+
+/**
+ * The section key prefix a career story's employer chapters carry, and the
+ * employer id one names.
+ *
+ * Duplicated from `src/render/chapters.ts` rather than imported, for the reason
+ * at the top of this module: it has no imports so that plain Node can load it.
+ * A test asserts the two stay in step, which is how `EXPERIENCE_SECTION` is
+ * kept in step with `metrics.ts`.
+ */
+export const EMPLOYER_CHAPTER_PREFIX = "employer:";
+
+/**
+ * Every group in a render that is ABOUT one employer, in document order.
+ *
+ * Two shapes, because two documents carry employer work differently and both
+ * have to be checked:
+ *
+ * - The `experience` section of the English résumé and the 職務経歴書, a flat
+ *   run in which a `paragraph` opens a group. Its employer is resolved from the
+ *   heading's prose, because nothing in that section carries an id.
+ * - A career story's employer CHAPTERS, one section each, keyed by the employer
+ *   the app planned the chapter for (`src/render/chapters.ts`). The whole
+ *   section is one group and its employer comes from the key — exact, rather
+ *   than matched on a heading that is a line of a story and may not name the
+ *   employer at all.
+ *
+ * A key naming an employer the record does not hold resolves to null and
+ * reports, exactly as an unreadable heading does. Guessing is the one thing
+ * this module does not do.
+ *
+ * Without this, invariants 2 and 3 would be blind to every story chapter: a
+ * story has no `experience` section, so the check would pass over the longest
+ * employer prose in the whole system reporting nothing. That is the same
+ * blindness that `uncited-copy` was written for a day earlier.
+ */
+export function employerGroups(
+  content: AttributedContent,
+  employers: readonly RecordEmployer[],
+): AttributionGroup[] {
+  const groups: AttributionGroup[] = [];
+  for (const section of content.sections) {
+    if (section.key === EXPERIENCE_SECTION) {
+      groups.push(...splitByHeading(section, employers));
+      continue;
+    }
+    if (!section.key.startsWith(EMPLOYER_CHAPTER_PREFIX)) continue;
+    if (section.blocks.length === 0) continue;
+    const id = section.key.slice(EMPLOYER_CHAPTER_PREFIX.length);
+    groups.push({
+      // A chapter's heading is prose and is not the thing naming the employer,
+      // so there is no heading block to point a finding at: the chapter is
+      // reported against its first block, as a group with no heading is.
+      headingBlockId: null,
+      employerId: employers.some((e) => e.id === id) ? id : null,
+      blocks: section.blocks,
+    });
   }
   return groups;
 }
@@ -377,9 +442,10 @@ export function checkAttribution(
     }
   }
 
-  // Invariants 2 and 3 are about employer work, so they run over the experience
-  // section alone.
-  const groups = experienceGroups(content, record.employers);
+  // Invariants 2 and 3 are about employer work, so they run over the groups
+  // that are about one employer — the experience section's, and a career
+  // story's employer chapters.
+  const groups = employerGroups(content, record.employers);
   let resolvedGroups = 0;
 
   for (const group of groups) {

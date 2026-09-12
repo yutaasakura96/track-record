@@ -55,6 +55,7 @@ const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSp
   register: "REGISTER",
   employers: [],
   projects: [],
+  workOutsideEmployment: false,
   desiredRoleNote: null,
   educations,
   certifications: [],
