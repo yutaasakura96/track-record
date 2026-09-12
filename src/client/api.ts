@@ -597,7 +597,52 @@ export function useRestoreVersion(kind: RenderKind) {
 }
 
 /** `versionId` omitted means the current version — the server's own default. */
-export const downloadUrl = (kind: RenderKind, format: "docx" | "md", versionId?: string) =>
+const downloadUrl = (kind: RenderKind, format: "docx" | "md", versionId?: string) =>
   `/api/renders/${kind}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
+
+/**
+ * A download is FETCHED rather than navigated to, which is the whole reason
+ * this exists. The route re-checks citations on every request and refuses with
+ * `409` naming the fact ids (`docs/07` §7), and a plain `<a href>` would land
+ * that refusal in a browser tab as raw JSON. Fetching turns it back into an
+ * `ApiError` the screen can state.
+ *
+ * The file is saved through an object URL because the response body is the
+ * document and there is no second request to spend on it. The URL is revoked
+ * immediately; the click has already handed the bytes to the browser.
+ */
+export async function downloadRender(
+  kind: RenderKind,
+  format: "docx" | "md",
+  versionId?: string,
+): Promise<void> {
+  const response = await fetch(downloadUrl(kind, format, versionId));
+  if (!response.ok) {
+    const isJson = response.headers.get("content-type")?.includes("application/json");
+    const body = isJson ? ((await response.json()) as ApiErrorBody) : null;
+    throw new ApiError(
+      response.status,
+      body?.error.code ?? "internal",
+      body?.error.message ?? "That document could not be downloaded.",
+      body?.error.details?.fields ?? [],
+      body?.error.details ?? {},
+    );
+  }
+
+  const url = URL.createObjectURL(await response.blob());
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filenameFrom(response.headers.get("content-disposition"), kind, format);
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+/** The server names the file; this is the fallback when the header is absent. */
+function filenameFrom(disposition: string | null, kind: RenderKind, format: string): string {
+  const match = disposition?.match(/filename="([^"]+)"/);
+  return match?.[1] ?? `${kind}.${format}`;
+}
 
 export type { RenderContent };

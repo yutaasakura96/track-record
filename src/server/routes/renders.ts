@@ -687,6 +687,29 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (!version) throw notFound("That version");
 
     const content = version.content as RenderContent;
+
+    /**
+     * **Enforcement point 4 at the last render time there is** (issue #17). A
+     * version is a snapshot of what could be rendered in August, not a standing
+     * permission to keep rendering it. A fact set Private in September is
+     * withheld from the file that leaves the tool in September, whatever the
+     * stored content says.
+     *
+     * `409` rather than the restore route's `422`: restore submits content to
+     * be made current and the content is what fails validation, while a
+     * download asks for a file the record's CURRENT state will not allow. The
+     * ids are named because a refusal the author cannot act on is a dead end —
+     * the way out is the hand-edit route, which lifts the block and produces a
+     * version that downloads (`docs/06`, 2026-09-12 third entry).
+     */
+    const record = await collectEditableRecord(db, user.id);
+    const withheld = badCitations(citedFactIds(content), record);
+    if (withheld.length > 0) {
+      throw new ApiError("conflict", citationMessage(withheld), {
+        facts: withheld.map((b) => ({ factId: b.factId, problem: b.problem })),
+      });
+    }
+
     const title = RENDER_TITLE[kind];
     const filename = downloadFilename(kind, format, version.acceptedAt);
 

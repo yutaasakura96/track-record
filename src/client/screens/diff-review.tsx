@@ -13,7 +13,6 @@
 import { useMemo } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
-  downloadUrl,
   useDecideProposal,
   useDiff,
   useProposal,
@@ -23,6 +22,7 @@ import {
 import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { RENDER_TITLE } from "~/shared/render-content";
+import { DownloadButton } from "../components/download-button";
 
 export function DiffReview() {
   const { proposalId } = useParams({ from: "/proposals/$proposalId" });
@@ -126,12 +126,11 @@ function Failed({ proposal }: { proposal: Proposal }) {
         </p>
         <div className="mt-20 flex items-center justify-center gap-10">
           {first ? null : (
-            <a
-              href={downloadUrl(proposal.renderKind, "docx")}
+            <DownloadButton
+              kind={proposal.renderKind}
+              label="Download the current version"
               className="border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
-            >
-              Download the current version
-            </a>
+            />
           )}
           <Button variant="primary" onClick={() => void navigate({ to: "/" })}>
             Back to your record

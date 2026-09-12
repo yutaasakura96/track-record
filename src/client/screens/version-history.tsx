@@ -20,7 +20,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
-  downloadUrl,
   useGenerate,
   useProfile,
   useRenderProposals,
@@ -36,6 +35,7 @@ import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
+import { CITATION_PROBLEM, DownloadButton } from "../components/download-button";
 
 export function VersionHistoryScreen() {
   const { kind } = useParams({ from: "/renders/$kind/history" });
@@ -102,12 +102,9 @@ function History({ kind }: { kind: RenderKind }) {
           </span>
         )}
         {current ? (
-          <a
-            href={downloadUrl(kind, "docx", current.id)}
-            className="ml-auto border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
-          >
-            Download current
-          </a>
+          <span className="ml-auto">
+            <DownloadButton kind={kind} versionId={current.id} label="Download current" />
+          </span>
         ) : null}
       </header>
 
@@ -232,12 +229,7 @@ function VersionRow({
       <div className="ml-auto flex items-center gap-8">
         {/* `?versionId=` serves any version, and a 履歴書 is `.docx` only —
             the download rules are the ones that already exist. */}
-        <a
-          href={downloadUrl(kind, "docx", version.id)}
-          className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
-        >
-          Download
-        </a>
+        <DownloadButton kind={kind} versionId={version.id} label="Download" />
         {comparable ? (
           <Button variant="ghost" onClick={onCompare}>
             Compare
@@ -347,14 +339,6 @@ function NotGeneratedYet({ kind }: { kind: RenderKind }) {
 }
 
 /* ---------------------------------------------------------------- preview */
-
-/** What a `422` says per id, in the author's words rather than the column's. */
-const CITATION_PROBLEM: Record<string, string> = {
-  unknown: "is not in your record",
-  "not-accepted": "has not been accepted",
-  private: "is Private",
-  generated: "is Generated provenance",
-};
 
 /**
  * The restore preview — Screen 2's split view, read-only, with the current

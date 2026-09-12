@@ -1278,3 +1278,122 @@ describe("a version is restored", () => {
     expect((await history()).items).toHaveLength(2);
   });
 });
+
+/**
+ * Issue #17. A stored version is a snapshot of what could be rendered when it
+ * was accepted, not a standing permission to keep rendering it. Download is
+ * render time, and it is the LAST render time there is: whatever a version
+ * stores, the file that leaves the tool today obeys today's record.
+ */
+describe("a fact withheld after acceptance stops the download", () => {
+  interface Version {
+    id: string;
+    content: RenderContent;
+  }
+
+  async function acceptedResume() {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    const { items } = await client.json<{ items: { id: string }[] }>(
+      "/api/renders/english_resume/versions",
+    );
+    return { record, versionId: items[0]!.id };
+  }
+
+  it("refuses with 409 and names the fact, whether asked for by id or as the current version", async () => {
+    const { record, versionId } = await acceptedResume();
+    // It downloaded the day it was accepted.
+    expect((await client.get("/api/renders/english_resume/download?format=md")).status).toBe(200);
+
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+
+    for (const url of [
+      "/api/renders/english_resume/download?format=md",
+      `/api/renders/english_resume/download?format=md&versionId=${versionId}`,
+      `/api/renders/english_resume/download?format=docx&versionId=${versionId}`,
+    ]) {
+      const response = await client.get(url);
+      expect(response.status).toBe(409);
+      const body = (await response.json()) as {
+        error: { message: string; details: { facts: { factId: string; problem: string }[] } };
+      };
+      expect(body.error.message).toContain(record.measuredPublic.id);
+      expect(body.error.details.facts).toEqual([
+        { factId: record.measuredPublic.id, problem: "private" },
+      ]);
+      // Ids and reasons, never claim text.
+      expect(body.error.message).not.toContain("nightly batch");
+    }
+  });
+
+  /**
+   * Why the refusal names the ids rather than stopping at "no". A refusal the
+   * author cannot act on would leave a document they accepted permanently
+   * inside the tool; the hand-edit route is the way out, and it produces a
+   * version that downloads.
+   */
+  it("leaves the hand-edit route as the way out", async () => {
+    const { record, versionId } = await acceptedResume();
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+
+    const stored = await client.json<Version>(
+      `/api/renders/english_resume/versions/${versionId}`,
+    );
+    const edited = await client.post("/api/renders/english_resume/versions", {
+      basedOnVersionId: versionId,
+      content: {
+        sections: stored.content.sections.map((s) => ({
+          ...s,
+          blocks: s.blocks.filter((b) => !b.factIds.includes(record.measuredPublic.id)),
+        })),
+      },
+    });
+    expect(edited.status).toBe(201);
+
+    const download = await client.get("/api/renders/english_resume/download?format=md");
+    expect(download.status).toBe(200);
+    const text = await download.text();
+    expect(text).toContain("trunk-based development");
+    expect(text).not.toContain("nightly batch");
+
+    // The version that cited it is still stored and still refuses on its own.
+    const old = await client.get(
+      `/api/renders/english_resume/download?format=md&versionId=${versionId}`,
+    );
+    expect(old.status).toBe(409);
+  });
+
+  /**
+   * The check sits before the 履歴書 branch, so the form path is held to it
+   * too — a 履歴書 is filled rather than built, but its prose blocks cite facts
+   * like any other.
+   */
+  it("holds the 履歴書 to the same rule", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generateRirekisho(
+        rirekishoFrom("貴社の基盤刷新に携わりたいと考えております。", [record.measuredPublic.id]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    expect((await client.get("/api/renders/rirekisho/download?format=docx")).status).toBe(200);
+
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+    const response = await client.get("/api/renders/rirekisho/download?format=docx");
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as {
+      error: { details: { facts: { factId: string; problem: string }[] } };
+    };
+    expect(body.error.details.facts).toEqual([
+      { factId: record.measuredPublic.id, problem: "private" },
+    ]);
+  });
+});

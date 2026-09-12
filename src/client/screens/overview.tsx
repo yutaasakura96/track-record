@@ -12,7 +12,6 @@ import { useRef, useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ApiError,
-  downloadUrl,
   useGenerate,
   useOverview,
   useProfile,
@@ -23,6 +22,7 @@ import {
 import { Button, Dot, Mono, Panel, ProgressBar } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
 import { relative } from "../format";
+import { DownloadButton } from "../components/download-button";
 
 export function Overview() {
   const overview = useOverview();
@@ -335,12 +335,7 @@ function Action({
 }
 
 const DownloadLink = ({ kind }: { kind: RenderRow["kind"] }) => (
-  <a
-    href={downloadUrl(kind, "docx")}
-    className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
-  >
-    Download .docx
-  </a>
+  <DownloadButton kind={kind} />
 );
 
 /* ------------------------------------------------------------------- empty */
