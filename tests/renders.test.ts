@@ -991,6 +991,39 @@ describe("a version is edited by hand", () => {
     expect((await currentVersion()).versionNo).toBe(1);
   });
 
+  /**
+   * The `201` carries advisory findings the refusals deliberately do not cover,
+   * and Screen 6's saved state is the only place they are ever read. Asserted
+   * here because a screen that states warnings is only as true as the field it
+   * states them from.
+   */
+  it("returns attribution warnings on the version it accepted, rather than refusing", async () => {
+    const { record, version } = await acceptedResume();
+
+    // A paragraph opens an employer group in the experience section, and the
+    // bullet under it cites a fact filed to no employer at all.
+    const response = await edit(version.id, {
+      sections: [
+        {
+          ...version.content.sections[0],
+          blocks: [
+            { id: "blk_h", kind: "paragraph", text: `${EMPLOYER_FIXTURE.nameLatin} — Backend Engineer`, factIds: [] },
+            { id: "blk_b", kind: "bullet", text: "A hand-typed line", factIds: [record.measuredPublic.id] },
+          ],
+        },
+      ],
+    });
+
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as { newVersionNo: number; warnings: string[] };
+    expect(body.newVersionNo).toBe(2);
+    expect(body.warnings).toHaveLength(1);
+    expect(body.warnings[0]).toContain(record.measuredPublic.id);
+    expect(body.warnings[0]).toContain("filed to no employer");
+    // Advisory, not a refusal: the version it warned about is the current one.
+    expect((await currentVersion()).versionNo).toBe(2);
+  });
+
   it("does not report a stale document as current because it was edited", async () => {
     const record = await seedRecord();
     // Held back so that accepting it AFTER the version makes the render stale

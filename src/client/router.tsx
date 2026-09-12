@@ -23,6 +23,7 @@ import { Record } from "./screens/record";
 import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
+import { VersionEditScreen } from "./screens/version-edit";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -104,6 +105,12 @@ const versionHistoryRoute = createRoute({
   component: VersionHistoryScreen,
 });
 
+const versionEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/renders/$kind/edit",
+  component: VersionEditScreen,
+});
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   profileRoute,
@@ -111,6 +118,7 @@ const routeTree = rootRoute.addChildren([
   factReviewRoute,
   diffReviewRoute,
   versionHistoryRoute,
+  versionEditRoute,
 ]);
 
 export const router = createRouter({
@@ -125,4 +133,4 @@ declare module "@tanstack/react-router" {
   }
 }
 
-export { factReviewRoute, diffReviewRoute, versionHistoryRoute };
+export { factReviewRoute, diffReviewRoute, versionHistoryRoute, versionEditRoute };

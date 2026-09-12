@@ -249,6 +249,35 @@ export interface RenderVersion {
   isCurrent: boolean;
 }
 
+/**
+ * One stored version, structure included. The editor reads THIS rather than the
+ * download, which assembles a `.docx` that cannot be edited and returned
+ * (`docs/10` Screen 6).
+ */
+export interface StoredVersion {
+  id: string;
+  renderKind: RenderKind;
+  versionNo: number;
+  origin: RenderVersion["origin"];
+  sourceVersionId: string | null;
+  acceptedAt: string;
+  content: RenderContent;
+}
+
+/**
+ * What a saved edit says back. `warnings` is the reason the editor is a screen
+ * with a saved state rather than a control that navigates away: they arrive
+ * with the `201` and have nowhere else to land (`docs/10` Screen 6 §Saved).
+ */
+export interface EditResult {
+  renderKind: RenderKind;
+  newVersionNo: number;
+  origin: "edited";
+  sourceVersionId: string;
+  acceptedAt: string;
+  warnings: string[];
+}
+
 export interface VersionHistory {
   renderKind: RenderKind;
   currentVersionId: string | null;
@@ -299,6 +328,9 @@ export const keys = {
   proposal: (id: string) => ["proposal", id] as const,
   diff: (id: string) => ["proposal", id, "diff"] as const,
   versions: (kind: RenderKind) => ["renders", kind, "versions"] as const,
+  // Deliberately NOT under `versions`: invalidating the list on a save would
+  // otherwise invalidate the immutable version the editor is holding.
+  version: (kind: RenderKind, id: string) => ["renders", kind, "version", id] as const,
   proposals: (kind: RenderKind) => ["renders", kind, "proposals"] as const,
   versionDiff: (kind: RenderKind, from: string, to: string) =>
     ["renders", kind, "diff", from, to] as const,
@@ -450,6 +482,18 @@ export const useVersionHistory = (kind: RenderKind) =>
     queryFn: () => api<VersionHistory>(`/api/renders/${kind}/versions`),
   });
 
+/** A version's stored structure, by id. `null` means there is nothing to edit. */
+export const useStoredVersion = (kind: RenderKind, versionId: string | null) =>
+  useQuery({
+    queryKey: keys.version(kind, versionId ?? ""),
+    queryFn: () => api<StoredVersion>(`/api/renders/${kind}/versions/${versionId}`),
+    enabled: versionId !== null,
+    // A stored version is immutable; re-reading it would only risk replacing
+    // the document under an editor that has unsaved work in it.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
 export const useRenderProposals = (kind: RenderKind) =>
   useQuery({
     queryKey: keys.proposals(kind),
@@ -588,6 +632,24 @@ export function useRestoreVersion(kind: RenderKind) {
         `/api/renders/${kind}/versions/${versionId}/restore`,
         { method: "POST" },
       ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.versions(kind) });
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
+  });
+}
+
+/**
+ * A hand edit (S16). Like restore it APPENDS, so everything that reads a
+ * version list or a render's status is refreshed — but the version it was made
+ * from is deliberately NOT invalidated: it is immutable and still readable.
+ */
+export function useEditVersion(kind: RenderKind) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { basedOnVersionId: string; content: RenderContent }) =>
+      api<EditResult>(`/api/renders/${kind}/versions`, { method: "POST", ...json(body) }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.versions(kind) });
       void queryClient.invalidateQueries({ queryKey: keys.renders });

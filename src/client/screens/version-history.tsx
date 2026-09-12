@@ -11,8 +11,8 @@
  *     opens a read-only preview, and the commit lives there. Replacing a
  *     document with one the author may not remember, in one click, is the
  *     failure mode this screen exists to prevent.
- *   - **No editor here.** The hand-edit route stays API-only until the editing
- *     surface gets its own specification.
+ *   - **No editing here.** `Edit` is a link to Screen 6, which is where the
+ *     route's attribution warnings land; nothing on this screen is typeable.
  *   - **Nothing on this screen deletes anything.** The never-delete rule is the
  *     product, and a control that appears to offer it is worse than its absence.
  */
@@ -30,12 +30,12 @@ import {
   type ProposalRow,
   type RenderVersion,
 } from "../api";
-import { Button, Chip, Dot, Mono, MonoId, Panel } from "../components/ui";
+import { Button, Chip, Dot, Mono, Panel } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
-import { CITATION_PROBLEM, DownloadButton } from "../components/download-button";
+import { DownloadButton, WithheldFacts } from "../components/download-button";
 
 export function VersionHistoryScreen() {
   const { kind } = useParams({ from: "/renders/$kind/history" });
@@ -234,7 +234,18 @@ function VersionRow({
           <Button variant="ghost" onClick={onCompare}>
             Compare
           </Button>
-        ) : null}
+        ) : (
+          // `Edit` is present ONLY on the current version: the route refuses an
+          // edit made against any other, and a control that is refused is not
+          // offered (`docs/10` Screen 6).
+          <Link
+            to="/renders/$kind/edit"
+            params={{ kind }}
+            className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+          >
+            Edit
+          </Link>
+        )}
       </div>
     </li>
   );
@@ -427,11 +438,7 @@ function RestorePreview({
               ) : null}
             </p>
           ) : null}
-          {facts.map((fact) => (
-            <p key={fact.factId} className="text-smaller text-text-dimmer">
-              <MonoId>{fact.factId}</MonoId> {CITATION_PROBLEM[fact.problem] ?? "cannot be rendered"}.
-            </p>
-          ))}
+          <WithheldFacts facts={facts} />
         </div>
         <div className="ml-auto flex items-center gap-10">
           <Button onClick={onClose}>Cancel</Button>
