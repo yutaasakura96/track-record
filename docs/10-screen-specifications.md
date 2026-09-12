@@ -289,6 +289,16 @@ existing proposal diff. They carry no version chip, because they never received 
 **Download honours the existing rules** — `?versionId=` serves any version, and a 履歴書 offers
 `.docx` only.
 
+**A download can be refused, so it is a button and not a link.** Every download re-checks the facts
+its version cites, and a version citing a fact that is now Private, now Generated provenance, or no
+longer accepted comes back `409` (`docs/07` §7). A link would land that refusal in a browser tab as
+JSON, so the control fetches and states the refusal in a small dialog over the screen: the server's
+sentence, then one line per fact id in the mono IDENTIFIER role (case preserved, `docs/05` §2) with its reason, then `A document obeys your record as
+it is today, not as it was when this version was accepted. Change the fact in your record, or edit
+the block out into a new version.` `Escape` or a click outside closes it; the button returns to its
+label and nothing has been downloaded. The same control and the same dialog serve the download on
+Screen 1 and Screen 2 (issue #17).
+
 ### Restore
 
 **Restore is never a button on a row.** The action is `Compare`, which opens the preview; the
@@ -334,7 +344,7 @@ screen promises a document it does not produce.
 | **No versions yet** | Not an error. `This document has not been generated yet.` with `Generate` as the action — the same sentence whether the generator for that kind is built or not |
 | **Only one version** | Renders normally. `Compare` is absent throughout; no empty comparison affordance |
 | **Restore refused — a proposal is waiting** | The server's `409` message in place on the preview footer, naming the proposal and linking to it. The author decides the proposal first |
-| **Restore refused — the target cites a fact that can no longer be rendered** | The server's `422` in place, listing the fact ids and the reason per id (unknown · not accepted · Private · Generated). Stated as a dead end with a route out — fix the fact, or restore a different version — never as a retry |
+| **Restore refused — the target cites a fact that can no longer be rendered** | The server's `422` in place, listing the fact ids in the mono IDENTIFIER role (`docs/05` §2) and the reason per id (unknown · not accepted · Private · Generated). Stated as a dead end with a route out — fix the fact, or restore a different version — never as a retry |
 | **Restore succeeded** | Return to the history with the new version at the top, marked `Current`, its ancestry line reading `Restored from v<m>` |
 | **Staleness after a restore** | Screen 3 may now report the document as stale where it did not before. This is correct and is not an error state — the content moved back to an older era of the record |
 

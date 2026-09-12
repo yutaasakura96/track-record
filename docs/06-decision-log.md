@@ -2412,3 +2412,109 @@ stays open. It is postponed, not answered.
 Written before the build, which is the reverse of the previous entry and the reason this one exists.
 
 ---
+
+### [2026-09-12] A restored version carries the era of its content, superseding the entry above
+
+The entry above says `fact_count_at` holds the accepted-fact count at the moment the row was
+created, written the same way by accept, edit and restore. That is right for accept and edit and
+wrong for restore, and it was found by asking what happens on the second restore.
+
+Restoring v3, where v3 is itself a restore of v1, would write today's count onto the new row while
+setting `stale_since_fact_count` from v3. The two numbers then disagree about the same document.
+Worse, a restore of that new row later would read its creation date as the content's era and report
+a document generated from the three-fact record as current with a four-fact one. Staleness that
+moves on the first restore and stops moving on the second is not a rule anyone can hold in their
+head.
+
+**A restored row now inherits the target's `fact_count_at`.** The column describes the content, and
+a restore copies content forward unchanged, so the era comes with it. `stale_since_fact_count` is
+then the new row's own `fact_count_at` in every case, which is what the previous entry was reaching
+for and did not have the column to say.
+
+Accept and edit are untouched. Both create content that did not exist before, so for them the
+creation-time count and the content's era are the same number.
+
+The general form, worth keeping: `fact_count_at` answers "what did the record look like when this
+text was written", not "when was this row inserted". Restore is the only writer for which those
+differ, and it is the reason the column exists.
+
+---
+
+### [2026-09-12] A download obeys today's record, and refuses with the ids rather than a bare no
+
+The gap the entry above named as not-that-work is closed. `GET /api/renders/:kind/download` ran the
+citation check on nothing. It read `render_versions.content` and handed it to the builder, so a
+version accepted in August citing a fact set Private in September produced a file with the withheld
+claim in it.
+
+Download is render time, and it is the last render time there is. A stored version is a snapshot of
+what could be rendered when it was accepted, not a standing permission to keep rendering it. The
+check now runs before the 履歴書 branch, so the form path is held to it too.
+
+**It refuses with `409` and names the fact ids.** Three shapes were considered.
+
+Omitting the offending block was rejected. The file would still download, but it would no longer be
+the document the author reviewed and would no longer match what is stored, with nothing in it saying
+a block came off. A quiet difference between the version and its file is worse than a loud refusal.
+
+A bare refusal was rejected for the opposite reason. A document the author accepted becoming
+permanently unreachable, with no way to see why, is a dead end with no exit. Naming the ids and
+reasons gives one: the hand-edit route lifts the block and produces a version that downloads, and
+the version that cited the fact stays stored and stays refused, which is correct.
+
+`409` rather than the restore route's `422` is deliberate. Restore submits content to be made
+current, and the content is what fails validation. A download submits nothing; it asks for a file
+that the record's current state will not allow. The status codes say which of those happened.
+
+Ids and reasons, never claim text, as everywhere else this refusal is worded.
+
+---
+
+### [2026-09-12] The dismissed half of the history gets a listing route
+
+`GET /api/proposals?kind=` exists because the entry above split the history into two payloads and
+left one of them with nowhere to come from. Versions had a listing route; dismissed proposals had
+only the per-proposal route and the pending-proposal lookup inside the render row. Screen 5
+interleaves both, so the half with no listing was the half that could not be drawn.
+
+It is a filter on a collection rather than a new resource, which is why it reads as a query
+parameter on `/api/proposals` and not as `/api/renders/:kind/proposals`. A proposal belongs to the
+author and names its render; it is not nested under one.
+
+Recorded here rather than left in `docs/07` alone because it is the reason the versions payload is
+versions-only, and that shape was argued in the entry above without this half of it being written
+down.
+
+---
+
+---
+
+### [2026-09-12] A mono identifier is a second type role, because uppercase destroys a fact id
+
+Found by looking at the download refusal in a browser rather than by a test. The dialog named the
+fact as `FCT_9KQXZM4TBNRJW2LD`. The fact is `fct_9kQxZm4TbNrJw2Ld`.
+
+`Mono` carries `uppercase`, and correctly: §2 of the design system names the role "Mono label
+(uppercase)", and `EDITED BY HAND` and `DISMISSED · not a version` are what it was built for. Fact
+ids are case-sensitive. Rendering one through a role that is uppercase by definition displays a
+string that exists nowhere in the record, and the author reads these off a refusal precisely so they
+can go find the fact. The refusal names ids in order to be actionable, and the presentation was
+quietly making them unusable.
+
+**The fix is a second role, not a weakened first one.** `MonoId` preserves case, drops the
+letter-spacing, and sits at the body size around it rather than the 9.5px label size, because an id
+here is read and copied rather than scanned. It carries `select-all` so one click takes the whole id
+instead of a word of it. `Mono` is unchanged and still uppercase; adding a `caseSensitive` prop to it
+would have left the wrong thing as the default, and every future id would have had to remember to
+pass it.
+
+Two call sites, both citation refusals: the download dialog and the restore refusal on Screen 5. The
+restore one shipped this way with #16 and was wrong from the start; no test caught it, because a
+test asserts the id is in `details.facts` and never asks what the screen does with it. That is the
+general lesson worth keeping — an HTTP-level assertion cannot see a CSS transform, and this class of
+defect is only ever found by looking.
+
+No new token. The identifier role reuses the existing 11px body size, which is also what the prose
+around it is set in, so the id sits on the line correctly instead of sinking below it.
+
+---

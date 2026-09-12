@@ -458,7 +458,7 @@ résumé reads the same index backwards, for the same reason employers do.
 | `accepted_at` | timestamptz | no | |
 | `source_version_id` | text | yes | The version this one was made from. Null only for a version accepted from a proposal, which is made from a record rather than from a version |
 | `origin` | enum | no | `accepted` · `restored` · `edited`. Default `accepted`. Three writers, one column — without it a history where every row looks alike cannot say which rows the author typed (S14, S16) |
-| `fact_count_at` | integer | no | The accepted-fact count when the row was created, written by all three writers. A **restore** sets the render's `stale_since_fact_count` from the version it restores, so a document moved back to an August version reports as stale in September; nothing else stored that number. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
+| `fact_count_at` | integer | no | The accepted-fact count for the era the row's CONTENT belongs to. Accept and edit write the count at creation, which for them is the same thing; a **restore inherits the count of the version it restores**, because it copies content forward unchanged and the era comes with it (decision log, 2026-09-12, superseding the entry before it). A render's `stale_since_fact_count` is therefore its current version's own `fact_count_at` in every case, so a document moved back to an August version reports as stale in September; nothing else stored that number. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
 
 **Unique:** `(render_id, version_no)`.
 

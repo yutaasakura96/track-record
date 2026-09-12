@@ -118,9 +118,18 @@ fallback the browser picks one for you and the result is inconsistent between sc
 | Smaller | 11px / 1.55 / 400 | — |
 | Micro | 10.5px / 1.4 / 500 | — |
 | Mono label (uppercase) | 9.5px / 1 / 400–500 | `.05–.07em` |
+| Mono identifier (case preserved) | 11px / 1.55 / 400 | — |
 
 **Mono is for machine facts only** — line references, counts, file names, timestamps, version ids,
 status labels. Never for prose.
+
+**A mono LABEL and a mono IDENTIFIER are two roles, not one with a variant.** The label is uppercase
+by definition, which is right for `EDITED BY HAND` and destructive for a fact id — an id is
+case-sensitive, so uppercasing it displays a string that matches nothing in the record. Anywhere an
+id is shown for the author to act on, it takes the identifier role: case preserved, no
+letter-spacing, set at the body size around it rather than the 9.5px label size, and `select-all` so
+one click takes the whole id. `v3` and similar short version tags stay labels; they carry no case to
+lose.
 
 **Long-form reading measure: `max-width: 740px`**, centred. Renders and source documents both.
 

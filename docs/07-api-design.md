@@ -324,7 +324,7 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 | `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
-| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**. 履歴書 is `docx` only |
+| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
 | `GET` | `/api/renders/:kind/versions` | M1 | The version history. **Versions only** — the screen merges the dismissed proposals in, and a merged payload would hand every consumer a discriminated union to unpack (decision log, 2026-09-12) |
@@ -449,6 +449,16 @@ Accepting an already-decided proposal → `409 conflict`.
 `Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
 Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
+
+**A download obeys today's record, not the day the version was accepted.** Every download
+re-checks the facts its stored content cites, before the 履歴書 branch and so for every kind. A
+version citing a fact that is now Private, now Generated-provenance, no longer accepted, or no
+longer in the record at all → `409 conflict`, with `details.facts` carrying `{ factId, problem }`
+for each, and never any claim text. `409` rather than restore's `422`: restore submits content to
+be made current and the content fails validation, while a download asks for a file the record's
+current state will not allow. The way out is the hand-edit route, which lifts the block and
+produces a version that downloads; the version that cited the fact stays stored and stays refused
+(decision log, 2026-09-12).
 
 **`GET /api/renders/rirekisho/download` is `.docx` only** — `?format=md` → `409 conflict`. The other
 renders are documents built as text, and markdown is a readable form of one; a 履歴書 is a form whose
