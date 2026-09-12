@@ -46,16 +46,46 @@ const args = parseArgs(process.argv.slice(2));
 const PSQL = args.psql ?? "docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres";
 const DB = args.database ?? "track_record_dev";
 
-const bullets = readBullets();
-if (bullets.length === 0) fail("No experience bullets found. Nothing to measure.");
+const { bullets, blocks } = readBullets();
+// An empty document is a refusal, on the same argument the attribution checker
+// makes (`docs/06`, 2026-09-12): a proposal row exists from the moment a
+// generation starts, so `--latest` reaches one in that state as a matter of
+// course.
+if (blocks === 0) {
+  fail("This document is empty. Nothing to measure, and a generation may still be running.");
+}
+// A document with blocks but no bullets is NOT a refusal. Both career stories
+// are prose and two tables and carry no bullet anywhere by design, and an
+// instrument that exits non-zero on a correct document is an instrument nobody
+// can put in a check (`docs/06`, 2026-09-13). "I cannot answer this question
+// about this render" and "this render is wrong" are different answers.
+if (bullets.length === 0) {
+  console.log("This document carries no bullets. Nothing to measure.");
+  process.exit(0);
+}
 report(measureBullets(bullets));
 
 function readBullets() {
-  if (args.markdown) return bulletsFromLines(readFileSync(args.markdown, "utf8"));
-  if (args.json) return experienceBullets(JSON.parse(readFileSync(args.json, "utf8")));
-  if (args.proposal) return experienceBullets(proposalContent(args.proposal));
-  if (args.latest) return experienceBullets(proposalContent(null));
+  if (args.markdown) {
+    const text = readFileSync(args.markdown, "utf8");
+    return {
+      bullets: bulletsFromLines(text),
+      blocks: text.split("\n").filter((line) => line.trim() !== "").length,
+    };
+  }
+  if (args.json) return fromContent(JSON.parse(readFileSync(args.json, "utf8")));
+  if (args.proposal) return fromContent(proposalContent(args.proposal));
+  if (args.latest) return fromContent(proposalContent(null));
   fail("Pass one of --latest, --proposal <id>, --json <file> or --markdown <file>.");
+}
+
+/** The bullets this measures, and the blocks that say the document exists. */
+function fromContent(content) {
+  const sections = Array.isArray(content?.sections) ? content.sections : [];
+  return {
+    bullets: experienceBullets(content),
+    blocks: sections.reduce((n, s) => n + (Array.isArray(s.blocks) ? s.blocks.length : 0), 0),
+  };
 }
 
 /**
