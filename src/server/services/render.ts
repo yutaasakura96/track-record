@@ -43,6 +43,26 @@ export interface RenderInputs {
 type Chronology = NonNullable<RenderDefinition["chronology"]>;
 
 /**
+ * The name a document of this language calls for, falling back to the other so
+ * that a record holding only one still names the thing.
+ *
+ * The overloads carry a schema guarantee the pair of arguments does not: an
+ * employer's 日本語 name is NOT NULL and its Latin name optional, a project's
+ * default name is NOT NULL and its 日本語 name optional. One side is always
+ * there, so this always returns a name — and stating which side per call is
+ * what keeps that out of a non-null assertion at four call sites.
+ */
+export function nameInLanguage(language: "en" | "ja", ja: string, latin: string | null): string;
+export function nameInLanguage(language: "en" | "ja", ja: string | null, latin: string): string;
+export function nameInLanguage(
+  language: "en" | "ja",
+  ja: string | null,
+  latin: string | null,
+): string | null {
+  return language === "ja" ? (ja ?? latin) : (latin ?? ja);
+}
+
+/**
  * Turns a list's SQL order into the order the document reads in.
  *
  * The SQL order is canonical and load-bearing — `educations` orders on
@@ -145,6 +165,11 @@ export async function collectRenderInputs(
     (f) => f.disclosure !== "private" && f.provenance !== "generated",
   );
 
+  // Bound before the facts are mapped, not after: the employer and project
+  // names carried on a FACT follow the document's language for the same reason
+  // the headings do, and a fact naming its employer in the other language would
+  // leave the model reconciling two spellings before it could file anything.
+  const definition = RENDER_DEFINITIONS[kind];
   const renderFacts: RenderFact[] = usable.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
@@ -158,18 +183,19 @@ export async function collectRenderInputs(
         ? {
             employer: {
               id: employer.id,
-              name: employer.nameLatin ?? employer.nameJa,
+              name: nameInLanguage(definition.language, employer.nameJa, employer.nameLatin),
               startedOn: employer.startedOn,
               endedOn: employer.endedOn,
               industry: employer.industryJa,
             },
           }
         : {}),
-      ...(project ? { project: { name: project.name, summary: project.summary } } : {}),
+      ...(project
+        ? { project: { name: nameInLanguage(definition.language, project.nameJa, project.name), summary: project.summary } }
+        : {}),
     };
   });
 
-  const definition = RENDER_DEFINITIONS[kind];
   return {
     facts: renderFacts,
     spec: {
@@ -181,7 +207,13 @@ export async function collectRenderInputs(
       // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
       employers: inDocumentOrder(employerRows, "newest_first", definition.chronology).map((e) => ({
         id: e.id,
-        name: e.nameLatin ?? e.nameJa,
+        // The same language rule the role titles below follow, and for the same
+        // reason. This read `nameLatin ?? nameJa` until the first 職務経歴書 was
+        // generated and headed every employer with its Latin name while the
+        // record held 株式会社… for all four (`docs/06`, 2026-09-12). A Japanese
+        // document writes the Japanese name; the fallback runs both ways so an
+        // employer recorded under only one name still has a heading.
+        name: nameInLanguage(definition.language, e.nameJa, e.nameLatin),
         industry: e.industryJa,
         startedOn: e.startedOn,
         endedOn: e.endedOn,
@@ -207,7 +239,9 @@ export async function collectRenderInputs(
       })),
       projects: projectRows.map((p) => ({
         id: p.id,
-        name: p.name,
+        // As above. The register copies this into a プロジェクト row, so a
+        // Japanese document wants the Japanese name where the record has one.
+        name: nameInLanguage(definition.language, p.nameJa, p.name),
         employerId: p.employerId,
         summary: p.summary,
       })),
