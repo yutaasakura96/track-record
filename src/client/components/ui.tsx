@@ -53,13 +53,29 @@ export function Button({
   );
 }
 
-/** Mono is for machine facts only — line references, counts, filenames, ids. */
+/** Mono is for machine facts only — line references, counts, filenames, statuses. */
 export function Mono({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
     <span className={`font-mono text-mono-label tracking-mono uppercase ${className}`}>
       {children}
     </span>
   );
+}
+
+/**
+ * An IDENTIFIER, which is a different type role from a mono label and not a
+ * variant of one. `Mono` is uppercase by definition (`docs/05` §2), and that is
+ * right for `EDITED BY HAND` and wrong for `fct_9kQxZm4TbNrJw2Ld`: a fact id is
+ * case-sensitive, so uppercasing it renders a string that matches nothing. An
+ * author reads these off a refusal to go find the fact, which is the whole
+ * reason the refusal names them.
+ *
+ * Set at the body size around it rather than the 9.5px label size, because this
+ * is meant to be read and copied rather than scanned, and `select-all` so one
+ * click takes the whole id and not a word of it.
+ */
+export function MonoId({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <span className={`font-mono text-smaller select-all ${className}`}>{children}</span>;
 }
 
 export function Chip({ children, className = "" }: { children: ReactNode; className?: string }) {

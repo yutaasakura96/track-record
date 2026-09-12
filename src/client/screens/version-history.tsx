@@ -31,7 +31,7 @@ import {
   type ProposalRow,
   type RenderVersion,
 } from "../api";
-import { Button, Chip, Dot, Mono, Panel } from "../components/ui";
+import { Button, Chip, Dot, Mono, MonoId, Panel } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
@@ -445,7 +445,7 @@ function RestorePreview({
           ) : null}
           {facts.map((fact) => (
             <p key={fact.factId} className="text-smaller text-text-dimmer">
-              <Mono>{fact.factId}</Mono> {CITATION_PROBLEM[fact.problem] ?? "cannot be rendered"}.
+              <MonoId>{fact.factId}</MonoId> {CITATION_PROBLEM[fact.problem] ?? "cannot be rendered"}.
             </p>
           ))}
         </div>
