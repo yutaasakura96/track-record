@@ -253,9 +253,25 @@ Run before each milestone is called done.
 bar**. It arrives with the renders. "Never been run" and "cannot be run yet" are different states,
 and only the second one is true of it today.
 
-**Items 2 and 3 are now runnable and have not been run.** 履歴書 became buildable on 2026-09-11 and
-職務経歴書 on 2026-09-12, so both have something to print and read. They moved from "cannot be run
-yet" to "never been run", which is the state the two items are in now.
+**Item 3 was run on 2026-09-12, against the second 職務経歴書 generated that day.** The register
+holds: no bullet ends in です・ます, no bullet uses a first-person pronoun, 体言止め is consistent
+across the experience bullets and the skills rows, and です・ます体 holds in 経歴要約 and 自己PR. It
+reads as Japanese business writing rather than translated English, which is what the item asks.
+
+Running it found two faults the automated checks did not. The first generation headed all four
+employers in Latin while the record held 株式会社… for every one, and filled three 事業内容 rows the
+register says to omit. Both are fixed and both are in the decision log under 2026-09-12; the second
+is now caught by a fourth attribution invariant rather than by a person reading. That is the value of
+a judgement item: it is the only check that reads the document as a document.
+
+**Item 2 is runnable and has not been run.** 履歴書 became buildable on 2026-09-11, so it has
+something to print. It is in the state "never been run" rather than "cannot be run yet".
+
+The employer-name fault above did NOT reach it. The 履歴書 builds its 学歴・職歴 rows from its own
+input builder in `src/server/services/rirekisho.ts`, which reads `nameJa` directly and always has;
+`collectRenderInputs` supplies only the prompt behind 志望動機. So the table a reader sees was correct
+in both accepted versions, and what the fix changed for this render is the employer names the
+motivation prompt was shown.
 
 **Two of these items need a browser that the Claude Code Browser pane is not.** Item 7 needs
 keystrokes the pane does not deliver — a capture-phase `keydown` listener there records nothing and

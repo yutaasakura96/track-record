@@ -2714,3 +2714,86 @@ cannot disagree about when it was submitted. That is the argument `markdown.ts` 
 the identity block, applied to the second thing the renderer writes rather than the model.
 
 ---
+
+### [2026-09-12] The attribution checker gained a fourth invariant, because a copied row can be wrong in a way no fact id shows
+
+The first 職務経歴書 was generated today. `check:attribution` reported clean, and the document was
+not. Three of its four employers carried a 事業内容 row while every employer's `business_description`
+was empty, which the register forbids in as many words: "Omit the row entirely when the list gives
+none."
+
+The rows were not invented. Each carried that employer's `industry`, a value the record really does
+hold and one the prompt writes into the heading line, and the single employer with no industry
+recorded was the single employer whose row was correctly omitted. Three of three, and zero of one.
+So the model did not make something up. It reached for the nearest plausible value in what it had
+been handed and put it in the wrong field.
+
+That is worth an instrument rather than a firmer instruction, and worth one more than invention
+would be. A copied row carries no fact ids by design, so the first three invariants were never going
+to see it: a checker that follows fact ids is blind to exactly the blocks nobody attributed. The
+result looks sourced, reads as fact, and is not what the document says it is. An instruction had
+already asked for this and been ignored once, which is the whole argument for checking instead of
+asking again.
+
+`uncited-copy` therefore checks the four labels the register copies rather than composes, 事業内容,
+資本金, 従業員数 and プロジェクト, against the entity lists they are copied from. 技術スタック is
+excluded on purpose: it is the one row assembled from facts, it carries fact ids, and the first three
+invariants already cover it.
+
+The comparison is equality, with the two departures the register itself writes in. 従業員数 is
+recorded as a number and written with 名 after it, and a プロジェクト row may carry the summary the
+list gives after the name. Nothing looser: a rule that accepted any substring would
+have passed a two-word industry label sitting inside a longer description, which is the exact fault
+this was built for.
+
+The yen is converted before the comparison and never inside it. `capitalInJapanese` moved to
+`src/render/yen.ts` so that the generator, the hand-edit path and the instrument all reach one
+definition, and the module that compares strings goes on only comparing strings.
+
+The finding names the label and never the value. A register label is the register's word rather than
+the author's, so it can be printed where the row's text cannot, on the same rule that keeps bullets
+and fact claims out of every other finding.
+
+---
+
+### [2026-09-12] An empty render is a refusal, not a clean run
+
+Checking the second generation while it was still running printed "clean" and exited 0 against
+`{"sections":[]}`. A proposal row exists from the moment a generation starts and its content stays
+empty until the model answers, so `--latest` will reach one in that state as a matter of course.
+
+The denominators were on screen and read zero, which is the module's own answer to this: a report of
+nothing against nothing is not a pass. It was not enough. The verdict line said clean and the exit
+status agreed, and an exit status is the half a script reads. `measure` had refused an empty document
+from the start; the checker now refuses one on the same terms and says that a generation may still be
+running, because that is what it usually means.
+
+---
+
+### [2026-09-12] An employer's name follows the document's language, and did not
+
+The first 職務経歴書 headed all four employers with their Latin names, above and among a page of
+Japanese, while the record held a 株式会社… name for every one of them. `collectRenderInputs` read
+`nameLatin ?? nameJa` for every render kind.
+
+The rule already existed three lines below, where a role title takes the Japanese title for a
+Japanese document and the Latin one for an English document, and again for certifications. Employers
+and projects were the two that had never been brought over.
+
+The 履歴書 was never affected, though it was assumed to be for an hour. It builds its 学歴・職歴 rows
+from its own input builder in `src/server/services/rirekisho.ts`, which reads `nameJa` directly, and
+takes from `collectRenderInputs` only the prompt behind 志望動機. Two renders reading the record
+through two different builders is why a fault in one of them says nothing about the other, and why
+the assumption was worth checking rather than asserting.
+
+The fact-level names moved with the headings. A fact naming its employer in one language under a
+heading naming it in another leaves the model reconciling two spellings before it can file anything,
+and filing facts under the right heading is what the attribution check measures.
+
+`nameInLanguage` carries the fallback both ways so an employer recorded under one name still gets a
+heading. Its two overloads carry a guarantee the argument pair does not: an employer's 日本語 name is
+NOT NULL and its Latin name optional, a project's default name is NOT NULL and its 日本語 name
+optional. One side is always present, which is why it returns a name rather than a maybe, and saying
+which side at each call is what keeps a non-null assertion out of four call sites.
+
+---
