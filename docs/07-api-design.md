@@ -368,6 +368,11 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 Generation is **blocked**, and the missing fields are **named** (PRD §8). An unexplained employment
 gap by contrast produces a **warning** on the resulting proposal, not a block.
 
+**`POST /api/renders/shokumu_keirekisho/generate` → 428** on the same rule with a shorter list:
+`["familyNameKanji", "givenNameKanji"]`. A 職務経歴書 is headed 氏名 in kanji and needs nothing else
+from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
+belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
+
 **`GET /api/proposals/:id` → 200**
 
 ```json
@@ -467,6 +472,13 @@ from the **record** rather than from the stored version: the 学歴・職歴 and
 derived on each request, the identity block is read from the profile row, the submission date is
 stamped in Tokyo and 満N歳 computed against it, and the only generated text in the file is the two
 prose cells (`docs/04` §4).
+
+**`GET /api/renders/shokumu_keirekisho/download`** takes either format and is assembled from the
+stored version like the résumé, with one addition: a **作成日 stamped in Tokyo at download**, above a
+right-aligned 氏名. It is stamped rather than stored for the same reason the identity block is — a
+submission date is not a claim about a career, and storing one would make an accepted version go
+stale on the day after it was accepted. Both formats take it from one function, so the `.docx` and
+the `.md` of one version cannot disagree about when it was submitted.
 
 **`POST /api/renders/:kind/versions` refuses four ways and warns a fifth.** It edits the CURRENT
 version and nothing else: an edit whose `basedOnVersionId` is not current → `409 conflict` with

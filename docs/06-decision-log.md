@@ -2589,3 +2589,128 @@ vocabulary it reads, and all three call it. Leaving the new screen right and the
 would have been a worse outcome than either fixing all three or fixing none.
 
 ---
+
+### [2026-09-12] 職務経歴書 becomes buildable, 逆編年体, with its bullet bound taken from the author's own document
+
+S10 was the largest remaining MUST and the whole of it sat in one file. `shokumu_keirekisho` was
+`buildable: false` with an empty register and a `null` chronology, and every surface around it was
+already total over `RenderKind`: download, diff, restore, hand edit, attribution, the overview row.
+Nothing needed a migration and nothing needed a new docx path, because the entry of 2026-08-20
+already put the 職務経歴書 on the programmatic `docx` builder the English résumé uses.
+
+**逆編年体.** The entry of 2026-09-10 left `chronology` null because "a 職務経歴書 is written 編年体
+or 逆編年体 and nothing in this project has chosen". The author's own 職務経歴書 is written
+newest-first, and that settles it: a document whose job is to be read against a career that is still
+moving leads with where the career is now. The 履歴書 stays the ascending one. Its 学歴・職歴 table is
+a chronology and this document is an argument, which is exactly the distinction `inDocumentOrder`
+exists to serve: one record, two Japanese renders, opposite directions.
+
+**The section structure is fixed by two instruments, not by taste.** `npm run measure` and
+`npm run check:attribution` both read the section keyed `experience`, and both treat a `paragraph`
+block as opening an employer group with every `row` and `bullet` after it belonging to that group.
+So this render writes its 職務経歴 under the key `experience` too, and the register states the rule
+plainly: exactly one `paragraph` per employer, the heading, and everything else `row` or `bullet`.
+A プロジェクト line written as a paragraph would split one employer into several groups, and the
+bullets under the second heading would stop being checked against an employer the heading does not
+name. The check would not fail. It would report `unresolved-heading` and go quiet about the facts,
+which is the failure mode the attribution module's own header calls the one a checker must not have.
+
+This is not a new rule. It is the rule the English résumé's experience section already follows. What
+this render adds is `row` blocks inside the group, which is what `row` already means: data copied
+from an entity table rather than written from a claim. 事業内容, 資本金・従業員数 and the プロジェクト
+lines are all copied. The one exception is 技術スタック, which is assembled from the facts under that
+employer and therefore carries `factIds`, so the attribution check covers it.
+
+**The bullet bound is 120 characters, and the shape is 21 / 65 / 76%.** Measured from the author's
+hand-maintained 職務経歴書 the way the résumé's 30 / 191 / 57% target was measured: 21 outcome
+bullets, mean 65 characters, longest 108, and about three quarters carrying a number. 120 sits just
+above the observed longest and is about half the English bound, which is right, because Japanese
+says in one character roughly what English says in two. The entry of 2026-09-08 is what made the
+number a bound rather than a mean: a mean is not something a model can check while writing and a
+per-item ceiling is, so bound the item and state the aggregate as shape.
+
+**`over 250` reads 0 for this render by construction** and is not a fault in the instrument. The
+threshold was fixed so that readings either side of a register change stay comparable, and moving it
+for a Japanese document would make every recorded résumé figure incomparable with the next one. The
+figure to read here is `longest`, against 120.
+
+**Two registers now contradict each other on purpose, and each says so.** A driving licence belongs
+in 保有資格 and is refused by the English résumé's certifications rule. 学歴 keeps a vocational
+programme that the résumé's level selector drops. Both registers state their rule in the positive
+rather than leaving the divergence to be discovered by comparing outputs.
+
+What is deliberately not done here is the provider bake-off the entry of 2026-08-15 promised for
+this moment: generate from identical facts on three models and compare against the hand-produced
+document. That is an experiment against a built render, and the render is what this entry builds.
+
+---
+
+### [2026-09-12] 資本金 is converted before the prompt, because the alternative is asking a model to divide
+
+`employers.capital_yen` and `employers.headcount` have been in the schema since it was first drawn
+(2026-08-12, which put them there for this render) and were read by nothing for a month. They were
+not on `RenderSpec`, so no register could have printed them however it was written, and S10's
+acceptance criterion naming them was unmeetable.
+
+The record stores yen and the document writes 万円. Handing the model the yen figure and a register
+saying "write it in 万円" would be asking it to divide, on the one number in the document a reader
+can look up, against a prompt rule that already forbids introducing a total the facts do not state.
+So `capitalInJapanese` does the arithmetic in `src/model/generate.ts`, the prompt carries both forms,
+and the register's instruction is to copy the string and never convert the figure. A pure function
+with a test, in place of an instruction and a hope.
+
+A figure that does not divide evenly into 万 is written out in full yen rather than rounded.
+Rounding a published capital figure is a misstatement of a number rather than a formatting choice.
+
+**An absent figure prints nothing at all**, not "not recorded". A private company genuinely may not
+publish either number, and a labelled absence on a line about company scale is an invitation to
+supply one.
+
+This is the shape of defect `tests/prompt.test.ts` was opened for: a field that passes the type check
+all the way to the payload and never reaches the model, because the prompt's lines are
+hand-formatted. The test added with this entry asserts the values reach the prompt text.
+
+---
+
+### [2026-09-12] The prompt's dated lists are labelled by position, because a direction was false for one render
+
+The generation prompt labelled its lists "Employers, most recent first", "Education, oldest first"
+and "Certifications, most recently awarded first". Every one of those labels was already wrong for
+one render or the other: `collectRenderInputs` applies `inDocumentOrder` before the spec is built, so
+the same education list arrives oldest-first for the 履歴書 and newest-first for the résumé under a
+label that says oldest.
+
+It had been latent because all three registers say to take the order the list gives, so the labels
+were at best redundant. A third render, reading in a third combination, is what made a standing
+contradiction in the prompt worth removing rather than noting. The labels now name the position,
+"in the order this document lists them", which is true for every kind and agrees with the registers.
+
+It changes the résumé's prompt and therefore its output slightly. That is the cost of removing a
+false statement from a prompt, and it is worth paying once rather than adding a fourth reading of it.
+
+---
+
+### [2026-09-12] The 職務経歴書 is dated and right-aligned, and the English résumé is deliberately neither
+
+A Japanese application document carries 作成日 at the top right, above 氏名, and one submitted undated
+reads as a draft. The author's own 職務経歴書 is headed with its date. S10's acceptance is that the
+format "reads as native rather than translated", and a missing 作成日 is exactly the kind of thing a
+Japanese reader notices without being able to say why.
+
+So the date and the right alignment travel together as one convention in
+`src/render/identity.ts`, in a map total over `RenderKind` alongside the header fields, and the
+answer is yes for the 職務経歴書 and no for everything else. The English résumé is undated on
+purpose, because it is read months after it is written and a date on it only makes it look stale.
+The 履歴書 is dated but stamps its own date into a template cell, so it takes nothing from here. The
+career stories are read on screen and are not documents to submit.
+
+**Stamped at download, in Tokyo, never stored**, on the same argument as the identity block and the
+履歴書's submission date. A submission date is not a claim about a career, and storing one would make
+every accepted version go stale on the day after it was accepted, with a regeneration as the remedy
+and nothing to review in it.
+
+Both download formats read it from one function, so the `.docx` and the `.md` of a single version
+cannot disagree about when it was submitted. That is the argument `markdown.ts` already makes about
+the identity block, applied to the second thing the renderer writes rather than the model.
+
+---

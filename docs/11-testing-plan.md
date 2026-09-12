@@ -248,11 +248,14 @@ Run before each milestone is called done.
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 
-**Items 2, 3 and 4 cannot be run until the renders they check exist.** 履歴書, 職務経歴書 and both
-career stories are `buildable: false` in `src/render/spec.ts` through M1, so those three items have
-nothing to open, print or read and are **not part of the M1 bar**. They arrive with the renders.
-"Never been run" and "cannot be run yet" are different states, and only the second one is true of
-them today.
+**Item 4 cannot be run until the renders it checks exist.** Both career stories are
+`buildable: false` in `src/render/spec.ts`, so it has nothing to read and is **not part of the M1
+bar**. It arrives with the renders. "Never been run" and "cannot be run yet" are different states,
+and only the second one is true of it today.
+
+**Items 2 and 3 are now runnable and have not been run.** 履歴書 became buildable on 2026-09-11 and
+職務経歴書 on 2026-09-12, so both have something to print and read. They moved from "cannot be run
+yet" to "never been run", which is the state the two items are in now.
 
 **Two of these items need a browser that the Claude Code Browser pane is not.** Item 7 needs
 keystrokes the pane does not deliver — a capture-phase `keydown` listener there records nothing and
