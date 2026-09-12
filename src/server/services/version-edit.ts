@@ -20,7 +20,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { employers, facts, projects } from "../db/schema";
 import type { Db } from "../db/client";
 import type { CareerRecord } from "~/render/attribution";
-import { checkAttribution } from "~/render/attribution";
+import { checkAttribution, type CopiedValue } from "~/render/attribution";
+import { capitalInJapanese } from "~/render/yen";
 import type { RenderContent } from "~/shared/render-content";
 
 /** Why a cited fact may not appear in a document. */
@@ -61,9 +62,21 @@ export async function collectEditableRecord(db: Db, userId: string): Promise<Edi
     .where(eq(facts.userId, userId));
 
   const employerRows = await db
-    .select({ id: employers.id, nameJa: employers.nameJa, nameLatin: employers.nameLatin })
+    .select({
+      id: employers.id,
+      nameJa: employers.nameJa,
+      nameLatin: employers.nameLatin,
+      businessDescription: employers.businessDescription,
+      capitalYen: employers.capitalYen,
+      headcount: employers.headcount,
+    })
     .from(employers)
     .where(eq(employers.userId, userId));
+
+  const projectRows = await db
+    .select({ employerId: projects.employerId, name: projects.name, nameJa: projects.nameJa })
+    .from(projects)
+    .where(eq(projects.userId, userId));
 
   return {
     record: {
@@ -72,6 +85,7 @@ export async function collectEditableRecord(db: Db, userId: string): Promise<Edi
         // 日本語 and Latin both: a render writes whichever its language calls for.
         id: e.id,
         names: [e.nameJa, e.nameLatin].filter((n): n is string => n !== null && n !== ""),
+        copy: copySources(e, projectRows),
       })),
     },
     byId: new Map(
@@ -93,6 +107,43 @@ export interface BadCitation {
  * is Private is reported as Private even if it is also Generated: the stronger
  * reason is the one the author needs to hear.
  */
+/**
+ * What this employer's copied rows are permitted to say — the same list the
+ * instrument builds in `scripts/check-attribution.mjs`, because a hand edit is
+ * checked against the record on the same terms a generation is.
+ *
+ * The yen is converted here rather than in `attribution.ts` for the reason the
+ * register does not convert it either: the arithmetic belongs in one tested
+ * function, and the thing comparing strings should only ever compare strings.
+ */
+function copySources(
+  employer: {
+    id: string;
+    businessDescription: string | null;
+    capitalYen: number | null;
+    headcount: number | null;
+  },
+  projectRows: readonly { employerId: string | null; name: string; nameJa: string | null }[],
+): CopiedValue[] {
+  const copy: CopiedValue[] = [];
+  if (employer.businessDescription) {
+    copy.push({ field: "事業内容", value: employer.businessDescription });
+  }
+  if (employer.capitalYen !== null) {
+    copy.push({ field: "資本金", value: capitalInJapanese(employer.capitalYen) });
+  }
+  if (employer.headcount !== null) {
+    copy.push({ field: "従業員数", value: String(employer.headcount) });
+  }
+  for (const project of projectRows) {
+    if (project.employerId !== employer.id) continue;
+    for (const name of [project.nameJa, project.name]) {
+      if (name) copy.push({ field: "プロジェクト", value: name });
+    }
+  }
+  return copy;
+}
+
 export function badCitations(cited: readonly string[], record: EditableRecord): BadCitation[] {
   const bad: BadCitation[] = [];
   for (const factId of cited) {
@@ -146,6 +197,10 @@ export function editWarnings(content: RenderContent, record: CareerRecord): stri
     } else if (finding.invariant === "misfiled-fact") {
       warnings.push(
         `${finding.blockId} cites ${finding.factId}, which is filed to a different employer than its heading names.`,
+      );
+    } else if (finding.invariant === "uncited-copy") {
+      warnings.push(
+        `${finding.blockId} states a ${finding.field} your record does not give for that employer.`,
       );
     } else if (finding.invariant === "unresolved-heading") {
       warnings.push(`The heading above ${finding.blockId} names no employer in your record.`);

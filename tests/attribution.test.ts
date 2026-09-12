@@ -27,8 +27,8 @@ const EMP_B = "emp_kakuu_denki";
 
 const RECORD: CareerRecord = {
   employers: [
-    { id: EMP_A, names: ["架空商事株式会社", "Kakuu Trading"] },
-    { id: EMP_B, names: ["架空電機株式会社", "Kakuu Electric"] },
+    { id: EMP_A, names: ["架空商事株式会社", "Kakuu Trading"], copy: [] },
+    { id: EMP_B, names: ["架空電機株式会社", "Kakuu Electric"], copy: [] },
   ],
   facts: [
     { id: "fct_a1", employerId: EMP_A },
@@ -98,6 +98,7 @@ describe("a render whose facts are all filed where they are used", () => {
       "unknown-fact": 0,
       "unfiled-fact": 0,
       "misfiled-fact": 0,
+      "uncited-copy": 0,
       "unresolved-heading": 0,
     });
   });
@@ -113,6 +114,7 @@ describe("invariant 1 — a fact id the record does not contain", () => {
         factId: "fct_ghost",
         headingEmployerId: null,
         factEmployerId: null,
+        field: null,
       },
     ]);
   });
@@ -149,6 +151,7 @@ describe("invariant 2 — a fact filed to no employer, used under one", () => {
         factId: "fct_loose",
         headingEmployerId: EMP_B,
         factEmployerId: null,
+        field: null,
       },
     ]);
   });
@@ -177,6 +180,7 @@ describe("invariant 3 — a fact under a heading naming a different employer", (
         factId: "fct_a1",
         headingEmployerId: EMP_B,
         factEmployerId: EMP_A,
+        field: null,
       },
     ]);
   });
@@ -200,6 +204,7 @@ describe("a heading whose employer cannot be identified", () => {
         factId: null,
         headingEmployerId: null,
         factEmployerId: null,
+        field: null,
       },
     ]);
     expect(report.resolvedGroups).toBe(1);
@@ -270,6 +275,7 @@ describe("bullets that precede every heading", () => {
         factId: null,
         headingEmployerId: null,
         factEmployerId: null,
+        field: null,
       },
     ]);
   });
@@ -284,8 +290,8 @@ describe("bullets that precede every heading", () => {
 
 describe("matching a heading to an employer", () => {
   const NESTED = [
-    { id: "emp_short", names: ["架空商事"] },
-    { id: "emp_long", names: ["架空商事ホールディングス"] },
+    { id: "emp_short", names: ["架空商事"] , copy: [] },
+    { id: "emp_long", names: ["架空商事ホールディングス"] , copy: [] },
   ];
 
   it("takes the longest matching name, so a contained name does not win", () => {
@@ -302,18 +308,18 @@ describe("matching a heading to an employer", () => {
 
   it("resolves to nothing when two different employers match equally well", () => {
     const tied = [
-      { id: "emp_1", names: ["架空ソフト"] },
-      { id: "emp_2", names: ["架空ハード"] },
+      { id: "emp_1", names: ["架空ソフト"] , copy: [] },
+      { id: "emp_2", names: ["架空ハード"] , copy: [] },
     ];
     expect(resolveEmployer("架空ソフトと架空ハードの共同案件", tied)).toBeNull();
   });
 
   it("ignores an employer whose name is blank rather than matching everything", () => {
-    expect(resolveEmployer("架空の見出し", [{ id: "emp_blank", names: ["", "  "] }])).toBeNull();
+    expect(resolveEmployer("架空の見出し", [{ id: "emp_blank", names: ["", "  "] , copy: [] }])).toBeNull();
   });
 
   it("ignores an employer named only for its corporate form, which normalises to nothing", () => {
-    expect(resolveEmployer("架空の見出し", [{ id: "emp_form", names: ["株式会社", "Ltd."] }])).toBeNull();
+    expect(resolveEmployer("架空の見出し", [{ id: "emp_form", names: ["株式会社", "Ltd."] , copy: [] }])).toBeNull();
   });
 });
 
@@ -328,19 +334,19 @@ describe("a heading that abbreviates the employer's name", () => {
   });
 
   it("resolves when the heading drops the Latin corporate form", () => {
-    const employers = [{ id: "emp_x", names: ["Kakuu Trading Co., Ltd."] }];
+    const employers = [{ id: "emp_x", names: ["Kakuu Trading Co., Ltd."] , copy: [] }];
     expect(resolveEmployer("Kakuu Trading — Engineer", employers)).toBe("emp_x");
   });
 
   it("resolves when the heading carries the corporate form and the record does not", () => {
-    const employers = [{ id: "emp_x", names: ["架空商事"] }];
+    const employers = [{ id: "emp_x", names: ["架空商事"] , copy: [] }];
     expect(resolveEmployer("架空商事株式会社 開発部", employers)).toBe("emp_x");
   });
 
   it("keeps two employers distinct when only the corporate form separates them", () => {
     const employers = [
-      { id: "emp_kk", names: ["架空商事株式会社"] },
-      { id: "emp_yk", names: ["架空商事有限会社"] },
+      { id: "emp_kk", names: ["架空商事株式会社"] , copy: [] },
+      { id: "emp_yk", names: ["架空商事有限会社"] , copy: [] },
     ];
     // The exact pass settles it. Normalising would collapse both to 架空商事
     // and lose the only thing telling them apart.
@@ -353,7 +359,7 @@ describe("a heading that abbreviates the employer's name", () => {
   it("does not match a short name across a word boundary", () => {
     // Whitespace is collapsed rather than removed, so `abc` is not found
     // inside `lab candidate`.
-    expect(resolveEmployer("lab candidate review", [{ id: "emp_abc", names: ["ABC"] }])).toBeNull();
+    expect(resolveEmployer("lab candidate review", [{ id: "emp_abc", names: ["ABC"] , copy: [] }])).toBeNull();
   });
 
   it("still resolves to nothing when the heading names no employer at all", () => {

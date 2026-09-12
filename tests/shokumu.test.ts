@@ -24,7 +24,8 @@ import { EXPERIENCE_SECTION as MEASURED_SECTION } from "~/render/metrics";
 import { EXPERIENCE_SECTION as ATTRIBUTED_SECTION } from "~/render/attribution";
 import { capitalInJapanese } from "~/model/generate";
 import { documentDate, isDated } from "~/render/identity";
-import { checkAttribution, experienceGroups } from "~/render/attribution";
+import { nameInLanguage } from "~/server/services/render";
+import { checkAttribution, copiedPairs, copyIsPermitted, experienceGroups } from "~/render/attribution";
 import { experienceBullets, measureBullets } from "~/render/metrics";
 import type { RenderContent } from "~/shared/render-content";
 import { RENDER_KINDS } from "~/shared/render-content";
@@ -174,8 +175,20 @@ describe("the 作成日", () => {
  * quietly return nothing for.
  */
 const EMPLOYERS = [
-  { id: "emp_a", names: ["架空商事株式会社"] },
-  { id: "emp_b", names: ["有限会社山田製作所"] },
+  {
+    id: "emp_a",
+    names: ["架空商事株式会社"],
+    // What the entity lists give, so the copied rows below have a source. The
+    // 資本金 arrives already written the way the document writes it, which is
+    // how the register receives it too.
+    copy: [
+      { field: "事業内容" as const, value: "架空の受託開発。" },
+      { field: "資本金" as const, value: "1200万円" },
+      { field: "従業員数" as const, value: "18" },
+      { field: "プロジェクト" as const, value: "備品貸出システム" },
+    ],
+  },
+  { id: "emp_b", names: ["有限会社山田製作所"], copy: [] },
 ];
 
 const block = (kind: string, text: string, factIds: string[] = []) => ({ kind, text, factIds });
@@ -195,7 +208,7 @@ const SHOKUMU: RenderContent = {
         // Employer A: heading, two copied rows, a project, its bullets, the stack.
         { id: "blk_2", ...block("paragraph", "架空商事株式会社　2024年10月〜2025年3月　フルスタック開発者") },
         { id: "blk_3", ...block("row", "事業内容：架空の受託開発。") },
-        { id: "blk_4", ...block("row", "資本金：400万円　従業員数：12名") },
+        { id: "blk_4", ...block("row", "資本金：1200万円　従業員数：18名") },
         { id: "blk_5", ...block("row", "プロジェクト：備品貸出システム") },
         { id: "blk_6", ...block("row", "技術的成果：") },
         { id: "blk_7", ...block("bullet", "社内向け備品貸出システムを単独で設計・実装", ["fct_1", "fct_2"]) },
@@ -284,5 +297,91 @@ describe("a document written the way the register says", () => {
       headingEmployerId: "emp_b",
       factEmployerId: "emp_a",
     });
+  });
+  it("passes the copied rows only because the record gives them", () => {
+    // The clean case above would also be clean if invariant 4 checked nothing,
+    // so this asserts the rows are actually reaching it. Take the source away
+    // and the same document stops passing.
+    const sourceless = {
+      facts: RECORD.facts,
+      employers: EMPLOYERS.map((e) => ({ ...e, copy: [] })),
+    };
+    const report = checkAttribution(SHOKUMU, sourceless);
+    expect(report.findings.map((f) => f.field)).toEqual([
+      "事業内容",
+      "資本金",
+      "従業員数",
+      "プロジェクト",
+    ]);
+    expect(report.findings.every((f) => f.invariant === "uncited-copy")).toBe(true);
+  });
+
+  it("catches a 事業内容 the record never gave — the fault no fact id can show", () => {
+    // The first 職務経歴書 ever generated filled in three of these with the
+    // employer's `industry`, which belongs in the heading, while every
+    // employer's description was empty (`docs/06`, 2026-09-12). A real value in
+    // the wrong field, not an invented one — and the row carries no fact ids by
+    // design, so invariants 1 to 3 saw nothing and reported clean.
+    const invented = {
+      sections: SHOKUMU.sections.map((section) =>
+        section.key !== "experience"
+          ? section
+          : {
+              ...section,
+              blocks: section.blocks.map((b) =>
+                b.id === "blk_3" ? { ...b, text: "事業内容：精密機器卸売業" } : b,
+              ),
+            },
+      ),
+    } as RenderContent;
+    const report = checkAttribution(invented, RECORD);
+    expect(report.findings).toHaveLength(1);
+    expect(report.findings[0]).toMatchObject({
+      invariant: "uncited-copy",
+      blockId: "blk_3",
+      headingEmployerId: "emp_a",
+      field: "事業内容",
+      factId: null,
+    });
+  });
+
+  it("reads both labels off a row that carries two", () => {
+    expect(copiedPairs("資本金：1200万円　従業員数：18名")).toEqual([
+      { field: "資本金", value: "1200万円　" },
+      { field: "従業員数", value: "18名" },
+    ]);
+    // 技術スタック is assembled from facts, not copied, and must not be checked
+    // against a list that was never going to hold it.
+    expect(copiedPairs("技術スタック：TypeScript、PostgreSQL")).toEqual([]);
+  });
+
+  it("allows the two departures the register itself writes in", () => {
+    const permitted = EMPLOYERS[0]!.copy;
+    // 従業員数 is recorded as a number and written with 名 after it.
+    expect(copyIsPermitted({ field: "従業員数", value: "18名" }, permitted)).toBe(true);
+    expect(copyIsPermitted({ field: "従業員数", value: "180名" }, permitted)).toBe(false);
+    // プロジェクト may carry the summary the list gives after the name.
+    expect(
+      copyIsPermitted({ field: "プロジェクト", value: "備品貸出システム　社内向け" }, permitted),
+    ).toBe(true);
+    // 事業内容 is copied whole. A guess that merely sits inside the real
+    // description is the fault, not a pass.
+    expect(copyIsPermitted({ field: "事業内容", value: "架空の受託開発。" }, permitted)).toBe(true);
+    expect(copyIsPermitted({ field: "事業内容", value: "受託開発" }, permitted)).toBe(false);
+  });
+  it("names an employer in the language the document is written in", () => {
+    // The first 職務経歴書 headed all four employers with their Latin names
+    // while the record held 株式会社… for every one (`docs/06`, 2026-09-12).
+    // An employer's 日本語 name is NOT NULL and its Latin name optional, so the
+    // Japanese document always has the name it wants.
+    expect(nameInLanguage("ja", "株式会社架空商事", "Kakuu Trading")).toBe("株式会社架空商事");
+    expect(nameInLanguage("en", "株式会社架空商事", "Kakuu Trading")).toBe("Kakuu Trading");
+  });
+
+  it("falls back both ways rather than leaving a thing unnamed", () => {
+    // An employer recorded under one name only still gets a heading, and a
+    // project whose 日本語 name is absent keeps its default one.
+    expect(nameInLanguage("en", "株式会社架空商事", null)).toBe("株式会社架空商事");
+    expect(nameInLanguage("ja", null, "備品貸出システム")).toBe("備品貸出システム");
   });
 });

@@ -4,9 +4,9 @@
  *
  * The second committed instrument, alongside `npm run measure`. Measure asks
  * whether a render's bullets are the right shape; this asks whether they are
- * attached to the right facts — the three invariants that were checked by hand
- * after every generation. The definition lives in `src/render/attribution.ts`;
- * this file only finds a render and a record and hands them over.
+ * attached to the right facts — the invariants that were checked by hand after
+ * every generation. The definition lives in `src/render/attribution.ts`; this
+ * file only finds a render and a record and hands them over.
  *
  *   npm run check:attribution -- --latest
  *   npm run check:attribution -- --proposal prp_H8t4
@@ -42,6 +42,7 @@
 import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { checkAttribution, countByInvariant } from "../src/render/attribution.ts";
+import { capitalInJapanese } from "../src/render/yen.ts";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -50,6 +51,15 @@ const DB = args.database ?? "track_record_dev";
 
 const { content, userId } = readRender();
 const report = checkAttribution(content, readRecord(userId));
+// A render with no blocks in it is not a clean render. `--latest` will happily
+// pick up a proposal whose row exists while the generation is still running —
+// its content is `{"sections":[]}` until the model answers — and checking that
+// printed `clean` and exited 0, which is the one failure mode the definition
+// module says a checker must not have. `measure` already refuses an empty
+// document; this now refuses one on the same terms.
+if (report.blocksChecked === 0) {
+  fail("That render has no blocks. Nothing to check — if it was just generated, it may still be running.");
+}
 report_(report);
 process.exit(report.findings.length > 0 ? 1 : 0);
 
@@ -98,11 +108,38 @@ function readRecord(userId) {
   );
   const employers = queryJson(
     `select coalesce(json_agg(json_build_object(` +
-      `'id', e.id, 'names', array_remove(array[e.name_ja, e.name_latin], null))), '[]') ` +
+      `'id', e.id, 'names', array_remove(array[e.name_ja, e.name_latin], null), ` +
+      `'businessDescription', e.business_description, ` +
+      `'capitalYen', e.capital_yen, 'headcount', e.headcount, ` +
+      `'projects', (select coalesce(json_agg(array_remove(array[p.name_ja, p.name], null)), '[]') ` +
+      `from projects p where p.employer_id = e.id and p.user_id = e.user_id))), '[]') ` +
       `from employers e where e.user_id = '${userId}'`,
   );
   if (employers.length === 0) fail("That user has no employers. There is nothing to check against.");
-  return { facts, employers };
+  return { facts, employers: employers.map(withCopySources) };
+}
+
+/**
+ * What the register is permitted to have copied, per employer.
+ *
+ * The yen is converted HERE and handed over as the string the document writes,
+ * because that is exactly what the register was handed. Doing it in the
+ * definition module would put arithmetic in a pure function of its input; doing
+ * it twice would give the two copies somewhere to drift apart.
+ *
+ * A project contributes every name it has, 日本語 and Latin both, for the same
+ * reason an employer does: the row writes whichever the document's language
+ * calls for.
+ */
+function withCopySources(e) {
+  const copy = [];
+  if (e.businessDescription) copy.push({ field: "事業内容", value: e.businessDescription });
+  if (e.capitalYen !== null) copy.push({ field: "資本金", value: capitalInJapanese(e.capitalYen) });
+  if (e.headcount !== null) copy.push({ field: "従業員数", value: String(e.headcount) });
+  for (const names of e.projects ?? []) {
+    for (const name of names) copy.push({ field: "プロジェクト", value: name });
+  }
+  return { id: e.id, names: e.names, copy };
 }
 
 /** An id reaches a shell command, so it is checked against the shape ids
@@ -133,6 +170,7 @@ function report_(r) {
   console.log(`unknown fact        ${counts["unknown-fact"]}`);
   console.log(`unfiled fact        ${counts["unfiled-fact"]}`);
   console.log(`misfiled fact       ${counts["misfiled-fact"]}`);
+  console.log(`uncited copy        ${counts["uncited-copy"]}`);
   console.log(`unresolved heading  ${counts["unresolved-heading"]}`);
 
   if (r.findings.length === 0) return;
@@ -142,6 +180,9 @@ function report_(r) {
     if (f.factId !== null) parts.push(`fact ${f.factId}`);
     if (f.headingEmployerId !== null) parts.push(`heading ${f.headingEmployerId}`);
     if (f.factEmployerId !== null) parts.push(`filed ${f.factEmployerId}`);
+    // The LABEL, never the value. A register label is the register's word, not
+    // the author's; the row's text stays out for the same reason a bullet does.
+    if (f.field !== null) parts.push(`field ${f.field}`);
     console.log(parts.join("  "));
   }
 }

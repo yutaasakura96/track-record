@@ -11,8 +11,28 @@
  *   1. unknown-fact       a block cites a fact id the record does not contain
  *   2. unfiled-fact       a fact filed to no employer is used under an employer
  *   3. misfiled-fact      a fact is used under a heading naming a DIFFERENT employer
+ *   4. uncited-copy       a row the register COPIES says something the list does not
  *
- * A fourth finding, `unresolved-heading`, is not an invariant about the render.
+ * The fourth was added after the first 職務経歴書 was generated (`docs/06`,
+ * 2026-09-12). The register tells the model to copy 事業内容, 資本金, 従業員数
+ * and プロジェクト from the entity lists and to omit the row when the list
+ * gives nothing. With every employer's 事業内容 empty, three of four rows came
+ * back filled in anyway — carrying that employer's `industry`, which the prompt
+ * puts in the HEADING line. Nothing was invented: a value the record really
+ * holds was copied into the wrong field, and the one employer with no industry
+ * recorded was the one employer whose row was correctly omitted.
+ *
+ * That is the failure worth building an instrument for, because it is the
+ * likely one. A model asked to copy from a list will reach for the nearest
+ * plausible value in what it was handed long before it will make one up, and
+ * the result is a row that looks sourced, reads as fact, and is not what the
+ * document claims it is. The first three invariants could not see it and never
+ * will: those rows carry no fact ids BY DESIGN, and a checker that only follows
+ * fact ids is blind to exactly the blocks nobody attributed. An instruction had
+ * already asked for this and been ignored, which is the argument for checking
+ * rather than asking again.
+ *
+ * A fifth finding, `unresolved-heading`, is not an invariant about the render.
  * It reports a group whose employer this module could not identify, and it
  * exists because the alternative is checking nothing there and saying nothing.
  * Silence is the one failure mode a checker must not have.
@@ -77,6 +97,18 @@ export interface RecordFact {
 export interface RecordEmployer {
   id: string;
   names: string[];
+  /**
+   * Every value this employer's copied rows may carry, from the entity lists
+   * the register copies from. An employer with nothing recorded for a field has
+   * no entry for it, and a row claiming that field is then a row the list did
+   * not give — which is the finding.
+   *
+   * 資本金 arrives ALREADY WRITTEN as the document writes it, because that is
+   * how the register receives it too (`model/generate.ts`). The instrument runs
+   * `capitalInJapanese` before calling in, so the comparison is string against
+   * string and this module still divides nothing.
+   */
+  copy: CopiedValue[];
 }
 
 export interface CareerRecord {
@@ -88,7 +120,23 @@ export type AttributionInvariant =
   | "unknown-fact"
   | "unfiled-fact"
   | "misfiled-fact"
+  | "uncited-copy"
   | "unresolved-heading";
+
+/**
+ * The row labels the register copies rather than composes. 技術スタック is
+ * deliberately absent: it is the one row assembled FROM facts, it carries fact
+ * ids, and the first three invariants already cover it.
+ */
+export const COPIED_FIELDS = ["事業内容", "資本金", "従業員数", "プロジェクト"] as const;
+
+export type CopiedField = (typeof COPIED_FIELDS)[number];
+
+/** One value an employer's copied row is permitted to say. */
+export interface CopiedValue {
+  field: CopiedField;
+  value: string;
+}
 
 export interface AttributionFinding {
   invariant: AttributionInvariant;
@@ -99,6 +147,8 @@ export interface AttributionFinding {
   headingEmployerId: string | null;
   /** The employer the fact is filed to. Null when the fact is unfiled. */
   factEmployerId: string | null;
+  /** Which copied row failed. Null on every invariant but `uncited-copy`. */
+  field: CopiedField | null;
 }
 
 export interface AttributionReport {
@@ -205,6 +255,62 @@ export function resolveEmployer(heading: string, employers: readonly RecordEmplo
   return loose.tied ? null : loose.id;
 }
 
+/**
+ * A copied row, split into the label/value pairs it carries. One row may carry
+ * two: the register writes 資本金 and 従業員数 on a single line.
+ *
+ * Both colons are accepted. The register writes the full-width one and every
+ * generation so far has obeyed, but a checker that reports nothing because the
+ * model reached for `:` would be the silence this module exists to avoid.
+ */
+export function copiedPairs(text: string): CopiedValue[] {
+  const label = new RegExp(`(${COPIED_FIELDS.join("|")})[：:]`, "g");
+  const marks = [...text.matchAll(label)];
+  return marks.map((mark, i) => ({
+    field: mark[1] as CopiedField,
+    value: text.slice(
+      (mark.index ?? 0) + mark[0].length,
+      i + 1 < marks.length ? marks[i + 1]!.index : undefined,
+    ),
+  }));
+}
+
+/**
+ * Whitespace collapsed and nothing else. The heading matcher strips corporate
+ * form and punctuation because a heading ABBREVIATES a name; a copied row does
+ * not abbreviate anything, and loosening the comparison here would forgive the
+ * edit the check is looking for.
+ */
+function flatten(value: string): string {
+  return value.replace(/[\s\u3000]+/g, " ").trim();
+}
+
+/**
+ * Does the list permit this row to say this?
+ *
+ * Equality, with the two departures the register itself writes in:
+ *   - 従業員数 is recorded as a number and written with 名 after it.
+ *   - プロジェクト may carry the summary the list gives after the name, so the
+ *     name has to be a prefix rather than the whole value.
+ *
+ * Anything looser would pass a two-word guess that happens to appear inside a
+ * real description, which is the exact fault that prompted this.
+ */
+export function copyIsPermitted(pair: CopiedValue, permitted: readonly CopiedValue[]): boolean {
+  const written = flatten(pair.value);
+  const candidates = permitted.filter((p) => p.field === pair.field).map((p) => flatten(p.value));
+  if (candidates.length === 0) return false;
+
+  if (pair.field === "従業員数") {
+    const count = written.replace(/名$/, "").trim();
+    return candidates.includes(count);
+  }
+  if (pair.field === "プロジェクト") {
+    return candidates.some((name) => name.length > 0 && written.startsWith(name));
+  }
+  return candidates.includes(written);
+}
+
 export interface AttributionGroup {
   /** The paragraph that opened it, or null for bullets preceding any paragraph. */
   headingBlockId: string | null;
@@ -265,6 +371,7 @@ export function checkAttribution(
           factId,
           headingEmployerId: null,
           factEmployerId: null,
+          field: null,
         });
       }
     }
@@ -285,12 +392,29 @@ export function checkAttribution(
         factId: null,
         headingEmployerId: null,
         factEmployerId: null,
+        field: null,
       });
       continue;
     }
     resolvedGroups += 1;
+    const employer = record.employers.find((e) => e.id === group.employerId);
 
     for (const block of group.blocks) {
+      // Invariant 4. A copied row is checked against the list whatever it
+      // cites: a row that names 事業内容 AND hangs a fact id on it is still a
+      // row saying something the list has to have said.
+      for (const pair of copiedPairs(block.text)) {
+        if (copyIsPermitted(pair, employer?.copy ?? [])) continue;
+        findings.push({
+          invariant: "uncited-copy",
+          blockId: block.id,
+          factId: null,
+          headingEmployerId: group.employerId,
+          factEmployerId: null,
+          field: pair.field,
+        });
+      }
+
       for (const factId of block.factIds) {
         const fact = byId.get(factId);
         // Already reported as unknown. Saying it twice would only make the
@@ -303,6 +427,7 @@ export function checkAttribution(
             factId,
             headingEmployerId: group.employerId,
             factEmployerId: null,
+            field: null,
           });
           continue;
         }
@@ -313,6 +438,7 @@ export function checkAttribution(
             factId,
             headingEmployerId: group.employerId,
             factEmployerId: fact.employerId,
+            field: null,
           });
         }
       }
@@ -336,6 +462,7 @@ export function countByInvariant(
     "unknown-fact": 0,
     "unfiled-fact": 0,
     "misfiled-fact": 0,
+    "uncited-copy": 0,
     "unresolved-heading": 0,
   };
   for (const finding of report.findings) counts[finding.invariant] += 1;
