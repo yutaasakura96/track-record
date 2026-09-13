@@ -487,6 +487,59 @@ restructuring a section by hand may be right where the checker is wrong (`docs/0
 
 ---
 
+## Screen 7 — Skills
+
+S9 (added 2026-09-13). The skills section of the English résumé and the 職務経歴書's 活かせるスキル・経験
+come from here once the author has curated anything. **Nothing on this screen is typed as a skill**:
+every name is a technology some accepted fact or certification already carries (`04`
+`skill_curations`), and the screen only chooses, groups and orders them.
+
+Sidebar chrome, with a `Skills` row under `Record`. Header title `Skills`, contextual note
+`Chosen from the technologies your facts and certifications name`.
+
+### Layout
+
+Two panels side by side, each half the content width.
+
+**Curated** (left). One block per group, in order. A group heading is its name, editable in place,
+with `↑` `↓` to move the group and nothing else. Beneath it, one row per skill: the name, a
+right-aligned mono count (`4 FACTS`, or `CERT` when only a certification names it), then `↑` `↓`
+and `Remove`. `↑` is disabled on the first row and `↓` on the last, stating why. Below the last
+group, a name field and `Add group`.
+
+**Candidates** (right). Every candidate not yet curated, most facts first, then by name. Each row:
+the name, the same mono count, and an `Add to` select listing the groups. The select is disabled
+with a stated reason while no group exists.
+
+### The stale skill
+
+A curated skill that no accepted, render-eligible fact and no certification names any longer is
+**flagged and kept**: its row carries an amber dot and `IN NO FACT` in place of the count, and it
+keeps its position. It does not reach a render — a document may not name a technology no fact
+states — but the author's choice is not undone by the record changing underneath it. `Remove` is
+the only way it leaves.
+
+### Rules
+
+- **Saving is immediate**, as it is on Screen 4. Every change sends the whole curated list; there is
+  no draft and no `Save`.
+- A group exists on the server only while it holds a skill. A group just added holds none, and
+  reads `Add a skill to keep this group.` beneath its heading until one arrives; leaving the screen
+  first discards it.
+- Removing a group's last skill removes the group.
+- One curated list serves every render with a skills section. There is no per-render setting here.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | Panel skeletons |
+| **No candidates** | Both panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
+| **Not curated** | Curated panel reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field. This is the default and not an error |
+| **Save refused** | The server's `422` beneath the panel that caused it. The list re-reads from the server, so what is shown is what is stored |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -495,7 +548,6 @@ Needed before their milestones; not blocking M1.
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
 | Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
-| Skills curation | M2 | Derived candidates, author-ordered; stale skills flagged, not removed |
 | Import list | M2 | Documents imported, with re-import and re-extract |
 
 ---

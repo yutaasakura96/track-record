@@ -488,8 +488,11 @@ different questions. Mixing them makes version history unreadable (decision log,
 
 **`skill_curations`** — `(user_id, skill_name, group_name, sort_order, is_stale)`. Candidates derive
 from the union of **`facts.technologies`** and **`certifications.technologies`**; the author selects
-and orders. A curated skill that no longer appears in either source is **flagged** (`is_stale`),
-never removed (S9). There is exactly one candidate pool — nothing hand-authors a skill.
+and orders. A curated skill that no longer appears in either source is **flagged**, never removed
+(S9). There is exactly one candidate pool — nothing hand-authors a skill. Only accepted facts that
+are neither Private nor Generated count, the same eligibility a render applies. **`is_stale` is not
+written or read**: staleness is computed on every read of the curation (`06`, 2026-09-13), and the
+column survives only because dropping it buys nothing.
 
 **`render_inclusions`** — `(user_id, entity_type, entity_id, render_kind, included)`. Per-render
 inclusion for employment, education and project entries. **履歴書 defaults to including everything**;

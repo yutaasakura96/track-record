@@ -2949,3 +2949,45 @@ Two limits are known and left:
 - **Deleting an employer or an education leaves its inclusion rows behind.** The table has no foreign
   key, because one column names three tables. The rows match no entry and filter nothing, but
   `GET /api/render-inclusions` still returns them.
+
+### [2026-09-13] A curated skills list replaces the model's, and staleness is computed on read
+
+S9 is a list the author builds on the Skills screen from a derived candidate pool, and
+`collectRenderInputs` hands it to the two renders that write a skills section: the English résumé and
+the 職務経歴書. The 履歴書 and both career stories are not given it (`RenderDefinition.skillsSection`).
+
+**A curation replaces the model's derivation** (the author's call, taken before the issue was filed).
+When curation rows exist the prompt prints the groups in order and both registers say to use exactly
+those. With no rows `curatedSkills` is `null` and the section is written from the facts as before.
+One list serves every render. Rejected: the curation as a hint the model may depart from, a UI-only
+list that reaches no render, and a list per render.
+
+**`is_stale` is derived, not stored.** A stored flag is a second copy of "does any fact still name
+this", and every accept, undo, disclosure change and certification edit would have to refresh it.
+The one that forgot would show a skill as live that no render may use. `GET /api/skills/curation`
+computes it on every read and the column is left unwritten.
+
+Candidates follow the render's own eligibility: accepted facts that are neither Private nor
+Generated, plus certifications. A skill only a Private fact names is not one a document could list.
+
+What a render receives is narrowed again, per render:
+
+- **A stale skill stays on the list and never reaches a render.** The prompt forbids a technology no
+  fact states, and a curated name is not an exception.
+- **The narrowing runs after the S13 filter.** A skill whose only facts sit under an employer one
+  render leaves out is absent from that render and still live on the screen.
+- **A curation that leaves a render nothing prints as an empty list, not `null`,** and the prompt
+  says to omit the section. Read as `null` it would hand the section back to the model, which is the
+  one thing curating was for.
+
+`PUT` replaces the whole list, so removing a skill deletes its row. The never-deleted rule names render
+versions, source documents and rejected facts; a curation row is a setting nothing else points at.
+`PUT` refuses a name that is not a candidate, except one already curated, so that a list holding a
+stale skill can still be reordered and saved.
+
+Two limits are known and left:
+
+- **Names match exactly.** `CockroachDB` and `Cockroach` on two facts are two candidates. Revisit if
+  the author's record shows the split in practice; the fix belongs at extraction, not here.
+- **Changing the curation does not mark a document out of date**, for the reason an inclusion change
+  does not: staleness counts facts.
