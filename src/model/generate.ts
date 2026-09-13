@@ -119,6 +119,18 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     )
     .join("\n");
 
+  // S9. Printed only for a render handed a curation. An empty curation still
+  // prints, because "the author curated and nothing survives for this render"
+  // must not read as "nothing is curated", which would hand the section back
+  // to the model to fill from the facts.
+  const curatedSkills =
+    spec.curatedSkills === null
+      ? ""
+      : `\nSkills, curated by the author. The skills section uses exactly these groups and these skills, in this order, and names no other technology:\n${
+          spec.curatedSkills.map((g) => `- ${g.name}: ${g.skills.join(", ")}`).join("\n") ||
+          "- none this document may name, so omit the skills section"
+        }\n`;
+
   // Printed only when the author has written one. A labelled "none recorded"
   // would reach every render's prompt, including the four that have no cell to
   // put a stated preference in.
@@ -153,7 +165,7 @@ ${educations || "- none recorded"}
 
 Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
-${desiredRoleNote}
+${curatedSkills}${desiredRoleNote}
 Call emit_render exactly once.`;
 }
 

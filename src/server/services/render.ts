@@ -29,6 +29,7 @@ import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
 import { excludesProject, exclusionsFor } from "./inclusion";
+import { curatedGroups, curationForRender } from "./skills";
 
 export interface RenderInputs {
   facts: RenderFact[];
@@ -188,6 +189,14 @@ export async function collectRenderInputs(
   // the headings do, and a fact naming its employer in the other language would
   // leave the model reconciling two spellings before it could file anything.
   const definition = RENDER_DEFINITIONS[kind];
+  // S9. Read only for a render with a skills section, and narrowed to what
+  // THIS render is given: the technologies on the facts that survived every
+  // filter above, and on the certifications, which no render leaves out.
+  const curation = definition.skillsSection ? await curatedGroups(db, userId) : [];
+  const renderable = new Set([
+    ...usable.flatMap((f) => f.technologies),
+    ...certificationRows.flatMap((c) => c.technologies),
+  ]);
   const renderFacts: RenderFact[] = usable.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
@@ -315,6 +324,10 @@ export async function collectRenderInputs(
         expiresOn: c.expiresOn,
         technologies: c.technologies,
       })),
+      // No rows is no curation, and the register writes the section from the
+      // facts as it did before S9. Rows that leave this render nothing is a
+      // curation all the same, and becomes an empty list, never `null`.
+      curatedSkills: curation.length > 0 ? curationForRender(curation, renderable) : null,
     },
     privateFactCount: privateFacts.length,
     generatedFactCount: generatedFacts.length,

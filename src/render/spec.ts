@@ -33,6 +33,12 @@ export interface RenderDefinition {
    */
   chronology: "newest_first" | "oldest_first" | null;
   register: string;
+  /**
+   * Does the register write a skills section? Only these renders are handed
+   * the author's curation (S9); a story or a 履歴書 given one would be given an
+   * instruction about a section it does not have.
+   */
+  skillsSection: boolean;
   /** Profile fields generation is blocked without (`docs/07` §7). */
   requiredProfileFields: string[];
 }
@@ -45,7 +51,7 @@ Sections, in this order, omitting any with nothing behind it:
 - "projects": independent projects only — projects with no employer. key "projects".
 - "education": one row per entry in the Education list, in the order that list gives. Institution, qualification, outcome and dates are copied from the list. Each entry states its level, and the level decides whether the entry belongs here: omit one whose level is below university level, keep every other entry including one whose level is not recorded. Never decide the level from the institution's name. The level is a selector and is never written into the row. An entry whose outcome says the course was left unfinished is written as unfinished, never as a completion. An entry that gives only the month it finished is written with that month alone — do not supply a start month it does not give. key "education".
 - "certifications": technical certifications only, one row each, in the order the Certifications list gives. Name, issuer and date are copied from the list. A driving licence is not a technical certification and does not appear here; a language qualification belongs in "summary" if anywhere. One qualification appearing in both the Education list and the Certifications list is the same qualification recorded twice, not two achievements: write it once, under "education", and leave it out here. key "certifications".
-- "skills": one paragraph listing the technologies the facts and the Certifications list actually name. key "skills".
+- "skills": one paragraph listing the technologies the facts and the Certifications list actually name. key "skills". When a curated Skills list is given below, it replaces that rule: one paragraph per group, in the order the list gives, opening with the group's name and naming exactly that group's skills in that order, and no technology the list does not name. factIds lists the facts naming those skills.
 
 Register:
 - Bullets open with a past-tense action verb and state the outcome. "Reduced nightly batch runtime from 6 hours to 90 minutes."
@@ -141,6 +147,7 @@ How to write a bullet:
 "skills" — 活かせるスキル・経験:
 - Three or four groups. Each group is a "row" holding a short noun-phrase label with factIds empty, followed by ONE "paragraph" of about 200 characters, 体言止め, listing factIds.
 - Group by what the author can DO, not by employer and not by technology family alone. The employment history is printed below and must not be restated here.
+- **When a curated Skills list is given below, the author has already grouped.** It replaces the two rules above: one "row" per group carrying the group's name as given, followed by ONE "paragraph", 体言止め, naming exactly that group's skills in the order given and listing factIds. The groups follow the list's order, and no technology the list does not name appears in this section.
 
 "certifications" — 保有資格:
 - One row per entry in the Certifications list, in the order the list gives, copied from it. factIds empty.
@@ -253,6 +260,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     buildable: true,
     chronology: "newest_first",
     register: RESUME_REGISTER,
+    skillsSection: true,
     requiredProfileFields: ["nameLatin"],
   },
   /**
@@ -276,6 +284,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     buildable: true,
     chronology: "oldest_first",
     register: RIREKISHO_REGISTER,
+    skillsSection: false,
     // `docs/04` §4, verbatim: a 履歴書 missing a conventional field is worse
     // than no 履歴書 at all. `address_kana` is deliberately not on the list —
     // see `REQUIRED_PROFILE_FIELDS` in `src/render/rirekisho.ts`.
@@ -309,6 +318,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     // 学歴・職歴 table is a chronology, and this is an argument.
     chronology: "newest_first",
     register: SHOKUMU_REGISTER,
+    skillsSection: true,
     // The header is 氏名 in kanji (`src/render/identity.ts`), so a kanji name
     // is what generation is blocked without. None of the restricted PII the
     // 履歴書 requires appears on this document: 生年月日, 現住所 and 連絡先 live
@@ -342,6 +352,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     // oldest-first, opening before the career was in software at all.
     chronology: "oldest_first",
     register: CAREER_STORY_EN_REGISTER,
+    skillsSection: false,
     // `identity.ts` heads this one with the Latin name and the email.
     requiredProfileFields: ["nameLatin"],
   },
@@ -354,6 +365,7 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     // two directions would be two plans and the correspondence would be gone.
     chronology: "oldest_first",
     register: CAREER_STORY_JA_REGISTER,
+    skillsSection: false,
     // `identity.ts` heads this one with the kanji name.
     requiredProfileFields: ["familyNameKanji", "givenNameKanji"],
   },

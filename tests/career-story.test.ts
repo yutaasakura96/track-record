@@ -43,6 +43,7 @@ const EMPLOYERS = [
 const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
   kind: "career_story_en",
   language: "en",
+  curatedSkills: null,
   subjectName: "Taro Yamada",
   register: "REGISTER",
   employers: EMPLOYERS.map((e) => ({

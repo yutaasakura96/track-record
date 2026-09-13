@@ -20,6 +20,7 @@ import { SignIn } from "./screens/sign-in";
 import { ProfileForm } from "./screens/profile-form";
 import { Overview } from "./screens/overview";
 import { Record } from "./screens/record";
+import { Skills } from "./screens/skills";
 import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
@@ -87,6 +88,12 @@ const recordRoute = createRoute({
   component: Record,
 });
 
+const skillsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/skills",
+  component: Skills,
+});
+
 const factReviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/imports/$importId",
@@ -115,6 +122,7 @@ const routeTree = rootRoute.addChildren([
   overviewRoute,
   profileRoute,
   recordRoute,
+  skillsRoute,
   factReviewRoute,
   diffReviewRoute,
   versionHistoryRoute,

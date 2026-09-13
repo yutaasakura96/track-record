@@ -23,6 +23,7 @@ export const ID_PREFIXES = {
   render: "rnd",
   renderVersion: "rvr",
   renderProposal: "prp",
+  skillCuration: "skl",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

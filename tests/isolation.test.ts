@@ -224,6 +224,18 @@ describe("one user's record is unreachable from another's session", () => {
     expect((await b.client.json<{ items: unknown[] }>("/api/render-inclusions")).items).toEqual([]);
   });
 
+  it("derives skill candidates from its own facts only, and curates only its own list", async () => {
+    // Both users hold one accepted fact naming the same technology. A count of
+    // two would be the other user's fact leaking through the aggregate.
+    type Curation = { groups: unknown[]; candidates: { name: string; factCount: number }[] };
+    const before = await a.client.json<Curation>("/api/skills/curation");
+    expect(before.candidates.find((c) => c.name === "Airflow")!.factCount).toBe(1);
+
+    const put = await a.client.put("/api/skills/curation", { groups: [{ name: "Batch work", skills: ["Airflow"] }] });
+    expect(put.status).toBe(200);
+    expect((await b.client.json<Curation>("/api/skills/curation")).groups).toEqual([]);
+  });
+
   it("cannot attach a project to another user's employer", async () => {
     const response = await a.client.post("/api/projects", {
       name: "borrowed",

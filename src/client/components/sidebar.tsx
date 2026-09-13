@@ -23,6 +23,7 @@ import { Mono } from "./ui";
 const NAV: ({ label: string } & ({ to: string } | { unbuilt: string }))[] = [
   { label: "Home", to: "/" },
   { label: "Record", to: "/record" },
+  { label: "Skills", to: "/skills" },
   { label: "Facts", unbuilt: "Browsing facts outside an import is not built yet." },
   { label: "Documents", unbuilt: "Browsing source documents is not built yet." },
 ];

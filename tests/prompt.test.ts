@@ -59,7 +59,35 @@ const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSp
   desiredRoleNote: null,
   educations,
   certifications: [],
+  curatedSkills: null,
   ...over,
+});
+
+describe("the curated skills list", () => {
+  it("reaches the prompt as groups, in order, when the author has curated", () => {
+    const prompt = buildGenerationPrompt(
+      spec([], {
+        curatedSkills: [
+          { name: "Data platforms", skills: ["CockroachDB", "Airflow"] },
+          { name: "Release work", skills: ["Pulumi"] },
+        ],
+      }),
+    );
+    const data = prompt.indexOf("Data platforms: CockroachDB, Airflow");
+    const delivery = prompt.indexOf("Release work: Pulumi");
+    expect(data).toBeGreaterThan(-1);
+    expect(delivery).toBeGreaterThan(data);
+  });
+
+  it("says nothing about skills when nothing is curated, so the register's default stands", () => {
+    expect(buildGenerationPrompt(spec([]))).not.toContain("Skills, curated");
+  });
+
+  it("tells the model to omit the section when a curation leaves nothing this render can use", () => {
+    const prompt = buildGenerationPrompt(spec([], { curatedSkills: [] }));
+    expect(prompt).toContain("Skills, curated");
+    expect(prompt).toContain("omit the skills section");
+  });
 });
 
 describe("the generation prompt", () => {

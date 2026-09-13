@@ -182,6 +182,15 @@ export interface RenderSpec {
     expiresOn: string | null;
     technologies: string[];
   }[];
+  /**
+   * The author's curated skills, in their groups and order (S9). `null` means
+   * nothing is curated, or this render has no skills section, and the register
+   * falls back to listing what the facts name. An empty list is a curation
+   * that leaves this render nothing it may name, and the section is omitted:
+   * a skill no fact given to this render states is not written, however it was
+   * chosen (`docs/06`, 2026-09-13).
+   */
+  curatedSkills: { name: string; skills: string[] }[] | null;
 }
 
 /**

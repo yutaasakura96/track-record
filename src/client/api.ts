@@ -322,6 +322,7 @@ export const keys = {
   renders: ["renders"] as const,
   entity: (key: EntityKey) => [key] as const,
   inclusions: ["render-inclusions"] as const,
+  skills: ["skills-curation"] as const,
   importStatus: (id: string) => ["import", id] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
@@ -452,6 +453,48 @@ export function useSetRenderInclusion() {
     mutationFn: (body: RenderInclusion) =>
       api<RenderInclusion>("/api/render-inclusions", { method: "PUT", ...json(body) }),
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.inclusions }),
+  });
+}
+
+export interface CuratedSkill {
+  name: string;
+  factCount: number;
+  certificationCount: number;
+  /** No accepted, render-eligible fact and no certification names it any longer. Flagged, never removed. */
+  stale: boolean;
+}
+
+export interface SkillCandidate {
+  name: string;
+  factCount: number;
+  certificationCount: number;
+  curated: boolean;
+}
+
+export interface SkillCuration {
+  groups: { name: string; skills: CuratedSkill[] }[];
+  candidates: SkillCandidate[];
+}
+
+/** What `PUT /api/skills/curation` takes: the whole list, names only. */
+export type SkillCurationInput = { name: string; skills: string[] }[];
+
+/** The skills curation (S9). An empty `groups` means nothing is curated. */
+export const useSkillCuration = () =>
+  useQuery({
+    queryKey: keys.skills,
+    queryFn: () => api<SkillCuration>("/api/skills/curation"),
+  });
+
+export function useSaveSkillCuration() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (groups: SkillCurationInput) =>
+      api<SkillCuration>("/api/skills/curation", { method: "PUT", ...json({ groups }) }),
+    onSuccess: (data) => queryClient.setQueryData(keys.skills, data),
+    // A refused save re-reads, so the screen shows what is stored rather than
+    // what was attempted (`docs/10` Screen 7).
+    onError: () => void queryClient.invalidateQueries({ queryKey: keys.skills }),
   });
 }
 
