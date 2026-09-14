@@ -7,13 +7,13 @@
  * (`docs/08-auth-and-permissions.md` §1–2).
  */
 import { useState } from "react";
-import { api, type ApiError } from "../api";
+import { api, ApiError } from "../api";
 import { Button } from "../components/ui";
 
 export function SignIn({ reason }: { reason?: ApiError }) {
   const rejected = reason?.status === 403;
   const [starting, setStarting] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
 
   /**
    * A POST, not a link. Better Auth exposes social sign-in only as
@@ -23,16 +23,16 @@ export function SignIn({ reason }: { reason?: ApiError }) {
    */
   async function startGoogleSignIn() {
     setStarting(true);
-    setFailed(false);
+    setFailure(null);
     try {
       const { url } = await api<{ url: string }>("/api/auth/sign-in/social", {
         method: "POST",
         body: JSON.stringify({ provider: "google", callbackURL: "/" }),
       });
       window.location.href = url;
-    } catch {
+    } catch (error) {
       setStarting(false);
-      setFailed(true);
+      setFailure(startFailureMessage(error));
     }
   }
 
@@ -64,11 +64,7 @@ export function SignIn({ reason }: { reason?: ApiError }) {
           </Button>
         </div>
 
-        {failed ? (
-          <p className="mt-16 text-small text-text-muted">
-            Could not reach Google. Check your connection and try again.
-          </p>
-        ) : null}
+        {failure ? <p className="mt-16 text-small text-text-muted">{failure}</p> : null}
 
         <p className="mt-16 text-smaller text-text-faint">
           Requests your name and email address, and nothing else. Never your mail, your files or
@@ -77,4 +73,17 @@ export function SignIn({ reason }: { reason?: ApiError }) {
       </div>
     </main>
   );
+}
+
+/**
+ * Google is never contacted before this request succeeds — it only asks our own
+ * worker for the authorization URL. So no failure here may blame Google: the
+ * worker being down, and Better Auth refusing an origin other than
+ * `BETTER_AUTH_URL` with `403`, both land in this catch.
+ */
+function startFailureMessage(error: unknown): string {
+  if (error instanceof ApiError && error.status === 403) {
+    return "Sign-in was refused from this address. Open the app at its usual address and try again.";
+  }
+  return "Could not start sign-in. Try again in a moment.";
 }
