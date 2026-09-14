@@ -49,13 +49,16 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   if (response.status === 204) return undefined as T;
   const isJson = response.headers.get("content-type")?.includes("application/json");
   if (!response.ok) {
-    const body = isJson ? ((await response.json()) as ApiErrorBody) : null;
+    // Optional all the way down: not every JSON error is ours. Better Auth's own
+    // refusals (a `403` for an untrusted origin) carry no `error` object, and a
+    // TypeError here would hide the status from every caller.
+    const body = isJson ? ((await response.json()) as Partial<ApiErrorBody>) : null;
     throw new ApiError(
       response.status,
-      body?.error.code ?? "internal",
-      body?.error.message ?? "Something went wrong.",
-      body?.error.details?.fields ?? [],
-      body?.error.details ?? {},
+      body?.error?.code ?? "internal",
+      body?.error?.message ?? "Something went wrong.",
+      body?.error?.details?.fields ?? [],
+      body?.error?.details ?? {},
     );
   }
   return (isJson ? await response.json() : await response.text()) as T;
