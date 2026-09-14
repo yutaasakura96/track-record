@@ -899,10 +899,12 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
     const pendingProposalId = row ? (pendingByRender.get(row.id) ?? null) : null;
     const newFactsSince = version ? Math.max(0, accepted - (row?.staleSinceFactCount ?? 0)) : null;
 
-    const status: RenderState["status"] = !version
-      ? "never_generated"
-      : pendingProposalId
-        ? "proposal_pending"
+    // A pending proposal outranks a missing version: a first generation awaiting
+    // review is not "never generated", and offering Generate there makes a second.
+    const status: RenderState["status"] = pendingProposalId
+      ? "proposal_pending"
+      : !version
+        ? "never_generated"
         : (newFactsSince ?? 0) > 0
           ? "stale"
           : "up_to_date";

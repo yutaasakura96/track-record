@@ -415,6 +415,19 @@ describe("generation is blocked rather than producing an empty document", () => 
 });
 
 describe("the proposal", () => {
+  it("shows as pending on a document that has never had a version accepted", async () => {
+    const record = await seedRecord();
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 3 hours", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const renders = await client.json<{ items: RenderRow[] }>("/api/renders");
+    const resume = renders.items.find((r) => r.kind === "english_resume")!;
+    expect(resume.currentVersionNo).toBeNull();
+    expect(resume.status).toBe("proposal_pending");
+    expect(resume.pendingProposalId).toBe(first.proposalId);
+  });
+
   it("is a proposal rather than a replacement, and shows as a diff", async () => {
     const record = await seedRecord();
     const first = (await (

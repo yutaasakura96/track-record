@@ -352,6 +352,8 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 
 `status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending`.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
+`proposal_pending` wins over every other status, including a render with no accepted version yet —
+a first generation awaiting review is not `never_generated`.
 
 **`POST /api/renders/rirekisho/generate` → 428** when the profile is incomplete:
 
