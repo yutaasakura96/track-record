@@ -21,6 +21,7 @@ Six flows. Each lists the steps, **what can go wrong at every step and what the 
 |---|---|---|
 | 1 | Google identity not on the allowlist | `403` and a plain message: this deployment accepts one account. **No `users` row is created** |
 | 1 | Google unreachable | Sign-in fails with a retry. Existing sessions are unaffected |
+| 1 | Sign-in cannot start — the worker is down, or the page is open at an origin other than `BETTER_AUTH_URL` (`403`) | A message that names neither Google nor the network, since Google has not been contacted yet. A `403` says the address was refused; anything else says sign-in could not start, with a retry |
 | 4 | Required field missing | `422`, offending fields named inline. Nothing saved |
 
 **If abandoned:** no profile row exists, so the next sign-in returns to step 3. Nothing partial is
