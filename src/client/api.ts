@@ -200,6 +200,41 @@ export interface SourceText {
   text: string;
 }
 
+/** One version of a source document on Screen 8. Counts only, never text. */
+export interface DocumentVersion {
+  importId: string;
+  versionNo: number;
+  importedAt: string;
+  status: ImportStatus["status"];
+  wordCount: number;
+  changedRegionShare: number | null;
+  chunksTotal: number;
+  chunksDone: number;
+  extractorVersion: string;
+  facts: { accepted: number; rejected: number; open: number };
+  /** The stored reason, set only when `status` is `failed`. */
+  error: string | null;
+}
+
+export interface SourceDocumentRow {
+  sourceDocumentId: string;
+  filename: string;
+  mimeType: string;
+  project: { id: string; name: string } | null;
+  lastImportedAt: string;
+  openCandidates: number;
+  /** False exactly when the newest version is `queued` or `extracting`. */
+  reimportable: boolean;
+  /** Newest first. */
+  versions: DocumentVersion[];
+}
+
+export interface DocumentsListing {
+  /** The sidebar count. */
+  openCandidates: number;
+  documents: SourceDocumentRow[];
+}
+
 export interface RenderRow {
   id: string | null;
   kind: RenderKind;
@@ -326,6 +361,7 @@ export const keys = {
   entity: (key: EntityKey) => [key] as const,
   inclusions: ["render-inclusions"] as const,
   skills: ["skills-curation"] as const,
+  documents: ["documents"] as const,
   importStatus: (id: string) => ["import", id] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
@@ -518,6 +554,17 @@ export function useImportStatus(importId: string) {
   });
 }
 
+/** Screen 8, and the sidebar's open-candidate count. Polls while any version runs. */
+export const useDocuments = () =>
+  useQuery({
+    queryKey: keys.documents,
+    queryFn: () => api<DocumentsListing>("/api/imports"),
+    refetchInterval: (query) =>
+      query.state.data?.documents.some((d) => d.versions.some((v) => isImportRunning(v.status)))
+        ? POLL_MS
+        : false,
+  });
+
 export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ items: Fact[] }>>) {
   return useQuery({
     queryKey: keys.facts(importId),
@@ -618,16 +665,29 @@ export function useSaveProfile() {
 export function useStartImport() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { file: File; projectId?: string }) => {
+    /** `sourceDocumentId` makes this a re-import: a new version of that document. */
+    mutationFn: (input: { file: File; projectId?: string; sourceDocumentId?: string }) => {
       const form = new FormData();
       form.set("file", input.file);
       if (input.projectId) form.set("projectId", input.projectId);
+      if (input.sourceDocumentId) form.set("sourceDocumentId", input.sourceDocumentId);
       return api<{ importId: string; sourceDocumentId: string; versionNo: number }>("/api/imports", {
         method: "POST",
         body: form,
       });
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.overview }),
+    // A refused re-import re-reads the list as well: the 409 means it was stale.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
+  });
+}
+
+export function useRetryImport() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (importId: string) => api<ImportStatus>(`/api/imports/${importId}/retry`, { method: "POST" }),
+    onSuccess: (status) => void queryClient.invalidateQueries({ queryKey: keys.importStatus(status.importId) }),
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
   });
 }
 
@@ -650,7 +710,11 @@ export function useFactAction(importId: string) {
   const resolve = useMutation({
     mutationFn: (input: { id: string; action: "accept" | "reject" | "undo" }) =>
       api<Fact>(`/api/facts/${input.id}/${input.action}`, { method: "POST" }),
-    onSuccess: () => void refresh(),
+    onSuccess: () => {
+      void refresh();
+      // The sidebar's open count is derived from candidates.
+      void queryClient.invalidateQueries({ queryKey: keys.documents });
+    },
   });
   const finish = useMutation({
     mutationFn: () => api<{ acceptedFacts: number }>(`/api/imports/${importId}/finish`, { method: "POST" }),
@@ -661,7 +725,10 @@ export function useFactAction(importId: string) {
   });
   const retry = useMutation({
     mutationFn: () => api<ImportStatus>(`/api/imports/${importId}/retry`, { method: "POST" }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.importStatus(importId) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.importStatus(importId) });
+      void queryClient.invalidateQueries({ queryKey: keys.documents });
+    },
   });
 
   return { patch, resolve, finish, retry };

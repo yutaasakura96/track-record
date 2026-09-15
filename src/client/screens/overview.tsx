@@ -8,19 +8,19 @@
  * the only action, and Quick capture is HIDDEN rather than disabled, because
  * there is nothing to capture against yet.
  */
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   ApiError,
   useGenerate,
   useOverview,
   useProfile,
-  useStartImport,
   type Overview as OverviewData,
   type RenderRow,
 } from "../api";
 import { Button, Dot, Mono, Panel, ProgressBar } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
+import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
 import { DownloadButton } from "../components/download-button";
 
@@ -341,7 +341,6 @@ const DownloadLink = ({ kind }: { kind: RenderRow["kind"] }) => (
 /* ------------------------------------------------------------------- empty */
 
 function EmptyRecord() {
-  const importFile = useImportPicker();
   return (
     <main className="flex-1 grid place-items-center px-20 py-40">
       <div className="w-measure max-w-full text-center">
@@ -355,24 +354,7 @@ function EmptyRecord() {
           never from re-reading the original.
         </p>
 
-        <div className="mt-26 border border-dashed border-border-dashed rounded-panel px-20 py-32">
-          <div className="mx-auto size-32 rounded-tile bg-chip" aria-hidden />
-          <p className="mt-14 text-row font-medium text-text-strong">Import your first document</p>
-          <p className="mt-6 text-smaller text-text-dim">
-            Choose a Markdown or plain text file.
-          </p>
-          {importFile.control}
-          <div className="mt-16">
-            <Button variant="primary" onClick={importFile.choose} className="px-16 py-8">
-              Choose a file
-            </Button>
-          </div>
-          {importFile.error ? (
-            <p role="alert" className="mt-14 text-small text-text-secondary">
-              {importFile.error}
-            </p>
-          ) : null}
-        </div>
+        <ImportDropTarget className="mt-26" />
 
         <p className="mt-20 text-smaller text-text-faint">
           Document generation opens up once your record holds its first facts.
@@ -403,39 +385,3 @@ const Backup = () => (
     </div>
   </Panel>
 );
-
-/* ------------------------------------------------------------------ shared */
-
-/**
- * The review screen opens IMMEDIATELY on upload, so the document can be read
- * while extraction is still running.
- */
-function useImportPicker() {
-  const input = useRef<HTMLInputElement>(null);
-  const start = useStartImport();
-  const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
-
-  const control = (
-    <input
-      ref={input}
-      type="file"
-      accept=".md,.markdown,.txt"
-      className="hidden"
-      onChange={async (event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (!file) return;
-        setError(null);
-        try {
-          const created = await start.mutateAsync({ file });
-          await navigate({ to: "/imports/$importId", params: { importId: created.importId } });
-        } catch (caught) {
-          setError(caught instanceof ApiError ? caught.message : "That file could not be imported.");
-        }
-      }}
-    />
-  );
-
-  return { control, error, choose: () => input.current?.click() };
-}

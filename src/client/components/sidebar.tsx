@@ -8,10 +8,11 @@
  * header. They are focused, full-width tasks, not navigation destinations.
  */
 import { Link, useRouterState } from "@tanstack/react-router";
+import { useDocuments } from "../api";
 import { Mono } from "./ui";
 
 /**
- * `docs/10` specifies five rows; two are built. The other rows stay
+ * Not every row `docs/10` specifies is built. The unbuilt rows stay
  * visible so the shape of the application is legible, but they are DISABLED and
  * they say why (`docs/05` §6) — a row that navigates to Home while reading as
  * Facts is a lie about where it goes, and an active test of `path === to` with
@@ -20,16 +21,18 @@ import { Mono } from "./ui";
  * A row earns a `to` when its route exists. `to` is what makes it navigable and
  * what makes exactly one row active, so the two cannot drift apart.
  */
-const NAV: ({ label: string } & ({ to: string } | { unbuilt: string }))[] = [
+const NAV: ({ label: string } & ({ to: string; counts?: "openCandidates" } | { unbuilt: string }))[] = [
   { label: "Home", to: "/" },
   { label: "Record", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Facts", unbuilt: "Browsing facts outside an import is not built yet." },
-  { label: "Documents", unbuilt: "Browsing source documents is not built yet." },
+  { label: "Documents", to: "/documents", counts: "openCandidates" },
 ];
 
 export function Sidebar({ name }: { name: string }) {
   const path = useRouterState({ select: (state) => state.location.pathname });
+  // Open candidates across every version of every document, shown only above zero.
+  const openCandidates = useDocuments().data?.openCandidates ?? 0;
 
   return (
     <nav className="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">
@@ -64,6 +67,9 @@ export function Sidebar({ name }: { name: string }) {
                 }`}
               >
                 {item.label}
+                {item.counts && openCandidates > 0 ? (
+                  <Mono className="ml-auto text-text-dimmer">{openCandidates}</Mono>
+                ) : null}
               </Link>
             </li>
           );

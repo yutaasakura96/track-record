@@ -7,9 +7,9 @@
  * appear as extraction progresses.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
 import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
-import { ApiError, notFound, validationFailed, pathParam } from "../http/errors";
+import { ApiError, conflict, notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
@@ -63,16 +63,25 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, documentId)))
         .limit(1);
       if (!existing) throw notFound("That document");
-      const [{ highest } = { highest: 0 }] = await db
-        .select({ highest: sql<number>`coalesce(max(${sourceDocumentVersions.versionNo}), 0)::int` })
+      const [newest] = await db
+        .select({ versionNo: sourceDocumentVersions.versionNo, status: sourceDocumentVersions.importStatus })
         .from(sourceDocumentVersions)
         .where(
           and(
             eq(sourceDocumentVersions.userId, user.id),
             eq(sourceDocumentVersions.sourceDocumentId, documentId),
           ),
-        );
-      versionNo = highest + 1;
+        )
+        .orderBy(desc(sourceDocumentVersions.versionNo))
+        .limit(1);
+      // The diff baseline would still be incomplete. A failed newest version does
+      // not refuse: its text was stored before extraction began.
+      if (newest && isRunning(newest.status)) {
+        throw conflict(`Wait for v${newest.versionNo} to finish extracting.`, {
+          versionNo: newest.versionNo,
+        });
+      }
+      versionNo = (newest?.versionNo ?? 0) + 1;
       isNewDocument = false;
     }
     // A first import creates the document; a re-import is a new version of one
@@ -124,6 +133,99 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       },
       202,
     );
+  });
+
+  /**
+   * Screen 8, Documents. Grouped by source document, because re-import acts on a
+   * document. Filenames, counts and the stored failure reason only: no source
+   * text, and no fact claim.
+   */
+  api.get("/api/imports", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+
+    const documents = await db
+      .select({
+        id: sourceDocuments.id,
+        filename: sourceDocuments.filename,
+        mimeType: sourceDocuments.mimeType,
+        projectId: projects.id,
+        projectName: projects.name,
+      })
+      .from(sourceDocuments)
+      .leftJoin(projects, and(eq(projects.id, sourceDocuments.projectId), eq(projects.userId, user.id)))
+      .where(eq(sourceDocuments.userId, user.id));
+
+    const versions = await db
+      .select({
+        id: sourceDocumentVersions.id,
+        sourceDocumentId: sourceDocumentVersions.sourceDocumentId,
+        versionNo: sourceDocumentVersions.versionNo,
+        importedAt: sourceDocumentVersions.importedAt,
+        status: sourceDocumentVersions.importStatus,
+        wordCount: sourceDocumentVersions.wordCount,
+        changedRegionShare: sourceDocumentVersions.changedRegionShare,
+        chunksTotal: sourceDocumentVersions.chunksTotal,
+        chunksDone: sourceDocumentVersions.chunksDone,
+        extractorVersion: sourceDocumentVersions.extractorVersion,
+        importError: sourceDocumentVersions.importError,
+      })
+      .from(sourceDocumentVersions)
+      .where(eq(sourceDocumentVersions.userId, user.id))
+      .orderBy(desc(sourceDocumentVersions.versionNo));
+
+    // Counted on the read. Nothing records that a review finished, so `open` is
+    // the number of facts still `candidate`.
+    const counts = await db
+      .select({
+        versionId: facts.sourceDocumentVersionId,
+        accepted: sql<number>`count(*) filter (where ${facts.status} = 'accepted')::int`,
+        rejected: sql<number>`count(*) filter (where ${facts.status} = 'rejected')::int`,
+        open: sql<number>`count(*) filter (where ${facts.status} = 'candidate')::int`,
+      })
+      .from(facts)
+      .where(and(eq(facts.userId, user.id), isNotNull(facts.sourceDocumentVersionId)))
+      .groupBy(facts.sourceDocumentVersionId);
+    const countsByVersion = new Map(counts.map((row) => [row.versionId, row]));
+
+    const listed = documents
+      .map((document) => {
+        const own = versions
+          .filter((v) => v.sourceDocumentId === document.id)
+          .map((v) => {
+            const { accepted = 0, rejected = 0, open = 0 } = countsByVersion.get(v.id) ?? {};
+            return {
+              importId: v.id,
+              versionNo: v.versionNo,
+              importedAt: v.importedAt.toISOString(),
+              status: v.status,
+              wordCount: v.wordCount,
+              changedRegionShare: v.changedRegionShare,
+              chunksTotal: v.chunksTotal,
+              chunksDone: v.chunksDone,
+              extractorVersion: v.extractorVersion,
+              facts: { accepted, rejected, open },
+              error: v.status === "failed" ? (v.importError ?? "This import could not be completed.") : null,
+            };
+          });
+        const newest = own[0];
+        return {
+          sourceDocumentId: document.id,
+          filename: document.filename,
+          mimeType: document.mimeType,
+          project: document.projectId ? { id: document.projectId, name: document.projectName! } : null,
+          lastImportedAt: newest?.importedAt ?? "",
+          openCandidates: own.reduce((sum, v) => sum + v.facts.open, 0),
+          reimportable: !newest || !isRunning(newest.status),
+          versions: own,
+        };
+      })
+      .sort((a, b) => b.lastImportedAt.localeCompare(a.lastImportedAt));
+
+    return c.json({
+      openCandidates: listed.reduce((sum, d) => sum + d.openCandidates, 0),
+      documents: listed,
+    });
   });
 
   api.get("/api/imports/:id", async (c) => {
@@ -346,6 +448,9 @@ function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
   };
 }
+
+/** The newest version's text or chunk plan is not settled yet. */
+const isRunning = (status: (typeof sourceDocumentVersions.$inferSelect)["importStatus"]) => status === "queued" || status === "extracting";
 
 function stringOrNull(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;

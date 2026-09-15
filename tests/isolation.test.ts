@@ -120,6 +120,7 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/educations",
       "/api/certifications",
       "/api/facts",
+      "/api/imports",
       "/api/renders",
       "/api/overview",
       "/api/export",

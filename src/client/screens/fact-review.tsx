@@ -20,7 +20,7 @@
  */
 import { useEffect, useMemo, useRef } from "react";
 import type { KeyboardEvent } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   isImportRunning,
   POLL_MS,
@@ -93,7 +93,9 @@ function Header({
 
   return (
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
-      <span className="text-panel font-semibold tracking-snug text-text-strong">Imports</span>
+      <Link to="/documents" className="text-panel font-semibold tracking-snug text-text-strong hover:text-text-bright">
+        Documents
+      </Link>
       <span className="text-text-faint">/</span>
       <Chip>{filename}</Chip>
 
