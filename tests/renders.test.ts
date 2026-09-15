@@ -503,6 +503,23 @@ describe("the proposal", () => {
     expect(again.status).toBe(409);
   });
 
+  it("refuses a second generation while one is waiting", async () => {
+    const record = await seedRecord();
+    const waiting = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const response = await generate(resumeFrom([{ text: "A second bullet", factIds: [record.measuredPublic.id] }]));
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { message: string; details: { proposalId: string } } };
+    expect(body.error.message).toContain("proposal");
+    expect(body.error.details.proposalId).toBe(waiting.proposalId);
+
+    // No second proposal was made behind the refusal.
+    const proposals = await client.json<{ items: { id: string }[] }>("/api/proposals?kind=english_resume");
+    expect(proposals.items.map((p) => p.id)).toEqual([waiting.proposalId]);
+  });
+
   it("leaves the stored version byte-identical when dismissed", async () => {
     const record = await seedRecord();
     const first = (await (
@@ -565,6 +582,19 @@ describe("a failure never destroys a stored version", () => {
 
     const after = await (await client.get("/api/renders/english_resume/download?format=md")).text();
     expect(after).toBe(before);
+  });
+
+  it("lets the author generate again after a generation failed", async () => {
+    const record = await seedRecord();
+    const failed = (await (
+      await generate(new ModelUnavailableError("The model service returned 529."))
+    ).json()) as { proposalId: string };
+    expect(
+      (await client.json<{ generationStatus: string }>(`/api/proposals/${failed.proposalId}`)).generationStatus,
+    ).toBe("failed");
+
+    const retry = await generate(resumeFrom([{ text: "A good bullet", factIds: [record.measuredPublic.id] }]));
+    expect(retry.status).toBe(202);
   });
 });
 

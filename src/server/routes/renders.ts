@@ -7,7 +7,7 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed } from "../http/errors";
 import { routes } from "../http/registry";
@@ -62,6 +62,30 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     if (!definition.buildable) {
       throw new ApiError("conflict", `${RENDER_TITLE[kind]} is not built yet.`);
+    }
+
+    // A second proposal beside a waiting one means accepting either discards the
+    // other unread. A failed generation has nothing to decide, so it does not
+    // hold the render: refusing on it would leave no way to try again.
+    const [waiting] = await db
+      .select({ id: renderProposals.id })
+      .from(renderProposals)
+      .innerJoin(renders, eq(renders.id, renderProposals.renderId))
+      .where(
+        and(
+          eq(renderProposals.userId, user.id),
+          eq(renders.kind, kind),
+          eq(renderProposals.status, "pending"),
+          ne(renderProposals.generationStatus, "failed"),
+        ),
+      )
+      .limit(1);
+    if (waiting) {
+      throw new ApiError(
+        "conflict",
+        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before generating again.`,
+        { proposalId: waiting.id },
+      );
     }
 
     const [profile] = await db
