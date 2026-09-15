@@ -192,6 +192,35 @@ describe("re-importing a document", () => {
     expect(settled.reimportable).toBe(true);
   });
 
+  it("refuses the loser of two simultaneous re-imports at 409", async () => {
+    const first = await importDocument(CASE_STUDY, "harbor-notes.md");
+
+    // Hold the winner's extraction open, so its version is still running when
+    // the loser is answered.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const extract = model.extractFacts.bind(model);
+    model.extractFacts = async (text, ctx) => {
+      await gate;
+      return extract(text, ctx);
+    };
+
+    const responses = await Promise.all([
+      upload(`${CASE_STUDY}\nOne pass.\n`, "harbor-notes.md", { sourceDocumentId: first.sourceDocumentId }),
+      upload(`${CASE_STUDY}\nAnother pass.\n`, "harbor-notes.md", { sourceDocumentId: first.sourceDocumentId }),
+    ]);
+    expect(responses.map((r) => r.status).sort()).toEqual([202, 409]);
+
+    const loser = responses.find((r) => r.status === 409)!;
+    const body = (await loser.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toBe("Wait for v2 to finish extracting.");
+
+    release();
+    await settle();
+    expect((await listing()).documents[0]!.versions.map((v) => v.versionNo)).toEqual([2, 1]);
+  });
+
   it("is allowed after the newest version failed", async () => {
     model.extractions = [[]];
     const first = await importDocument(CASE_STUDY, "harbor-notes.md");

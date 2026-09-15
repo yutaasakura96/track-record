@@ -118,7 +118,16 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         version,
       ]);
     } else {
-      await version;
+      // The running check above is a read, then this insert, with no lock
+      // between them. Two simultaneous re-imports can both pass it; the unique
+      // index lets one version through, and the other lost to a version that is
+      // now queued.
+      try {
+        await version;
+      } catch (err) {
+        if (!isVersionTaken(err)) throw err;
+        throw conflict(`Wait for v${versionNo} to finish extracting.`, { versionNo });
+      }
     }
 
     await startImport(importStart(c, versionId));
@@ -451,6 +460,15 @@ function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
 
 /** The newest version's text or chunk plan is not settled yet. */
 const isRunning = (status: (typeof sourceDocumentVersions.$inferSelect)["importStatus"]) => status === "queued" || status === "extracting";
+
+/** A unique violation on `sdv_document_version_uq`, however deep drizzle wrapped it. */
+function isVersionTaken(err: unknown): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    const { code, constraint } = e as { code?: string; constraint?: string };
+    if (code === "23505" && constraint === "sdv_document_version_uq") return true;
+  }
+  return false;
+}
 
 function stringOrNull(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;
