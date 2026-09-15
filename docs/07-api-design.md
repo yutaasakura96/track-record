@@ -423,6 +423,13 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
+**`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
+`pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
+and restore routes give. Accepting either of two proposals would discard the other unread. It is
+checked before the profile and the facts, because it is the one refusal Review proposal answers. A
+proposal whose generation `failed` does not refuse: it has nothing to decide, and refusing on it
+would leave the render with no way to try again.
+
 **`GET /api/proposals/:id` → 200**
 
 ```json

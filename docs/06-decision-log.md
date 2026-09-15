@@ -3030,3 +3030,21 @@ now: shown only when the newest version's `extractor_version` is not the current
 new version from that version's `original_bytes`, diffed like any re-import. The old version and
 the facts quoted from it are not touched. It is built with the first extractor change, probably
 `.docx` in M2, alongside the Message Batches path the 2026-08-29 entry reserves for bulk work.
+
+### [2026-09-16] Generate refuses while a proposal is waiting, unless that proposal failed
+
+The question left open on #23. Until now only the overview's button stopped a second generation,
+so the API would make a second pending proposal beside the first. Accepting either one then
+silently discards the other, which is the reason the edit and restore routes already refuse at
+`409` with `details.proposalId`. Generate now gives the same refusal.
+
+**A failed generation does not refuse.** It keeps `status: "pending"` with `generation_status:
+"failed"`, and the Failed screen offers no Dismiss. Refusing on it would leave a render that can
+never be generated again. The alternative, refusing on any pending proposal and adding Dismiss to
+the Failed screen, was rejected for this change because it moves UI to settle an API rule.
+
+**Not closed by this entry.** The overview still reports a failed proposal as `proposal_pending`,
+and Review proposal leads to a screen with only Back. That is tracked as #27. Two
+simultaneous generate requests can both pass the check, as re-import could before c9e9f76. There
+is no unique index on waiting proposals to catch it, and one author with one button makes it
+unlikely enough to leave.
