@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -12,7 +12,8 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Facts, Documents, Imports, Settings, each with an optional right-aligned mono count.
+rows: Home, Facts, Documents, Settings, each with an optional right-aligned mono count. There is
+no separate Imports row: imports are versions of a document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. Footer: 22px circular avatar, name, and the
 literal label `Personal record` — the single-user posture stated in the interface.
 
@@ -20,7 +21,7 @@ literal label `Personal record` — the single-user posture stated in the interf
 in `text-dimmer`, actions right-aligned.
 
 The fact-review and diff-review screens replace the sidebar with a breadcrumb in the header
-(`Imports / <document>`, `Outputs / <render>`) — they are focused, full-width tasks, not
+(`Documents / <document>`, `Outputs / <render>`) — they are focused, full-width tasks, not
 navigation destinations.
 
 ---
@@ -37,7 +38,7 @@ right rail, decided one at a time.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Imports / <project> · <filename>` (filename in a mono chip) · right: `N of M reviewed` + 96×4px progress bar + **Finish review** (primary; secondary-styled until all facts are resolved) |
+| Header (46px) | Breadcrumb `Documents / <project> · <filename>`, `Documents` linking to Screen 8 (filename in a mono chip) · right: `N of M reviewed` + 96×4px progress bar + **Finish review** (primary; secondary-styled until all facts are resolved) |
 | Source pane (flex) | 34px label strip: `Source document · N words · imported <relative time>` · right `N passages marked`. Below: the document, 740px measure, centred, `text-body` |
 | Fact rail (412px) | Fixed right column, `surface`, left border `border`. Header + scrolling card list + summary footer |
 
@@ -540,6 +541,101 @@ the only way it leaves.
 
 ---
 
+## Screen 8 — Documents
+
+Added 2026-09-15. Every file the record's facts are quoted from, with every version of it. This is
+where a re-import starts (Flow 4) and where an import the author walked away from is found again.
+Source text never appears here; the screen shows names, dates and counts.
+
+Sidebar chrome, reached from the `Documents` row at `/documents`. The row's mono count is the total
+of open candidates across every version, shown only when it is above zero. Header title
+`Documents`, contextual note `The files your facts are quoted from`, and on the right the same
+`Import a document` primary Screen 3 has. That button always creates a **new** document.
+
+### Layout
+
+One block per source document, the most recently imported first. Content column `max-width 940px`,
+centred, as on Screen 3. Nothing collapses: a document's versions are always listed under it.
+
+**The document row.** Filename in a mono chip · project name, or `No project` in `text-dimmer` ·
+mono `N versions` · `last imported <relative time>` · amber mono `N open` when any version of it has
+open candidates · right: `Re-import` (ghost).
+
+**The version rows**, newest first, indented beneath it:
+
+| Part | Spec |
+|---|---|
+| Version | Mono `v3` |
+| When | `imported <date>` |
+| Size | Mono `N words` |
+| Change | `15% changed` from `changed_region_share`, or `first import` when it is null |
+| Outcome | By status, below |
+| Action | By status, below |
+
+| Status | Outcome | Action |
+|---|---|---|
+| `queued` · `extracting` | The 96×4px progress bar and mono `N of M chunks` | `Review`, into Fact Review, which renders incrementally |
+| `ready` | Mono `N accepted · N rejected · N open`, the open count amber when above zero | `Review` |
+| `ready` with `changed_region_share` of `0` | `No changes · nothing to review` | None |
+| `failed` | The stored `import_error` reason, in the error tone | `Retry` (ghost), which is `POST /api/imports/:id/retry` |
+
+`Review` opens Fact Review for **that** version. An older version's open candidates stay open after
+a newer version exists, and they are decided there as on any import.
+
+### Re-import
+
+`Re-import` opens a file picker restricted to the types that import, the same list the empty state
+names. Choosing a file does not upload it. The row first shows one confirmation line:
+`This becomes v4 of <filename>`, with `Import` (primary) and `Cancel`. When the chosen file's name
+differs, a second line reads `The file is named <chosen name>. The document keeps its name.`
+`Import` sends `POST /api/imports` with this document's `sourceDocumentId` and opens Fact Review on
+the new version, as Flow 4 describes.
+
+- **A different filename or type is accepted.** The document's `filename` and `mime_type` do not
+  change, so every earlier breadcrumb still names the same document.
+- **Refused while the newest version is `queued` or `extracting`.** The button is disabled with the
+  reason `Wait for v3 to finish extracting.` The server refuses the same case at `409`, because the
+  diff baseline would still be incomplete.
+- **Allowed after a `failed` newest version.** Its text was stored before extraction began, so the
+  baseline exists.
+- **Identical content is still stored as a version** and reads `No changes · nothing to review`.
+  An unchanged re-import is a success with zero candidates (Flow 4, `11` §2.6), not a failure and
+  not a refusal.
+
+### Re-extract · specified, not built
+
+No button exists until a second extractor version does. The only extractor today is `plaintext-1`,
+and re-running it can only reproduce the same text. This section fixes the behaviour before anyone
+needs it.
+
+- `Re-extract` (ghost) appears beside `Re-import` only when the document's newest version carries an
+  `extractor_version` other than the current one, and that version is not `queued` or `extracting`.
+- It creates a **new** version from the newest version's `original_bytes`, run through the current
+  extractor. Nothing is uploaded and the confirmation line reads
+  `This becomes v4 of <filename>, read by <extractor version>`.
+- The new version is diffed against the newest one like any re-import, so only passages the new
+  extractor emits differently reach the model.
+- The old version is untouched. Its text, its offsets and the facts quoted from it stay exactly as
+  they were verified (`03` §5.1).
+
+### Rules
+
+- **Review state is derived from facts, never stored.** `N open` is the count of that version's
+  facts still in `candidate`. Finishing a review writes nothing, so an abandoned review and an open
+  one are the same thing and read the same way.
+- Nothing on this screen deletes. Source document versions are never deleted (`04` §3.6).
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | Skeleton document blocks |
+| **No documents** | The list is replaced by Screen 3's empty-state drop target, **the same component**, so the types it names cannot drift |
+| **Re-import refused** | The server's `409` or `422` reason beneath the document row. The list re-reads from the server |
+| **Retry refused** | The server's reason beneath the version row |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -548,7 +644,6 @@ Needed before their milestones; not blocking M1.
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
 | Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
-| Import list | M2 | Documents imported, with re-import and re-extract |
 
 ---
 

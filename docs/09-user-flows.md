@@ -89,7 +89,8 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 
 ## Flow 4 · Re-import an updated document · M1 — the normal case, not an edge case
 
-1. Overview or import list → **Import a document**, selecting the **same** source document.
+1. Documents (Screen 8) → **Re-import** on the document's own row, then confirm
+   `This becomes vN of <filename>`. Overview's **Import a document** always starts a new document.
 2. `POST /api/imports` with `sourceDocumentId` → a new **version** of that document.
 3. The pipeline diffs the new text against the previous version and **sends only changed and added
    passages to the model**.

@@ -2991,3 +2991,42 @@ Two limits are known and left:
   the author's record shows the split in practice; the fix belongs at extraction, not here.
 - **Changing the curation does not mark a document out of date**, for the reason an inclusion change
   does not: staleness counts facts.
+
+### [2026-09-15] The import list is a list of documents, and re-extract waits for a second extractor
+
+`docs/10` carried an "Import list" with no layout and a sidebar with both `Imports` and `Documents`
+rows. The author settled it before any code was written. It is now Screen 8, `Documents`: one block
+per source document with every version listed beneath it, and one sidebar row.
+
+**A row is a document, not an import.** Re-import and re-extract both act on a document, and the
+counts the author comes to read are per version of it. A log of imports would put v1 and v4 of the
+same file pages apart. The separate `Imports` row is dropped, and Fact Review's breadcrumb points at
+`Documents`. The route stays `GET /api/imports`, as `docs/07` already named it.
+
+**Re-import starts from the document's row.** Overview's `Import a document` always makes a new
+document. Rejected: asking "new or a version of" in Overview's picker, and matching on filename
+automatically. Two projects can both have a `harbor-notes.md`, and a wrong match diffs the upload
+against the wrong baseline, so the dedupe guard compares against facts that were never related.
+
+**A re-import does not rename the document.** A different filename or type is accepted, the
+confirmation line says what it becomes, and `source_documents.filename` and `mime_type` stay as
+they were. Renaming would change the breadcrumb of every earlier review. Refusing a mismatch would
+block the normal case, because case studies are regenerated and renamed at work.
+
+**Re-import is refused at `409` while the newest version is `queued` or `extracting`.** Its chunks
+are still landing, so the baseline is incomplete. A `failed` newest version does not refuse: its
+text was stored in step 2, before anything could fail. Identical content is still stored as a
+version and reads `No changes`, which is what Flow 4 and `11` §2.6 already specify.
+
+**Review state is derived, not stored.** `/finish` writes nothing today, and it stays that way.
+`N open` counts the version's facts still in `candidate`. A `reviewed_at` column was rejected for
+the reason `is_stale` was on 2026-09-13: it would be a second copy of something the facts already
+say, and an undo on Fact Review would have to remember to clear it.
+
+**Re-extract is specified and not built.** The only extractor is `plaintext-1`, which is
+`file.text()`. Re-running it reproduces the same text, so a `Re-extract` button could never appear
+and its endpoint could only be tested against a stubbed version string. `docs/10` fixes the rule
+now: shown only when the newest version's `extractor_version` is not the current one, it makes a
+new version from that version's `original_bytes`, diffed like any re-import. The old version and
+the facts quoted from it are not touched. It is built with the first extractor change, probably
+`.docx` in M2, alongside the Message Batches path the 2026-08-29 entry reserves for bulk work.

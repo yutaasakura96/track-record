@@ -178,7 +178,11 @@ document). → **`202 Accepted`**
 }
 ```
 
-Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`).
+Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
+re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
+`extracting`: the diff baseline would still be incomplete. A `failed` newest version does not
+refuse, because its text was stored before extraction. A re-import may carry a different filename
+or type; the document's `filename` and `mime_type` are not changed.
 
 **Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
 supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
@@ -230,8 +234,52 @@ an empty success.
 |---|---|---|---|
 | `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded |
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
-| `GET` | `/api/imports` | M2 | The import list screen |
+| `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation** |
+
+**`GET /api/imports` → 200** — grouped by source document, because re-import acts on a document.
+Documents are ordered by their newest `importedAt`, descending; versions newest first.
+
+```json
+{
+  "openCandidates": 2,
+  "documents": [
+    {
+      "sourceDocumentId": "doc_Ln3",
+      "filename": "harbor-notes.md",
+      "mimeType": "text/markdown",
+      "project": null,
+      "lastImportedAt": "2026-09-15T02:10:00Z",
+      "openCandidates": 2,
+      "reimportable": true,
+      "versions": [
+        {
+          "importId": "imp_4Tz8",
+          "versionNo": 2,
+          "importedAt": "2026-09-15T02:10:00Z",
+          "status": "ready",
+          "wordCount": 6142,
+          "changedRegionShare": 0.15,
+          "chunksTotal": 3,
+          "chunksDone": 3,
+          "extractorVersion": "plaintext-1",
+          "facts": { "accepted": 12, "rejected": 3, "open": 2 },
+          "error": null
+        }
+      ]
+    }
+  ]
+}
+```
+
+- **No source text.** Filenames, counts and the stored `import_error` reason only. The reason is
+  never a model response body (`04` §3.6b).
+- **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
+  number of that version's facts still `candidate`.
+- **`reimportable`** is `false` exactly when the newest version is `queued` or `extracting`, the
+  case `POST /api/imports` refuses at `409`. The screen disables the button from it rather than
+  restating the rule.
+- **`openCandidates`** at the top is the sidebar count.
 
 ---
 
