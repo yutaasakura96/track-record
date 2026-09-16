@@ -8,7 +8,7 @@
  * header. They are focused, full-width tasks, not navigation destinations.
  */
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useDocuments } from "../api";
+import { useImportSummary } from "../api";
 import { Mono } from "./ui";
 
 /**
@@ -32,7 +32,9 @@ const NAV: ({ label: string } & ({ to: string; counts?: "openCandidates" } | { u
 export function Sidebar({ name }: { name: string }) {
   const path = useRouterState({ select: (state) => state.location.pathname });
   // Open candidates across every version of every document, shown only above zero.
-  const openCandidates = useDocuments().data?.openCandidates ?? 0;
+  // Read from the summary, not the listing: the badge is one number and this is
+  // the only query the chrome makes on Home, Record and Skills.
+  const openCandidates = useImportSummary().data?.openCandidates ?? 0;
 
   return (
     <nav className="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">

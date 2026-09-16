@@ -7,7 +7,7 @@
  * appear as extraction progresses.
  */
 import type { Hono } from "hono";
-import { and, asc, desc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import { ApiError, conflict, notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
@@ -237,6 +237,51 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     });
   });
 
+  /**
+   * The sidebar's badge, and nothing else (`docs/07` §5, `docs/10` Screen 8).
+   *
+   * The sidebar is on screen on every sidebar screen, so reading its one number
+   * from the listing above fetched every document, every version and every fact
+   * count on Home, Record and Skills — and polled all of it while an import ran.
+   * Two aggregates in one round trip answer the same question.
+   *
+   * REGISTERED BEFORE `/api/imports/:id`. Hono resolves a static segment against
+   * a sibling parameter by registration order, not by specificity, so the order
+   * of these two calls is what keeps `summary` from being read as an import id.
+   * The test "answers the summary rather than reading `summary` as an import id"
+   * is what makes that real rather than remembered.
+   */
+  api.get("/api/imports/summary", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+
+    const [[candidates], running] = await db.batch([
+      db
+        .select({ open: sql<number>`count(*)::int` })
+        .from(facts)
+        .where(
+          and(
+            eq(facts.userId, user.id),
+            eq(facts.status, "candidate"),
+            isNotNull(facts.sourceDocumentVersionId),
+          ),
+        ),
+      // Existence, not a count: the sidebar only asks whether to keep polling.
+      db
+        .select({ id: sourceDocumentVersions.id })
+        .from(sourceDocumentVersions)
+        .where(
+          and(
+            eq(sourceDocumentVersions.userId, user.id),
+            inArray(sourceDocumentVersions.importStatus, [...RUNNING_STATUSES]),
+          ),
+        )
+        .limit(1),
+    ]);
+
+    return c.json({ openCandidates: candidates?.open ?? 0, running: running.length > 0 });
+  });
+
   api.get("/api/imports/:id", async (c) => {
     const status = await importStatus(c.get("db"), c.get("user").id, pathParam(c, "id"));
     return c.json(status);
@@ -458,8 +503,13 @@ function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
   };
 }
 
-/** The newest version's text or chunk plan is not settled yet. */
-const isRunning = (status: (typeof sourceDocumentVersions.$inferSelect)["importStatus"]) => status === "queued" || status === "extracting";
+/**
+ * The version's text or chunk plan is not settled yet. Stated once, because the
+ * summary asks the same question in SQL and the two must not drift.
+ */
+const RUNNING_STATUSES = ["queued", "extracting"] as const;
+const isRunning = (status: (typeof sourceDocumentVersions.$inferSelect)["importStatus"]) =>
+  (RUNNING_STATUSES as readonly string[]).includes(status);
 
 /** A unique violation on `sdv_document_version_uq`, however deep drizzle wrapped it. */
 function isVersionTaken(err: unknown): boolean {

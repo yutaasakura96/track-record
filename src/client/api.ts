@@ -230,9 +230,15 @@ export interface SourceDocumentRow {
 }
 
 export interface DocumentsListing {
-  /** The sidebar count. */
+  /** The sidebar count. Screen 8 reads it from here; the sidebar does not. */
   openCandidates: number;
   documents: SourceDocumentRow[];
+}
+
+/** The sidebar's badge, and whether anything is still worth polling for. */
+export interface ImportSummary {
+  openCandidates: number;
+  running: boolean;
 }
 
 export interface RenderRow {
@@ -362,6 +368,10 @@ export const keys = {
   inclusions: ["render-inclusions"] as const,
   skills: ["skills-curation"] as const,
   documents: ["documents"] as const,
+  // Deliberately UNDER `documents`: invalidation is by key prefix, so every
+  // mutation that already re-reads the listing re-reads the sidebar's badge too.
+  // The count and the listing it must agree with cannot go stale separately.
+  importSummary: ["documents", "summary"] as const,
   importStatus: (id: string) => ["import", id] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
@@ -554,7 +564,7 @@ export function useImportStatus(importId: string) {
   });
 }
 
-/** Screen 8, and the sidebar's open-candidate count. Polls while any version runs. */
+/** Screen 8. Polls while any version runs. */
 export const useDocuments = () =>
   useQuery({
     queryKey: keys.documents,
@@ -563,6 +573,19 @@ export const useDocuments = () =>
       query.state.data?.documents.some((d) => d.versions.some((v) => isImportRunning(v.status)))
         ? POLL_MS
         : false,
+  });
+
+/**
+ * The sidebar's open-candidate badge, which is on screen on EVERY sidebar
+ * screen. Deliberately not `useDocuments`: that fetched every document, every
+ * version and every fact count on Home, Record and Skills for one number, and
+ * polled all of it while an import ran.
+ */
+export const useImportSummary = () =>
+  useQuery({
+    queryKey: keys.importSummary,
+    queryFn: () => api<ImportSummary>("/api/imports/summary"),
+    refetchInterval: (query) => (query.state.data?.running ? POLL_MS : false),
   });
 
 export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ items: Fact[] }>>) {
