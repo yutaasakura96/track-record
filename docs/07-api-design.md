@@ -235,6 +235,7 @@ an empty success.
 | `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded |
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
+| `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
 | `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation** |
 
 **`GET /api/imports` → 200** — grouped by source document, because re-import acts on a document.
@@ -279,7 +280,28 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 - **`reimportable`** is `false` exactly when the newest version is `queued` or `extracting`, the
   case `POST /api/imports` refuses at `409`. The screen disables the button from it rather than
   restating the rule.
-- **`openCandidates`** at the top is the sidebar count.
+- **`openCandidates`** at the top is the count Screen 8 shows for the whole record. The sidebar's
+  badge is the same number, but it is read from `/api/imports/summary` and never from here.
+
+**`GET /api/imports/summary` → 200** — the sidebar's badge, and nothing else.
+
+```json
+{ "openCandidates": 2, "running": false }
+```
+
+- The sidebar is on screen on **every** sidebar screen, so reading its one number from the listing
+  meant fetching every document, every version and every fact count on Home, Record and Skills, and
+  polling all of it while an import ran. This is two aggregates in one round trip.
+- **`openCandidates`** is equal to the listing's top-level `openCandidates`, always. A test asserts
+  the two agree through accept, reject and undo; the cheap count is not allowed to drift from the
+  expensive one.
+- **`running`** is `true` while any version is `queued` or `extracting` — the same condition
+  `reimportable` is the negation of. It is what the sidebar's poll interval is driven from, so a
+  `failed` version reports `false`: a settled failure must not poll forever.
+- **Registered before `/api/imports/:id`.** `summary` is a static segment beside a sibling
+  parameter, and Hono resolves those by registration order rather than by specificity. Registered
+  the other way round the path is read as an import id and the sidebar gets a `404`, which is what a
+  test pins.
 
 ---
 

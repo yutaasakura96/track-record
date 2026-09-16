@@ -3073,3 +3073,39 @@ proposal's own URL rather than from the overview. No Dismiss action exists, so a
 stays `pending` forever. That is invisible now rather than blocking, and it is what a sweep or a
 Dismiss action would settle later. The eleven proposals on the dev record are all `ready`, so none
 of them change status from this.
+
+### [2026-09-16] The sidebar's badge has its own endpoint
+
+One of the review findings from #26. The sidebar shows a single number, open candidates across
+every version of every document, and it is on screen on Home, Record, Skills and Documents. It read
+that number from `GET /api/imports`, so every one of those screens fetched the whole listing, every
+document with every version and every per-version fact count, three queries and a response that
+grows with the record. While an import ran the sidebar polled all of it at 1.5s, on whichever
+screen the author happened to be on.
+
+**`GET /api/imports/summary` returns `{ openCandidates, running }`.** Two aggregates in one round
+trip: a count of the reader's facts still `candidate`, and an existence check for a version that is
+`queued` or `extracting`. The listing is now Screen 8's alone.
+
+**The count is pinned to the listing by test, not by care.** A second way to compute the same
+number is a second way to be wrong, so the test asserts the summary's `openCandidates` equals the
+listing's through accept, reject and undo. The running condition is stated once in the route as
+`RUNNING_STATUSES` and both the SQL and `isRunning` read it, so `reimportable` and `running` cannot
+disagree about what settled means.
+
+**The query key sits under the listing's.** `keys.importSummary` is `["documents", "summary"]`, so
+the four mutations that already invalidate `keys.documents` invalidate the badge by prefix. Adding
+a fifth invalidation to each of them would have been a rule to remember; this is the same rule
+enforced by the key.
+
+**Registration order is load-bearing.** `summary` is a static segment beside `/api/imports/:id`,
+and Hono resolves that by registration order rather than by specificity. Written the other way
+round the path is read as an import id and the sidebar gets a `404`, which is what the first run of
+the test showed before the route existed. A test named for it now pins the order. The alternative,
+a path outside the `:id` space such as `/api/review-queue`, was rejected: it would put a noun in
+the API that neither `docs/07` nor `docs/10` uses for this.
+
+**Screen 8 now makes two requests where it made one.** Its sidebar reads the summary while the
+screen reads the listing. That is one small request added on one screen against one large request
+removed from three, and it keeps the badge identical everywhere rather than correct on Documents
+and derived differently elsewhere.
