@@ -3048,3 +3048,28 @@ and Review proposal leads to a screen with only Back. That is tracked as #27. Tw
 simultaneous generate requests can both pass the check, as re-import could before c9e9f76. There
 is no unique index on waiting proposals to catch it, and one author with one button makes it
 unlikely enough to leave.
+
+### [2026-09-16] A failed proposal holds no document
+
+#27, and the half the entry above left open. `renderState` counted every `pending` proposal, so a
+generation that failed reported the render as `proposal_pending` with a `pendingProposalId`. The
+overview hid Generate, Review proposal opened the Failed screen, and that screen offers only Back
+and a download. The API had already been taught to allow a retry; the screen offered none.
+
+**The exclusion goes where the pending query is, not in the screen.** `renderState` now skips
+proposals whose `generation_status` is `failed`, exactly as generate does. The render reports the
+status it would have without the proposal, `never_generated` or `stale` or `up_to_date`, and
+`pendingProposalId` is `null`. Nothing about the proposal row changes: it stays `pending`, it is
+still readable at `GET /api/proposals/:id`, and nothing is deleted.
+
+**Edit and restore were extended with it.** They refuse on a waiting proposal because accepting it
+afterwards would silently discard the edit or the restore. Accept refuses anything that is not
+`ready`, so a failed proposal can discard neither, and the reason does not reach it. Leaving them
+refusing would have moved the dead end one layer down: the overview would offer Edit and the API
+would answer `409` with a proposal id the author cannot see or dismiss anywhere.
+
+**What this does not do.** The Failed screen still has only Back and a download, reached from the
+proposal's own URL rather than from the overview. No Dismiss action exists, so a failed proposal
+stays `pending` forever. That is invisible now rather than blocking, and it is what a sweep or a
+Dismiss action would settle later. The eleven proposals on the dev record are all `ready`, so none
+of them change status from this.

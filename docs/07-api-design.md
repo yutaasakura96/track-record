@@ -378,7 +378,7 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 | `GET` | `/api/renders/:kind/versions` | M1 | The version history. **Versions only** — the screen merges the dismissed proposals in, and a merged payload would hand every consumer a discriminated union to unpack (decision log, 2026-09-12) |
 | `GET` | `/api/proposals?kind=` | M1 | One render's proposals, decided and undecided. The other half of the history: a **dismissed** proposal is retained and is not a version |
 | `GET` | `/api/renders/:kind/diff` | M1 | `?from=&to=` — two **versions** of one render, the restore preview. `from` is the left column. Never names a proposal; proposals keep their own diff route |
-| `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
+| `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal (not one whose generation `failed`) or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
 
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.
@@ -401,7 +401,9 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 `status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending`.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
-a first generation awaiting review is not `never_generated`.
+a first generation awaiting review is not `never_generated`. A proposal whose generation `failed`
+is not one: it is still `pending`, but there is no diff to review, so the render reports the status
+it would have without it and `pendingProposalId` is `null`.
 
 **`POST /api/renders/rirekisho/generate` → 428** when the profile is incomplete:
 
@@ -428,7 +430,8 @@ belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 and restore routes give. Accepting either of two proposals would discard the other unread. It is
 checked before the profile and the facts, because it is the one refusal Review proposal answers. A
 proposal whose generation `failed` does not refuse: it has nothing to decide, and refusing on it
-would leave the render with no way to try again.
+would leave the render with no way to try again. The edit and restore routes exclude it on the same
+reading — accept itself refuses a proposal that is not `ready`, so a failed one can discard neither.
 
 **`GET /api/proposals/:id` → 200**
 
@@ -540,7 +543,8 @@ the `.md` of one version cannot disagree about when it was submitted.
 **`POST /api/renders/:kind/versions` refuses four ways and warns a fifth.** It edits the CURRENT
 version and nothing else: an edit whose `basedOnVersionId` is not current → `409 conflict` with
 `details.currentVersionId`, and an edit made while a proposal is pending → `409 conflict` with
-`details.proposalId`, because accepting that proposal afterwards would silently discard the edit.
+`details.proposalId`, because accepting that proposal afterwards would silently discard the edit
+(a proposal whose generation `failed` is excluded: it can never be accepted).
 A payload that changes nothing → `409`; one that is malformed, empties the document, or has two
 blocks claiming one id → `422 validation_failed`. A block citing a fact the record does not hold,
 or one a generation would have been forbidden to use, → `422` with `details.facts` carrying
