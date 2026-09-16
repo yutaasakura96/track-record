@@ -596,6 +596,16 @@ describe("a failure never destroys a stored version", () => {
     const retry = await generate(resumeFrom([{ text: "A good bullet", factIds: [record.measuredPublic.id] }]));
     expect(retry.status).toBe(202);
   });
+
+  it("does not hold a document pending on a proposal whose generation failed", async () => {
+    await seedRecord();
+    await generate(new ModelUnavailableError("The model service returned 529."));
+
+    const renders = await client.json<{ items: RenderRow[] }>("/api/renders");
+    const resume = renders.items.find((r) => r.kind === "english_resume")!;
+    expect(resume.status).toBe("never_generated");
+    expect(resume.pendingProposalId).toBeNull();
+  });
 });
 
 describe("documents and downloads", () => {
@@ -979,6 +989,17 @@ describe("a version is edited by hand", () => {
     expect((await currentVersion()).id).toBe(version.id);
   });
 
+  it("allows an edit after a generation failed", async () => {
+    const { version } = await acceptedResume();
+    await generate(new ModelUnavailableError("The model service returned 529."));
+
+    // A failed proposal can never be accepted, so it cannot discard the edit
+    // afterwards — the one thing the refusal above exists to prevent.
+    const response = await edit(version.id, without(version.content, 1));
+    expect(response.status).toBe(201);
+    expect((await currentVersion()).versionNo).toBe(2);
+  });
+
   it("refuses an edit made against a version that is no longer current", async () => {
     const { version } = await acceptedResume();
     await edit(version.id, without(version.content, 1));
@@ -1267,6 +1288,15 @@ describe("a version is restored", () => {
     expect(body.error.message).toContain("proposal");
     expect(body.error.details.proposalId).toMatch(/^prp_/);
     expect((await history()).currentVersionNo).toBe(2);
+  });
+
+  it("allows a restore after a generation failed", async () => {
+    const { v1 } = await twoVersions();
+    await generate(new ModelUnavailableError("The model service returned 529."));
+
+    const response = await restore(v1.id);
+    expect(response.status).toBe(201);
+    expect((await history()).currentVersionNo).toBe(3);
   });
 
   it("refuses restoring the version that is already current", async () => {

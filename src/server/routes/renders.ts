@@ -422,7 +422,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     // The same reason the edit route refuses: a proposal generated against the
     // current version would still be accepted afterwards, and its accept would
-    // silently discard the restore. The author decides it first.
+    // silently discard the restore. The author decides it first. A proposal
+    // whose generation failed is not one of them: accept refuses it, so it can
+    // discard nothing.
     const [pending] = await db
       .select({ id: renderProposals.id })
       .from(renderProposals)
@@ -431,6 +433,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           eq(renderProposals.userId, user.id),
           eq(renderProposals.renderId, render.id),
           eq(renderProposals.status, "pending"),
+          ne(renderProposals.generationStatus, "failed"),
         ),
       )
       .limit(1);
@@ -596,6 +599,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // A proposal generated against the version being edited would still be
     // accepted afterwards, and its accept would silently discard the edit. The
     // author decides it first; deciding it for them is not this route's call.
+    // A failed proposal is excluded: accept refuses it, so it can discard
+    // nothing, and holding the edit would leave the author no way forward.
     const [pending] = await db
       .select({ id: renderProposals.id })
       .from(renderProposals)
@@ -604,6 +609,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           eq(renderProposals.userId, user.id),
           eq(renderProposals.renderId, render.id),
           eq(renderProposals.status, "pending"),
+          ne(renderProposals.generationStatus, "failed"),
         ),
       )
       .limit(1);
@@ -904,10 +910,19 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
           .where(and(eq(renderVersions.userId, userId), inArray(renderVersions.id, versionIds)));
   const versionById = new Map(versions.map((v) => [v.id, v]));
 
+  // A proposal whose generation failed stays `pending` — nothing was decided —
+  // but it holds no document: there is no diff to review and generating again is
+  // the way out. Excluded here exactly as it is at generation time.
   const pending = await db
     .select({ id: renderProposals.id, renderId: renderProposals.renderId })
     .from(renderProposals)
-    .where(and(eq(renderProposals.userId, userId), eq(renderProposals.status, "pending")))
+    .where(
+      and(
+        eq(renderProposals.userId, userId),
+        eq(renderProposals.status, "pending"),
+        ne(renderProposals.generationStatus, "failed"),
+      ),
+    )
     .orderBy(desc(renderProposals.generatedAt));
   const pendingByRender = new Map<string, string>();
   for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p.id);
