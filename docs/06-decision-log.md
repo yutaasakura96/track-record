@@ -3109,3 +3109,72 @@ the API that neither `docs/07` nor `docs/10` uses for this.
 screen reads the listing. That is one small request added on one screen against one large request
 removed from three, and it keeps the badge identical everywhere rather than correct on Documents
 and derived differently elsewhere.
+
+### [2026-09-18] The proxy wedge gets a clock and a capture, not a fix
+
+#25. The local Neon HTTP proxy sometimes stops serving queries. Every database test then waits out
+its own 30s timeout, no assertion fails, and a run that normally takes eight minutes looks hung
+rather than broken. A full session went into reproducing it and could not. Six back to back suite
+runs, 382 of 382 each, three of them with the dev worker under steady traffic: 344 page loads and
+roughly 12,400 commits on the dev database. A `select 1` health check every 5 to 10 seconds
+throughout: 151 checks, all passed, slowest 342ms, and no query ever waited on a lock or ran past
+10s. Thirty requests aborted by the client mid query, plain and inside a transaction. Bursts past
+the 20 connection pool limit. A SIGINT to the suite mid run. Nine hours idle with the proxy up. No
+wedge in any of it. The negative results are recorded as a comment on the issue, because they are
+the only output that session produced.
+
+**So the cause is not being chased further, and the next occurrence is being made to pay for
+itself.** Four things land and none of them is a fix.
+
+**The suite's first query runs under a three second clock.** `tests/global-setup.ts` already asked
+`current_database()` before dropping anything, to prove the proxy routed the connection where the
+URL aimed it. `tests/proxy-health.ts` puts a budget on that same query, so this costs no extra
+round trip: a proxy that answers it is serving queries. Three seconds refuses nothing healthy,
+against a measured worst case of 342ms under load, and the wedge does not answer at any budget. A
+cold start was measured too, because a budget is only safe if a proxy that has just been restarted
+can beat it: after `docker restart` the proxy refuses connections for about 170ms and answers its
+first query at 302ms. The refusals in that window are refusals, not silence, so even a suite started
+inside it gets the message for a proxy that is not listening rather than the one for the wedge.
+Eight minutes of silence becomes one paragraph naming the capture and the restart.
+
+**A proxy that is not running and a proxy that is wedged get different messages.** A wedge accepts
+the connection and never answers; a stopped container refuses it in about 30ms. Telling a reader it
+is #25 when the container is simply down sends them to `docker restart` on a container that is not
+there. The unreachable message says `npm run db:up` and says it is not #25.
+
+**`npm run capture:proxy` runs before the restart, not after.** The restart is the only known way
+out of the wedge and it is also the only thing that erases it, and it is what anyone hitting this
+reaches for within seconds. `scripts/capture-proxy-state.mjs` writes the proxy's log, the container
+state, the image digest, the proxy settings actually in force, `pg_stat_activity` with `wait_event`
+and `state`, `pg_stat_database.xact_commit`, and ungranted locks into a gitignored file, in about
+1.4 seconds, read only, touching neither database. Every section is best effort, so a docker call
+that fails against a stopped container is recorded and the capture goes on.
+
+**It captures no statement text.** The `query` column of `pg_stat_activity` holds whatever the dev
+worker was running, which on the dev record means source text and fact quotes. Only the leading
+verb and the length are taken. The proxy's own log is captured whole because it is the evidence,
+and at its default level it logs command tags and row counts (`SELECT 1`, `UPDATE 0`) rather than
+statements, but that is the proxy's choice and not this project's promise, so the file is read
+before it is attached to a public issue and it is never committed.
+
+**The proxy image is pinned to its digest.** It tracked the moving `:main` tag, so a rebuild
+upstream could be neither ruled in nor out. `sha256:cd2ae14e` is what has been running. Updating is
+now a deliberate act rather than a side effect of a `docker pull`.
+
+**Two things the issue listed as unknown are now known.** The pool limit is
+`--sql-over-http-pool-max-conns-per-endpoint` and it is configurable on the image, default 20,
+alongside a 5m idle timeout and a 10m pool GC epoch. And a full idle pool is the healthy resting
+state, not the wedge: 20 parked backends per connection string key, two keys for the same database
+because `localhost` and `db.localtest.me` are different keys, which is where the 40 connections
+seen during a run come from against a `max_connections` of 100.
+
+**One thing does destroy a run and it is not this.** Running a single test file while the full
+suite runs, which both rebuild `track_record_test`. Measured: the single file passed in 17s, its
+setup dropped the schema without waiting on any lock, and the full run then failed 36 tests with
+immediate `relation "users" does not exist` and zero timeouts. Assertion errors rather than
+silence, so it does not look like #25, and the rule against it stands on its own.
+
+**What this does not do.** It does not fix the wedge, find its cause, or make it reproducible. Item
+1 of the issue stays open and cannot be closed without a live occurrence. The health check is also
+only on the suite: the dev worker has nothing equivalent, and the author meeting a wedged proxy in
+the browser still sees a slow page rather than a message.

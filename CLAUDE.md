@@ -19,6 +19,14 @@ the record — unknown fact ids, unfiled facts used under an employer, facts und
 different employer — and exits non-zero on a finding. It prints ids and counts and never render
 text, and it is not to be rebuilt by hand either.
 
+**When the suite stops in three seconds naming the proxy**, the Neon HTTP proxy has stopped serving
+queries (issue #25). `tests/global-setup.ts` puts a clock on the suite's first query so this is one
+line rather than eight minutes of database tests timing out with nothing failing. Run
+`npm run capture:proxy` **before** `docker restart track-record-neon-proxy-1` — the restart is the
+only known way out and it is also what erases the evidence, and ten deliberate attempts over a full
+session could not reproduce the wedge, so the next occurrence is the only teacher available. The
+capture is gitignored; read it before attaching it to the issue.
+
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
 destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
