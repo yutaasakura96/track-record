@@ -17,6 +17,7 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 // imports only under the legacy config loader. `vitest.config.ts` spells its own
 // import of this file the same way.
 import { assertConnectedTo, assertSuiteDatabaseIsNotDev, databaseTarget } from "./database-guard.ts";
+import { answerWithinBudget } from "./proxy-health.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS = join(here, "..", "src", "server", "db", "migrations");
@@ -51,8 +52,13 @@ export default async function setup() {
   // And once connected: the URL says where the query was aimed, not where it
   // landed. The proxy in between decides that. The guard above has already
   // refused a URL that cannot be read, so this one always runs.
+  //
+  // It runs under a clock, because it is also the first query of the run. A
+  // proxy that answers it is serving queries; one that does not is the wedge in
+  // issue #25, and saying so here saves the eight minutes of silent timeouts
+  // that would otherwise follow (`tests/proxy-health.ts`).
   const intended = databaseTarget(TEST_DATABASE_URL)!;
-  const [row] = await sql.query("select current_database() as name");
+  const [row] = await answerWithinBudget(() => sql.query("select current_database() as name"));
   assertConnectedTo(intended.database, String((row as { name: string }).name));
 
   // Every run starts from nothing. Migrations are the only way the schema is
