@@ -28,7 +28,13 @@ services:
       retries: 20
 
   neon-proxy:
-    image: ghcr.io/timowilhelm/local-neon-http-proxy:main
+    # Pinned to a digest, and the tag kept only so the line stays readable.
+    # `:main` is a moving tag: the proxy sometimes stops serving queries
+    # (issue #25), and while that is unreproduced, an unpinned image means a
+    # rebuild upstream can neither be ruled in nor out as the cause. Updating
+    # is deliberate now: `docker pull ghcr.io/timowilhelm/local-neon-http-proxy:main`,
+    # then put the digest it reports here.
+    image: ghcr.io/timowilhelm/local-neon-http-proxy:main@sha256:cd2ae14edf2feafbc3330492de5c80506f77274c3bd013154cdef697bdeb768a
     environment:
       # This is the proxy's AUTH backend, not the query target: on startup it
       # creates `neon_control_plane.endpoints` in whatever database this names,
