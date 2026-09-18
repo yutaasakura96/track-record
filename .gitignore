@@ -30,3 +30,8 @@ coverage/
 # Never commit a database dump. This repo is public.
 *.dump
 *.sql.gz
+
+# Evidence taken from a wedged Neon proxy before restarting it (issue #25).
+# `npm run capture:proxy` writes these. The proxy's own log is captured whole,
+# so a capture is read before it is attached to the public issue, never committed.
+proxy-capture-*.txt
