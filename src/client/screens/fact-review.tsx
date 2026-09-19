@@ -328,6 +328,8 @@ function FactRail({
           <FailedState status={status} onRetry={() => retry.mutate()} busy={retry.isPending} />
         ) : null}
 
+        {isNothingNew(status) ? <NothingNewState versionNo={status.versionNo} /> : null}
+
         {status.status === "extracting" || status.status === "queued" ? (
           <div className="grid gap-8">
             <ProgressBar value={status.chunksTotal ? status.chunksDone / status.chunksTotal : 0} />
@@ -369,6 +371,26 @@ function FactRail({
         </Button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * A re-import with no new or changed passages had nothing to extract. The
+ * pipeline marks that `ready`, not failed, and the rail says so rather than
+ * sitting empty. Not "no changes": a version that only removes text lands here too.
+ */
+const isNothingNew = (status: ImportStatus) =>
+  status.status === "ready" && status.chunksTotal === 0 && status.versionNo > 1;
+
+function NothingNewState({ versionNo }: { versionNo: number }) {
+  return (
+    <div className="border border-border-control rounded-panel px-14 py-12">
+      <p className="text-row font-medium text-text-strong">Nothing new to review</p>
+      <p className="mt-6 text-smaller text-text-dim">
+        v{versionNo} adds no new or changed passages since v{versionNo - 1}, so there was nothing to
+        extract. Your record is unchanged.
+      </p>
+    </div>
   );
 }
 
