@@ -197,6 +197,14 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       .groupBy(facts.sourceDocumentVersionId);
     const countsByVersion = new Map(counts.map((row) => [row.versionId, row]));
 
+    // Which versions stopped on a chunk. The listing's `error` carries the same
+    // code as the import's own status, and the code turns on this.
+    const failedChunks = await db
+      .selectDistinct({ versionId: importChunks.sourceDocumentVersionId })
+      .from(importChunks)
+      .where(and(eq(importChunks.userId, user.id), eq(importChunks.status, "failed")));
+    const stoppedOnChunk = new Set(failedChunks.map((row) => row.versionId));
+
     const listed = documents
       .map((document) => {
         const own = versions
@@ -214,7 +222,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
               chunksDone: v.chunksDone,
               extractorVersion: v.extractorVersion,
               facts: { accepted, rejected, open },
-              error: v.status === "failed" ? (v.importError ?? "This import could not be completed.") : null,
+              error: importFailure(v.status, v.importError, accepted + rejected + open, stoppedOnChunk.has(v.id)),
             };
           });
         const newest = own[0];
@@ -423,6 +431,23 @@ interface ImportStart {
   waitUntil?: (promise: Promise<unknown>) => void;
 }
 
+/**
+ * The `error` of an import, on the listing and on the import's own status alike
+ * (`docs/07` §2, one shape everywhere). `null` unless the import failed.
+ */
+function importFailure(
+  status: string,
+  reason: string | null,
+  extracted: number,
+  stoppedOnChunk: boolean,
+): { code: "no_facts_extracted" | "extraction_failed"; message: string } | null {
+  if (status !== "failed") return null;
+  return {
+    code: extracted === 0 && !stoppedOnChunk ? "no_facts_extracted" : "extraction_failed",
+    message: reason ?? "This import could not be completed.",
+  };
+}
+
 async function requireVersion(db: Db, userId: string, versionId: string) {
   const [version] = await db
     .select({ id: sourceDocumentVersions.id })
@@ -482,13 +507,7 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
     candidatesSuppressed: version.candidatesSuppressed,
     wordCount: version.wordCount,
     changedRegionShare: version.changedRegionShare,
-    error:
-      version.importStatus === "failed"
-        ? {
-            code: extracted === 0 && !failedChunk ? "no_facts_extracted" : "extraction_failed",
-            message: version.importError ?? "This import could not be completed.",
-          }
-        : null,
+    error: importFailure(version.importStatus, version.importError, extracted, Boolean(failedChunk)),
     /** Where a retry resumes. `null` when nothing failed. */
     failedAtChunk: failedChunk?.chunkIndex ?? null,
   };

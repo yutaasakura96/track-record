@@ -213,8 +213,8 @@ export interface DocumentVersion {
   chunksDone: number;
   extractorVersion: string;
   facts: { accepted: number; rejected: number; open: number };
-  /** The stored reason, set only when `status` is `failed`. */
-  error: string | null;
+  /** Set only when `status` is `failed`. The same shape as `ImportStatus.error`. */
+  error: { code: string; message: string } | null;
 }
 
 export interface SourceDocumentRow {

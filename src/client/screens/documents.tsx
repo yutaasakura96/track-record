@@ -294,7 +294,7 @@ function Outcome({ version, unchanged }: { version: DocumentVersion; unchanged: 
     );
   }
   if (version.status === "failed") {
-    return <span className="text-smaller text-removed">{version.error}</span>;
+    return <span className="text-smaller text-removed">{version.error?.message}</span>;
   }
   if (unchanged) {
     return <span className="text-smaller text-text-dim">No changes · nothing to review</span>;

@@ -9,6 +9,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import { CASE_STUDY, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { ModelUnavailableError } from "~/model/types";
 
 interface Version {
   importId: string;
@@ -21,7 +22,7 @@ interface Version {
   chunksDone: number;
   extractorVersion: string;
   facts: { accepted: number; rejected: number; open: number };
-  error: string | null;
+  error: { code: string; message: string } | null;
 }
 
 interface Document {
@@ -150,13 +151,31 @@ describe("the documents listing", () => {
     expect(document!.versions).toHaveLength(2);
   });
 
-  it("reports a failed import's stored reason", async () => {
+  // One shape for `error` across the imports resources (`docs/07` §2): the
+  // listing says what the import's own status says, code included.
+  it("reports a zero-fact failure with the same code and reason as the import itself", async () => {
     model.extractions = [[]];
-    await importDocument(CASE_STUDY, "harbor-notes.md");
+    const created = await importDocument(CASE_STUDY, "harbor-notes.md");
     const version = (await listing()).documents[0]!.versions[0]!;
+    const status = await client.json<{ error: unknown }>(`/api/imports/${created.importId}`);
     expect(version.status).toBe("failed");
-    expect(version.error).toEqual(expect.any(String));
-    expect(version.error!.length).toBeGreaterThan(0);
+    expect(version.error).toEqual({ code: "no_facts_extracted", message: expect.any(String) });
+    expect(version.error!.message.length).toBeGreaterThan(0);
+    expect(version.error).toEqual(status.error);
+  });
+
+  it("reports a failed chunk with the same code and reason as the import itself", async () => {
+    const long = `${"First half. ".repeat(150)}\n\n${"Second half. ".repeat(150)}`;
+    model.extractions = [
+      [{ claim: "First half claim", quote: "First half. First half.", technologies: [] }],
+      new ModelUnavailableError("The model service returned 529."),
+    ];
+    const created = await importDocument(long, "long.md");
+    const version = (await listing()).documents[0]!.versions[0]!;
+    const status = await client.json<{ error: unknown }>(`/api/imports/${created.importId}`);
+    expect(version.status).toBe("failed");
+    expect(version.error).toEqual({ code: "extraction_failed", message: expect.any(String) });
+    expect(version.error).toEqual(status.error);
   });
 
   it("lists nothing for a user with no documents", async () => {
