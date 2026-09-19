@@ -196,6 +196,7 @@ export interface ImportStatus {
 export interface SourceText {
   sourceDocumentVersionId: string;
   filename: string;
+  project: { id: string; name: string } | null;
   wordCount: number;
   importedAt: string;
   text: string;

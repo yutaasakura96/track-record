@@ -62,6 +62,7 @@ export function FactReview() {
     <div className="h-screen flex flex-col">
       <Header
         filename={source.data?.filename ?? "…"}
+        project={source.data?.project?.name ?? null}
         importId={importId}
         resolvedCount={resolved.length}
         total={items.length}
@@ -78,11 +79,14 @@ export function FactReview() {
 
 function Header({
   filename,
+  project,
   importId,
   resolvedCount,
   total,
 }: {
   filename: string;
+  /** Left out of the breadcrumb, not labelled, when the document has no project. */
+  project: string | null;
   importId: string;
   resolvedCount: number;
   total: number;
@@ -97,6 +101,12 @@ function Header({
         Documents
       </Link>
       <span className="text-text-faint">/</span>
+      {project && (
+        <>
+          <span className="text-smaller text-text-dim">{project}</span>
+          <span className="text-text-faint">·</span>
+        </>
+      )}
       <Chip>{filename}</Chip>
 
       <div className="ml-auto flex items-center gap-14">

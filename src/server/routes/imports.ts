@@ -368,9 +368,12 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         wordCount: sourceDocumentVersions.wordCount,
         importedAt: sourceDocumentVersions.importedAt,
         filename: sourceDocuments.filename,
+        projectId: projects.id,
+        projectName: projects.name,
       })
       .from(sourceDocumentVersions)
       .innerJoin(sourceDocuments, eq(sourceDocuments.id, sourceDocumentVersions.sourceDocumentId))
+      .leftJoin(projects, and(eq(projects.id, sourceDocuments.projectId), eq(projects.userId, user.id)))
       .where(
         and(
           eq(sourceDocumentVersions.userId, user.id),
@@ -384,6 +387,8 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     return c.json({
       sourceDocumentVersionId: version.id,
       filename: version.filename,
+      // Fact Review's breadcrumb. `null` for a document filed under no project.
+      project: version.projectId ? { id: version.projectId, name: version.projectName! } : null,
       wordCount: version.wordCount,
       importedAt: version.importedAt.toISOString(),
       text: version.text,

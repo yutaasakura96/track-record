@@ -470,3 +470,30 @@ describe("re-import", () => {
     expect(status.error?.code).toBe("no_facts_extracted");
   });
 });
+
+describe("the source pane names its document", () => {
+  interface SourceText {
+    filename: string;
+    project: { id: string; name: string } | null;
+  }
+  const sourceOf = (status: ImportStatus) =>
+    client.json<SourceText>(`/api/source-documents/${status.sourceDocumentId}/versions/1/text`);
+
+  it("carries the project the document was filed under, for the breadcrumb", async () => {
+    const project = (await (await client.post("/api/projects", { name: "Harbour lantern" })).json()) as { id: string };
+    const created = (await (await importDocument(CASE_STUDY, "lantern.md", { projectId: project.id })).json()) as {
+      importId: string;
+    };
+
+    const source = await sourceOf(await statusOf(created.importId));
+    expect(source.filename).toBe("lantern.md");
+    expect(source.project).toEqual({ id: project.id, name: "Harbour lantern" });
+  });
+
+  it("carries no project for a document filed under none", async () => {
+    const created = (await (await importDocument()).json()) as { importId: string };
+
+    const source = await sourceOf(await statusOf(created.importId));
+    expect(source.project).toBeNull();
+  });
+});
