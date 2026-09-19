@@ -280,6 +280,11 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 
 - **No source text.** Filenames, counts and the stored `import_error` reason only. The reason is
   never a model response body (`04` §3.6b).
+- **`error`** is `null` unless the version is `failed`, and then it is the same object
+  `GET /api/imports/:id` returns for that version, `code` and `message` both. One shape across the
+  imports resources (§2): a failed version in the listing reads
+  `{ "code": "extraction_failed", "message": "…" }`, never a bare string. Screen 8 shows
+  `message`.
 - **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
   number of that version's facts still `candidate`.
 - **`reimportable`** is `false` exactly when the newest version is `queued` or `extracting`, the

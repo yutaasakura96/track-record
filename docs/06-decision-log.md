@@ -3249,3 +3249,21 @@ candidates were never stored, so there is nothing to count. For a version that f
 figure is only understated. A `failed` re-import whose candidates were all suppressed stays failed,
 and Retry does not change that, because its chunks are `done` and are not re-sent. Importing the
 file again as a new version does.
+
+### [2026-09-19] The listing's `error` is the same object as the import's own
+
+One of the review findings from #26. A failed version carried `error` in two shapes under one
+resource family. `GET /api/imports/:id` returned `{ code, message }`, with `code` telling a
+zero-fact failure (`no_facts_extracted`) from a stopped chunk (`extraction_failed`).
+`GET /api/imports` returned the stored reason as a bare string. `07` showed the listing only with
+`"error": null`, so neither shape was written down for it, and §2 says errors take one shape
+everywhere.
+
+**The listing now returns the object.** Both endpoints build it through one function in
+`src/server/routes/imports.ts`, so a failed version reads the same code and message on Screen 8
+and on Fact Review. The listing gains one query, the distinct versions with a failed chunk, because
+the code turns on it. Screen 8 still shows only `message` and branches on nothing.
+
+**Keeping the string and pinning it in `07` was the cheaper answer and was not taken.** It costs no
+query, but it leaves one field name with two shapes, and a component that renders an import's
+error from either resource has to know which one it was handed.
