@@ -3217,3 +3217,35 @@ single tests at 900s and more; the capture showed the proxy answering in 42ms, a
 the Mac entering sleep mid run, with the Docker VM clock left 16 to 33 minutes behind the host. A
 suite that stalls on a laptop running on battery is worth checking against `pmset -g log` before
 anyone restarts the proxy.
+
+### [2026-09-19] A re-import of repeats is a success, and the dedupe guard gets a counter
+
+Flow 4 says a restructured document's exact repeats are suppressed by the quote-and-claim hash, and
+that a rejected fact stays rejected. It did not say what happens when that suppression takes every
+candidate. `finishStep` answered for it: zero facts on the version and at least one chunk meant
+`failed`, "No facts could be extracted from this document." A re-import whose changed text only
+restated what the record already held read as a broken import, with a Retry that would do the same
+thing again. The exemption for an unchanged re-import covered zero chunks and nothing else.
+
+**The finish step cannot tell the two cases apart from what it stores.** A model that returns
+nothing and a model whose every candidate was already in the record both leave zero facts on the
+version. So `source_document_versions` gains `candidates_suppressed`, the partner of
+`candidates_discarded`: the chunk step adds the candidates the hash lookup dropped, and the finish
+step fails a version only when it has chunks, no facts and no suppressed candidates. The model
+finding nothing in changed text is still a failure, on a first import or a re-import.
+
+**Treating every zero-fact re-import as a success was the cheaper answer and was not taken.** It
+needs no column, but it turns a model that silently returns nothing on changed text into a green
+import, which is the exact failure the zero-facts rule exists to surface.
+
+**It is a count and stays one**, under the same rule as `candidates_discarded`: no column or log
+line holds which facts were suppressed. `GET /api/imports/:id` reports it as
+`candidatesSuppressed`, and Fact Review says how many repeats it did not offer again. Candidates that
+repeat each other inside one chunk are collapsed before the lookup and are not counted; they were
+never two facts.
+
+Rows written before the column existed read `0`, and nothing backfills them: the dropped
+candidates were never stored, so there is nothing to count. For a version that finished `ready` the
+figure is only understated. A `failed` re-import whose candidates were all suppressed stays failed,
+and Retry does not change that, because its chunks are `done` and are not re-sent. Importing the
+file again as a new version does.

@@ -201,6 +201,7 @@ appearance of cards in the fact rail.
   "chunksDone": 7,
   "candidatesExtracted": 23,
   "candidatesDiscarded": 2,
+  "candidatesSuppressed": 0,
   "wordCount": 6142,
   "changedRegionShare": 0.15,
   "error": null
@@ -211,6 +212,10 @@ appearance of cards in the fact rail.
 - **`candidatesDiscarded`** counts candidates whose `quote` was not found verbatim in the source.
   Reported as a number and never as content — the author sees that the guard fired, not what it
   caught.
+- **`candidatesSuppressed`** counts candidates dropped because they repeat a fact already in the
+  record (the quote-and-claim hash guard). A count and never content. A `ready` re-import with
+  `candidatesExtracted: 0` and `candidatesSuppressed > 0` is a success: everything the changed text
+  says, the record already holds.
 - **`changedRegionShare`** is the fraction of the document that changed since the previous version;
   `null` on a first import. This is what makes a re-import cheap (`03-technical-design.md` §5).
 

@@ -411,6 +411,7 @@ that filtering is asserted by test — not by convention.
 |---|---|---|
 | Model unavailable / unusable response | Stated reason + retry. Current version untouched and readable | Provider, status, workflow step, chunk index. **No content** |
 | Import extracts zero facts | Reported as an extraction *failure*, document retained. Retry or capture manually | Document ID, byte size, chunk count |
+| Deduplication drops every candidate of a re-import | Zero new candidates, reported as a success with the number of repeats. **Not** the zero-facts failure above | Count only, per import |
 | Quote verification rejects a candidate | Nothing — silently discarded | Count only, per import |
 | `.docx` fails to build | Download fails with a reason; stored content untouched | Render ID, builder, error |
 | Database unavailable | Stated reason. No optimistic writes | Standard |

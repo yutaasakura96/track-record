@@ -100,6 +100,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 3 | The document is unchanged | Zero new candidates, reported plainly — not as an extraction failure |
+| 3 | The changed text only restates facts already in the record | Zero new candidates, reported plainly as a success, with the number of repeats. **Not** an extraction failure: the model found facts, and every one was already there. Counted in `candidatesSuppressed`, never shown as content |
 | 3 | The document was restructured wholesale | Many candidates. The quote-and-claim hash guard still suppresses exact repeats of already-judged facts |
 | 4 | A fact the author **rejected** last time reappears in changed text | Suppressed by the dedupe hash. Rejected stays rejected |
 | 4 | Two versions state **different numbers** for the same thing | **Not detected in v1.** Known open problem, deferred to M2 (`03-technical-design.md` §11). Both facts exist and the author resolves it by hand |
