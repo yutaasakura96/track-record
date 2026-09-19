@@ -186,6 +186,7 @@ export interface ImportStatus {
   chunksDone: number;
   candidatesExtracted: number;
   candidatesDiscarded: number;
+  candidatesSuppressed: number;
   wordCount: number;
   changedRegionShare: number | null;
   error: { code: string; message: string } | null;

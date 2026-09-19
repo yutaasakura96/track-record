@@ -1,0 +1,1 @@
+ALTER TABLE "source_document_versions" ADD COLUMN "candidates_suppressed" integer DEFAULT 0 NOT NULL;

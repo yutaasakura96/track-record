@@ -310,6 +310,13 @@ function FactRail({
             discarded.
           </p>
         ) : null}
+        {status.candidatesSuppressed > 0 ? (
+          <p className="mt-8 text-smaller text-text-faint">
+            {status.candidatesSuppressed} candidate{status.candidatesSuppressed === 1 ? "" : "s"}{" "}
+            repeated facts already in your record and{" "}
+            {status.candidatesSuppressed === 1 ? "was" : "were"} not offered again.
+          </p>
+        ) : null}
         <div className="mt-10 flex gap-4">
           {filters.map(([value, label]) => (
             <FilterPill key={value} active={filter === value} onClick={() => setFilter(value)}>
@@ -328,7 +335,7 @@ function FactRail({
           <FailedState status={status} onRetry={() => retry.mutate()} busy={retry.isPending} />
         ) : null}
 
-        {isNothingNew(status) ? <NothingNewState versionNo={status.versionNo} /> : null}
+        {isNothingNew(status) ? <NothingNewState status={status} /> : null}
 
         {status.status === "extracting" || status.status === "queued" ? (
           <div className="grid gap-8">
@@ -375,20 +382,25 @@ function FactRail({
 }
 
 /**
- * A re-import with no new or changed passages had nothing to extract. The
- * pipeline marks that `ready`, not failed, and the rail says so rather than
- * sitting empty. Not "no changes": a version that only removes text lands here too.
+ * A re-import that is `ready` with zero candidates. The pipeline marks that a
+ * success, not a failure, and the rail says so rather than sitting empty. Either
+ * nothing changed (zero chunks; not "no changes", because a version that only
+ * removes text lands here too), or the changed text only repeated the record
+ * and the dedupe hash dropped every candidate.
  */
 const isNothingNew = (status: ImportStatus) =>
-  status.status === "ready" && status.chunksTotal === 0 && status.versionNo > 1;
+  status.status === "ready" && status.candidatesExtracted === 0 && status.versionNo > 1;
 
-function NothingNewState({ versionNo }: { versionNo: number }) {
+function NothingNewState({ status }: { status: ImportStatus }) {
+  const { versionNo, chunksTotal, candidatesSuppressed } = status;
   return (
     <div className="border border-border-control rounded-panel px-14 py-12">
       <p className="text-row font-medium text-text-strong">Nothing new to review</p>
       <p className="mt-6 text-smaller text-text-dim">
-        v{versionNo} adds no new or changed passages since v{versionNo - 1}, so there was nothing to
-        extract. Your record is unchanged.
+        {chunksTotal === 0
+          ? `v${versionNo} adds no new or changed passages since v${versionNo - 1}, so there was nothing to extract.`
+          : `Everything in the changed passages of v${versionNo} is already in your record (${candidatesSuppressed} fact${candidatesSuppressed === 1 ? "" : "s"}), so there is nothing new to review.`}{" "}
+        Your record is unchanged.
       </p>
     </div>
   );

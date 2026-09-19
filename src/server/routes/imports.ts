@@ -478,6 +478,8 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
     // A COUNT, never content. The author sees that the guard fired, not what it
     // caught.
     candidatesDiscarded: version.candidatesDiscarded,
+    // Repeats of facts already in the record. A count, never which facts.
+    candidatesSuppressed: version.candidatesSuppressed,
     wordCount: version.wordCount,
     changedRegionShare: version.changedRegionShare,
     error:

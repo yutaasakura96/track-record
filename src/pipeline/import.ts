@@ -228,6 +228,7 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
       .set({
         chunksDone: sql`${sourceDocumentVersions.chunksDone} + 1`,
         candidatesDiscarded: sql`${sourceDocumentVersions.candidatesDiscarded} + ${discarded}`,
+        candidatesSuppressed: sql`${sourceDocumentVersions.candidatesSuppressed} + ${rows.length - fresh.length}`,
         updatedAt: new Date(),
       })
       .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId))),
@@ -241,6 +242,7 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
     chunkIndex: chunk.chunkIndex,
     kept: fresh.length,
     discarded,
+    suppressed: rows.length - fresh.length,
     ...(usage ?? {}),
   });
   return "done";
@@ -272,7 +274,10 @@ async function finishStep(deps: ImportDeps): Promise<void> {
     .where(and(eq(facts.userId, userId), eq(facts.sourceDocumentVersionId, versionId)));
 
   const [version] = await db
-    .select({ chunksTotal: sourceDocumentVersions.chunksTotal })
+    .select({
+      chunksTotal: sourceDocumentVersions.chunksTotal,
+      candidatesSuppressed: sourceDocumentVersions.candidatesSuppressed,
+    })
     .from(sourceDocumentVersions)
     .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)))
     .limit(1);
@@ -280,10 +285,13 @@ async function finishStep(deps: ImportDeps): Promise<void> {
   // Zero facts is a FAILURE of extraction, never an empty success — the document
   // is retained and the author can retry or capture manually.
   //
-  // The exception is a re-import in which nothing changed: there were no chunks
-  // to extract from, so zero candidates is the correct and successful answer.
+  // Two exceptions, both re-imports. Nothing changed: there were no chunks to
+  // extract from. Or the changed text only repeated the record: the model found
+  // facts and the dedupe hash dropped every one. Zero candidates is then the
+  // correct and successful answer (docs/06, 2026-09-19).
   const nothingToExtract = (version?.chunksTotal ?? 0) === 0;
-  const failed = total === 0 && !nothingToExtract;
+  const onlyRepeats = (version?.candidatesSuppressed ?? 0) > 0;
+  const failed = total === 0 && !nothingToExtract && !onlyRepeats;
 
   await db
     .update(sourceDocumentVersions)

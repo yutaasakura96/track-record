@@ -253,6 +253,13 @@ export const sourceDocumentVersions = pgTable("source_document_versions", {
    */
   candidatesDiscarded: integer("candidates_discarded").notNull().default(0),
   /**
+   * Candidates dropped because they repeat a fact already in the record (the
+   * dedupe hash). A COUNT and never content. It is what lets the finish step
+   * tell a re-import of repeats from an extraction that found nothing (docs/06,
+   * 2026-09-19).
+   */
+  candidatesSuppressed: integer("candidates_suppressed").notNull().default(0),
+  /**
    * Fraction of the document that changed since the previous version.
    * Null on a first import.
    */

@@ -18,6 +18,7 @@ interface ImportStatus {
   chunksDone: number;
   candidatesExtracted: number;
   candidatesDiscarded: number;
+  candidatesSuppressed: number;
   changedRegionShare: number | null;
   failedAtChunk: number | null;
   error: { code: string; message: string } | null;
@@ -334,6 +335,9 @@ describe("re-import", () => {
     expect(status.changedRegionShare).not.toBeNull();
     expect(status.changedRegionShare!).toBeLessThan(0.5);
 
+    // The re-offered fact is counted as a repeat, never shown.
+    expect(status.candidatesSuppressed).toBe(1);
+
     const secondFacts = await factsOf(second.importId);
     expect(secondFacts.items).toHaveLength(1);
     expect(secondFacts.items[0]!.claim).toContain("read replicas");
@@ -363,5 +367,57 @@ describe("re-import", () => {
     expect(status.candidatesExtracted).toBe(0);
     expect(status.chunksTotal).toBe(0);
     expect(status.error).toBeNull();
+  });
+
+  it("treats a re-import whose changed text only repeats the record as a success", async () => {
+    const quote = "Nightly batch runtime fell from 6 hours to 90 minutes.";
+    model.extractions = [[{ claim: "Reduced nightly batch runtime", quote, technologies: [] }]];
+    const first = (await (await importDocument()).json()) as {
+      importId: string;
+      sourceDocumentId: string;
+    };
+    const { items } = await factsOf(first.importId);
+    await client.post(`/api/facts/${items[0]!.id}/reject`);
+
+    // The changed text restates the rejected fact and nothing else.
+    const edited = `${CASE_STUDY}\n${quote}\n`;
+    model.extractions = [[{ claim: "Reduced nightly batch runtime", quote, technologies: [] }]];
+    const second = (await (
+      await importDocument(edited, "aozora-batch.md", { sourceDocumentId: first.sourceDocumentId })
+    ).json()) as { importId: string };
+
+    const status = await statusOf(second.importId);
+    // The model found a fact; the record already held it. Not an extraction failure.
+    expect(status.chunksTotal).toBeGreaterThan(0);
+    expect(status.status).toBe("ready");
+    expect(status.candidatesExtracted).toBe(0);
+    expect(status.candidatesSuppressed).toBe(1);
+    expect(status.error).toBeNull();
+  });
+
+  it("still fails a re-import whose changed text yields nothing at all", async () => {
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    const first = (await (await importDocument()).json()) as { sourceDocumentId: string };
+
+    // Changed text, and the model returns nothing for it. Nothing was suppressed,
+    // so this is the zero-facts failure, re-import or not.
+    const edited = `${CASE_STUDY}\nA later pass introduced read replicas for reporting.\n`;
+    model.extractions = [[]];
+    const second = (await (
+      await importDocument(edited, "aozora-batch.md", { sourceDocumentId: first.sourceDocumentId })
+    ).json()) as { importId: string };
+
+    const status = await statusOf(second.importId);
+    expect(status.status).toBe("failed");
+    expect(status.candidatesSuppressed).toBe(0);
+    expect(status.error?.code).toBe("no_facts_extracted");
   });
 });
