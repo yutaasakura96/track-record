@@ -3178,3 +3178,42 @@ silence, so it does not look like #25, and the rule against it stands on its own
 1 of the issue stays open and cannot be closed without a live occurrence. The health check is also
 only on the suite: the dev worker has nothing equivalent, and the author meeting a wedged proxy in
 the browser still sees a slow page rather than a message.
+
+### [2026-09-19] The local proxy authenticates at one SCRAM iteration, and its rate limit is raised
+
+The flaky restore test (`tests/renders.test.ts`, "refuses a restore whose target cites a fact that
+can no longer be rendered") was not special. Every test in its block took 10 to 13s, and the one
+that skips the shared `twoVersions()` fixture took 330ms. The fixture makes about seventy requests,
+and a bare `select 1` through the proxy cost about 110ms, of which the query itself took 0.3ms.
+
+**The time was authentication, on every query.** Over HTTP the proxy authenticates each request
+before it looks at its pool: two role-secret lookups against Postgres, each its own SCRAM login
+(about 42ms each), then a SCRAM check of the client's password (about 22ms). At Postgres's default
+4096 PBKDF2 iterations that is the whole cost. Re-hashing the local `postgres` role's password at
+one iteration took `select 1` from 113ms to 9ms, the restore block from 142s to 19s and the full
+suite from about nine minutes to 64s, 395 of 395. `scripts/ensure-databases.mjs` does the re-hash
+on every `npm run db:up`, and only when the stored secret says otherwise. The password is
+`postgres` on a local container, so the iterations were protecting nothing.
+
+**The speed then tripped the proxy's per-endpoint rate limit.** Every HTTP query counts as a
+connection attempt, and the default burst allowance is sized for a cloud service. Three seconds of
+about 350 auths a second ended in 60 queries refused in one second with "Too many connections to
+this endpoint", and 36 tests failed. The old 110ms had been the only thing keeping the suite under
+it. `scripts/neon-proxy-start.sh` is the image's own start script, mounted over it, with
+`--endpoint-rps-limit=100000@1s` added. It has to be re-copied if the pinned digest changes.
+
+**Pooling was a dead end, and it corrects the previous entry.** The proxy pools only requests that
+send `Neon-Pool-Opt-In: true` (`--sql-over-http-pool-opt-in` defaults to true and the image does not
+override it), and driver 1.1.0 never sends it. So every query opens a Postgres connection and hands
+it back to a pool nobody draws from: 9,688 connections for 10,532 queries over one night. The 20
+parked backends the previous entry called the healthy resting state are never reused. Sending the
+header was tried and changed nothing measurable, because a pool hit saves only the ~1ms connect and
+authentication still runs first. It was not kept.
+
+**What this means for #25.** The pool churn lead posted on the issue is weaker than it looked: a
+connection opened and discarded per query is this configuration's normal behaviour, not something
+that starts at the cap. And one apparent wedge during this work was not one. Two later runs showed
+single tests at 900s and more; the capture showed the proxy answering in 42ms, and `pmset` showed
+the Mac entering sleep mid run, with the Docker VM clock left 16 to 33 minutes behind the host. A
+suite that stalls on a laptop running on battery is worth checking against `pmset -g log` before
+anyone restarts the proxy.

@@ -26,6 +26,21 @@ for (const [name, purpose] of DATABASES) {
   console.log(`  ${name.padEnd(18)} created — ${purpose}`);
 }
 
+// The Neon HTTP proxy authenticates EVERY query, before it looks at its pool:
+// two role-secret lookups, each its own SCRAM login to Postgres, then a SCRAM
+// check of the client's password. At Postgres's default 4096 PBKDF2 iterations
+// that is ~110ms before a `select 1` that executes in 0.3ms, and it made single
+// tests take 10–17s of a 30s budget. At one iteration it is ~9ms. The password
+// is `postgres` on a local container, so the iterations were protecting nothing.
+// Idempotent: it re-hashes only when the stored secret says otherwise.
+const secret = psql("select rolpassword from pg_authid where rolname = 'postgres'").trim();
+if (secret.startsWith("SCRAM-SHA-256$1:")) {
+  console.log(`  ${"postgres role".padEnd(18)} SCRAM at 1 iteration`);
+} else {
+  psql("set scram_iterations = 1; alter role postgres password 'postgres'");
+  console.log(`  ${"postgres role".padEnd(18)} re-hashed at 1 SCRAM iteration — each proxied query was paying ~100ms of auth`);
+}
+
 function psql(sql) {
   try {
     return execFileSync(
