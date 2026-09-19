@@ -264,7 +264,7 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `chunks_done` | integer | no | Default `0` |
 | `candidates_discarded` | integer | no | Default `0`. Candidates whose `quote` was not found verbatim. **A count and never content** (`03` §5, `07` §5) |
 | `candidates_suppressed` | integer | no | Default `0`. Candidates dropped because their quote-and-claim hash matches a fact already in the record. **A count and never content.** It is how the finish step tells a re-import of repeats from an extraction that found nothing (`06`, 2026-09-19) |
-| `changed_region_share` | double precision | yes | Fraction of the document changed since the previous version. `null` on a first import |
+| `changed_region_share` | double precision | yes | Fraction of the two versions' combined text that differs: added plus removed characters, over this version's length plus the removed characters. `0` only when the text is identical. `null` on a first import |
 | `imported_at` | timestamptz | no | |
 
 **Unique:** `(source_document_id, version_no)`.

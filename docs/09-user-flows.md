@@ -100,6 +100,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 3 | The document is unchanged | Zero new candidates, reported plainly — not as an extraction failure |
+| 3 | The new version only removes text | Nothing is sent to the model and there are zero new candidates, a success as above. Screen 8 reports the share removed as `N% changed`, never `No changes`: the document did change. The removed passages' facts stay in the record |
 | 3 | The changed text only restates facts already in the record | Zero new candidates, reported plainly as a success, with the number of repeats. **Not** an extraction failure: the model found facts, and every one was already there. Counted in `candidatesSuppressed`, never shown as content |
 | 3 | The document was restructured wholesale | Many candidates. The quote-and-claim hash guard still suppresses exact repeats of already-judged facts |
 | 4 | A fact the author **rejected** last time reappears in changed text | Suppressed by the dedupe hash. Rejected stays rejected |

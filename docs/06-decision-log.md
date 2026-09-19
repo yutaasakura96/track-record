@@ -3267,3 +3267,24 @@ the code turns on it. Screen 8 still shows only `message` and branches on nothin
 **Keeping the string and pinning it in `07` was the cheaper answer and was not taken.** It costs no
 query, but it leaves one field name with two shapes, and a component that renders an import's
 error from either resource has to know which one it was handed.
+
+### [2026-09-19] Removed text counts toward a version's changed share
+
+A re-import that only deleted passages read `0% changed` and `No changes · nothing to review` on
+Screen 8. The share counted only text present in the new version, so removed text had no weight.
+The screen stated something false about the author's document: it had changed.
+
+**`changed_region_share` is now added plus removed characters, over the new version's length plus
+the removed characters.** That is the fraction of the two versions' combined text that differs.
+Removing 30% of a document reads 30%. Appending a copy of it reads 50%, as before. Emptying it reads
+100%. The share is `0` only when the text is identical, so `No changes` is true whenever it shows.
+What is sent to the model does not change: removed text is not in the new version and is never
+extracted.
+
+**Dividing by the new version's length alone was simpler and was not taken.** A document cut down
+to a short stub would read 100% changed although most of what remains was never touched.
+**Keeping the added-only figure and relabelling it `N% added` was not taken either.** It needs a
+second number or a second state to say that text was removed.
+
+Stored shares are not recomputed. A deletion-only version imported before this change still reads
+`0%` and `No changes`.

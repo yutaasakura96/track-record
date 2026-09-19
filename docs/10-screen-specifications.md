@@ -570,7 +570,7 @@ open candidates · right: `Re-import` (ghost).
 | Version | Mono `v3` |
 | When | `imported <date>` |
 | Size | Mono `N words` |
-| Change | `15% changed` from `changed_region_share`, or `first import` when it is null |
+| Change | `15% changed` from `changed_region_share`, or `first import` when it is null. Removed text counts as changed, so a version that only deletes passages reads its real share, never `0%` |
 | Outcome | By status, below |
 | Action | By status, below |
 
@@ -578,7 +578,7 @@ open candidates · right: `Re-import` (ghost).
 |---|---|---|
 | `queued` · `extracting` | The 96×4px progress bar and mono `N of M chunks` | `Review`, into Fact Review, which renders incrementally |
 | `ready` | Mono `N accepted · N rejected · N open`, the open count amber when above zero | `Review` |
-| `ready` with `changed_region_share` of `0` | `No changes · nothing to review` | None |
+| `ready` with `changed_region_share` of `0` | `No changes · nothing to review`. The share is `0` only when the text is identical | None |
 | `failed` | The stored `import_error` reason, in the error tone | `Retry` (ghost), which is `POST /api/imports/:id/retry` |
 
 `Review` opens Fact Review for **that** version. An older version's open candidates stay open after
