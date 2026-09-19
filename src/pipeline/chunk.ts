@@ -23,7 +23,12 @@ export interface Region {
 
 export interface ChunkPlan {
   chunks: Region[];
-  /** `null` on a first import — there is nothing to have changed from. */
+  /**
+   * Added plus removed characters, over this version's length plus the removed
+   * characters: the share of the two versions' combined text that differs, so a
+   * version that only deletes passages does not read as unchanged. `null` on a
+   * first import — there is nothing to have changed from.
+   */
   changedRegionShare: number | null;
 }
 
@@ -64,12 +69,21 @@ export function planChunks(text: string, previousText: string | null): ChunkPlan
     }
   }
 
-  const changedChars = regions.reduce((sum, r) => sum + (r.end - r.start), 0);
   return {
     chunks: chunks.filter((c) => text.slice(c.start, c.end).trim() !== ""),
-    changedRegionShare:
-      previousText === null ? null : text.length === 0 ? 0 : changedChars / text.length,
+    changedRegionShare: previousText === null ? null : changedShare(text, previousText),
   };
+}
+
+function changedShare(text: string, previousText: string): number {
+  let added = 0;
+  let removed = 0;
+  for (const part of diffLines(previousText, text)) {
+    if (part.added) added += part.value.length;
+    if (part.removed) removed += part.value.length;
+  }
+  const combined = text.length + removed;
+  return combined === 0 ? 0 : (added + removed) / combined;
 }
 
 function boundaryBefore(text: string, from: number, limit: number): number {

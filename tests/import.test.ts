@@ -369,6 +369,55 @@ describe("re-import", () => {
     expect(status.error).toBeNull();
   });
 
+  it("counts removed text in the changed share of a deletion-only re-import", async () => {
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    // Version 1 is the case study twice; version 2 drops the second copy.
+    const first = (await (
+      await importDocument(`${CASE_STUDY}${CASE_STUDY}`)
+    ).json()) as { sourceDocumentId: string };
+
+    const second = (await (
+      await importDocument(CASE_STUDY, "aozora-batch.md", {
+        sourceDocumentId: first.sourceDocumentId,
+      })
+    ).json()) as { importId: string };
+
+    const status = await statusOf(second.importId);
+    // Nothing added, so nothing to extract, and still a success.
+    expect(status.status).toBe("ready");
+    expect(status.chunksTotal).toBe(0);
+    // Half of the two versions' combined text was removed. Not `0`: the document changed.
+    expect(status.changedRegionShare).toBe(0.5);
+  });
+
+  it("reports a share of 0 only for an identical re-import", async () => {
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    const first = (await (await importDocument()).json()) as { sourceDocumentId: string };
+    const second = (await (
+      await importDocument(CASE_STUDY, "aozora-batch.md", {
+        sourceDocumentId: first.sourceDocumentId,
+      })
+    ).json()) as { importId: string };
+
+    expect((await statusOf(second.importId)).changedRegionShare).toBe(0);
+  });
+
   it("treats a re-import whose changed text only repeats the record as a success", async () => {
     const quote = "Nightly batch runtime fell from 6 hours to 90 minutes.";
     model.extractions = [[{ claim: "Reduced nightly batch runtime", quote, technologies: [] }]];
