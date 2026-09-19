@@ -89,6 +89,7 @@ full-width primary button: `Add N facts to record`, disabled reading `Nothing ac
 |---|---|
 | **Loading (extracting)** | Document renders immediately; rail shows skeleton cards with the progress bar active. Extraction is visibly incremental |
 | **Zero facts extracted** | Rail shows a failure, not an empty success: *"No facts could be extracted from this document."* Actions: retry, or capture manually. Document is retained |
+| **Nothing new (re-import)** | A re-import whose text adds no new or changed passages, so there was nothing to extract (`ready`, zero chunks, version 2 or later). A success, not the failure above (Flow 4). The rail's card list shows one bordered block: `Nothing new to review` (row, strong) and *"vN adds no new or changed passages since vN−1, so there was nothing to extract. Your record is unchanged."* (smaller, dim). No actions; `Finish review` and the footer keep their zero states. The wording avoids "no changes" because a version that only removes text also lands here |
 | **Extraction failed** | Same shape, with the reason. The import is not discarded |
 | **All resolved** | `Finish review` becomes primary. Rail shows the summary |
 
