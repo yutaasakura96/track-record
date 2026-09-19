@@ -21,7 +21,7 @@ literal label `Personal record` — the single-user posture stated in the interf
 in `text-dimmer`, actions right-aligned.
 
 The fact-review and diff-review screens replace the sidebar with a breadcrumb in the header
-(`Documents / <document>`, `Outputs / <render>`) — they are focused, full-width tasks, not
+(`Documents / <project> · <filename>`, `Outputs / <render>`) — they are focused, full-width tasks, not
 navigation destinations.
 
 ---
@@ -38,7 +38,7 @@ right rail, decided one at a time.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Documents / <project> · <filename>`, `Documents` linking to Screen 8 (filename in a mono chip) · right: `N of M reviewed` + 96×4px progress bar + **Finish review** (primary; secondary-styled until all facts are resolved) |
+| Header (46px) | Breadcrumb `Documents / <project> · <filename>`, `Documents` linking to Screen 8 (filename in a mono chip). A document filed under no project reads `Documents / <filename>`: the project and its `·` are left out, not labelled `No project` · right: `N of M reviewed` + 96×4px progress bar + **Finish review** (primary; secondary-styled until all facts are resolved) |
 | Source pane (flex) | 34px label strip: `Source document · N words · imported <relative time>` · right `N passages marked`. Below: the document, 740px measure, centred, `text-body` |
 | Fact rail (412px) | Fixed right column, `surface`, left border `border`. Header + scrolling card list + summary footer |
 

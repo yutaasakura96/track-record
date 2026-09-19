@@ -241,7 +241,7 @@ an empty success.
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
-| `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation** |
+| `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation**. Also carries the document's `filename` and `project` (`{ id, name }` or `null`) for Fact Review's breadcrumb |
 
 **`GET /api/imports` → 200** — grouped by source document, because re-import acts on a document.
 Documents are ordered by their newest `importedAt`, descending; versions newest first.
