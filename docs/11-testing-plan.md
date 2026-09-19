@@ -260,6 +260,14 @@ ratio the register asks for. Neither carries 貴社 or 御社; 98% of Japanese s
 chapters under one key tell the same story, and whether the Japanese one reads as Japanese rather
 than as the English one translated. Read the pair side by side, chapter by chapter.
 
+**The judgement half was run on 2026-09-19**, and item 4 is now done for the first pair. The author
+read the two stories chapter by chapter and accepted both; each is version 1 of its render. The
+pair read was the second generation of each story, the first of each having been superseded and
+dismissed. As a reading aid, each chapter was shown with the fact ids its two halves cite: four
+chapters cite identical sets, and the other five share between 35% and 74% of their facts, which is
+where drift would show first if there were any. The attribution check reported nothing on either
+story.
+
 **Item 3 was run on 2026-09-12, against the second 職務経歴書 generated that day.** The register
 holds: no bullet ends in です・ます, no bullet uses a first-person pronoun, 体言止め is consistent
 across the experience bullets and the skills rows, and です・ます体 holds in 経歴要約 and 自己PR. It
