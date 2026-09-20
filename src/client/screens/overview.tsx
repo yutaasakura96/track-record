@@ -67,6 +67,7 @@ function PopulatedRecord({ data }: { data: OverviewData }) {
 
       <div className="flex-1 overflow-y-auto px-20 py-26">
         <div className="mx-auto w-content max-w-full grid gap-20">
+          {importFile.confirmation}
           {importFile.error ? (
             <p role="alert" className="border border-border-control rounded-control px-14 py-12 text-small text-text-secondary">
               {importFile.error}

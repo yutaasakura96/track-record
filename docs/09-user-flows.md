@@ -32,7 +32,9 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 ## Flow 2 · Import a document and review its facts · M1 — the core loop
 
 1. Overview → **Import a document** (or drop a file on the empty-state target).
-2. Choose file, optionally attach it to a project → `POST /api/imports` → `202`.
+2. Choose file. **When the record holds at least one project**, a confirmation row offers to file
+   the document under one, defaulting to none; when it holds none, the import starts on the file
+   choice alone (`10-screen-specifications.md` Screen 3). → `POST /api/imports` → `202`.
 3. **Fact Review screen opens immediately.** The document renders as soon as text extraction
    finishes; the rail shows skeleton cards.
 4. Client polls `GET /api/imports/:id` every 1.5 s. Cards appear **incrementally** as each chunk

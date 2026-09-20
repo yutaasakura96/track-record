@@ -194,6 +194,30 @@ status dot + text, right-aligned action.
 Five rows: Résumé (English), 履歴書, 職務経歴書, and both career stories. **Japanese titles render
 in the mixed font stack.**
 
+### Importing a document
+
+`Import a document` opens a file picker restricted to the types that import, the same list the
+empty state names. What happens next depends on whether the record holds any projects, because
+`POST /api/imports` takes an optional `projectId` (`07-api-design.md` §5) and Flow 2 step 2 offers
+the choice.
+
+- **No projects.** The import starts on the file choice alone and Fact Review opens. A select whose
+  only option is `No project` is not a choice, and a step with nothing in it is worse than no step
+- **One or more projects.** Choosing a file does not upload it. A confirmation row appears at the
+  top of the content column, above anything else there: the chosen filename in a mono chip, the
+  label `File it under`, a project select defaulting to `No project`, then `Cancel` (bare) and
+  `Import` (primary). `Import` sends `POST /api/imports` with the chosen `projectId`, or without one
+  when the select is left at `No project`, and opens Fact Review on the new version
+
+The same row and the same rule serve the empty state's drop target and Screen 8's
+`Import a document`, which is the same control. **The choice is offered only for a new document.**
+A re-import keeps the document's project, which is stored on the document and not on the version
+(`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
+
+**A document's project is set at import and not afterwards.** There is no endpoint that changes it
+(`07-api-design.md` §4 has no `PATCH /api/source-documents/:id`), so filing a document under the
+wrong project, or under none, is corrected only by importing it again as a new document.
+
 ### Empty state
 
 Not a variant of the populated screen — a different screen.
@@ -552,7 +576,9 @@ Source text never appears here; the screen shows names, dates and counts.
 Sidebar chrome, reached from the `Documents` row at `/documents`. The row's mono count is the total
 of open candidates across every version, shown only when it is above zero. Header title
 `Documents`, contextual note `The files your facts are quoted from`, and on the right the same
-`Import a document` primary Screen 3 has. That button always creates a **new** document.
+`Import a document` primary Screen 3 has. That button always creates a **new** document, and it
+offers the project choice Screen 3 describes, under the same rule: only when the record holds a
+project to offer.
 
 ### Layout
 
@@ -593,6 +619,10 @@ differs, a second line reads `The file is named <chosen name>. The document keep
 `Import` sends `POST /api/imports` with this document's `sourceDocumentId` and opens Fact Review on
 the new version, as Flow 4 describes.
 
+- **No project select.** The document keeps the project it was imported under, or stays under none.
+  The project is stored on the document, not the version, so a re-import has nothing to decide. A
+  `projectId` sent with a re-import anyway is **ignored, not refused**: the client never sends one,
+  and an error for a field no screen offers would be an error the author could not act on
 - **A different filename or type is accepted.** The document's `filename` and `mime_type` do not
   change, so every earlier breadcrumb still names the same document.
 - **Refused while the newest version is `queued` or `extracting`.** The button is disabled with the

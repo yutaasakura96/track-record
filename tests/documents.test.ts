@@ -189,6 +189,50 @@ describe("the documents listing", () => {
  * document, every version and every fact count on Home, Record and Skills, and
  * polling all of it while an import ran.
  */
+describe("the project a document is filed under", () => {
+  const project = async (name: string) =>
+    (await (await client.post("/api/projects", { name })).json()) as { id: string };
+
+  it("names the project on the document's row", async () => {
+    const harbour = await project("Harbour lantern");
+    await importDocument(CASE_STUDY, "harbor-notes.md", { projectId: harbour.id });
+
+    const [document] = (await listing()).documents;
+    expect(document!.project).toEqual({ id: harbour.id, name: "Harbour lantern" });
+  });
+
+  it("names no project when the document was filed under none", async () => {
+    await importDocument(CASE_STUDY, "harbor-notes.md");
+    expect((await listing()).documents[0]!.project).toBeNull();
+  });
+
+  it("refuses at 404 a project the author does not own, and stores nothing", async () => {
+    const response = await upload(CASE_STUDY, "harbor-notes.md", { projectId: "prj_not_yours" });
+    expect(response.status).toBe(404);
+    expect((await listing()).documents).toEqual([]);
+  });
+
+  // The project is stored on the document, not the version, which is why the
+  // re-import row offers no select (`docs/10` Screen 8). A `projectId` sent
+  // with a re-import anyway is ignored rather than refused: refusing it would
+  // make a field the client never sends into an error the author could hit.
+  it("is kept by a re-import, which cannot change it", async () => {
+    const harbour = await project("Harbour lantern");
+    const orchard = await project("Orchard ledger");
+    const first = await importDocument(CASE_STUDY, "harbor-notes.md", { projectId: harbour.id });
+
+    model.extractions = [[{ claim: "Reduced nightly batch runtime", quote: QUOTE, technologies: [] }]];
+    await importDocument(`${CASE_STUDY}\nMore.\n`, "harbor-notes.md", {
+      sourceDocumentId: first.sourceDocumentId,
+      projectId: orchard.id,
+    });
+
+    const [document] = (await listing()).documents;
+    expect(document!.versions).toHaveLength(2);
+    expect(document!.project).toEqual({ id: harbour.id, name: "Harbour lantern" });
+  });
+});
+
 describe("the sidebar summary", () => {
   it("counts the same open candidates the listing does", async () => {
     model.extractions = [

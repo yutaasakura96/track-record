@@ -435,10 +435,25 @@ export const useProfile = () =>
  * query keyed by its collection name and nothing composes them on the server.
  */
 export function useEntities<T>(key: EntityKey) {
-  return useQuery({
-    queryKey: keys.entity(key),
-    queryFn: () => api<{ items: T[] }>(`/api/${key}`),
-  });
+  return useQuery(entityQuery<T>(key));
+}
+
+const entityQuery = <T,>(key: EntityKey) => ({
+  queryKey: keys.entity(key),
+  queryFn: () => api<{ items: T[] }>(`/api/${key}`),
+});
+
+/**
+ * One collection, read at the moment it is needed rather than off the render.
+ *
+ * The import picker decides whether to offer a project the instant a file is
+ * chosen. Reading a query that had not settled yet would import with no project
+ * offered and leave no sign that a choice was skipped, so the caller waits for
+ * the answer instead of guessing it. A settled query returns from cache.
+ */
+export function useEntitiesOnDemand<T>(key: EntityKey) {
+  const queryClient = useQueryClient();
+  return () => queryClient.ensureQueryData(entityQuery<T>(key));
 }
 
 /**

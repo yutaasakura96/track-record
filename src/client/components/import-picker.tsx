@@ -1,26 +1,51 @@
 /**
- * Importing a NEW document: the file picker and the empty-state drop target.
+ * Importing a NEW document: the file picker, its project confirmation row, and
+ * the empty-state drop target.
  *
  * Shared by Screen 3 and Screen 8 (`docs/10`) as one component rather than two
  * copies, so the types the drop target names cannot drift between them.
  */
 import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ApiError, useStartImport } from "../api";
-import { Button } from "./ui";
+import { ApiError, useEntitiesOnDemand, useStartImport, type Project } from "../api";
+import { Button, Chip } from "./ui";
 
 /** The types that import today (`docs/07` §5). */
 export const IMPORT_ACCEPT = ".md,.markdown,.txt";
 
+/** Matches the entity forms on Screen 4, which are the only other selects. */
+const CONTROL =
+  "bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
+
 /**
  * The review screen opens IMMEDIATELY on upload, so the document can be read
  * while extraction is still running.
+ *
+ * A record with at least one project gets a confirmation row first, to file the
+ * document under one: `POST /api/imports` takes `projectId` only at import and
+ * nothing changes it afterwards (`docs/06`, 2026-09-20). A record with none
+ * imports on the file choice alone, because a select offering `No project` and
+ * nothing else is a question with one answer.
  */
 export function useImportPicker() {
   const input = useRef<HTMLInputElement>(null);
   const start = useStartImport();
   const navigate = useNavigate();
+  const readProjects = useEntitiesOnDemand<Project>("projects");
   const [error, setError] = useState<string | null>(null);
+  const [chosen, setChosen] = useState<{ file: File; projects: Project[] } | null>(null);
+  const [projectId, setProjectId] = useState("");
+
+  const send = async (file: File, projectId?: string) => {
+    try {
+      const created = await start.mutateAsync({ file, projectId });
+      setChosen(null);
+      await navigate({ to: "/imports/$importId", params: { importId: created.importId } });
+    } catch (caught) {
+      setChosen(null);
+      setError(caught instanceof ApiError ? caught.message : "That file could not be imported.");
+    }
+  };
 
   const control = (
     <input
@@ -33,17 +58,60 @@ export function useImportPicker() {
         event.target.value = "";
         if (!file) return;
         setError(null);
+        // Asked for, not read off the render: the row is offered or skipped on
+        // what the server actually holds, never on a query mid-flight.
+        let projects: Project[];
         try {
-          const created = await start.mutateAsync({ file });
-          await navigate({ to: "/imports/$importId", params: { importId: created.importId } });
-        } catch (caught) {
-          setError(caught instanceof ApiError ? caught.message : "That file could not be imported.");
+          projects = (await readProjects()).items;
+        } catch {
+          // Importing anyway would file the document under nothing with no sign
+          // that a choice was skipped, and nothing changes it afterwards. A
+          // blocked import costs one retry; a wrongly filed one costs an import.
+          setError("Your projects could not be read, so this document was not imported. Try again.");
+          return;
         }
+        if (projects.length === 0) return send(file);
+        setProjectId("");
+        setChosen({ file, projects });
       }}
     />
   );
 
-  return { control, error, choose: () => input.current?.click() };
+  const confirmation = chosen ? (
+    <div className="flex items-center gap-12 border border-border-control rounded-control px-14 py-10">
+      <Chip>{chosen.file.name}</Chip>
+      <label className="flex items-center gap-8 text-smaller text-text-dim">
+        File it under
+        <select
+          className={CONTROL}
+          value={projectId}
+          onChange={(event) => setProjectId(event.target.value)}
+        >
+          <option value="">No project</option>
+          {chosen.projects.map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </label>
+      <span className="ml-auto flex items-center gap-8">
+        <Button variant="bare" onClick={() => setChosen(null)}>
+          Cancel
+        </Button>
+        <Button
+          variant="primary"
+          onClick={() => void send(chosen.file, projectId || undefined)}
+          disabled={start.isPending}
+          disabledReason={start.isPending ? "Importing…" : undefined}
+        >
+          Import
+        </Button>
+      </span>
+    </div>
+  ) : null;
+
+  return { control, confirmation, error, choose: () => input.current?.click() };
 }
 
 export function ImportDropTarget({ className = "" }: { className?: string }) {
@@ -59,6 +127,7 @@ export function ImportDropTarget({ className = "" }: { className?: string }) {
           Choose a file
         </Button>
       </div>
+      {importFile.confirmation ? <div className="mt-16 text-left">{importFile.confirmation}</div> : null}
       {importFile.error ? (
         <p role="alert" className="mt-14 text-small text-text-secondary">
           {importFile.error}

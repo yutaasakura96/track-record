@@ -3288,3 +3288,41 @@ second number or a second state to say that text was removed.
 
 Stored shares are not recomputed. A deletion-only version imported before this change still reads
 `0%` and `No changes`.
+
+---
+
+### [2026-09-20] The project choice on import appears only when there is a project to choose
+
+`POST /api/imports` has taken an optional `projectId` since M1, `source_documents.project_id` has
+stored it, Screen 8 renders `No project` for a document without one, and Flow 2 step 2 said "Choose
+file, optionally attach it to a project". No screen ever described the control, and no client caller
+passed the field, so every document imported by the app was filed under nothing. The breadcrumb
+segment added on 2026-09-19 was unreachable in the app the day it landed.
+
+**The picker now holds the chosen file and shows a confirmation row: the filename, `File it under`,
+a project select defaulting to `No project`, `Cancel` and `Import`.** This is the row Screen 8's
+re-import already uses, so the pattern is one pattern and not two.
+
+**The row appears only when the record holds at least one project.** With none, the select would
+offer `No project` and nothing else, and the author would be answering a question with one answer
+before every import. The file choice starts the import on its own, as it did before. This is the
+empty state's rule about file types applied to a second control: a narrower offer beats one that
+exists to be dismissed.
+
+**The projects are read before the row is decided, not off whatever the render happens to hold.**
+The picker asks the query cache for them at the moment the file is chosen. Reading a query that had
+not settled would have imported with no project offered and no sign that a choice was skipped, and
+that race is invisible in exactly the way that makes it expensive later. **A read that fails stops
+the import** and says so, for the same reason: a blocked import costs one retry, and a document
+filed under nothing cannot be refiled at all.
+
+**A select sitting permanently beside the Import button was not taken.** It occupies the header
+whether or not a file is being chosen, and the empty state has no header to put it in.
+
+**A re-import offers no select.** The project is on the document, not the version, so a re-import
+has nothing to decide, and a control that silently refiled every earlier version would be worse than
+none.
+
+**A document's project stays what it was imported as.** There is no `PATCH /api/source-documents/:id`
+and this change does not add one. Filing a document wrongly is corrected by importing it again as a
+new document, which is a real cost and is recorded here rather than hidden.
