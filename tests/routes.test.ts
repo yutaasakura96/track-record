@@ -25,6 +25,24 @@ describe("deny-by-default routing", () => {
     }
   });
 
+  /**
+   * The record screen offers Delete on all five hand-entered collections from
+   * one generic mutation (`useEntityActions.remove`), so a collection with no
+   * DELETE route renders a button that cannot work. `/api/projects/:id`
+   * shipped without one and nothing caught it, because enumeration alone only
+   * checks the routes that exist.
+   */
+  it("registers a DELETE for every collection the record screen offers one for", () => {
+    const deletable = ["employers", "roles", "projects", "educations", "certifications"];
+    const paths = registeredRoutes()
+      .filter((route) => route.method === "DELETE")
+      .map((route) => route.path);
+
+    for (const collection of deletable) {
+      expect(paths, `Screen 4 offers Delete on ${collection}`).toContain(`/api/${collection}/:id`);
+    }
+  });
+
   it("exempts only the auth callbacks", () => {
     const publicRoutes = registeredRoutes().filter((r) => r.isPublic);
     for (const route of publicRoutes) {

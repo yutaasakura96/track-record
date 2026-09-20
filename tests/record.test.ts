@@ -231,6 +231,60 @@ describe("the entity layer", () => {
     expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(204);
   });
 
+  it("deletes a project nothing references", async () => {
+    const project = (await (
+      await client.post("/api/projects", { name: "Batch rewrite" })
+    ).json()) as { id: string };
+
+    expect((await client.delete(`/api/projects/${project.id}`)).status).toBe(204);
+    expect((await client.json<{ items: unknown[] }>("/api/projects")).items).toHaveLength(0);
+    // Repeating it is a 404, not a second success.
+    expect((await client.delete(`/api/projects/${project.id}`)).status).toBe(404);
+  });
+
+  /**
+   * One act attaches both: a document is filed under a project at import
+   * (`docs/06`, 2026-09-20) and every candidate extracted from it inherits that
+   * project (`src/pipeline/import.ts`). Both columns are `restrict`, so an
+   * import under a project pins the project in place permanently.
+   */
+  it("refuses to delete a project a document was imported under, and says the filing cannot be changed", async () => {
+    const project = (await (
+      await client.post("/api/projects", { name: "Batch rewrite" })
+    ).json()) as { id: string };
+
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    const form = uploadForm(CASE_STUDY, "batch-rewrite.md");
+    form.set("projectId", project.id);
+    await client.request("/api/imports", { method: "POST", body: form });
+    await settle();
+
+    const refused = await client.delete(`/api/projects/${project.id}`);
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as {
+      error: { code: string; message: string; details: Record<string, number> };
+    };
+    expect(body.error.code).toBe("conflict");
+    // Counts, never content.
+    expect(body.error.details).toEqual({ facts: 1, documents: 1 });
+    expect(body.error.message).toBe(
+      "This project has 1 fact and 1 document attached. A document's project is set at import and cannot be changed, so this project cannot be deleted.",
+    );
+    expect(body.error.message).not.toContain("Reduced nightly batch runtime");
+
+    // And nothing was deleted.
+    const stillThere = await client.json<{ items: { id: string }[] }>("/api/projects");
+    expect(stillThere.items.map((p) => p.id)).toContain(project.id);
+  });
+
   it("requires an education to state its level, because the résumé cannot read it off the name", async () => {
     // The register has to decide whether a row is below university level. Until
     // the record carried the rung, the only signal was the institution's name,

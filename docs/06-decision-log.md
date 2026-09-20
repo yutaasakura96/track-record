@@ -3326,3 +3326,35 @@ none.
 **A document's project stays what it was imported as.** There is no `PATCH /api/source-documents/:id`
 and this change does not add one. Filing a document wrongly is corrected by importing it again as a
 new document, which is a real cost and is recorded here rather than hidden.
+
+---
+
+### [2026-09-20] A project deletes, and one imported under never does
+
+Screen 4 rendered a Delete button on project rows from the same generic mutation the other four
+collections use, and `DELETE /api/projects/:id` was never registered. Employers, roles, educations
+and certifications all had one; projects alone did not, and `docs/07` §4 carried the same omission,
+so the spec and the server agreed with each other and disagreed with the screen. The route
+enumeration test could not catch it, because enumeration checks the routes that exist.
+
+**The route is added rather than the button removed.** Four of five collections delete, and a
+project is hand-entered like the rest. Taking the button away from one collection would have been
+an arbitrary hole the author would keep rediscovering.
+
+**The refusal counts facts and source documents, and names neither.** This is the shape an
+employer's refusal already has. Both columns are `on delete restrict`, so the database would refuse
+anyway, as an error nobody could act on.
+
+**A project with an import under it can never be deleted, and the message says exactly that.** One
+act attaches both sides: `POST /api/imports` files the document under the project, and every
+candidate extracted from it inherits the project id. Nothing moves either afterwards, so
+`Reassign them before deleting` would have been a false instruction. The refusal reads
+`A document's project is set at import and cannot be changed, so this project cannot be deleted.`
+
+**This is a dead end and it is recorded as one.** Filing a document under the wrong project on
+import is uncorrectable today, and it now also pins the project. The ways out are a way to change a
+document's project, or a delete that detaches documents and facts instead of refusing. Both are
+real changes to the rule that a fact's filing follows its document, and neither is taken here.
+
+**The enumeration test gained an assertion, not a route.** It now asserts a `DELETE` exists for each
+of the five collections the record screen offers one for, which is the invariant that was violated.

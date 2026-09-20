@@ -257,9 +257,14 @@ alternative is a render classifying a school by its name. All calendar fields co
 year only**.
 
 Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
-employer exists, because a role belongs to one; and deleting an employer something still references
+employer exists, because a role belongs to one; and deleting an entry something still references
 surfaces the server's `409` message in place, rather than being pre-empted by a check the client
-would have to keep in step with the server.
+would have to keep in step with the server. **Every one of the five collections deletes**, and each
+refusal names counts and never content: an employer counts the facts, roles and projects on it, and
+a project counts the facts and the source documents imported under it (Screen 3).
+**A project that has been imported under cannot be deleted at all**, and its refusal says so instead
+of asking for a reassignment: an import files the document under the project and every fact it
+extracts inherits it, and neither can be moved afterwards.
 
 **Per-render inclusion** (S13, added 2026-09-13). Employer, project and education rows carry an
 `Appears in` line beneath the row: one checkbox per render, labelled with the render's name and

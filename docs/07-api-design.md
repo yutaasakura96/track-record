@@ -99,7 +99,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `PATCH` | `/api/employers/:id` | M1 | |
 | `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles or projects reference it |
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
-| `GET` `POST` `PATCH` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects |
+| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | |
 | `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
 

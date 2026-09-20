@@ -8,12 +8,13 @@
  *
  * Deletion carries the rule that facts are never silently orphaned: an employer
  * still referenced by a fact, a role or a project answers `409 conflict` with
- * the COUNTS of what is in the way, never their content.
+ * the COUNTS of what is in the way, never their content. A project refuses the
+ * same way, counting the facts and the source documents filed under it.
  */
 import type { Hono } from "hono";
 import { and, asc, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { employers, facts, projects, roles } from "../db/schema";
+import { employers, facts, projects, roles, sourceDocuments } from "../db/schema";
 import { conflict, notFound, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
@@ -201,13 +202,45 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
     if (!row) throw notFound("That project");
     return c.json(stripInternals(row));
   });
+
+  /**
+   * A project is referenced by facts and by the documents filed under it, both
+   * `on delete restrict`. The counts are read first so the refusal can say what
+   * is in the way, exactly as an employer's does (`docs/07` §4).
+   *
+   * The documents count is not hypothetical: a document is filed under a
+   * project at import and nothing moves it afterwards (`docs/06`, 2026-09-20),
+   * so a project with documents is refused until they are reassigned.
+   */
+  api.delete("/api/projects/:id", async (c) => {
+    const userId = c.get("user").id;
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    await requireOwnedProject(db, userId, id);
+
+    const attached = await countProjectReferences(db, userId, id);
+    if (attached.facts + attached.documents > 0) {
+      // A document's project is set at import and nothing moves it, so the
+      // refusal says so rather than asking for a reassignment the author has
+      // no way to perform. A project with a document under it cannot be
+      // deleted at all today; that is stated, not hidden behind a `409` that
+      // reads as temporary.
+      const remedy = attached.documents
+        ? "A document's project is set at import and cannot be changed, so this project cannot be deleted."
+        : "Reassign them before deleting.";
+      throw conflict(`This project has ${describe(attached)} attached. ${remedy}`, { ...attached });
+    }
+
+    await db.delete(projects).where(and(eq(projects.userId, userId), eq(projects.id, id)));
+    return c.body(null, 204);
+  });
 }
 
-interface Attached {
+type Attached = {
   facts: number;
   roles: number;
   projects: number;
-}
+};
 
 /** Counts only. A conflict says how much is in the way, never what it says. */
 async function countReferences(db: Db, userId: string, employerId: string): Promise<Attached> {
@@ -233,12 +266,42 @@ async function countReferences(db: Db, userId: string, employerId: string): Prom
   };
 }
 
-const describe = (attached: Attached) =>
-  (["facts", "roles", "projects"] as const)
-    .filter((key) => attached[key] > 0)
-    .map((key) => `${attached[key]} ${attached[key] === 1 ? key.slice(0, -1) : key}`)
+/**
+ * `3 facts, 2 roles and 1 project`. Counts only, in the order the caller built
+ * them, so an employer's refusal and a project's read the same way.
+ */
+const describe = (attached: Record<string, number>) =>
+  Object.entries(attached)
+    .filter(([, n]) => n > 0)
+    .map(([key, n]) => `${n} ${n === 1 ? key.slice(0, -1) : key}`)
     .join(", ")
     .replace(/, ([^,]*)$/, " and $1");
+
+/** Counts only, as an employer's are. */
+async function countProjectReferences(db: Db, userId: string, projectId: string) {
+  const n = sql<number>`count(*)::int`;
+  const [factRows, documentRows] = await Promise.all([
+    db
+      .select({ n })
+      .from(facts)
+      .where(and(eq(facts.userId, userId), eq(facts.projectId, projectId))),
+    db
+      .select({ n })
+      .from(sourceDocuments)
+      .where(and(eq(sourceDocuments.userId, userId), eq(sourceDocuments.projectId, projectId))),
+  ]);
+  return { facts: factRows[0]?.n ?? 0, documents: documentRows[0]?.n ?? 0 };
+}
+
+/** A miss is a 404, never a 403, which would confirm the row exists. */
+async function requireOwnedProject(db: Db, userId: string, projectId: string) {
+  const [row] = await db
+    .select({ id: projects.id })
+    .from(projects)
+    .where(and(eq(projects.userId, userId), eq(projects.id, projectId)))
+    .limit(1);
+  if (!row) throw notFound("That project");
+}
 
 /**
  * A foreign key alone would let one user attach a role, a project or a fact to
