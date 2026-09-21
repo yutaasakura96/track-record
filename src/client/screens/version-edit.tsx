@@ -25,6 +25,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
+  failureText,
   useEditVersion,
   useStoredVersion,
   useVersionHistory,
@@ -115,7 +116,8 @@ function Editor({ kind }: { kind: RenderKind }) {
   const save = useEditVersion(kind);
 
   const [draft, setDraft] = useState<RenderContent | null>(null);
-  const [refusal, setRefusal] = useState<ApiError | null>(null);
+  // Anything the save threw: a refusal, or a request that never arrived.
+  const [refusal, setRefusal] = useState<unknown>(null);
   const [saved, setSaved] = useState<EditResult | null>(null);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   /** The block whose text should take focus once it exists in the DOM. */
@@ -150,8 +152,7 @@ function Editor({ kind }: { kind: RenderKind }) {
       if (result.warnings.length === 0) leave();
       else setSaved(result);
     } catch (error) {
-      if (error instanceof ApiError) setRefusal(error);
-      else throw error;
+      setRefusal(error);
     }
   };
 
@@ -175,7 +176,7 @@ function Editor({ kind }: { kind: RenderKind }) {
     );
   }
 
-  const withheld = refusal ? withheldFacts(refusal) : [];
+  const withheld = refusal instanceof ApiError ? withheldFacts(refusal) : [];
   const refusedFactIds = new Set(withheld.map((fact) => fact.factId));
 
   return (
@@ -321,7 +322,7 @@ function Editor({ kind }: { kind: RenderKind }) {
         ))}
       </div>
 
-      {refusal ? <Refusal error={refusal} withheld={withheld} /> : null}
+      {refusal !== null ? <Refusal error={refusal} withheld={withheld} /> : null}
 
       {confirmingCancel ? (
         <ConfirmDiscard onDiscard={leave} onKeepEditing={() => setConfirmingCancel(false)} />
@@ -496,13 +497,16 @@ const Bare = ({ label, onClick }: { label: string; onClick: () => void }) => (
  * author's typing in order to report someone else's pending proposal would be
  * the second loss of the same minute.
  */
-function Refusal({ error, withheld }: { error: ApiError; withheld: { factId: string; problem: string }[] }) {
-  const stale = error.code === "conflict" && typeof error.details.currentVersionId === "string";
+function Refusal({ error, withheld }: { error: unknown; withheld: { factId: string; problem: string }[] }) {
+  const stale =
+    error instanceof ApiError &&
+    error.code === "conflict" &&
+    typeof error.details.currentVersionId === "string";
 
   return (
     <div className="mt-14">
       <Notice tone={withheld.length > 0 ? "generated" : "neutral"}>
-        <span role="alert">{error.message}</span>
+        <span role="alert">{failureText(error)}</span>
         <WithheldFacts facts={withheld} className="" />
         {withheld.length > 0 ? (
           <span className="block mt-4">

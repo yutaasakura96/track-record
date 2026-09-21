@@ -12,7 +12,7 @@
  * in the record or in a new version that does not carry the block.
  */
 import { useEffect, useState } from "react";
-import { ApiError, downloadRender } from "../api";
+import { ApiError, downloadRender, failureText } from "../api";
 import { MonoId } from "./ui";
 import { RENDER_DOWNLOAD_FORMAT, type RenderKind } from "~/shared/render-content";
 
@@ -73,7 +73,8 @@ export function DownloadButton({
   label?: string;
   className?: string;
 }) {
-  const [refusal, setRefusal] = useState<ApiError | null>(null);
+  // Anything the download threw: a refusal, or a request that never arrived.
+  const [refusal, setRefusal] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
   // The two career stories are read on screen and are not submission documents,
   // so what they offer is the Markdown they are read in rather than a `.docx`
@@ -92,8 +93,7 @@ export function DownloadButton({
           try {
             await downloadRender(kind, format, versionId);
           } catch (error) {
-            if (error instanceof ApiError) setRefusal(error);
-            else throw error;
+            setRefusal(error);
           } finally {
             setBusy(false);
           }
@@ -101,7 +101,7 @@ export function DownloadButton({
       >
         {busy ? "Preparing…" : (label ?? `Download .${format}`)}
       </button>
-      {refusal ? <Refusal error={refusal} onClose={() => setRefusal(null)} /> : null}
+      {refusal !== null ? <Refusal error={refusal} onClose={() => setRefusal(null)} /> : null}
     </>
   );
 }
@@ -111,8 +111,8 @@ export function DownloadButton({
  * in a row of controls with no room for a paragraph, and a refusal that has to
  * fit beside a button is a refusal that gets truncated.
  */
-function Refusal({ error, onClose }: { error: ApiError; onClose: () => void }) {
-  const facts = withheldFacts(error);
+function Refusal({ error, onClose }: { error: unknown; onClose: () => void }) {
+  const facts = error instanceof ApiError ? withheldFacts(error) : [];
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -134,7 +134,7 @@ function Refusal({ error, onClose }: { error: ApiError; onClose: () => void }) {
         onClick={(event) => event.stopPropagation()}
       >
         <p role="alert" className="text-smaller text-text-secondary">
-          {error.message}
+          {failureText(error)}
         </p>
         <WithheldFacts facts={facts} />
         {facts.length > 0 ? (

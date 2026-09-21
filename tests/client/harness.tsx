@@ -31,6 +31,8 @@ export class Refusal {
     readonly status: number,
     readonly code: string,
     readonly message: string,
+    /** `error.details`: which proposal or which facts are in the way. */
+    readonly details?: Record<string, unknown>,
   ) {}
 }
 
@@ -69,7 +71,8 @@ function stubFetch(routes: Routes) {
     const route = routes[key];
     const answer = typeof route === "function" ? await route(call) : route;
     if (answer instanceof Refusal) {
-      return reply(answer.status, { error: { code: answer.code, message: answer.message } });
+      const { status, code, message, details } = answer;
+      return reply(status, { error: { code, message, ...(details ? { details } : {}) } });
     }
     return answer === undefined ? new Response(null, { status: 204 }) : reply(200, answer);
   });

@@ -20,6 +20,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
+  failureText,
   useGenerate,
   useProfile,
   useRenderProposals,
@@ -375,7 +376,8 @@ function RestorePreview({
 }) {
   const diff = useVersionDiff(kind, current.id, target.id);
   const restore = useRestoreVersion(kind);
-  const [refusal, setRefusal] = useState<ApiError | null>(null);
+  // Anything the restore threw: a refusal, or a request that never arrived.
+  const [refusal, setRefusal] = useState<unknown>(null);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -385,8 +387,9 @@ function RestorePreview({
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const facts = (refusal?.details.facts ?? []) as { factId: string; problem: string }[];
-  const proposalId = refusal?.details.proposalId as string | undefined;
+  const details = refusal instanceof ApiError ? refusal.details : {};
+  const facts = (details.facts ?? []) as { factId: string; problem: string }[];
+  const proposalId = details.proposalId as string | undefined;
 
   return (
     <div className="fixed inset-0 bg-bg flex flex-col" role="dialog" aria-modal="true">
@@ -422,9 +425,9 @@ function RestorePreview({
           </p>
           {/* The server's refusal, in place. Both are dead ends with a route
               out, and neither is stated as something to retry. */}
-          {refusal ? (
+          {refusal !== null ? (
             <p role="alert" className="text-smaller text-text-secondary">
-              {refusal.message}{" "}
+              {failureText(refusal)}{" "}
               {proposalId ? (
                 <Link
                   to="/proposals/$proposalId"
@@ -452,8 +455,7 @@ function RestorePreview({
                 await restore.mutateAsync(target.id);
                 onClose();
               } catch (error) {
-                if (error instanceof ApiError) setRefusal(error);
-                else throw error;
+                setRefusal(error);
               }
             }}
           >
