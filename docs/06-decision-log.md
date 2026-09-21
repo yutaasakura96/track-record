@@ -3683,3 +3683,35 @@ needs every card resolved; it shares the header's text and class.
 
 **Revisit if:** a screen gains a write whose failure is shown some other way than a `role="alert"`
 line through `failureText`.
+
+### [2026-09-21] Documents says when a write never reaches the server, and the import picker does too
+
+Screen 8 had no client tests. Its three writes were read for the two faults found on Fact Review, a
+failure that shows nothing and the browser's own `Failed to fetch` printed as the reason. Neither was
+there: refile, re-import and retry each catch and state the failure in a `role="alert"` line beneath
+the row that made it.
+
+**What was wrong, and is fixed.** When the server could not be reached, each write said something
+of its own: `That document could not be refiled.`, `That file could not be imported.`, `That import
+could not be retried.` None of them said the write never arrived or that trying again was the way
+out, and none went through `failureText`, which is the case the previous entry's revisit line
+names. All three now use `failureText`. So does the shared import picker, which the Documents and
+Overview headers both use and which had the same fallback.
+
+Fifteen client tests in `tests/client/documents.test.tsx` cover refile, re-import, retry and the
+header import: what each write sends, that opening the refile row or choosing a file writes
+nothing, and the server's reason or the unreachable line beneath the right row. The four
+unreachable cases fail against the previous code and nothing else does. The harness now records an
+upload's form fields, so a test can read which document a re-import names.
+
+**Left as it is.** The import picker's failure in the Documents and Overview headers is a boxed
+line in the secondary text colour, where a row's refusal is `text-removed`. No screen specification
+names a colour for it, and the download dialog's refusal, looked at in the previous entry and
+accepted, is also secondary. The rule is not "every refusal is `text-removed`", so there was
+nothing to bring it into line with.
+
+**Not looked at.** Screen 8 was not opened in a browser for this entry. The change is text only and
+the tests assert the text.
+
+**Revisit if:** a design-system rule for the colour of a refusal is written, which would settle the
+header line either way.
