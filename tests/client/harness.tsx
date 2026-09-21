@@ -58,7 +58,14 @@ function stubFetch(routes: Routes) {
     const url = new URL(String(input), "http://localhost");
     const method = (init?.method ?? "GET").toUpperCase();
     const path = url.pathname + url.search;
-    const body = typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+    // An upload's form fields, the file among them, so a test can read which
+    // document a re-import names.
+    const body =
+      typeof init?.body === "string"
+        ? JSON.parse(init.body)
+        : init?.body instanceof FormData
+          ? Object.fromEntries(init.body)
+          : undefined;
     const call = { method, path, body };
     calls.push(call);
 

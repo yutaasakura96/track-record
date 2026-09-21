@@ -13,6 +13,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   ApiError,
+  failureText,
   isImportRunning,
   useDocuments,
   useEntitiesOnDemand,
@@ -137,7 +138,7 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
       setRefiling(null);
     } catch (caught) {
       setRefiling(null);
-      setRefusal(caught instanceof ApiError ? caught.message : "That document could not be refiled.");
+      setRefusal(failureText(caught));
     }
   };
 
@@ -149,7 +150,7 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
       await navigate({ to: "/imports/$importId", params: { importId: created.importId } });
     } catch (caught) {
       setChosen(null);
-      setRefusal(caught instanceof ApiError ? caught.message : "That file could not be imported.");
+      setRefusal(failureText(caught));
     }
   };
 
@@ -308,7 +309,7 @@ function VersionRow({ version }: { version: DocumentVersion }) {
     try {
       await retry.mutateAsync(version.importId);
     } catch (caught) {
-      setRefusal(caught instanceof ApiError ? caught.message : "That import could not be retried.");
+      setRefusal(failureText(caught));
     }
   };
 

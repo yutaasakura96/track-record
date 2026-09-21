@@ -7,7 +7,7 @@
  */
 import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { ApiError, useEntitiesOnDemand, useStartImport, type Project } from "../api";
+import { failureText, useEntitiesOnDemand, useStartImport, type Project } from "../api";
 import { Button, Chip } from "./ui";
 
 /** The types that import today (`docs/07` §5). */
@@ -47,7 +47,7 @@ export function useImportPicker() {
       await navigate({ to: "/imports/$importId", params: { importId: created.importId } });
     } catch (caught) {
       setChosen(null);
-      setError(caught instanceof ApiError ? caught.message : "That file could not be imported.");
+      setError(failureText(caught));
     }
   };
 
