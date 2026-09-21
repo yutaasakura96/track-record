@@ -10,10 +10,16 @@
 import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
+import { watchProxy } from "./proxy-watch";
 
 export type Db = ReturnType<typeof createDb>;
 
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "db.localtest.me", "postgres"]);
+
+// One watcher per isolate, not per `createDb` call: the app builds a handle on
+// every request, and a watcher rebuilt each time would report the same wedge
+// once per request (issue #25, `./proxy-watch.ts`).
+const watchedFetch = watchProxy((input, init) => fetch(input, init));
 
 export function createDb(connectionString: string) {
   // A missing binding otherwise surfaces as `Invalid URL string` on every route,
@@ -37,6 +43,7 @@ export function createDb(connectionString: string) {
     neonConfig.fetchEndpoint = `http://${url.hostname}:${proxyPort}/sql`;
     neonConfig.useSecureWebSocket = false;
     neonConfig.poolQueryViaFetch = true;
+    neonConfig.fetchFunction = watchedFetch;
   }
   return drizzle(neon(connectionString), { schema, casing: "snake_case" });
 }
