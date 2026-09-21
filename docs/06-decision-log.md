@@ -3648,3 +3648,38 @@ list are only reachable through a refusal that names them.
 Add instead. Documents, Overview, Record and Skills still have no client tests.
 
 **Revisit if:** a text-editing bug reaches Screen 6, which would argue for browser mode on that screen.
+
+### [2026-09-21] Every refusal alert is looked at in a browser, and a Fact Review card says when a decision fails
+
+The refusal and unreachable-server alerts from the two previous entries were tested for behaviour
+but had never been seen. They were looked at in Chrome against the running client, with `fetch`
+replaced in the page so that every read came from invented fixtures and every write was answered
+by the stub or thrown before it left. Nothing reached the worker or a database.
+
+**What looked right.** Finish review in the Fact Review header, both Diff Review decisions in the
+footer, the download dialog for a refusal (fact ids with reasons) and for an unreachable server
+(one sentence, no advice about the record), and all three editor notices (amber with the blocks
+marked for unrenderable facts, neutral for a moved version and for an unreachable server).
+
+**What was wrong, and is fixed.**
+
+1. Accept, Reject and Undo on a Fact Review card said nothing when they failed, refused or
+   unreachable. The card stayed as it was and the author could not tell a failed decision from a
+   slow one. The card now shows one failure line for whichever write the author made last, edit
+   or decision, so an edit that goes through clears a refused decision and the reverse. A resolved
+   card, which offers Undo and the employer picker, shows the same line.
+2. A card edit that never reached the server printed the browser's own `Failed to fetch`. It now
+   goes through `failureText` like every other control.
+3. The restore preview stated its refusals in the secondary text colour, where every other
+   refusal line on every screen uses `text-removed`. It now matches. The proposal link keeps the
+   accent colour.
+
+Six new client tests cover the first two, and all six fail against the previous screen. Taking out
+the reset that clears the other write's failure fails the clearing test alone. The colour is not
+asserted by a test; the other screens' colours are not either.
+
+**Not looked at.** The finish refusal beside `Add N facts to record` in the rail footer, which
+needs every card resolved; it shares the header's text and class.
+
+**Revisit if:** a screen gains a write whose failure is shown some other way than a `role="alert"`
+line through `failureText`.
