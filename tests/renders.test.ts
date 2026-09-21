@@ -520,6 +520,30 @@ describe("the proposal", () => {
     expect(proposals.items.map((p) => p.id)).toEqual([waiting.proposalId]);
   });
 
+  it("refuses the loser of two simultaneous generations at 409, naming the winner", async () => {
+    const record = await seedRecord();
+    const content = resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]);
+    // Two, so that if both got through, neither would fail for want of a stubbed answer.
+    model.generations = [content, content];
+
+    const responses = await Promise.all([
+      client.post("/api/renders/english_resume/generate"),
+      client.post("/api/renders/english_resume/generate"),
+    ]);
+    await settle();
+    expect(responses.map((r) => r.status).sort()).toEqual([202, 409]);
+
+    const winner = (await responses.find((r) => r.status === 202)!.json()) as { proposalId: string };
+    const loser = (await responses.find((r) => r.status === 409)!.json()) as {
+      error: { code: string; details: { proposalId: string } };
+    };
+    expect(loser.error.code).toBe("conflict");
+    expect(loser.error.details.proposalId).toBe(winner.proposalId);
+
+    const proposals = await client.json<{ items: { id: string }[] }>("/api/proposals?kind=english_resume");
+    expect(proposals.items.map((p) => p.id)).toEqual([winner.proposalId]);
+  });
+
   it("leaves the stored version byte-identical when dismissed", async () => {
     const record = await seedRecord();
     const first = (await (

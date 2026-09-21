@@ -70,6 +70,19 @@ export const preconditionFailed = (message: string, fields: string[]) =>
 export const conflict = (message: string, details: Record<string, number>) =>
   new ApiError("conflict", message, details);
 
+/**
+ * A unique violation on one named index, however deep drizzle wrapped it. The
+ * race a read-then-insert check cannot close is closed by the index, and this
+ * is how the loser is told apart from every other database error.
+ */
+export function violatesUnique(err: unknown, constraint: string): boolean {
+  for (let e = err; e instanceof Error; e = e.cause) {
+    const found = e as { code?: string; constraint?: string };
+    if (found.code === "23505" && found.constraint === constraint) return true;
+  }
+  return false;
+}
+
 export function errorResponse(c: Context, err: unknown) {
   if (err instanceof ApiError) return c.json(err.toBody(), err.status);
 

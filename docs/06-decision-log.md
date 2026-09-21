@@ -3449,3 +3449,33 @@ deleting the entry was already allowed. The author chose the sweep with this rea
 helper sits in the file that defines `INCLUDABLE_ENTITIES`, and each of the three types has a test
 asserting its rows are gone after a `204`. No backfill was needed: the dev record held no inclusion
 rows when this landed, stranded or otherwise.
+
+---
+
+### [2026-09-21] One waiting proposal per render, held by an index
+
+This closes what the first 2026-09-16 entry left: two simultaneous generate requests could both
+pass the waiting check and both insert, leaving two pending proposals where accepting either
+discards the other unread. The check is a read and the insert follows it with no lock between.
+
+**A partial unique index now holds the rule.** `render_proposals_one_waiting_uq` is unique on
+`render_id` where `status = 'pending'` and `generation_status <> 'failed'`, which is the waiting
+check's own predicate. The loser's insert raises a unique violation, and generate answers it with
+the same `409` the read gives, naming the winner in `details.proposalId`. This is how re-import
+closed its race in c9e9f76, and the check that tells that violation apart from any other is now one
+helper, `violatesUnique` in `src/server/http/errors.ts`, used by both.
+
+**The index can be this narrow because only an insert enters it.** Every later write moves a row
+out: generation lands as `ready` without changing `status`, fails to `failed`, or is decided to
+`accepted` or `dismissed`. Nothing moves a failed or decided proposal back to waiting, so there is
+no update the index could refuse.
+
+**A failed proposal stays outside it**, for the reason it does not refuse the read: it has nothing
+to decide, and holding the render on it would leave no way to try again.
+
+**The read stays.** It answers the ordinary case without spending an insert, and it is what names
+the waiting proposal before any of the profile and fact checks run.
+
+**Known and left.** The loser rereads to name the winner, and if the winner failed in between there
+is no id to give; the refusal is sent without one. The window is two queries wide and the author's
+next click succeeds. Applying the migration to the dev database is the author's step.

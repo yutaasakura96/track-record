@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "render_proposals_one_waiting_uq" ON "render_proposals" USING btree ("render_id") WHERE "render_proposals"."status" = 'pending' and "render_proposals"."generation_status" <> 'failed';

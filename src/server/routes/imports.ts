@@ -9,7 +9,7 @@
 import type { Hono } from "hono";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
-import { ApiError, conflict, notFound, validationFailed, pathParam } from "../http/errors";
+import { ApiError, conflict, notFound, validationFailed, pathParam, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
@@ -130,7 +130,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       try {
         await version;
       } catch (err) {
-        if (!isVersionTaken(err)) throw err;
+        if (!violatesUnique(err, "sdv_document_version_uq")) throw err;
         throw conflict(`Wait for v${versionNo} to finish extracting.`, { versionNo });
       }
     }
@@ -627,15 +627,6 @@ function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
 const RUNNING_STATUSES = ["queued", "extracting"] as const;
 const isRunning = (status: (typeof sourceDocumentVersions.$inferSelect)["importStatus"]) =>
   (RUNNING_STATUSES as readonly string[]).includes(status);
-
-/** A unique violation on `sdv_document_version_uq`, however deep drizzle wrapped it. */
-function isVersionTaken(err: unknown): boolean {
-  for (let e = err; e instanceof Error; e = e.cause) {
-    const { code, constraint } = e as { code?: string; constraint?: string };
-    if (code === "23505" && constraint === "sdv_document_version_uq") return true;
-  }
-  return false;
-}
 
 function stringOrNull(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;

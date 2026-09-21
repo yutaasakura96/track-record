@@ -9,7 +9,7 @@
 import type { Hono } from "hono";
 import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
-import { ApiError, notFound, preconditionFailed, pathParam, validationFailed } from "../http/errors";
+import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { collectRenderInputs, generateIntoProposal } from "../services/render";
@@ -67,26 +67,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // A second proposal beside a waiting one means accepting either discards the
     // other unread. A failed generation has nothing to decide, so it does not
     // hold the render: refusing on it would leave no way to try again.
-    const [waiting] = await db
-      .select({ id: renderProposals.id })
-      .from(renderProposals)
-      .innerJoin(renders, eq(renders.id, renderProposals.renderId))
-      .where(
-        and(
-          eq(renderProposals.userId, user.id),
-          eq(renders.kind, kind),
-          eq(renderProposals.status, "pending"),
-          ne(renderProposals.generationStatus, "failed"),
-        ),
-      )
-      .limit(1);
-    if (waiting) {
-      throw new ApiError(
-        "conflict",
-        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before generating again.`,
-        { proposalId: waiting.id },
-      );
-    }
+    const waiting = await waitingProposalId(db, user.id, kind);
+    if (waiting) throw proposalWaiting(kind, waiting);
 
     const [profile] = await db
       .select()
@@ -127,16 +109,25 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const render = await ensureRender(db, user.id, kind);
     const proposalId = newId("renderProposal");
-    await db.insert(renderProposals).values({
-      id: proposalId,
-      userId: user.id,
-      renderId: render.id,
-      content: { sections: [] } satisfies RenderContent,
-      status: "pending",
-      generationStatus: "generating",
-      basedOnVersionId: render.currentVersionId,
-      reason: regenerationReason(render.newFactsSince, render.currentVersionNo !== null),
-    });
+    // The waiting check above is a read, then this insert, with no lock between
+    // them. Two simultaneous requests can both pass it; the unique index lets
+    // one proposal through, and the other lost to a proposal that is now waiting.
+    try {
+      await db.insert(renderProposals).values({
+        id: proposalId,
+        userId: user.id,
+        renderId: render.id,
+        content: { sections: [] } satisfies RenderContent,
+        status: "pending",
+        generationStatus: "generating",
+        basedOnVersionId: render.currentVersionId,
+        reason: regenerationReason(render.newFactsSince, render.currentVersionNo !== null),
+      });
+    } catch (err) {
+      if (!violatesUnique(err, "render_proposals_one_waiting_uq")) throw err;
+      const winner = await waitingProposalId(db, user.id, kind);
+      throw proposalWaiting(kind, winner);
+    }
 
     // Returns immediately with a resource to poll. The current version stays
     // fully readable while the proposal generates — never a blank screen.
@@ -817,6 +808,40 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
 const alreadyDecided = () =>
   new ApiError("conflict", "That proposal has already been decided.");
+
+/**
+ * The id of the render's waiting proposal, if one exists. A failed generation
+ * is not waiting: it has nothing to decide, and it sits outside the unique index
+ * for the same reason.
+ */
+async function waitingProposalId(db: Db, userId: string, kind: RenderKind): Promise<string | null> {
+  const [waiting] = await db
+    .select({ id: renderProposals.id })
+    .from(renderProposals)
+    .innerJoin(renders, eq(renders.id, renderProposals.renderId))
+    .where(
+      and(
+        eq(renderProposals.userId, userId),
+        eq(renders.kind, kind),
+        eq(renderProposals.status, "pending"),
+        ne(renderProposals.generationStatus, "failed"),
+      ),
+    )
+    .limit(1);
+  return waiting?.id ?? null;
+}
+
+/**
+ * The refusal, whether the read caught the waiting proposal or the index did.
+ * The loser of a race rereads to name the winner, and the winner may already
+ * have failed by then, in which case there is no id to name.
+ */
+const proposalWaiting = (kind: RenderKind, proposalId: string | null) =>
+  new ApiError(
+    "conflict",
+    `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before generating again.`,
+    proposalId ? { proposalId } : undefined,
+  );
 
 /**
  * The identity block's source, narrowed to the three fields a header may read.

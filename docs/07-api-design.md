@@ -487,6 +487,9 @@ checked before the profile and the facts, because it is the one refusal Review p
 proposal whose generation `failed` does not refuse: it has nothing to decide, and refusing on it
 would leave the render with no way to try again. The edit and restore routes exclude it on the same
 reading — accept itself refuses a proposal that is not `ready`, so a failed one can discard neither.
+Two simultaneous requests get the same answer: a partial unique index on waiting proposals lets one
+insert through, and the other is refused with the winner's `details.proposalId` (`docs/06`,
+2026-09-21).
 
 **`GET /api/proposals/:id` → 200**
 

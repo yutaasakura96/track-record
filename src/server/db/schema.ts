@@ -493,7 +493,17 @@ export const renderProposals = pgTable("render_proposals", {
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   ...timestamps,
-}, (t) => [index("render_proposals_render_status_idx").on(t.renderId, t.status)]);
+}, (t) => [
+  index("render_proposals_render_status_idx").on(t.renderId, t.status),
+  // One waiting proposal per render. Generate reads before it inserts, and two
+  // requests can both pass the read; this lets one through. A failed proposal
+  // is outside it, because a failure holds nothing and must not block a retry
+  // (`docs/06`, 2026-09-16). Every update moves a row OUT of this set; only
+  // generate's insert moves one in.
+  uniqueIndex("render_proposals_one_waiting_uq")
+    .on(t.renderId)
+    .where(sql`${t.status} = 'pending' and ${t.generationStatus} <> 'failed'`),
+]);
 
 /* ------------------------------------------------------------- M2 tables */
 

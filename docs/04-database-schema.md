@@ -477,6 +477,11 @@ résumé reads the same index backwards, for the same reason employers do.
 | `reason` | text | yes | `Regenerated after 3 new facts entered your record` |
 | `generated_at` / `decided_at` | timestamptz | | |
 
+**Indexes:** `(render_id, status)`; **partial unique** `(render_id) WHERE status = 'pending' AND
+generation_status <> 'failed'` — one waiting proposal per render. Generate checks before it inserts,
+and the index is what refuses the second of two simultaneous requests (`06`, 2026-09-21). A failed
+proposal is outside it so a retry is never blocked.
+
 **Why three tables and not one with a flag:** "what my résumé was" and "what was once suggested" are
 different questions. Mixing them makes version history unreadable (decision log, 2026-08-12).
 
