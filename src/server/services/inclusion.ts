@@ -58,3 +58,24 @@ export function excludesProject(
     (project.employerId !== null && excluded.employer.has(project.employerId))
   );
 }
+
+/**
+ * An entry's settings, for the batch that deletes the entry. The table has no
+ * foreign key to cascade from, because one column names three tables, so each
+ * delete of an includable entry clears its rows in the same `db.batch` and a
+ * failure cannot leave one done without the other. Every kind at once: a
+ * setting with no entry has no subject in any render (`docs/06`, 2026-09-21).
+ *
+ * Returned unexecuted so the caller owns the batch.
+ */
+export function clearInclusions(db: Db, userId: string, type: IncludableEntity, id: string) {
+  return db
+    .delete(renderInclusions)
+    .where(
+      and(
+        eq(renderInclusions.userId, userId),
+        eq(renderInclusions.entityType, type),
+        eq(renderInclusions.entityId, id),
+      ),
+    );
+}

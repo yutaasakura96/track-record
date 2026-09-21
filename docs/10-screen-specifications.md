@@ -280,9 +280,9 @@ surfaces the server's `409` message in place, rather than being pre-empted by a 
 would have to keep in step with the server. **Every one of the five collections deletes**, and each
 refusal names counts and never content: an employer counts the facts, roles and projects on it, and
 a project counts the facts and the source documents imported under it (Screen 3).
-**A project that has been imported under cannot be deleted at all**, and its refusal says so instead
-of asking for a reassignment: an import files the document under the project and every fact it
-extracts inherits it, and neither can be moved afterwards.
+**A project that has been imported under is refused until its documents are refiled**, and its
+refusal names Screen 8 rather than asking for a reassignment: a document's facts follow its project,
+so refiling the document from Documents is what moves them (`docs/06`, 2026-09-21).
 
 **Per-render inclusion** (S13, added 2026-09-13). Employer, project and education rows carry an
 `Appears in` line beneath the row: one checkbox per render, labelled with the render's name and
@@ -291,7 +291,8 @@ generation input and nothing else — the row stays on this screen, every other 
 and the facts filed under it leave that render with it. A project under an unchecked employer leaves
 too. Saving is immediate, as it is for the forms. Roles and certifications carry no setting: a role
 follows its employer, and S13 does not name certifications. Changing a setting does not mark a
-document out of date, because staleness counts facts (`docs/06`, 2026-09-13).
+document out of date, because staleness counts facts (`docs/06`, 2026-09-13). Deleting an entry
+takes its settings with it (`docs/06`, 2026-09-21).
 
 The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of
 reading it, and it appears on a resolved card as well as a candidate one so an already-reviewed

@@ -3409,3 +3409,43 @@ short of where it started.
 **What this does not change.** `render_inclusions` rows are keyed by `entityId` with no foreign key,
 so deleting a project still leaves a stale inclusion row. Refiling makes that deletion easier to
 reach, and the gap is pre existing and symmetrical with employers. It is recorded, not fixed.
+
+---
+
+### [2026-09-21] Deleting an entry clears its per-render settings
+
+This supersedes the second known limit in the 2026-09-13 inclusion entry, that deleting an employer
+or an education leaves its inclusion rows behind, and the closing paragraph of the refile entry
+above, which extended it to projects.
+
+**The delete sweeps, in the same batch.** `DELETE` on an employer, a project or an education now
+clears that entry's `render_inclusions` rows through `clearInclusions` (`src/server/services/inclusion.ts`),
+in the `db.batch` that deletes the entry, so a failure cannot leave one done without the other.
+Every kind at once, because a setting with no entry has no subject in any render. A refused delete
+answers `409` before the batch, so an entry that stays keeps its settings, and a test says so.
+
+**The harm was a leak, not a collision.** The earlier wording implied a stale row could match a
+future entry. It cannot: ids are sixteen random characters over a 62 character alphabet behind a
+per-type prefix, the primary keys refuse a duplicate, and the table's key includes `entity_type`.
+What the rows did was accumulate, name nothing, and come back from `GET /api/render-inclusions`.
+Switching ids to UUIDs was asked about and not taken, because it hardens the risk that is not real
+and leaves the leak as it was.
+
+**A foreign key per entity type was not taken.** It means three nullable columns each with its own
+`on delete cascade`, a check that exactly one is set, and three partial unique indexes in place of
+the primary key, since a nullable column cannot sit in one. The ownership check in the `PUT` would
+survive it anyway: a foreign key proves an entry exists, not that it is the caller's. For one user
+and one row shape it is a migration out of proportion to the leak.
+
+**A read time join was not taken.** One column names three tables, so ignoring rows whose entry is
+gone costs three joins on every generation and every Screen 4 load, and the rows stay. It makes a
+wrong row invisible rather than absent.
+
+**This is not an exception to nothing being deleted.** That rule covers the record's history:
+render versions, source documents, rejected facts. An inclusion row is a setting about an entry, and
+deleting the entry was already allowed. The author chose the sweep with this reading stated.
+
+**What it leaves.** The sweep is a rule in code, so a fourth includable entity has to call it. The
+helper sits in the file that defines `INCLUDABLE_ENTITIES`, and each of the three types has a test
+asserting its rows are gone after a `204`. No backfill was needed: the dev record held no inclusion
+rows when this landed, stranded or otherwise.

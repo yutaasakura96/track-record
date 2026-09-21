@@ -97,10 +97,10 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` | `/api/employers` | M1 | Reverse chronological |
 | `POST` | `/api/employers` | M1 | |
 | `PATCH` | `/api/employers/:id` | M1 | |
-| `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles or projects reference it |
+| `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles or projects reference it. A delete that succeeds clears the employer's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
-| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5) |
-| `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | |
+| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
+| `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
 
 **`GET /api/profile` → 200**
@@ -651,7 +651,7 @@ its `Review N →` action.
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, stale }] }], candidates: [{ name, factCount, certificationCount, curated }] }`; `stale` is computed on the read. `PUT` takes `{ groups: [{ name, skills: string[] }] }` and replaces the whole list; `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
-| `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again |
+| `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
 | `POST` | `/api/capture` | M3 | Free text in, a short interrogation, **Attested** facts out |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15) |
 

@@ -498,6 +498,8 @@ column survives only because dropping it buys nothing.
 **`render_inclusions`** — `(user_id, entity_type, entity_id, render_kind, included)`. Per-render
 inclusion for employment, education and project entries. **履歴書 defaults to including everything**;
 absence of a row means included (S13). Excluding never deletes or hides the underlying record.
+`entity_id` names three tables and so carries no foreign key; deleting an employer, education or
+project clears its rows in the same batch instead (`06`, 2026-09-21).
 
 ---
 

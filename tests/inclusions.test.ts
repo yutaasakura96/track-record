@@ -242,3 +242,52 @@ describe("the setting", () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe("deleting an entry", () => {
+  const inclusions = async () =>
+    (await client.json<{ items: { entityId: string; kind: string }[] }>("/api/render-inclusions")).items;
+
+  /** Two kinds on the entry being deleted, and one on a neighbour that must survive it. */
+  async function settingsOn(entityType: string, id: string, neighbourId: string) {
+    await setInclusion(entityType, id, "english_resume", false);
+    await setInclusion(entityType, id, "rirekisho", true);
+    await setInclusion("employer", neighbourId, "english_resume", false);
+  }
+
+  it("clears an employer's settings in every render, and no one else's", async () => {
+    const record = await seedRecord();
+    const employer = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameJa: "株式会社ハヤブサ物流" });
+    await settingsOn("employer", employer.id, record.earlier.id);
+
+    expect((await client.delete(`/api/employers/${employer.id}`)).status).toBe(204);
+    expect(await inclusions()).toEqual([
+      { entityType: "employer", entityId: record.earlier.id, kind: "english_resume", included: false },
+    ]);
+  });
+
+  it("clears a project's settings", async () => {
+    const record = await seedRecord();
+    const project = await created("/api/projects", { name: "Tide table widget" });
+    await settingsOn("project", project.id, record.earlier.id);
+
+    expect((await client.delete(`/api/projects/${project.id}`)).status).toBe(204);
+    expect((await inclusions()).map((row) => row.entityId)).toEqual([record.earlier.id]);
+  });
+
+  it("clears an education's settings", async () => {
+    const record = await seedRecord();
+    await settingsOn("education", record.education.id, record.earlier.id);
+
+    expect((await client.delete(`/api/educations/${record.education.id}`)).status).toBe(204);
+    expect((await inclusions()).map((row) => row.entityId)).toEqual([record.earlier.id]);
+  });
+
+  it("keeps the settings of an entry whose delete is refused", async () => {
+    const record = await seedRecord();
+    await setInclusion("employer", record.earlier.id, "english_resume", false);
+
+    // `earlier` has a fact filed under it, so the delete answers 409 before the batch.
+    expect((await client.delete(`/api/employers/${record.earlier.id}`)).status).toBe(409);
+    expect((await inclusions()).map((row) => row.entityId)).toEqual([record.earlier.id]);
+  });
+});

@@ -18,6 +18,7 @@ import { employers, facts, projects, roles, sourceDocuments } from "../db/schema
 import { conflict, notFound, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
+import { clearInclusions } from "../services/inclusion";
 import { parseBody } from "../services/validate";
 import { monthDate } from "./profile";
 import type { AppEnv } from "../env";
@@ -117,7 +118,10 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
       );
     }
 
-    await db.delete(employers).where(and(eq(employers.userId, userId), eq(employers.id, id)));
+    await db.batch([
+      db.delete(employers).where(and(eq(employers.userId, userId), eq(employers.id, id))),
+      clearInclusions(db, userId, "employer", id),
+    ]);
     return c.body(null, 204);
   });
 
@@ -231,7 +235,10 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
       throw conflict(`This project has ${describe(attached)} attached. ${remedy}`, { ...attached });
     }
 
-    await db.delete(projects).where(and(eq(projects.userId, userId), eq(projects.id, id)));
+    await db.batch([
+      db.delete(projects).where(and(eq(projects.userId, userId), eq(projects.id, id))),
+      clearInclusions(db, userId, "project", id),
+    ]);
     return c.body(null, 204);
   });
 }

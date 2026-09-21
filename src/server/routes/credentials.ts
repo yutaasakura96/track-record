@@ -7,6 +7,7 @@
  * 履歴書 学歴 rows derive from an education and nothing else does.
  *
  * Nothing references either table, so deletion here needs no conflict check.
+ * An education's per-render settings go with it (`docs/06`, 2026-09-21).
  */
 import type { Hono } from "hono";
 import { asc, and, desc, eq, sql } from "drizzle-orm";
@@ -15,6 +16,7 @@ import { certifications, educations } from "../db/schema";
 import { notFound, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
+import { clearInclusions } from "../services/inclusion";
 import { parse, parseBody } from "../services/validate";
 import { monthDate } from "./profile";
 import { nullish, stripInternals } from "./record";
@@ -176,11 +178,19 @@ export function registerCredentialRoutes(app: Hono<AppEnv>) {
   });
 
   api.delete("/api/educations/:id", async (c) => {
-    const [row] = await c
-      .get("db")
-      .delete(educations)
-      .where(and(eq(educations.userId, c.get("user").id), eq(educations.id, pathParam(c, "id"))))
-      .returning({ id: educations.id });
+    const userId = c.get("user").id;
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    // One round trip, so the 404 is read from the delete itself. The sweep needs
+    // no ownership check of its own: `PUT` refuses an entry the caller does not
+    // own, so no row of theirs can name someone else's education.
+    const [[row]] = await db.batch([
+      db
+        .delete(educations)
+        .where(and(eq(educations.userId, userId), eq(educations.id, id)))
+        .returning({ id: educations.id }),
+      clearInclusions(db, userId, "education", id),
+    ]);
     if (!row) throw notFound("That education");
     return c.body(null, 204);
   });
