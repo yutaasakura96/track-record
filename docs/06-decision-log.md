@@ -3531,3 +3531,37 @@ value, and they keep a provider change one adapter file if the renders ever read
 
 **Revisit if:** the author judges a Japanese render to read materially worse than the hand-produced
 document for reasons the register cannot fix.
+
+---
+
+### [2026-09-21] The dev worker names a wedged proxy too, and only after a probe
+
+Extends the 2026-09-18 entry on the proxy wedge, which put a clock on the suite's first query and
+left the dev worker without one.
+
+**The watch sits on the driver's fetch, for local hosts only.** `createDb` sets
+`neonConfig.fetchFunction` to a wrapper from `src/server/db/proxy-watch.ts` in the same branch that
+points the driver at the local proxy, so the app and the import Workflow are both covered and
+production Neon never runs it. There is one wrapper per isolate, not one per `createDb` call,
+because the app builds a handle on every request and a per-request watcher would report the same
+wedge once per request.
+
+**A slow query alone says nothing.** The suite can refuse a run on a 3s silence because its query
+is `select current_database()`. The dev worker's queries are real ones and a real one can be slow.
+So a query that has not answered after 3s triggers a separate `select 1` with its own 3s budget,
+and only a probe that also goes unanswered is reported. A probe that is refused counts as an
+answer: a proxy that refuses is listening, which is not this fault, and the query it was watching
+will fail on its own.
+
+**It reports and changes nothing else.** The watched query is not cancelled and not failed. Failing
+it would put a new error on every screen for a fault the author cannot fix from the browser, and
+cancelling a write through the proxy does not undo it. The report goes to the worker's log once per
+wedge, with `npm run capture:proxy` before `docker restart`, and it is armed again by the next query
+that answers. It carries no query, no connection string and nothing from the record.
+
+**Verified against the real proxy.** With the proxy container paused, which accepts connections and
+never answers, a `select 1` through `createDb` printed the report at about 6s and was left hanging.
+After unpausing, the same query answered in 38ms.
+
+**Revisit if:** the report ever appears while the proxy is serving, which would mean a probe budget
+of 3s is too short on this machine under load.

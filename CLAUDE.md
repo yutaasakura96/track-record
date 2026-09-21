@@ -25,7 +25,9 @@ line rather than eight minutes of database tests timing out with nothing failing
 `npm run capture:proxy` **before** `docker restart track-record-neon-proxy-1` — the restart is the
 only known way out and it is also what erases the evidence, and ten deliberate attempts over a full
 session could not reproduce the wedge, so the next occurrence is the only teacher available. The
-capture is gitignored; read it before attaching it to the issue.
+capture is gitignored; read it before attaching it to the issue. The dev worker prints the same
+instruction to its log when a query and a `select 1` probe after it both go unanswered
+(`src/server/db/proxy-watch.ts`); a page that spins with that in the worker log is the same wedge.
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
