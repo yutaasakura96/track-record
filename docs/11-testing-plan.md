@@ -22,6 +22,7 @@ test fixture containing a real client name would be committed to a public repo f
 | API integration | Vitest against the Hono app, with a real Postgres |
 | Server-side tests | **`@cloudflare/vitest-pool-workers`** — runs tests *inside* the Workers runtime via Miniflare, with bindings and isolated per-test-file storage |
 | Test database | **`track_record_test`, the suite's own** — Docker Postgres + a Neon HTTP proxy, see below |
+| Client screens | **A second Vitest project, `client`**: jsdom, React Testing Library and user-event. The real router mounts over a memory history and `fetch` is stubbed and recorded (`tests/client/harness.tsx`). No database. Fact Review and Diff Review only, so far |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
 | Sign-in | **A local OIDC issuer run as a fixture** (`tests/helpers/oidc.ts`). Better Auth's own path runs end to end; there is no authentication bypass in `src/server` |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |

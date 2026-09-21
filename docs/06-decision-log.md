@@ -3565,3 +3565,53 @@ After unpausing, the same query answered in 38ms.
 
 **Revisit if:** the report ever appears while the proxy is serving, which would mean a probe budget
 of 3s is too short on this machine under load.
+
+---
+
+### [2026-09-21] The two review screens get tests of their own, in jsdom over a stubbed fetch
+
+Until now every screen was verified by hand in a browser. That catches what looks wrong. It does not
+catch a write sent for the wrong fact, a retry that dismisses before it knows the new generation
+started, or a count that disagrees with the cards under it, and those are the failures `11` says a
+machine has to check.
+
+**A second Vitest project, `client`, beside the Workers one.** `vitest.config.ts` now holds two
+projects. `server` is the existing suite, unchanged. `client` runs `tests/client/**/*.test.tsx` in
+jsdom with React Testing Library and user-event, and needs no database, so
+`npx vitest run --project client` works with Docker down. `npm test` runs both.
+
+**The whole application mounts, and only the network is replaced.** `tests/client/harness.tsx`
+renders the real router (the width gate, the session and profile gates, the screen) over a memory
+history, through `createAppRouter` in `src/client/router.tsx`. `fetch` is answered from a table keyed
+by method and path, and every request is recorded. Tests assert the exact list of writes a click
+made, so an extra write, a missing one, a wrong id and a wrong order all fail. Stubbing the hooks in
+`src/client/api.ts` instead would have left the paths, bodies and methods untested, and those are
+what the screen gets wrong silently.
+
+**What is covered.** Fact Review: the document renders whole and in order with each quote marked
+for its own fact, overlapping quotes keep the text, each card's accept, reject, undo and patches go
+to that card's fact, a Generated fact can be accepted, Unfiled is sent as a null employer, the footer
+counts match, the filters show the cards their counts claim, the rail's arrow keys and the claim
+editor's, and the failed, nothing-new and discarded states. Diff Review: accept and keep send one
+decision each, Try again generates before it dismisses and dismisses nothing when generation cannot
+start, a first generation promises no current version, and the header names the proposal's own
+kind. Three deliberate breaks to the screens each turned the relevant tests red.
+
+**What the tests found.** Five buttons awaited a write and caught nothing: Accept proposed version,
+Keep current version, the unchanged proposal's Back to your record, and both Finish buttons on Fact
+Review. A refusal rejected into nothing, the screen stayed exactly as it was, and the author could
+not tell whether the click had landed. Each now shows the server's message in a `role="alert"` beside
+the button that was pressed and stays on the screen, as Failed's Try again already did. The message
+comes from `failureText` in `src/client/api.ts`: the server's own words for an `ApiError`, and a
+plain sentence when the request never arrived.
+
+**Not covered.** Layout, scrolling and focus rings: jsdom lays nothing out, and those are visible the
+moment the screen is opened. The other screens have no tests yet.
+
+**Alternatives considered.** Vitest browser mode with Playwright runs a real browser and would cover
+layout, at the cost of a browser download in every environment the suite runs in, for failures that
+are the visible kind. happy-dom was not tried: jsdom was enough, and the client project runs in
+about a second.
+
+**Revisit if:** a review-screen bug turns out to depend on layout or scrolling, which would argue for
+browser mode on those tests only.

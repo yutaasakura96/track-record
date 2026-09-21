@@ -9,7 +9,8 @@ the source of truth; the prototype in `design/prototype/` is a visual reference 
 disagree, the docs win.
 
 Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and both databases), `npm run db:migrate:local`
-on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up.
+on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up; the review-screen tests
+alone (`npx vitest run --project client`) do not.
 `npm run build` runs the design-token check, the type check and the client build, in that order.
 `npm run measure -- --latest` prints the experience-section figures every register decision in the
 decision log is argued against — count, mean length, share carrying a number. **Do not rebuild it
