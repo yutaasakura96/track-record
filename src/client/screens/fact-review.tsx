@@ -18,10 +18,11 @@
  * card. The marks stay a pointer shortcut and add no tab stops: making all 11
  * of them focusable would double the cost of reaching the same 11 facts.
  */
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
+  failureText,
   isImportRunning,
   POLL_MS,
   useEntities,
@@ -91,8 +92,7 @@ function Header({
   resolvedCount: number;
   total: number;
 }) {
-  const navigate = useNavigate();
-  const { finish } = useFactAction(importId);
+  const finish = useFinish(importId);
   const allResolved = total > 0 && resolvedCount === total;
 
   return (
@@ -110,23 +110,44 @@ function Header({
       <Chip>{filename}</Chip>
 
       <div className="ml-auto flex items-center gap-14">
+        {finish.failure ? (
+          <span role="alert" className="text-smaller text-removed">
+            {finish.failure}
+          </span>
+        ) : null}
         <span className="text-smaller text-text-dimmer">
           {resolvedCount} of {total} reviewed
         </span>
         <ProgressBar className="w-progress" value={total === 0 ? 0 : resolvedCount / total} />
         {/* One action, two affordances — the footer button is the same call. */}
-        <Button
-          variant={allResolved ? "primary" : "secondary"}
-          onClick={async () => {
-            await finish.mutateAsync();
-            await navigate({ to: "/" });
-          }}
-        >
+        <Button variant={allResolved ? "primary" : "secondary"} onClick={() => void finish.run()}>
           Finish review
         </Button>
       </div>
     </header>
   );
+}
+
+/**
+ * Finish, then go home. A refusal is said beside the button that was pressed;
+ * it used to reject into nothing, leaving the author on a screen that looked
+ * exactly as it did before the click.
+ */
+function useFinish(importId: string) {
+  const { finish } = useFactAction(importId);
+  const navigate = useNavigate();
+  const [failure, setFailure] = useState<string | null>(null);
+  const run = async () => {
+    setFailure(null);
+    try {
+      await finish.mutateAsync();
+    } catch (error) {
+      setFailure(failureText(error));
+      return;
+    }
+    await navigate({ to: "/" });
+  };
+  return { run, failure };
 }
 
 /* -------------------------------------------------------------- source pane */
@@ -241,8 +262,8 @@ function FactRail({
   const selectedFactId = useReviewStore((s) => s.selectedFactId);
   const origin = useReviewStore((s) => s.selectionOrigin);
   const select = useReviewStore((s) => s.select);
-  const { finish, retry } = useFactAction(importId);
-  const navigate = useNavigate();
+  const { retry } = useFactAction(importId);
+  const finish = useFinish(importId);
   const list = useRef<HTMLDivElement>(null);
 
   const open = facts.filter((f) => f.status === "candidate");
@@ -374,15 +395,17 @@ function FactRail({
           <span className="text-private">{priv} private</span>
           <span className="text-generated-text">{needsPromotion} need promotion</span>
         </p>
+        {finish.failure ? (
+          <p role="alert" className="text-smaller text-removed mb-10">
+            {finish.failure}
+          </p>
+        ) : null}
         <Button
           variant="primary"
           className="w-full"
           disabled={accepted.length === 0}
           disabledReason="Nothing accepted yet"
-          onClick={async () => {
-            await finish.mutateAsync();
-            await navigate({ to: "/" });
-          }}
+          onClick={() => void finish.run()}
         >
           {accepted.length === 0 ? "Nothing accepted yet" : `Add ${accepted.length} facts to record`}
         </Button>

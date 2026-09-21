@@ -14,6 +14,7 @@ import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
+  failureText,
   useDecideProposal,
   useDiff,
   useGenerate,
@@ -186,6 +187,7 @@ function Failed({ proposal }: { proposal: Proposal }) {
 function Unchanged({ proposalId }: { proposalId: string }) {
   const { dismiss } = useDecideProposal(proposalId);
   const navigate = useNavigate();
+  const [failure, setFailure] = useState<string | null>(null);
   return (
     <main className="flex-1 grid place-items-center px-20">
       <div className="w-measure max-w-full text-center">
@@ -193,11 +195,22 @@ function Unchanged({ proposalId }: { proposalId: string }) {
         <p className="mt-8 text-ui text-text-dim">
           Regenerating produced the same document. There is nothing to review.
         </p>
+        {failure ? (
+          <p role="alert" className="mt-12 text-small text-text-secondary">
+            {failure}
+          </p>
+        ) : null}
         <div className="mt-20">
           <Button
             variant="primary"
             onClick={async () => {
-              await dismiss.mutateAsync();
+              setFailure(null);
+              try {
+                await dismiss.mutateAsync();
+              } catch (error) {
+                setFailure(failureText(error));
+                return;
+              }
               await navigate({ to: "/" });
             }}
           >
@@ -253,6 +266,19 @@ function Review({
 }) {
   const { accept, dismiss } = useDecideProposal(proposalId);
   const navigate = useNavigate();
+  // A refused decision used to reject into nothing: the buttons stayed, no
+  // message appeared, and the author could not tell whether it had landed.
+  const [failure, setFailure] = useState<string | null>(null);
+  const decide = async (decision: typeof accept | typeof dismiss) => {
+    setFailure(null);
+    try {
+      await decision.mutateAsync();
+    } catch (error) {
+      setFailure(failureText(error));
+      return;
+    }
+    await navigate({ to: "/" });
+  };
 
   return (
     <>
@@ -272,6 +298,11 @@ function Review({
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
+          {failure ? (
+            <p role="alert" className="text-smaller text-removed">
+              {failure}
+            </p>
+          ) : null}
           <p className="text-smaller text-text-secondary">
             Accepting replaces your {RENDER_TITLE[proposal.renderKind]} with v{proposal.proposedVersionNo}.
           </p>
@@ -294,21 +325,8 @@ function Review({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-10">
-          <Button
-            onClick={async () => {
-              await dismiss.mutateAsync();
-              await navigate({ to: "/" });
-            }}
-          >
-            Keep current version
-          </Button>
-          <Button
-            variant="primary"
-            onClick={async () => {
-              await accept.mutateAsync();
-              await navigate({ to: "/" });
-            }}
-          >
+          <Button onClick={() => void decide(dismiss)}>Keep current version</Button>
+          <Button variant="primary" onClick={() => void decide(accept)}>
             Accept proposed version
           </Button>
         </div>

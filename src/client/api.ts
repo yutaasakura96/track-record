@@ -64,6 +64,13 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   return (isJson ? await response.json() : await response.text()) as T;
 }
 
+/**
+ * What a screen says when a write it awaited was refused, or never arrived. The
+ * server's own message where there is one: a `409` names what is in the way.
+ */
+export const failureText = (error: unknown) =>
+  error instanceof ApiError ? error.message : "The server could not be reached. Try again.";
+
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
 
 /* ------------------------------------------------------------------- types */
