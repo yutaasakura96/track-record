@@ -1,48 +1,72 @@
 /**
- * Server-side tests run INSIDE the Workers runtime via Miniflare, against a real
- * Postgres behind the Neon HTTP proxy, with the model seam stubbed
- * (`docs/11-testing-plan.md` §1).
+ * Two projects (`docs/11-testing-plan.md` §1).
  *
- * No test ever calls Anthropic.
+ * `server` runs INSIDE the Workers runtime via Miniflare, against a real
+ * Postgres behind the Neon HTTP proxy, with the model seam stubbed. No test
+ * ever calls Anthropic.
+ *
+ * `client` mounts the review screens in jsdom over a stubbed `fetch`. It needs
+ * no database, so `npx vitest run --project client` works with Docker down.
  */
 import { defineConfig } from "vitest/config";
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
+import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 import { TEST_DATABASE_URL } from "./tests/global-setup.ts";
 
+const resolve = {
+  alias: { "~": fileURLToPath(new URL("./src", import.meta.url)) },
+};
+
 export default defineConfig({
-  plugins: [
-    cloudflareTest({
-      miniflare: {
-        compatibilityDate: "2026-08-12",
-        modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }],
-        compatibilityFlags: ["nodejs_compat"],
-        bindings: {
-          DATABASE_URL: TEST_DATABASE_URL,
-          // Present so the environment resolves. Never reached: every test
-          // supplies a stubbed model seam.
-          ANTHROPIC_API_KEY: "test-key-never-used",
-          ANTHROPIC_MODEL: "claude-opus-5",
-          BETTER_AUTH_SECRET: "test-secret-not-a-real-one",
-          // The origin the harness makes every request to. Better Auth builds
-          // the OAuth `redirect_uri` from this, and the sign-in walk follows
-          // that redirect back into the same application (issue #3).
-          BETTER_AUTH_URL: "https://track-record.test",
-          // The credentials the local OIDC fixture issues for. There is no
-          // Google client behind them and no deployment uses them.
-          GOOGLE_CLIENT_ID: "oidc-fixture-client",
-          GOOGLE_CLIENT_SECRET: "oidc-fixture-secret",
-          ALLOWED_SIGNUP_EMAILS: "author@example.invalid,second@example.invalid",
+  test: {
+    projects: [
+      {
+        plugins: [
+          cloudflareTest({
+            miniflare: {
+              compatibilityDate: "2026-08-12",
+              modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }],
+              compatibilityFlags: ["nodejs_compat"],
+              bindings: {
+                DATABASE_URL: TEST_DATABASE_URL,
+                // Present so the environment resolves. Never reached: every test
+                // supplies a stubbed model seam.
+                ANTHROPIC_API_KEY: "test-key-never-used",
+                ANTHROPIC_MODEL: "claude-opus-5",
+                BETTER_AUTH_SECRET: "test-secret-not-a-real-one",
+                // The origin the harness makes every request to. Better Auth builds
+                // the OAuth `redirect_uri` from this, and the sign-in walk follows
+                // that redirect back into the same application (issue #3).
+                BETTER_AUTH_URL: "https://track-record.test",
+                // The credentials the local OIDC fixture issues for. There is no
+                // Google client behind them and no deployment uses them.
+                GOOGLE_CLIENT_ID: "oidc-fixture-client",
+                GOOGLE_CLIENT_SECRET: "oidc-fixture-secret",
+                ALLOWED_SIGNUP_EMAILS: "author@example.invalid,second@example.invalid",
+              },
+            },
+          }),
+        ],
+        resolve,
+        test: {
+          name: "server",
+          globalSetup: ["./tests/global-setup.ts"],
+          include: ["tests/**/*.test.ts"],
+          exclude: ["tests/client/**"],
+          testTimeout: 30_000,
         },
       },
-    }),
-  ],
-  resolve: {
-    alias: { "~": fileURLToPath(new URL("./src", import.meta.url)) },
-  },
-  test: {
-    globalSetup: ["./tests/global-setup.ts"],
-    include: ["tests/**/*.test.ts"],
-    testTimeout: 30_000,
+      {
+        plugins: [react()],
+        resolve,
+        test: {
+          name: "client",
+          environment: "jsdom",
+          include: ["tests/client/**/*.test.tsx"],
+          setupFiles: ["./tests/client/setup.ts"],
+        },
+      },
+    ],
   },
 });

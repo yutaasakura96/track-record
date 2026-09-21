@@ -137,11 +137,16 @@ const routeTree = rootRoute.addChildren([
   versionEditRoute,
 ]);
 
-export const router = createRouter({
-  routeTree,
-  history: typeof window === "undefined" ? createMemoryHistory() : createBrowserHistory(),
-  defaultPreload: false,
-});
+/**
+ * The screen tests mount the real tree, gates included, over a memory history
+ * of their own (`tests/client/`). One router per test keeps a navigation in one
+ * test from leaking into the next.
+ */
+export const createAppRouter = (
+  history = typeof window === "undefined" ? createMemoryHistory() : createBrowserHistory(),
+) => createRouter({ routeTree, history, defaultPreload: false });
+
+export const router = createAppRouter();
 
 declare module "@tanstack/react-router" {
   interface Register {
