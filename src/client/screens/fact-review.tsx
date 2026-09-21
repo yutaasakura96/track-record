@@ -476,6 +476,17 @@ function FactCard({
   onSelect: () => void;
 }) {
   const { patch, resolve } = useFactAction(importId);
+  // One line of failure per card, for whichever write the author made last: a
+  // refused decision is cleared by the edit that fixes it, and the reverse.
+  const edit = (body: Parameters<typeof patch.mutate>[0]["body"]) => {
+    resolve.reset();
+    patch.mutate({ id: fact.id, body });
+  };
+  const decide = (action: "accept" | "reject" | "undo") => {
+    patch.reset();
+    resolve.mutate({ id: fact.id, action });
+  };
+  const failure = patch.error ?? resolve.error;
   const selectedFactId = useReviewStore((s) => s.selectedFactId);
   const selected = fact.id === selectedFactId;
   const claim = useRef<HTMLDivElement>(null);
@@ -512,7 +523,7 @@ function FactCard({
           <button
             type="button"
             className="ml-auto text-smaller text-text-dim hover:text-text-secondary"
-            onClick={() => resolve.mutate({ id: fact.id, action: "undo" })}
+            onClick={() => decide("undo")}
           >
             Undo
           </button>
@@ -526,9 +537,14 @@ function FactCard({
         <div className="mt-8">
           <EmployerPicker
             value={fact.employerId}
-            onChange={(employerId) => patch.mutate({ id: fact.id, body: { employerId } })}
+            onChange={(employerId) => edit({ employerId })}
           />
         </div>
+        {failure ? (
+          <p role="alert" className="mt-8 text-smaller text-removed">
+            {failureText(failure)}
+          </p>
+        ) : null}
       </article>
     );
   }
@@ -572,7 +588,7 @@ function FactCard({
         aria-label="Fact claim"
         onBlur={(event) => {
           const next = event.currentTarget.textContent?.trim() ?? "";
-          if (next && next !== fact.claim) patch.mutate({ id: fact.id, body: { claim: next } });
+          if (next && next !== fact.claim) edit({ claim: next });
         }}
         className={`mt-8 -ml-4 px-4 py-2 rounded-control text-claim cursor-text outline-none focus:bg-private-mark focus:shadow-ring ${
           isGenerated ? "italic text-generated-claim" : "text-text-strong"
@@ -594,7 +610,7 @@ function FactCard({
         <SegmentedControl
           label="Worth"
           value={fact.provenance}
-          onChange={(provenance) => patch.mutate({ id: fact.id, body: { provenance } })}
+          onChange={(provenance) => edit({ provenance })}
           segments={[
             { value: "measured", label: "Measured", tone: "measured" },
             { value: "attested", label: "Attested", tone: "accent" },
@@ -604,7 +620,7 @@ function FactCard({
         <SegmentedControl
           label="Who"
           value={fact.disclosure}
-          onChange={(disclosure) => patch.mutate({ id: fact.id, body: { disclosure } })}
+          onChange={(disclosure) => edit({ disclosure })}
           segments={[
             { value: "public", label: "Public", tone: "measured" },
             { value: "restricted", label: "Restricted", tone: "restricted" },
@@ -613,13 +629,13 @@ function FactCard({
         />
         <EmployerPicker
           value={fact.employerId}
-          onChange={(employerId) => patch.mutate({ id: fact.id, body: { employerId } })}
+          onChange={(employerId) => edit({ employerId })}
         />
       </div>
 
-      {patch.error ? (
+      {failure ? (
         <p role="alert" className="mt-10 text-smaller text-removed">
-          {patch.error.message}
+          {failureText(failure)}
         </p>
       ) : null}
 
@@ -630,7 +646,7 @@ function FactCard({
       ) : null}
 
       <div className="mt-12 flex items-center gap-10">
-        <Button variant="ghost" onClick={() => resolve.mutate({ id: fact.id, action: "reject" })}>
+        <Button variant="ghost" onClick={() => decide("reject")}>
           Reject
         </Button>
         {isGenerated ? (
@@ -639,7 +655,7 @@ function FactCard({
         <Button
           variant="primary"
           className="ml-auto"
-          onClick={() => resolve.mutate({ id: fact.id, action: "accept" })}
+          onClick={() => decide("accept")}
         >
           {isPrivate ? "Accept · private" : "Accept"}
         </Button>

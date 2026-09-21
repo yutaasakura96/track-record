@@ -426,7 +426,7 @@ function RestorePreview({
           {/* The server's refusal, in place. Both are dead ends with a route
               out, and neither is stated as something to retry. */}
           {refusal !== null ? (
-            <p role="alert" className="text-smaller text-text-secondary">
+            <p role="alert" className="text-smaller text-removed">
               {failureText(refusal)}{" "}
               {proposalId ? (
                 <Link

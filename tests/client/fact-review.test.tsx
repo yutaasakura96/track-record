@@ -238,6 +238,62 @@ describe("a candidate card", () => {
     expect((await within(attested).findByRole("alert")).textContent).toBe("That claim is too long to save.");
     expect(within(await card("f-measured")).queryByRole("alert")).toBeNull();
   });
+
+  it("says so on the card when a patch never reaches the server", async () => {
+    const { user } = open(CANDIDATES, {
+      routes: {
+        "PATCH /api/facts/f-attested": () => {
+          throw new TypeError("Failed to fetch");
+        },
+      },
+    });
+    const attested = await card("f-attested");
+
+    await user.click(within(attested).getByRole("radio", { name: "Measured" }));
+
+    expect((await within(attested).findByRole("alert")).textContent).toBe(
+      "The server could not be reached. Try again.",
+    );
+  });
+
+  it.each([
+    ["Accept", "accept", new Refusal(409, "conflict", "That fact was already decided.")],
+    ["Reject", "reject", new Refusal(409, "conflict", "That fact was already decided.")],
+    [
+      "Reject",
+      "reject",
+      () => {
+        throw new TypeError("Failed to fetch");
+      },
+    ],
+  ])("says why on the card when %s fails, and leaves it open", async (button, action, answer) => {
+    const said = answer instanceof Refusal ? answer.message : "The server could not be reached. Try again.";
+    const { api, user } = open(CANDIDATES, { routes: { [`POST /api/facts/f-attested/${action}`]: answer } });
+    const attested = await card("f-attested");
+
+    await user.click(within(attested).getByRole("button", { name: button }));
+
+    expect((await within(attested).findByRole("alert")).textContent).toBe(said);
+    expect(within(await card("f-measured")).queryByRole("alert")).toBeNull();
+    expect(within(await card("f-attested")).getByRole("button", { name: "Accept" })).toBeTruthy();
+    expect(api.writes()).toEqual([`POST /api/facts/f-attested/${action}`]);
+  });
+
+  it("clears a refused decision when the next edit goes through", async () => {
+    const { user } = open(CANDIDATES, {
+      routes: {
+        "POST /api/facts/f-attested/accept": new Refusal(409, "conflict", "That fact was already decided."),
+        "PATCH /api/facts/f-attested": fact("f-attested", "weekly plinth review", { provenance: "measured" }),
+      },
+    });
+    const attested = await card("f-attested");
+
+    await user.click(within(attested).getByRole("button", { name: "Accept" }));
+    await within(attested).findByRole("alert");
+    await user.click(within(attested).getByRole("radio", { name: "Measured" }));
+
+    await waitFor(() => expect(within(attested).queryByRole("alert")).toBeNull());
+  });
 });
 
 describe("the rail", () => {
@@ -292,6 +348,17 @@ describe("the rail", () => {
     await user.click(within(await card("f-attested")).getByRole("button", { name: "Undo" }));
 
     await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-attested/undo"]));
+  });
+
+  it("says why on a resolved card when Undo is refused", async () => {
+    const { user } = open(RESOLVED, {
+      routes: { "POST /api/facts/f-attested/undo": new Refusal(409, "conflict", "This import is finished.") },
+    });
+    const attested = await card("f-attested");
+
+    await user.click(within(attested).getByRole("button", { name: "Undo" }));
+
+    expect((await within(attested).findByRole("alert")).textContent).toBe("This import is finished.");
   });
 
   it("finishes the import and then goes home", async () => {
