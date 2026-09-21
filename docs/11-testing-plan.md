@@ -308,7 +308,7 @@ in §2. Items 1–4 stay human — they are judgement calls about a document a p
 
 | Not tested | Why acceptable |
 |---|---|
-| Model output *quality* | Not assertable. This is what M1's by-eye comparison and the M2 bake-off are for |
+| Model output *quality* | Not assertable. This is what the by-eye comparison against the hand-produced documents is for |
 | A broad end-to-end suite | One smoke test exists (§2.9). Beyond that, E2E suites rot fastest and catch least at three screens and one developer |
 | Visual regression / screenshot diffing | One developer, three screens, dark theme only. The setup cost exceeds the bugs it would catch |
 | Load and performance | One user. Revisit at the first invited second user |

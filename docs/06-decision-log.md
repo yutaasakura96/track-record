@@ -3500,3 +3500,34 @@ and a third action would need explaining on a screen that exists to say somethin
 **No API change.** The dismiss route already accepted a failed proposal. The screen still chooses
 Failed on `generation_status` before `status`, so a failed proposal that was dismissed still reads
 as Failed from its own URL, and both actions stay safe there because dismissing twice is a no-op.
+
+---
+
+### [2026-09-21] Anthropic stays the only provider, and the bake-off is dropped
+
+Supersedes the bake-off consequence of the 2026-08-12 generation-layer entry. The choice of
+`claude-opus-5` itself stands.
+
+**The bake-off is not run.** It existed to answer one question, Japanese quality by provider, and
+the author has decided the answer is not worth the setup. Everything else that entry weighed was
+already settled in Anthropic's favour or was a wash: the cost spread was about $15 a year, the
+Anthropic adapter already streams extraction and forces the render tool call, the suite runs against
+that seam, and Anthropic is the only candidate whose API data terms have been read. Running a
+challenger would have meant two new adapters and two policy reads before the first comparison.
+
+**OpenAI is not adopted.** Nothing this product can name would be gained, and the forced structured
+output would have to be proven again on a second API.
+
+**Kimi K3 is not adopted for autocorrect either.** It was raised as a cheap model for correcting
+misspelled input. On imported documents it is ruled out by the schema, not by price: a fact's quote
+must match its source text exactly and a source version is never changed in place, so correcting
+source text would break both. A typo in a source document stays in that version. For text the author
+types, the saving is cents, and it would add a third provider, an unread set of data terms, and a
+second function on a seam that is meant to have two. That question stays open, and if it is taken up
+the first candidates are the browser's own spellcheck or a call behind the existing seam.
+
+**What stays.** The seam and `ANTHROPIC_MODEL` remain. They still make a model upgrade a config
+value, and they keep a provider change one adapter file if the renders ever read wrong.
+
+**Revisit if:** the author judges a Japanese render to read materially worse than the hand-produced
+document for reasons the register cannot fix.

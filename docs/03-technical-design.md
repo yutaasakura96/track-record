@@ -121,8 +121,8 @@ extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[
 generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
 ```
 
-Swapping providers is a config value plus one adapter file. This is what makes the M2 bake-off
-(Opus 5 vs Kimi K3 vs GPT-5.6 Terra) cheap enough to actually run.
+Swapping providers is a config value plus one adapter file. The M2 bake-off this was built for was
+dropped on 2026-09-21 (`docs/06`); the seam stays, so a model upgrade or a later swap stays cheap.
 
 **The seam distinguishes calls a human is waiting on from calls nobody is watching.** Decided
 2026-08-29. `ExtractionContext` carries that flag from the start, even though M1 has only one
@@ -455,7 +455,7 @@ by blocking generation on missing fields, and by warning on unexplained gaps. M2
 | 3 | **Workers CPU budget for `.docx` assembly and long diffs** — **verified**: paid plan gives 30 s CPU per invocation, raisable to **5 minutes** via `limits.cpu_ms`; subrequests 10,000, raisable to 10M. Generous, but a high ceiling does not prove our code fits under it | Measure during M1 |
 | 3b | **Anthropic strict-schema complexity limits** — ~24 optional parameters combined across all strict schemas per request, plus internal compiled-grammar limits, returning `400 "Schema is too complex for compilation."` | Headroom, not a risk — **provided extraction stays one small, mostly-required strict tool** |
 | 4 | **Paragraph-alignment quality** on heavily restructured renders | Tune the similarity threshold against real proposals |
-| 5 | **Japanese generation quality by provider** | The M2 bake-off. Ground truth already exists in `local/JAPANESE/` |
+| 5 | **Japanese generation quality by provider** | **Closed 2026-09-21 without a bake-off.** Anthropic stays the only provider (`docs/06`); quality is judged by eye against `local/JAPANESE/` |
 
 ---
 
@@ -469,7 +469,7 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | # | Item | Trigger / note |
 |---|---|---|
 | 1 | **Cross-document numeric conflicts** — two documents asserting different numbers for the same thing | Impossible in M1 (one document, one employer). Needs a notion of "the same thing" across documents |
-| 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | When 職務経歴書 generation exists. Ground truth is in `local/JAPANESE/` |
+| 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | **Dropped 2026-09-21** (`docs/06`). Anthropic stays the only provider |
 | 3 | **Entity extraction / bootstrap flow** (`09` Flow 7) | Before importing the back catalogue in bulk |
 | 4 | **Batch import** (`09` Flow 8) | With Flow 7 |
 | 5 | **`docx` / `docxtemplater` Workers spike** | **Done 2026-09-08** (`docs/06`). Both libraries run on workerd; 履歴書 work is no longer gated on it |

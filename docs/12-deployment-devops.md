@@ -43,7 +43,7 @@ that way.
 | `GOOGLE_CLIENT_ID` | OIDC | Google Cloud console |
 | `GOOGLE_CLIENT_SECRET` | OIDC | Google Cloud console |
 | `ALLOWED_SIGNUP_EMAILS` | Invite gate (`08` §2) | Config, not a secret — but environment-specific |
-| `ANTHROPIC_MODEL` | Model ID, default `claude-opus-5` | Config. Exists so the M2 bake-off needs no deploy |
+| `ANTHROPIC_MODEL` | Model ID, default `claude-opus-5` | Config. Exists so a model change needs no deploy |
 
 **Two Google OAuth clients**, one per environment, because the redirect URIs differ. Sharing one
 between local and production means a local misconfiguration can break production sign-in.
