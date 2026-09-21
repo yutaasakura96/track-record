@@ -159,7 +159,7 @@ Same layout, same components. Differences that are **requirements, not styling**
 | State | Behaviour |
 |---|---|
 | **Generating** | Proposed column shows a skeleton; current column is fully readable throughout |
-| **Generation failed** | Current version untouched and readable. Error states the reason; action is retry. Never a blank proposed column with no explanation |
+| **Generation failed** | Current version untouched and readable. Error states the reason; action is retry. Never a blank proposed column with no explanation. Retry and **Back to your record** both dismiss the failed proposal, so none is left pending |
 | **No changes proposed** | Do not open the diff. Report `Already up to date with your record` on the overview |
 | **Every line changed** | Renders normally. Reject-all remains one action |
 

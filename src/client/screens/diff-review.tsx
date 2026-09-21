@@ -10,11 +10,13 @@
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
+  ApiError,
   useDecideProposal,
   useDiff,
+  useGenerate,
   useProposal,
   type DiffChange,
   type Proposal,
@@ -110,10 +112,19 @@ const Generating = ({ proposal }: { proposal: Proposal }) => (
  * that does not exist, and **Download the current version** offers an accepted
  * version that was never created. A failure screen is the worst place to
  * describe a state the author does not have.
+ *
+ * Both actions dismiss the failed proposal. It holds no document and nothing
+ * reads it, but left alone it would stay `pending` forever. **Back** dismisses
+ * as Unchanged's does. **Try again** generates first and dismisses after, so a
+ * retry that cannot start leaves the screen as it was.
  */
 function Failed({ proposal }: { proposal: Proposal }) {
   const navigate = useNavigate();
+  const generate = useGenerate();
+  const { dismiss } = useDecideProposal(proposal.id);
+  const [failure, setFailure] = useState<string | null>(null);
   const first = proposal.basedOnVersionNo === null;
+  const busy = generate.isPending || dismiss.isPending;
   return (
     <main className="flex-1 grid place-items-center px-20">
       <div className="w-measure max-w-full text-center">
@@ -124,6 +135,11 @@ function Failed({ proposal }: { proposal: Proposal }) {
             ? "Nothing was saved, and your record is unchanged."
             : "Your current version is unchanged and still readable."}
         </p>
+        {failure ? (
+          <p role="alert" className="mt-12 text-small text-text-secondary">
+            {failure}
+          </p>
+        ) : null}
         <div className="mt-20 flex items-center justify-center gap-10">
           {first ? null : (
             <DownloadButton
@@ -132,8 +148,34 @@ function Failed({ proposal }: { proposal: Proposal }) {
               className="border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
             />
           )}
-          <Button variant="primary" onClick={() => void navigate({ to: "/" })}>
+          <Button
+            disabled={busy}
+            disabledReason={busy ? "Working…" : undefined}
+            onClick={async () => {
+              await dismiss.mutateAsync().catch(() => undefined);
+              await navigate({ to: "/" });
+            }}
+          >
             Back to your record
+          </Button>
+          <Button
+            variant="primary"
+            disabled={busy}
+            disabledReason={busy ? "Working…" : undefined}
+            onClick={async () => {
+              setFailure(null);
+              let created: { proposalId: string };
+              try {
+                created = await generate.mutateAsync(proposal.renderKind);
+              } catch (error) {
+                setFailure(error instanceof ApiError ? error.message : "Generation could not be started.");
+                return;
+              }
+              await dismiss.mutateAsync().catch(() => undefined);
+              await navigate({ to: "/proposals/$proposalId", params: { proposalId: created.proposalId } });
+            }}
+          >
+            Try again
           </Button>
         </div>
       </div>

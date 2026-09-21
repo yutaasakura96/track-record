@@ -3479,3 +3479,24 @@ the waiting proposal before any of the profile and fact checks run.
 **Known and left.** The loser rereads to name the winner, and if the winner failed in between there
 is no id to give; the refusal is sent without one. The window is two queries wide and the author's
 next click succeeds. Applying the migration to the dev database is the author's step.
+
+### [2026-09-21] The Failed screen retries, and leaving it dismisses
+
+The first 2026-09-16 entry kept Dismiss off the Failed screen because adding it would have moved UI
+to settle an API rule. The second left a failed proposal `pending` forever, invisible but never
+closed. `docs/10` had asked for retry on this state all along, and the screen offered only Back and
+a download.
+
+**Try again generates, then dismisses the failed proposal, then opens the new one.** Generate
+already allows a retry while a failed proposal exists, so the order costs nothing. Generating first
+means a retry that cannot start, such as a profile that is no longer buildable, leaves the screen
+and the failed proposal as they were and shows the reason. A dismiss that fails after the new
+generation started is ignored: the failed proposal blocks nothing.
+
+**Back to your record dismisses first**, as the Unchanged screen's Back already does, and navigates
+whether or not the dismiss succeeds. No separate Dismiss button was added. Leaving is the decision,
+and a third action would need explaining on a screen that exists to say something went wrong.
+
+**No API change.** The dismiss route already accepted a failed proposal. The screen still chooses
+Failed on `generation_status` before `status`, so a failed proposal that was dismissed still reads
+as Failed from its own URL, and both actions stay safe there because dismissing twice is a no-op.
