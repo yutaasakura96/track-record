@@ -3615,3 +3615,36 @@ about a second.
 
 **Revisit if:** a review-screen bug turns out to depend on layout or scrolling, which would argue for
 browser mode on those tests only.
+
+### [2026-09-21] Version History and Version Edit get client tests, and an unreachable server is said on three more controls
+
+The client project from the previous entry now covers Screens 5 and 6.
+
+**What is covered.** Version History: Compare is offered on every version but the current one, which
+offers Edit instead; an edited version names its parent; Enter on a row opens the preview; opening,
+cancelling and escaping the preview write nothing; Restore sends one restore for the version the
+preview showed; a `409` names the pending proposal and links to it; a `422` lists every fact in the
+way; Generate on an empty history opens the proposal it started, and says so when refused; a
+refused or unreachable download says why and writes nothing. Version Edit: Save is off until
+something changed, an added block left empty is not a change, and an edit cannot empty the
+document; a save is based on the current version and carries exactly the edit made, including one
+citation removed from one block; warnings keep the author on the saved panel; a refused save names
+the facts and keeps the draft; a stale version offers the reload. Three deliberate breaks (restoring
+the current version instead of the previewed one, saving against the wrong base, sending empty
+blocks) each turned the relevant tests red.
+
+**What the tests found.** Restore, Save as vN and Download each caught only an `ApiError` and threw
+anything else back out. When the request never arrived, the rejection went nowhere: the button came
+back, nothing was said, and the author could not tell whether the version had been restored or
+saved. Each now keeps whatever was thrown and states it through `failureText`, the same sentence the
+review screens use. The proposal link, the fact list and the reload offer still read the
+`ApiError`'s details, so they appear only for a refusal. The editor's draft survives either way.
+
+**The harness.** `Refusal` takes an optional `details` object, because the proposal link and the fact
+list are only reachable through a refusal that names them.
+
+**Not covered.** Typing into a block's text, and Escape restoring it. The block is a
+`contentEditable` that commits on blur, and these tests edit through Delete, Remove citation and
+Add instead. Documents, Overview, Record and Skills still have no client tests.
+
+**Revisit if:** a text-editing bug reaches Screen 6, which would argue for browser mode on that screen.
