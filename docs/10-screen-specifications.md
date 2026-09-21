@@ -214,9 +214,27 @@ The same row and the same rule serve the empty state's drop target and Screen 8'
 A re-import keeps the document's project, which is stored on the document and not on the version
 (`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
 
-**A document's project is set at import and not afterwards.** There is no endpoint that changes it
-(`07-api-design.md` §4 has no `PATCH /api/source-documents/:id`), so filing a document under the
-wrong project, or under none, is corrected only by importing it again as a new document.
+### Refiling a document
+
+**The project is the only thing about a document that changes after import**, so the project label
+on the document's header row *is* the control rather than a sixth button competing with `Re-import`
+on the right. It reads the project's name, or `No project`, and clicking it opens a refile row under
+the header: the label `File it under`, a project select set to where the document is filed now, the
+line `Its facts move with it.`, then `Cancel` (bare) and `Refile` (primary).
+
+- **The projects are read when the row opens**, not off the listing, for the reason the import
+  picker reads them when a file is chosen: a select built from a query still in flight offers
+  `No project` and nothing else, which reads as a record with no projects in it. A failed read
+  shows `Your projects could not be read. Try again.` and does not open the row
+- **`Refile` is disabled while the select still names the current project**, with the reason
+  `This document is already filed there.`
+- **The label is not a control while a version is extracting** — the same `reimportable` flag that
+  disables `Re-import`, because `PATCH /api/source-documents/:id` refuses in the same window and for
+  the same reason (`07-api-design.md` §5)
+- **`No project` is an answer, not an absence.** It is how a document filed by mistake gets unfiled
+
+Refiling moves the document's facts with it, which is what makes Screen 4's project `Delete`
+reachable at all: its `409` says `Refile them from Documents before deleting.` and means it.
 
 ### Empty state
 

@@ -15,15 +15,23 @@ import {
   ApiError,
   isImportRunning,
   useDocuments,
+  useEntitiesOnDemand,
   useProfile,
+  useRefileDocument,
   useRetryImport,
   useStartImport,
   type DocumentVersion,
+  type Project,
   type SourceDocumentRow,
 } from "../api";
 import { Button, Chip, Mono, ProgressBar } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
-import { IMPORT_ACCEPT, ImportDropTarget, useImportPicker } from "../components/import-picker";
+import {
+  IMPORT_ACCEPT,
+  ImportDropTarget,
+  SELECT_CONTROL,
+  useImportPicker,
+} from "../components/import-picker";
 import { absolute, relative } from "../format";
 
 export function DocumentsScreen() {
@@ -88,12 +96,50 @@ function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
 function DocumentBlock({ document }: { document: SourceDocumentRow }) {
   const navigate = useNavigate();
   const start = useStartImport();
+  const refile = useRefileDocument();
+  const readProjects = useEntitiesOnDemand<Project>("projects");
   const input = useRef<HTMLInputElement>(null);
   const [chosen, setChosen] = useState<File | null>(null);
+  const [refiling, setRefiling] = useState<Project[] | null>(null);
+  const [filedUnder, setFiledUnder] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const newest = document.versions[0];
   const count = document.versions.length;
+
+  // Asked for at the moment the row opens, not read off the listing: a select
+  // built from a query still in flight would offer `No project` and nothing
+  // else, which reads as a record with no projects in it.
+  const openRefile = async () => {
+    setRefusal(null);
+    let projects: Project[];
+    try {
+      projects = (await readProjects()).items;
+    } catch {
+      setRefusal("Your projects could not be read. Try again.");
+      return;
+    }
+    if (projects.length === 0 && !document.project) {
+      setRefusal("There are no projects to file this document under.");
+      return;
+    }
+    setFiledUnder(document.project?.id ?? "");
+    setRefiling(projects);
+  };
+
+  const confirmRefile = async () => {
+    setRefusal(null);
+    try {
+      await refile.mutateAsync({
+        sourceDocumentId: document.sourceDocumentId,
+        projectId: filedUnder || null,
+      });
+      setRefiling(null);
+    } catch (caught) {
+      setRefiling(null);
+      setRefusal(caught instanceof ApiError ? caught.message : "That document could not be refiled.");
+    }
+  };
 
   const confirm = async () => {
     if (!chosen) return;
@@ -111,10 +157,24 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
     <section className="bg-surface-raised border border-border rounded-panel">
       <div className="flex items-center gap-12 px-16 py-12 border-b border-border-inner">
         <Chip>{document.filename}</Chip>
-        {document.project ? (
-          <span className="text-smaller text-text-dim">{document.project.name}</span>
+        {/*
+          The project is the only thing about a document that changes after
+          import, so it is the label itself that opens the row rather than a
+          sixth control competing with `Re-import` on the right.
+        */}
+        {document.reimportable ? (
+          <Button
+            variant="bare"
+            className={document.project ? "text-smaller text-text-dim" : "text-smaller text-text-dimmer"}
+            aria-label={`File ${document.filename} under a different project`}
+            onClick={() => void openRefile()}
+          >
+            {document.project ? document.project.name : "No project"}
+          </Button>
         ) : (
-          <span className="text-smaller text-text-dimmer">No project</span>
+          <span className={document.project ? "text-smaller text-text-dim" : "text-smaller text-text-dimmer"}>
+            {document.project?.name ?? "No project"}
+          </span>
         )}
         <Mono className="text-text-dimmer">
           {count} {count === 1 ? "version" : "versions"}
@@ -149,6 +209,46 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
           )}
         </span>
       </div>
+
+      {refiling ? (
+        <div className="flex items-center gap-12 px-16 py-10 border-b border-border-inner">
+          <label className="flex items-center gap-8 text-smaller text-text-dim">
+            File it under
+            <select
+              className={SELECT_CONTROL}
+              value={filedUnder}
+              onChange={(event) => setFiledUnder(event.target.value)}
+            >
+              <option value="">No project</option>
+              {refiling.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-smaller text-text-dimmer">Its facts move with it.</p>
+          <span className="ml-auto flex items-center gap-8">
+            <Button variant="bare" onClick={() => setRefiling(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={() => void confirmRefile()}
+              disabled={refile.isPending || filedUnder === (document.project?.id ?? "")}
+              disabledReason={
+                refile.isPending
+                  ? "Refiling…"
+                  : filedUnder === (document.project?.id ?? "")
+                    ? "This document is already filed there."
+                    : undefined
+              }
+            >
+              Refile
+            </Button>
+          </span>
+        </div>
+      ) : null}
 
       {chosen ? (
         <div className="flex items-center gap-12 px-16 py-10 border-b border-border-inner">

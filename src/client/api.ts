@@ -722,6 +722,29 @@ export function useStartImport() {
   });
 }
 
+/**
+ * Refiling a document, which moves its facts with it.
+ *
+ * The source-text query carries the Fact Review breadcrumb's project, so it is
+ * invalidated by document prefix rather than by the one version on screen.
+ */
+export function useRefileDocument() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { sourceDocumentId: string; projectId: string | null }) =>
+      api<{ sourceDocumentId: string; project: { id: string; name: string } | null; facts: number }>(
+        `/api/source-documents/${input.sourceDocumentId}`,
+        { method: "PATCH", ...json({ projectId: input.projectId }) },
+      ),
+    onSuccess: (result) => {
+      void queryClient.invalidateQueries({ queryKey: ["source", result.sourceDocumentId] });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
+    // A refused refile re-reads the list as well: the 409 means it was stale.
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
+  });
+}
+
 export function useRetryImport() {
   const queryClient = useQueryClient();
   return useMutation({

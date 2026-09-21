@@ -43,6 +43,19 @@ describe("deny-by-default routing", () => {
     }
   });
 
+  /**
+   * Screen 8's project label opens a refile row, and the refusal on Screen 4's
+   * Delete tells the author to go use it. Two screens now point at this route,
+   * and neither can work without it.
+   */
+  it("registers the refile route both Screen 8 and the project refusal depend on", () => {
+    expect(registeredRoutes()).toContainEqual({
+      method: "PATCH",
+      path: "/api/source-documents/:id",
+      isPublic: false,
+    });
+  });
+
   it("exempts only the auth callbacks", () => {
     const publicRoutes = registeredRoutes().filter((r) => r.isPublic);
     for (const route of publicRoutes) {

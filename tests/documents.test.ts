@@ -233,6 +233,126 @@ describe("the project a document is filed under", () => {
   });
 });
 
+/**
+ * Refiling, which is the ONLY thing about a source document that changes after
+ * import (`docs/07` §5, `docs/06` 2026-09-21). A fact's project is its
+ * document's, so the two move in one act or the record says two things at once.
+ */
+describe("refiling a document", () => {
+  const project = async (name: string) =>
+    (await (await client.post("/api/projects", { name })).json()) as { id: string };
+
+  const factsUnder = async (projectId: string) =>
+    ((await client.json(`/api/facts?projectId=${projectId}`)) as { items: { id: string }[] }).items;
+
+  const importOneFact = async (projectId?: string) => {
+    model.extractions = [[{ claim: "Reduced nightly batch runtime", quote: QUOTE, technologies: [] }]];
+    return importDocument(CASE_STUDY, "harbor-notes.md", projectId ? { projectId } : {});
+  };
+
+  it("moves the document and the facts extracted from it together", async () => {
+    const harbour = await project("Harbour lantern");
+    const orchard = await project("Orchard ledger");
+    const imported = await importOneFact(harbour.id);
+    expect(await factsUnder(harbour.id)).toHaveLength(1);
+
+    const response = await client.patch(`/api/source-documents/${imported.sourceDocumentId}`, {
+      projectId: orchard.id,
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      sourceDocumentId: imported.sourceDocumentId,
+      project: { id: orchard.id, name: "Orchard ledger" },
+      // A count, never a claim.
+      facts: 1,
+    });
+
+    expect((await listing()).documents[0]!.project).toEqual({ id: orchard.id, name: "Orchard ledger" });
+    expect(await factsUnder(harbour.id)).toEqual([]);
+    expect(await factsUnder(orchard.id)).toHaveLength(1);
+  });
+
+  it("moves the facts of every version, not only the newest", async () => {
+    const harbour = await project("Harbour lantern");
+    const first = await importOneFact();
+
+    model.extractions = [[{ claim: "Added partition pruning", quote: SECOND_QUOTE, technologies: [] }]];
+    await importDocument(`${CASE_STUDY}
+${SECOND_QUOTE}
+`, "harbor-notes.md", {
+      sourceDocumentId: first.sourceDocumentId,
+    });
+
+    await client.patch(`/api/source-documents/${first.sourceDocumentId}`, { projectId: harbour.id });
+    expect(await factsUnder(harbour.id)).toHaveLength(2);
+  });
+
+  it("files a document back under no project, which is the only way back to unfiled", async () => {
+    const harbour = await project("Harbour lantern");
+    const imported = await importOneFact(harbour.id);
+
+    const response = await client.patch(`/api/source-documents/${imported.sourceDocumentId}`, {
+      projectId: null,
+    });
+    expect(response.status).toBe(200);
+    expect((await listing()).documents[0]!.project).toBeNull();
+    expect(await factsUnder(harbour.id)).toEqual([]);
+  });
+
+  /**
+   * A chunk that read the old project before the move and inserted its facts
+   * after it would leave those facts behind, filed under a project the document
+   * is no longer under, with nothing to say so. The refusal is the re-import's,
+   * word for word, because it is the same wait.
+   */
+  it("is refused at 409 while the newest version is still extracting", async () => {
+    const harbour = await project("Harbour lantern");
+    // Hold extraction open, so the newest version cannot finish while the
+    // refile is attempted.
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    const extract = model.extractFacts.bind(model);
+    model.extractFacts = async (text, ctx) => {
+      await gate;
+      return extract(text, ctx);
+    };
+
+    const response = await upload(CASE_STUDY, "harbor-notes.md");
+    const { sourceDocumentId } = (await response.json()) as { sourceDocumentId: string };
+
+    const refused = await client.patch(`/api/source-documents/${sourceDocumentId}`, {
+      projectId: harbour.id,
+    });
+    expect(refused.status).toBe(409);
+    const body = (await refused.json()) as { error: { code: string; message: string } };
+    expect(body.error.code).toBe("conflict");
+    expect(body.error.message).toBe("Wait for v1 to finish extracting.");
+
+    release();
+    await settle();
+    expect((await listing()).documents[0]!.project).toBeNull();
+  });
+
+  it("refuses at 404 a project the author does not own, and moves nothing", async () => {
+    const harbour = await project("Harbour lantern");
+    const imported = await importOneFact(harbour.id);
+
+    const response = await client.patch(`/api/source-documents/${imported.sourceDocumentId}`, {
+      projectId: "prj_not_yours",
+    });
+    expect(response.status).toBe(404);
+    expect(await factsUnder(harbour.id)).toHaveLength(1);
+  });
+
+  it("refuses at 404 a document the author does not own", async () => {
+    const harbour = await project("Harbour lantern");
+    const response = await client.patch("/api/source-documents/doc_not_yours", {
+      projectId: harbour.id,
+    });
+    expect(response.status).toBe(404);
+  });
+});
+
 describe("the sidebar summary", () => {
   it("counts the same open candidates the listing does", async () => {
     model.extractions = [

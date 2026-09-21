@@ -208,9 +208,10 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
    * `on delete restrict`. The counts are read first so the refusal can say what
    * is in the way, exactly as an employer's does (`docs/07` §4).
    *
-   * The documents count is not hypothetical: a document is filed under a
-   * project at import and nothing moves it afterwards (`docs/06`, 2026-09-20),
-   * so a project with documents is refused until they are reassigned.
+   * The documents count is not hypothetical, and the remedy is real: a document
+   * is filed under a project at import and `PATCH /api/source-documents/:id`
+   * moves it afterwards (`docs/06`, 2026-09-21), taking its facts with it. A
+   * project with documents is refused until they are refiled.
    */
   api.delete("/api/projects/:id", async (c) => {
     const userId = c.get("user").id;
@@ -220,13 +221,12 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
 
     const attached = await countProjectReferences(db, userId, id);
     if (attached.facts + attached.documents > 0) {
-      // A document's project is set at import and nothing moves it, so the
-      // refusal says so rather than asking for a reassignment the author has
-      // no way to perform. A project with a document under it cannot be
-      // deleted at all today; that is stated, not hidden behind a `409` that
-      // reads as temporary.
+      // A document names the control that moves it, because the author has to
+      // find it on Screen 8 rather than on the screen they are refused on.
+      // Every fact with a project came from a document, so a facts-only
+      // refusal is the employer wording and unreachable through a document.
       const remedy = attached.documents
-        ? "A document's project is set at import and cannot be changed, so this project cannot be deleted."
+        ? "Refile them from Documents before deleting."
         : "Reassign them before deleting.";
       throw conflict(`This project has ${describe(attached)} attached. ${remedy}`, { ...attached });
     }

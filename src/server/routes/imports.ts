@@ -12,12 +12,17 @@ import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions 
 import { ApiError, conflict, notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
+import { parseBody } from "../services/validate";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
 import { runImport } from "~/pipeline/import";
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
 import type { Context } from "hono";
+import { z } from "zod";
+
+/** `null` is the answer `No project`, and it is the only way back to unfiled. */
+const refileBody = z.object({ projectId: z.string().trim().min(1).nullable() });
 
 export function registerImportRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -348,6 +353,92 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       .where(and(eq(facts.userId, user.id), eq(facts.sourceDocumentVersionId, versionId)));
 
     return c.json({ importId: versionId, acceptedFacts: accepted });
+  });
+
+  /**
+   * Refiling a document (`docs/07` §5). The ONLY thing about a source document
+   * that changes after import.
+   *
+   * The document and every fact extracted from every one of its versions move
+   * together, in one batch. A fact's project has always been its document's,
+   * snapshotted at extraction (`import.ts` reads `project_id` per chunk); this
+   * keeps that rule true by making the following happen more than once rather
+   * than by giving a fact a project of its own.
+   *
+   * **Refused while the newest version is running**, in the words a re-import
+   * is refused in. A chunk that read the old project before the move and
+   * inserted its facts after it would leave those facts behind, filed under a
+   * project the document is no longer under, and nothing would say so.
+   */
+  api.patch("/api/source-documents/:id", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    const body = await parseBody(c, refileBody);
+    const projectId = body.projectId ?? null;
+
+    const [document] = await db
+      .select({ id: sourceDocuments.id })
+      .from(sourceDocuments)
+      .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, id)))
+      .limit(1);
+    if (!document) throw notFound("That document");
+
+    // A foreign key alone would let one user file a document under another
+    // user's project. Ownership is checked in the same query that reads it.
+    let project: { id: string; name: string } | null = null;
+    if (projectId) {
+      const [owned] = await db
+        .select({ id: projects.id, name: projects.name })
+        .from(projects)
+        .where(and(eq(projects.userId, user.id), eq(projects.id, projectId)))
+        .limit(1);
+      if (!owned) throw notFound("That project");
+      project = owned;
+    }
+
+    const [newest] = await db
+      .select({ versionNo: sourceDocumentVersions.versionNo, status: sourceDocumentVersions.importStatus })
+      .from(sourceDocumentVersions)
+      .where(
+        and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.sourceDocumentId, id)),
+      )
+      .orderBy(desc(sourceDocumentVersions.versionNo))
+      .limit(1);
+    if (newest && isRunning(newest.status)) {
+      throw conflict(`Wait for v${newest.versionNo} to finish extracting.`, {
+        versionNo: newest.versionNo,
+      });
+    }
+
+    const now = new Date();
+    // Two tables, one transaction. A document moved without its facts would be
+    // filed under one project and quoted under another, with nothing to say
+    // which was meant. The facts are matched through a subselect rather than
+    // through ids read first, so a version created between the two cannot be
+    // missed.
+    const [, moved] = await db.batch([
+      db
+        .update(sourceDocuments)
+        .set({ projectId, updatedAt: now })
+        .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, id))),
+      db
+        .update(facts)
+        .set({ projectId, updatedAt: now })
+        .where(
+          and(
+            eq(facts.userId, user.id),
+            sql`${facts.sourceDocumentVersionId} in (
+              select id from source_document_versions
+              where source_document_id = ${id} and user_id = ${user.id}
+            )`,
+          ),
+        )
+        .returning({ id: facts.id }),
+    ]);
+
+    // A count, never a claim.
+    return c.json({ sourceDocumentId: id, project, facts: moved.length });
   });
 
   /**

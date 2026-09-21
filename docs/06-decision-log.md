@@ -3358,3 +3358,54 @@ real changes to the rule that a fact's filing follows its document, and neither 
 
 **The enumeration test gained an assertion, not a route.** It now asserts a `DELETE` exists for each
 of the five collections the record screen offers one for, which is the invariant that was violated.
+
+### [2026-09-21] A document is refiled, and its facts move with it
+
+Yesterday's entry recorded a dead end: a document filed under the wrong project on import could not
+be corrected, and the filing pinned the project in place permanently. It named two ways out and took
+neither. This takes the first. `PATCH /api/source-documents/:id` sets a document's project, and in
+the same transaction sets it on every fact extracted from every one of its versions.
+
+**The rule survives, it just stops happening only once.** A fact's project has always been its
+document's, read at extraction time (`src/pipeline/import.ts` reads `project_id` per chunk). The
+alternative was to give a fact a project of its own, which is what `PATCH /api/facts/:id` accepting
+`projectId` would have meant, and then two places would say where a fact is filed and they could
+disagree. `PATCH /api/facts/:id` still takes `employerId` and no `projectId`.
+
+**The other way out was not taken, and is not left open either.** A delete that detached documents
+and facts would have made the project row disappear without correcting anything: the document would
+still be misfiled, now under nothing, and the facts with it. It solved the symptom the author
+noticed and not the injury. Deletion is reachable now as a consequence of refiling rather than as a
+second mechanism: refile the documents away, then delete.
+
+**The refusal on `DELETE /api/projects/:id` becomes an instruction.** It read `A document's project
+is set at import and cannot be changed, so this project cannot be deleted.`, which was true and was
+a confession. It now reads `Refile them from Documents before deleting.` and names the screen,
+because the author is refused on Screen 4 and has to go to Screen 8 to act. The counts are unchanged
+and are still counts. A test now follows the refusal through: refile, then delete, then `204`.
+
+**A refile is refused while the newest version is extracting, in the re-import's words.** A chunk
+that read the old project before the move and inserted its facts after it would leave those facts
+behind, filed under a project the document is no longer under, with nothing to say so. The window is
+narrow and it is silent, which is the combination worth closing. The message is
+`Wait for v2 to finish extracting.` because it is the same wait the author already knows, and the
+screen disables the control from the same `reimportable` flag rather than restating the rule.
+
+**The facts are matched through a subselect, not through ids read first.** One statement means a
+version created between a read and a write cannot be missed, and `db.batch([...])` makes the two
+updates one transaction. `db.transaction()` throws on the neon-http driver (`docs/03` §5).
+
+**The project label on the document row is the control.** Screen 8's header row already carried the
+project name or `No project`, and a sixth button beside `Re-import` would have been a control
+competing for the same corner. Clicking the label opens the refile row under the header: the select,
+the line `Its facts move with it.`, `Cancel` and `Refile`. The projects are read when the row opens
+rather than off the listing, for the reason the import picker reads them when a file is chosen, and
+the two selects share one control class so they cannot drift.
+
+**`No project` is an answer.** `projectId` is required in the body and nullable, so `null` is the
+only way back to unfiled, and a document filed by mistake under a project is not stuck one step
+short of where it started.
+
+**What this does not change.** `render_inclusions` rows are keyed by `entityId` with no foreign key,
+so deleting a project still leaves a stale inclusion row. Refiling makes that deletion easier to
+reach, and the gap is pre existing and symmetrical with employers. It is recorded, not fixed.

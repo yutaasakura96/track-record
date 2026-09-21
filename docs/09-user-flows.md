@@ -47,6 +47,7 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 2 | Unsupported file type or oversized file | `422` before any work begins. Named reason |
+| 2 | **Filed under the wrong project, or under none** | Corrected afterwards on Screen 8: the document's project label opens a refile row, and its facts move with it (`10-screen-specifications.md` Screen 8). **Not** corrected by importing the file again, which makes a second document |
 | 3 | Text extraction fails | Import marked `failed` with the reason. **The uploaded file is retained.** Retry or capture manually |
 | 4 | **Zero facts extracted** | Reported as a **failure of extraction**, never as an empty success. Document retained; actions are retry or manual capture (PRD §7) |
 | 4 | Anthropic unavailable mid-import | Import pauses at the failed chunk. **Chunks already completed keep their candidates.** Retry resumes from the failure, not from the start |

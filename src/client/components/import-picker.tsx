@@ -13,8 +13,12 @@ import { Button, Chip } from "./ui";
 /** The types that import today (`docs/07` §5). */
 export const IMPORT_ACCEPT = ".md,.markdown,.txt";
 
-/** Matches the entity forms on Screen 4, which are the only other selects. */
-const CONTROL =
+/**
+ * Matches the entity forms on Screen 4. Exported because Screen 8's refile row
+ * asks the same question with the same control, and two copies of a control
+ * class drift.
+ */
+export const SELECT_CONTROL =
   "bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
 
 /**
@@ -22,8 +26,8 @@ const CONTROL =
  * while extraction is still running.
  *
  * A record with at least one project gets a confirmation row first, to file the
- * document under one: `POST /api/imports` takes `projectId` only at import and
- * nothing changes it afterwards (`docs/06`, 2026-09-20). A record with none
+ * document under one. `POST /api/imports` takes `projectId`; Screen 8's refile
+ * row is what changes it afterwards (`docs/06`, 2026-09-21). A record with none
  * imports on the file choice alone, because a select offering `No project` and
  * nothing else is a question with one answer.
  */
@@ -65,8 +69,8 @@ export function useImportPicker() {
           projects = (await readProjects()).items;
         } catch {
           // Importing anyway would file the document under nothing with no sign
-          // that a choice was skipped, and nothing changes it afterwards. A
-          // blocked import costs one retry; a wrongly filed one costs an import.
+          // that a choice was skipped. A blocked import costs one retry; a
+          // wrongly filed one costs a trip to Screen 8 to refile it.
           setError("Your projects could not be read, so this document was not imported. Try again.");
           return;
         }
@@ -83,7 +87,7 @@ export function useImportPicker() {
       <label className="flex items-center gap-8 text-smaller text-text-dim">
         File it under
         <select
-          className={CONTROL}
+          className={SELECT_CONTROL}
           value={projectId}
           onChange={(event) => setProjectId(event.target.value)}
         >

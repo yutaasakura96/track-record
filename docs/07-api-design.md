@@ -99,7 +99,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `PATCH` | `/api/employers/:id` | M1 | |
 | `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles or projects reference it |
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
-| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it |
+| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5) |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | |
 | `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
 
@@ -241,7 +241,30 @@ an empty success.
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
+| `PATCH` | `/api/source-documents/:id` | M1 | **Refile.** Body `{ "projectId": "prj_9f2" }` or `{ "projectId": null }`. Shape below |
 | `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation**. Also carries the document's `filename` and `project` (`{ id, name }` or `null`) for Fact Review's breadcrumb |
+
+**`PATCH /api/source-documents/:id` → 200** — the **only** thing about a source document that
+changes after import. `projectId` is required and nullable: `null` is the answer `No project`, and
+it is the only way back to unfiled.
+
+```json
+{ "sourceDocumentId": "doc_Ln3", "project": { "id": "prj_9f2", "name": "Harbour lantern" }, "facts": 7 }
+```
+
+- **The document and every fact extracted from every one of its versions move together**, in one
+  transaction. A fact's project has always been its document's, snapshotted at extraction; this
+  keeps that rule true by letting the following happen more than once, not by giving a fact a
+  project of its own. `PATCH /api/facts/:id` still takes no `projectId` (§6).
+- **`facts` is the number moved.** A count and never a claim.
+- **`404`** for a document the author does not own, and for a `projectId` they do not own — checked
+  in the same query that reads it, never as a bare foreign-key failure.
+- **`409 conflict` while the document's newest version is `queued` or `extracting`**, in the words
+  `POST /api/imports` refuses a re-import in: `Wait for v2 to finish extracting.` A chunk that read
+  the old project before the move and inserted its facts after it would leave those facts behind,
+  filed under a project the document is no longer under, and nothing would say so.
+
+This is what makes `DELETE /api/projects/:id` (§4) a refusal with a remedy rather than a dead end.
 
 **`GET /api/imports` → 200** — grouped by source document, because re-import acts on a document.
 Documents are ordered by their newest `importedAt`, descending; versions newest first.
