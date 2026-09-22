@@ -11,7 +11,7 @@
  */
 import { useState } from "react";
 import {
-  ApiError,
+  failureText,
   useProfile,
   useSaveSkillCuration,
   useSkillCuration,
@@ -48,7 +48,7 @@ export function Skills() {
   const stored: SkillCurationInput =
     data?.groups.map((g) => ({ name: g.name, skills: g.skills.map((s) => s.name) })) ?? [];
   const groupNames = [...stored.map((g) => g.name), ...drafts];
-  const failure = save.error instanceof ApiError ? save.error.message : save.error ? "That change was not saved." : null;
+  const failure = save.error ? `That change was not saved. ${failureText(save.error)}` : null;
 
   const commit = (groups: SkillCurationInput, from: PanelName) => {
     setFailedIn(from);
@@ -93,7 +93,11 @@ export function Skills() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-20 py-26">
-          {!data ? (
+          {!data && curation.isError ? (
+            <p role="alert" className="text-small text-text-secondary">
+              {failureText(curation.error)}
+            </p>
+          ) : !data ? (
             <div className="grid grid-cols-2 gap-20">
               <Panel heading="Curated">
                 <p className="text-smaller text-text-dim">Loading…</p>

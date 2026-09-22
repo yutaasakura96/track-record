@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
-  ApiError,
+  failureText,
   useGenerate,
   useOverview,
   useProfile,
@@ -28,8 +28,16 @@ export function Overview() {
   const overview = useOverview();
   const profile = useProfile();
 
-  if (overview.isLoading || !overview.data) {
-    return <div className="min-h-screen grid place-items-center text-small text-text-dim">Loading your record…</div>;
+  if (!overview.data) {
+    return overview.isError ? (
+      <div className="min-h-screen grid place-items-center">
+        <p role="alert" className="text-small text-text-secondary">
+          {failureText(overview.error)}
+        </p>
+      </div>
+    ) : (
+      <div className="min-h-screen grid place-items-center text-small text-text-dim">Loading your record…</div>
+    );
   }
 
   return (
@@ -242,7 +250,7 @@ function Documents({ rows, canGenerate }: { rows: RenderRow[]; canGenerate: bool
                     const created = await generate.mutateAsync(row.kind);
                     await navigate({ to: "/proposals/$proposalId", params: { proposalId: created.proposalId } });
                   } catch (error) {
-                    setFailure(error instanceof ApiError ? error.message : "Generation could not be started.");
+                    setFailure(failureText(error));
                   }
                 }}
               />
