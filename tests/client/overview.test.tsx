@@ -180,3 +180,87 @@ describe("an overview that could not be read", () => {
     expect(within(screen.getByRole("navigation")).getByRole("link", { name: "Documents" })).toBeTruthy();
   });
 });
+
+describe("an empty record", () => {
+  const empty = (): Overview => ({ ...overview([]), isEmpty: true });
+
+  it("is a different screen: import is the only action, with no tiles and no documents", async () => {
+    open([], { "GET /api/overview": empty() });
+
+    await screen.findByRole("heading", { name: "Your record is empty" });
+    expect(screen.getByRole("button", { name: "Choose a file" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Import a document" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Quick capture" })).toBeNull();
+    expect(screen.queryByText("At a glance")).toBeNull();
+    expect(screen.queryByText("Documents", { selector: "h2" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Export my record" })).toBeNull();
+  });
+
+  it("names only the types that import", async () => {
+    open([], { "GET /api/overview": empty() });
+
+    expect(await screen.findByText("Choose a Markdown or plain text file.")).toBeTruthy();
+  });
+});
+
+describe("an import in progress", () => {
+  const importing = (chunksDone: number, chunksTotal: number): Overview => ({
+    ...overview([row()]),
+    activeImport: {
+      importId: "imp-test-vorbit",
+      sourceDocumentId: "doc-test-vorbit",
+      versionNo: 1,
+      status: "extracting",
+      chunksTotal,
+      chunksDone,
+      candidatesExtracted: 0,
+      candidatesDiscarded: 0,
+      candidatesSuppressed: 0,
+      wordCount: 1200,
+      changedRegionShare: null,
+      error: null,
+      failedAtChunk: null,
+    },
+  });
+  const banner = async () =>
+    (await screen.findByText("Importing a document — review is open")).closest("button")!;
+
+  it("sits above At a glance and shows how far it has got", async () => {
+    open([], { "GET /api/overview": importing(2, 5) });
+
+    const row = await banner();
+    expect(within(row).getByText("2 / 5")).toBeTruthy();
+    const glance = screen.getByText("At a glance");
+    expect(row.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("opens fact review for that import, and writes nothing", async () => {
+    const { api, user, pathname } = open([], { "GET /api/overview": importing(2, 5) });
+    await user.click(await banner());
+
+    await waitFor(() => expect(pathname()).toBe("/imports/imp-test-vorbit"));
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("counts against one chunk before the document has been split", async () => {
+    open([], { "GET /api/overview": importing(0, 0) });
+
+    expect(within(await banner()).getByText("0 / 1")).toBeTruthy();
+  });
+
+  it("is absent when nothing is importing", async () => {
+    open([row()]);
+
+    await documentRow();
+    expect(screen.queryByText("Importing a document — review is open")).toBeNull();
+  });
+});
+
+describe("the backup", () => {
+  it("is one link to the export", async () => {
+    open([row()]);
+
+    const link = await screen.findByRole("link", { name: "Export my record" });
+    expect(link.getAttribute("href")).toBe("/api/export");
+  });
+});
