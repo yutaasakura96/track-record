@@ -3941,3 +3941,45 @@ line high, the name ends in an ellipsis, and the page does not scroll sideways. 
 in full, as before. The client test for the row asserts the `title`. The layout itself has no test,
 because jsdom does no layout.
 
+
+### [2026-09-22] A failed later read on Documents, Overview and Skills says the screen may be out of date
+
+The previous entry left a later read that fails saying nothing on these three screens. The content
+stayed on screen with nothing to show it might be old. The Overview and Skills do not poll and do
+not read again on focus, so after a failed read they stay as they were until the next change made
+on them or the next visit more than five seconds later (the client's `staleTime`). Documents polls
+only while an import runs.
+
+**What changed.** A `RefreshFailure` component beside `ReadFailure` in
+`src/client/components/read-failure.tsx` renders one dim line, `Could not refresh:`, the reason from
+`readFailureText`, and `What is shown may be out of date.`, with a ghost `Retry` beside it. Each
+screen shows it at the top of its content when the query has data and is in error: above the list
+on Documents (and above the drop target when the list is empty), above the panels on Skills, and
+at the top of the Overview, both the populated record and the empty one. The author chose the
+wording, the Retry and the placement.
+
+**A status, not an alert.** Nothing the author did failed. The line is `role="status"` in
+`text-smaller text-text-dim`, fainter than the first-read line, which is an alert in the secondary
+text colour.
+
+**Retry is disabled while it reads.** A query that has data keeps its error while it is read again
+(`fetchState` in `@tanstack/query-core` 5.101.4 resets the error only when there is no data), so
+this line and its Retry stay on screen during the read. Retry is disabled with `Retrying…` until
+the read settles. This is the case the first-read Retry does not have.
+
+**The wording avoids "stale".** The app already uses stale for a document with new facts since it
+was generated and for a curated skill that no fact or certification names any longer, so a
+failed read says out of date instead.
+
+Eleven client tests cover it, four on Documents and on the Overview and three on Skills: the line
+with the content kept, the server's reason for a refusal on Documents, the empty record on the
+Overview, Retry reading again and the line going once a read succeeds with no write of its own,
+and Retry disabled with the content kept while it reads. The Documents test from the previous
+entry that asserted no Retry after a later read was replaced, since this reverses it. All eleven
+failed against the previous code at the missing status line.
+
+**Looked at in Chrome**, with only Vite running and `fetch` stubbed. On all three screens the line
+and Retry sit side by side above the content with no page overflow. On the Overview the line
+appeared once the client's retries ran out, about five seconds after the read began, Retry was
+disabled with `Retrying…` while a read hung, and Retry against a working stub removed the line
+and kept the overview. The empty Overview was not looked at.

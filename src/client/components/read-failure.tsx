@@ -31,3 +31,34 @@ export function ReadFailure({ query, className = "" }: { query: FailedRead; clas
     </div>
   );
 }
+
+export interface FailedRefresh extends FailedRead {
+  isFetching: boolean;
+}
+
+/**
+ * A later read that failed, on the same three screens. The content it would have
+ * replaced stays on screen, so this says only that it may be out of date.
+ *
+ * A status, not an alert: nothing the author did failed. Unlike a first read, a
+ * query that has data keeps its error while it reads again (`fetchState` in
+ * `@tanstack/query-core`), so this line and its Retry stay on screen while Retry
+ * reads, and Retry is disabled until the read settles.
+ */
+export function RefreshFailure({ query, className = "" }: { query: FailedRefresh; className?: string }) {
+  return (
+    <div className={`flex items-center gap-12 ${className}`}>
+      <p role="status" className="text-smaller text-text-dim">
+        Could not refresh: {readFailureText(query.error)} What is shown may be out of date.
+      </p>
+      <Button
+        variant="ghost"
+        onClick={() => void query.refetch()}
+        disabled={query.isFetching}
+        disabledReason={query.isFetching ? "Retrying…" : undefined}
+      >
+        Retry
+      </Button>
+    </div>
+  );
+}

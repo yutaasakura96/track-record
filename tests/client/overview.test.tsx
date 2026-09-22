@@ -131,6 +131,29 @@ describe("generating a document", () => {
   });
 });
 
+/**
+ * Loads the overview, leaves for Documents and comes back, so the overview is
+ * read again, and answers that second read with `second`. Any read after it
+ * gets `third`.
+ */
+async function failLaterRead(
+  second: () => unknown,
+  third: () => unknown = second,
+  first: Overview = overview([row()]),
+) {
+  let attempt = 0;
+  const mounted = open([], {
+    "GET /api/overview": () => (++attempt === 1 ? first : attempt === 2 ? second() : third()),
+    "GET /api/imports": { openCandidates: 0, documents: [] },
+  });
+  const nav = await screen.findByRole("navigation");
+  await waitFor(() => expect(attempt).toBe(1));
+  await mounted.user.click(within(nav).getByRole("link", { name: "Documents" }));
+  await mounted.user.click(within(screen.getByRole("navigation")).getByRole("link", { name: "Home" }));
+  await waitFor(() => expect(attempt).toBe(2));
+  return { ...mounted, reads: () => attempt };
+}
+
 describe("an overview that could not be read", () => {
   it("says so rather than loading forever", async () => {
     open([], { "GET /api/overview": UNREACHABLE });
@@ -163,6 +186,55 @@ describe("an overview that could not be read", () => {
     await screen.findByText("Loading your record…");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("keeps the overview it has when a later read fails, and says it may be out of date", async () => {
+    await failLaterRead(() => UNREACHABLE());
+
+    expect(await documentRow()).toBeTruthy();
+    expect((await screen.findByRole("status")).textContent).toBe(
+      `Could not refresh: ${NOT_READ} What is shown may be out of date.`,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("says it may be out of date on an empty record too", async () => {
+    await failLaterRead(() => UNREACHABLE(), undefined, { ...overview([]), isEmpty: true });
+
+    await screen.findByRole("heading", { name: "Your record is empty" });
+    expect((await screen.findByRole("status")).textContent).toBe(
+      `Could not refresh: ${NOT_READ} What is shown may be out of date.`,
+    );
+  });
+
+  it("reads again on Retry after a later read fails, and the line goes once one arrives", async () => {
+    const { api, user } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => overview([row(), row({ kind: "rirekisho", language: "ja", title: "Qorvane 履歴書" })]),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByText("Qorvane 履歴書");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("keeps the overview and disables Retry while it reads again after a later read fails", async () => {
+    const { user, reads } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => new Promise(() => {}),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(true));
+    expect(retry.getAttribute("title")).toBe("Retrying…");
+    expect(await documentRow()).toBeTruthy();
+    expect(reads()).toBe(3);
   });
 
   it("keeps the sidebar, so the author can leave for another screen", async () => {

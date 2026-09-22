@@ -8,7 +8,7 @@
  * the only action, and Quick capture is HIDDEN rather than disabled, because
  * there is nothing to capture against yet.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   failureText,
@@ -19,7 +19,7 @@ import {
   type RenderRow,
 } from "../api";
 import { Button, Chip, Dot, Mono, Panel, ProgressBar } from "../components/ui";
-import { ReadFailure } from "../components/read-failure";
+import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
@@ -28,6 +28,8 @@ import { DownloadButton } from "../components/download-button";
 export function Overview() {
   const overview = useOverview();
   const profile = useProfile();
+  // A later read that fails leaves the overview on screen, and says it may be out of date.
+  const refresh = overview.data && overview.isError ? <RefreshFailure query={overview} /> : null;
 
   // The sidebar renders in every state: a failed read with nothing around it
   // left the author on a blank page with no way to another screen.
@@ -37,9 +39,9 @@ export function Overview() {
       <div className="flex-1 min-w-0 flex flex-col">
         {overview.data ? (
           overview.data.isEmpty ? (
-            <EmptyRecord />
+            <EmptyRecord refresh={refresh} />
           ) : (
-            <PopulatedRecord data={overview.data} />
+            <PopulatedRecord data={overview.data} refresh={refresh} />
           )
         ) : overview.isError ? (
           <div className="flex-1 grid place-items-center">
@@ -55,7 +57,7 @@ export function Overview() {
 
 /* --------------------------------------------------------------- populated */
 
-function PopulatedRecord({ data }: { data: OverviewData }) {
+function PopulatedRecord({ data, refresh }: { data: OverviewData; refresh: ReactNode }) {
   const navigate = useNavigate();
   const importFile = useImportPicker();
 
@@ -78,6 +80,7 @@ function PopulatedRecord({ data }: { data: OverviewData }) {
 
       <div className="flex-1 overflow-y-auto px-20 py-26">
         <div className="mx-auto w-content max-w-full grid gap-20">
+          {refresh}
           {importFile.confirmation}
           {importFile.error ? (
             <p role="alert" className="border border-border-control rounded-control px-14 py-12 text-small text-text-secondary">
@@ -360,10 +363,11 @@ const DownloadLink = ({ kind }: { kind: RenderRow["kind"] }) => (
 
 /* ------------------------------------------------------------------- empty */
 
-function EmptyRecord() {
+function EmptyRecord({ refresh }: { refresh: ReactNode }) {
   return (
     <main className="flex-1 grid place-items-center px-20 py-40">
       <div className="w-measure max-w-full text-center">
+        {refresh ? <div className="mb-26 flex justify-center">{refresh}</div> : null}
         <h1 className="text-page font-semibold tracking-tight text-text-bright">
           Your record is empty
         </h1>

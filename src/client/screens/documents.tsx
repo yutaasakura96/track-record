@@ -25,7 +25,7 @@ import {
   type SourceDocumentRow,
 } from "../api";
 import { Button, Chip, Mono, ProgressBar } from "../components/ui";
-import { ReadFailure } from "../components/read-failure";
+import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import {
   IMPORT_ACCEPT,
@@ -75,10 +75,19 @@ export function DocumentsScreen() {
 function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
   // Data first: a later read that fails, such as a poll during an import, keeps the list on screen.
   if (!listing.data) return listing.isError ? <ReadFailure query={listing} /> : <Skeleton />;
+  // It says so, though: the list may be out of date until a read succeeds.
+  const refresh = listing.isError ? <RefreshFailure query={listing} /> : null;
   // Screen 3's drop target, the same component, so the types it names cannot drift.
-  if (listing.data.documents.length === 0) return <ImportDropTarget className="mx-auto w-measure max-w-full" />;
+  if (listing.data.documents.length === 0)
+    return (
+      <>
+        {refresh}
+        <ImportDropTarget className="mx-auto w-measure max-w-full" />
+      </>
+    );
   return (
     <>
+      {refresh}
       {listing.data.documents.map((document) => (
         <DocumentBlock key={document.sourceDocumentId} document={document} />
       ))}

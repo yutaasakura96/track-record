@@ -19,7 +19,7 @@ import {
   type SkillCurationInput,
 } from "../api";
 import { Button, Dot, Mono, Panel } from "../components/ui";
-import { ReadFailure } from "../components/read-failure";
+import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 
 const CONTROL =
@@ -94,6 +94,7 @@ export function Skills() {
         </header>
 
         <div className="flex-1 overflow-y-auto px-20 py-26">
+          {data && curation.isError ? <RefreshFailure query={curation} className="mb-20" /> : null}
           {!data && curation.isError ? (
             <ReadFailure query={curation} />
           ) : !data ? (

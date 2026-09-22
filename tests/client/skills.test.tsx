@@ -166,6 +166,24 @@ describe("a change that is not saved", () => {
   });
 });
 
+/**
+ * Loads the list, then makes a change the server refuses, so the list is read
+ * again, and answers that second read with `second`. Any read after it gets
+ * `third`.
+ */
+async function failLaterRead(second: () => unknown, third: () => unknown = second) {
+  let attempt = 0;
+  const mounted = open({
+    "GET /api/skills/curation": () => (++attempt === 1 ? STORED : attempt === 2 ? second() : third()),
+    [PUT]: new Refusal(422, "validation_failed", "Two groups share a name.", { fields: ["groups"] }),
+  });
+  const name = within(await group("Zentrel tools")).getByLabelText("Group name");
+  fireEvent.change(name, { target: { value: "Qorvane stack" } });
+  fireEvent.blur(name);
+  await waitFor(() => expect(attempt).toBe(2));
+  return { ...mounted, reads: () => attempt };
+}
+
 describe("a list that could not be read", () => {
   it("says so rather than loading forever", async () => {
     open({ "GET /api/skills/curation": UNREACHABLE });
@@ -185,6 +203,45 @@ describe("a list that could not be read", () => {
     await group("Qorvane stack");
     expect(screen.queryByRole("alert")).toBeNull();
     expect(api.writes()).toEqual([]);
+  });
+
+  it("keeps the list it has when a later read fails, and says it may be out of date", async () => {
+    await failLaterRead(() => UNREACHABLE());
+
+    expect(await group("Qorvane stack")).toBeTruthy();
+    expect((await screen.findByRole("status")).textContent).toBe(
+      `Could not refresh: ${NOT_READ} What is shown may be out of date.`,
+    );
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("reads again on Retry after a later read fails, and the line goes once one arrives", async () => {
+    const { api, user } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => ({ ...STORED, groups: [...STORED.groups, { name: "Vorbit kit", skills: [skill("Vorbit")] }] }),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await group("Vorbit kit");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(api.writes()).toEqual([PUT]);
+  });
+
+  it("keeps the list and disables Retry while it reads again after a later read fails", async () => {
+    const { user, reads } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => new Promise(() => {}),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(true));
+    expect(retry.getAttribute("title")).toBe("Retrying…");
+    expect(await group("Qorvane stack")).toBeTruthy();
+    expect(reads()).toBe(3);
   });
 
   it("shows the loading state again while Retry reads", async () => {

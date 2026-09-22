@@ -291,6 +291,28 @@ describe("retrying a failed import", () => {
   });
 });
 
+/**
+ * Loads the list, then refiles a document so the listing is read again, and
+ * answers that second read with `second`. Any read after it gets `third`.
+ */
+async function failLaterRead(second: () => unknown, third: () => unknown = second) {
+  let attempt = 0;
+  const mounted = open({
+    "GET /api/imports": () => (++attempt === 1 ? listing(document()) : attempt === 2 ? second() : third()),
+    "PATCH /api/source-documents/src-test-1": {
+      sourceDocumentId: "src-test-1",
+      project: { id: PLINTH.id, name: PLINTH.name },
+      facts: 4,
+    },
+  });
+  const row = await block();
+  await mounted.user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+  await mounted.user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
+  await mounted.user.click(within(row).getByRole("button", { name: "Refile" }));
+  await waitFor(() => expect(attempt).toBe(2));
+  return { ...mounted, reads: () => attempt };
+}
+
 describe("a listing that could not be read", () => {
   it.each([
     [new Refusal(500, "internal", "Something went wrong on our side."), "Something went wrong on our side."],
@@ -315,29 +337,52 @@ describe("a listing that could not be read", () => {
     expect(api.writes()).toEqual([]);
   });
 
-  it("keeps the list it has when a later read fails", async () => {
-    let attempt = 0;
-    const { user } = open({
-      "GET /api/imports": () => (++attempt === 1 ? listing(document()) : UNREACHABLE()),
-      "PATCH /api/source-documents/src-test-1": {
-        sourceDocumentId: "src-test-1",
-        project: { id: PLINTH.id, name: PLINTH.name },
-        facts: 4,
-      },
-    });
-    const row = await block();
-
-    // A refile re-reads the listing, and that read fails.
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
-    await user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
-    await user.click(within(row).getByRole("button", { name: "Refile" }));
-    await waitFor(() => expect(attempt).toBe(2));
-    // Let the failed read settle before looking.
-    await new Promise((settled) => setTimeout(settled, 50));
+  it("keeps the list it has when a later read fails, and says it may be out of date", async () => {
+    await failLaterRead(() => UNREACHABLE());
 
     expect(screen.getByText("qorvane-notes.md")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect((await screen.findByRole("status")).textContent).toBe(
+      `Could not refresh: ${NOT_READ} What is shown may be out of date.`,
+    );
     expect(screen.queryByText(NOT_READ)).toBeNull();
+    expect(screen.getByRole("button", { name: "Retry" })).toBeTruthy();
+  });
+
+  it("names the server's reason when a later read is refused", async () => {
+    await failLaterRead(() => new Refusal(500, "internal", "Something went wrong on our side."));
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Could not refresh: Something went wrong on our side. What is shown may be out of date.",
+    );
+  });
+
+  it("reads again on Retry after a later read fails, and the line goes once one arrives", async () => {
+    const { api, user } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => listing(document(), document({ sourceDocumentId: "src-test-2", filename: "zentrel-log.md" })),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByText("zentrel-log.md");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(api.writes()).toEqual(["PATCH /api/source-documents/src-test-1"]);
+  });
+
+  it("keeps the list and disables Retry while it reads again after a later read fails", async () => {
+    const { user, reads } = await failLaterRead(
+      () => UNREACHABLE(),
+      () => new Promise(() => {}),
+    );
+    await screen.findByRole("status");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(true));
+    expect(retry.getAttribute("title")).toBe("Retrying…");
+    expect(screen.getByText("qorvane-notes.md")).toBeTruthy();
+    expect(reads()).toBe(3);
   });
 
   it("shows the loading state again while Retry reads", async () => {
