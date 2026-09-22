@@ -28,23 +28,27 @@ export function Overview() {
   const overview = useOverview();
   const profile = useProfile();
 
-  if (!overview.data) {
-    return overview.isError ? (
-      <div className="min-h-screen grid place-items-center">
-        <p role="alert" className="text-small text-text-secondary">
-          {failureText(overview.error)}
-        </p>
-      </div>
-    ) : (
-      <div className="min-h-screen grid place-items-center text-small text-text-dim">Loading your record…</div>
-    );
-  }
-
+  // The sidebar renders in every state: a failed read with nothing around it
+  // left the author on a blank page with no way to another screen.
   return (
     <div className="min-h-screen flex">
       <Sidebar name={profile.data?.nameLatin ?? ""} />
       <div className="flex-1 min-w-0 flex flex-col">
-        {overview.data.isEmpty ? <EmptyRecord /> : <PopulatedRecord data={overview.data} />}
+        {overview.data ? (
+          overview.data.isEmpty ? (
+            <EmptyRecord />
+          ) : (
+            <PopulatedRecord data={overview.data} />
+          )
+        ) : overview.isError ? (
+          <div className="flex-1 grid place-items-center">
+            <p role="alert" className="text-small text-text-secondary">
+              {failureText(overview.error)}
+            </p>
+          </div>
+        ) : (
+          <div className="flex-1 grid place-items-center text-small text-text-dim">Loading your record…</div>
+        )}
       </div>
     </div>
   );

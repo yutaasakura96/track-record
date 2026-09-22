@@ -544,12 +544,6 @@ function EntityForm<T extends { id: string }>({
       onSubmit={onSubmit}
       className="border-t border-border-inner px-10 py-14 grid gap-14"
     >
-      {save.error ? (
-        <p role="alert" className="text-smaller text-removed">
-          {failureText(save.error)} Nothing was saved.
-        </p>
-      ) : null}
-
       <div className="grid grid-cols-2 gap-14">
         {section.fields.map((field) => (
           <EntityField
@@ -561,6 +555,14 @@ function EntityForm<T extends { id: string }>({
           />
         ))}
       </div>
+
+      {/* Beside Save, not above the fields: the form is taller than the window,
+          and a line at its top is out of view when Save is clicked. */}
+      {save.error ? (
+        <p role="alert" className="text-smaller text-removed">
+          {failureText(save.error)} Nothing was saved.
+        </p>
+      ) : null}
 
       <div className="flex items-center gap-10">
         <Mono className="text-text-faint">

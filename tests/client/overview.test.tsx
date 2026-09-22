@@ -136,4 +136,19 @@ describe("an overview that could not be read", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
     expect(screen.queryByText("Loading your record…")).toBeNull();
   });
+
+  it("keeps the sidebar, so the author can leave for another screen", async () => {
+    open([], { "GET /api/overview": UNREACHABLE });
+
+    await screen.findByRole("alert");
+    const nav = screen.getByRole("navigation");
+    expect(within(nav).getByRole("link", { name: "Record" }).getAttribute("href")).toBe("/record");
+  });
+
+  it("keeps the sidebar while the overview is loading", async () => {
+    open([], { "GET /api/overview": () => new Promise(() => {}) });
+
+    await screen.findByText("Loading your record…");
+    expect(within(screen.getByRole("navigation")).getByRole("link", { name: "Documents" })).toBeTruthy();
+  });
 });

@@ -50,6 +50,17 @@ const panel = async (heading: string) =>
 
 const employerRow = async () => (await screen.findByText("株式会社クオーヴェイン · Qorvane KK")).closest("li")!;
 
+/**
+ * Whether the save failure is reported after every field, beside Save. jsdom has
+ * no layout, so document order stands in for position: the form is taller than
+ * a laptop window, and a line above the fields is out of view when Save is
+ * clicked.
+ */
+const reportedBesideSave = (form: HTMLElement, alert: HTMLElement) =>
+  [...form.querySelectorAll("input, select, textarea")].every(
+    (field) => field.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+
 /* ------------------------------------------------------------------ create */
 
 describe("adding an employer", () => {
@@ -96,6 +107,7 @@ describe("adding an employer", () => {
 
     const alert = await within(form).findByRole("alert");
     expect(alert.textContent).toBe("The end month is before the start month. Nothing was saved.");
+    expect(reportedBesideSave(form, alert)).toBe(true);
     expect(within(form).getByLabelText(/退職 · Ended/).getAttribute("aria-invalid")).toBe("true");
     expect(within(form).getByLabelText("入社 · Started").getAttribute("aria-invalid")).toBe("false");
     expect(api.writes()).toEqual([POST]);
@@ -107,6 +119,7 @@ describe("adding an employer", () => {
 
     const alert = await within(form).findByRole("alert");
     expect(alert.textContent).toBe(`${NOT_REACHED} Nothing was saved.`);
+    expect(reportedBesideSave(form, alert)).toBe(true);
     expect(employers.querySelector("form")).toBe(form);
     expect(within(form).getByLabelText("会社名 · Employer name")).toHaveProperty("value", "株式会社ゼントレル");
     expect(api.writes()).toEqual([POST]);
@@ -158,6 +171,7 @@ describe("editing an employer", () => {
 
     const alert = await within(form).findByRole("alert");
     expect(alert.textContent).toBe(`${NOT_REACHED} Nothing was saved.`);
+    expect(reportedBesideSave(form, alert)).toBe(true);
     expect(row.querySelector("form")).toBe(form);
     expect(api.writes()).toEqual([PATCH]);
   });
