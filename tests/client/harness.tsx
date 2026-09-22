@@ -120,3 +120,22 @@ export function mount(path: string, routes: Routes) {
     pathname: () => router.state.location.pathname,
   };
 }
+
+/**
+ * The colour a line is drawn in: the first colour class on it or, failing that,
+ * on the nearest ancestor that has one, which is the colour it inherits.
+ *
+ * jsdom loads no stylesheet, so the class is all a test can see. The four are the
+ * colours an alert is drawn in today (`docs/06`, 2026-09-21): `removed` for a
+ * write refused where it was made, `text-secondary` for a failed read or a
+ * screen-level notice, and the editor notices' `generated-text` and `text-dim`.
+ */
+const TONES = ["text-removed", "text-text-secondary", "text-generated-text", "text-text-dim"];
+
+export function toneOf(element: Element): string | null {
+  for (let at: Element | null = element; at; at = at.parentElement) {
+    const tone = TONES.find((name) => at!.classList.contains(name));
+    if (tone) return tone.replace(/^text-/, "");
+  }
+  return null;
+}

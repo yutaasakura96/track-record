@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { EditResult, StoredVersion, VersionHistory } from "~/client/api";
 import type { RenderContent } from "~/shared/render-content";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const KIND = "english_resume";
 const PATH = `/renders/${KIND}/edit`;
@@ -372,6 +372,7 @@ describe("a refused save", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(
       "fct-test-1 is Private and never reaches a document (and 1 other).",
     );
+    expect(toneOf(screen.getByRole("alert"))).toBe("generated-text");
     expect(screen.getByText("Remove the citation, or delete the block, and save again.")).toBeTruthy();
     // The draft survived the refusal: the deleted block is still gone.
     expect(screen.queryByText(REVIEW)).toBeNull();
@@ -391,6 +392,7 @@ describe("a refused save", () => {
     await user.click(saveButton());
 
     expect((await screen.findByRole("alert")).textContent).toBe("This is no longer the current version.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-dim");
     expect(screen.getByRole("button", { name: "Reload and edit again" })).toBeTruthy();
   });
 

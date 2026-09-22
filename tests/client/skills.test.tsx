@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { SkillCuration, SkillCurationInput } from "~/client/api";
-import { mount, Refusal, type Call, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Call, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -151,6 +151,7 @@ describe("a change that is not saved", () => {
     fireEvent.blur(name);
 
     const alert = await within(await panel("Curated")).findByRole("alert");
+    expect(toneOf(alert)).toBe("removed");
     expect(alert.textContent).toBe("That change was not saved. Two groups share a name.");
     expect(within(await panel("Candidates")).queryByRole("alert")).toBeNull();
     await waitFor(() => expect(readsOfCuration(api)).toBe(2));
@@ -189,6 +190,7 @@ describe("a list that could not be read", () => {
     open({ "GET /api/skills/curation": UNREACHABLE });
 
     expect((await screen.findByRole("alert")).textContent).toBe(NOT_READ);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(screen.queryByText("Loading…")).toBeNull();
   });
 

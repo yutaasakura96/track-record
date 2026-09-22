@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { Overview, RenderRow } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -56,6 +56,8 @@ const open = (documents: RenderRow[], routes: Routes = {}, canGenerate = true) =
     ...routes,
   });
 
+const file = () => new File(["# zentrel"], "quillset-notes.md", { type: "text/markdown" });
+
 const documentRow = async (title = "English résumé") => (await screen.findByText(title)).closest("li")!;
 
 describe("generating a document", () => {
@@ -76,6 +78,7 @@ describe("generating a document", () => {
     await user.click(within(await documentRow()).getByRole("button", { name: "Generate" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("A proposal for this document is already waiting.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(pathname()).toBe("/");
     expect(api.writes()).toEqual([POST]);
   });
@@ -159,6 +162,7 @@ describe("an overview that could not be read", () => {
     open([], { "GET /api/overview": UNREACHABLE });
 
     expect((await screen.findByRole("alert")).textContent).toBe(NOT_READ);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(screen.queryByText("Loading your record…")).toBeNull();
   });
 
@@ -272,6 +276,34 @@ describe("an empty record", () => {
     open([], { "GET /api/overview": empty() });
 
     expect(await screen.findByText("Choose a Markdown or plain text file.")).toBeTruthy();
+  });
+
+  it("says so beneath the picker when the upload never reaches the server", async () => {
+    const { user } = open([], {
+      "GET /api/overview": empty(),
+      "GET /api/projects": { items: [] },
+      "POST /api/imports": UNREACHABLE,
+    });
+    await screen.findByRole("heading", { name: "Your record is empty" });
+
+    await user.upload(document.querySelector<HTMLInputElement>('input[type="file"]')!, file());
+
+    expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
+  });
+});
+
+describe("importing a document from the header", () => {
+  it("says so when the upload never reaches the server", async () => {
+    const { api, user } = open([row()], { "GET /api/projects": { items: [] }, "POST /api/imports": UNREACHABLE });
+    await documentRow();
+
+    const header = screen.getByRole("button", { name: "Import a document" }).closest("header")!;
+    await user.upload(header.querySelector<HTMLInputElement>('input[type="file"]')!, file());
+
+    expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
+    expect(api.writes()).toEqual(["POST /api/imports"]);
   });
 });
 

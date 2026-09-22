@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import type { Proposal, RenderDiff } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const PROPOSAL = "prop-test-1";
 
@@ -96,6 +96,7 @@ describe("a pending proposal", () => {
     await user.click(await screen.findByRole("button", { name: button }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("A newer proposal exists.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("removed");
     expect(api.writes()).toEqual([`POST /api/proposals/${PROPOSAL}/${decision}`]);
     expect(pathname()).toBe(`/proposals/${PROPOSAL}`);
   });
@@ -151,6 +152,7 @@ describe("a failed generation", () => {
     await user.click(await screen.findByRole("button", { name: "Try again" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("A generation is already running.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.writes()).toEqual(["POST /api/renders/english_resume/generate"]);
     expect(pathname()).toBe(`/proposals/${PROPOSAL}`);
   });
@@ -203,6 +205,7 @@ describe("the other states", () => {
     await user.click(await screen.findByRole("button", { name: "Back to your record" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("Already decided.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(pathname()).toBe(`/proposals/${PROPOSAL}`);
   });
 

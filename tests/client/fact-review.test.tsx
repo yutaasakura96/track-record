@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Employer, Fact, ImportStatus } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const IMPORT = "imp-test-1";
 const DOCUMENT = "doc-test-1";
@@ -236,6 +236,7 @@ describe("a candidate card", () => {
     await user.click(within(attested).getByRole("radio", { name: "Measured" }));
 
     expect((await within(attested).findByRole("alert")).textContent).toBe("That claim is too long to save.");
+    expect(toneOf(within(attested).getByRole("alert"))).toBe("removed");
     expect(within(await card("f-measured")).queryByRole("alert")).toBeNull();
   });
 
@@ -359,6 +360,7 @@ describe("the rail", () => {
     await user.click(within(attested).getByRole("button", { name: "Undo" }));
 
     expect((await within(attested).findByRole("alert")).textContent).toBe("This import is finished.");
+    expect(toneOf(within(attested).getByRole("alert"))).toBe("removed");
   });
 
   it("finishes the import and then goes home", async () => {
@@ -388,6 +390,7 @@ describe("the rail", () => {
       expect(alert.textContent).toBe("This import is still running.");
       // Beside the button that was pressed, not the other one.
       expect(pressed.parentElement!.contains(alert)).toBe(true);
+      expect(toneOf(alert)).toBe("removed");
       expect(screen.getAllByRole("alert")).toHaveLength(1);
       expect(api.writes()).toEqual([`POST /api/imports/${IMPORT}/finish`]);
       expect(pathname()).toBe(`/imports/${IMPORT}`);

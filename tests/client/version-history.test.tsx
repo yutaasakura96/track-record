@@ -10,7 +10,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { ProposalRow, RenderDiff, RenderVersion, VersionHistory } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const KIND = "english_resume";
 const PATH = `/renders/${KIND}/history`;
@@ -161,6 +161,7 @@ describe("the restore preview", () => {
     await user.click(within(dialog).getByRole("button", { name: "Restore v1" }));
 
     const alert = await within(dialog).findByRole("alert");
+    expect(toneOf(alert)).toBe("removed");
     expect(alert.textContent).toContain("A proposal is waiting for your decision.");
     expect(within(alert).getByRole("link", { name: "Open the proposal" }).getAttribute("href")).toBe(
       "/proposals/prop-test-3",
@@ -236,6 +237,7 @@ describe("a download", () => {
     await user.click(within(v1).getByRole("button", { name: "Download" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(true);
     expect(api.writes()).toEqual([]);
     // The control is usable again rather than stuck on "Preparing…".
@@ -274,6 +276,7 @@ describe("a document with no versions", () => {
     await user.click(await screen.findByRole("button", { name: "Generate" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("A generation is already running.");
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.writes()).toEqual([`POST /api/renders/${KIND}/generate`]);
     expect(pathname()).toBe(PATH);
   });

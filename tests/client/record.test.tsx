@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Employer, RenderInclusion } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -106,6 +106,7 @@ describe("adding an employer", () => {
     const { form } = await fillAndSave(user);
 
     const alert = await within(form).findByRole("alert");
+    expect(toneOf(alert)).toBe("removed");
     expect(alert.textContent).toBe("The end month is before the start month. Nothing was saved.");
     expect(reportedBesideSave(form, alert)).toBe(true);
     expect(within(form).getByLabelText(/退職 · Ended/).getAttribute("aria-invalid")).toBe("true");
@@ -251,6 +252,7 @@ describe("deleting an employer", () => {
     await user.click(within(row).getByRole("button", { name: "Delete" }));
 
     const alert = await within(await panel("Employers")).findByRole("alert");
+    expect(toneOf(alert)).toBe("text-secondary");
     expect(alert.textContent).toBe(message);
     expect(api.writes()).toEqual([DELETE]);
   });
@@ -319,6 +321,7 @@ describe("choosing which renders an employer appears in", () => {
     await user.click(within(group).getByRole("checkbox", { name: "履歴書" }));
 
     const alert = await within(group).findByRole("alert");
+    expect(toneOf(alert)).toBe("removed");
     expect(alert.textContent).toBe("That setting was not saved. That employer no longer exists.");
   });
 

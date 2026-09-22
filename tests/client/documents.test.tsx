@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { DocumentVersion, DocumentsListing, Project, SourceDocumentRow } from "~/client/api";
-import { mount, Refusal, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -127,6 +127,7 @@ describe("refiling a document", () => {
     expect((await within(row).findByRole("alert")).textContent).toBe(
       "There are no projects to file this document under.",
     );
+    expect(toneOf(within(row).getByRole("alert"))).toBe("removed");
     expect(within(row).queryByRole("combobox")).toBeNull();
     expect(api.writes()).toEqual([]);
   });
@@ -153,6 +154,7 @@ describe("refiling a document", () => {
     await user.click(within(row).getByRole("button", { name: "Refile" }));
 
     expect((await within(row).findByRole("alert")).textContent).toBe(said);
+    expect(toneOf(within(row).getByRole("alert"))).toBe("removed");
   });
 });
 
@@ -213,6 +215,7 @@ describe("re-importing a document", () => {
     await user.click(within(row).getByRole("button", { name: "Import" }));
 
     expect((await within(row).findByRole("alert")).textContent).toBe(said);
+    expect(toneOf(within(row).getByRole("alert"))).toBe("removed");
     expect(within(row).queryByText("This becomes v3 of qorvane-notes.md")).toBeNull();
     expect(pathname()).toBe("/documents");
   });
@@ -230,6 +233,7 @@ describe("importing a new document from the header", () => {
     await user.upload(header.querySelector<HTMLInputElement>('input[type="file"]')!, file("plinth-log.md"));
 
     expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.writes()).toEqual(["POST /api/imports"]);
     expect(pathname()).toBe("/documents");
   });
@@ -287,6 +291,7 @@ describe("retrying a failed import", () => {
     await user.click(within(row).getByRole("button", { name: "Retry" }));
 
     expect((await within(row).findByRole("alert")).textContent).toBe(said);
+    expect(toneOf(within(row).getByRole("alert"))).toBe("removed");
     expect(within(await versionRow(1)).queryByRole("alert")).toBeNull();
   });
 });
@@ -321,6 +326,7 @@ describe("a listing that could not be read", () => {
     open({ "GET /api/imports": answer });
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
+    expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(screen.queryByText("qorvane-notes.md")).toBeNull();
   });
 
