@@ -133,6 +133,80 @@ describe("an edit", () => {
   });
 });
 
+describe("typing into a block", () => {
+  const REWORDED = "Ran the plinth review every week.";
+
+  it("commits the text on blur and sends it with the block's citations intact", async () => {
+    const { api, user } = open({ [SAVE]: saved() });
+
+    const text = within(await block(REVIEW)).getByRole("textbox", { name: "Bullet text" });
+    await user.click(text);
+    await user.keyboard("{Control>}a{/Control}{Backspace}");
+    await user.keyboard(REWORDED);
+    expect(saveButton().disabled).toBe(true);
+
+    await user.tab();
+    expect(saveButton().disabled).toBe(false);
+
+    await user.click(saveButton());
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    expect(api.bodyOf("POST", `/api/renders/${KIND}/versions`)).toEqual({
+      basedOnVersionId: CURRENT,
+      content: {
+        sections: [
+          {
+            ...CONTENT.sections[0]!,
+            blocks: [
+              CONTENT.sections[0]!.blocks[0]!,
+              { ...CONTENT.sections[0]!.blocks[1]!, text: REWORDED },
+            ],
+          },
+        ],
+      },
+    });
+  });
+
+  it("focuses an added block and sends what was typed into it, citing nothing", async () => {
+    const typed = "Halvenmoor plinth quillset.";
+    const { api, user } = open({ [SAVE]: saved() });
+
+    await user.click(await screen.findByRole("button", { name: "Add paragraph" }));
+    const added = screen.getByRole("textbox", { name: "Paragraph text" });
+    expect(document.activeElement).toBe(added);
+
+    await user.keyboard(typed);
+    await user.tab();
+    await user.click(saveButton());
+
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    const body = api.bodyOf("POST", `/api/renders/${KIND}/versions`) as { content: RenderContent };
+    const blocks = body.content.sections[0]!.blocks;
+    expect(blocks.map((b) => [b.kind, b.text, b.factIds])).toEqual([
+      ["bullet", QUILLSET, ["fct-test-1", "fct-test-2"]],
+      ["bullet", REVIEW, ["fct-test-3"]],
+      ["paragraph", typed, []],
+    ]);
+    // The client never mints a block id; the added block carries a local key.
+    expect(blocks[2]!.id).toMatch(/^draft_/);
+  });
+
+  it("puts the text back on Escape and does not count it as a change", async () => {
+    const { api, user } = open();
+
+    const text = within(await block(REVIEW)).getByRole("textbox", { name: "Bullet text" });
+    await user.click(text);
+    await user.keyboard("{Control>}a{/Control}{Backspace}");
+    await user.keyboard(REWORDED);
+    await user.keyboard("{Escape}");
+
+    expect(text.textContent).toBe(REVIEW);
+    expect(document.activeElement).not.toBe(text);
+    expect(saveButton().disabled).toBe(true);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(api.writes()).toEqual([]);
+  });
+});
+
 describe("a saved edit with warnings", () => {
   it("stays to show them, since they have nowhere else to land", async () => {
     const warning = "A bullet under Qorvane cites a fact filed under another employer.";
