@@ -255,6 +255,7 @@ Not a variant of the populated screen — a different screen.
 | State | Behaviour |
 |---|---|
 | **No profile** | Redirect to the profile form. Every render needs a name |
+| **Could not be read** | Centred in the content area, with the sidebar still beside it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the `Loading your record…` line returns. Only a first read shows this: once the overview has loaded, a later read that fails leaves it on screen |
 | **Import in progress** | A row above At a glance showing the document and progress, linking to fact review |
 | **All documents stale** | Normal. Five accent dots is a valid state, not an error |
 | **Zero Generated facts** | Row renders in the resting style with `Nothing waiting` — no amber, no call to action |
@@ -585,6 +586,7 @@ the only way it leaves.
 | State | Behaviour |
 |---|---|
 | **Loading** | Panel skeletons |
+| **Could not be read** | Both panels replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the Loading state returns. Only a first read shows this: once the skills have loaded, a later read that fails leaves them on screen |
 | **No candidates** | Both panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
 | **Not curated** | Curated panel reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field. This is the default and not an error |
 | **Save refused** | The server's `422` beneath the panel that caused it. The list re-reads from the server, so what is shown is what is stored |
@@ -686,6 +688,7 @@ needs it.
 | State | Behaviour |
 |---|---|
 | **Loading** | Skeleton document blocks |
+| **Could not be read** | The list replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the skeleton returns. Only a first read shows this: once the list has loaded, a later read that fails, such as a poll while an import runs, leaves it on screen |
 | **No documents** | The list is replaced by Screen 3's empty-state drop target, **the same component**, so the types it names cannot drift |
 | **Re-import refused** | The server's `409` or `422` reason beneath the document row. The list re-reads from the server |
 | **Retry refused** | The server's reason beneath the version row |

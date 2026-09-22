@@ -3869,3 +3869,32 @@ answered.
 
 **Left as it is.** The Refile row's `Your projects could not be read. Try again.` keeps its wording.
 Opening the row again reads the projects again, so there the words are true.
+
+### [2026-09-22] Documents keeps its list when a later read fails, and docs/10 names the failed read
+
+`docs/10` said nothing about a failed read on Documents, the Overview or Skills. Each screen's
+States table now has a `Could not be read` row naming the line, the `Retry` beside it, the loading
+state it returns to, and that only a first read shows it.
+
+Writing those rows found that the previous entry's reason for Retry having no disabled state holds
+only for a first read. `fetchState` in `@tanstack/query-core` 5.101.4 clears the error and returns
+the query to pending only when it has no data. When a query that has data fails a later read, the
+data stays and the status becomes `error`, and a Retry then leaves the status at `error` while it
+reads. The Overview and Skills show their content whenever they have data, so there the failure
+line only ever follows a first read. Documents checked for the error before it checked for data.
+The listing polls while an import runs and is read again after a refile or re-import, so one of
+those reads failing after its retries replaced the list the author was watching with the failure
+line, and its Retry stayed on screen while it read.
+
+Documents now checks for data first, as the other two do. A later read that fails leaves the list
+on screen, and the next read that succeeds brings it up to date. A first read that fails shows the
+line and Retry as before.
+
+A client test in `tests/client/documents.test.tsx` loads the list, refiles a document, fails the
+read that follows, and asserts the list is still on screen with no failure line or Retry. It failed
+against the previous code.
+
+**Left as it is.** A later read that fails says nothing on any of the three screens. The list or
+the overview may be out of date until a read succeeds, and nothing shows that.
+
+**Not looked at.** The screen was not opened in a browser for this entry.
