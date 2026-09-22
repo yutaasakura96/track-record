@@ -274,7 +274,8 @@ export interface RenderRow {
 
 export interface Overview {
   lastImportAt: string | null;
-  activeImport: ImportStatus | null;
+  /** The version still extracting, and the document it is a version of. */
+  activeImport: (ImportStatus & { filename: string }) | null;
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
   documents: RenderRow[];

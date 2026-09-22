@@ -67,10 +67,20 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       .orderBy(desc(sourceDocumentVersions.importedAt))
       .limit(1);
 
-    const active =
+    const running =
       latestImport && (latestImport.importStatus === "queued" || latestImport.importStatus === "extracting")
         ? await importStatus(db, userId, latestImport.id)
         : null;
+    // The row names the document it is importing, which `importStatus` does not
+    // carry: Fact Review reads the filename with the source text instead.
+    const [document] = running
+      ? await db
+          .select({ filename: sourceDocuments.filename })
+          .from(sourceDocuments)
+          .where(and(eq(sourceDocuments.userId, userId), eq(sourceDocuments.id, running.sourceDocumentId)))
+          .limit(1)
+      : [];
+    const active = running && document ? { ...running, filename: document.filename } : null;
 
     const currentEmployers = employerRows.filter((e) => e.endedOn === null).length;
     const projectsWithMeasured = await db

@@ -220,15 +220,16 @@ describe("an import in progress", () => {
       changedRegionShare: null,
       error: null,
       failedAtChunk: null,
+      filename: "vorbit-rollout.md",
     },
   });
-  const banner = async () =>
-    (await screen.findByText("Importing a document — review is open")).closest("button")!;
+  const banner = async () => (await screen.findByText("vorbit-rollout.md")).closest("button")!;
 
-  it("sits above At a glance and shows how far it has got", async () => {
+  it("names the document, sits above At a glance and shows how far it has got", async () => {
     open([], { "GET /api/overview": importing(2, 5) });
 
     const row = await banner();
+    expect(row.textContent).toContain("Importing vorbit-rollout.md — review is open");
     expect(within(row).getByText("2 / 5")).toBeTruthy();
     const glance = screen.getByText("At a glance");
     expect(row.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -252,7 +253,7 @@ describe("an import in progress", () => {
     open([row()]);
 
     await documentRow();
-    expect(screen.queryByText("Importing a document — review is open")).toBeNull();
+    expect(screen.queryByText(/review is open/)).toBeNull();
   });
 });
 

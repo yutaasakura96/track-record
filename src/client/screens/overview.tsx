@@ -18,7 +18,7 @@ import {
   type Overview as OverviewData,
   type RenderRow,
 } from "../api";
-import { Button, Dot, Mono, Panel, ProgressBar } from "../components/ui";
+import { Button, Chip, Dot, Mono, Panel, ProgressBar } from "../components/ui";
 import { ReadFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
@@ -92,8 +92,8 @@ function PopulatedRecord({ data }: { data: OverviewData }) {
               className="text-left bg-surface-raised border border-border rounded-panel px-16 py-14 hover:bg-hover"
             >
               <div className="flex items-center justify-between">
-                <span className="text-row font-medium text-text-strong">
-                  Importing a document — review is open
+                <span className="flex items-center gap-8 text-row font-medium text-text-strong">
+                  Importing <Chip>{data.activeImport.filename}</Chip> — review is open
                 </span>
                 <Mono className="text-text-dimmer">
                   {data.activeImport.chunksDone} / {data.activeImport.chunksTotal || 1}

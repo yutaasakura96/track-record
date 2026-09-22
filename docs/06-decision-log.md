@@ -3898,3 +3898,23 @@ against the previous code.
 the overview may be out of date until a read succeeds, and nothing shows that.
 
 **Not looked at.** The screen was not opened in a browser for this entry.
+
+### [2026-09-22] The Overview's import row names the document
+
+`docs/10` Screen 3 says the import-in-progress row shows the document and its progress. It showed
+the progress only: the line read `Importing a document`, because `GET /api/overview` returned the
+`GET /api/imports/:id` body for the running version, and that body has no filename. Fact Review
+gets the filename from the source text it reads, so the import status never needed one.
+
+The overview now adds `filename` to `activeImport`, read from the source document under the same
+`user_id` filter as every other query. The import status route is unchanged. The row reads
+`Importing`, then the filename in a chip, then `review is open`, and `docs/07` §8 and the Screen 3
+States row now say so.
+
+Client tests for the row, the empty record and the backup link were committed first. The row's
+tests now assert the filename and failed against the previous screen. A server test in
+`tests/record.test.ts` holds extraction open, reads the overview while the import runs, and asserts
+the filename. It failed against the previous route. The older test beside it only checks the
+counts when its read happens to land during extraction.
+
+**Not looked at.** The row was not opened in a browser for this entry.

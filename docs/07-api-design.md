@@ -644,6 +644,9 @@ that neither ever blocks.
 ```
 
 `tiles.credentials` sums `educations` and `certifications` — the split is storage, not interface.
+`activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
+is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
+overview's progress row shows.
 `factsByProvenance.generated` being non-zero is what turns the overview's Generated row amber with
 its `Review N →` action.
 

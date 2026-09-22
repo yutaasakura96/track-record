@@ -586,4 +586,25 @@ describe("the overview", () => {
     const after = await client.json<{ activeImport: unknown }>("/api/overview");
     expect(after.activeImport).toBeNull();
   });
+
+  it("names the document an import in progress is reading", async () => {
+    // Extraction waits on this gate, so the overview is read while the import runs.
+    let open!: () => void;
+    const gate = new Promise<void>((resolve) => (open = resolve));
+    const extract = model.extractFacts.bind(model);
+    model.extractFacts = async (...args) => {
+      await gate;
+      return extract(...args);
+    };
+    await client.request("/api/imports", {
+      method: "POST",
+      body: uploadForm(CASE_STUDY, "plinth-notes.md"),
+    });
+
+    const during = await client.json<{ activeImport: { filename: string } | null }>("/api/overview");
+    open();
+    await settle();
+
+    expect(during.activeImport?.filename).toBe("plinth-notes.md");
+  });
 });

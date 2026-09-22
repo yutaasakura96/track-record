@@ -256,7 +256,7 @@ Not a variant of the populated screen — a different screen.
 |---|---|
 | **No profile** | Redirect to the profile form. Every render needs a name |
 | **Could not be read** | Centred in the content area, with the sidebar still beside it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the `Loading your record…` line returns. Only a first read shows this: once the overview has loaded, a later read that fails leaves it on screen |
-| **Import in progress** | A row above At a glance showing the document and progress, linking to fact review |
+| **Import in progress** | A row above At a glance: `Importing`, the document's filename in a mono chip, `— review is open`, and the chunks done out of the total with a progress bar. It links to fact review |
 | **All documents stale** | Normal. Five accent dots is a valid state, not an error |
 | **Zero Generated facts** | Row renders in the resting style with `Nothing waiting` — no amber, no call to action |
 
