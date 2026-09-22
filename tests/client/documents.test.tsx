@@ -288,3 +288,15 @@ describe("retrying a failed import", () => {
     expect(within(await versionRow(1)).queryByRole("alert")).toBeNull();
   });
 });
+
+describe("a listing that could not be read", () => {
+  it.each([
+    [new Refusal(500, "internal", "Something went wrong on our side."), "Something went wrong on our side."],
+    [UNREACHABLE, NOT_REACHED],
+  ])("says why in place of the list", async (answer, said) => {
+    open({ "GET /api/imports": answer });
+
+    expect((await screen.findByRole("alert")).textContent).toBe(said);
+    expect(screen.queryByText("qorvane-notes.md")).toBeNull();
+  });
+});

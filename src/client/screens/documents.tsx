@@ -12,7 +12,6 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  ApiError,
   failureText,
   isImportRunning,
   useDocuments,
@@ -76,7 +75,7 @@ function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
   if (listing.isError) {
     return (
       <p role="alert" className="text-small text-text-secondary">
-        {listing.error instanceof ApiError ? listing.error.message : "Your documents could not be loaded."}
+        {failureText(listing.error)}
       </p>
     );
   }
