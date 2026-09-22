@@ -3918,3 +3918,26 @@ the filename. It failed against the previous route. The older test beside it onl
 counts when its read happens to land during extraction.
 
 **Not looked at.** The row was not opened in a browser for this entry.
+
+### [2026-09-22] The Overview's import row holds a long filename on one line
+
+The previous entry left the row unlooked at. Opened in Chrome with the fetch stubbed, a short
+filename read as intended. A long one did not. At about 100 characters the `2 / 5` counter sat
+against `review is open` with no space between them. At 142 the chip wrapped to two lines,
+`review is open` broke, and the counter wrapped to `2 /` over `5`. A filename is whatever the file
+was called when it was uploaded, so a name that long is possible.
+
+The filename is now the only part of the row that gives way. It is cut short with an ellipsis and
+carries the full name as a `title`, so hovering shows it. `Importing`, `review is open` and the
+counter keep their width and stay on one line, with a 12px gap before the counter.
+
+The first attempt showed why the row itself also needs `min-w-0`. The row is a grid item in the
+content column, and a grid item is never narrower than its content unless told otherwise. Once the
+filename could no longer wrap, that minimum became the whole name, and the row grew to 1176px in a
+940px column and ran off the side of the page.
+
+Checked in Chrome at 142 characters and with a short name. At 142 the row is 940px wide and one
+line high, the name ends in an ellipsis, and the page does not scroll sideways. The short name shows
+in full, as before. The client test for the row asserts the `title`. The layout itself has no test,
+because jsdom does no layout.
+

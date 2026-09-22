@@ -230,6 +230,8 @@ describe("an import in progress", () => {
 
     const row = await banner();
     expect(row.textContent).toContain("Importing vorbit-rollout.md — review is open");
+    // A long name is cut short on screen, so the whole of it is kept for hover.
+    expect(within(row).getByText("vorbit-rollout.md").title).toBe("vorbit-rollout.md");
     expect(within(row).getByText("2 / 5")).toBeTruthy();
     const glance = screen.getByText("At a glance");
     expect(row.compareDocumentPosition(glance) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();

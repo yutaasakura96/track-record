@@ -89,13 +89,21 @@ function PopulatedRecord({ data }: { data: OverviewData }) {
             <button
               type="button"
               onClick={() => void navigate({ to: "/imports/$importId", params: { importId: data.activeImport!.importId } })}
-              className="text-left bg-surface-raised border border-border rounded-panel px-16 py-14 hover:bg-hover"
+              className="min-w-0 text-left bg-surface-raised border border-border rounded-panel px-16 py-14 hover:bg-hover"
             >
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-8 text-row font-medium text-text-strong">
-                  Importing <Chip>{data.activeImport.filename}</Chip> — review is open
+              {/* A filename is whatever the file was called, so it is the one part
+                  of the row that gives way: cut short, in full on hover. */}
+              <div className="flex items-center justify-between gap-12">
+                <span className="flex min-w-0 items-center gap-8 text-row font-medium text-text-strong">
+                  <span className="shrink-0">Importing</span>{" "}
+                  <Chip className="min-w-0">
+                    <span className="truncate" title={data.activeImport.filename}>
+                      {data.activeImport.filename}
+                    </span>
+                  </Chip>{" "}
+                  <span className="shrink-0 whitespace-nowrap">— review is open</span>
                 </span>
-                <Mono className="text-text-dimmer">
+                <Mono className="shrink-0 whitespace-nowrap text-text-dimmer">
                   {data.activeImport.chunksDone} / {data.activeImport.chunksTotal || 1}
                 </Mono>
               </div>
