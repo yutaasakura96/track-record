@@ -3749,3 +3749,41 @@ and checkbox code.
 
 **Revisit if:** a design-system rule for the colour of a refusal is written, which would settle the
 delete box and the header import line together.
+
+### [2026-09-22] Overview and Skills say when the server cannot be reached
+
+Screens 3 and 7 had no client tests. Their writes, Generate on the Overview and the one curation
+save on Skills, were read for the same faults as Documents and Your record, and so were their first
+reads.
+
+**What was wrong, and is fixed.** Generate said `Generation could not be started.` when the server
+could not be reached, and now uses `failureText`; a refusal was already shown in the server's
+words. The Skills save said `That change was not saved.` for anything that was not a refusal, and
+showed a refusal's message alone, which did not say the change was lost. It now states `That change
+was not saved.` followed by `failureText` in every case, as the Appears in line on Your record does.
+The screen still re-reads after a failed save, so the list shows what is stored. On both screens, a
+first read that failed left the page on its loading text for good, because the loading branch was
+taken whenever there was no data. Each now shows `failureText` in an alert when the read has failed
+and there is still nothing to show.
+
+Eight client tests in `tests/client/overview.test.tsx` cover Generate: the document it asks for
+and the proposal it opens, the refusal, the unreachable line, that a second press clears the last
+failure, that a document with no usable facts or no builder offers no write and says why, that a
+waiting proposal is opened rather than asked for again, and the failed first read. Nine in
+`tests/client/skills.test.tsx` cover the whole list each change sends: a candidate added to the
+group chosen, a new group that writes nothing until its first skill, an emptied group dropped, a
+skill and a group moved, a rename on blur, the refusal shown in the panel where the change was made
+followed by a re-read, the unreachable line, and the failed first read. The four unreachable and
+failed-read cases failed against the previous code and nothing else did; the refusal case was
+tightened to the new sentence after the fix.
+
+**Left as it is.** The Skills save line is in the removed colour and the new failed-read line is in
+the secondary text colour, taken from the Documents failed-read line. The Documents failed read
+still says `Your documents could not be loaded.` when the server cannot be reached rather than
+`failureText`. It was outside this change.
+
+**Not looked at.** Neither screen was opened in a browser for this entry. The empty Overview, the
+active import banner and the Backup link are not tested.
+
+**Revisit if:** a design-system rule for the colour of a refusal is written, which would settle
+these lines with the others.
