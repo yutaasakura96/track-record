@@ -155,6 +155,10 @@ Common applications:
 - Label column, where a row aligns its notes behind a word: **80px**. The longest label
   this has to hold is `Generated` at 13px/medium, which measures 67.33px; 60px broke it
   mid-word (issue #9). Composed from the scale, 40 + 40
+- Form control height: **36px**, the height a text input takes from `text-ui` (13px / 1.4) with
+  `8px` vertical padding and a 1px border. A native `<select>` gets it as a minimum height, because
+  Chrome sets its line height to `normal` whatever the class says and it measured 33px beside 36px
+  inputs. Composed from the scale, 26 + 10
 
 ---
 

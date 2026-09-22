@@ -4041,3 +4041,26 @@ Overview and Skills says the screen may be out of date" left open: on the empty 
 working stub removed the line.
 
 **Revisit if:** a form outside Record gains a required select.
+
+### [2026-09-22] A native select takes the form control height as a minimum
+
+"[2026-09-22] Record's forms start required choices unchosen, and a field keeps its height" left a
+native select at 33px beside 36px inputs. Measured in Chrome 153: the select carries `text-ui`, and
+its computed line height is still `normal`, so it gets about 15px of line box where an input gets
+18.2px. The class is not the problem; Chrome does not apply it to a select drawn with its native
+appearance. `appearance: none` and `appearance: base-select` both measured 36.2px, but the first
+drops the native arrow and needs a chevron of our own, and the second is Chrome only and changes
+the popup.
+
+`docs/05` §3 gains **form control height: 36px**, the height an input already takes from `text-ui`
+with 8px vertical padding and a 1px border, as `--spacing-control`. The shared control classes on
+Record and Skills and `SELECT_CONTROL` (Documents' refile row and the import picker) carry
+`min-h-control`. Inputs are unchanged at 36.2px; a textarea is taller anyway.
+
+**Looked at in Chrome**, with only Vite running and `fetch` stubbed, after the change: every
+select on Record's five forms measures 36px beside 36.2px inputs. The `SELECT_CONTROL` string, which
+Skills' class now matches, measured 36px enabled and disabled on an injected element, not on its own
+screens. jsdom has no layout, so no test covers this.
+
+**Revisit if:** a select is styled from a class other than these three, or a browser starts
+honouring the select's line height.

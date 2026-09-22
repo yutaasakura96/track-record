@@ -23,7 +23,7 @@ import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 
 const CONTROL =
-  "bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
+  "min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
 
 type PanelName = "curated" | "candidates";
 

@@ -19,7 +19,7 @@ export const IMPORT_ACCEPT = ".md,.markdown,.txt";
  * class drift.
  */
 export const SELECT_CONTROL =
-  "bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
+  "min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
 
 /**
  * The review screen opens IMMEDIATELY on upload, so the document can be read

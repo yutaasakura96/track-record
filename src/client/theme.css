@@ -161,6 +161,9 @@
   /* A row that aligns its note behind a word. Holds `Generated` at 13px/medium
    * (67.33px) with room; at 60px it broke inside the word (issue #9). */
   --spacing-label: 80px;
+  /* A text input's height at text-ui with 8px vertical padding. A native select
+   * takes it as a minimum; Chrome ignores the select's line height and gave 33px. */
+  --spacing-control: 36px;
   --spacing-sidebar: 212px;
   --spacing-rail: 412px;
   --spacing-rail-compact: 380px;

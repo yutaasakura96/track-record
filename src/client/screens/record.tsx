@@ -590,7 +590,7 @@ function EntityForm<T extends { id: string }>({
 }
 
 const CONTROL =
-  "bg-surface-raised border rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
+  "min-h-control bg-surface-raised border rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
 
 function EntityField({
   spec,
