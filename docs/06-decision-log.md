@@ -3836,3 +3836,36 @@ TanStack Query pauses a failed query's retries while the page is hidden, so a fa
 its skeleton until the tab is made visible. Overriding `document.visibilityState` and dispatching
 `visibilitychange` resumed them. A tab the author is looking at reaches the failure line after its
 retries.
+
+### [2026-09-22] A failed read on Documents, Overview and Skills offers Retry
+
+The failed-read lines on Documents, the Overview and Skills said `The server could not be reached.
+Try again.` with nothing on the screen to try again with. Only a reload read again. Every other
+failure state in `docs/10` carries its way out, such as the ghost `Retry` on a failed import and
+Try again on a failed generation, so these now do too. The author chose a control over rewording
+the line.
+
+**What changed.** A shared `ReadFailure` component (`src/client/components/read-failure.tsx`)
+renders the line as the alert and a ghost `Retry` button beside it, which refetches the query. The
+line comes from a new `readFailureText` in `src/client/api.ts`: the server's message for a refusal,
+and `The server could not be reached.` otherwise, without `Try again.`, because the button is the
+way to try again. `failureText` is unchanged for writes, where `Try again.` means press the same
+button, and pressing it is a real retry.
+
+**Retry has no disabled state.** A query that has never returned data goes back to pending when it
+is fetched again, with its error cleared (`fetchState` in `@tanstack/query-core` 5.101.4). The
+screen shows its loading state while Retry reads and the button is not on screen to be pressed
+twice. A disabled `Retrying…` state was written first and its tests could never see it, so it was
+removed.
+
+Nine client tests cover this, three per screen in `tests/client/documents.test.tsx`,
+`overview.test.tsx` and `skills.test.tsx`: the unreachable line without `Try again.`, Retry reading
+again and showing the content once it arrives with no write made, and the loading state returning
+while Retry reads. All nine failed against the previous code.
+
+**Looked at in Chrome**, with only Vite running and `fetch` stubbed. On all three screens the line
+and `Retry` render side by side, and Retry brought the list or the overview up once the stub
+answered.
+
+**Left as it is.** The Refile row's `Your projects could not be read. Try again.` keeps its wording.
+Opening the row again reads the projects again, so there the words are true.
