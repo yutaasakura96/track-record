@@ -4007,3 +4007,37 @@ decision fails". After the change, a refused footer press and then a header pres
 different reason left one line on screen, the second reason beside `Finish review`.
 
 **Revisit if:** a third control on Fact Review finishes the review.
+
+### [2026-09-22] Record's forms start required choices unchosen, and a field keeps its height
+
+Looking at Record's five forms in Chrome, with only Vite running and `fetch` stubbed, turned up
+three things. Only the Employers form had been seen in a browser before.
+
+- **A new row's required selects answered for the author.** A new role came up on the first
+  employer, a new education on `卒業 · Graduated` and a new employer on `正社員 · Full time`, so a
+  row saved without touching them carried a value nobody chose. For education this contradicts
+  "[2026-08-12] Bootstrap flow: entity extraction from documents the author already holds", which
+  says `outcome` stays unset until the author chooses, because a withdrawal printed as 卒業 is a
+  misrepresentation. All three now open on an unchosen `未選択 · Choose one` entry, the same mechanism Level
+  already used. Left alone, the field is sent as nothing and the server refuses it with the field
+  named. An existing row still opens on its stored value.
+- **Education's end month was labelled optional** while its hint said it is required unless the
+  outcome is 卒業見込. The label no longer says optional; the hint states the exception.
+- **A control grew to match its neighbour.** Each field is a small grid, and a field beside one
+  with a hint or an error line was stretched to the row's height: 36px boxes became 41 to 48px, on
+  every form. The field's grid now packs its rows to the top. Measured again in Chrome after the
+  change, every text, month, number and URL box is 36px, including beside an error line.
+
+Four client tests cover the first two, one per select and one for the label. All four failed
+against the previous code. jsdom has no layout, so the height is covered only by the measurement
+above.
+
+**Not changed:** a native select renders at 33px beside 36px inputs. That was there before, and
+it was left alone.
+
+**Also looked at in Chrome**, closing what "[2026-09-22] A failed later read on Documents,
+Overview and Skills says the screen may be out of date" left open: on the empty Overview the
+`Could not refresh` line and Retry sit centred above `Your record is empty`, and Retry against a
+working stub removed the line.
+
+**Revisit if:** a form outside Record gains a required select.
