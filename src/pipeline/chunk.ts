@@ -33,21 +33,41 @@ export interface ChunkPlan {
 }
 
 /**
- * The regions of `text` that are new or changed relative to `previousText`.
- * Whole-document on a first import.
+ * The regions of `text` that are new or changed relative to `previousText`, and
+ * the changed share, from one line diff. Whole-document on a first import.
  */
-export function changedRegions(text: string, previousText: string | null): Region[] {
-  if (previousText === null) return text.length > 0 ? [{ start: 0, end: text.length }] : [];
+function compare(
+  text: string,
+  previousText: string | null,
+): { regions: Region[]; share: number | null } {
+  if (previousText === null) {
+    return {
+      regions: text.length > 0 ? [{ start: 0, end: text.length }] : [],
+      share: null,
+    };
+  }
 
   const regions: Region[] = [];
   let offset = 0;
+  let added = 0;
+  let removed = 0;
   for (const part of diffLines(previousText, text)) {
-    if (part.removed) continue; // removed text is not in `text` and has no offset here
+    if (part.removed) {
+      removed += part.value.length; // removed text is not in `text` and has no offset here
+      continue;
+    }
     const end = offset + part.value.length;
-    if (part.added) regions.push({ start: offset, end });
+    if (part.added) {
+      regions.push({ start: offset, end });
+      added += part.value.length;
+    }
     offset = end;
   }
-  return merge(regions);
+  const combined = text.length + removed;
+  return {
+    regions: merge(regions),
+    share: combined === 0 ? 0 : (added + removed) / combined,
+  };
 }
 
 /**
@@ -55,15 +75,19 @@ export function changedRegions(text: string, previousText: string | null): Regio
  * line boundaries and finally to a hard cut, so a single enormous paragraph
  * still makes progress rather than becoming one opaque chunk.
  */
-export function planChunks(text: string, previousText: string | null): ChunkPlan {
-  const regions = changedRegions(text, previousText);
+export function planChunks(
+  text: string,
+  previousText: string | null,
+): ChunkPlan {
+  const { regions, share } = compare(text, previousText);
   const chunks: Region[] = [];
 
   for (const region of regions) {
     let cursor = region.start;
     while (cursor < region.end) {
       const limit = Math.min(cursor + TARGET_CHUNK_CHARS, region.end);
-      const cut = limit === region.end ? region.end : boundaryBefore(text, cursor, limit);
+      const cut =
+        limit === region.end ? region.end : boundaryBefore(text, cursor, limit);
       chunks.push({ start: cursor, end: cut });
       cursor = cut;
     }
@@ -71,19 +95,8 @@ export function planChunks(text: string, previousText: string | null): ChunkPlan
 
   return {
     chunks: chunks.filter((c) => text.slice(c.start, c.end).trim() !== ""),
-    changedRegionShare: previousText === null ? null : changedShare(text, previousText),
+    changedRegionShare: share,
   };
-}
-
-function changedShare(text: string, previousText: string): number {
-  let added = 0;
-  let removed = 0;
-  for (const part of diffLines(previousText, text)) {
-    if (part.added) added += part.value.length;
-    if (part.removed) removed += part.value.length;
-  }
-  const combined = text.length + removed;
-  return combined === 0 ? 0 : (added + removed) / combined;
 }
 
 function boundaryBefore(text: string, from: number, limit: number): number {
@@ -100,7 +113,8 @@ function merge(regions: Region[]): Region[] {
   const out: Region[] = [];
   for (const region of sorted) {
     const last = out[out.length - 1];
-    if (last && region.start <= last.end) last.end = Math.max(last.end, region.end);
+    if (last && region.start <= last.end)
+      last.end = Math.max(last.end, region.end);
     else out.push({ ...region });
   }
   return out;
