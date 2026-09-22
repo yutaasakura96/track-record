@@ -3715,3 +3715,37 @@ the tests assert the text.
 
 **Revisit if:** a design-system rule for the colour of a refusal is written, which would settle the
 header line either way.
+
+### [2026-09-22] Your record says when a write never reaches the server
+
+Screen 4 had no client tests. Its four writes, creating a row, editing one, deleting one and
+setting which renders an entry appears in, were read for the same faults as Documents.
+
+**What was wrong, and is fixed.** Saving the form showed nothing at all when the server could not
+be reached. The alert rendered only for a refusal the server sent, and the empty `catch` swallowed
+everything else, so the form stayed open, the button went from `Saving…` back to `Save`, and there
+was no sign the row had not been saved. It now states `failureText` followed by `Nothing was
+saved.` in every case. The fields marked as needing attention still come only from a refusal,
+because a write that never arrived names none. Delete said `That employer could not be deleted.`
+when the server could not be reached, and now uses `failureText`; the `409` that counts what is
+still attached was already shown in the server's words. The Appears in checkboxes said `That
+setting was not saved.` for every failure, dropping the server's reason. The line now keeps that
+sentence and follows it with `failureText`.
+
+Fifteen client tests in `tests/client/record.test.tsx` cover adding, editing and deleting an
+employer and its Appears in checkboxes: the whole row each save sends with the day pinned to `01`,
+the stored values an edit did not touch, the `422` that marks a field, the `409` counts refusal,
+that Cancel writes nothing, that Add for a role waits for an employer, and the unreachable line on
+each write. The five unreachable and reason cases fail against the previous code and nothing else
+does.
+
+**Left as it is.** The delete refusal is a boxed line in the secondary text colour. It was written
+for the `409`, but a server error or an unreachable server now lands in the same box. No screen
+specification names its colour, and changing it would be a decision rather than a fix.
+
+**Not looked at.** Screen 4 was not opened in a browser for this entry. The tests exercise
+employers only; roles, projects, education and certifications run through the same form, delete
+and checkbox code.
+
+**Revisit if:** a design-system rule for the colour of a refusal is written, which would settle the
+delete box and the header import line together.
