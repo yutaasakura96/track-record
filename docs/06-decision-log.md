@@ -3803,3 +3803,36 @@ The unreachable case failed against the previous code and the refusal case did n
 **Left as it is.** The line keeps the secondary text colour.
 
 **Not looked at.** The screen was not opened in a browser for this entry.
+
+### [2026-09-22] The Overview keeps its sidebar when it cannot load, and a Record save failure sits beside Save
+
+The failed-read and unreachable lines on Your record, Documents, Overview and Skills were looked at
+in Chrome for the first time, with only Vite running and `fetch` stubbed so nothing reached a
+server. Documents, Skills and the Record inclusion and delete lines rendered as intended. Two did
+not.
+
+**The Overview stranded the author.** Its loading and failed states returned a bare full-screen
+line, and the sidebar was rendered only once the overview had loaded. A failed read left one line
+of text on an empty page with no way to another screen short of reloading. The sidebar now renders
+in every state, and the loading and failure lines are centred in the content area beside it.
+
+**A Record save failure was out of view.** The `Nothing was saved.` line sat at the top of the
+entry form. With one employer on the screen, Save was already below the fold of an 836 pixel
+window, so the author scrolled to Save, clicked, and saw nothing change: the line was about 600
+pixels above them. The line now follows the fields, directly above Save. The field highlights of a
+`422` stay on the fields.
+
+Two new client tests and three extended ones cover this. `tests/client/overview.test.tsx` asserts the sidebar and its Record
+link on a failed read, and the sidebar while the overview is loading. `tests/client/record.test.tsx`
+asserts, in the create refusal, create unreachable and edit unreachable cases, that the alert
+follows every field in document order. jsdom has no layout, so order stands in for position. All
+five assertions failed against the previous code.
+
+**Left as it is.** The Skills failed-read line sits at the page padding rather than in a centred
+column as the Documents one does. It is visible and inside the shell, so it was not changed.
+
+**Worth knowing for the next look.** Chrome reports a background automation tab as hidden, and
+TanStack Query pauses a failed query's retries while the page is hidden, so a failed read stays on
+its skeleton until the tab is made visible. Overriding `document.visibilityState` and dispatching
+`visibilitychange` resumed them. A tab the author is looking at reaches the failure line after its
+retries.
