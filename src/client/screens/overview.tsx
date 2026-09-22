@@ -19,6 +19,7 @@ import {
   type RenderRow,
 } from "../api";
 import { Button, Dot, Mono, Panel, ProgressBar } from "../components/ui";
+import { ReadFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
@@ -42,9 +43,7 @@ export function Overview() {
           )
         ) : overview.isError ? (
           <div className="flex-1 grid place-items-center">
-            <p role="alert" className="text-small text-text-secondary">
-              {failureText(overview.error)}
-            </p>
+            <ReadFailure query={overview} />
           </div>
         ) : (
           <div className="flex-1 grid place-items-center text-small text-text-dim">Loading your record…</div>

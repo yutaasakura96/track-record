@@ -19,6 +19,7 @@ import {
   type SkillCurationInput,
 } from "../api";
 import { Button, Dot, Mono, Panel } from "../components/ui";
+import { ReadFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 
 const CONTROL =
@@ -94,9 +95,7 @@ export function Skills() {
 
         <div className="flex-1 overflow-y-auto px-20 py-26">
           {!data && curation.isError ? (
-            <p role="alert" className="text-small text-text-secondary">
-              {failureText(curation.error)}
-            </p>
+            <ReadFailure query={curation} />
           ) : !data ? (
             <div className="grid grid-cols-2 gap-20">
               <Panel heading="Curated">

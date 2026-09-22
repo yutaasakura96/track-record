@@ -71,6 +71,14 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 export const failureText = (error: unknown) =>
   error instanceof ApiError ? error.message : "The server could not be reached. Try again.";
 
+/**
+ * What a screen says when a read it needs failed. It stands beside a Retry
+ * control, so where the server was never reached it does not also say to try
+ * again: a write's "Try again." means press the same button, and a read had none.
+ */
+export const readFailureText = (error: unknown) =>
+  error instanceof ApiError ? error.message : "The server could not be reached.";
+
 const json = (body: unknown) => ({ body: JSON.stringify(body) });
 
 /* ------------------------------------------------------------------- types */

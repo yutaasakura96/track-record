@@ -25,6 +25,7 @@ import {
   type SourceDocumentRow,
 } from "../api";
 import { Button, Chip, Mono, ProgressBar } from "../components/ui";
+import { ReadFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import {
   IMPORT_ACCEPT,
@@ -73,11 +74,7 @@ export function DocumentsScreen() {
 
 function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
   if (listing.isError) {
-    return (
-      <p role="alert" className="text-small text-text-secondary">
-        {failureText(listing.error)}
-      </p>
-    );
+    return <ReadFailure query={listing} />;
   }
   if (!listing.data) return <Skeleton />;
   // Screen 3's drop target, the same component, so the types it names cannot drift.

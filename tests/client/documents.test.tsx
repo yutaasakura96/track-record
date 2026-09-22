@@ -17,6 +17,8 @@ const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
 };
 const NOT_REACHED = "The server could not be reached. Try again.";
+/** A read has a Retry beside it, so its line does not also say to try again. */
+const NOT_READ = "The server could not be reached.";
 
 function version(versionNo: number, overrides: Partial<DocumentVersion> = {}): DocumentVersion {
   return {
@@ -292,11 +294,37 @@ describe("retrying a failed import", () => {
 describe("a listing that could not be read", () => {
   it.each([
     [new Refusal(500, "internal", "Something went wrong on our side."), "Something went wrong on our side."],
-    [UNREACHABLE, NOT_REACHED],
+    [UNREACHABLE, NOT_READ],
   ])("says why in place of the list", async (answer, said) => {
     open({ "GET /api/imports": answer });
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
     expect(screen.queryByText("qorvane-notes.md")).toBeNull();
+  });
+
+  it("reads it again on Retry and shows the list once it arrives", async () => {
+    let attempt = 0;
+    const { api, user } = open({
+      "GET /api/imports": () => (++attempt === 1 ? UNREACHABLE() : listing(document())),
+    });
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await block();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("shows the loading state again while Retry reads", async () => {
+    let attempt = 0;
+    const { user } = open({
+      "GET /api/imports": () => (++attempt === 1 ? UNREACHABLE() : new Promise(() => {})),
+    });
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByLabelText("Loading your documents");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 });

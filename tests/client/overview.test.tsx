@@ -16,6 +16,8 @@ const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
 };
 const NOT_REACHED = "The server could not be reached. Try again.";
+/** A read has a Retry beside it, so its line does not also say to try again. */
+const NOT_READ = "The server could not be reached.";
 
 const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   id: null,
@@ -133,8 +135,34 @@ describe("an overview that could not be read", () => {
   it("says so rather than loading forever", async () => {
     open([], { "GET /api/overview": UNREACHABLE });
 
-    expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
+    expect((await screen.findByRole("alert")).textContent).toBe(NOT_READ);
     expect(screen.queryByText("Loading your record…")).toBeNull();
+  });
+
+  it("reads it again on Retry and shows it once it arrives", async () => {
+    let attempt = 0;
+    const { api, user } = open([], {
+      "GET /api/overview": () => (++attempt === 1 ? UNREACHABLE() : overview([row()])),
+    });
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await documentRow();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("shows the loading state again while Retry reads", async () => {
+    let attempt = 0;
+    const { user } = open([], {
+      "GET /api/overview": () => (++attempt === 1 ? UNREACHABLE() : new Promise(() => {})),
+    });
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+
+    await screen.findByText("Loading your record…");
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
   it("keeps the sidebar, so the author can leave for another screen", async () => {
