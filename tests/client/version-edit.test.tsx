@@ -207,6 +207,82 @@ describe("typing into a block", () => {
   });
 });
 
+describe("the section heading", () => {
+  const RENAMED = "Brindlecourt";
+
+  it("sends the new heading under the same section key, with the blocks untouched", async () => {
+    const { api, user } = open({ [SAVE]: saved() });
+
+    const heading = (await screen.findByRole("textbox", { name: "Section heading" })) as HTMLInputElement;
+    await user.clear(heading);
+    await user.type(heading, RENAMED);
+    expect(saveButton().disabled).toBe(false);
+
+    await user.click(saveButton());
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    expect(api.bodyOf("POST", `/api/renders/${KIND}/versions`)).toEqual({
+      basedOnVersionId: CURRENT,
+      content: { sections: [{ ...CONTENT.sections[0]!, heading: RENAMED }] },
+    });
+  });
+
+  it("is no change once typed back to what it was", async () => {
+    const { api, user } = open();
+
+    const heading = (await screen.findByRole("textbox", { name: "Section heading" })) as HTMLInputElement;
+    await user.type(heading, "s");
+    expect(saveButton().disabled).toBe(false);
+
+    await user.keyboard("{Backspace}");
+    expect(heading.value).toBe("Experience");
+    expect(saveButton().disabled).toBe(true);
+    expect(api.writes()).toEqual([]);
+  });
+});
+
+describe("moving a block", () => {
+  it("offers no Move up on the first block and no Move down on the last", async () => {
+    open();
+
+    const first = within(await block(QUILLSET));
+    const last = within(await block(REVIEW));
+    expect(first.queryByRole("button", { name: "Move up" })).toBeNull();
+    expect(first.getByRole("button", { name: "Move down" })).toBeTruthy();
+    expect(last.getByRole("button", { name: "Move up" })).toBeTruthy();
+    expect(last.queryByRole("button", { name: "Move down" })).toBeNull();
+  });
+
+  it("sends the blocks in the new order, each keeping its id and citations", async () => {
+    const { api, user } = open({ [SAVE]: saved() });
+
+    await user.click(within(await block(QUILLSET)).getByRole("button", { name: "Move down" }));
+
+    // The moved block is now last, so its buttons have swapped.
+    const moved = within(await block(QUILLSET));
+    expect(moved.getByRole("button", { name: "Move up" })).toBeTruthy();
+    expect(moved.queryByRole("button", { name: "Move down" })).toBeNull();
+
+    await user.click(saveButton());
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    const [quillset, review] = CONTENT.sections[0]!.blocks;
+    expect(api.bodyOf("POST", `/api/renders/${KIND}/versions`)).toEqual({
+      basedOnVersionId: CURRENT,
+      content: { sections: [{ ...CONTENT.sections[0]!, blocks: [review, quillset] }] },
+    });
+  });
+
+  it("is no change once moved back", async () => {
+    const { api, user } = open();
+
+    await user.click(within(await block(QUILLSET)).getByRole("button", { name: "Move down" }));
+    expect(saveButton().disabled).toBe(false);
+
+    await user.click(within(await block(QUILLSET)).getByRole("button", { name: "Move up" }));
+    expect(saveButton().disabled).toBe(true);
+    expect(api.writes()).toEqual([]);
+  });
+});
+
 describe("a saved edit with warnings", () => {
   it("stays to show them, since they have nowhere else to land", async () => {
     const warning = "A bullet under Qorvane cites a fact filed under another employer.";
