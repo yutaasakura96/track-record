@@ -80,6 +80,9 @@ const LEVELS = [
   { value: "postgraduate", label: "大学院 · Postgraduate" },
 ];
 
+/** A required select's first entry on a new row: the author answers it, the first option does not. */
+const UNCHOSEN = "— 未選択 · Choose one —";
+
 const OUTCOMES = [
   { value: "graduated", label: "卒業 · Graduated" },
   { value: "completed", label: "修了 · Completed" },
@@ -129,7 +132,13 @@ const EMPLOYERS: Section<Employer> = {
       optional: true,
       hint: "Used on the English résumé. Falls back to 会社名.",
     },
-    { name: "employmentType", label: "雇用形態 · Employment type", type: "select", options: EMPLOYMENT_TYPES },
+    {
+      name: "employmentType",
+      label: "雇用形態 · Employment type",
+      type: "select",
+      options: EMPLOYMENT_TYPES,
+      unset: UNCHOSEN,
+    },
     { name: "industryJa", label: "業種 · Industry", optional: true },
     { name: "startedOn", label: "入社 · Started", type: "month" },
     {
@@ -168,7 +177,7 @@ const ROLES: Section<Role> = {
   empty: "No roles yet. Employer sections render without a title until there is one.",
   needsEmployer: true,
   fields: [
-    { name: "employerId", label: "Employer", type: "select", optionsFrom: "employers" },
+    { name: "employerId", label: "Employer", type: "select", optionsFrom: "employers", unset: UNCHOSEN },
     { name: "titleLatin", label: "Title", optional: true, hint: "As it should read in English." },
     { name: "titleJa", label: "役職 · Title (Japanese)", optional: true },
     { name: "shokushuJa", label: "職種 · Occupation", optional: true },
@@ -232,7 +241,7 @@ const EDUCATIONS: Section<Education> = {
     { name: "faculty", label: "学部・学科 · Faculty", optional: true },
     { name: "degree", label: "Degree", optional: true },
     { name: "fieldOfStudy", label: "Field of study", optional: true },
-    { name: "outcome", label: "Outcome", type: "select", options: OUTCOMES },
+    { name: "outcome", label: "Outcome", type: "select", options: OUTCOMES, unset: UNCHOSEN },
     {
       name: "level",
       label: "Level",
@@ -258,7 +267,6 @@ const EDUCATIONS: Section<Education> = {
       name: "endedOn",
       label: "卒業・修了・中退 · Ended",
       type: "month",
-      optional: true,
       hint: "Required unless the outcome is 卒業見込.",
     },
   ],
@@ -602,7 +610,9 @@ function EntityField({
       : (spec.options ?? []);
 
   return (
-    <label className={`grid gap-6 ${spec.wide ? "col-span-2" : ""}`}>
+    // content-start: a field sits in a row with its neighbour, and without it a
+    // neighbour's hint or error line stretched this control to match.
+    <label className={`grid content-start gap-6 ${spec.wide ? "col-span-2" : ""}`}>
       <span className="text-smaller text-text-dim">
         {spec.label}
         {spec.optional ? <span className="text-text-faint"> · optional</span> : null}

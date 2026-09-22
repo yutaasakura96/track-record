@@ -134,6 +134,44 @@ describe("adding an employer", () => {
   });
 });
 
+/* --------------------------------------------------------- required choices */
+
+describe("a new row's required choices", () => {
+  // The first option is not an answer: a row saved without the select ever
+  // being touched must carry nothing, which the server refuses, rather than a
+  // value nobody chose. A withdrawal saved as 卒業 is the case that matters.
+  it.each([
+    ["Employers", "雇用形態 · Employment type", "POST /api/employers", "employmentType"],
+    ["Roles", "Employer", "POST /api/roles", "employerId"],
+    ["Education", "Outcome", "POST /api/educations", "outcome"],
+  ])("%s: %s starts unchosen and is sent as nothing when left alone", async (heading, label, POST, name) => {
+    const { api, user } = open({
+      [POST]: new Refusal(422, "validation_failed", "A choice is missing.", { fields: [name] }),
+    });
+    const section = await panel(heading);
+    await user.click(within(section).getByRole("button", { name: "Add" }));
+    const form = section.querySelector("form")!;
+
+    expect(within(form).getByLabelText(label)).toHaveProperty("value", "");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await within(form).findByRole("alert");
+    const [path] = POST.split(" ").slice(1);
+    expect((api.bodyOf("POST", path!) as Record<string, unknown>)[name]).toBeNull();
+  });
+
+  it("does not call an education's end month optional", async () => {
+    const { user } = open();
+    const section = await panel("Education");
+    await user.click(within(section).getByRole("button", { name: "Add" }));
+    const form = section.querySelector("form")!;
+
+    const ended = [...form.querySelectorAll("label")].find((l) => l.textContent!.startsWith("卒業・修了・中退 · Ended"))!;
+    expect(ended.textContent).not.toMatch(/optional/);
+    expect(ended.textContent).toMatch(/Required unless the outcome is 卒業見込\./);
+  });
+});
+
 /* -------------------------------------------------------------------- edit */
 
 describe("editing an employer", () => {
