@@ -73,10 +73,8 @@ export function DocumentsScreen() {
 }
 
 function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
-  if (listing.isError) {
-    return <ReadFailure query={listing} />;
-  }
-  if (!listing.data) return <Skeleton />;
+  // Data first: a later read that fails, such as a poll during an import, keeps the list on screen.
+  if (!listing.data) return listing.isError ? <ReadFailure query={listing} /> : <Skeleton />;
   // Screen 3's drop target, the same component, so the types it names cannot drift.
   if (listing.data.documents.length === 0) return <ImportDropTarget className="mx-auto w-measure max-w-full" />;
   return (

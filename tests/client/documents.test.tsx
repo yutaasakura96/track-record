@@ -315,6 +315,31 @@ describe("a listing that could not be read", () => {
     expect(api.writes()).toEqual([]);
   });
 
+  it("keeps the list it has when a later read fails", async () => {
+    let attempt = 0;
+    const { user } = open({
+      "GET /api/imports": () => (++attempt === 1 ? listing(document()) : UNREACHABLE()),
+      "PATCH /api/source-documents/src-test-1": {
+        sourceDocumentId: "src-test-1",
+        project: { id: PLINTH.id, name: PLINTH.name },
+        facts: 4,
+      },
+    });
+    const row = await block();
+
+    // A refile re-reads the listing, and that read fails.
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
+    await user.click(within(row).getByRole("button", { name: "Refile" }));
+    await waitFor(() => expect(attempt).toBe(2));
+    // Let the failed read settle before looking.
+    await new Promise((settled) => setTimeout(settled, 50));
+
+    expect(screen.getByText("qorvane-notes.md")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(screen.queryByText(NOT_READ)).toBeNull();
+  });
+
   it("shows the loading state again while Retry reads", async () => {
     let attempt = 0;
     const { user } = open({
