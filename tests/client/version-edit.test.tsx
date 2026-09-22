@@ -283,6 +283,63 @@ describe("moving a block", () => {
   });
 });
 
+describe("moving a block in a longer document", () => {
+  const NOTES = "Wrote the Vorbit plinth notes.";
+  const HALVENMOOR = "Built Halvenmoor on zentrel.";
+  const BRINDLECOURT = "Led the Brindlecourt quillset.";
+
+  const quillset = CONTENT.sections[0]!.blocks[0]!;
+  const review = CONTENT.sections[0]!.blocks[1]!;
+  const notes = { id: "blk-test-3", kind: "bullet" as const, text: NOTES, factIds: ["fct-test-4"] };
+  const halvenmoor = { id: "blk-test-4", kind: "bullet" as const, text: HALVENMOOR, factIds: ["fct-test-5"] };
+  const brindlecourt = { id: "blk-test-5", kind: "bullet" as const, text: BRINDLECOURT, factIds: ["fct-test-6"] };
+
+  const experience = { key: "experience", heading: "Experience", blocks: [quillset, review, notes] };
+  const projects = { key: "projects", heading: "Projects", blocks: [halvenmoor, brindlecourt] };
+
+  const openLonger = (routes: Routes = {}) =>
+    open({
+      [`GET /api/renders/${KIND}/versions/${CURRENT}`]: { ...STORED, content: { sections: [experience, projects] } },
+      ...routes,
+    });
+
+  it("offers both moves on a middle block and sends it where it was moved", async () => {
+    const { api, user } = openLonger({ [SAVE]: saved() });
+
+    const middle = within(await block(REVIEW));
+    expect(middle.getByRole("button", { name: "Move up" })).toBeTruthy();
+    expect(middle.getByRole("button", { name: "Move down" })).toBeTruthy();
+
+    await user.click(middle.getByRole("button", { name: "Move up" }));
+    await user.click(saveButton());
+
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    expect(api.bodyOf("POST", `/api/renders/${KIND}/versions`)).toEqual({
+      basedOnVersionId: CURRENT,
+      content: { sections: [{ ...experience, blocks: [review, quillset, notes] }, projects] },
+    });
+  });
+
+  it("keeps each block within its own section", async () => {
+    const { api, user } = openLonger({ [SAVE]: saved() });
+
+    // The last block of one section and the first of the next sit side by side
+    // on the page, but neither can cross the heading between them.
+    expect(within(await block(NOTES)).queryByRole("button", { name: "Move down" })).toBeNull();
+    const first = within(await block(HALVENMOOR));
+    expect(first.queryByRole("button", { name: "Move up" })).toBeNull();
+
+    await user.click(first.getByRole("button", { name: "Move down" }));
+    await user.click(saveButton());
+
+    await waitFor(() => expect(api.writes()).toEqual([SAVE]));
+    expect(api.bodyOf("POST", `/api/renders/${KIND}/versions`)).toEqual({
+      basedOnVersionId: CURRENT,
+      content: { sections: [experience, { ...projects, blocks: [brindlecourt, halvenmoor] }] },
+    });
+  });
+});
+
 describe("a saved edit with warnings", () => {
   it("stays to show them, since they have nowhere else to land", async () => {
     const warning = "A bullet under Qorvane cites a fact filed under another employer.";
