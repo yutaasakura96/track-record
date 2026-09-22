@@ -18,6 +18,7 @@
 import { useState, type FormEvent } from "react";
 import {
   ApiError,
+  failureText,
   useEntities,
   useEntityActions,
   useProfile,
@@ -401,11 +402,7 @@ function EntitySection<T extends { id: string }>({
                           await actions.remove.mutateAsync(item.id);
                           if (open) setEditing(null);
                         } catch (error) {
-                          setConflict(
-                            error instanceof ApiError
-                              ? error.message
-                              : `That ${section.singular} could not be deleted.`,
-                          );
+                          setConflict(failureText(error));
                         }
                       }}
                     >
@@ -478,7 +475,7 @@ function AppearsIn({ entityType, entityId }: { entityType: IncludableEntity; ent
       ))}
       {setInclusion.error ? (
         <span role="alert" className="text-smaller text-removed">
-          That setting was not saved.
+          That setting was not saved. {failureText(setInclusion.error)}
         </span>
       ) : null}
     </div>
@@ -504,8 +501,8 @@ function EntityForm<T extends { id: string }>({
 }) {
   const actions = useEntityActions(section.key);
   const save = item ? actions.update : actions.create;
-  const failure = save.error instanceof ApiError ? save.error : null;
-  const invalid = new Set(failure?.fields ?? []);
+  // Fields come only from a refusal; a write that never arrived names none.
+  const invalid = new Set(save.error instanceof ApiError ? save.error.fields : []);
 
   const initial = (field: FieldSpec) => {
     const stored = item ? (item as Record<string, unknown>)[field.name] : undefined;
@@ -547,9 +544,9 @@ function EntityForm<T extends { id: string }>({
       onSubmit={onSubmit}
       className="border-t border-border-inner px-10 py-14 grid gap-14"
     >
-      {failure ? (
+      {save.error ? (
         <p role="alert" className="text-smaller text-removed">
-          {failure.message} Nothing was saved.
+          {failureText(save.error)} Nothing was saved.
         </p>
       ) : null}
 
