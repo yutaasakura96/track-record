@@ -3787,3 +3787,19 @@ active import banner and the Backup link are not tested.
 
 **Revisit if:** a design-system rule for the colour of a refusal is written, which would settle
 these lines with the others.
+
+### [2026-09-22] The Documents listing says when the server cannot be reached
+
+The previous entry left one line as it was: when the Documents listing could not be read and the
+error was not a refusal, the screen said `Your documents could not be loaded.` rather than that the
+server could not be reached. It now shows `failureText`, as the other screens do. A refusal was
+already shown in the server's words and still is. The screen did not share the loading fault the
+Overview and Skills had, because it checks for a failed read before it checks for data.
+
+Two client tests in `tests/client/documents.test.tsx` cover the failed listing: a refusal shows the
+server's message and an unreachable server shows the unreachable line, each in place of the list.
+The unreachable case failed against the previous code and the refusal case did not.
+
+**Left as it is.** The line keeps the secondary text colour.
+
+**Not looked at.** The screen was not opened in a browser for this entry.
