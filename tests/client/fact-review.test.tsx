@@ -393,6 +393,30 @@ describe("the rail", () => {
       expect(pathname()).toBe(`/imports/${IMPORT}`);
     },
   );
+
+  it.each([
+    ["Add 3 facts to record", "Finish review"],
+    ["Finish review", "Add 3 facts to record"],
+  ])("keeps one refusal: pressing %s and then %s says only the second reason, beside it", async (first, second) => {
+    const reasons = ["This import is still running.", "This import is already finished."];
+    let call = 0;
+    const { api, user } = open(RESOLVED, {
+      routes: {
+        [`POST /api/imports/${IMPORT}/finish`]: () => new Refusal(409, "conflict", reasons[call++]!),
+      },
+    });
+    await card("f-open");
+
+    await user.click(screen.getByRole("button", { name: first }));
+    expect((await screen.findByRole("alert")).textContent).toBe(reasons[0]);
+
+    const pressed = screen.getByRole("button", { name: second });
+    await user.click(pressed);
+
+    await waitFor(() => expect(screen.getAllByRole("alert").map((a) => a.textContent)).toEqual([reasons[1]]));
+    expect(pressed.parentElement!.contains(screen.getByRole("alert"))).toBe(true);
+    expect(api.writes()).toHaveLength(2);
+  });
 });
 
 describe("the keyboard", () => {

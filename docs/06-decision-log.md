@@ -3983,3 +3983,27 @@ and Retry sit side by side above the content with no page overflow. On the Overv
 appeared once the client's retries ran out, about five seconds after the read began, Retry was
 disabled with `Retrying…` while a read hung, and Retry against a working stub removed the line
 and kept the overview. The empty Overview was not looked at.
+
+### [2026-09-22] Fact Review's two finish buttons share one refusal
+
+`Finish review` in the header and `Add N facts to record` in the rail footer make the same call,
+and each said a refusal beside itself. Each kept its own copy of that refusal, so pressing one did
+not clear the other. Seen in Chrome: a refused press on the footer, then a refused press on the
+header, left both lines on screen. With the same reason twice that is noise; with a different
+reason the second time, the footer would go on stating a reason the server no longer gives.
+
+The refusal now lives once, on the screen, with the button it came from. Each press clears it, and
+a refused press puts it beside the button that was pressed, so there is at most one finish refusal
+on screen and it is always the latest. A finish that succeeds goes home, as before.
+
+Two client tests cover it, one per order of pressing, each refused with a different reason the
+second time. Both failed against the previous code with the first reason still on screen.
+
+**Looked at in Chrome**, with only Vite running and `fetch` stubbed, before the change: the footer
+refusal sits between the shareable, private and promotion counts and the button, in `text-removed`,
+and the header refusal sits left of `N of M reviewed`. This closes the footer look left open by
+"[2026-09-21] Every refusal alert is looked at in a browser, and a Fact Review card says when a
+decision fails". After the change, a refused footer press and then a header press refused with a
+different reason left one line on screen, the second reason beside `Finish review`.
+
+**Revisit if:** a third control on Fact Review finishes the review.

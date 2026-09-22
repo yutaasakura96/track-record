@@ -49,6 +49,7 @@ export function FactReview() {
   });
   const source = useSourceText(status.data?.sourceDocumentId ?? "", status.data?.versionNo ?? 1);
   const select = useReviewStore((s) => s.select);
+  const finish = useFinish(importId);
 
   useEffect(() => () => select(null), [select]);
 
@@ -64,13 +65,13 @@ export function FactReview() {
       <Header
         filename={source.data?.filename ?? "…"}
         project={source.data?.project?.name ?? null}
-        importId={importId}
+        finish={finish}
         resolvedCount={resolved.length}
         total={items.length}
       />
       <div className="flex-1 min-h-0 flex">
         <SourcePane status={status.data} text={source.data?.text ?? ""} facts={items} />
-        <FactRail importId={importId} status={status.data} facts={items} />
+        <FactRail importId={importId} status={status.data} facts={items} finish={finish} />
       </div>
     </div>
   );
@@ -81,18 +82,18 @@ export function FactReview() {
 function Header({
   filename,
   project,
-  importId,
+  finish,
   resolvedCount,
   total,
 }: {
   filename: string;
   /** Left out of the breadcrumb, not labelled, when the document has no project. */
   project: string | null;
-  importId: string;
+  finish: Finish;
   resolvedCount: number;
   total: number;
 }) {
-  const finish = useFinish(importId);
+  const failure = finish.failureAt("header");
   const allResolved = total > 0 && resolvedCount === total;
 
   return (
@@ -110,9 +111,9 @@ function Header({
       <Chip>{filename}</Chip>
 
       <div className="ml-auto flex items-center gap-14">
-        {finish.failure ? (
+        {failure ? (
           <span role="alert" className="text-smaller text-removed">
-            {finish.failure}
+            {failure}
           </span>
         ) : null}
         <span className="text-smaller text-text-dimmer">
@@ -120,7 +121,7 @@ function Header({
         </span>
         <ProgressBar className="w-progress" value={total === 0 ? 0 : resolvedCount / total} />
         {/* One action, two affordances — the footer button is the same call. */}
-        <Button variant={allResolved ? "primary" : "secondary"} onClick={() => void finish.run()}>
+        <Button variant={allResolved ? "primary" : "secondary"} onClick={() => void finish.run("header")}>
           Finish review
         </Button>
       </div>
@@ -128,26 +129,31 @@ function Header({
   );
 }
 
+type FinishButton = "header" | "rail";
+type Finish = ReturnType<typeof useFinish>;
+
 /**
  * Finish, then go home. A refusal is said beside the button that was pressed;
  * it used to reject into nothing, leaving the author on a screen that looked
- * exactly as it did before the click.
+ * exactly as it did before the click. One refusal for both buttons: with one
+ * each, a press of the second left the first's older reason on screen.
  */
 function useFinish(importId: string) {
   const { finish } = useFactAction(importId);
   const navigate = useNavigate();
-  const [failure, setFailure] = useState<string | null>(null);
-  const run = async () => {
+  const [failure, setFailure] = useState<{ at: FinishButton; text: string } | null>(null);
+  const run = async (at: FinishButton) => {
     setFailure(null);
     try {
       await finish.mutateAsync();
     } catch (error) {
-      setFailure(failureText(error));
+      setFailure({ at, text: failureText(error) });
       return;
     }
     await navigate({ to: "/" });
   };
-  return { run, failure };
+  const failureAt = (at: FinishButton) => (failure?.at === at ? failure.text : null);
+  return { run, failureAt };
 }
 
 /* -------------------------------------------------------------- source pane */
@@ -252,10 +258,12 @@ function FactRail({
   importId,
   status,
   facts,
+  finish,
 }: {
   importId: string;
   status: ImportStatus;
   facts: Fact[];
+  finish: Finish;
 }) {
   const filter = useReviewStore((s) => s.filter);
   const setFilter = useReviewStore((s) => s.setFilter);
@@ -263,7 +271,7 @@ function FactRail({
   const origin = useReviewStore((s) => s.selectionOrigin);
   const select = useReviewStore((s) => s.select);
   const { retry } = useFactAction(importId);
-  const finish = useFinish(importId);
+  const failure = finish.failureAt("rail");
   const list = useRef<HTMLDivElement>(null);
 
   const open = facts.filter((f) => f.status === "candidate");
@@ -395,9 +403,9 @@ function FactRail({
           <span className="text-private">{priv} private</span>
           <span className="text-generated-text">{needsPromotion} need promotion</span>
         </p>
-        {finish.failure ? (
+        {failure ? (
           <p role="alert" className="text-smaller text-removed mb-10">
-            {finish.failure}
+            {failure}
           </p>
         ) : null}
         <Button
@@ -405,7 +413,7 @@ function FactRail({
           className="w-full"
           disabled={accepted.length === 0}
           disabledReason="Nothing accepted yet"
-          onClick={() => void finish.run()}
+          onClick={() => void finish.run("rail")}
         >
           {accepted.length === 0 ? "Nothing accepted yet" : `Add ${accepted.length} facts to record`}
         </Button>
