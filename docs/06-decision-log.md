@@ -4126,3 +4126,35 @@ measured 4px.
 
 **Revisit if:** a fifth select is styled from a string other than these four, or the segmented
 track's construction changes and 28px stops standing with it.
+
+### [2026-09-23] The three radii §7 declares that no radius token has
+
+Correcting §7's segment padding in the entry above left the rest of that block unread. Three of its
+radii disagree with the code, and all three disagree the same way.
+
+| `docs/05` §7 | built from | is |
+| --- | --- | --- |
+| Editable text (fact claim) `radius 5px` | `rounded-control` | 6px |
+| Filter pill `radius 5px` | `rounded-control` | 6px |
+| Progress bar `radius 3px` | `rounded-mark` | 2px |
+
+`rounded-control` is `src/client/components/ui.tsx:247` for the pill and
+`src/client/screens/fact-review.tsx:601` and `src/client/screens/version-edit.tsx:434` for the two
+editable text controls; `rounded-mark` is `src/client/components/ui.tsx:197`. This was read, not
+looked at in Chrome. A radius here is not composed the way the 28.70px track was: it is a named
+token, `--radius-control: 6px` and `--radius-mark: 2px` in `src/client/theme.css`, which is the same
+6px and 2px §4 declares. Reading it is exact and a browser would add nothing.
+
+§4 sets the radius scale at 2, 4, 6, 8, 10 and 50%. 5px and 3px are not on it, and no utility
+yields them, so the doc was the drifted one in all three places, as it was for the padding. §7 now
+reads 6px, 6px and 2px.
+
+The rest of §7 was read against the code in the same pass and agrees: the segment's `radius 4px` is
+`rounded-chip`, the editable text's `padding 2px 4px` and `margin-left -4px` are `px-4 py-2` and
+`-ml-4`, and the scrollbar's 10px width, 3px border and 6px thumb radius are those literals in
+`src/client/theme.css`. §5's `Icon` button row also carries a `radius 5px`, and it is left alone:
+`Variant` in `src/client/components/ui.tsx` is `primary | secondary | ghost | bare`, so that row
+specifies a control that does not exist yet and disagrees with nothing.
+
+**Revisit if:** the icon button gets built, or a fourth radius off the §4 scale is written into a
+doc.

@@ -221,13 +221,13 @@ or an adjacent hint (`Needs promotion`). Disabled without a reason is not permit
 - Transition: `background .12s ease, color .12s ease`
 
 **Editable text (fact claim)** — inline `contenteditable`, not a boxed input:
-- Rest: no border, `padding 2px 4px`, `margin-left -4px`, `radius 5px`, `cursor: text`
+- Rest: no border, `padding 2px 4px`, `margin-left -4px`, `radius 6px`, `cursor: text`
 - Focus: `bg rgba(255,255,255,.03)` · `inset 0 0 0 1px rgba(255,255,255,.08)` · no outline
 - Commits on blur
 
-**Filter pill:** `padding 4px 8px` · `radius 5px` · active `bg #191a1d` + `border 1px solid #2c2e33` + `color #d5d7da`; inactive transparent + `color #6d7178`.
+**Filter pill:** `padding 4px 8px` · `radius 6px` · active `bg #191a1d` + `border 1px solid #2c2e33` + `color #d5d7da`; inactive transparent + `color #6d7178`.
 
-**Progress bar:** track `#1c1d20`, `height 4px`, `radius 3px`; fill `accent`, `transition: width .25s ease`.
+**Progress bar:** track `#1c1d20`, `height 4px`, `radius 2px`; fill `accent`, `transition: width .25s ease`.
 
 **Scrollbar:** `width 10px`, thumb `#232427` with `3px solid #08090a` border and `radius 6px`, transparent track.
 
