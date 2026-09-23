@@ -33,6 +33,7 @@ import {
 } from "../api";
 import { Button, Mono, MonoId, Notice, Panel } from "../components/ui";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
+import { moved } from "../reorder";
 import { sameContent } from "~/render/edit";
 import {
   RENDER_KINDS,
@@ -83,13 +84,6 @@ function editSection(
     ),
   };
 }
-
-const moved = (blocks: Block[], index: number, by: -1 | 1): Block[] => {
-  const next = [...blocks];
-  const [block] = next.splice(index, 1);
-  next.splice(index + by, 0, block!);
-  return next;
-};
 
 /**
  * An empty block is dropped rather than sent. The route refuses a block with no

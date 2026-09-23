@@ -21,18 +21,12 @@ import {
 import { Button, Dot, Mono, Panel } from "../components/ui";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
+import { moved } from "../reorder";
 
 const CONTROL =
   "min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
 
 type PanelName = "curated" | "candidates";
-
-const moved = <T,>(list: T[], index: number, by: -1 | 1): T[] => {
-  const next = [...list];
-  const [item] = next.splice(index, 1);
-  next.splice(index + by, 0, item!);
-  return next;
-};
 
 const countLabel = (skill: { factCount: number; certificationCount: number }) =>
   skill.factCount > 0 ? `${skill.factCount} ${skill.factCount === 1 ? "fact" : "facts"}` : "cert";
