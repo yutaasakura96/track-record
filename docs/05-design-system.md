@@ -159,6 +159,10 @@ Common applications:
   `8px` vertical padding and a 1px border. A native `<select>` gets it as a minimum height, because
   Chrome sets its line height to `normal` whatever the class says and it measured 33px beside 36px
   inputs. Composed from the scale, 26 + 10
+- Inline control height: **28px**, for a control that stands in a card's label rows beside a
+  segmented control rather than in a form. The segmented track measures 28.70px, from 2px of
+  padding and a 1px border around a 22.70px segment; 28px is the value on the scale under it and
+  the 0.7px does not read. Composed from the scale, 14 + 14
 
 ---
 
@@ -211,7 +215,7 @@ or an adjacent hint (`Needs promotion`). Disabled without a reason is not permit
 
 **Segmented control** (provenance, disclosure, filters):
 - Track: `bg #0d0e10` · `border 1px solid #1f2023` · `radius 6px` · `padding 2px` · `gap 2px`
-- Segment: `padding 3px 8px` · `radius 4px` · `500 10.5px` · no border
+- Segment: `padding 4px 8px` · `radius 4px` · `500 10.5px` · no border
 - Inactive: `transparent` / `color #6d7178`; hover `color #c9ccd1`
 - Active: background and foreground come from the **semantic tone of that value** (see §1), plus `inset 0 0 0 1px rgba(255,255,255,.06)`
 - Transition: `background .12s ease, color .12s ease`
@@ -221,7 +225,7 @@ or an adjacent hint (`Needs promotion`). Disabled without a reason is not permit
 - Focus: `bg rgba(255,255,255,.03)` · `inset 0 0 0 1px rgba(255,255,255,.08)` · no outline
 - Commits on blur
 
-**Filter pill:** `padding 3px 8px` · `radius 5px` · active `bg #191a1d` + `border 1px solid #2c2e33` + `color #d5d7da`; inactive transparent + `color #6d7178`.
+**Filter pill:** `padding 4px 8px` · `radius 5px` · active `bg #191a1d` + `border 1px solid #2c2e33` + `color #d5d7da`; inactive transparent + `color #6d7178`.
 
 **Progress bar:** track `#1c1d20`, `height 4px`, `radius 3px`; fill `accent`, `transition: width .25s ease`.
 

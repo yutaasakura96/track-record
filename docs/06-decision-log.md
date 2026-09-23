@@ -4087,3 +4087,42 @@ recorded and not fixed.
 
 **Revisit if:** the refile row's alignment is worth giving a button a height, or a fourth select is
 styled from a string other than these three.
+
+### [2026-09-23] The fourth select is an inline control, not a form control
+
+"[2026-09-23] The select height is measured on Documents and Skills themselves" left open a
+"revisit if": a fourth select styled from a string other than the three shared ones. That select
+exists. It is Fact Review's employer picker, `EmployerPicker` in
+`src/client/screens/fact-review.tsx`, styled from its own string with no `min-h-control`. It was
+looked at in Chrome, with only Vite running and `fetch` stubbed to throw on any request that was
+not a GET, so nothing was written.
+
+It measured **23.00px**: `min-height: auto`, `line-height: normal`, `appearance: auto`, 11px text,
+4px vertical padding, 1px border. So the form control height never reached it, and it was also not
+standing with anything else on its own card. The `WORTH` and `WHO` segmented tracks directly above
+it, which with it make the card's three labelled rows, measure 28.70px each; `Reject` measures
+31.05px and `Accept` 26.70px.
+
+`docs/05` §3 sets 36px as the height of a control in a **form**, and this is not one. The comment
+over `EmployerPicker` says why it is a select at all: employers are data and there may be any
+number of them, where provenance and disclosure are fixed vocabularies. It is the data-driven
+stand-in for the segmented control beside it, so the height it owes is the segmented track's.
+
+`docs/05` §3 gains **inline control height: 28px** as `--spacing-control-inline`, and the select
+carries `min-h-control-inline`. **Looked at in Chrome after the change**, the select measures
+28.00px beside the two 28.70px tracks. 28.70px is not a declared value anywhere: it falls out of
+the track's 2px padding and 1px border around a 22.70px segment. The spacing scale has no 28.70 and
+nothing off-scale ships, so the value is 28px, composed 14 + 14, and the 0.7px does not read.
+
+Not 36px, which would have made the select the tallest thing on the card by 5px over both tracks
+and over `Reject`, repeating on Fact Review the mismatch the previous entry recorded on the refile
+row. jsdom has no layout, so there is still no test.
+
+One number here disagreed with a doc. The segment measured 4px of vertical padding, from `px-8 py-4`
+in `src/client/components/ui.tsx`, where `docs/05` §7 said `padding 3px 8px`. 3px is not on the
+spacing scale, so the doc was the drifted one and §7 now reads `padding 4px 8px`, for the segment
+and for the filter pill, which is built from the same `px-8 py-4`. The arithmetic above uses the
+measured 4px.
+
+**Revisit if:** a fifth select is styled from a string other than these four, or the segmented
+track's construction changes and 28px stops standing with it.

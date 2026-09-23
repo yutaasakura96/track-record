@@ -706,7 +706,7 @@ function EmployerPicker({
           aria-label="Employer"
           value={value ?? ""}
           onChange={(event) => onChange(event.target.value || null)}
-          className="bg-surface-raised border border-border-control rounded-control px-8 py-4 text-smaller text-text-secondary outline-none focus:shadow-ring"
+          className="min-h-control-inline bg-surface-raised border border-border-control rounded-control px-8 py-4 text-smaller text-text-secondary outline-none focus:shadow-ring"
         >
           <option value="">Unfiled</option>
           {items.map((employer) => (

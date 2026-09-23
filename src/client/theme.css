@@ -164,6 +164,10 @@
   /* A text input's height at text-ui with 8px vertical padding. A native select
    * takes it as a minimum; Chrome ignores the select's line height and gave 33px. */
   --spacing-control: 36px;
+  /* A control standing in a card's label rows beside a segmented control,
+   * whose track measures 28.70px. Not a form control; --spacing-control would
+   * stand 7px over that track. */
+  --spacing-control-inline: 28px;
   --spacing-sidebar: 212px;
   --spacing-rail: 412px;
   --spacing-rail-compact: 380px;
