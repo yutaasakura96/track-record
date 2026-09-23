@@ -4064,3 +4064,26 @@ screens. jsdom has no layout, so no test covers this.
 
 **Revisit if:** a select is styled from a class other than these three, or a browser starts
 honouring the select's line height.
+
+### [2026-09-23] The select height is measured on Documents and Skills themselves
+
+"[2026-09-22] A native select takes the form control height as a minimum" measured the
+`SELECT_CONTROL` string on an injected element, and left Documents' refile select and Skills'
+candidate select unmeasured on the screens they actually appear on. Both were looked at in Chrome,
+with only Vite running and `fetch` stubbed to throw on any request that was not a GET, so nothing
+was written.
+
+Documents' refile row measures 36px. Skills' `Add to` measures 36px enabled with two groups, and
+36px on every row when there are no groups and it is disabled. The import picker's confirmation
+row, the third user of the string and reached by setting a file on the input rather than by
+importing one, measures 36px as well. Each reports `min-height: 36px`, `line-height: normal` and
+`appearance: auto`, which is the shape the injected element gave.
+
+Nothing changed. jsdom still has no layout, so there is still no test.
+
+On the refile row the 36px select stands taller than its own `Cancel` (25.05px) and `Refile`
+(28.7px). `docs/05` §3 sets 36px as the form CONTROL height and those are text buttons, so this is
+recorded and not fixed.
+
+**Revisit if:** the refile row's alignment is worth giving a button a height, or a fourth select is
+styled from a string other than these three.
