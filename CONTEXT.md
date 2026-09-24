@@ -68,3 +68,14 @@ _Avoid_: candidate render, draft render.
 
 **Propose**:
 Reserved for renders. The import does not propose — it **extracts candidates**.
+
+## Downstream
+
+**Suburi** (`yutaasakura96/suburi`):
+A separate application that **consumes what this one renders**. It takes a 履歴書, a 職務経歴書 or an
+English CV back in as the document an interview answer is scored against, extracting its own
+**claims** — one atomic citable assertion with a character span — from the text. Its claim is not
+this repo's Fact: a Fact carries Provenance, Disclosure and Evidence and is reviewed one at a time;
+a claim is derived, never curated, and never deleted. The two are not synchronised and are not meant
+to be. `CLAUDE.md` names the machinery both repos ended up building.
+_Avoid_: treating a Suburi claim as a Fact, or the reverse.

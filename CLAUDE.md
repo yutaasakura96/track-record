@@ -42,6 +42,37 @@ then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is b
 existing entry; supersede it with a new one. `docs/00-kickoff.md` was the pre-planning scaffold and
 survives only in git history.
 
+## The downstream repo, and what both ended up building
+
+**`yutaasakura96/suburi` consumes what this repo renders** — it reads a 履歴書, a 職務経歴書 or an
+English CV as the document an interview answer is scored against. Nothing connects them in code and
+nothing should. This section exists because the two repos keep arriving at the same problems
+independently, and one of them has already been solved better on each side.
+
+| | Here | Suburi |
+| --- | --- | --- |
+| Verbatim anchoring | `src/pipeline/quote.ts` — `indexOf`, first occurrence, exact | `lib/cv/spans.ts` — every occurrence, nearest the model's start hint, plus grapheme and document-boundary rules |
+| Same-assertion matching | `src/pipeline/dedupe.ts` — `NFKC` + whitespace + lowercase, hashed, permanent | whitespace collapse only |
+| Section coverage | `src/pipeline/chunk.ts`, ~2,400 characters on paragraph boundaries | one call for the whole document |
+
+- **Our dedupe normalisation is the better one**, and Suburi has an issue open to adopt it. Keep the
+  split `dedupe.ts` states: anchoring decides whether a quote is *real* and is exact; normalisation
+  decides whether two candidates are the *same claim* and is deliberately forgiving.
+- **Our chunking prevents a failure Suburi had to build a counter for** — a whole section returning
+  no claims at all, with every other signal reporting healthy. A model reading 2,400 characters has
+  nowhere to skip to. Worth remembering the next time chunking looks like it is only about the
+  progress bar.
+- **Our extraction prompt carries a risk Suburi has now removed from its own.** "A sentence carrying
+  two distinct outcomes is two calls" has no counterpart rule against stopping at a 連用形 or a
+  participial hinge, and Suburi measured 63 Japanese and 68 English claims that did exactly that. It
+  hurts less here, because `claim` and `quote` are separate columns and the quote only has to
+  support the claim — but a fragment behind the `L79` chip is still a worse citation than a whole
+  sentence. Not filed as an issue; noted for whoever next touches `src/model/extract.ts`.
+
+**One seam to watch:** a 履歴書 this repo renders carries a 学歴・職歴 table, and reading a `.docx`
+table back correctly is a thing Suburi had to fix specifically. If the round trip is ever exercised,
+test it with a real table rather than prose.
+
 ## Stack (decided 2026-08-12 — see the decision log)
 
 Cloudflare Workers (paid) · Hono API · React + Vite SPA · TanStack Router + Query · Zustand ·
