@@ -1,11 +1,11 @@
 /**
- * The dev worker's half of issue #25: a wedged proxy named in the worker's log
- * instead of a page that spins in silence.
+ * The dev worker's half of the proxy health check: a proxy that has stopped
+ * answering named in the worker's log instead of a page that spins in silence.
  *
- * What is worth proving is the telling apart. A slow query is not a wedge, and a
- * log that cried wedge at every slow query would be ignored by the time a real
- * one came. So the report must need both a slow query and a probe that also goes
- * unanswered, and it must come once per wedge, not once per hanging request.
+ * What is worth proving is the telling apart. A slow query is not a silent
+ * proxy, and a log that cried proxy at every slow query would be ignored by the
+ * time a real one came. So the report must need both a slow query and a probe that also goes
+ * unanswered, and it must come once per silence, not once per hanging request.
  */
 import { describe, expect, it } from "vitest";
 import { PROBE_BUDGET_MS, SLOW_MS, watchProxy } from "~/server/db/proxy-watch";
@@ -77,7 +77,7 @@ describe("a query that is only slow", () => {
     expect(proxy.reports).toEqual([]);
   });
 
-  it("says nothing when the probe is refused, because a refusal is not the wedge", async () => {
+  it("says nothing when the probe is refused, because a refusal is not silence", async () => {
     const proxy = watched({
       query: () => answer(OUTLAST),
       probe: () => Promise.reject(new TypeError("connection refused")),
@@ -87,7 +87,7 @@ describe("a query that is only slow", () => {
   });
 });
 
-describe("a wedged proxy", () => {
+describe("a proxy that has stopped answering", () => {
   it("is named once, with the capture before the restart", async () => {
     const proxy = watched({ query: never, probe: never });
     void proxy.query();
@@ -95,7 +95,8 @@ describe("a wedged proxy", () => {
 
     expect(proxy.reports).toHaveLength(1);
     const [report] = proxy.reports;
-    expect(report).toContain("issue #25");
+    expect(report).toContain("Neither has been answered or refused");
+    expect(report).not.toContain("#25");
     const capture = report!.indexOf("npm run capture:proxy");
     const restart = report!.indexOf("docker restart track-record-neon-proxy-1");
     expect(capture).toBeGreaterThan(-1);
