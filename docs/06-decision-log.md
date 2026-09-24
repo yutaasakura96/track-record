@@ -4158,3 +4158,51 @@ specifies a control that does not exist yet and disagrees with nothing.
 
 **Revisit if:** the icon button gets built, or a fourth radius off the §4 scale is written into a
 doc.
+
+### [2026-09-24] The IPv4 shape stays, and a version string is the cost
+
+Issue #28 finding 3. `src/pipeline/scrub.ts` marks an IPv4 address Private, and `11.2.0.4` is an
+Oracle patchset version that is also a syntactically valid address. Octet-range validation changes
+nothing, because every octet is in range, and a five-part version such as `19.3.0.0.0` matches as
+well, since the boundaries let the pattern take its first four parts. Telling a version from an
+address needs the words around it, which is a different kind of test from every other shape in the
+list. Findings 1 and 2 were strict improvements and landed in 93cc82e. This one was a decision.
+
+**The shape stays as it is.** The asymmetry the file's own comment states settles it: an
+over-cautious résumé costs a sentence, and the alternatives both buy their precision by letting a
+real address through.
+
+Measured before deciding. Four candidate facts are held Private by this shape, all four by the same
+literal `11.2.0.4`, which appears five times across them. Each of the four matches this shape and no
+other, so nothing else is holding them. The two remaining Private facts in the record match no shape
+at all now that findings 1 and 2 are fixed. The 2026-09-06 entry above had already called this
+collision when it recorded the widened shape list, and this entry is the part it left open.
+
+A version cue before the run, meaning a product name or `version` or `release`, needs a window of 48
+characters to cover all five occurrences; at 24 characters it misses the one whose nearest product
+name sits further back in the sentence. At 48 characters that same rule stops the block firing on a
+genuine internal address written 48 characters after the word `Oracle`, and these are Oracle
+migration documents, which say the word in nearly every sentence. It trades a rule that runs in code
+for a heuristic that fails open in the one genre of source this record is made of.
+
+Narrowing the shape to RFC1918, loopback and link-local is deterministic, and it does stop both
+`11.2.0.4` and `19.3.0.0.0`, neither of which is in a private range. It costs the code-level block
+on public addresses, which a lookup attributes to an organisation, and it does not even remove the
+collision it is for: Oracle's own 10.x patchsets sit inside `10.0.0.0/8`, so `10.2.0.4` would keep
+matching.
+
+The accepted cost, stated plainly. A version string inside a claim sends that fact to Private, where
+no render reaches it, and the author reclassifies it by hand in Fact Review, whose disclosure select
+is `src/client/screens/fact-review.tsx:630` against `PATCH /facts`. The four rows above were
+reclassified to Restricted on this date. A parser change would not have rewritten them in any case:
+fact quote offsets index into a source document version and a version is never re-extracted in
+place.
+
+One thing Fact Review cannot correct. `facts.is_client_identifying` still reads true on those four
+rows and is not in the `PATCH /facts` body (`src/server/routes/facts.ts:25`), so the author has no
+control for it. Nothing gates on the column today: it is returned by the API and shown, and no
+generation or render path reads it.
+
+**Revisit if:** a source document carries a real internal IPv4 address, or the number of facts this
+shape holds grows past what reclassifying by hand absorbs, or `is_client_identifying` gains a reader
+that acts on it.
