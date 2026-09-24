@@ -4206,3 +4206,62 @@ generation or render path reads it.
 **Revisit if:** a source document carries a real internal IPv4 address, or the number of facts this
 shape holds grows past what reclassifying by hand absorbs, or `is_client_identifying` gains a reader
 that acts on it.
+
+### [2026-09-25] The proxy wedge was a sleeping laptop, and the suite now says so
+
+Supersedes the framing of "[2026-09-18] The proxy wedge gets a clock and a capture, not a fix" and
+of the 2026-09-21 entry that extended it to the dev worker. Neither is edited. What they built
+stays; what they said the fault was does not.
+
+**There was no wedge.** An investigation of #25 lined every recorded stall up against the machine
+sleeping mid-run. Sleep suspends vitest, workerd and the Docker VM together, and the test timers run
+on a clock that keeps counting through it. macOS wakes briefly (a DarkWake of about five seconds,
+every thirteen to seventeen minutes on this Mac) and each wake fires the overdue timer of the test
+in flight, which fails with `Test timed out in 30000ms` before the machine sleeps again. So a run
+loses about one test per file per wake, fails no assertion, and looks hung. Every one of the
+seventeen over-long failures in the project's history, 303 to 1,080 seconds against a 30 second
+timer, has that shape. A timer cannot report 1,080 seconds unless the process was not running.
+
+**The proxy was healthy throughout.** The capture taken during the 2026-09-18 stall had it answering
+in 42ms before any restart, which the 2026-09-19 entry recorded as "one apparent wedge" without
+reaching the conclusion. On 2026-09-13 two restarts made while the machine still slept changed
+nothing, and the restarts that "worked" were the ones made once someone was back at the machine. The
+20 idle backends read as a full pool are the proxy's resting state after any run. In a lab stack,
+freezing only the test processes, with the proxy and Postgres never touched, reproduced the stall
+with failure durations equal to the freeze, and the next run passed with no restart.
+
+**A proxy that really stops answering looks different, and the checks already tell them apart.**
+Pausing the proxy container produced failures at about 30,000ms, not at the length of the pause, and
+the dev-worker watch printed its "has not answered" report within about six seconds. It printed
+nothing in any of the frozen-process runs. So the three second clock on the suite's first query,
+the capture script and `src/server/db/proxy-watch.ts` all stay. Their messages no longer call what
+they see issue #25 or a known proxy fault; they say what was observed and keep capture then restart
+as the steps for it.
+
+**The suite names the sleep.** `tests/sleep-watch.ts` runs a one second unref'd interval in the main
+vitest process, started first in global setup. A tick more than ten seconds late is a process that
+was suspended: it is reported at once, and every gap is repeated at teardown beside the failures it
+explains, saying the machine slept, that the timeouts run as long as the sleep, that it is not the
+proxy or the database, and that nothing needs restarting. Checked by freezing the vitest process
+tree for 45 seconds mid-run: one report on waking, the same summary at the end, six tests failed at
+about 45,000ms, and no proxy-watch report. Nothing in the repo can stop a closed lid from sleeping
+the Mac, and `caffeinate -i` only prevents idle sleep, which this Mac has not been doing.
+
+**The run is not cancelled on a gap.** Vitest hands global setup the project, so it could cancel the
+run on the first gap. Sleep while files are transformed and imported fails nothing, and cancelling
+there throws away a good run.
+
+**Global setup reaches the same proxy as the tests.** It hardcoded `http://localhost:4444/sql`
+while `createDb` honours `proxyPort` in the connection string, so a `TEST_DATABASE_URL` naming a
+second stack ran the tests against it and the schema drop and migrations against the default one.
+Both now take the endpoint from `src/server/db/local-proxy.ts`.
+
+**Not done, because nothing leaks and nothing is exhausted:** raising the proxy's pool size,
+sending `Neon-Pool-Opt-In`, running a single worker, or closing pools in teardown. The image digest
+pin stays, on its own merits rather than as a #25 suspect.
+
+**Revisit if:** a stalled run shows failures at about 30,000ms, `select 1` through the proxy gets no
+answer, and `pmset -g log` shows no sleep in the window. That has not happened once, and it is the
+case the capture exists for. Also if a real lid-close sleep ever leaves the proxy unable to answer
+after waking, which the frozen-process runs could not model; the watch would then need a probe after
+each gap.

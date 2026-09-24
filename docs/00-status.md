@@ -21,7 +21,7 @@
 
 ## Carrying
 
-- #25: the local Neon HTTP proxy wedges; cause unknown. Capture and restart steps are in `CLAUDE.md`.
+- Nothing.
 
 ## Skipped
 

@@ -30,8 +30,8 @@ jobs:
       # `db:up` also creates track_record_test and drops SCRAM to 1 iteration.
       - name: Start Postgres and the Neon HTTP proxy
         run: npm run db:up
-      # global-setup gives the first query 3s (issue #25). A proxy that is still
-      # starting is not a wedged one, so wait for it to answer before the suite.
+      # global-setup gives the first query 3s (tests/proxy-health.ts). A proxy
+      # that is still starting is not a silent one, so wait for it to answer.
       - name: Wait for the proxy
         run: |
           node --input-type=module -e "

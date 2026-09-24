@@ -20,15 +20,22 @@ the record — unknown fact ids, unfiled facts used under an employer, facts und
 different employer — and exits non-zero on a finding. It prints ids and counts and never render
 text, and it is not to be rebuilt by hand either.
 
-**When the suite stops in three seconds naming the proxy**, the Neon HTTP proxy has stopped serving
-queries (issue #25). `tests/global-setup.ts` puts a clock on the suite's first query so this is one
-line rather than eight minutes of database tests timing out with nothing failing. Run
-`npm run capture:proxy` **before** `docker restart track-record-neon-proxy-1` — the restart is the
-only known way out and it is also what erases the evidence, and ten deliberate attempts over a full
-session could not reproduce the wedge, so the next occurrence is the only teacher available. The
-capture is gitignored; read it before attaching it to the issue. The dev worker prints the same
-instruction to its log when a query and a `select 1` probe after it both go unanswered
-(`src/server/db/proxy-watch.ts`); a page that spins with that in the worker log is the same wedge.
+**A stalled run has two signatures, and only one is the proxy.** Read the failed-test durations
+before touching anything.
+
+- **Durations far above 30,000ms** (900,000ms is typical), timeouts only, no assertion failures:
+  the machine slept mid-run. `tests/sleep-watch.ts` says so in the output, at the moment of waking
+  and again at the end. Confirm with `pmset -g log | grep -E ' (Sleep|DarkWake|Wake) ' | tail` and
+  rerun with the machine awake. Nothing needs restarting; the proxy is healthy.
+- **The suite stops in three seconds naming the proxy, or failures sit at about 30,000ms with the
+  proxy-watch "has not answered" line in the output**: the proxy is not answering. Run
+  `npm run capture:proxy`, **then** `docker restart track-record-neon-proxy-1` — the restart erases
+  the evidence. The capture is gitignored; read it before attaching it anywhere. The dev worker
+  prints the same steps when a query and a `select 1` probe after it both go unanswered
+  (`src/server/db/proxy-watch.ts`).
+
+Every stall recorded before 2026-09-25 was the first kind (issue #25, decision log 2026-09-25). The
+20 idle backends on `track_record_test` are the proxy's normal resting state, not a full pool.
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
@@ -143,3 +150,10 @@ paragraph and bulleted technical outcomes" is committable. The employer's intern
 inventory is not.
 
 Test fixtures and seed data must be invented, never sampled from `local/`.
+
+## Maintaining this file
+
+Keep this file for knowledge useful to almost every future agent session in this project.
+Do not repeat what the codebase already shows; point to the authoritative file or command instead.
+Prefer rewriting or pruning existing entries over appending new ones.
+When updating this file, preserve this bar for all agents and keep entries concise.

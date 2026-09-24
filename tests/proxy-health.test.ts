@@ -1,10 +1,11 @@
 /**
- * The wedge in issue #25 costs a whole run and says nothing while it does it.
+ * A proxy that accepts the connection and never answers costs a whole run and
+ * says nothing while it does it.
  *
  * `tests/global-setup.ts` puts a clock on the suite's first query so that a
  * proxy which has stopped serving is named in one line, rather than discovered
- * eight minutes later by a run that never failed anything. What is worth proving
- * is the telling apart: a proxy that is wedged and one that is not there are
+ * minutes later by a run that never failed anything. What is worth proving is
+ * the telling apart: a proxy that is silent and one that is not there are
  * different faults with different fixes, and a message that offers the wrong one
  * is worse than no message.
  */
@@ -51,7 +52,7 @@ describe("a proxy that accepts the connection and never answers", () => {
   const wedged = () => answerWithinBudget(() => after(10_000, "never arrives"), BUDGET);
 
   it("stops the run rather than waiting", async () => {
-    await expect(wedged()).rejects.toThrow(/did not answer in 20ms/);
+    await expect(wedged()).rejects.toThrow(/within 20ms/);
   });
 
   it("says nothing has been dropped, because nothing has", async () => {
@@ -60,16 +61,24 @@ describe("a proxy that accepts the connection and never answers", () => {
     await expect(wedged()).rejects.toThrow(/Nothing has been dropped/);
   });
 
-  it("names the issue, the capture and the restart, in that order", async () => {
+  it("says what was observed, then the capture and the restart, in that order", async () => {
     const error = await refusal(wedged);
     const capture = error.message.indexOf("npm run capture:proxy");
     const restart = error.message.indexOf(`docker restart ${PROXY_CONTAINER}`);
 
-    expect(error.message).toContain("issue #25");
+    expect(error.message).toContain("accepted the connection and did not answer");
     expect(capture).toBeGreaterThan(-1);
-    // The restart is what erases the wedge. Offering it before the capture is
-    // how the next occurrence teaches us nothing either.
+    // The restart is what erases the evidence. Offering it before the capture
+    // is how an occurrence teaches nothing.
     expect(restart).toBeGreaterThan(capture);
+  });
+
+  it("does not claim a cause nobody has found", async () => {
+    // Every stall once blamed on the proxy was the machine sleeping. A message
+    // that names a known proxy fault sends readers to restart a healthy one.
+    const error = await refusal(wedged);
+    expect(error.message).not.toContain("#25");
+    expect(error.message).not.toMatch(/wedge/i);
   });
 
   it("does not offer the fix for a proxy that is not running", async () => {
@@ -89,9 +98,9 @@ describe("a proxy that is not there at all", () => {
     const error = await refusal(absent);
     expect(error.message).toContain("npm run db:up");
     expect(error.message).not.toContain("docker restart");
-    // Told it is #25, a reader restarts a container that is not running and
+    // Told to restart, a reader restarts a container that is not running and
     // learns nothing. The two faults are stated as the different things they are.
-    expect(error.message).toContain("not issue #25");
+    expect(error.message).toContain("nothing to restart");
   });
 
   it("keeps the original failure as the cause", async () => {
@@ -123,8 +132,8 @@ describe("the probe that loses the race", () => {
 describe("the budget itself", () => {
   it("is three seconds", () => {
     // Measured across six full suite runs under load: 151 health checks, the
-    // slowest 342ms. Three seconds refuses nothing healthy, and the wedge does
-    // not answer at any budget.
+    // slowest 342ms. Three seconds refuses nothing healthy, and a paused proxy
+    // does not answer at any budget.
     expect(PROXY_BUDGET_MS).toBe(3_000);
   });
 
