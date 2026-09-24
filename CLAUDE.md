@@ -76,7 +76,7 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
   deletes is a gate before the second invite (`08` §6, `13` §8).
 
 **Document ownership — do not violate this.**
-`/Users/yutaasakura/Documents/GitHub/claude-setup-inventory/project-planning-template.md` owns the
+`/Users/yutaasakura/Documents/GitHub/claude-agentic-setup/project-planning-template.md` owns the
 structure of `docs/01`–`06` and any Tier 2 files it triggers. The `mattpocock-skills` pack supplies
 the interview *engine* only; anything it generates (specs, `CONTEXT.md`, ADRs) belongs under
 `docs/specs/`, never at `docs/` root. Do not let a second, competing document set grow alongside
