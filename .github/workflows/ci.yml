@@ -1,0 +1,51 @@
+# docs/11-testing-plan.md §1: the server tests run in Miniflare against a real
+# Postgres behind the Neon HTTP proxy, with the model seam stubbed. No test ever
+# calls Anthropic, so CI needs no secret. Every credential below is a placeholder.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Lint (design tokens)
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      # docker-compose.yml, not job `services:`: the proxy mounts
+      # scripts/neon-proxy-start.sh, which exists only after checkout.
+      # `db:up` also creates track_record_test and drops SCRAM to 1 iteration.
+      - name: Start Postgres and the Neon HTTP proxy
+        run: npm run db:up
+      # global-setup gives the first query 3s (issue #25). A proxy that is still
+      # starting is not a wedged one, so wait for it to answer before the suite.
+      - name: Wait for the proxy
+        run: |
+          node --input-type=module -e "
+            import { neon, neonConfig } from '@neondatabase/serverless';
+            neonConfig.fetchEndpoint = 'http://localhost:4444/sql';
+            const sql = neon('postgresql://postgres:postgres@localhost:5432/track_record_test?sslmode=require');
+            for (let i = 0; i < 60; i++) {
+              try { await sql.query('select 1'); console.log('proxy ready'); process.exit(0); }
+              catch { await new Promise((r) => setTimeout(r, 1000)); }
+            }
+            console.error('proxy never answered'); process.exit(1);
+          "
+      - name: Test
+        run: npm test
+      - name: Proxy logs on failure
+        if: failure()
+        run: docker compose logs --tail 200
