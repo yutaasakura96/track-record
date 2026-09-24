@@ -17,16 +17,25 @@ const SHAPES: RegExp[] = [
   /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
   // IPv4, including the private ranges an internal network address lives in
   /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
-  // IPv6, in its common compressed forms
-  /\b(?:[0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}\b/i,
+  // IPv6, in the full eight-group form and in the compressed `::` forms.
+  // `\b` cannot sit next to a colon, so the earlier shape matched NO address
+  // written with `::` — which is how one is normally written — while matching
+  // `08:35:51`. The guards are explicit character classes rather than `\b` for
+  // the same reason, and they are what keeps `std::vector` out. `a::b` is
+  // matched: it expands to `000a::000b`, and a valid address is the cautious
+  // reading either way.
+  /(?<![0-9a-z:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})(?![0-9a-z:])/i,
   // Email address
   /\b[^\s@]+@[^\s@]+\.[a-z]{2,}\b/i,
   // Internal hostname or UNC path
   /\\\\[A-Za-z0-9._-]+\\/,
   // Employee / staff / badge numbers, in the shapes they are usually written
   /\b(?:emp(?:loyee)?|staff|badge|社員)\s*(?:no\.?|number|id|番号)?\s*[:#]?\s*\d{3,}\b/i,
-  // Bare long identifier runs — ticket keys, account numbers, system codes
-  /\b[A-Z]{2,}[-_]\d{4,}\b/,
+  // Bare long identifier runs — ticket keys, account numbers, system codes.
+  // The excluded prefixes are vendor error codes, which have this exact shape
+  // and identify nobody: they are public constants documented by Oracle, and a
+  // migration portfolio quotes them constantly.
+  /\b(?!(?:ORA|TNS|RMAN|IMP|EXP|PLS)[-_])[A-Z]{2,}[-_]\d{4,}\b/,
   // Drive-letter path. The UNC shape above catches `\\server\share` and walks
   // straight past `C:\`, which is the form the portfolios actually use and the
   // one that carries a client's directory structure.

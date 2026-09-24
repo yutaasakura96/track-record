@@ -192,6 +192,9 @@ describe("what a candidate arrives as", () => {
     ["an internal hostname", "The scheduler ran on aozora-batch01.corp and nothing else reached it."],
     ["a URL naming a port", "The staging dashboard was at http://aozora-staging:8443/settlement."],
     ["a cloud resource identifier", "Snapshots landed in arn:aws:s3:::aozora-ledger-archive."],
+    ["a compressed IPv6 address", "The batch host answered on fe80::1 and nowhere else."],
+    ["a shortened IPv6 address", "Replication ran between 2001:db8::1 and its standby."],
+    ["a full IPv6 address", "The listener bound to 2001:db8:85a3:0:0:8a2e:370:7334 overnight."],
   ];
 
   for (const [label, quote] of identifierCases) {
@@ -202,6 +205,27 @@ describe("what a candidate arrives as", () => {
       const { items } = await factsOf(created.importId);
       expect(items).toHaveLength(1);
       expect(items[0]!.disclosure).toBe("private");
+    });
+  }
+
+  // The other half of the shape list, which had no coverage: a shape that
+  // matches nothing real costs the author a fact. Each of these three reached
+  // Private through a shape it has no business matching, and a migration
+  // portfolio is made of them.
+  const versionCases: [string, string][] = [
+    ["a clock time", "The download step finished at 08:35:51 and the log records it."],
+    ["a vendor error code", "The import failed with ORA-39001 before the schema was touched."],
+    ["a vendor error code in prose", "Undo retention surfaced as TNS-12541 on the listener."],
+  ];
+
+  for (const [label, quote] of versionCases) {
+    it(`leaves a candidate carrying ${label} Restricted`, async () => {
+      model.extractions = [[{ claim: "Owned the batch platform", quote, technologies: [] }]];
+      const document = `# Aozora batch\n\n${quote}\n`;
+      const created = (await (await importDocument(document)).json()) as { importId: string };
+      const { items } = await factsOf(created.importId);
+      expect(items).toHaveLength(1);
+      expect(items[0]!.disclosure).toBe("restricted");
     });
   }
 
