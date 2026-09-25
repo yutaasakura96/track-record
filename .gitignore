@@ -35,3 +35,7 @@ coverage/
 # `npm run capture:proxy` writes these. The proxy's own log is captured whole,
 # so a capture is read before it is attached anywhere public, never committed.
 proxy-capture-*.txt
+
+# `npm run dev:session` writes a live session token for the local database here,
+# as a Playwright storageState file (docs/06, 2026-09-25).
+.dev-session/

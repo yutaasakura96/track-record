@@ -4265,3 +4265,54 @@ answer, and `pmset -g log` shows no sleep in the window. That has not happened o
 case the capture exists for. Also if a real lid-close sleep ever leaves the proxy unable to answer
 after waking, which the frozen-process runs could not model; the watch would then need a probe after
 each gap.
+
+### [2026-09-25] A local browser signs in through `npm run dev:session`, which lives outside the app
+
+Agents running the app by hand had no way past the Google sign-in, and checking a UI change in a
+real browser is required. Tests already get past it: since the 2026-09-02 entry the suite runs a
+local OIDC issuer as a fixture and walks Better Auth's own sign-in path. What was missing was that
+same walk for a browser.
+
+**Decision.** `npm run dev:session` (`scripts/dev-session.ts`) signs a fixed local test user,
+`dev-session@example.invalid`, in against the development database and hands the cookie to a
+browser. It runs the suite's own code for this: the issuer in `tests/helpers/oidc-issuer.ts` and the
+walk and cookie jar in `tests/helpers/sign-in.ts`, split out of `oidc.ts` and `harness.ts` so they
+carry no `cloudflare:test` import, and the harness now calls the same functions. Better Auth sets and
+signs the cookie in the script's process, with the secret from `.dev.vars`, so the running dev
+worker accepts it. Nothing in the script signs a cookie itself. The same user is reused on every run,
+because Better Auth finds the account by the fixed provider subject.
+
+**Consistent with the 2026-08-30 entry, not an exception to it.** That entry refused a sign-in
+bypass in shippable code, because the app is publicly reachable and a test-only route would be a
+hole. This adds no route, flag, binding or code path to `src/`, and nothing under `src/` imports the
+script. The issuer claims Google's origins only inside the script's own Node process, for the length
+of one walk. A deployed Worker has nothing to reach. No variable is added to deployed configuration.
+
+**The guard runs before anything is written.** The script reads `.dev.vars` and nothing else, since
+that file is the project's existing local counterpart of Workers secrets. It refuses when
+`NODE_ENV` is `production`, when `DATABASE_URL` is not the local Postgres (the same host reading
+`tests/database-guard.ts` uses, so the docker-compose `postgres` service counts as local) or names
+`track_record_test`, and when `BETTER_AUTH_URL` is not an `http://` origin on this machine. That last
+one is the signal that the secret beside it is local, because a deployed secret is paired with a
+deployed origin. It also refuses an empty secret, and an allowlist without the dev-session address,
+because the session middleware checks the invite gate on every request. The allowlist is not
+relaxed. The address is added to the local `.dev.vars` by hand, once.
+
+**Why the auth surface and not the whole app.** The script runs under Node through `tsx`. The app
+imports the 履歴書 template as a `.docx` Data module, which only wrangler and Vite can load, so the
+script builds `createAuth` from `src/server/auth.ts` and calls its handler. That is what
+`/api/auth/*` hands every request to. The suite covers the other half: `tests/dev-session.test.ts`
+walks the same function through the full Hono app and requires the app's session probe, which the
+SPA checks before it shows a signed-in screen, to accept the cookie.
+
+**Handoff.** The script prints the cookie's name, value, domain and path, the Vite URL to open, a
+`document.cookie` line for a tool with only an `eval` (chrome-devtools-axi), and a
+`page.context().addCookies(...)` line for Playwright MCP's `browser_run_code`, which cannot read
+files. It also writes a gitignored Playwright storageState at `.dev-session/storage-state.json` for
+`--storage-state`. It probes the running worker and says whether it accepts the session. Both
+browser paths were checked by hand on this date: each opened the sign-in screen without the cookie
+and the signed-in `/profile` screen with it.
+
+**Revisit if:** Better Auth gains a per-provider issuer URL (the 2026-09-02 entry's own trigger), or
+the app stops importing a Data module, so the script could walk the full app rather than the auth
+surface.
