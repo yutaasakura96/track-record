@@ -26,4 +26,6 @@ GOOGLE_CLIENT_SECRET=""
 
 # Invite gate. Comma-separated. Sign-up is invite-only by design, not by default
 # — see docs/08-auth-and-permissions.md §2.
+# `npm run dev:session` signs in dev-session@example.invalid, the local test user,
+# and refuses unless that address is on this list (docs/06, 2026-09-25).
 ALLOWED_SIGNUP_EMAILS=""

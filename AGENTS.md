@@ -11,6 +11,9 @@ disagree, the docs win.
 Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and both databases), `npm run db:migrate:local`
 on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up; the client screen tests
 alone (`npx vitest run --project client`) do not.
+To see signed-in screens in a browser, run `npm run dev:session` with both servers up. It signs in a
+local test user (`docs/06`, 2026-09-25) and prints the URL plus a cookie line for chrome-devtools-axi
+`eval` or Playwright `addCookies`; it refuses anything but a local `.dev.vars`.
 `npm run build` runs the design-token check, the type check and the client build, in that order.
 `npm run measure -- --latest` prints the experience-section figures every register decision in the
 decision log is argued against — count, mean length, share carrying a number. **Do not rebuild it
