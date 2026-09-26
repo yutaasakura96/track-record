@@ -16,7 +16,7 @@
  * `.docx` Data module, which only wrangler and Vite know how to load. The auth
  * surface is what `/api/auth/*` hands every request to (`src/server/routes/auth.ts`).
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createAuth } from "~/server/auth";
@@ -65,6 +65,7 @@ async function main(): Promise<number> {
   const state = storageState(cookies, config.origin);
   mkdirSync(dirname(STORAGE_STATE), { recursive: true });
   writeFileSync(STORAGE_STATE, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
+  chmodSync(STORAGE_STATE, 0o600);
 
   const url = appUrl(config.origin);
   const worker = await probeWorker(config.origin, `${session.name}=${session.value}`);
