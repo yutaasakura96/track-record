@@ -9,7 +9,7 @@ you look at it. A leaked private fact, a fabricated number, a 履歴書 missing 
 and one user's record shown to another all look completely normal. Those are what a machine has to
 check, because a human cannot.
 
-**All fixtures are invented.** Nothing is sampled from `local/` — `CLAUDE.md` requires this, and a
+**All fixtures are invented.** Nothing is sampled from `local/` — `AGENTS.md` requires this, and a
 test fixture containing a real client name would be committed to a public repo forever.
 
 ---

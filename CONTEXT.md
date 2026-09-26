@@ -77,5 +77,5 @@ English CV back in as the document an interview answer is scored against, extrac
 **claims** — one atomic citable assertion with a character span — from the text. Its claim is not
 this repo's Fact: a Fact carries Provenance, Disclosure and Evidence and is reviewed one at a time;
 a claim is derived, never curated, and never deleted. The two are not synchronised and are not meant
-to be. `CLAUDE.md` names the machinery both repos ended up building.
+to be. `AGENTS.md` names the machinery both repos ended up building.
 _Avoid_: treating a Suburi claim as a Fact, or the reverse.
