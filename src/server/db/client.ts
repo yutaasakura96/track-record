@@ -45,5 +45,14 @@ export function createDb(connectionString: string) {
     neonConfig.poolQueryViaFetch = true;
     neonConfig.fetchFunction = watchedFetch;
   }
-  return drizzle(neon(connectionString), { schema, casing: "snake_case" });
+  // The local Neon HTTP proxy cannot parse an IPv6 literal from the connection
+  // string it receives in the request header. Both spellings reach this same
+  // local proxy, so give it the localhost spelling while retaining the URL's
+  // database, port and credentials.
+  let neonConnectionString = connectionString;
+  if (url.hostname === "[::1]") {
+    url.hostname = "localhost";
+    neonConnectionString = url.toString();
+  }
+  return drizzle(neon(neonConnectionString), { schema, casing: "snake_case" });
 }

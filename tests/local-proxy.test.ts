@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { neonConfig } from "@neondatabase/serverless";
+import { env } from "cloudflare:test";
 import { createDb } from "~/server/db/client";
 import { localProxyEndpoint } from "~/server/db/local-proxy";
 
@@ -37,5 +38,13 @@ describe("the local proxy endpoint", () => {
     } finally {
       neonConfig.fetchEndpoint = previous;
     }
+  });
+
+  it("queries the local database when its URL uses IPv6 loopback", async () => {
+    const url = new URL(env.DATABASE_URL as string);
+    url.hostname = "[::1]";
+    const db = createDb(url.toString());
+    const rows = await db.execute<{ name: string }>("select current_database() as name");
+    expect(rows.rows[0]?.name).toBe("track_record_test");
   });
 });
