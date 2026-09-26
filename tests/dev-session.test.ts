@@ -74,11 +74,15 @@ describe("the local-only guard", () => {
   });
 
   it("refuses a deployed BETTER_AUTH_URL, since the secret beside it may be a deployed one", () => {
-    for (const url of ["https://track-record.example.com", "https://localhost:8787", ""]) {
+    for (const url of ["https://track-record.example.com", "https://localhost:8787", "http://localhost:8788", ""]) {
       const reasons = refusals(devVars({ BETTER_AUTH_URL: url }));
       expect(reasons).toHaveLength(1);
       expect(reasons[0]).toContain("BETTER_AUTH_URL");
     }
+  });
+
+  it("accepts IPv6 loopback for the local database", () => {
+    expect(refusals(devVars({ DATABASE_URL: "postgresql://postgres:postgres@[::1]:5432/track_record_dev" }))).toEqual([]);
   });
 
   it("refuses the suite's database, an empty secret, and a missing invite", () => {

@@ -94,7 +94,7 @@ export function checkLocalOnly(devVars: string | null, nodeEnv: string | undefin
   const origin = localOrigin(authUrl);
   if (!origin) {
     refusals.push(
-      `BETTER_AUTH_URL in .dev.vars is ${JSON.stringify(authUrl)}, not an http:// origin on this machine. ` +
+      `BETTER_AUTH_URL in .dev.vars is ${JSON.stringify(authUrl)}, not an http:// origin on this machine at port 8787. ` +
         "A deployed origin means the secret beside it may be a deployed one.",
     );
   }
@@ -123,7 +123,7 @@ function localOrigin(value: string): string | null {
   } catch {
     return null;
   }
-  if (url.protocol !== "http:" || !LOCAL_ORIGIN_HOSTS.has(url.hostname)) return null;
+  if (url.protocol !== "http:" || !LOCAL_ORIGIN_HOSTS.has(url.hostname) || url.port !== "8787") return null;
   return url.origin;
 }
 

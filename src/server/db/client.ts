@@ -15,7 +15,7 @@ import { localProxyEndpoint } from "./local-proxy";
 
 export type Db = ReturnType<typeof createDb>;
 
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "db.localtest.me", "postgres"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "db.localtest.me", "postgres"]);
 
 // One watcher per isolate, not per `createDb` call: the app builds a handle on
 // every request, and a watcher rebuilt each time would report the same silence
