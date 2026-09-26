@@ -15,7 +15,8 @@ import { createDb } from "~/server/db/client";
 import type { Bindings, SessionUser } from "~/server/env";
 import type { CandidateFact, ModelSeam, ModelUsage, RenderFact, RenderSpec } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
-import type { AuthorizationRequest, FixtureIssuer, OidcIdentity } from "./oidc";
+import type { FixtureIssuer, OidcIdentity } from "./oidc";
+import { CookieJar, walkSignIn, type SignInResult } from "./sign-in";
 
 const bindings = env as unknown as Bindings;
 
@@ -93,15 +94,9 @@ export interface Harness {
   signIn(issuer: FixtureIssuer, identity: OidcIdentity): Promise<SignInWalk>;
 }
 
-export interface SignInWalk {
+export interface SignInWalk extends SignInResult {
   /** Carries whatever cookies the walk ended with — a session, or nothing. */
   client: Client;
-  /** The callback's own response. A redirect, either way. */
-  callback: Response;
-  /** Where the callback sent the browser: the app, or the error page. */
-  location: string;
-  /** What the application asked the issuer for, as the issuer received it. */
-  authorization: AuthorizationRequest;
 }
 
 export interface SeededUser {
@@ -182,69 +177,9 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
         throw new Error("signIn() needs harness(model, { realSessions: true }).");
       }
       const browser = client({}, new CookieJar());
-
-      const started = await browser.post("/api/auth/sign-in/social", {
-        provider: "google",
-        callbackURL: "/",
-        errorCallbackURL: "/sign-in",
-      });
-      if (started.status !== 200) {
-        throw new Error(`sign-in/social answered ${started.status}: ${await started.text()}`);
-      }
-      const { url } = (await started.json()) as { url?: string };
-      if (!url) throw new Error("sign-in/social returned no authorization URL.");
-
-      const { callbackUrl, request: authorization } = issuer.authorize(url, identity);
-      const callback = new URL(callbackUrl);
-      const response = await browser.get(`${callback.pathname}${callback.search}`);
-      return {
-        client: browser,
-        callback: response,
-        location: response.headers.get("location") ?? "",
-        authorization,
-      };
+      return { client: browser, ...(await walkSignIn(browser.request, issuer, identity)) };
     },
   };
-}
-
-/**
- * A browser's cookie store, which is the only thing standing between the
- * `Set-Cookie` the callback writes and the `Cookie` the next request sends.
- * Attributes other than expiry are ignored on purpose: asserting on `Secure`
- * and `SameSite` would be testing Better Auth's own behaviour (`docs/11` §4).
- */
-class CookieJar {
-  readonly #cookies = new Map<string, string>();
-
-  capture(response: Response): void {
-    for (const raw of setCookieHeaders(response)) {
-      const separator = raw.indexOf(";");
-      const pair = separator === -1 ? raw : raw.slice(0, separator);
-      const attributes = separator === -1 ? "" : raw.slice(separator + 1);
-      const equals = pair.indexOf("=");
-      if (equals === -1) continue;
-      const name = pair.slice(0, equals).trim();
-      const value = pair.slice(equals + 1).trim();
-      // Better Auth clears the OAuth state cookie on the callback. A jar that
-      // kept it would let a replayed state look valid.
-      if (value === "" || /(^|;)\s*max-age=0\s*(;|$)/i.test(attributes)) {
-        this.#cookies.delete(name);
-        continue;
-      }
-      this.#cookies.set(name, value);
-    }
-  }
-
-  header(): string {
-    return [...this.#cookies].map(([name, value]) => `${name}=${value}`).join("; ");
-  }
-}
-
-function setCookieHeaders(response: Response): string[] {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] };
-  if (typeof headers.getSetCookie === "function") return headers.getSetCookie();
-  const single = headers.get("set-cookie");
-  return single ? [single] : [];
 }
 
 /**

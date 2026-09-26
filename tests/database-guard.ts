@@ -45,15 +45,24 @@ export function databaseTarget(connectionString: string): DatabaseTarget | null 
 
 /**
  * `DATABASE_URL` as `.dev.vars` sets it, or null when the file is absent or
- * does not set it. `.dev.vars` is a flat `KEY=value` file; this reads it as one
- * rather than pulling in a dotenv parser for a single line.
+ * does not set it.
  */
 export function devDatabaseUrl(contents: string | null): string | null {
+  return devVar(contents, "DATABASE_URL");
+}
+
+/**
+ * One variable as `.dev.vars` sets it, or null when the file is absent or does
+ * not set it. `.dev.vars` is a flat `KEY=value` file; this reads it as one
+ * rather than pulling in a dotenv parser. `scripts/dev-session.ts` reads its
+ * variables through this too, so the two cannot disagree about the file.
+ */
+export function devVar(contents: string | null, name: string): string | null {
   if (contents === null) return null;
   for (const line of contents.split("\n")) {
-    const match = /^\s*DATABASE_URL\s*=\s*(.*?)\s*$/.exec(line);
-    if (!match) continue;
-    const value = match[1] ?? "";
+    const match = /^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
+    if (!match || match[1] !== name) continue;
+    const value = match[2] ?? "";
     const unquoted = /^(["'])(.*)\1$/.exec(value);
     return unquoted ? (unquoted[2] ?? "") : value;
   }
