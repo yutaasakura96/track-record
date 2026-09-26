@@ -4316,3 +4316,11 @@ and the signed-in `/profile` screen with it.
 **Revisit if:** Better Auth gains a per-provider issuer URL (the 2026-09-02 entry's own trigger), or
 the app stops importing a Data module, so the script could walk the full app rather than the auth
 surface.
+
+### [2026-09-26] The local session helper uses the host development endpoints
+
+This supersedes the host acceptance in the 2026-09-25 local browser entry. The helper runs under
+host Node, so its database URL cannot use the Compose-only `postgres` service name. It accepts the
+host-reachable local database names and refuses that service name before creating a session.
+`BETTER_AUTH_URL` must be exactly `http://localhost:8787`, the worker target of Vite's API proxy.
+The printed browser URL and the session probe therefore address the same worker.

@@ -50,11 +50,17 @@ describe("the local-only guard", () => {
     });
   });
 
-  it("passes the docker-compose service name and 127.0.0.1 as local", () => {
-    for (const host of ["postgres", "127.0.0.1"]) {
+  it("passes loopback database addresses", () => {
+    for (const host of ["127.0.0.1", "[::1]"]) {
       const url = `postgresql://postgres:postgres@${host}:5432/track_record_dev`;
       expect(refusals(devVars({ DATABASE_URL: url }))).toEqual([]);
     }
+  });
+
+  it("refuses the docker-compose service name from host Node", () => {
+    expect(refusals(devVars({ DATABASE_URL: "postgresql://postgres:postgres@postgres:5432/track_record_dev" }))).toEqual([
+      expect.stringContaining("points at postgres"),
+    ]);
   });
 
   it("refuses a database that is not on this machine", () => {
@@ -74,15 +80,18 @@ describe("the local-only guard", () => {
   });
 
   it("refuses a deployed BETTER_AUTH_URL, since the secret beside it may be a deployed one", () => {
-    for (const url of ["https://track-record.example.com", "https://localhost:8787", "http://localhost:8788", ""]) {
+    for (const url of [
+      "https://track-record.example.com",
+      "https://localhost:8787",
+      "http://localhost:8788",
+      "http://127.0.0.1:8787",
+      "http://[::1]:8787",
+      "",
+    ]) {
       const reasons = refusals(devVars({ BETTER_AUTH_URL: url }));
       expect(reasons).toHaveLength(1);
       expect(reasons[0]).toContain("BETTER_AUTH_URL");
     }
-  });
-
-  it("accepts IPv6 loopback for the local database", () => {
-    expect(refusals(devVars({ DATABASE_URL: "postgresql://postgres:postgres@[::1]:5432/track_record_dev" }))).toEqual([]);
   });
 
   it("refuses the suite's database, an empty secret, and a missing invite", () => {

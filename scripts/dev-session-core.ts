@@ -34,7 +34,7 @@ export const DEV_SESSION_CLIENT: IssuerCredentials = {
 /** The Vite dev server's default port, which `npm run dev` serves the SPA on. */
 const VITE_PORT = "5173";
 
-const LOCAL_ORIGIN_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const LOCAL_DATABASE_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "db.localtest.me"]);
 
 /** The `.dev.vars` values the script needs, once the guard has passed them. */
 export interface LocalConfig {
@@ -76,12 +76,13 @@ export function checkLocalOnly(devVars: string | null, nodeEnv: string | undefin
 
   const databaseUrl = devVar(devVars, "DATABASE_URL") ?? "";
   const target = databaseUrl === "" ? null : databaseTarget(databaseUrl);
+  const databaseHost = target ? new URL(databaseUrl).hostname : "";
   if (!target) {
     refusals.push("DATABASE_URL in .dev.vars is missing or not a connection string this can read.");
-  } else if (target.host !== "localhost") {
+  } else if (!LOCAL_DATABASE_HOSTS.has(databaseHost)) {
     refusals.push(
-      `DATABASE_URL in .dev.vars points at ${target.host}, not the local Postgres ` +
-        "(localhost, 127.0.0.1 or the docker-compose `postgres` service).",
+      `DATABASE_URL in .dev.vars points at ${databaseHost}, not the local Postgres ` +
+        "(localhost, 127.0.0.1, [::1] or db.localtest.me).",
     );
   } else if (target.database === SUITE_DATABASE) {
     refusals.push(
@@ -91,10 +92,10 @@ export function checkLocalOnly(devVars: string | null, nodeEnv: string | undefin
   }
 
   const authUrl = devVar(devVars, "BETTER_AUTH_URL") ?? "";
-  const origin = localOrigin(authUrl);
+  const origin = authUrl === "http://localhost:8787" ? authUrl : null;
   if (!origin) {
     refusals.push(
-      `BETTER_AUTH_URL in .dev.vars is ${JSON.stringify(authUrl)}, not an http:// origin on this machine at port 8787. ` +
+      `BETTER_AUTH_URL in .dev.vars is ${JSON.stringify(authUrl)}, not http://localhost:8787. ` +
         "A deployed origin means the secret beside it may be a deployed one.",
     );
   }
@@ -114,17 +115,6 @@ export function checkLocalOnly(devVars: string | null, nodeEnv: string | undefin
 
   if (refusals.length > 0 || !origin) return { ok: false, refusals };
   return { ok: true, config: { databaseUrl, origin, secret, allowlist } };
-}
-
-function localOrigin(value: string): string | null {
-  let url: URL;
-  try {
-    url = new URL(value);
-  } catch {
-    return null;
-  }
-  if (url.protocol !== "http:" || !LOCAL_ORIGIN_HOSTS.has(url.hostname) || url.port !== "8787") return null;
-  return url.origin;
 }
 
 export interface DevSession {
