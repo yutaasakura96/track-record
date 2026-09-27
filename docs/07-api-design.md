@@ -21,6 +21,11 @@ This is **deny-by-default middleware**, not a per-route opt-in — a new route i
 exists, not because someone remembered. There are no roles and no permission matrix
 (`08-auth-and-permissions.md`).
 
+**There is no health route.** `12-deployment-devops.md` §3 once called for a public
+`GET /api/health`. The deploy check reads the commit SHA from the SPA shell at `/` instead, and
+asserts that an `/api/*` route answers `401`, so `/api/auth/*` stays the only exception (decision
+log, 2026-09-28).
+
 **Ownership.** Every query filters by the session's `userId`. A record belonging to another user
 returns **404, never 403** — a 403 confirms the record exists, which is an information leak.
 
@@ -183,6 +188,12 @@ re-import is also refused at **`409 conflict`** while the document's newest vers
 `extracting`: the diff baseline would still be incomplete. A `failed` newest version does not
 refuse, because its text was stored before extraction. A re-import may carry a different filename
 or type; the document's `filename` and `mime_type` are not changed.
+
+**`employerId` (optional) · M3, specified 2026-09-28, not built.** Files the new document under an
+employer the session owns; every fact extracted from it starts with that `employerId` (§6). An
+employer the session does not own answers `404`, as `projectId` does. Like `projectId`, it is offered
+only for a new document: a re-import keeps the document's employer. Whether it can be changed after
+import, through `PATCH /api/source-documents/:id`, is not decided (`04` §3.12).
 
 **Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
 supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
@@ -396,7 +407,14 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 - **`employerId` is `null` on every extracted fact and is set from the fact list.** Extraction never
   guesses one. Setting it on an accepted fact does not disturb the accept decision, which is what
   makes an already-reviewed import linkable without a re-import (issue #14). An `employerId` naming
-  another user's employer answers `404`.
+  another user's employer answers `404`. **From M3** (specified 2026-09-28, not built) a fact
+  extracted from a document that carries an employer starts with that document's `employerId`
+  instead of `null`, and is changed the same way.
+- **Overlap with existing facts · M3, specified 2026-09-28, not built.** A candidate will carry the
+  existing facts at the same employer that likely say the same thing, each marked as a conflict when
+  its number differs (PRD §8), so Screen 1 can show them on the card. **The field's shape is not
+  specified yet.** It follows from how "likely the same" is computed, which is undecided (`04`
+  §3.12). Like the rest of this response it carries ids and claims, never `quote` text.
 
 **`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
 same answer a missing employer gets, because a `403` would confirm it exists.

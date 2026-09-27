@@ -4324,3 +4324,210 @@ host Node, so its database URL cannot use the Compose-only `postgres` service na
 host-reachable local database names and refuses that service name before creating a session.
 `BETTER_AUTH_URL` must be exactly `http://localhost:8787`, the worker target of Vite's API proxy.
 The printed browser URL and the session probe therefore address the same worker.
+
+### [2026-09-28] The back catalogue is the next feature, and it is imported into production
+
+The planning of 2026-09-28 chose the next feature and settled how it runs, along with the open
+questions on #33 and #34. The author took the recommended option on every question, with no notes.
+This entry and the five after it are the record of those answers.
+
+**The next feature is the back-catalogue import, the core of M3.** The per-employer portfolios (10
+documents, 4,405 paragraphs across four employer folders, scanned 2026-09-06) come into the record.
+Their overlap with facts already accepted is resolved as they arrive, and the 112 facts of the
+2026-09-04 import are re-graded. Every render today is built from one narrative document, and this is
+the step between "the app works" and "I switched" (`docs/01`). The alternatives were the go-live
+track, quick capture (S12) and the LinkedIn render. Go-live goes ahead anyway through #34. Quick
+capture adds a sentence at a time to a record still missing most of its evidence.
+
+**It lands in production, after go-live.** The bulk run waits for #34 and for the production
+environment the owner provisions. Several hundred author-reviewed facts are the most expensive thing
+this project will hold, and production gives them point-in-time restore. Bulk import is also the job
+the Cloudflare Workflow exists for, and locally an import runs inline, so a local bulk run would
+leave the real Workflow untested. Importing locally now and moving the database at go-live is the
+fallback if go-live slips. It was not chosen.
+
+**One document at a time, through today's Documents screen.** Flow 8's queue and the Message
+Batches path stay unbuilt. The first portfolio's recorded token usage decides whether either is
+worth building for the rest. Ten documents do not justify a queue before one has been measured, and
+the usage columns make the measurement free.
+
+**Extraction effort is measured before it is changed.** The first portfolio is imported at today's
+settings, adaptive thinking at effort `high` (`src/model/providers/anthropic.ts`). Its chunk rows
+record the tokens. The 2026-09-06 entry left lowering effort as "an open decision that wants
+numbers", and it is taken against those numbers in an entry of its own.
+
+**Done means the evidence is complete.** Every portfolio is imported and reviewed, every flagged
+conflict is resolved, the 112 are re-graded, and all five renders are regenerated and accepted.
+Quick capture comes after that. The date the author stops hand-editing the corpus stays the success
+criterion in `docs/01`. It is the author's to declare when it happens, and it is not a build
+criterion.
+
+The work is five draft issues, labelled `needs-triage` until the author confirms them: ISSUE_A1 (the
+document-level employer and the first portfolio), ISSUE_A2 (overlap flags), ISSUE_A3 (re-grading the
+112), ISSUE_A4 (the remaining portfolios) and ISSUE_A5 (the renders and closing the docs).
+
+**Revisit if:** go-live slips far enough that waiting costs more than the fallback does, or the first
+portfolio's token count makes one document at a time the wrong shape for the other nine.
+
+### [2026-09-28] A portfolio outranks the narrative, and overlap is flagged on the card
+
+PRD §8 requires two documents that assert different numbers for the same thing to be surfaced as a
+conflict, never resolved last-write-wins. `docs/03` §11 #1 deferred it because it needs a notion of
+"the same thing" across documents, and M1 had one document. The back catalogue is where the case
+finally arises: the 112 narrative facts are a first-person retelling of the portfolios.
+
+**The portfolio wins.** When a portfolio restates something a narrative fact already says, the
+author keeps the portfolio's fact and rejects the narrative one, so the citation points at the
+primary case study rather than at a retelling. The rejected fact is retained like every rejection,
+so nothing is lost. First-accepted-wins was rejected because it keeps the weaker citation. Keeping
+both was rejected because it can count one achievement twice in a render.
+
+**Overlap is flagged on the Fact Review card, and resolved by Accept and Reject as today.** Each
+candidate shows the existing facts at the same employer that likely say the same thing. A likely
+match whose number differs is marked as a conflict. There is no merge action and no new write path.
+Exact-hash dedupe cannot do this, because the same claim in other words has a different hash.
+Leaving it to the author's reading was rejected: about a thousand candidates across eleven
+documents is more than memory holds. A resolve-and-merge action was rejected as more interface and a
+new write path for the same outcome.
+
+**How "likely the same" is computed is not decided here.** The options are a model call, a lexical
+match or both, and the flag can be stored or computed on read. That is the spec question ISSUE_A2
+opens with, and its answer gets an entry of its own. `docs/04`, `07` and `10` record the decided
+behaviour and mark the rest as open.
+
+**The 112 are re-graded during the overlap pass.** ADR-0002 made re-reviewing them a gate before M3
+retires the old workflow. Each narrative fact is graded when it appears beside a portfolio fact. The
+ones no portfolio matched are graded at the end, scoped by their import, which ADR-0002 notes is
+possible. Grading all 112 first puts 112 cards ahead of the evidence that decides them. Grading them
+all after the import risks slipping past the M3 claim. **Unverified:** whether an accepted fact's
+provenance can be changed from today's Fact Review. ISSUE_A3 checks that first.
+
+**Revisit if:** the flags are so frequent that the card becomes noise, or so rare that the author
+keeps finding duplicates by reading.
+
+### [2026-09-28] A document carries an employer, and the facts extracted from it start with it
+
+Extraction never guesses an employer. Every extracted fact's `employerId` is null, and the author
+sets it on the card (`docs/07` §6). A per-employer portfolio has exactly one employer, so picking it
+hundreds of times per portfolio adds work and no judgement.
+
+**The employer is set once, at import, on the document. Every fact extracted from it inherits it,
+and each fact can still be changed on its own card** through the picker that already exists. The
+per-fact picker alone was rejected for the hundreds of picks. Filing each portfolio under a catch-all
+project per employer was rejected because it adds fake projects to renders. It also leans on
+behaviour that is not uniform. `collectEditableRecord` (`src/server/services/version-edit.ts`) and
+the attribution check resolve a fact's employer as `coalesce(facts.employer_id,
+projects.employer_id)`, while `collectRenderInputs` (`src/server/services/render.ts`) passes the
+fact's own `employer_id` and the project separately. **Unverified:** whether that difference has ever
+produced a wrong filing.
+
+**Not settled by the planning, and open until the author decides:** whether a document's employer
+can be changed after import and, if so, whether its facts move with it the way they move on a
+project refile; and which employer wins when a document's employer and its project's employer
+differ. Whether inheritance is a copy onto each candidate or a read through the document follows
+from the first answer, and ISSUE_A1 takes it from there.
+
+**Revisit if:** a document turns out to span employers often enough that a single employer is wrong
+more than it is right.
+
+### [2026-09-28] The deploy check reads the build from the SPA shell, and no route is opened for it
+
+`docs/12` §3 step 6 and §7 call for `GET /api/health`, returning 200 and the deployed commit SHA.
+`docs/07` §1 and `docs/13` §3 say every route except `/api/auth/*` requires a session, and
+deny-by-default with the auth callbacks as the only exception is one of the rules `AGENTS.md` calls
+expensive to break. The two have disagreed since 2026-08-12. The route was never built, so nothing
+depends on either reading yet. This entry reconciles them.
+
+**No new public route.** The build bakes the commit SHA into the SPA shell. The deploy job fetches
+`/`, compares that SHA with the commit it deployed, and asserts that an `/api/*` route answers `401`
+without a session. That proves the static assets, the Worker and the auth middleware are live, which
+is what step 6 was for, and "deny-by-default, auth callbacks only" is left as it is. A public health
+route was rejected because it needs a named exception in `docs/07`, `docs/13`, the route enumeration
+test and `AGENTS.md`, for a question the shell can answer. An authenticated health route was
+rejected because CI would need a production session, which is a credential in CI.
+
+The SHA in the shell is public, and so is every commit of this repository, so it discloses nothing.
+The check does not prove the database answers: a `401` is decided before any query. The deploy
+job's migrate step is what touches Neon.
+
+`docs/12` §3 and §7 now say this. `docs/07` §1 and `docs/13` §3 already did, and are unchanged. How
+the shell carries the SHA and which `/api/*` route the job probes are #34's to choose.
+
+**Revisit if:** a check needs to prove the database is reachable from the deployed Worker, which
+this one cannot.
+
+### [2026-09-28] Production is rehearsed while empty, and then the record moves in by `pg_dump`
+
+The hosted decision of 2026-08-12 and `docs/12` §1 put the real record in Neon `main`. In practice it
+has lived in the local `track_record_dev` since 2026-09-04 ("The dev database now holds the real
+record", in that date's first entry). Production has never been provisioned, and no document named
+the gap or said how the record would cross it.
+
+**The rollback and point-in-time-restore rehearsals are an issue of their own, ISSUE_R, run on the
+fresh production project before the record moves in.** `docs/12` §4 asked for them "on a dev branch,
+before any real record exists to lose". A real record now exists, and §5's own table says dev
+branches have no point-in-time restore. The empty production project is the only place a rehearsal
+is both real and safe. The drills stay out of #34, which remains a CI change an agent can build,
+because they are owner-run, one-off and sensitive to order. Rehearsing after the move was rejected:
+it practises a restore on the only copy of the record. Until ISSUE_R closes, M1's exit criteria in
+`docs/12` §4 and §5 are still open, whatever issue #1's closure says.
+
+**The record moves by `pg_dump` of `track_record_dev`, restored into Neon `main`.** It is the only
+lossless path. `GET /api/export` restores source-document versions as evidence stubs, so every
+original would have to be re-imported. Starting production empty would throw away the model spend
+and the hours of review. **The dump is made outside the repository, never committed, and deleted
+once the restore is checked.** The rule that no database dump is ever committed forbids committing
+one, not making one. The move is the owner's, because it needs the production `DATABASE_URL`.
+#34 writes the procedure down: the order against the deploy job's migrations, and how the restore
+is checked.
+
+**Revisit if:** the record moves anywhere a second time. Nothing here should become a routine.
+
+### [2026-09-28] The Playwright smoke clicks the sign-in button, then loads a prepared session
+
+`docs/11` §2.9's browser half, #33, needed an answer to how a browser run signs in. The OIDC fixture
+works by patching `globalThis.fetch` inside the worker isolate (`tests/helpers/oidc-issuer.ts`), so a
+browser's redirect would go to the real Google.
+
+**The test clicks the sign-in button and asserts that the redirect goes to Google with exactly
+`openid email profile`. It then loads a Playwright storage state made by the code behind
+`npm run dev:session` (`scripts/dev-session-core.ts`) and walks the rest of the path signed in.**
+`tests/smoke.test.ts` already walks the server's sign-in end to end. What stays uncovered is the
+bundle, the SPA mount and the button, and this covers all three with code that already exists. It
+also automates `docs/11` §3 item 8. Intercepting Google's URLs and answering from the fixture was
+rejected as the most harness code for coverage the server walk already gives. Skipping the button
+was rejected because it leaves item 8 manual.
+
+Two constraints go into #33's body as part of the build, not as decisions. The model is stubbed
+through a test-only worker entry under `tests/`, with a wrangler configuration that has no
+`[[workflows]]` binding, so imports run inline with the stub. `src/pipeline/workflow.ts` builds its
+own seam from `createModelSeam(this.env)` and would otherwise call the real API, and `docs/11` §1
+keeps any such switch out of `src/server`. And the test runs against the built SPA served by the
+Worker's `ASSETS` binding, not the Vite dev server, or "static assets not served" stays uncovered.
+
+**Revisit if:** Better Auth gains a per-provider issuer URL, which would let the browser walk the
+whole sign-in against the fixture.
+
+### [2026-09-28] The status, the register and three documents catch up with what was decided earlier
+
+Plain corrections found while planning, each a statement the docs already contradicted. Nothing here
+is a new decision.
+
+- **`docs/03` §12.** Rows 6 and 7 shipped (#21, #22, #16) and row 3 was retired by the 2026-09-06
+  entry ("No entity extraction was built and none is planned"), so all three leave the register, by
+  its own rule. Row 1, cross-document conflicts, moves to M3 as ISSUE_A2. Row 4 now names this
+  planning's trigger. Row 9 was a stray line outside its table and is folded into the paragraph above
+  it.
+- **`docs/09` Flow 7** was still labelled M2. The 2026-09-06 entry keeps the bootstrap import unbuilt
+  and in reserve, and the heading now says so. Flow 8 names this planning's trigger.
+- **`docs/specs/technical-verification.md`** still listed spike B as blocking M2. It closed on
+  2026-09-08.
+- **`docs/12` §5** described the restore drill as monthly and automatic. It is a manual command. It
+  needs an export file from the author's signed-in session, so a scheduled job could not run it as
+  written. Whether to automate it is not decided here.
+- **`docs/12` §2** named a pre-commit hook that rejects known key prefixes. None is in this
+  repository. `core.hooksPath` points at a machine-level hooks directory whose top-level hooks match
+  no key pattern; its `lib/` was not read, so whether it covers this is **unverified**. GitHub secret
+  scanning and push protection are enabled on the repository.
+- **`docs/00-status.md`** Next listed only the Playwright test. It now holds the go-live issues and
+  the import slices.

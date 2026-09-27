@@ -245,6 +245,10 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `filename` | text | no | Displayed in the fact-review breadcrumb |
 | `mime_type` | text | no | |
 
+**M3 addition, specified 2026-09-28 and not built:** a nullable `employer_id` (FK → `employers.id`
+**restrict**), set at import. Facts extracted from the document start filed under it, and each fact
+can still be refiled on its own (§3.12).
+
 **`source_document_versions`** — one row per import of the same file.
 
 | Column | Type | Null | Notes |
@@ -309,7 +313,7 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `id` | text | no | `nanoid()` | PK |
 | `user_id` | text | no | — | FK → `users.id` **cascade** |
 | `project_id` | text | yes | — | FK → `projects.id` **restrict** |
-| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries |
+| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries. Null on every extracted fact today; from M3 it starts as the document's employer (§3.12) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
 | `provenance` | provenance | no | `'generated'` | **Anything a model produces starts Generated** |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy** |
@@ -505,6 +509,30 @@ inclusion for employment, education and project entries. **履歴書 defaults to
 absence of a row means included (S13). Excluding never deletes or hides the underlying record.
 `entity_id` names three tables and so carries no foreign key; deleting an employer, education or
 project clears its rows in the same batch instead (`06`, 2026-09-21).
+
+### 3.12 M3 additions · specified 2026-09-28, not built
+
+The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet. Each
+change lands with the slice that first needs it.
+
+**`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen once, at import.
+Every candidate extracted from any version of the document is written with `facts.employer_id` set to
+it. The author can change one fact's employer on its card, as today.
+
+**Open, not decided by the planning:**
+
+- Whether a document's employer can be changed after import, and whether its facts move with it the
+  way they move on a project refile (`06`, 2026-09-21). The answer decides whether inheritance is a
+  copy onto each fact or a read through the document.
+- Which employer a fact starts with when the document's employer and its project's `employer_id`
+  differ.
+
+**The overlap flag.** A candidate is shown the existing facts at the same employer that likely say
+the same thing, and a likely match with a different number is marked as a conflict (PRD §8). **Its
+storage is undecided.** It may be computed on read, which needs no table. A stored flag would be a
+table of `(user_id, fact_id, other_fact_id, is_conflict)` pairs. The choice follows from how "likely
+the same" is computed, which is the first question of the slice that builds it. Either way a flag is
+advisory: it is never a status and never blocks Accept.
 
 ---
 

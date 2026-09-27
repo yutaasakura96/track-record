@@ -66,6 +66,15 @@ so the mark sits ~34% from the top. Both directions are required.
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
 
+**Overlap on the card · M3, specified 2026-09-28, not built.** A candidate with likely matches
+among the existing facts at the same employer shows them on the card, beside its claim: each
+match's claim and the document it came from, and a **conflict** marker when the match's number
+differs (PRD §8). The flag is advisory. It changes nothing about Accept or Reject, which are how the
+author settles it: when a portfolio restates a narrative fact, the portfolio's fact is accepted and
+the narrative one rejected (decision log, 2026-09-28). There is no merge action. Where on the card the
+block sits, its wording and its tokens are specified with the build, because what a match carries
+depends on how "likely the same" is computed, which is undecided (`04` §3.12).
+
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
 + `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough.
 
@@ -208,6 +217,14 @@ the choice.
   label `File it under`, a project select defaulting to `No project`, then `Cancel` (bare) and
   `Import` (primary). `Import` sends `POST /api/imports` with the chosen `projectId`, or without one
   when the select is left at `No project`, and opens Fact Review on the new version
+
+**An employer choice · M3, specified 2026-09-28, not built.** The confirmation row gains a second
+select: the label `Employer`, then an employer select defaulting to `No employer`. It exists so a
+per-employer portfolio is filed once instead of fact by fact. Every fact extracted from the document
+starts filed under that employer, and the card's employer picker still changes any one of them. With
+the employer select the row appears when the record holds **projects or employers**, and the rule
+for a record with neither is unchanged. Whether the document's employer can be changed later, like its
+project on the refile row below, is not decided (`04` §3.12).
 
 The same row and the same rule serve the empty state's drop target and Screen 8's
 `Import a document`, which is the same control. **The choice is offered only for a new document.**
