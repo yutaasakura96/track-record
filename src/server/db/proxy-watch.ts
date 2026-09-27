@@ -1,12 +1,14 @@
 /**
- * Names a wedged Neon proxy in the dev worker's log (issue #25).
+ * Names a Neon proxy that has stopped answering in the dev worker's log.
  *
- * The local stack puts a Neon HTTP proxy in front of plain Postgres, and
- * sometimes it stops serving queries: it accepts the connection and never
- * answers. The suite already recognises that in one line
- * (`tests/proxy-health.ts`). The dev worker did not. A page just spins, the
- * worker prints nothing, and the reflex is `docker restart`, which clears the
- * wedge and erases the only evidence it has ever left behind.
+ * The local stack puts a Neon HTTP proxy in front of plain Postgres. A proxy
+ * that accepts the connection and never answers leaves a page spinning and the
+ * worker silent. That has been produced deliberately, by pausing the proxy
+ * container, and never seen on its own: every stall recorded against issue #25
+ * was the machine sleeping. The suite already recognises a silent proxy in one
+ * line (`tests/proxy-health.ts`); this is the dev worker's equivalent, so the
+ * log says what was observed before anyone reaches for `docker restart`, which
+ * clears the silence and erases the evidence of it.
  *
  * So every query the driver sends through the local proxy is watched. One that
  * has not answered after `SLOW_MS` is not proof of anything, because a query can
@@ -46,7 +48,7 @@ type Watch = {
  * Wraps the fetch the Neon driver sends queries with.
  *
  * State lives in the returned closure, so it lasts as long as the isolate that
- * holds it: one probe in flight at a time, and one report per wedge. The report
+ * holds it: one probe in flight at a time, and one report per silence. The report
  * is armed again by the next query that answers, which after a restart is the
  * first one.
  */
@@ -124,14 +126,16 @@ export function proxyWedged(slowMs: number, probeBudgetMs: number): string {
     `A query through the Neon HTTP proxy has not answered in ${slowMs}ms, and a`,
     `select 1 sent after it did not answer in ${probeBudgetMs}ms either.`,
     "",
-    "This is issue #25: the proxy has stopped serving queries. Every request that",
-    "reaches the database will now hang without an error.",
+    "Neither has been answered or refused. While that lasts, every request that",
+    "reaches the database hangs without an error.",
     "",
-    "The restart below is also what erases the wedge, so capture it first:",
+    "If this machine has just woken from sleep, wait a few seconds and try again",
+    "before anything else. Otherwise, the restart below is also what erases the",
+    "evidence, so capture it first:",
     "",
     "  npm run capture:proxy",
     `  docker restart ${PROXY_CONTAINER}`,
     "",
-    "Then attach the capture to issue #25, after reading it.",
+    "Read the capture before attaching it anywhere.",
   ].join("\n");
 }

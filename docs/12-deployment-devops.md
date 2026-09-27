@@ -1,7 +1,7 @@
 # 12 — Deployment & DevOps
 
 **Status:** Phase 4 · written 2026-08-12
-**Trigger:** actually deploying, not just running locally.
+**Scope:** deployment and local development.
 
 ---
 
@@ -11,7 +11,7 @@
 
 | Environment | Where | Database | Purpose |
 |---|---|---|---|
-| **Local** | `wrangler dev` on the author's machine | A **Neon branch off `main`** | All development |
+| **Local** | `wrangler dev` on the author's machine | Docker Postgres `track_record_dev` through the local Neon HTTP proxy; a separate Neon development branch is optional | Development |
 | **Production** | Cloudflare Workers, custom domain | Neon `main` | The real record |
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
@@ -23,7 +23,7 @@ disposable.
 constraint that survives: **no database dump is ever committed.** The repo is public, and a dump is
 the one way this data leaves the author's control in a single irreversible action.
 
-**What differs between the two environments:** the database branch, the secret values, the sign-up
+**What differs between the two environments:** the database, the secret values, the sign-up
 allowlist, and log verbosity. **Nothing else.** Same code, same migrations, same runtime.
 
 ---
@@ -36,7 +36,7 @@ that way.
 
 | Name | Purpose | Where the value comes from |
 |---|---|---|
-| `DATABASE_URL` | Neon connection string | Neon dashboard — **branch-specific**, so local and production differ |
+| `DATABASE_URL` | Database connection string | Local Docker Postgres for the standard development setup (`.dev.vars.example`); Neon dashboard for production or an optional development branch |
 | `ANTHROPIC_API_KEY` | The generation layer | Anthropic console. **The only spending credential in the system** |
 | `BETTER_AUTH_SECRET` | Session signing | Generated once per environment, 32+ random bytes |
 | `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, the custom domain in production |
@@ -193,13 +193,16 @@ a gate alongside the others in `08` §2.2.
 
 ## 8. Local development
 
-```
-1. Docker Postgres + Neon Local up   — for the test suite (the app speaks Neon's HTTP protocol,
-                                       which plain Postgres does not implement)
-2. Create a Neon branch off main, put its URL in .dev.vars
-3. npm run dev                 — wrangler dev + vite
-4. drizzle-kit migrate         — against the branch
-```
+1. Copy `.dev.vars.example` to `.dev.vars` and fill in local values. Keep `DATABASE_URL` on
+   `track_record_dev` and `BETTER_AUTH_URL` at `http://localhost:8787`. Add
+   `dev-session@example.invalid` to `ALLOWED_SIGNUP_EMAILS` for browser checks without Google.
+2. Run `npm run db:up` for Docker Postgres and the Neon HTTP proxy. On the first run, apply the
+   committed migrations with `npm run db:migrate:local`.
+3. Start the worker with `npm run dev:worker` and the SPA with `npm run dev`.
+4. For a signed-in browser, run `npm run dev:session` and follow its printed instructions for
+   the cookie and Vite URL. The helper uses the suite's sign-in path outside the app; it requires
+   the local database and does not add an application route.
 
-**The test suite runs against Docker Postgres with invented fixtures, never against the Neon
-branch.** Development reads real data; tests never do.
+The suite uses the separate `track_record_test` database, which it drops and rebuilds on every run
+(`docs/11-testing-plan.md` §1). A Neon development branch is optional for ordinary development;
+`npm run dev:session` requires the local database.

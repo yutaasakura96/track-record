@@ -78,7 +78,8 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ```
 /
-├── CLAUDE.md
+├── AGENTS.md                  # project guidance
+├── CLAUDE.md                  # imports AGENTS.md
 ├── CONTEXT.md                  # domain glossary (lazily created)
 ├── docs/                       # 01–13, adr/, agents/, specs/
 ├── design/prototype/           # visual reference only

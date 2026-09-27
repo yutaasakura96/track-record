@@ -9,7 +9,7 @@ you look at it. A leaked private fact, a fabricated number, a 履歴書 missing 
 and one user's record shown to another all look completely normal. Those are what a machine has to
 check, because a human cannot.
 
-**All fixtures are invented.** Nothing is sampled from `local/` — `CLAUDE.md` requires this, and a
+**All fixtures are invented.** Nothing is sampled from `local/` — `AGENTS.md` requires this, and a
 test fixture containing a real client name would be committed to a public repo forever.
 
 ---
@@ -24,7 +24,7 @@ test fixture containing a real client name would be committed to a public repo f
 | Test database | **`track_record_test`, the suite's own** — Docker Postgres + a Neon HTTP proxy, see below |
 | Client screens | **A second Vitest project, `client`**: jsdom, React Testing Library and user-event. The real router mounts over a memory history and `fetch` is stubbed and recorded (`tests/client/harness.tsx`). No database. Fact Review, Diff Review, Version History, Version Edit, Documents, Your record, Overview and Skills, so far |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
-| Sign-in | **A local OIDC issuer run as a fixture** (`tests/helpers/oidc.ts`). Better Auth's own path runs end to end; there is no authentication bypass in `src/server` |
+| Sign-in | **A local OIDC issuer run as a fixture** (`tests/helpers/oidc-issuer.ts`, wired to the suite by `tests/helpers/oidc.ts`). Better Auth's own path runs end to end; there is no authentication bypass in `src/server` |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |
 
 **Why a real Postgres and not an in-memory fake:** the isolation guarantee this project depends on
@@ -222,7 +222,7 @@ generation, because that render can fail in ways the résumé cannot.
 > **Status, 2026-09-02: sign-in is real; the Playwright half is still not built.**
 > `tests/smoke.test.ts` walks the whole path above through the real Hono application. **The session
 > resolver is no longer stubbed** — the walk signs in through `POST /api/auth/sign-in/social`, a
-> local OIDC issuer run as a fixture (`tests/helpers/oidc.ts`), Better Auth's own callback, and the
+> local OIDC issuer run as a fixture (`tests/helpers/oidc-issuer.ts`), Better Auth's own callback, and the
 > session cookie that callback sets. Only the model seam is stubbed, as §1 requires. So *a route not
 > mounted*, *auth middleware misconfigured*, *the download endpoint returning HTML instead of a
 > file*, *the path breaking between stages* and now *the sign-in path itself* all fail it today.
@@ -235,6 +235,8 @@ generation, because that render can fail in ways the résumé cannot.
 ## 3. Tested manually, from a written checklist
 
 Run before each milestone is called done.
+
+For signed-in local browser checks, follow `docs/12-deployment-devops.md` §8.
 
 | # | Check | Why not automated |
 |---|---|---|

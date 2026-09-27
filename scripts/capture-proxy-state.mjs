@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 /**
- * Writes down what a wedged Neon proxy looks like, before the restart erases it
- * (issue #25).
+ * Writes down what a Neon proxy that has stopped answering looks like, before
+ * the restart erases it.
  *
- * The wedge has been seen several times and reproduced none: a session of ten
- * deliberate attempts — six full suite runs, the dev worker under steady
- * traffic, aborted requests, bursts past the pool limit, a SIGINT mid-run, nine
- * hours idle — produced no wedge at all. So there is nothing to fix yet, and the
- * bottleneck is evidence. The one action that reliably clears it,
- * `docker restart`, is also the one that destroys everything that could explain
- * it, and it is what anyone hitting this reaches for within seconds.
+ * Every stalled run recorded against issue #25 turned out to be the machine
+ * sleeping, not the proxy: a capture taken during one showed the proxy
+ * answering in 42ms. A proxy that genuinely accepts connections and never
+ * answers has only ever been produced on purpose, by pausing its container. If
+ * it happens on its own, the one action that clears it, `docker restart`, is
+ * also the one that destroys everything that could explain it, and it is what
+ * anyone hitting this reaches for within seconds.
  *
  * Hence this. Run it FIRST, then restart:
  *
@@ -65,7 +65,7 @@ await section("proxy: container", () =>
     [
       "state:      {{.State.Status}}",
       // The image carries a healthcheck of its own, which `npm run db:up --wait`
-      // already waits on. Whether it registers the wedge is unknown, and this is
+      // already waits on. Whether it registers a silent proxy is unknown, and this is
       // how that gets answered the first time one is caught.
       "health:     {{if .State.Health}}{{.State.Health.Status}} ({{len .State.Health.Log}} probes recorded){{else}}no healthcheck{{end}}",
       "started:    {{.State.StartedAt}}",
@@ -80,7 +80,7 @@ await section("proxy: container", () =>
 );
 
 // The digest is the only thing that can tell one `:main` build from another.
-// Until docker-compose.yml pins it, this is how a wedge gets tied to a version.
+// Until docker-compose.yml pins it, this is how a silent proxy gets tied to a version.
 await section("proxy: image digest", () => {
   // Asked of the running container's image, not of the tag: the tag can have
   // moved since this container started, which is exactly the drift the digest
@@ -97,7 +97,7 @@ await section(`proxy: last ${LOG_LINES} log lines`, () =>
   docker(["logs", "--timestamps", "--tail", String(LOG_LINES), PROXY_CONTAINER], { stderrToo: true }),
 );
 
-// Connections, without a word of anyone's data. A wedge should show here as
+// Connections, without a word of anyone's data. A silent proxy should show here as
 // backends parked on a wait_event, or as none at all.
 await section("postgres: backends", () =>
   psql(`
@@ -165,9 +165,9 @@ await section("postgres: connection ceiling", () =>
 writeFileSync(new URL(out, new URL("..", import.meta.url)), sections.join("\n") + "\n");
 
 console.log(`\nWritten to ${out}`);
-console.log("\nRead it before attaching it to issue #25 — the proxy's own log is captured whole,");
+console.log("\nRead it before attaching it anywhere — the proxy's own log is captured whole,");
 console.log("and it is not this project's promise that it holds no query text.");
-console.log(`\nThe restart that clears the wedge, once the capture is safe:\n\n  docker restart ${PROXY_CONTAINER}\n`);
+console.log(`\nIf the probe above got no answer, the restart, once the capture is safe:\n\n  docker restart ${PROXY_CONTAINER}\n`);
 
 /** Every section is best-effort: a failure is recorded and the capture goes on. */
 async function section(title, gather) {
@@ -225,13 +225,13 @@ function probeTheProxy() {
     .query("select 1 as ok")
     .then(
       () => `ANSWERED in ${Date.now() - started}ms — the proxy is serving queries.`,
-      (error) => `REFUSED after ${Date.now() - started}ms — ${error.message}\n(not the wedge: a wedged proxy accepts the connection and never answers)`,
+      (error) => `REFUSED after ${Date.now() - started}ms — ${error.message}\n(refused, not silent: this is not the case the restart is for)`,
     );
 
   let timer;
   const expired = new Promise((resolve) => {
     timer = setTimeout(
-      () => resolve(`NO ANSWER in ${PROBE_BUDGET_MS}ms — this is the wedge in issue #25.`),
+      () => resolve(`NO ANSWER in ${PROBE_BUDGET_MS}ms — the proxy accepted the connection and is not serving queries.`),
       PROBE_BUDGET_MS,
     );
   });

@@ -11,14 +11,15 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as schema from "./schema";
 import { watchProxy } from "./proxy-watch";
+import { localProxyEndpoint } from "./local-proxy";
 
 export type Db = ReturnType<typeof createDb>;
 
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "db.localtest.me", "postgres"]);
+const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "db.localtest.me", "postgres"]);
 
 // One watcher per isolate, not per `createDb` call: the app builds a handle on
-// every request, and a watcher rebuilt each time would report the same wedge
-// once per request (issue #25, `./proxy-watch.ts`).
+// every request, and a watcher rebuilt each time would report the same silence
+// once per request (`./proxy-watch.ts`).
 const watchedFetch = watchProxy((input, init) => fetch(input, init));
 
 export function createDb(connectionString: string) {
@@ -39,11 +40,19 @@ export function createDb(connectionString: string) {
     // Plain Postgres does not speak Neon's HTTP protocol. Local and CI runs put
     // the Neon HTTP proxy from docker-compose.yml in front of it — without this,
     // every database test fails at connection time (`docs/11` §1).
-    const proxyPort = url.searchParams.get("proxyPort") ?? "4444";
-    neonConfig.fetchEndpoint = `http://${url.hostname}:${proxyPort}/sql`;
+    neonConfig.fetchEndpoint = localProxyEndpoint(url);
     neonConfig.useSecureWebSocket = false;
     neonConfig.poolQueryViaFetch = true;
     neonConfig.fetchFunction = watchedFetch;
   }
-  return drizzle(neon(connectionString), { schema, casing: "snake_case" });
+  // The local Neon HTTP proxy cannot parse an IPv6 literal from the connection
+  // string it receives in the request header. Both spellings reach this same
+  // local proxy, so give it the localhost spelling while retaining the URL's
+  // database, port and credentials.
+  let neonConnectionString = connectionString;
+  if (url.hostname === "[::1]") {
+    url.hostname = "localhost";
+    neonConnectionString = url.toString();
+  }
+  return drizzle(neon(neonConnectionString), { schema, casing: "snake_case" });
 }

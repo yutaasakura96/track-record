@@ -1,15 +1,16 @@
 /**
- * A short budget on the suite's first query, so a wedged proxy fails the run in
- * one line instead of eight minutes.
+ * A short budget on the suite's first query, so a proxy that does not answer
+ * fails the run in one line instead of minutes of timeouts.
  *
  * The application speaks Neon's HTTP protocol, so a proxy sits between the suite
- * and Postgres (`docker-compose.yml`). Sometimes it stops serving queries
- * (issue #25). Nothing fails when that happens: every database test waits out
- * its own 30s timeout and every hook waits out 120s, no assertion errors, and
- * the run looks hung rather than broken. Ten deliberate attempts over a full
- * session could not reproduce it, so there is no fix to apply here — only a way
- * to recognise it immediately and to keep the evidence the next occurrence
- * produces.
+ * and Postgres (`docker-compose.yml`). If it accepts connections and stops
+ * answering, nothing fails: every database test waits out its own 30s timeout
+ * and every hook waits out 120s, no assertion errors, and the run looks hung
+ * rather than broken. This has been produced deliberately, by pausing the proxy
+ * container, and never observed on its own: every stalled run recorded against
+ * issue #25 was the machine sleeping, which `./sleep-watch.ts` names. The two
+ * look different. Here the timeouts stop at about 30,000ms; after a sleep they
+ * run as long as the sleep did.
  *
  * The probe is not an extra round trip. `global-setup.ts` already asks
  * `current_database()` before it drops anything, to prove the proxy routed the
@@ -25,7 +26,7 @@ export const PROXY_CONTAINER = "track-record-neon-proxy-1";
 /**
  * Long enough that no healthy answer is ever refused, short enough that the
  * unhealthy one costs nothing. The slowest of 151 health checks taken across a
- * session of six full suite runs under load was 342ms; the wedge does not
+ * session of six full suite runs under load was 342ms; a paused proxy does not
  * answer at all.
  */
 export const PROXY_BUDGET_MS = 3_000;
@@ -68,37 +69,38 @@ export async function answerWithinBudget<T>(
 }
 
 /**
- * The proxy is there and did not answer. This is issue #25, and the restart is
- * the only known way out of it — which is also what destroys the evidence, so
+ * The proxy is there and did not answer. What was observed, and nothing more:
+ * no cause has ever been found for this, because it has never happened on its
+ * own. The restart is what clears it and also what destroys the evidence, so
  * the capture comes first.
  */
 export function proxyWedged(budgetMs: number): string {
   return [
-    `The Neon HTTP proxy did not answer in ${budgetMs}ms. Nothing has been dropped.`,
+    `The Neon HTTP proxy accepted the connection and did not answer`,
+    `select current_database() within ${budgetMs}ms. Nothing has been dropped.`,
     "",
-    "This is issue #25: the proxy stops serving queries, and every database test",
-    "then waits out its own 30s timeout with nothing failing. Stopping here costs",
-    "one line instead of eight minutes.",
+    "Every database test would have waited out its own 30s timeout with nothing",
+    "failing, so the run stops here instead.",
     "",
-    "The restart below is also what erases the wedge, so capture it first:",
+    "The restart below is also what erases the evidence, so capture it first:",
     "",
     "  npm run capture:proxy",
     `  docker restart ${PROXY_CONTAINER}`,
     "",
-    "Then run the suite again, and attach the capture to issue #25.",
+    "Then run the suite again. Read the capture before attaching it anywhere.",
   ].join("\n");
 }
 
 /**
- * The proxy refused or was not there at all. A different fault from the wedge,
- * and a different fix: there is nothing to restart and nothing to capture.
+ * The proxy refused or was not there at all. A different fault from a silent
+ * proxy, and a different fix: there is nothing to restart and nothing to
+ * capture.
  */
 export function proxyUnreachable(error: unknown): string {
   return [
     `The Neon HTTP proxy could not be reached: ${describe(error)}. Nothing has been dropped.`,
     "",
-    "This is not issue #25 — a wedged proxy accepts the connection and never",
-    "answers. This one is not listening. Start the stack:",
+    "It is not listening, so there is nothing to restart. Start the stack:",
     "",
     "  npm run db:up",
   ].join("\n");

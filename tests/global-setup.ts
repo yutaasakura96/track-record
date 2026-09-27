@@ -18,6 +18,8 @@ import { neon, neonConfig } from "@neondatabase/serverless";
 // import of this file the same way.
 import { assertConnectedTo, assertSuiteDatabaseIsNotDev, databaseTarget } from "./database-guard.ts";
 import { answerWithinBudget } from "./proxy-health.ts";
+import { sleptMessage, watchForSleep } from "./sleep-watch.ts";
+import { localProxyEndpoint } from "../src/server/db/local-proxy.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS = join(here, "..", "src", "server", "db", "migrations");
@@ -34,6 +36,22 @@ export const TEST_DATABASE_URL =
   "postgresql://postgres:postgres@localhost:5432/track_record_test?sslmode=require";
 
 export default async function setup() {
+  // First, so a machine that sleeps at any point in the run is named — at once,
+  // and again at teardown beside the timeouts it caused (`./sleep-watch.ts`).
+  const sleep = watchForSleep();
+  try {
+    await prepareDatabase();
+  } catch (error) {
+    sleep.stop();
+    throw error;
+  }
+  return () => {
+    const gaps = sleep.stop();
+    if (gaps.length > 0) console.warn(sleptMessage(gaps));
+  };
+}
+
+async function prepareDatabase() {
   // Before anything connects: the drop below is total, and a dev database on
   // the other end of this URL loses everything it holds. Both places a dev
   // DATABASE_URL can come from are checked — the file `wrangler dev` reads, and
@@ -44,7 +62,10 @@ export default async function setup() {
     process.env.DATABASE_URL ?? null,
   );
 
-  neonConfig.fetchEndpoint = "http://localhost:4444/sql";
+  // The same proxy `createDb` sends the tests' queries to, `proxyPort` included.
+  // A second stack on other ports would otherwise have its tests run against it
+  // and this drop run against the default one.
+  neonConfig.fetchEndpoint = localProxyEndpoint(new URL(TEST_DATABASE_URL));
   neonConfig.useSecureWebSocket = false;
   neonConfig.poolQueryViaFetch = true;
   const sql = neon(TEST_DATABASE_URL);
@@ -54,9 +75,9 @@ export default async function setup() {
   // refused a URL that cannot be read, so this one always runs.
   //
   // It runs under a clock, because it is also the first query of the run. A
-  // proxy that answers it is serving queries; one that does not is the wedge in
-  // issue #25, and saying so here saves the eight minutes of silent timeouts
-  // that would otherwise follow (`tests/proxy-health.ts`).
+  // proxy that answers it is serving queries; one that accepts the connection
+  // and stays silent is named here in one line, rather than by every database
+  // test waiting out its own timeout (`tests/proxy-health.ts`).
   const intended = databaseTarget(TEST_DATABASE_URL)!;
   const [row] = await answerWithinBudget(() => sql.query("select current_database() as name"));
   assertConnectedTo(intended.database, String((row as { name: string }).name));

@@ -4206,3 +4206,121 @@ generation or render path reads it.
 **Revisit if:** a source document carries a real internal IPv4 address, or the number of facts this
 shape holds grows past what reclassifying by hand absorbs, or `is_client_identifying` gains a reader
 that acts on it.
+
+### [2026-09-25] The proxy wedge was a sleeping laptop, and the suite now says so
+
+Supersedes the framing of "[2026-09-18] The proxy wedge gets a clock and a capture, not a fix" and
+of the 2026-09-21 entry that extended it to the dev worker. Neither is edited. What they built
+stays; what they said the fault was does not.
+
+**There was no wedge.** An investigation of #25 lined every recorded stall up against the machine
+sleeping mid-run. Sleep suspends vitest, workerd and the Docker VM together, and the test timers run
+on a clock that keeps counting through it. macOS wakes briefly (a DarkWake of about five seconds,
+every thirteen to seventeen minutes on this Mac) and each wake fires the overdue timer of the test
+in flight, which fails with `Test timed out in 30000ms` before the machine sleeps again. So a run
+loses about one test per file per wake, fails no assertion, and looks hung. Every one of the
+seventeen over-long failures in the project's history, 303 to 1,080 seconds against a 30 second
+timer, has that shape. A timer cannot report 1,080 seconds unless the process was not running.
+
+**The proxy was healthy throughout.** The capture taken during the 2026-09-18 stall had it answering
+in 42ms before any restart, which the 2026-09-19 entry recorded as "one apparent wedge" without
+reaching the conclusion. On 2026-09-13 two restarts made while the machine still slept changed
+nothing, and the restarts that "worked" were the ones made once someone was back at the machine. The
+20 idle backends read as a full pool are the proxy's resting state after any run. In a lab stack,
+freezing only the test processes, with the proxy and Postgres never touched, reproduced the stall
+with failure durations equal to the freeze, and the next run passed with no restart.
+
+**A proxy that really stops answering looks different, and the checks already tell them apart.**
+Pausing the proxy container produced failures at about 30,000ms, not at the length of the pause, and
+the dev-worker watch printed its "has not answered" report within about six seconds. It printed
+nothing in any of the frozen-process runs. So the three second clock on the suite's first query,
+the capture script and `src/server/db/proxy-watch.ts` all stay. Their messages no longer call what
+they see issue #25 or a known proxy fault; they say what was observed and keep capture then restart
+as the steps for it.
+
+**The suite names the sleep.** `tests/sleep-watch.ts` runs a one second unref'd interval in the main
+vitest process, started first in global setup. A tick more than ten seconds late is a process that
+was suspended: it is reported at once, and every gap is repeated at teardown beside the failures it
+explains, saying the machine slept, that the timeouts run as long as the sleep, that it is not the
+proxy or the database, and that nothing needs restarting. Checked by freezing the vitest process
+tree for 45 seconds mid-run: one report on waking, the same summary at the end, six tests failed at
+about 45,000ms, and no proxy-watch report. Nothing in the repo can stop a closed lid from sleeping
+the Mac, and `caffeinate -i` only prevents idle sleep, which this Mac has not been doing.
+
+**The run is not cancelled on a gap.** Vitest hands global setup the project, so it could cancel the
+run on the first gap. Sleep while files are transformed and imported fails nothing, and cancelling
+there throws away a good run.
+
+**Global setup reaches the same proxy as the tests.** It hardcoded `http://localhost:4444/sql`
+while `createDb` honours `proxyPort` in the connection string, so a `TEST_DATABASE_URL` naming a
+second stack ran the tests against it and the schema drop and migrations against the default one.
+Both now take the endpoint from `src/server/db/local-proxy.ts`.
+
+**Not done, because nothing leaks and nothing is exhausted:** raising the proxy's pool size,
+sending `Neon-Pool-Opt-In`, running a single worker, or closing pools in teardown. The image digest
+pin stays, on its own merits rather than as a #25 suspect.
+
+**Revisit if:** a stalled run shows failures at about 30,000ms, `select 1` through the proxy gets no
+answer, and `pmset -g log` shows no sleep in the window. That has not happened once, and it is the
+case the capture exists for. Also if a real lid-close sleep ever leaves the proxy unable to answer
+after waking, which the frozen-process runs could not model; the watch would then need a probe after
+each gap.
+
+### [2026-09-25] A local browser signs in through `npm run dev:session`, which lives outside the app
+
+Agents running the app by hand had no way past the Google sign-in, and checking a UI change in a
+real browser is required. Tests already get past it: since the 2026-09-02 entry the suite runs a
+local OIDC issuer as a fixture and walks Better Auth's own sign-in path. What was missing was that
+same walk for a browser.
+
+**Decision.** `npm run dev:session` (`scripts/dev-session.ts`) signs a fixed local test user,
+`dev-session@example.invalid`, in against the development database and hands the cookie to a
+browser. It runs the suite's own code for this: the issuer in `tests/helpers/oidc-issuer.ts` and the
+walk and cookie jar in `tests/helpers/sign-in.ts`, split out of `oidc.ts` and `harness.ts` so they
+carry no `cloudflare:test` import, and the harness now calls the same functions. Better Auth sets and
+signs the cookie in the script's process, with the secret from `.dev.vars`, so the running dev
+worker accepts it. Nothing in the script signs a cookie itself. The same user is reused on every run,
+because Better Auth finds the account by the fixed provider subject.
+
+**Consistent with the 2026-08-30 entry, not an exception to it.** That entry refused a sign-in
+bypass in shippable code, because the app is publicly reachable and a test-only route would be a
+hole. This adds no route, flag, binding or code path to `src/`, and nothing under `src/` imports the
+script. The issuer claims Google's origins only inside the script's own Node process, for the length
+of one walk. A deployed Worker has nothing to reach. No variable is added to deployed configuration.
+
+**The guard runs before anything is written.** The script reads `.dev.vars` and nothing else, since
+that file is the project's existing local counterpart of Workers secrets. It refuses when
+`NODE_ENV` is `production`, when `DATABASE_URL` is not the local Postgres (the same host reading
+`tests/database-guard.ts` uses, so the docker-compose `postgres` service counts as local) or names
+`track_record_test`, and when `BETTER_AUTH_URL` is not an `http://` origin on this machine. That last
+one is the signal that the secret beside it is local, because a deployed secret is paired with a
+deployed origin. It also refuses an empty secret, and an allowlist without the dev-session address,
+because the session middleware checks the invite gate on every request. The allowlist is not
+relaxed. The address is added to the local `.dev.vars` by hand, once.
+
+**Why the auth surface and not the whole app.** The script runs under Node through `tsx`. The app
+imports the 履歴書 template as a `.docx` Data module, which only wrangler and Vite can load, so the
+script builds `createAuth` from `src/server/auth.ts` and calls its handler. That is what
+`/api/auth/*` hands every request to. The suite covers the other half: `tests/dev-session.test.ts`
+walks the same function through the full Hono app and requires the app's session probe, which the
+SPA checks before it shows a signed-in screen, to accept the cookie.
+
+**Handoff.** The script prints the cookie's name, value, domain and path, the Vite URL to open, a
+`document.cookie` line for a tool with only an `eval` (chrome-devtools-axi), and a
+`page.context().addCookies(...)` line for Playwright MCP's `browser_run_code`, which cannot read
+files. It also writes a gitignored Playwright storageState at `.dev-session/storage-state.json` for
+`--storage-state`. It probes the running worker and says whether it accepts the session. Both
+browser paths were checked by hand on this date: each opened the sign-in screen without the cookie
+and the signed-in `/profile` screen with it.
+
+**Revisit if:** Better Auth gains a per-provider issuer URL (the 2026-09-02 entry's own trigger), or
+the app stops importing a Data module, so the script could walk the full app rather than the auth
+surface.
+
+### [2026-09-26] The local session helper uses the host development endpoints
+
+This supersedes the host acceptance in the 2026-09-25 local browser entry. The helper runs under
+host Node, so its database URL cannot use the Compose-only `postgres` service name. It accepts the
+host-reachable local database names and refuses that service name before creating a session.
+`BETTER_AUTH_URL` must be exactly `http://localhost:8787`, the worker target of Vite's API proxy.
+The printed browser URL and the session probe therefore address the same worker.
