@@ -44,6 +44,9 @@ destroyed the dev session, profile, documents and renders. Two guards in `tests/
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
 **`track_record_dev` holds the author's real record, and production is not provisioned**, so until
 #40 moves it into Neon it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
+`npm run db:down` stops the stack and keeps the volume; `npm run db:reset` removes it and refuses without
+`-- --destroy-local-record`. An agent never passes that flag, and never runs `docker compose down -v` or
+`docker volume rm` against it.
 `npm run db:up` from any worktree mounts that same `track-record_pgdata` volume. To keep a task off it
 entirely, run a second stack under its own compose project (`docker compose -p <name>` with an override
 that `!override`s both ports) and point `TEST_DATABASE_URL` at it with `?proxyPort=<proxy port>`.

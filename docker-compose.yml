@@ -23,7 +23,8 @@ services:
     ports: ["5432:5432"]
     # Named, so the data outlives the container: a removed or pruned container
     # would otherwise leave it in an anonymous volume nothing points at.
-    # `npm run db:down` (`down -v`) still wipes it, deliberately.
+    # It holds track_record_dev, the only copy of the record until #40, so
+    # `npm run db:down` never removes it; only a confirmed `npm run db:reset` does.
     volumes: ["pgdata:/var/lib/postgresql/data"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]

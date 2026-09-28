@@ -4691,3 +4691,52 @@ measure, needs an extension installed on Neon, and is harder to test than a pure
 show, or its claims come back in a different language from the narrative's. The model confirmation
 above is then the next step. Also revisit if the card shows so many matches that they become noise,
 the trigger the 2026-09-28 entry on overlap already names.
+
+### [2026-09-28] Re-grading the 112 lands before the first portfolio is reviewed
+
+The entry "The overlap flag lands before the first portfolio is reviewed" left #37 waiting on #36
+alone, and recorded that whether it must also land before the first portfolio's review was not
+asked. The author has now answered it: **#37 lands first.** This supersedes that entry's "#37 is not
+moved" paragraph and nothing else in it.
+
+**#35 waits on #37** as well as on #34, #40 and #36. The first portfolio's review is then the first
+to offer the re-grade on the overlap card, so each narrative fact it matches is compared against a
+portfolio fact and re-graded in the same pass, once. The alternative left the facts that portfolio
+matched in #37's listing to be graded a second time, against no evidence.
+
+**The order has no cycle.** #37 waits on #36, which is closed, and on nothing that waits on #35. It
+needs no portfolio to build or test: its listing is scoped by the 2026-09-04 import, and its tests
+use invented facts. It does not wait on go-live. The re-grade is a build change, and the author's
+grading happens during the reviews that follow it.
+
+**Unchanged:** the 112 are re-graded during the overlap pass, and the ones no portfolio matched are
+graded at the end from the listing (entry "A portfolio outranks the narrative").
+
+**Revisit if:** #37's opening check finds that re-grading an accepted fact needs a spec change large
+enough that holding the first portfolio for it costs more than grading its matches twice.
+
+### [2026-09-28] `npm run db:down` keeps the local volume, and a reset needs a flag
+
+`db:down` was `docker compose down -v`. The `-v` removes the named volumes the compose file declares,
+and `pgdata` holds `track_record_dev`, which is the only copy of the author's record until #40 moves
+it into Neon (`docs/12` §1). Stopping the stack could therefore destroy the record. The
+infrastructure audit of 2026-09-28 found this, and the author chose to close it.
+
+**`db:down` is now `docker compose down`**: the containers go and the volume stays. **Removing the
+volume is `npm run db:reset`**, which refuses and runs nothing unless it is passed
+`-- --destroy-local-record`. The suite needs no reset, because it drops and rebuilds
+`track_record_test` on every run. The reset remains for an intentional fresh volume, such as after
+#40.
+
+**It is proved twice.** `tests/db-volume.test.ts` checks the scripts as written: `db:down` carries no
+volume flag, no other script calls `compose down`, and the reset refuses without the flag. The CI job
+then runs `db:down` and an unconfirmed `db:reset` against its own stack, and checks that `db:up`
+finds both databases already present.
+
+**Alternative rejected:** declaring the volume `external`. Compose never removes an external volume,
+even under `down -v`, but the name would then be fixed across compose projects, and the isolated
+second stack AGENTS.md describes (`docker compose -p <name>`) would mount the real record instead of
+its own.
+
+**Revisit when** the record is in production (#40). A local reset then loses a copy and not the
+record, and the flag may be more ceremony than it is worth.
