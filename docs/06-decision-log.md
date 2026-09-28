@@ -4362,9 +4362,9 @@ Quick capture comes after that. The date the author stops hand-editing the corpu
 criterion in `docs/01`. It is the author's to declare when it happens, and it is not a build
 criterion.
 
-The work is five draft issues, labelled `needs-triage` until the author confirms them: ISSUE_A1 (the
-document-level employer and the first portfolio), ISSUE_A2 (overlap flags), ISSUE_A3 (re-grading the
-112), ISSUE_A4 (the remaining portfolios) and ISSUE_A5 (the renders and closing the docs).
+The work is five draft issues, labelled `needs-triage` until the author confirms them: #35 (the
+document-level employer and the first portfolio), #36 (overlap flags), #37 (re-grading the
+112), #38 (the remaining portfolios) and #39 (the renders and closing the docs).
 
 **Revisit if:** go-live slips far enough that waiting costs more than the fallback does, or the first
 portfolio's token count makes one document at a time the wrong shape for the other nine.
@@ -4391,7 +4391,7 @@ documents is more than memory holds. A resolve-and-merge action was rejected as 
 new write path for the same outcome.
 
 **How "likely the same" is computed is not decided here.** The options are a model call, a lexical
-match or both, and the flag can be stored or computed on read. That is the spec question ISSUE_A2
+match or both, and the flag can be stored or computed on read. That is the spec question #36
 opens with, and its answer gets an entry of its own. `docs/04`, `07` and `10` record the decided
 behaviour and mark the rest as open.
 
@@ -4400,7 +4400,7 @@ retires the old workflow. Each narrative fact is graded when it appears beside a
 ones no portfolio matched are graded at the end, scoped by their import, which ADR-0002 notes is
 possible. Grading all 112 first puts 112 cards ahead of the evidence that decides them. Grading them
 all after the import risks slipping past the M3 claim. **Unverified:** whether an accepted fact's
-provenance can be changed from today's Fact Review. ISSUE_A3 checks that first.
+provenance can be changed from today's Fact Review. #37 checks that first.
 
 **Revisit if:** the flags are so frequent that the card becomes noise, or so rare that the author
 keeps finding duplicates by reading.
@@ -4425,7 +4425,7 @@ produced a wrong filing.
 can be changed after import and, if so, whether its facts move with it the way they move on a
 project refile; and which employer wins when a document's employer and its project's employer
 differ. Whether inheritance is a copy onto each candidate or a read through the document follows
-from the first answer, and ISSUE_A1 takes it from there.
+from the first answer, and #35 takes it from there.
 
 **Revisit if:** a document turns out to span employers often enough that a single employer is wrong
 more than it is right.
@@ -4463,13 +4463,13 @@ has lived in the local `track_record_dev` since 2026-09-04 ("The dev database no
 record", in that date's first entry). Production has never been provisioned, and no document named
 the gap or said how the record would cross it.
 
-**The rollback and point-in-time-restore rehearsals are an issue of their own, ISSUE_R, run on the
+**The rollback and point-in-time-restore rehearsals are an issue of their own, #40, run on the
 fresh production project before the record moves in.** `docs/12` §4 asked for them "on a dev branch,
 before any real record exists to lose". A real record now exists, and §5's own table says dev
 branches have no point-in-time restore. The empty production project is the only place a rehearsal
 is both real and safe. The drills stay out of #34, which remains a CI change an agent can build,
 because they are owner-run, one-off and sensitive to order. Rehearsing after the move was rejected:
-it practises a restore on the only copy of the record. Until ISSUE_R closes, M1's exit criteria in
+it practises a restore on the only copy of the record. Until #40 closes, M1's exit criteria in
 `docs/12` §4 and §5 are still open, whatever issue #1's closure says.
 
 **The record moves by `pg_dump` of `track_record_dev`, restored into Neon `main`.** It is the only
@@ -4515,7 +4515,7 @@ is a new decision.
 
 - **`docs/03` §12.** Rows 6 and 7 shipped (#21, #22, #16) and row 3 was retired by the 2026-09-06
   entry ("No entity extraction was built and none is planned"), so all three leave the register, by
-  its own rule. Row 1, cross-document conflicts, moves to M3 as ISSUE_A2. Row 4 now names this
+  its own rule. Row 1, cross-document conflicts, moves to M3 as #36. Row 4 now names this
   planning's trigger. Row 9 was a stray line outside its table and is folded into the paragraph above
   it.
 - **`docs/09` Flow 7** was still labelled M2. The 2026-09-06 entry keeps the bootstrap import unbuilt

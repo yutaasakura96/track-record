@@ -42,6 +42,8 @@ Every stall recorded before 2026-09-25 was the first kind (issue #25, decision l
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
 destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
+**`track_record_dev` holds the author's real record, and production is not provisioned**, so until
+#40 moves it into Neon it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).

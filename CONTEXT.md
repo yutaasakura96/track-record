@@ -34,7 +34,8 @@ _Avoid_: position, job, title-on-its-own.
 
 **Project**:
 A body of work, optionally at an employer. **A Project with no employer is independent**, and the
-English résumé gives those their own section. The only entity a source document can be filed under.
+English résumé gives those their own section. A source document can be filed under one Project and,
+from M3, one Employer; a fact extracted from it starts filed under the document's Employer.
 _Avoid_: engagement, assignment, case.
 
 ## Evidence and worth
@@ -68,6 +69,16 @@ _Avoid_: candidate render, draft render.
 
 **Propose**:
 Reserved for renders. The import does not propose — it **extracts candidates**.
+
+**Likely match**:
+An existing fact at the same Employer that a Candidate probably restates in other words. Shown on the
+Candidate's card; it never blocks Accept. Exact repeats are not likely matches — dedupe suppresses
+them before they become Candidates.
+_Avoid_: duplicate (a duplicate is an exact repeat), overlap as a noun for one pair.
+
+**Conflict**:
+A likely match whose number differs from the Candidate's (PRD §8). Resolved by the author with Accept
+and Reject, never last-write-wins and never merged.
 
 ## Downstream
 
