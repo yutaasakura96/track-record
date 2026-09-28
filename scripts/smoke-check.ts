@@ -1,19 +1,20 @@
 /**
  * The post-deploy smoke check (`docs/12` §3 step 6).
  *
- *   npx tsx scripts/smoke-check.ts                 # the deployed Worker
- *   npx tsx scripts/smoke-check.ts --built <file>  # a built shell, before deploying
+ *   npx tsx scripts/smoke-check.ts --wrangler-output <file>  # the Worker a deploy went to
+ *   npx tsx scripts/smoke-check.ts --origin <url>            # the Worker at a known origin
+ *   npx tsx scripts/smoke-check.ts --built <file>            # a built shell, before deploying
  *
  * Against the deployed Worker it requests the real page, the module script that
  * page loads, and `PROBE_ROUTE` without a session, and exits non-zero unless all
- * three are right. The origin comes from the custom-domain route in
- * `wrangler.toml`; `--origin` overrides it. The expected build is `buildSha()`;
- * `--sha` overrides it.
+ * three are right. The origin is the one `wrangler deploy` reported in the file
+ * `WRANGLER_OUTPUT_FILE_PATH` named, or `--origin`. The expected build is
+ * `buildSha()`; `--sha` overrides it.
  *
  * It retries until `--timeout` seconds pass (default 300), because a new
- * version takes a moment to reach every edge location and a first deploy on a
- * new custom domain waits for its certificate. Only the last attempt's problems
- * are printed, and a problem never carries a response body.
+ * version takes a moment to reach every edge location, and a Worker's first
+ * workers.dev address can take a while to answer at all. Only the last
+ * attempt's problems are printed, and a problem never carries a response body.
  */
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
@@ -23,14 +24,15 @@ import {
   checkApi,
   checkAsset,
   checkShell,
+  deployedOrigin,
   entryScript,
-  productionOrigin,
   type Answer,
 } from "./smoke-check-core";
 
 const { values } = parseArgs({
   options: {
     built: { type: "string" },
+    "wrangler-output": { type: "string" },
     origin: { type: "string" },
     sha: { type: "string" },
     timeout: { type: "string", default: "300" },
@@ -56,8 +58,8 @@ if (values.built) {
 
 const origin =
   values.origin ??
-  productionOrigin(readFileSync("wrangler.toml", "utf8")) ??
-  report(["wrangler.toml has no [[routes]] entry with custom_domain = true."], "");
+  (values["wrangler-output"] ? deployedOrigin(readFileSync(values["wrangler-output"], "utf8")) : null) ??
+  report(["No origin: pass --origin, or --wrangler-output naming a file a deploy wrote to."], "");
 
 async function get(path: string): Promise<Answer> {
   const response = await fetch(new URL(path, origin), {

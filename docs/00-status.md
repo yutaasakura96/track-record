@@ -19,10 +19,10 @@ are marked as the owner's in each issue.
 
 - **Go-live.** #34 deploys production on every merge to `main`. The Neon project, the `production`
   Environment with `DATABASE_URL`, and protection on `main` were provisioned on 2026-09-28
-  (`docs/12` §1). Still the owner's: the Cloudflare zone and token, the Google OAuth client, and the
-  Worker secrets. #40 then rehearses
-  rollback and point-in-time restore on the empty production project and moves the record in by
-  `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay open until #40 closes.
+  (`docs/12` §1). Production serves from `workers.dev`, with no custom domain. Still the owner's: a
+  one-time `wrangler login`, the Cloudflare API token, the Google OAuth client, and the Worker
+  secrets. #40 then rehearses rollback and point-in-time restore on the empty production project
+  and moves the record in by `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay open until #40 closes.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
 - **The back-catalogue import (M3)**, in order: #37 re-grading the 112 agent-graded facts, which
   waits on nothing open; #35 the document-level employer and the first portfolio, the first review

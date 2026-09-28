@@ -101,12 +101,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
       - name: Build
         run: npm run build
+      # Wrangler appends the URLs it deployed to (the workers.dev address) to
+      # this file, which the smoke check reads.
       - name: Deploy
         run: npx wrangler deploy --message "${{ github.sha }}"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.json
       # GET / must carry this commit's SHA and load its entry module, and
       # /api/overview must answer the application's own 401 (docs/12 §3 step 6).
       - name: Smoke check
-        run: npx tsx scripts/smoke-check.ts
+        run: npx tsx scripts/smoke-check.ts --wrangler-output "$RUNNER_TEMP/wrangler-output.json"

@@ -11,8 +11,8 @@ import {
   checkApi,
   checkAsset,
   checkShell,
+  deployedOrigin,
   entryScript,
-  productionOrigin,
   shellSha,
   type Answer,
 } from "../scripts/smoke-check-core";
@@ -39,16 +39,26 @@ async function answer(response: Response): Promise<Answer> {
   return { status: response.status, contentType: response.headers.get("content-type"), body: await response.text() };
 }
 
-describe("the production origin", () => {
-  it("is read from the custom-domain route", () => {
-    const toml = `name = "track-record"\nworkers_dev = false\n\n[[routes]]\npattern = "app.example.invalid"\ncustom_domain = true\n\n[assets]\ndirectory = "./dist/client"\n`;
-    expect(productionOrigin(toml)).toBe("https://app.example.invalid");
+describe("the deployed origin", () => {
+  const line = (entry: object) => JSON.stringify({ ...entry, timestamp: "2026-09-28T00:00:00.000Z" });
+  const deploy = (targets: unknown) => line({ type: "deploy", version: 1, worker_name: "track-record", targets });
+
+  it("is the workers.dev target of the last deploy in Wrangler's output file", () => {
+    const output = [
+      line({ type: "wrangler-session", version: 1 }),
+      deploy(["https://track-record.old-subdomain.workers.dev"]),
+      deploy(["https://track-record.example-subdomain.workers.dev"]),
+      "",
+    ].join("\n");
+    expect(deployedOrigin(output)).toBe("https://track-record.example-subdomain.workers.dev");
   });
 
-  it("is not read from a zone route, and is absent without one", () => {
-    const zoneRoute = `[[routes]]\npattern = "app.example.invalid/*"\nzone_name = "example.invalid"\n`;
-    expect(productionOrigin(zoneRoute)).toBeNull();
-    expect(productionOrigin(`name = "track-record"\n`)).toBeNull();
+  it("is absent when no deploy wrote a URL", () => {
+    expect(deployedOrigin("")).toBeNull();
+    expect(deployedOrigin(line({ type: "wrangler-session", version: 1 }))).toBeNull();
+    expect(deployedOrigin(deploy([]))).toBeNull();
+    expect(deployedOrigin(deploy(["Consumer for a-queue"]))).toBeNull();
+    expect(deployedOrigin("not json\n")).toBeNull();
   });
 });
 

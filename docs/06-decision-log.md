@@ -4776,8 +4776,8 @@ injected by a Vite plugin. A meta tag needs no script to read and changes nothin
 The probe is `GET /api/overview`. It is a plain GET behind the session middleware, and the check
 also requires the API's own error shape, so a `401` from an edge error page does not pass. The
 smoke check also fetches the module script the shell loads, since the SPA fallback would answer
-`200` for a missing asset. It reads the origin from the custom-domain route in `wrangler.toml`, so
-the hostname is written down once.
+`200` for a missing asset. It checks the URL `wrangler deploy` reports having deployed to, read
+from Wrangler's output file (next entry).
 
 **The record moves as data only, into the schema the deploy job migrated.** A full dump would bring
 the schema without Drizzle's migration journal, and the next deploy would try to create every table
@@ -4787,3 +4787,38 @@ plain `diff` of two schemas is never empty.
 
 **Revisit if:** a migration adds a foreign-key cycle, which breaks the data-only restore's table
 order, or Neon adds a region in Japan before the record moves in.
+
+### [2026-09-28] Production serves from workers.dev, and the custom domain is withdrawn
+
+`docs/13` §3 (2026-08-12) put production on "one subdomain of a domain the author already controls
+on Cloudflare" and turned `workers.dev` off as "an unnecessary second front door". Provisioning found
+that the premise does not hold. The only domain the author uses is served by DNS outside Cloudflare,
+and a Workers Custom Domain needs an active Cloudflare zone. The options were to move that domain's
+DNS to Cloudflare, to buy a new domain, or to serve from `workers.dev`. **The author chose
+`workers.dev`, on 2026-09-28.**
+
+**What changes.** `wrangler.toml` now says `workers_dev = true`, and production is
+`https://track-record.<subdomain>.workers.dev`, where `<subdomain>` is the Cloudflare account's. That
+address is `BETTER_AUTH_URL` and the base of the Google OAuth redirect URI. There is no
+`[[routes]]` entry. `workers.dev` is the only front door, not a second one, so the reason for turning
+it off no longer applies. `preview_urls = false` stays. Preview URLs would still be a second door, one
+per uploaded version.
+
+**What it costs, stated plainly.** The address names the Cloudflare account's subdomain, and there
+are no zone-level controls such as WAF rules in front of it. Neither is a gate for one user. TLS is
+not weakened: `.dev` is HSTS-preloaded, and Cloudflare terminates TLS for `workers.dev`. Cookies are
+not exposed to other tenants either: `workers.dev` is on the Public Suffix List, and Better Auth's
+cookies are host-only.
+
+**How the smoke check finds the address.** The subdomain lives in Cloudflare, not in this
+repository, so the check cannot read it from `wrangler.toml` as the custom-domain draft did. The
+deploy step sets `WRANGLER_OUTPUT_FILE_PATH`, and Wrangler writes the URLs it deployed to into that
+file. The check reads the `workers.dev` target from it, so it probes what was actually deployed, and a
+deploy that reports no URL fails the job. A repository variable holding the address was rejected: it
+would be a second copy that could drift from the account.
+
+`docs/12` §1–§3 and `docs/13` §3 now say this. `docs/specs/technical-verification.md` §12 still
+records how `workers.dev` is turned off, and is left as it is.
+
+**Revisit if:** a second user is invited (`08` §2.2), or the author wants an address that does not name
+the account. Moving to a custom domain is then the steps `docs/13` §3 lists.

@@ -22,19 +22,28 @@ export const BUILD_SHA_META = "build-sha";
 export const PROBE_ROUTE = "/api/overview";
 
 /**
- * The production origin, read from the custom-domain route in `wrangler.toml`,
- * so the hostname is written down once. Wrangler's own parser is not a
- * dependency of the check, so this reads the one shape the file uses:
- * a `[[routes]]` table with `pattern` and `custom_domain = true`.
+ * The origin a deploy went to, from the output file Wrangler appends to when
+ * `WRANGLER_OUTPUT_FILE_PATH` is set: one JSON object per line, and a
+ * `deploy` entry lists the URLs the Worker now answers on as `targets`. Read
+ * from the deploy rather than written down, because the workers.dev address
+ * carries the account's subdomain, which lives in Cloudflare and not here.
  */
-export function productionOrigin(wranglerToml: string): string | null {
-  const tables = wranglerToml.split(/^\s*\[\[?/m).filter((t) => /^routes\]\]/.test(t));
-  for (const table of tables) {
-    if (!/^\s*custom_domain\s*=\s*true\s*$/m.test(table)) continue;
-    const pattern = table.match(/^\s*pattern\s*=\s*"([^"]+)"\s*$/m)?.[1];
-    if (pattern) return `https://${pattern}`;
-  }
-  return null;
+export function deployedOrigin(wranglerOutput: string): string | null {
+  const deploys = wranglerOutput
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .flatMap((line) => {
+      try {
+        return [JSON.parse(line) as { type?: unknown; targets?: unknown }];
+      } catch {
+        return [];
+      }
+    })
+    .filter((entry) => entry.type === "deploy");
+  const targets = deploys.at(-1)?.targets;
+  if (!Array.isArray(targets)) return null;
+  const url = targets.find((t): t is string => typeof t === "string" && t.startsWith("https://"));
+  return url ? new URL(url).origin : null;
 }
 
 /** The SHA a built shell carries, or null when it carries none. */

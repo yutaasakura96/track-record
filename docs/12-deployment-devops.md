@@ -12,7 +12,7 @@
 | Environment | Where | Database | Purpose |
 |---|---|---|---|
 | **Local** | `wrangler dev` on the author's machine | Docker Postgres `track_record_dev` through the local Neon HTTP proxy; a separate Neon development branch is optional | Development |
-| **Production** | Cloudflare Workers, custom domain | Neon `main` | The real record |
+| **Production** | Cloudflare Workers, on its `workers.dev` address | Neon `main` | The real record |
 
 > **Status, 2026-09-28: production is not provisioned, and the real record is in the local
 > `track_record_dev`**, where it has been since 2026-09-04. It moves to Neon `main` by `pg_dump`
@@ -22,8 +22,10 @@
 > **Provisioning began 2026-09-28.** The Neon project `track-record` exists, empty, in
 > `aws-ap-southeast-1` on Postgres 17 (`docs/13` §8), with one database, `track_record`, on branch
 > `main`. The GitHub Environment `production` holds its `DATABASE_URL`, and `main` is protected: a PR
-> is required, `ci` must pass, and force pushes are blocked, for admins too. The Cloudflare side, the
-> production Google OAuth client and the Worker secrets are the owner's, and nothing has deployed.
+> is required, `ci` must pass, and force pushes are blocked, for admins too. Production serves from
+> the Worker's `workers.dev` address, not a custom domain (decision log, 2026-09-28). The Cloudflare
+> sign-in and API token, the production Google OAuth client and the Worker secrets are the owner's,
+> and nothing has deployed.
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
@@ -50,7 +52,7 @@ that way.
 | `DATABASE_URL` | Database connection string | Local Docker Postgres for the standard development setup (`.dev.vars.example`); Neon dashboard for production or an optional development branch |
 | `ANTHROPIC_API_KEY` | The generation layer | Anthropic console. **The only spending credential in the system** |
 | `BETTER_AUTH_SECRET` | Session signing | Generated once per environment, 32+ random bytes |
-| `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, the custom domain in production |
+| `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, the Worker's `https://track-record.<subdomain>.workers.dev` in production |
 | `GOOGLE_CLIENT_ID` | OIDC | Google Cloud console |
 | `GOOGLE_CLIENT_SECRET` | OIDC | Google Cloud console |
 | `ALLOWED_SIGNUP_EMAILS` | Invite gate (`08` §2) | Config, not a secret — but environment-specific |
@@ -112,9 +114,11 @@ The shell carries the SHA as `<meta name="build-sha">` (`vite.config.ts`, `scrip
 The smoke check is `scripts/smoke-check.ts`: it requests `/`, the module script `/` loads, and
 `GET /api/overview`, and it fails unless the shell names the deployed commit, the script is served as
 JavaScript, and the API answers its own `401` error shape. It retries for five minutes, because a
-first deploy on a new custom domain waits for its certificate. It reads the origin from the custom-
-domain route in `wrangler.toml`, so after a manual deploy `npx tsx scripts/smoke-check.ts` checks the
-same things; `-dirty` on the SHA marks a build from uncommitted changes.
+new version takes a moment to reach every edge location. It checks the URL the deploy itself
+reported: the deploy step sets `WRANGLER_OUTPUT_FILE_PATH`, Wrangler writes the `workers.dev`
+address it deployed to into that file, and a deploy that reports no URL fails the check. After a
+manual deploy, `npx tsx scripts/smoke-check.ts --origin <url>` checks the same things; `-dirty` on
+the SHA marks a build from uncommitted changes.
 
 **Manual deploys are permitted** (`wrangler deploy` from the author's machine) because this is a
 personal project and being locked out of your own tool by a CI outage is worse than the discipline
