@@ -237,7 +237,9 @@ a gate alongside the others in `08` §2.2.
    `dev-session@example.invalid` to `ALLOWED_SIGNUP_EMAILS` for browser checks without Google.
 2. Run `npm run db:up` for Docker Postgres and the Neon HTTP proxy. On the first run, apply the
    committed migrations with `npm run db:migrate:local`.
-3. Start the worker with `npm run dev:worker` and the SPA with `npm run dev`.
+3. Start the worker with `npm run dev:worker` and the SPA with `npm run dev`. `npm run db:down`
+   stops the stack and keeps the `pgdata` volume. `npm run db:reset` is the only command that
+   removes it, and it refuses without `-- --destroy-local-record` (`docs/06`, 2026-09-28).
 4. For a signed-in browser, run `npm run dev:session` and follow its printed instructions for
    the cookie and Vite URL. The helper uses the suite's sign-in path outside the app; it requires
    the local database and does not add an application route.

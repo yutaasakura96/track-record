@@ -46,6 +46,19 @@ jobs:
           "
       - name: Test
         run: npm test
+      # docs/06, 2026-09-28: the pgdata volume holds the only copy of the record
+      # locally, so db:down must leave it and an unconfirmed db:reset must refuse.
+      # Proved on this job's own stack: the databases db:up created are still
+      # there after both, with no `created` line on the way back up.
+      - name: db:down and an unconfirmed db:reset keep the volume
+        run: |
+          npm run db:down
+          test -n "$(docker volume ls -q --filter label=com.docker.compose.volume=pgdata)"
+          if npm run db:reset; then echo "db:reset ran without confirmation"; exit 1; fi
+          test -n "$(docker compose ps -q)" && { echo "db:reset touched the stack"; exit 1; }
+          npm run db:up | tee up.log
+          grep -q "track_record_dev *present" up.log
+          grep -q "track_record_test *present" up.log
       - name: Proxy logs on failure
         if: failure()
         run: docker compose logs --tail 200
