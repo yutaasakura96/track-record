@@ -252,17 +252,23 @@ the author can retry or capture manually.
 
 **Two M3 additions, specified 2026-09-28 and not built** (decision log, 2026-09-28):
 
-- **A document can carry an employer, set at import.** Every candidate extracted from it starts
-  filed under that employer, and the author can change any one fact on its card. Today step 9
-  persists every candidate with no employer. Whether a document's employer can change after import,
-  and which employer wins when it differs from the document's project's, are open.
+- **A document can carry an employer, set at import and changeable after it.** A fact's employer is
+  **read through its document**, not copied onto it: step 9 still persists every candidate with no
+  employer of its own, and the fact resolves to its document's employer. Changing the document's
+  employer therefore moves every fact that reads through it, with no copy to fall behind. **A fact
+  whose employer the author set by hand on its card keeps it**, including a hand-set `No employer`.
+  When a document's employer and its project's differ, the document's wins. Every place that
+  resolves a fact's employer (the render, Version Edit, the attribution check and the overlap
+  matcher) reads the same order: the fact's hand-set employer, then its document's, then its
+  project's (decision log, 2026-09-28).
 - **Overlap with facts already in the record is flagged, not deduplicated.** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A
   candidate is shown the existing facts at the same employer that likely say the same thing, and a
   likely match with a different number is marked as a conflict (PRD §8). The author settles it with
   Accept and Reject. **How "likely the same" is computed** (a model call, a lexical match, or both)
   **and whether the flag is stored or computed on read are not decided**; the build opens with that
-  spec question.
+  spec question. It is built **before the first portfolio is reviewed**, so that review is the
+  first to use it.
 
 ### 5.1 Turning an uploaded file into text
 

@@ -190,10 +190,10 @@ refuse, because its text was stored before extraction. A re-import may carry a d
 or type; the document's `filename` and `mime_type` are not changed.
 
 **`employerId` (optional) · M3, specified 2026-09-28, not built.** Files the new document under an
-employer the session owns; every fact extracted from it starts with that `employerId` (§6). An
-employer the session does not own answers `404`, as `projectId` does. Like `projectId`, it is offered
-only for a new document: a re-import keeps the document's employer. Whether it can be changed after
-import, through `PATCH /api/source-documents/:id`, is not decided (`04` §3.12).
+employer the session owns; every fact extracted from it reads its employer through the document
+(§6, `04` §3.12). An employer the session does not own answers `404`, as `projectId` does. Like
+`projectId`, it is offered only for a new document: a re-import keeps the document's employer, which
+is changed afterwards through `PATCH /api/source-documents/:id`.
 
 **Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
 supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
@@ -270,6 +270,12 @@ it is the only way back to unfiled.
 - **`facts` is the number moved.** A count and never a claim.
 - **`404`** for a document the author does not own, and for a `projectId` they do not own — checked
   in the same query that reads it, never as a bare foreign-key failure.
+- **`employerId` · M3, specified 2026-09-28, not built.** The document's employer is the second thing
+  that changes after import. It moves every fact that reads its employer through the document and
+  leaves a fact whose employer was set by hand where it is (`04` §3.12). Nothing is copied onto the
+  facts, so the extracting-window race below does not arise for it. The body's exact shape (whether
+  `projectId` stays required when only the employer changes) and the count returned are specified
+  with the build (#35).
 - **`409 conflict` while the document's newest version is `queued` or `extracting`**, in the words
   `POST /api/imports` refuses a re-import in: `Wait for v2 to finish extracting.` A chunk that read
   the old project before the move and inserted its facts after it would leave those facts behind,
@@ -408,8 +414,10 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   guesses one. Setting it on an accepted fact does not disturb the accept decision, which is what
   makes an already-reviewed import linkable without a re-import (issue #14). An `employerId` naming
   another user's employer answers `404`. **From M3** (specified 2026-09-28, not built) a fact
-  extracted from a document that carries an employer starts with that document's `employerId`
-  instead of `null`, and is changed the same way.
+  extracted from a document that carries an employer reads that employer through the document
+  until one is set on the fact by hand, and a hand set, `No employer` included, then outlasts any
+  change to the document's employer (`04` §3.12). How the fact list tells a hand-set employer from a
+  resolved one is specified with the build (#35).
 - **Overlap with existing facts · M3, specified 2026-09-28, not built.** A candidate will carry the
   existing facts at the same employer that likely say the same thing, each marked as a conflict when
   its number differs (PRD §8), so Screen 1 can show them on the card. **The field's shape is not

@@ -13,22 +13,25 @@
 
 ## Next
 
-Planned 2026-09-28 (`docs/06-decision-log.md`, that date). Every issue below is drafted and labelled
-`needs-triage`, awaiting the author's confirmation; none is `ready-for-agent` yet.
+Planned 2026-09-28 (`docs/06-decision-log.md`, that date). The author confirmed #35–#40 the same day,
+and they are labelled `ready-for-agent`; #33 and #34 keep their labels. Steps only the owner can take
+are marked as the owner's in each issue.
 
 - **Go-live.** #34 deploys production on every merge to `main`, once the owner has provisioned it
   (Neon project, custom domain, Google OAuth client, Actions and Worker secrets). #40 then rehearses
   rollback and point-in-time restore on the empty production project and moves the record in by
   `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay open until #40 closes.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
-- **The back-catalogue import (M3)**, in order: #35 document-level employer and the first
-  portfolio, #36 overlap flags on the Fact Review card, #37 re-grading the 112 agent-graded facts,
-  #38 the remaining portfolios, #39 all five renders regenerated.
+- **The back-catalogue import (M3)**, in order: #36 overlap flags on the Fact Review card, which
+  opens by settling how "likely the same" is computed; #35 the document-level employer and the first
+  portfolio; #37 re-grading the 112 agent-graded facts; #38 the remaining portfolios; #39 all five
+  renders regenerated.
 
 ## Blocked
 
-- #35–#39 wait on go-live: the import lands in production (#34, #40).
-- #35 and #36 each open with a question for the author (`docs/04` §3.12).
+- #35 and everything after it wait on go-live, because the import lands in production (#34, #40),
+  and #35 also waits on #36, so the first portfolio's review is the first to use the overlap flag.
+  #36 waits on nothing.
 
 ## Carrying
 

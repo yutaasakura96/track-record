@@ -165,9 +165,10 @@ every foreign key, and the Measured-facts-carry-evidence invariant. It runs thro
 than the application's own driver, deliberately: a restore must not depend on the application being
 able to run.
 
-> **Status, 2026-09-28: the drill is manual.** No scheduled job runs it. It needs an export file
-> taken from the author's signed-in session, so a scheduled job could not run it as described above.
-> Whether and how to automate it is not decided.
+> **Status, 2026-09-28: the drill is manual, and stays manual for now.** No scheduled job runs it. It
+> needs an export file taken from the author's signed-in session, so a scheduled job could not run
+> it as described above. Automating it is revisited once the record has moved into production
+> (decision log, 2026-09-28).
 
 > **What an export cannot restore, and why that is correct.** Source documents never render, export,
 > or appear in any output (PRD §6.1), so `extracted_text` and `original_bytes` are not in the file.

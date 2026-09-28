@@ -4531,3 +4531,76 @@ is a new decision.
   scanning and push protection are enabled on the repository.
 - **`docs/00-status.md`** Next listed only the Playwright test. It now holds the go-live issues and
   the import slices.
+
+### [2026-09-28] A document's employer is read through, changes after import, and outranks its project's
+
+The document-level employer entry above left two questions open, and PR #41 put them to the author.
+The author took the recommended option on both, the same day.
+
+**A document's employer can be changed after import, and its facts follow it.** A fact's employer is
+read through its document rather than copied onto it: a candidate is still persisted with no
+employer of its own, and resolves to its document's. Changing the document's employer therefore
+moves every fact that reads through it in one write to one row, and no copy can fall behind. This is
+the difference from a project refile (2026-09-21), which copies the project onto every fact and so
+has to refuse while a version is extracting. A read has no such window.
+
+**A fact whose employer the author set by hand keeps it**, and a hand-set `No employer` counts. The
+card's picker is a judgement about that one fact, and a later change to the document is not a
+judgement about it. A null `facts.employer_id` therefore cannot mean "read through" on its own. How a
+hand set is recorded is #35's to specify in `docs/04` and build.
+
+**When a document's employer and its project's differ, a new fact starts with the document's.** The
+document's employer is chosen for that import, for that file. The project's is set on a record
+screen, for everything filed under the project. The resolution order is: the fact's hand-set
+employer, then its document's, then its project's.
+
+**Every reader resolves the same way.** Today `collectEditableRecord` and the attribution check use
+`coalesce(facts.employer_id, projects.employer_id)`, and `collectRenderInputs` passes the fact's own
+employer and the project separately (entry above, still **unverified** whether that has misfiled a
+fact). With the document in the chain, the render, Version Edit, the attribution check and the
+overlap matcher all read the one order. #35 makes them.
+
+`docs/03` §5, `docs/04` §3.6, §3.7 and §3.12, `docs/07` §5 and §6, `docs/10` Screens 3 and 8,
+`docs/02` §8 and `CONTEXT.md` now say this.
+
+**Revisit if:** a hand-set employer turns out to be set by accident often enough that following the
+document would have been right more often than keeping it.
+
+### [2026-09-28] The overlap flag lands before the first portfolio is reviewed
+
+The slices drafted above ran #35, the document employer and the first portfolio, before #36, the
+overlap flag, so the first portfolio's overlap with the narrative would have been found by reading.
+The author chose to land #36 first.
+
+**#36 waits on nothing, and #35 waits on #36** as well as on #34 and #40. The first portfolio's
+review is then the first to use the flag. The order has no cycle: #36 needs no portfolio to build or
+test, since its tests use invented facts. It resolves "the same employer" by the fact's own employer,
+then its project's, and #35 adds the document to that order when it lands (entry above).
+
+**How "likely the same" is computed stays open, and is the first thing #36 settles**, as C3 of the
+planning left it: a model call, a lexical match or both, and whether the flag is stored or computed
+on read. Its answer gets an entry of its own before the matcher is built.
+
+**#37 is not moved.** It still waits on #36 alone. Whether it must also land before the first
+portfolio's review, so the narrative facts that portfolio matches are re-graded as they appear, was
+not asked. Until it lands, any the first portfolio matches stay in #37's listing and are graded
+there.
+
+**The six issues are confirmed.** #35–#40 move from `needs-triage` to `ready-for-agent`. #40 stays
+owner-run; the only agent work in it is the write-up after the author's outcomes, and every step
+that needs the owner's accounts, credentials or the real record is marked as the owner's in each
+issue.
+
+**Revisit if:** #36's spec question takes long enough that holding the first portfolio for it costs
+more than reading one portfolio's overlap by hand.
+
+### [2026-09-28] The monthly restore drill stays manual until the record is in production
+
+`docs/12` §5 described the restore drill as monthly and automatic. It is a manual command, and the
+correction above recorded that without deciding whether to automate it. **The author chose to keep
+it manual for now.** It needs an export file from the author's signed-in session, so a scheduled job
+would first need a way to obtain one, which means either a stored session or a credential in CI.
+Neither is worth building while the record is still local and production has never run.
+
+**Revisit when the record has moved into production (#40).** That is when the export stops being a
+copy of a local database the author can dump directly, and a missed month starts to matter.

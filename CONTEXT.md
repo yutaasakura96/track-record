@@ -35,7 +35,8 @@ _Avoid_: position, job, title-on-its-own.
 **Project**:
 A body of work, optionally at an employer. **A Project with no employer is independent**, and the
 English résumé gives those their own section. A source document can be filed under one Project and,
-from M3, one Employer; a fact extracted from it starts filed under the document's Employer.
+from M3, one Employer; a fact extracted from it is filed under the document's Employer, read
+through the document, unless the author set the fact's Employer by hand.
 _Avoid_: engagement, assignment, case.
 
 ## Evidence and worth

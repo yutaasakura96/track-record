@@ -221,10 +221,10 @@ the choice.
 **An employer choice · M3, specified 2026-09-28, not built.** The confirmation row gains a second
 select: the label `Employer`, then an employer select defaulting to `No employer`. It exists so a
 per-employer portfolio is filed once instead of fact by fact. Every fact extracted from the document
-starts filed under that employer, and the card's employer picker still changes any one of them. With
+is filed under that employer, and the card's employer picker still changes any one of them. With
 the employer select the row appears when the record holds **projects or employers**, and the rule
-for a record with neither is unchanged. Whether the document's employer can be changed later, like its
-project on the refile row below, is not decided (`04` §3.12).
+for a record with neither is unchanged. The document's employer can be changed later (Screen 8,
+"Refiling a document").
 
 The same row and the same rule serve the empty state's drop target and Screen 8's
 `Import a document`, which is the same control. **The choice is offered only for a new document.**
@@ -252,6 +252,12 @@ line `Its facts move with it.`, then `Cancel` (bare) and `Refile` (primary).
 
 Refiling moves the document's facts with it, which is what makes Screen 4's project `Delete`
 reachable at all: its `409` says `Refile them from Documents before deleting.` and means it.
+
+**The document's employer · M3, specified 2026-09-28, not built.** From M3 a document's employer
+also changes after import, and its facts follow it, except a fact whose employer the author set by
+hand on its card, which keeps it (`04` §3.12). The control, its wording and how it says that
+hand-set facts stay where they are, are specified with the build (#35). The refile row, which
+already changes the project, is the expected place for it.
 
 ### Empty state
 

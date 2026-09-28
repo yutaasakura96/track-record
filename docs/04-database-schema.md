@@ -246,8 +246,8 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `mime_type` | text | no | |
 
 **M3 addition, specified 2026-09-28 and not built:** a nullable `employer_id` (FK → `employers.id`
-**restrict**), set at import. Facts extracted from the document start filed under it, and each fact
-can still be refiled on its own (§3.12).
+**restrict**), set at import and changeable after it. Facts extracted from the document read their
+employer through it unless one was set on the fact by hand (§3.12).
 
 **`source_document_versions`** — one row per import of the same file.
 
@@ -313,7 +313,7 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `id` | text | no | `nanoid()` | PK |
 | `user_id` | text | no | — | FK → `users.id` **cascade** |
 | `project_id` | text | yes | — | FK → `projects.id` **restrict** |
-| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries. Null on every extracted fact today; from M3 it starts as the document's employer (§3.12) |
+| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries. Null on every extracted fact today. From M3 it holds only an employer set on the fact by hand; otherwise the fact reads its document's employer, then its project's (§3.12) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
 | `provenance` | provenance | no | `'generated'` | **Anything a model produces starts Generated** |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy** |
@@ -515,24 +515,35 @@ project clears its rows in the same batch instead (`06`, 2026-09-21).
 The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet. Each
 change lands with the slice that first needs it.
 
-**`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen once, at import.
-Every candidate extracted from any version of the document is written with `facts.employer_id` set to
-it. The author can change one fact's employer on its card, as today.
+**`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen at import, and
+changeable afterwards (decided 2026-09-28).
 
-**Open, not decided by the planning:**
+**A fact's employer is read through its document, not copied onto it.** A candidate is written with
+no employer of its own, as today. Its employer resolves, everywhere it is read, as the first of:
 
-- Whether a document's employer can be changed after import, and whether its facts move with it the
-  way they move on a project refile (`06`, 2026-09-21). The answer decides whether inheritance is a
-  copy onto each fact or a read through the document.
-- Which employer a fact starts with when the document's employer and its project's `employer_id`
-  differ.
+1. the employer set on the fact by hand, through the card's picker (`PATCH /api/facts/:id`);
+2. its document's `employer_id`;
+3. its project's `employer_id`.
+
+So changing a document's employer moves every fact that reads through it, and there is no copy to
+fall behind. **A fact whose employer was set by hand keeps it**, and that includes a hand-set
+`No employer`. A null `facts.employer_id` therefore cannot by itself mean "read through"; how a hand
+set is recorded is specified with the slice that adds the column (#35). When the document's and the
+project's employers differ, the document's wins (`06`, 2026-09-28).
+
+Today the resolution is not uniform: `collectEditableRecord` and the attribution check use
+`coalesce(facts.employer_id, projects.employer_id)`, and `collectRenderInputs` passes the fact's own
+`employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
+all read the one order above.
 
 **The overlap flag.** A candidate is shown the existing facts at the same employer that likely say
 the same thing, and a likely match with a different number is marked as a conflict (PRD §8). **Its
 storage is undecided.** It may be computed on read, which needs no table. A stored flag would be a
 table of `(user_id, fact_id, other_fact_id, is_conflict)` pairs. The choice follows from how "likely
-the same" is computed, which is the first question of the slice that builds it. Either way a flag is
-advisory: it is never a status and never blocks Accept.
+the same" is computed, which is the first question of the slice that builds it (#36). Either way a
+flag is advisory: it is never a status and never blocks Accept. **It is built before the document
+employer above** (`06`, 2026-09-28), so "the same employer" starts as the fact's own, then its
+project's, and the document joins that order when #35 lands.
 
 ---
 
