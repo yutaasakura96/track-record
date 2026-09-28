@@ -58,28 +58,42 @@ path:
 ```
         PUBLIC                         │            PRIVATE
                                        │
-  the Worker's custom domain           │   Neon Postgres  (no public role beyond the app's)
+  track-record.<subdomain>.workers.dev │   Neon Postgres  (no public role beyond the app's)
   ├── /            SPA shell           │   Anthropic API  (server-side only)
   ├── /api/auth/*  unauthenticated     │   Workflow instances (no ingress)
   └── /api/*       401 without session │
                                        │
-  workers.dev route: DISABLED          │
+  Preview URLs: DISABLED               │
 ```
 
-**`workers.dev` is disabled** via `workers_dev = false` in the Wrangler configuration. Cloudflare
-issues every Worker a default `*.workers.dev` address; it bypasses nothing in *our* auth, but it is
-an unnecessary second front door on an app holding this material.
+**Production serves from the Worker's `workers.dev` address, and it is the only front door**
+(decision log, 2026-09-28, "Production serves from workers.dev"). There is no custom domain.
+`<subdomain>` is the Cloudflare account's workers.dev subdomain, which lives in Cloudflare and not
+in this repository; the deploy job reads the full URL from `wrangler deploy`'s output (`docs/12` §3).
+`wrangler.toml` states `workers_dev = true` rather than relying on the default.
 
-> **Two verified traps.** Disabling `workers.dev` **in the dashboard only** does not persist —
-> Cloudflare re-enables the route on the next `wrangler deploy` unless the Wrangler file also says
-> `workers_dev = false`. And **Preview URLs** default to matching the `workers_dev` setting, but if
-> they were ever explicitly enabled they must be disabled separately.
+**Preview URLs are disabled** via `preview_urls = false`. Each would give an uploaded version its own
+public `workers.dev` address, a second door onto the same record. They bypass nothing in *our* auth,
+but nothing needs them.
+
+> **A verified trap.** Omitted, `preview_urls` leaves whatever the dashboard last set, so one ever
+> enabled there would survive every deploy. The line in the Wrangler file is what keeps it off
+> (`specs/technical-verification.md` §12).
 
 **The `ANTHROPIC_API_KEY` never reaches the browser.** All model calls are server-side. A client-side
 call would put a spending credential in devtools.
 
-**DNS:** one subdomain of a domain the author already controls on Cloudflare, proxied (orange
-cloud), TLS enforced, HSTS on.
+**TLS and cookies on `workers.dev`.** There is no DNS to manage and no zone setting to get wrong.
+`.dev` is on the HSTS preload list, so browsers reach the address over HTTPS only, and Cloudflare
+terminates TLS for it. `workers.dev` is on the Public Suffix List (checked 2026-09-28), so a Worker
+on another Cloudflare account cannot set or read cookies for this one. Better Auth's cookies are
+host-only. The one shared scope is the account's own `<subdomain>.workers.dev`, which only the
+author's own Workers share.
+
+**What a custom domain would add**, if the app ever moves to one: an address that does not name the
+Cloudflare account, and zone-level settings such as WAF rules. It needs an active Cloudflare zone,
+then a `[[routes]]` entry with `custom_domain = true`, `workers_dev = false`, a new
+`BETTER_AUTH_URL`, and the redirect URI added to the Google OAuth client.
 
 **Caching:** static assets are immutable and hashed, cached at the edge indefinitely. **No API
 response is cached anywhere** — every one contains record content, and an edge-cached résumé
@@ -209,7 +223,7 @@ are the reason for every confidentiality control in this repo.
 | Lawful basis and a privacy policy | What is collected, why, how long, who processes it — **naming Anthropic, Cloudflare and Neon as sub-processors** |
 | Right of access | Already satisfied by `GET /api/export` |
 | Right of erasure | **Does not exist yet.** Account deletion must actually delete — including source documents and render versions, which this schema otherwise never deletes |
-| Data residency | **Record the Neon project's actual region here at provisioning time.** It was not verified when this document was written and must not be assumed. Model calls leave whatever region it is |
+| Data residency | **The Neon project is in `aws-ap-southeast-1`, AWS Singapore** (provisioned 2026-09-28, read back from the Neon API). It is the nearest region Neon offers to the author and so to the edge location that serves them; Neon has no Japan region. The record is stored outside Japan, and model calls leave Singapore |
 | Model-provider retention | **No ZDR arrangement is in place** (declined 2026-08-12 — the data is the author's own). Anthropic's standard API retention therefore applies to extraction and generation requests, which carry NDA-bound client material. **Requesting ZDR is a gate before the second invited user**, when the material stops being the author's to accept risk on |
 | Breach notification | Statutory clocks apply. §7 is the procedure |
 

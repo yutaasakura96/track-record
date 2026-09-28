@@ -3,13 +3,16 @@ main = "src/server/index.ts"
 compatibility_date = "2026-08-12"
 compatibility_flags = ["nodejs_compat"]
 
-# SECURITY — do not remove.
-# Cloudflare issues every Worker a *.workers.dev address. It is an unnecessary
-# second front door on an app holding PII and NDA-bound client material.
-# Disabling this in the dashboard alone does NOT persist: Cloudflare re-enables
-# the route on the next `wrangler deploy` unless this line is present.
-# See docs/13-infrastructure-security.md §3.
-workers_dev = false
+# The production address is the Worker's workers.dev URL, the only front door:
+# there is no custom domain (docs/06, 2026-09-28, "Production serves from
+# workers.dev"). Stated, not defaulted, so a dashboard toggle cannot quietly
+# change what the next deploy serves. See docs/13-infrastructure-security.md §3.
+workers_dev = true
+# SECURITY — do not remove. Preview URLs give every uploaded version its own
+# public workers.dev address, a second front door onto the same record. Omitted,
+# Wrangler leaves an existing setting alone, so one enabled in the dashboard
+# would survive every deploy.
+preview_urls = false
 
 [assets]
 directory = "./dist/client"
