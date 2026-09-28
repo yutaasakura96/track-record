@@ -79,7 +79,9 @@ an unnecessary second front door on an app holding this material.
 call would put a spending credential in devtools.
 
 **DNS:** one subdomain of a domain the author already controls on Cloudflare, proxied (orange
-cloud), TLS enforced, HSTS on.
+cloud), TLS enforced, HSTS on. It is a Workers Custom Domain, declared as the `[[routes]]` entry with
+`custom_domain = true` in `wrangler.toml`, which also sets `preview_urls = false`, so neither front
+door depends on the default. A Custom Domain needs an active Cloudflare zone.
 
 **Caching:** static assets are immutable and hashed, cached at the edge indefinitely. **No API
 response is cached anywhere** — every one contains record content, and an edge-cached résumé
@@ -209,7 +211,7 @@ are the reason for every confidentiality control in this repo.
 | Lawful basis and a privacy policy | What is collected, why, how long, who processes it — **naming Anthropic, Cloudflare and Neon as sub-processors** |
 | Right of access | Already satisfied by `GET /api/export` |
 | Right of erasure | **Does not exist yet.** Account deletion must actually delete — including source documents and render versions, which this schema otherwise never deletes |
-| Data residency | **Record the Neon project's actual region here at provisioning time.** It was not verified when this document was written and must not be assumed. Model calls leave whatever region it is |
+| Data residency | **The Neon project is in `aws-ap-southeast-1`, AWS Singapore** (provisioned 2026-09-28, read back from the Neon API). It is the nearest region Neon offers to the author and so to the edge location that serves them; Neon has no Japan region. The record is stored outside Japan, and model calls leave Singapore |
 | Model-provider retention | **No ZDR arrangement is in place** (declined 2026-08-12 — the data is the author's own). Anthropic's standard API retention therefore applies to extraction and generation requests, which carry NDA-bound client material. **Requesting ZDR is a gate before the second invited user**, when the material stops being the author's to accept risk on |
 | Breach notification | Statutory clocks apply. §7 is the procedure |
 

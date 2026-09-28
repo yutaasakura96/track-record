@@ -10,6 +10,9 @@ compatibility_flags = ["nodejs_compat"]
 # the route on the next `wrangler deploy` unless this line is present.
 # See docs/13-infrastructure-security.md §3.
 workers_dev = false
+# Preview URLs are *.workers.dev too. Omitted, Wrangler leaves an existing
+# setting alone, so one enabled in the dashboard would survive every deploy.
+preview_urls = false
 
 [assets]
 directory = "./dist/client"

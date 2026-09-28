@@ -18,6 +18,12 @@
 > `track_record_dev`**, where it has been since 2026-09-04. It moves to Neon `main` by `pg_dump`
 > (§5), after the rehearsals in §4 have run on the empty production project. Until then that local
 > database is the only copy, and the separation in §8 is what protects it.
+>
+> **Provisioning began 2026-09-28.** The Neon project `track-record` exists, empty, in
+> `aws-ap-southeast-1` on Postgres 17 (`docs/13` §8), with one database, `track_record`, on branch
+> `main`. The GitHub Environment `production` holds its `DATABASE_URL`, and `main` is protected: a PR
+> is required, `ci` must pass, and force pushes are blocked, for admins too. The Cloudflare side, the
+> production Google OAuth client and the Worker secrets are the owner's, and nothing has deployed.
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
@@ -49,6 +55,11 @@ that way.
 | `GOOGLE_CLIENT_SECRET` | OIDC | Google Cloud console |
 | `ALLOWED_SIGNUP_EMAILS` | Invite gate (`08` §2) | Config, not a secret — but environment-specific |
 | `ANTHROPIC_MODEL` | Model ID, default `claude-opus-5` | Config. Exists so a model change needs no deploy |
+
+**The deploy job's own secrets** live in the GitHub Environment `production`, not with the Worker:
+`DATABASE_URL` for the migrate step, and `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` for
+`wrangler deploy` (§3). Only `main` may deploy to that environment, so a workflow run on any other
+branch cannot read them.
 
 **Two Google OAuth clients**, one per environment, because the redirect URIs differ. Sharing one
 between local and production means a local misconfiguration can break production sign-in.
@@ -88,6 +99,22 @@ Migrations run **before** the Worker deploys, so the new code never meets an old
 **backward-compatible migrations mandatory**: add columns before writing to them, and never drop a
 column in the same deploy that stops using it. A two-step drop (stop using, deploy, then drop) is
 the rule.
+
+**Built 2026-09-28 (#34).** The `deploy` job in `.github/workflows/ci.yml` runs on a push to `main`
+after the `ci` job has passed on the same commit; steps 1–2 are that job, which also builds and
+bundles on every branch. A PR into `main` runs `ci` only. The job reads its secrets from the GitHub
+Environment `production`, which only `main` may deploy to: `DATABASE_URL` (Neon `main`, the direct
+connection), `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. Deploys queue rather than cancel,
+so a migration is never interrupted. `wrangler deploy --message` records the commit SHA on the
+version, which is what `wrangler rollback` lists.
+
+The shell carries the SHA as `<meta name="build-sha">` (`vite.config.ts`, `scripts/build-sha.ts`).
+The smoke check is `scripts/smoke-check.ts`: it requests `/`, the module script `/` loads, and
+`GET /api/overview`, and it fails unless the shell names the deployed commit, the script is served as
+JavaScript, and the API answers its own `401` error shape. It retries for five minutes, because a
+first deploy on a new custom domain waits for its certificate. It reads the origin from the custom-
+domain route in `wrangler.toml`, so after a manual deploy `npx tsx scripts/smoke-check.ts` checks the
+same things; `-dirty` on the SHA marks a build from uncommitted changes.
 
 **Manual deploys are permitted** (`wrangler deploy` from the author's machine) because this is a
 personal project and being locked out of your own tool by a CI outage is worse than the discipline
@@ -188,9 +215,62 @@ source documents, it is not how the record reaches production. The record moves 
 - **The dump is made outside the repository and is never committed.** It is deleted once the
   restore has been checked. It holds the author's PII and NDA-bound material, like `DATABASE_URL`
   itself (§6).
-- **The owner runs it**, because it needs the production `DATABASE_URL`. The exact order against the
-  deploy job's migrations, and how the restore is checked, are written down in the deploy issue
-  (#34).
+- **The owner runs it**, because it needs the production `DATABASE_URL`. The procedure is below
+  (written 2026-09-28, #34).
+
+**The move, step by step.** The deploy job has already migrated Neon `main`, so the dump carries
+**data only** and lands in the schema the job built. The alternative, a full dump restored over an
+empty database, would leave Neon without the `drizzle` migration journal, and the next deploy would
+try to create every table again.
+
+1. **Preconditions.** The first deploy has run and #40's rehearsals are done. Production holds no
+   rows: only the author will sign in, and not before step 5. `ALLOWED_SIGNUP_EMAILS` in production
+   names the author.
+2. **Freeze and export.** Stop using the local app. Take a `GET /api/export` from it, as a copy that
+   does not depend on this procedure.
+3. **Same schema on both sides.** Local migrations are applied by `npm run db:migrate:local`, which
+   keeps no journal, so compare the schemas themselves. Each command writes to a file outside the
+   repository, and the diff must be empty. It ignores `pg_dump`'s version comments and its
+   per-dump `\restrict` key, which differ on every run:
+
+   ```sh
+   docker compose exec -T postgres pg_dump -U postgres -d track_record_dev --schema-only --schema=public --no-owner --no-privileges > ~/tr-move/local-schema.sql
+   pg_dump "$(neon connection-string main --project-id <project> --database-name track_record)" --schema-only --schema=public --no-owner --no-privileges > ~/tr-move/prod-schema.sql
+   diff -I '^--' -I '^\\' ~/tr-move/local-schema.sql ~/tr-move/prod-schema.sql
+   ```
+
+   A difference means a migration is missing on one side. Stop and apply it there, never by hand-editing
+   either schema. Use `pg_dump` 17 or newer, because Neon runs 17 (`docs/13` §8).
+4. **Dump the data.** Leave out the two tables that hold only short-lived rows: sessions signed by the
+   local secret, and pending OAuth verifications.
+
+   ```sh
+   docker compose exec -T postgres pg_dump -U postgres -d track_record_dev --data-only --schema=public --no-owner --no-privileges --exclude-table-data=sessions --exclude-table-data=verifications > ~/tr-move/record.sql
+   ```
+
+   `pg_dump` writes the tables in foreign-key order, which works because the schema has no foreign-key
+   cycle (checked 2026-09-28). If a later migration adds one, `pg_dump` warns about it, and this step
+   needs revisiting before it runs.
+5. **Restore in one transaction:**
+   `psql "$(neon connection-string main --project-id <project> --database-name track_record)" --single-transaction -v ON_ERROR_STOP=1 -f ~/tr-move/record.sql`.
+   Any error rolls back the whole restore and leaves production empty. A second run fails on the first
+   duplicate key and changes nothing.
+
+   Steps 3–6 were rehearsed on 2026-09-28 with invented rows in every table, from a disposable
+   Postgres 17 migrated the way `db:migrate:local` does it into a Neon branch migrated the way the
+   deploy job does it. The schemas matched, and every count matched except the two excluded tables.
+6. **Check it.** Run the row count below against both databases and compare the two outputs. Every
+   table must match except `sessions` and `verifications`. Then sign in to production. Google's
+   subject identifier is the same for every OAuth client of one Google account, so the moved `accounts`
+   row finds the moved user. The Overview's counts must match the local app's.
+
+   ```sql
+   select table_name, (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from public.%I', table_name), false, true, '')))[1]::text::int as row_count
+   from information_schema.tables where table_schema = 'public' order by 1;
+   ```
+
+7. **Clean up.** Delete `~/tr-move/`, take the first `GET /api/export` from production, and from then
+   on stop using the local record (§1).
 
 ---
 

@@ -4740,3 +4740,50 @@ its own.
 
 **Revisit when** the record is in production (#40). A local reset then loses a copy and not the
 record, and the flag may be more ceremony than it is worth.
+
+### [2026-09-28] Production is provisioned from this machine, and the deploy job lives beside `ci`
+
+The author decided to go live now and asked for the provisioning to be done for them, using the CLIs
+already signed in on their machine. Neon and GitHub were signed in. Cloudflare was not, and no new
+sign-in was started. This entry records what was provisioned, and the choices #34 left to its build.
+
+**Neon: project `track-record`, `aws-ap-southeast-1`, Postgres 17**, with one database,
+`track_record`, on branch `main`, created empty. Singapore is the nearest of the regions Neon
+offers to the author, and so to the edge location that serves them. Postgres 17 matches the local
+`postgres:17` image, so the `pg_dump` that moves the record (`docs/12` §5) goes between equal
+major versions. The Free plan's six-hour restore window is unchanged (`docs/12` §5).
+
+**The deploy job's secrets sit in a GitHub Environment, `production`, that only `main` may deploy
+to.** Repository secrets would be readable by a workflow run on any branch, and every push runs
+`ci`. The Environment limits `DATABASE_URL`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` to the
+job that needs them. `DATABASE_URL` is the direct connection, not the pooler, because `drizzle-kit
+migrate` holds a session. The value went from the Neon CLI straight into `gh secret set` and was
+never printed.
+
+**`main` is protected, admins included**: a PR is required with no approvals, since the author
+cannot approve their own, `ci` must pass, and force pushes and deletion are blocked. Without the
+admin setting the author's own direct push would skip the PR, and a push to `main` now migrates
+production.
+
+**The deploy job is a second job in `ci.yml`, `needs: ci`**, not a separate workflow triggered by
+`workflow_run`. The same run then shows the checks and the deploy for one commit, and nothing
+deploys a commit whose checks ran in another run. The `ci` job now also builds, checks that the
+built shell carries the commit, and bundles the Worker with `--dry-run`, so a bundling break shows
+on a `develop` PR rather than at release.
+
+**How #34's two open choices were settled.** The shell carries the SHA as `<meta name="build-sha">`,
+injected by a Vite plugin. A meta tag needs no script to read and changes nothing the SPA renders.
+The probe is `GET /api/overview`. It is a plain GET behind the session middleware, and the check
+also requires the API's own error shape, so a `401` from an edge error page does not pass. The
+smoke check also fetches the module script the shell loads, since the SPA fallback would answer
+`200` for a missing asset. It reads the origin from the custom-domain route in `wrangler.toml`, so
+the hostname is written down once.
+
+**The record moves as data only, into the schema the deploy job migrated.** A full dump would bring
+the schema without Drizzle's migration journal, and the next deploy would try to create every table
+again. The procedure is in `docs/12` §5. It was rehearsed with invented rows, and the rehearsal found
+one thing the first draft missed: `pg_dump` 17 writes a random `\restrict` key into every dump, so a
+plain `diff` of two schemas is never empty.
+
+**Revisit if:** a migration adds a foreign-key cycle, which breaks the data-only restore's table
+order, or Neon adds a region in Japan before the record moves in.
