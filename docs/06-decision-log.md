@@ -4798,8 +4798,11 @@ DNS to Cloudflare, to buy a new domain, or to serve from `workers.dev`. **The au
 `workers.dev`, on 2026-09-28.**
 
 **What changes.** `wrangler.toml` now says `workers_dev = true`, and production is
-`https://track-record.<subdomain>.workers.dev`, where `<subdomain>` is the Cloudflare account's. That
-address is `BETTER_AUTH_URL` and the base of the Google OAuth redirect URI. There is no
+`https://track-record.asakurayuta.workers.dev`. The account had no workers.dev subdomain, and
+Workflows need one whatever the front door is, so `asakurayuta` was registered, matching the
+author's existing domain, rather than the name derived from the account's email address that the
+dashboard would pick. That address is `BETTER_AUTH_URL` and the base of the Google OAuth redirect
+URI. Renaming the subdomain later changes both. There is no
 `[[routes]]` entry. `workers.dev` is the only front door, not a second one, so the reason for turning
 it off no longer applies. `preview_urls = false` stays. Preview URLs would still be a second door, one
 per uploaded version.

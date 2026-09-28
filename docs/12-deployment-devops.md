@@ -23,9 +23,12 @@
 > `aws-ap-southeast-1` on Postgres 17 (`docs/13` §8), with one database, `track_record`, on branch
 > `main`. The GitHub Environment `production` holds its `DATABASE_URL`, and `main` is protected: a PR
 > is required, `ci` must pass, and force pushes are blocked, for admins too. Production serves from
-> the Worker's `workers.dev` address, not a custom domain (decision log, 2026-09-28). The Cloudflare
-> sign-in and API token, the production Google OAuth client and the Worker secrets are the owner's,
-> and nothing has deployed.
+> **`https://track-record.asakurayuta.workers.dev`**, not a custom domain (decision log,
+> 2026-09-28); the account's workers.dev subdomain `asakurayuta` was registered the same day. The
+> `production` Environment also holds `CLOUDFLARE_ACCOUNT_ID`, and the Worker has `DATABASE_URL`,
+> `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`; setting them created an empty placeholder Worker, which
+> the first deploy replaces. Still the owner's: `CLOUDFLARE_API_TOKEN`, the production Google OAuth
+> client, `ANTHROPIC_API_KEY` and `ALLOWED_SIGNUP_EMAILS`. Nothing has deployed.
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
@@ -52,7 +55,7 @@ that way.
 | `DATABASE_URL` | Database connection string | Local Docker Postgres for the standard development setup (`.dev.vars.example`); Neon dashboard for production or an optional development branch |
 | `ANTHROPIC_API_KEY` | The generation layer | Anthropic console. **The only spending credential in the system** |
 | `BETTER_AUTH_SECRET` | Session signing | Generated once per environment, 32+ random bytes |
-| `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, the Worker's `https://track-record.<subdomain>.workers.dev` in production |
+| `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, `https://track-record.asakurayuta.workers.dev` in production |
 | `GOOGLE_CLIENT_ID` | OIDC | Google Cloud console |
 | `GOOGLE_CLIENT_SECRET` | OIDC | Google Cloud console |
 | `ALLOWED_SIGNUP_EMAILS` | Invite gate (`08` §2) | Config, not a secret — but environment-specific |
