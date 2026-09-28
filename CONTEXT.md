@@ -72,9 +72,10 @@ _Avoid_: candidate render, draft render.
 Reserved for renders. The import does not propose — it **extracts candidates**.
 
 **Likely match**:
-An existing fact at the same Employer that a Candidate probably restates in other words. Shown on the
-Candidate's card; it never blocks Accept. Exact repeats are not likely matches — dedupe suppresses
-them before they become Candidates.
+An accepted fact at the same Employer that a Candidate probably restates in other words, found by a
+lexical match between the two claims each time the card is read. Shown on the Candidate's card; it
+never blocks Accept. Exact repeats are not likely matches — dedupe suppresses them before they become
+Candidates.
 _Avoid_: duplicate (a duplicate is an exact repeat), overlap as a noun for one pair.
 
 **Conflict**:

@@ -385,7 +385,15 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
         "quoteEnd": 4849
       },
       "technologies": ["PostgreSQL", "Airflow", "Python"],
-      "isClientIdentifying": false
+      "isClientIdentifying": false,
+      "likelyMatches": [
+        {
+          "id": "fct_R2k7",
+          "claim": "Cut the nightly batch from six hours to 80 minutes",
+          "document": { "importId": "sdv_3Qa0", "filename": "narrative.md", "versionNo": 1 },
+          "conflict": true
+        }
+      ]
     },
     {
       "id": "fct_Z0b2",
@@ -397,7 +405,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "projectId": null,
       "evidence": null,
       "technologies": [],
-      "isClientIdentifying": false
+      "isClientIdentifying": false,
+      "likelyMatches": []
     }
   ],
   "nextCursor": null
@@ -418,11 +427,17 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   until one is set on the fact by hand, and a hand set, `No employer` included, then outlasts any
   change to the document's employer (`04` §3.12). How the fact list tells a hand-set employer from a
   resolved one is specified with the build (#35).
-- **Overlap with existing facts · M3, specified 2026-09-28, not built.** A candidate will carry the
-  existing facts at the same employer that likely say the same thing, each marked as a conflict when
-  its number differs (PRD §8), so Screen 1 can show them on the card. **The field's shape is not
-  specified yet.** It follows from how "likely the same" is computed, which is undecided (`04`
-  §3.12). Like the rest of this response it carries ids and claims, never `quote` text.
+- **`likelyMatches` · M3, decided 2026-09-28, built by #36.** A candidate carries the accepted
+  facts at the same employer that likely say the same thing, at most three, best first (PRD §8), so
+  Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, the `document` it
+  was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
+  `conflict`, true when both claims carry numbers and neither's numbers contain the other's.
+  **Computed on every read and stored nowhere**, by a lexical match between claims (`03` §5), so a
+  match the author rejects is gone from the next response. "The same employer" is the fact's own,
+  then its project's (`04` §3.12); a candidate whose employer resolves to neither has an empty list,
+  as do accepted and rejected facts. Like the rest of this response it carries ids and claims, never
+  `quote` text, and **no score**: how alike two claims are is not in the contract, for the reason no
+  confidence is.
 
 **`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
 same answer a missing employer gets, because a `403` would confirm it exists.

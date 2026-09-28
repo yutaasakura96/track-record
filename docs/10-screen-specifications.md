@@ -66,14 +66,29 @@ so the mark sits ~34% from the top. Both directions are required.
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
 
-**Overlap on the card · M3, specified 2026-09-28, not built.** A candidate with likely matches
-among the existing facts at the same employer shows them on the card, beside its claim: each
+**Overlap on the card · M3, decided 2026-09-28, built by #36.** A candidate with likely matches
+among the accepted facts at the same employer shows them on the card, beside its claim: each
 match's claim and the document it came from, and a **conflict** marker when the match's number
 differs (PRD §8). The flag is advisory. It changes nothing about Accept or Reject, which are how the
 author settles it: when a portfolio restates a narrative fact, the portfolio's fact is accepted and
-the narrative one rejected (decision log, 2026-09-28). There is no merge action. Where on the card the
-block sits, its wording and its tokens are specified with the build, because what a match carries
-depends on how "likely the same" is computed, which is undecided (`04` §3.12).
+the narrative one rejected (decision log, 2026-09-28). There is no merge action. A card with no
+likely matches shows nothing, not an empty block.
+
+- **Placement:** directly under the claim, above the Generated warning and the controls, so the two
+  claims read as a pair.
+- **The block:** a left rule in `border-strong`, `10px` in from it. A mono label, `Likely already in
+  your record` (`text-faint`). Then one row per match, at most three, best first: the match's claim
+  at `text-small` in `text-secondary`, and under it the document's filename as a mono identifier in
+  `text-dimmer`, with `· vN` after it when the version is above 1. The filename links to that
+  document's Fact Review, because that is where the match is rejected: `Undo` returns its card to a
+  candidate, then `Reject`.
+- **The conflict marker:** a mono label `Conflict · number differs` in `text-bright`, on its own line
+  above the match's claim. **It takes no semantic colour.** Green, amber and red mean Measured,
+  Generated and removed (`05` §9), and a conflict is none of those; its wording and weight carry it.
+- **No score and no percentage** (`05` §9, rule 12). Order is the only sign of which match is closer.
+- **Nothing on a resolved card.** The flag is settled on the open card; accepted and rejected cards
+  keep their collapsed form. A candidate with no employer shows no block, because matching is
+  within an employer; picking one on the card brings it.
 
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
 + `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough.
