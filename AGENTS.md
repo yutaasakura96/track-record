@@ -44,6 +44,9 @@ destroyed the dev session, profile, documents and renders. Two guards in `tests/
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
 **`track_record_dev` holds the author's real record, and production is not provisioned**, so until
 #40 moves it into Neon it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
+`npm run db:up` from any worktree mounts that same `track-record_pgdata` volume. To keep a task off it
+entirely, run a second stack under its own compose project (`docker compose -p <name>` with an override
+that `!override`s both ports) and point `TEST_DATABASE_URL` at it with `?proxyPort=<proxy port>`.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
@@ -94,6 +97,9 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 **Rules that are easy to break and expensive to fix:**
 
 - **Every query filters by `user_id`.** No exceptions. Asserted by test.
+- **A fact's employer resolves through `effectiveEmployerId`** (`src/server/services/employer.ts`),
+  not a new inline `coalesce`. #35 adds the document's employer there and moves the two readers still
+  resolving their own, `collectRenderInputs` and `scripts/check-attribution.mjs` (`docs/04` §3.12).
 - **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
 - **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
   Candidates that fail are discarded before they reach the database.

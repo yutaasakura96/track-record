@@ -40,6 +40,7 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     },
     technologies: [],
     isClientIdentifying: false,
+    likelyMatches: [],
     ...overrides,
   };
 }
@@ -497,5 +498,62 @@ describe("import states", () => {
 
     expect(await screen.findByText("1 candidate did not quote the document exactly and was discarded.")).toBeTruthy();
     expect(screen.getByText("2 candidates repeated facts already in your record and were not offered again.")).toBeTruthy();
+  });
+});
+
+describe("likely matches on the card", () => {
+  const MATCHED = fact("f-measured", "from 40 minutes to 9 minutes", {
+    employerId: "emp-test-1",
+    likelyMatches: [
+      {
+        id: "f-old-1",
+        claim: "Brought the zentrel batch down to 12 minutes",
+        document: { importId: "imp-old-1", filename: "qorvane-retelling.md", versionNo: 1 },
+        conflict: true,
+      },
+      {
+        id: "f-old-2",
+        claim: "Rewrote the zentrel batch",
+        document: { importId: "imp-old-2", filename: "zentrel-portfolio.md", versionNo: 3 },
+        conflict: false,
+      },
+    ],
+  });
+
+  it("shows each match's claim and document under the claim, and marks the conflict", async () => {
+    open([MATCHED, fact("f-attested", "weekly plinth review")]);
+    const block = within(await card("f-measured")).getByRole("region", { name: "Likely already in your record" });
+
+    const rows = [...block.querySelectorAll(":scope > div")].map((row) => row.textContent);
+    expect(rows).toEqual([
+      "Conflict · number differsBrought the zentrel batch down to 12 minutesqorvane-retelling.md",
+      "Rewrote the zentrel batchzentrel-portfolio.md · v3",
+    ]);
+    // The document links to where the other fact is settled.
+    expect(within(block).getByRole("link", { name: "qorvane-retelling.md" }).getAttribute("href")).toBe(
+      "/imports/imp-old-1",
+    );
+    // No semantic colour on the marker: red, amber and green mean removed,
+    // Generated and Measured, and a conflict is none of them (`docs/05` §9).
+    expect(within(block).getByText("Conflict · number differs").className).not.toMatch(/removed|generated|measured/);
+
+    expect(within(await card("f-attested")).queryByRole("region")).toBeNull();
+  });
+
+  it("leaves Accept and Reject as they are", async () => {
+    const { api, user } = open([MATCHED], {
+      routes: {
+        "POST /api/facts/f-measured/accept": { ...MATCHED, status: "accepted", likelyMatches: [] },
+        "POST /api/facts/f-measured/reject": { ...MATCHED, status: "rejected", likelyMatches: [] },
+      },
+    });
+    const matched = await card("f-measured");
+
+    await user.click(within(matched).getByRole("button", { name: "Accept" }));
+    await user.click(within(matched).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() =>
+      expect(api.writes()).toEqual(["POST /api/facts/f-measured/accept", "POST /api/facts/f-measured/reject"]),
+    );
   });
 });

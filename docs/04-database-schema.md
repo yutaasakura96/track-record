@@ -512,8 +512,9 @@ project clears its rows in the same batch instead (`06`, 2026-09-21).
 
 ### 3.12 M3 additions · specified 2026-09-28, not built
 
-The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet. Each
-change lands with the slice that first needs it.
+The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet, and
+the overlap flag, which is built, needs nothing in it. Each change lands with the slice that first
+needs it.
 
 **`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen at import, and
 changeable afterwards (decided 2026-09-28).
@@ -536,7 +537,7 @@ Today the resolution is not uniform: `collectEditableRecord` and the attribution
 `employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
 all read the one order above.
 
-**The overlap flag · decided 2026-09-28, built by #36.** A candidate is shown the existing facts at the same employer
+**The overlap flag · built by #36, 2026-09-28.** A candidate is shown the existing facts at the same employer
 that likely say the same thing, and a likely match with a different number is marked as a conflict
 (PRD §8). **It is computed on read and stored nowhere: no table and no column.** "Likely the same"
 is a lexical match between claims (`03` §5), and what a candidate is compared with changes with

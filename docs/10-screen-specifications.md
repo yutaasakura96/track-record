@@ -66,7 +66,7 @@ so the mark sits ~34% from the top. Both directions are required.
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
 
-**Overlap on the card · M3, decided 2026-09-28, built by #36.** A candidate with likely matches
+**Overlap on the card · M3, built by #36, 2026-09-28.** A candidate with likely matches
 among the accepted facts at the same employer shows them on the card, beside its claim: each
 match's claim and the document it came from, and a **conflict** marker when the match's number
 differs (PRD §8). The flag is advisory. It changes nothing about Accept or Reject, which are how the

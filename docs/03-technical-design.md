@@ -105,6 +105,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   ├── pipeline/               # Workflow definitions
 │   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
 │   ├── diff/                   # paragraph alignment + token diff
+│   ├── overlap/                # likely matches and conflicts between claims (§5)
 │   └── segment/                # BudouX wrapper
 ├── tests/
 └── wrangler.toml
@@ -250,7 +251,8 @@ extraction.
 **Zero facts extracted is a failure, not an empty success** (PRD §7). The document is retained and
 the author can retry or capture manually.
 
-**Two M3 additions, specified 2026-09-28 and not built** (decision log, 2026-09-28):
+**Two M3 additions, specified 2026-09-28** (decision log, 2026-09-28). The first is not built; the
+second is:
 
 - **A document can carry an employer, set at import and changeable after it.** A fact's employer is
   **read through its document**, not copied onto it: step 9 still persists every candidate with no
@@ -261,7 +263,7 @@ the author can retry or capture manually.
   resolves a fact's employer (the render, Version Edit, the attribution check and the overlap
   matcher) reads the same order: the fact's hand-set employer, then its document's, then its
   project's (decision log, 2026-09-28).
-- **Overlap with facts already in the record is flagged, not deduplicated.** Step 8 only catches
+- **Overlap with facts already in the record is flagged, not deduplicated · built (#36).** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A
   candidate is shown the existing facts at the same employer that likely say the same thing, and a
   likely match with a different number is marked as a conflict (PRD §8). The author settles it with
@@ -479,7 +481,7 @@ by blocking generation on missing fields, and by warning on unexplained gaps. M2
 
 | # | Item | Status |
 |---|---|---|
-| 1 | **Cross-document numeric conflicts** — PRD §8 requires two documents asserting different numbers for the same thing to be surfaced. Needs a notion of "the same thing" across documents | **Moved to M3, 2026-09-28**, with the back-catalogue import, where it first arises. Surfaced as a flag on the Fact Review card and settled by Accept and Reject (§5). **"The same thing" decided 2026-09-28:** a lexical match between claims at the same employer, computed on read (§5). Its known limit is a restatement in the other language |
+| 1 | **Cross-document numeric conflicts** — PRD §8 requires two documents asserting different numbers for the same thing to be surfaced. Needs a notion of "the same thing" across documents | **Closed 2026-09-28 by #36.** Surfaced as a flag on the Fact Review card and settled by Accept and Reject (§5). "The same thing" is a lexical match between claims at the same employer, computed on read (§5). Its known limit is a restatement in the other language |
 | 2 | **`docx` / `docxtemplater` on Workers** — both assume Node | **Closed 2026-09-08.** Both run on workerd unmodified, under the suite and under `wrangler dev`. `docx` is exercised end to end by `smoke.test.ts`; `docxtemplater` by `rirekisho-template.test.ts`, which fills the committed 履歴書 template. No fallback needed |
 | 3 | **Workers CPU budget for `.docx` assembly and long diffs** — **verified**: paid plan gives 30 s CPU per invocation, raisable to **5 minutes** via `limits.cpu_ms`; subrequests 10,000, raisable to 10M. Generous, but a high ceiling does not prove our code fits under it | Measure during M1 |
 | 3b | **Anthropic strict-schema complexity limits** — ~24 optional parameters combined across all strict schemas per request, plus internal compiled-grammar limits, returning `400 "Schema is too complex for compilation."` | Headroom, not a risk — **provided extraction stays one small, mostly-required strict tool** |
@@ -506,7 +508,6 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 
 | # | Item | Trigger / note |
 |---|---|---|
-| 1 | **Cross-document numeric conflicts** — two documents asserting different numbers for the same thing | Moved from M2, 2026-09-28. Built with the back-catalogue import as an overlap flag on the Fact Review card (§5). The matcher is a lexical match on claims, computed on read (decided 2026-09-28) |
 | 8 | **Quick capture** — free text in, Attested facts out | S12. The one screen that may justify a narrow mobile surface. Follows the back-catalogue import (`06`, 2026-09-28) |
 
 **Promoted out of M3 into M1:** `GET /api/export` (S15), formerly row 9. Neon's free plan retains a

@@ -427,13 +427,14 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   until one is set on the fact by hand, and a hand set, `No employer` included, then outlasts any
   change to the document's employer (`04` §3.12). How the fact list tells a hand-set employer from a
   resolved one is specified with the build (#35).
-- **`likelyMatches` · M3, decided 2026-09-28, built by #36.** A candidate carries the accepted
+- **`likelyMatches` · M3, built by #36, 2026-09-28.** A candidate carries the accepted
   facts at the same employer that likely say the same thing, at most three, best first (PRD §8), so
   Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, the `document` it
   was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
   `conflict`, true when both claims carry numbers and neither's numbers contain the other's.
   **Computed on every read and stored nowhere**, by a lexical match between claims (`03` §5), so a
-  match the author rejects is gone from the next response. "The same employer" is the fact's own,
+  match the author rejects is gone from the next response. `PATCH`, `accept`, `reject` and `undo`
+  answer with the fact's list computed the same way. "The same employer" is the fact's own,
   then its project's (`04` §3.12); a candidate whose employer resolves to neither has an empty list,
   as do accepted and rejected facts. Like the rest of this response it carries ids and claims, never
   `quote` text, and **no score**: how alike two claims are is not in the contract, for the reason no
