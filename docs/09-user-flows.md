@@ -147,7 +147,11 @@ diff-against-previous baseline is correct on the next import.
 
 ---
 
-## Flow 7 · Bootstrap the record from documents you already have · M2
+## Flow 7 · Bootstrap the record from documents you already have · in reserve, not built
+
+> **Not built, and not planned.** The 2026-09-06 decision-log entry made entities hand-entered
+> through the S7 forms and kept this import unbuilt, in reserve, for the case where hand-entry
+> hurts. The flow below is kept as the specification to reach for then.
 
 **The author does not start from an empty record.** A 履歴書 already lists every employer with its
 industry and dates, every school with 入学 and 卒業, and every certification with its issue date.
@@ -185,7 +189,11 @@ resumes where it left off.
 
 ---
 
-## Flow 8 · Import several documents in one sitting · M2
+## Flow 8 · Import several documents in one sitting · not built
+
+> **Deferred, 2026-09-28.** The back-catalogue portfolios are imported one at a time through the
+> Documents screen. Whether this queue, or the Message Batches path behind it, is built for the rest
+> is decided once the first portfolio's token usage has been measured (decision log, 2026-09-28).
 
 1. Author selects multiple files, or drops several onto the target.
 2. Each becomes its own import, queued. **Extraction runs one at a time**, not in parallel — the

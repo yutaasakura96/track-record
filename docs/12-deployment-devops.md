@@ -14,6 +14,11 @@
 | **Local** | `wrangler dev` on the author's machine | Docker Postgres `track_record_dev` through the local Neon HTTP proxy; a separate Neon development branch is optional | Development |
 | **Production** | Cloudflare Workers, custom domain | Neon `main` | The real record |
 
+> **Status, 2026-09-28: production is not provisioned, and the real record is in the local
+> `track_record_dev`**, where it has been since 2026-09-04. It moves to Neon `main` by `pg_dump`
+> (§5), after the rehearsals in §4 have run on the empty production project. Until then that local
+> database is the only copy, and the separation in §8 is what protects it.
+
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
 place to try a schema change — is bought instead by Neon branching, which is instant, free, and
@@ -53,6 +58,10 @@ any attack. Mitigations: `.dev.vars` and `local/` gitignored, secret scanning en
 repository, and a pre-commit hook that rejects a staged file containing a high-entropy string
 matching known key prefixes.
 
+> **Status, 2026-09-28: the pre-commit hook is not in this repository.** `core.hooksPath` points at
+> a machine-level hooks directory, and whether it rejects key prefixes is **unverified**. GitHub
+> secret scanning and push protection are enabled on the repository.
+
 ---
 
 ## 3. Deploying
@@ -65,8 +74,15 @@ matching known key prefixes.
 3. drizzle-kit migrate  → Neon main
 4. vite build           → static assets
 5. wrangler deploy      → Cloudflare Workers
-6. Smoke check: GET /api/health returns 200 and reports the deployed commit SHA
+6. Smoke check: GET / serves the SPA shell carrying the deployed commit SHA,
+   and an /api/* route answers 401 without a session
 ```
+
+**There is no health route** (decision log, 2026-09-28). The build bakes the commit SHA into the SPA
+shell, and step 6 compares it with the commit the job deployed. The `401` proves the Worker and the
+auth middleware are live behind the assets. A public `/api/health` would be a second exception to
+deny-by-default (`07` §1), which allows `/api/auth/*` and nothing else. The check does not prove the
+database answers; step 3 is what touches Neon.
 
 Migrations run **before** the Worker deploys, so the new code never meets an old schema. This makes
 **backward-compatible migrations mandatory**: add columns before writing to them, and never drop a
@@ -100,6 +116,11 @@ procedure that has never been run is a hypothesis.
 > This is the one M1 exit criterion still open — the restore drill in §5 is built and passing.
 > **Rehearse it immediately after the first deploy**, on a dev branch, before any real record
 > exists to lose.
+>
+> **Superseded 2026-09-28 on where and when.** A real record now exists, in the local database (§1),
+> and dev branches have no point-in-time restore (§5). Both rehearsals run **on the fresh production
+> project, after the first deploy and before the record moves in**, as their own owner-run issue,
+> separate from the deploy automation. Until they have run, this M1 exit criterion is still open.
 
 ---
 
@@ -130,7 +151,7 @@ record ever starts feeling irreplaceable.
 **A restore is tested once before M1 is done** — restore a branch to a point in time, confirm the
 record is intact. Untested backups are not backups.
 
-**And then monthly, automatically — the restore drill.** Decided 2026-08-29. A scheduled job loads
+**And then monthly — the restore drill.** Decided 2026-08-29. A scheduled job loads
 the most recent `GET /api/export` output into a scratch database and asserts row counts per table
 and referential integrity across every foreign key. It fails loudly. This is what converts the
 six-hour window from a risk that is *accepted* into one that is *tested*: the export is the only
@@ -144,6 +165,11 @@ every foreign key, and the Measured-facts-carry-evidence invariant. It runs thro
 than the application's own driver, deliberately: a restore must not depend on the application being
 able to run.
 
+> **Status, 2026-09-28: the drill is manual, and stays manual for now.** No scheduled job runs it. It
+> needs an export file taken from the author's signed-in session, so a scheduled job could not run
+> it as described above. Automating it is revisited once the record has moved into production
+> (decision log, 2026-09-28).
+
 > **What an export cannot restore, and why that is correct.** Source documents never render, export,
 > or appear in any output (PRD §6.1), so `extracted_text` and `original_bytes` are not in the file.
 > Versions restore as **evidence stubs** — `import_status = 'failed'` with a stated reason — and the
@@ -152,6 +178,19 @@ able to run.
 > re-verified against it. The author holds those originals; they are what the corpus is.
 >
 > Stated plainly: an export restores **the record**, not the documents the record was read from.
+
+**Moving the record into production (decided 2026-09-28).** Because an export does not carry the
+source documents, it is not how the record reaches production. The record moves once, by
+`pg_dump` of the local `track_record_dev`, restored into Neon `main`. It is the only lossless path.
+
+- **Order:** after the first deploy and after both rehearsals in §4, so the only copy of the record
+  is never the one a rehearsal restores.
+- **The dump is made outside the repository and is never committed.** It is deleted once the
+  restore has been checked. It holds the author's PII and NDA-bound material, like `DATABASE_URL`
+  itself (§6).
+- **The owner runs it**, because it needs the production `DATABASE_URL`. The exact order against the
+  deploy job's migrations, and how the restore is checked, are written down in the deploy issue
+  (#34).
 
 ---
 
@@ -183,7 +222,7 @@ notice an outage. Alerting on uptime would be alerting the person already using 
 | Worker errors and CPU time | Cloudflare dashboard | CPU headroom for `.docx` assembly is an open question (`03` §11) |
 | Failed Workflow instances | Cloudflare Workflows dashboard | A silently failing import is invisible from inside the app |
 | Neon storage and compute hours | Neon dashboard | Free-tier ceiling |
-| `GET /api/health` | Returns 200 + commit SHA | Confirms *which build* is live — the question you ask when behaviour is unexplained |
+| The commit SHA in the SPA shell | `GET /` (§3 step 6) | Confirms *which build* is live — the question you ask when behaviour is unexplained. Not a route: deny-by-default allows none (decision log, 2026-09-28) |
 
 **How the author finds out something broke:** by using the app, which is acceptable at one user and
 **stops being acceptable at the first invited second user** — at which point error alerting becomes
