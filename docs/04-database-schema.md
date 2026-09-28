@@ -512,8 +512,9 @@ project clears its rows in the same batch instead (`06`, 2026-09-21).
 
 ### 3.12 M3 additions · specified 2026-09-28, not built
 
-The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet. Each
-change lands with the slice that first needs it.
+The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet, and
+the overlap flag, which is built, needs nothing in it. Each change lands with the slice that first
+needs it.
 
 **`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen at import, and
 changeable afterwards (decided 2026-09-28).
@@ -536,14 +537,23 @@ Today the resolution is not uniform: `collectEditableRecord` and the attribution
 `employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
 all read the one order above.
 
-**The overlap flag.** A candidate is shown the existing facts at the same employer that likely say
-the same thing, and a likely match with a different number is marked as a conflict (PRD §8). **Its
-storage is undecided.** It may be computed on read, which needs no table. A stored flag would be a
-table of `(user_id, fact_id, other_fact_id, is_conflict)` pairs. The choice follows from how "likely
-the same" is computed, which is the first question of the slice that builds it (#36). Either way a
-flag is advisory: it is never a status and never blocks Accept. **It is built before the document
-employer above** (`06`, 2026-09-28), so "the same employer" starts as the fact's own, then its
-project's, and the document joins that order when #35 lands.
+**The overlap flag · built by #36, 2026-09-28.** A candidate is shown the existing facts at the same employer
+that likely say the same thing, and a likely match with a different number is marked as a conflict
+(PRD §8). **It is computed on read and stored nowhere: no table and no column.** "Likely the same"
+is a lexical match between claims (`03` §5), and what a candidate is compared with changes with
+every accept, reject, claim edit and employer pick, so a stored pair would go stale
+(`06`, 2026-09-28). The `(user_id, fact_id, other_fact_id, is_conflict)` table once sketched here is
+not built. A flag is advisory: it is never a status and never blocks Accept.
+
+What it reads, all filtered by `user_id`: the candidates on the requested page, and every
+`status = 'accepted'` fact whose employer resolves to one of theirs, with its document's filename
+and version. The candidate's own document is not excluded. Rejected facts and other candidates are
+not in the comparison.
+
+**It is built before the document employer above** (`06`, 2026-09-28), so "the same employer" is
+the fact's own, then its project's. That order is one SQL expression, `effectiveEmployerId` in
+`src/server/services/employer.ts`, which Version Edit reads too, and #35 adds the document to it
+there.
 
 ---
 

@@ -33,8 +33,9 @@ import {
   type Employer,
   type Fact,
   type ImportStatus,
+  type LikelyMatch,
 } from "../api";
-import { Button, Chip, FilterPill, Mono, Notice, ProgressBar, SegmentedControl } from "../components/ui";
+import { Button, Chip, FilterPill, Mono, MonoId, Notice, ProgressBar, SegmentedControl } from "../components/ui";
 import { useReviewStore, type FactFilter } from "../stores/review";
 import { revealInBand, scrollToBand } from "../scroll";
 import { relative } from "../format";
@@ -605,6 +606,8 @@ function FactCard({
         {fact.claim}
       </div>
 
+      {fact.likelyMatches.length > 0 ? <LikelyMatches matches={fact.likelyMatches} /> : null}
+
       {isGenerated ? (
         <div className="mt-10">
           <Notice tone="generated">
@@ -669,6 +672,48 @@ function FactCard({
         </Button>
       </div>
     </article>
+  );
+}
+
+/**
+ * Overlap on the card (`docs/10` Screen 1, issue #36): the accepted facts at the
+ * same employer this candidate likely restates, directly under its claim so the
+ * two read as a pair.
+ *
+ * Advisory. It changes nothing about Accept or Reject, which are how it is
+ * settled — the document link goes to where the other fact is rejected. A
+ * conflict takes no semantic colour: green, amber and red already mean
+ * Measured, Generated and removed, and a conflict is none of them. No score is
+ * shown because none is sent; order is the only sign of which is closer.
+ */
+function LikelyMatches({ matches }: { matches: LikelyMatch[] }) {
+  return (
+    <section
+      aria-label="Likely already in your record"
+      className="mt-10 border-l border-border-strong pl-10 grid gap-8"
+    >
+      <Mono className="text-text-faint">Likely already in your record</Mono>
+      {matches.map((match) => (
+        <div key={match.id} className="grid gap-2">
+          {match.conflict ? (
+            <Mono className="font-medium text-text-bright">Conflict · number differs</Mono>
+          ) : null}
+          <p className="text-small text-text-secondary">{match.claim}</p>
+          {match.document ? (
+            <Link
+              to="/imports/$importId"
+              params={{ importId: match.document.importId }}
+              className="justify-self-start text-text-dimmer hover:text-text-secondary"
+            >
+              <MonoId>
+                {match.document.filename}
+                {match.document.versionNo > 1 ? ` · v${match.document.versionNo}` : ""}
+              </MonoId>
+            </Link>
+          ) : null}
+        </div>
+      ))}
+    </section>
   );
 }
 

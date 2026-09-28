@@ -172,6 +172,20 @@ And no rejected fact is re-offered
 And an unchanged re-import extracts zero candidates and is NOT reported as a failure
 ```
 
+### 2.6b A restatement is flagged, and never across an employer or a user
+
+`tests/overlap.test.ts` over HTTP, `tests/overlap-matcher.test.ts` on the matcher alone (#36).
+
+```
+Given an accepted fact at one employer, and a candidate from another document restating it
+When the candidate is read
+Then it carries the accepted fact as a likely match, with its claim and document and no quote
+And a match whose number differs is marked as a conflict
+And a fact at another employer, or another user's fact naming this employer, is never a match
+And an exact repeat is still suppressed by dedupe before it becomes a candidate
+And Accept and Reject behave as they do without a flag, and a rejected match drops off the card
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

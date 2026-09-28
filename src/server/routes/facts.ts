@@ -6,7 +6,8 @@
  *
  * **The quote text is not returned.** The client already has the source text
  * and the offsets; sending the quote again would duplicate record content into
- * another response.
+ * another response. The same holds for a candidate's likely matches: ids,
+ * claims and documents, never a quote and never a score.
  */
 import type { Hono } from "hono";
 import { and, asc, eq, gt, sql, type SQL } from "drizzle-orm";
@@ -15,6 +16,7 @@ import { facts } from "../db/schema";
 import { notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
+import { likelyMatchesFor, type LikelyMatchResponse } from "../services/overlap";
 import { requireOwnedEmployer } from "./record";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
@@ -69,8 +71,10 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       .limit(PAGE_SIZE + 1);
 
     const page = rows.slice(0, PAGE_SIZE);
+    // Advisory, computed on this read and stored nowhere (`docs/04` §3.12).
+    const matches = await likelyMatchesFor(c.get("db"), user.id, page);
     return c.json({
-      items: page.map(toResponse),
+      items: page.map((fact) => toResponse(fact, matches.get(fact.id) ?? [])),
       nextCursor: rows.length > PAGE_SIZE ? (page[page.length - 1]?.id ?? null) : null,
     });
   });
@@ -104,7 +108,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
       .returning();
-    return c.json(toResponse(updated!));
+    return c.json(await withMatches(db, user.id, updated!));
   });
 
   /**
@@ -145,7 +149,13 @@ async function resolve(
     })
     .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
     .returning();
-  return c.json(toResponse(updated!));
+  return c.json(await withMatches(db, user.id, updated!));
+}
+
+/** One fact after a write, its likely matches read the way the list reads them. */
+async function withMatches(db: Db, userId: string, fact: typeof facts.$inferSelect) {
+  const matches = await likelyMatchesFor(db, userId, [fact]);
+  return toResponse(fact, matches.get(fact.id) ?? []);
 }
 
 async function requireFact(db: Db, userId: string, id: string) {
@@ -167,8 +177,11 @@ const hasEvidence = (fact: typeof facts.$inferSelect) =>
 /**
  * `evidence` is `null` for a fact with no verbatim support — the card renders
  * the dashed amber treatment and the promotion warning from that.
+ *
+ * `likelyMatches` is empty on anything but a candidate: the flag is settled on
+ * the open card (`docs/10` Screen 1).
  */
-export function toResponse(fact: typeof facts.$inferSelect) {
+export function toResponse(fact: typeof facts.$inferSelect, likelyMatches: LikelyMatchResponse[]) {
   return {
     id: fact.id,
     claim: fact.claim,
@@ -188,6 +201,7 @@ export function toResponse(fact: typeof facts.$inferSelect) {
       : null,
     technologies: fact.technologies,
     isClientIdentifying: fact.isClientIdentifying,
+    likelyMatches,
   };
 }
 

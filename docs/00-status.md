@@ -22,16 +22,13 @@ are marked as the owner's in each issue.
   rollback and point-in-time restore on the empty production project and moves the record in by
   `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay open until #40 closes.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
-- **The back-catalogue import (M3)**, in order: #36 overlap flags on the Fact Review card, which
-  opens by settling how "likely the same" is computed; #35 the document-level employer and the first
-  portfolio; #37 re-grading the 112 agent-graded facts; #38 the remaining portfolios; #39 all five
+- **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
+  portfolio, the first review to use #36's overlap flag; #37 re-grading the 112 agent-graded facts; #38 the remaining portfolios; #39 all five
   renders regenerated.
 
 ## Blocked
 
-- #35 and everything after it wait on go-live, because the import lands in production (#34, #40),
-  and #35 also waits on #36, so the first portfolio's review is the first to use the overlap flag.
-  #36 waits on nothing.
+- #35 and everything after it wait on go-live, because the import lands in production (#34, #40).
 
 ## Carrying
 

@@ -4604,3 +4604,90 @@ Neither is worth building while the record is still local and production has nev
 
 **Revisit when the record has moved into production (#40).** That is when the export stops being a
 copy of a local database the author can dump directly, and a missed month starts to matter.
+
+### [2026-09-28] "Likely the same" is a lexical match on claims, computed on read and stored nowhere
+
+#36 opens with the question the planning left open (C3, and the entries above): how a candidate's
+likely matches are found, and whether the flag is stored. This entry answers it before the matcher
+is built.
+
+**A lexical match between claims, computed when the fact list is read.** For each candidate on the
+page whose employer resolves, the matcher compares its claim with the claim of every accepted fact
+the same user holds at that employer. The score is a weighted overlap of the words the two claims
+share: Latin words lightly stemmed, Japanese as pairs of kanji and katakana, and the fact's named
+technologies. A word common at that employer counts for little and a rare one for a lot. Numbers
+are set aside and compared on their own. A pair is a likely match above one threshold, or above a
+lower one when the two claims share a figure other than a year. **A likely match is a conflict when
+both claims carry numbers and neither's set of numbers contains the other's**, so "to 90 minutes"
+beside "from 6 hours to 90 minutes" is not a conflict and "to 80 minutes" is. At most three are
+shown, best first. The matcher is `src/overlap/`, a pure function, and the thresholds are its
+constants.
+
+**Why on read.** What the flag is computed against changes while the author works, and it changes
+through the very actions that settle it. A candidate is written with no employer: the author sets
+one on the card, and from #35 it reads through a document whose employer can change. Accepting a
+fact adds it to what every other candidate at that employer is compared with, rejecting one takes it
+away, and editing a claim changes one side of every pair it is in. A stored pair goes stale after
+each of those, and each would need its own invalidation. Computed on read, nothing goes stale. A
+match the author rejects drops off the card on the next read, which is what makes Reject the
+settlement. No table is added, so the `(user_id, fact_id, other_fact_id, is_conflict)` shape `04`
+§3.12 sketched is not built. The work is small: one user, one employer, a few hundred claims at
+most. Measured on invented claims, 100 candidates against a pool of 400 took about 10 ms.
+
+**Why not a model call.** A call on every read cannot sit in the fact list's path, which polls
+while an import runs. A call at import time would have to be stored, which brings back every kind of
+staleness above. Before #35 it would also run before any candidate has an employer to be scoped by.
+Rerunning it on each employer pick or claim edit puts a model call behind `PATCH /api/facts/:id`, or
+needs a background job that does not exist. It would add a third function to a seam that has two
+(`03` §4), and the flag it serves is advisory. Cost did not decide it: at a portfolio's size a call
+costs cents either way.
+
+**Why lexical is enough here.** It compares claims, never quotes. Both sides of every pair were
+written by the same extraction prompt, which states a claim plainly in one sentence. By the time the
+matcher sees a first-person retelling and a portfolio, both have been reduced to sentences like
+"Reduced nightly batch runtime from 6 hours to 90 minutes", and most of the distance between them is
+gone. The number a conflict turns on is also the part of a claim a lexical match reads most
+reliably. And since the flag is advisory, the thresholds lean toward showing a match: a wrong match
+costs the author a glance, and a missed one costs a duplicate the author may still catch by reading.
+
+**The known limit is language.** A restatement in the other language, an English claim beside a
+Japanese one, shares only its numbers and technology names and is not found. A paraphrase that
+shares few words is missed in the same way. The extraction prompt does not fix the language a claim
+is written in. Whether the portfolios' claims come back in the narrative's language is
+**unverified**, because nothing in `local/` was read to find out.
+
+**Alternatives rejected.** A model call alone, for the reasons above. Both at once, a lexical
+shortlist confirmed by a model, was also rejected for now. It is the upgrade if the language limit
+bites: the model judges the shortlist, and the response shape does not change. Embeddings would add
+a second provider when Anthropic is the only one (2026-09-21), and stored embeddings have the same
+staleness problem. `pg_trgm` in SQL would score English and Japanese on one character-trigram
+measure, needs an extension installed on Neon, and is harder to test than a pure function.
+
+**What else this settles.**
+
+- **"Existing facts" means the user's accepted facts at the same employer**, including accepted
+  facts from the candidate's own document. Candidates are not in the record yet, and rejected facts
+  are out of it, which is what lets Reject settle a flag. The candidate's own document is included
+  because a portfolio that says one thing twice would count it twice in a render.
+- **A candidate whose employer does not resolve shows no matches.** Matching at "the same employer"
+  needs an employer. Before #35 that means the author picks one on the card, or files the document under a project
+  that has one. Accepted and
+  rejected facts carry an empty list, because the flag is settled on the open card.
+- **The employer resolves in one SQL expression**, `effectiveEmployerId` in
+  `src/server/services/employer.ts`: the fact's own employer, then its project's. Version Edit's
+  `collectEditableRecord` now reads it too. #35 inserts the document between the two, there and
+  nowhere else. `collectRenderInputs` and `scripts/check-attribution.mjs` are still #35's to move.
+- **Each fact in the list carries `likelyMatches`**: for each match its id, its claim, its document
+  (import id, filename, version, or null for a fact with no source) and `conflict`. It carries no
+  score, by the same rule that keeps a confidence out of the fact itself (2026-08-12), and no
+  `quote`.
+- **Nothing is logged.** The matcher writes no log line, so no claim can reach one.
+- **The conflict marker takes no semantic colour.** Green, amber and red mean Measured, Generated and
+  removed (`05` §9), and a conflict is none of those. It is carried by its wording and its weight.
+
+`docs/02` §8, `03` §5 and §11, `04` §3.12, `07` §6, `10` Screen 1 and `CONTEXT.md` now say this.
+
+**Revisit if:** the first portfolio's review finds restatements by reading that the card did not
+show, or its claims come back in a different language from the narrative's. The model confirmation
+above is then the next step. Also revisit if the card shows so many matches that they become noise,
+the trigger the 2026-09-28 entry on overlap already names.
