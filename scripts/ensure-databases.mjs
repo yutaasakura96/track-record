@@ -7,7 +7,7 @@
  * one database and the suite would go on sharing it with the dev worker. This
  * runs on every `npm run db:up` instead, and does nothing when both exist.
  *
- * It never drops anything. `npm run db:down` is what removes the volume.
+ * It never drops anything. Only a confirmed `npm run db:reset` removes the volume.
  */
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";

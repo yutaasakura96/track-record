@@ -1,10 +1,27 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
+import { buildSha } from "./scripts/build-sha";
+import { BUILD_SHA_META } from "./scripts/smoke-check-core";
+
+/**
+ * The commit this shell was built from, which the deploy job's smoke check
+ * compares with the commit it deployed (`docs/12` §3 step 6). A meta tag rather
+ * than a route: deny-by-default allows none (`docs/06`, 2026-09-28).
+ */
+function buildShaMeta(): Plugin {
+  const sha = buildSha();
+  return {
+    name: "build-sha",
+    transformIndexHtml: () => [
+      { tag: "meta", attrs: { name: BUILD_SHA_META, content: sha }, injectTo: "head" },
+    ],
+  };
+}
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), buildShaMeta()],
   root: "src/client",
   build: { outDir: "../../dist/client", emptyOutDir: true },
   resolve: {

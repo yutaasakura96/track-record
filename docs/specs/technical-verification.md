@@ -396,7 +396,7 @@ transaction support.
 
 | # | Spike | Blocks |
 |---|---|---|
-| B | `docx` / `docxtemplater` on Workers | M2 |
+| ~~B~~ | ~~`docx` / `docxtemplater` on Workers~~ | ✅ **closed 2026-09-08** — both run on workerd (`docs/06`) |
 | C | `.docx` assembly inside the CPU budget | M1 measurement |
 | D | Citations alongside *strict tool use* (optional redundancy) | nothing |
 | ~~14~~ | ~~Drizzle `db.transaction()` on `neon-http`~~ | ✅ **resolved 2026-08-12 from source** |

@@ -46,6 +46,70 @@ jobs:
           "
       - name: Test
         run: npm test
+      # docs/06, 2026-09-28: the pgdata volume holds the only copy of the record
+      # locally, so db:down must leave it and an unconfirmed db:reset must refuse.
+      # Proved on this job's own stack: the databases db:up created are still
+      # there after both, with no `created` line on the way back up.
+      - name: db:down and an unconfirmed db:reset keep the volume
+        run: |
+          npm run db:down
+          test -n "$(docker volume ls -q --filter label=com.docker.compose.volume=pgdata)"
+          if npm run db:reset; then echo "db:reset ran without confirmation"; exit 1; fi
+          test -n "$(docker compose ps -q)" && { echo "db:reset touched the stack"; exit 1; }
+          npm run db:up | tee up.log
+          grep -q "track_record_dev *present" up.log
+          grep -q "track_record_test *present" up.log
       - name: Proxy logs on failure
         if: failure()
         run: docker compose logs --tail 200
+      # The production build and bundle on every branch, so a bundling break shows
+      # on a develop PR rather than in the deploy job. --dry-run uploads nothing
+      # and needs no Cloudflare credential.
+      - name: Build
+        run: npm run build
+      - name: Check the build is in the shell
+        run: npx tsx scripts/smoke-check.ts --built dist/client/index.html
+      - name: Bundle the Worker
+        run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
+
+  # docs/12 §3: every push to main deploys production — migrate Neon main, build,
+  # wrangler deploy, smoke check — after `ci` has passed on the same commit.
+  # A PR into main runs `ci` only. Secrets come from the `production` environment,
+  # which only main can deploy to; no value is ever echoed.
+  deploy:
+    needs: ci
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    # One deploy at a time, and never cancel one halfway through a migration.
+    concurrency:
+      group: production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # Before the Worker deploys, so new code never meets an old schema. This is
+      # why migrations must be backward compatible (docs/12 §3).
+      - name: Migrate Neon main
+        run: npx drizzle-kit migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      - name: Build
+        run: npm run build
+      # Wrangler appends the URLs it deployed to (the workers.dev address) to
+      # this file, which the smoke check reads.
+      - name: Deploy
+        run: npx wrangler deploy --message "${{ github.sha }}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.json
+      # GET / must carry this commit's SHA and load its entry module, and
+      # /api/overview must answer the application's own 401 (docs/12 §3 step 6).
+      - name: Smoke check
+        run: npx tsx scripts/smoke-check.ts --wrangler-output "$RUNNER_TEMP/wrangler-output.json"

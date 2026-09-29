@@ -245,6 +245,10 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `filename` | text | no | Displayed in the fact-review breadcrumb |
 | `mime_type` | text | no | |
 
+**M3 addition, specified 2026-09-28 and not built:** a nullable `employer_id` (FK → `employers.id`
+**restrict**), set at import and changeable after it. Facts extracted from the document read their
+employer through it unless one was set on the fact by hand (§3.12).
+
 **`source_document_versions`** — one row per import of the same file.
 
 | Column | Type | Null | Notes |
@@ -309,7 +313,7 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `id` | text | no | `nanoid()` | PK |
 | `user_id` | text | no | — | FK → `users.id` **cascade** |
 | `project_id` | text | yes | — | FK → `projects.id` **restrict** |
-| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries |
+| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries. Null on every extracted fact today. From M3 it holds only an employer set on the fact by hand; otherwise the fact reads its document's employer, then its project's (§3.12) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
 | `provenance` | provenance | no | `'generated'` | **Anything a model produces starts Generated** |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy** |
@@ -505,6 +509,51 @@ inclusion for employment, education and project entries. **履歴書 defaults to
 absence of a row means included (S13). Excluding never deletes or hides the underlying record.
 `entity_id` names three tables and so carries no foreign key; deleting an employer, education or
 project clears its rows in the same batch instead (`06`, 2026-09-21).
+
+### 3.12 M3 additions · specified 2026-09-28, not built
+
+The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet, and
+the overlap flag, which is built, needs nothing in it. Each change lands with the slice that first
+needs it.
+
+**`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen at import, and
+changeable afterwards (decided 2026-09-28).
+
+**A fact's employer is read through its document, not copied onto it.** A candidate is written with
+no employer of its own, as today. Its employer resolves, everywhere it is read, as the first of:
+
+1. the employer set on the fact by hand, through the card's picker (`PATCH /api/facts/:id`);
+2. its document's `employer_id`;
+3. its project's `employer_id`.
+
+So changing a document's employer moves every fact that reads through it, and there is no copy to
+fall behind. **A fact whose employer was set by hand keeps it**, and that includes a hand-set
+`No employer`. A null `facts.employer_id` therefore cannot by itself mean "read through"; how a hand
+set is recorded is specified with the slice that adds the column (#35). When the document's and the
+project's employers differ, the document's wins (`06`, 2026-09-28).
+
+Today the resolution is not uniform: `collectEditableRecord` and the attribution check use
+`coalesce(facts.employer_id, projects.employer_id)`, and `collectRenderInputs` passes the fact's own
+`employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
+all read the one order above.
+
+**The overlap flag · built by #36, 2026-09-28.** A candidate is shown the existing facts at the same employer
+that likely say the same thing, and a likely match with a different number is marked as a conflict
+(PRD §8). **It is computed on read and stored nowhere: no table and no column.** "Likely the same"
+is a lexical match between claims (`03` §5), and what a candidate is compared with changes with
+every accept, reject, claim edit and employer pick, so a stored pair would go stale
+(`06`, 2026-09-28). The `(user_id, fact_id, other_fact_id, is_conflict)` table once sketched here is
+not built. A flag is advisory: it is never a status and never blocks Accept.
+
+What it reads, all filtered by `user_id`: the candidates on the requested page, and every
+`status = 'accepted'` fact whose employer resolves to one of theirs, with its document's filename
+and version. The candidate's own document is not excluded. Rejected facts and other candidates are
+not in the comparison.
+
+**It is built before the document employer above** (`06`, 2026-09-28), so "the same employer" is
+the fact's own, then its project's. That order is one SQL expression, `effectiveEmployerId` in
+`src/server/services/employer.ts`, which Version Edit reads too, and #35 adds the document to it
+there.
 
 ---
 

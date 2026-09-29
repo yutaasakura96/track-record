@@ -66,6 +66,30 @@ so the mark sits ~34% from the top. Both directions are required.
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
 
+**Overlap on the card · M3, built by #36, 2026-09-28.** A candidate with likely matches
+among the accepted facts at the same employer shows them on the card, beside its claim: each
+match's claim and the document it came from, and a **conflict** marker when the match's number
+differs (PRD §8). The flag is advisory. It changes nothing about Accept or Reject, which are how the
+author settles it: when a portfolio restates a narrative fact, the portfolio's fact is accepted and
+the narrative one rejected (decision log, 2026-09-28). There is no merge action. A card with no
+likely matches shows nothing, not an empty block.
+
+- **Placement:** directly under the claim, above the Generated warning and the controls, so the two
+  claims read as a pair.
+- **The block:** a left rule in `border-strong`, `10px` in from it. A mono label, `Likely already in
+  your record` (`text-faint`). Then one row per match, at most three, best first: the match's claim
+  at `text-small` in `text-secondary`, and under it the document's filename as a mono identifier in
+  `text-dimmer`, with `· vN` after it when the version is above 1. The filename links to that
+  document's Fact Review, because that is where the match is rejected: `Undo` returns its card to a
+  candidate, then `Reject`.
+- **The conflict marker:** a mono label `Conflict · number differs` in `text-bright`, on its own line
+  above the match's claim. **It takes no semantic colour.** Green, amber and red mean Measured,
+  Generated and removed (`05` §9), and a conflict is none of those; its wording and weight carry it.
+- **No score and no percentage** (`05` §9, rule 12). Order is the only sign of which match is closer.
+- **Nothing on a resolved card.** The flag is settled on the open card; accepted and rejected cards
+  keep their collapsed form. A candidate with no employer shows no block, because matching is
+  within an employer; picking one on the card brings it.
+
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
 + `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough.
 
@@ -209,6 +233,14 @@ the choice.
   `Import` (primary). `Import` sends `POST /api/imports` with the chosen `projectId`, or without one
   when the select is left at `No project`, and opens Fact Review on the new version
 
+**An employer choice · M3, specified 2026-09-28, not built.** The confirmation row gains a second
+select: the label `Employer`, then an employer select defaulting to `No employer`. It exists so a
+per-employer portfolio is filed once instead of fact by fact. Every fact extracted from the document
+is filed under that employer, and the card's employer picker still changes any one of them. With
+the employer select the row appears when the record holds **projects or employers**, and the rule
+for a record with neither is unchanged. The document's employer can be changed later (Screen 8,
+"Refiling a document").
+
 The same row and the same rule serve the empty state's drop target and Screen 8's
 `Import a document`, which is the same control. **The choice is offered only for a new document.**
 A re-import keeps the document's project, which is stored on the document and not on the version
@@ -235,6 +267,12 @@ line `Its facts move with it.`, then `Cancel` (bare) and `Refile` (primary).
 
 Refiling moves the document's facts with it, which is what makes Screen 4's project `Delete`
 reachable at all: its `409` says `Refile them from Documents before deleting.` and means it.
+
+**The document's employer · M3, specified 2026-09-28, not built.** From M3 a document's employer
+also changes after import, and its facts follow it, except a fact whose employer the author set by
+hand on its card, which keeps it (`04` §3.12). The control, its wording and how it says that
+hand-set facts stay where they are, are specified with the build (#35). The refile row, which
+already changes the project, is the expected place for it.
 
 ### Empty state
 

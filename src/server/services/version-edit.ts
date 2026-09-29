@@ -16,8 +16,9 @@
  * be right where the checker is wrong. Refusing on them would block the edit
  * this route exists to serve.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { employers, facts, projects } from "../db/schema";
+import { effectiveEmployerId } from "./employer";
 import type { Db } from "../db/client";
 import type { CareerRecord } from "~/render/attribution";
 import { checkAttribution, type CopiedValue } from "~/render/attribution";
@@ -44,21 +45,21 @@ export interface EditableRecord {
  * would name each other's cause.
  *
  * A fact's EFFECTIVE employer is its own, or its project's when it is filed to
- * a project rather than straight to an employer. Resolved here, in SQL, so that
- * `checkAttribution` stays a pure function of what it is given — the same hop
+ * a project rather than straight to an employer — `effectiveEmployerId`, the one
+ * order every reader shares. Resolved in SQL, so that `checkAttribution` stays a
+ * pure function of what it is given — the same hop
  * `scripts/check-attribution.mjs` resolves for the instrument.
  */
 export async function collectEditableRecord(db: Db, userId: string): Promise<EditableRecord> {
   const factRows = await db
     .select({
       id: facts.id,
-      employerId: sql<string | null>`coalesce(${facts.employerId}, ${projects.employerId})`,
+      employerId: effectiveEmployerId,
       status: facts.status,
       provenance: facts.provenance,
       disclosure: facts.disclosure,
     })
     .from(facts)
-    .leftJoin(projects, and(eq(projects.id, facts.projectId), eq(projects.userId, facts.userId)))
     .where(eq(facts.userId, userId));
 
   const employerRows = await db

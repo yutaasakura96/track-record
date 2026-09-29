@@ -124,6 +124,21 @@ export interface Fact {
   } | null;
   technologies: string[];
   isClientIdentifying: boolean;
+  /**
+   * Accepted facts at the same employer this candidate likely restates, best
+   * first. Empty on anything but a candidate. No score, by design.
+   */
+  likelyMatches: LikelyMatch[];
+}
+
+/** An existing fact a candidate likely restates (`docs/07` §6). */
+export interface LikelyMatch {
+  id: string;
+  claim: string;
+  /** `null` for a fact with no source document. */
+  document: { importId: string; filename: string; versionNo: number } | null;
+  /** Both claims carry numbers, and neither's contain the other's. */
+  conflict: boolean;
 }
 
 export interface Employer {
@@ -391,6 +406,9 @@ export const keys = {
   // The count and the listing it must agree with cannot go stale separately.
   importSummary: ["documents", "summary"] as const,
   importStatus: (id: string) => ["import", id] as const,
+  // Every import's fact list is under `allFacts`: a candidate's likely matches
+  // come from other imports, so a decision on one screen changes another's.
+  allFacts: ["facts"] as const,
   facts: (importId: string) => ["facts", importId] as const,
   sourceText: (documentId: string, versionNo: number) =>
     ["source", documentId, versionNo] as const,
@@ -776,7 +794,9 @@ export function useRetryImport() {
  */
 export function useFactAction(importId: string) {
   const queryClient = useQueryClient();
-  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.facts(importId) });
+  // Every import's list, not only this one's: rejecting a fact here drops it
+  // from the likely matches on another document's cards.
+  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.allFacts });
 
   const patch = useMutation({
     mutationFn: (input: {

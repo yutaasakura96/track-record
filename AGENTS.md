@@ -42,6 +42,16 @@ Every stall recorded before 2026-09-25 was the first kind (issue #25, decision l
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
 destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
+**`track_record_dev` holds the author's real record**, and until #40 moves it into the (empty) Neon
+production project it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
+`npm run db:down` stops the stack and keeps the volume; `npm run db:reset` removes it and refuses without
+`-- --destroy-local-record`. An agent never passes that flag, and never runs `docker compose down -v` or
+`docker volume rm` against it.
+**A push to `main` migrates and deploys production** (the `deploy` job in `ci.yml`, `docs/12` §3);
+production serves from `workers.dev`, not a custom domain.
+`npm run db:up` from any worktree mounts that same `track-record_pgdata` volume. To keep a task off it
+entirely, run a second stack under its own compose project (`docker compose -p <name>` with an override
+that `!override`s both ports) and point `TEST_DATABASE_URL` at it with `?proxyPort=<proxy port>`.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
@@ -92,6 +102,9 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 **Rules that are easy to break and expensive to fix:**
 
 - **Every query filters by `user_id`.** No exceptions. Asserted by test.
+- **A fact's employer resolves through `effectiveEmployerId`** (`src/server/services/employer.ts`),
+  not a new inline `coalesce`. #35 adds the document's employer there and moves the two readers still
+  resolving their own, `collectRenderInputs` and `scripts/check-attribution.mjs` (`docs/04` §3.12).
 - **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
 - **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
   Candidates that fail are discarded before they reach the database.
@@ -115,11 +128,11 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
   deletes is a gate before the second invite (`08` §6, `13` §8).
 
 **Document ownership — do not violate this.**
-`/Users/yutaasakura/Documents/GitHub/claude-agentic-setup/project-planning-template.md` owns the
-structure of `docs/01`–`06` and any Tier 2 files it triggers. The `mattpocock-skills` pack supplies
-the interview *engine* only; anything it generates (specs, `CONTEXT.md`, ADRs) belongs under
-`docs/specs/`, never at `docs/` root. Do not let a second, competing document set grow alongside
-the planning template's.
+The planning template owns the structure of `docs/01`–`06` and any Tier 2 files it triggers. It is
+`skills/project/references/project-planning-template.md` in agentic-setup, loaded through the
+`project` skill. The `mattpocock-skills` pack supplies the interview *engine* only; anything it
+generates (specs, `CONTEXT.md`, ADRs) belongs under `docs/specs/`, never at `docs/` root. Do not let
+a second, competing document set grow alongside the planning template's.
 
 ## Agent skills
 
