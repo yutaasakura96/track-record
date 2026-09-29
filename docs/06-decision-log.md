@@ -4825,3 +4825,19 @@ records how `workers.dev` is turned off, and is left as it is.
 
 **Revisit if:** a second user is invited (`08` §2.2), or the author wants an address that does not name
 the account. Moving to a custom domain is then the steps `docs/13` §3 lists.
+
+### [2026-09-29] The volume guard is proved by behaviour, not by reading `package.json`
+
+Supersedes the "It is proved twice" paragraph of the 2026-09-28 entry "`npm run db:down` keeps the
+local volume". A review found that the `tests/db-volume.test.ts` cases for `db:down` compared,
+split and regex-searched the script text rather than running anything, and that the
+`removesVolumes` flag rule they used was a parallel copy the reset command never called. Both are
+removed.
+
+**What remains:** `tests/db-volume.test.ts` proves `resetArgs` refuses without
+`--destroy-local-record` and returns `compose down --volumes` with it. The CI job is the proof for
+`db:down`: it runs `db:down` and an unconfirmed `db:reset` against its own stack and checks that
+`db:up` finds both databases still present.
+
+**Revisit if:** the CI step is ever removed or made optional, since it is then the only check that
+`db:down` keeps the volume.

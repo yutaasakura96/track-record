@@ -9,7 +9,8 @@
  * the containers and nothing else; removing the volume is `db:reset`, and it
  * refuses unless the confirmation flag below is passed.
  *
- * Pure, so the suite can prove both inside the Workers runtime.
+ * Pure, so the suite can prove the reset's refusal inside the Workers runtime;
+ * the CI job proves `db:down` against a real stack.
  */
 
 /** The only argument that lets `db:reset` remove the volume. */
@@ -17,11 +18,6 @@ export const RESET_CONFIRMATION = "--destroy-local-record";
 
 /** `docker compose down` with no volume flag: containers go, the volume stays. */
 export const DOWN_ARGS = ["compose", "down"] as const;
-
-/** Whether an argument list to `docker compose down` would remove a volume. */
-export function removesVolumes(args: readonly string[]): boolean {
-  return args.some((arg) => arg === "--volumes" || /^-[a-zA-Z]*v[a-zA-Z]*$/.test(arg));
-}
 
 export type ResetDecision =
   | { ok: true; args: readonly string[] }
