@@ -18,11 +18,6 @@ export const RESET_CONFIRMATION = "--destroy-local-record";
 /** `docker compose down` with no volume flag: containers go, the volume stays. */
 export const DOWN_ARGS = ["compose", "down"] as const;
 
-/** Whether an argument list to `docker compose down` would remove a volume. */
-export function removesVolumes(args: readonly string[]): boolean {
-  return args.some((arg) => arg === "--volumes" || /^-[a-zA-Z]*v[a-zA-Z]*$/.test(arg));
-}
-
 export type ResetDecision =
   | { ok: true; args: readonly string[] }
   | { ok: false; reason: string };
