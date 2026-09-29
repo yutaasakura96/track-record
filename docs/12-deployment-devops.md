@@ -14,7 +14,7 @@
 | **Local** | `wrangler dev` on the author's machine | Docker Postgres `track_record_dev` through the local Neon HTTP proxy; a separate Neon development branch is optional | Development |
 | **Production** | Cloudflare Workers, on its `workers.dev` address | Neon `main` | The real record |
 
-> **Status, 2026-09-28: production has not been deployed, and the real record is in the local
+> **Status, 2026-09-28: production is not provisioned, and the real record is in the local
 > `track_record_dev`**, where it has been since 2026-09-04. It moves to Neon `main` by `pg_dump`
 > (§5), after the rehearsals in §4 have run on the empty production project. Until then that local
 > database is the only copy, and the separation in §8 is what protects it.

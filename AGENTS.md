@@ -102,9 +102,9 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 **Rules that are easy to break and expensive to fix:**
 
 - **Every query filters by `user_id`.** No exceptions. Asserted by test.
-- **Resolve a fact's employer through `effectiveEmployerId`** (`src/server/services/employer.ts`)
-  when adding a reader. #35 adds the document's employer there and moves the remaining readers
-  still resolving their own (`docs/04` §3.12).
+- **A fact's employer resolves through `effectiveEmployerId`** (`src/server/services/employer.ts`),
+  not a new inline `coalesce`. #35 adds the document's employer there and moves the two readers still
+  resolving their own, `collectRenderInputs` and `scripts/check-attribution.mjs` (`docs/04` §3.12).
 - **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
 - **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
   Candidates that fail are discarded before they reach the database.

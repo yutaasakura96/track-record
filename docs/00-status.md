@@ -7,8 +7,7 @@
 ## Done
 
 - Planning: `docs/01`–`13`, ADRs in `docs/adr/`, decisions in `docs/06-decision-log.md`.
-- Build issues through #28 closed (`gh issue list --state closed`); #34's deploy pipeline and
-  #36's overlap flag are built, with go-live work still open under #34.
+- Build issues through #28 closed (`gh issue list --state closed`).
 - CI: `.github/workflows/ci.yml` runs lint, typecheck and the full suite against docker-compose
   Postgres and the Neon HTTP proxy.
 
