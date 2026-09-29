@@ -37,8 +37,7 @@ changes.
 | Cloudflare Workflows | **$0.00** | 500k steps included; **waiting on the model is not billed** |
 | Neon | **$0.00** | Free tier: 0.5 GB, 100 CU-hours, scale-to-zero |
 | Anthropic | **~$1–2** | Bursty. The whole 2.4 MB corpus extracts once for ~$3 |
-| Domain | ~$1 | Amortised, already owned |
-| **Total** | **≈ $6–8/month** | Flat, and does not expire after twelve months |
+| **Total** | **≈ $6–7/month** | Flat, and does not expire after twelve months |
 
 **What breaks first under 10× load** — meaning ten invited users, since there is no other growth
 path:

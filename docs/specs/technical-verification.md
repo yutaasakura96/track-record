@@ -328,17 +328,9 @@ without the wrapper becomes a reviewable mistake instead of an invisible one.
 
 ---
 
-### 12 ✅ `workers.dev` disable — verified, with two traps
+### 12 `workers.dev` routing — superseded 2026-09-28
 
-**Found:** [workers.dev](https://developers.cloudflare.com/workers/configuration/routing/workers-dev/) —
-`workers_dev = false` in the Wrangler configuration.
-
-1. **Disabling in the dashboard alone does not persist.** Cloudflare re-enables the route on the next
-   `wrangler deploy` unless the Wrangler file also carries the setting.
-2. **Preview URLs** default to matching `workers_dev`, but if explicitly enabled must be disabled
-   separately.
-
-**Amended:** `13` §3.
+Production now serves from `workers.dev`. The current routing and preview URL settings are in `13` §3.
 
 ---
 
