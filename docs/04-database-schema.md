@@ -532,7 +532,8 @@ fall behind. **A fact whose employer was set by hand keeps it**, and that includ
 set is recorded is specified with the slice that adds the column (#35). When the document's and the
 project's employers differ, the document's wins (`06`, 2026-09-28).
 
-Today the resolution is not uniform: `collectEditableRecord` and the attribution check use
+Today the resolution is not uniform: Version Edit and the overlap matcher use
+`effectiveEmployerId` (fact, then project); the attribution check still uses its own
 `coalesce(facts.employer_id, projects.employer_id)`, and `collectRenderInputs` passes the fact's own
 `employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
 all read the one order above.

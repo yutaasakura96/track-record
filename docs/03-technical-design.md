@@ -259,10 +259,9 @@ second is:
   employer of its own, and the fact resolves to its document's employer. Changing the document's
   employer therefore moves every fact that reads through it, with no copy to fall behind. **A fact
   whose employer the author set by hand on its card keeps it**, including a hand-set `No employer`.
-  When a document's employer and its project's differ, the document's wins. Every place that
-  resolves a fact's employer (the render, Version Edit, the attribution check and the overlap
-  matcher) reads the same order: the fact's hand-set employer, then its document's, then its
-  project's (decision log, 2026-09-28).
+  When a document's employer and its project's differ, the document's wins. #35 will make every
+  reader use that order: the fact's hand-set employer, then its document's, then its project's
+  (decision log, 2026-09-28; `04` §3.12).
 - **Overlap with facts already in the record is flagged, not deduplicated · built (#36).** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A
   candidate is shown the existing facts at the same employer that likely say the same thing, and a
