@@ -9,7 +9,8 @@
  * the containers and nothing else; removing the volume is `db:reset`, and it
  * refuses unless the confirmation flag below is passed.
  *
- * Pure, so the suite can prove both inside the Workers runtime.
+ * Pure, so the suite can prove the reset's refusal inside the Workers runtime;
+ * the CI job proves `db:down` against a real stack.
  */
 
 /** The only argument that lets `db:reset` remove the volume. */
