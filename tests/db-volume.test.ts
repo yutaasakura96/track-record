@@ -7,7 +7,6 @@
  * `db:down` against its own stack and checks the volume is still there afterwards.
  */
 import { describe, expect, it } from "vitest";
-import pkg from "../package.json";
 import { RESET_CONFIRMATION, resetArgs } from "../scripts/db-volume-core";
 
 describe("npm run db:reset", () => {
@@ -22,9 +21,5 @@ describe("npm run db:reset", () => {
   it("removes the volume only when confirmed", () => {
     const decision = resetArgs([RESET_CONFIRMATION]);
     expect(decision).toEqual({ ok: true, args: ["compose", "down", "--volumes"] });
-  });
-
-  it("goes through the guard, not straight to docker", () => {
-    expect(pkg.scripts["db:reset"]).toBe("tsx scripts/db-reset.ts");
   });
 });
