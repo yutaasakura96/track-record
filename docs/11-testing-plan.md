@@ -43,9 +43,9 @@ rather than in an unrelated assertion later.
 **Why the suite has a database of its own.** That drop is total, and for a while it landed on the
 database the dev worker was using: three times during the 2026-09-01 walk, running the suite
 destroyed the signed-in session, the profile, the imported documents and the accepted render
-versions (issue #4). The docker-compose Postgres now holds two databases: `track_record_dev`, which
-`.dev.vars` points at, and `track_record_test`, which is the suite's alone. `npm run db:up` creates
-whichever is missing. One proxy serves both: its `PG_CONNECTION_STRING` is an *auth* backend, and
+versions (issue #4). The docker-compose Postgres now holds three databases: `track_record_dev`, which
+`.dev.vars` points at, `track_record_test`, which is the suite's alone, and `track_record_e2e`, the
+browser smoke test's (§2.9). `npm run db:up` creates whichever is missing. One proxy serves all three: its `PG_CONNECTION_STRING` is an *auth* backend, and
 the database each query runs against comes from the connection string the client sends.
 
 **Two guards make that real rather than assumed** (`tests/database-guard.ts`). Before the suite
