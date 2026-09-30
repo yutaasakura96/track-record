@@ -7,7 +7,7 @@
  */
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY } from "../../scripts/dev-session-core";
+import { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY } from "../../scripts/dev-session-fixture";
 import type { SuiteOwner } from "../database-guard";
 
 /**
