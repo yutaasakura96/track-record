@@ -451,8 +451,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   2026-09-04 import (ADR-0002). A likely match carries its own `provenance` and `graded`, so the card
   can offer the re-grade beside it. **`?importId=…&status=accepted&graded=false` is the listing of
   what is still to re-grade**, and "the 112 are re-graded" is that listing coming back empty for the
-  2026-09-04 import. `graded=true` lists the opposite; any other value is ignored, as an unknown
-  `status` is.
+  2026-09-04 import. Any other value of `graded` is ignored, as an unknown `status` is.
 
 **`POST /api/facts/:id/regrade` → 200** with `{ "provenance": "attested" }`: the fact, as the list
 returns it, with `graded: true`. It writes the provenance and the grade and **nothing else**: not

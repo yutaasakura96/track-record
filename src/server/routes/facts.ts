@@ -10,7 +10,7 @@
  * claims and documents, never a quote and never a score.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, gt, isNotNull, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { facts } from "../db/schema";
 import { conflict, notFound, validationFailed, pathParam } from "../http/errors";
@@ -67,7 +67,6 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     // re-grade (`docs/07` §6); any other value is ignored, as an unknown status is.
     const graded = c.req.query("graded");
     if (graded === "false") filters.push(isNull(facts.gradedAt));
-    if (graded === "true") filters.push(isNotNull(facts.gradedAt));
     const cursor = c.req.query("cursor");
     if (cursor) filters.push(gt(facts.id, cursor));
 
