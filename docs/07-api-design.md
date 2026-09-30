@@ -438,7 +438,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   `document` it was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
   `conflict`, true when both claims carry numbers and neither's numbers contain the other's.
   **Computed on every read and stored nowhere**, by a lexical match between claims (`03` §5), so a
-  match the author rejects is gone from the next response. `PATCH`, `accept`, `reject` and `undo`
+  match the author rejects is gone from the next response. `PATCH`, `accept`, `reject`, `undo` and `regrade`
   answer with the fact's list computed the same way. "The same employer" is the fact's own,
   then its project's (`04` §3.12); a candidate whose employer resolves to neither has an empty list,
   as do accepted and rejected facts. Like the rest of this response it carries ids and claims, never
