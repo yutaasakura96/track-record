@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 /**
- * Creates whichever of the two local databases is missing (issue #4).
+ * Creates whichever of the local databases is missing (issue #4).
  *
  * `POSTGRES_DB` in docker-compose.yml only runs on a first, empty volume, so it
  * cannot be the mechanism: a volume created before the split would keep exactly
  * one database and the suite would go on sharing it with the dev worker. This
- * runs on every `npm run db:up` instead, and does nothing when both exist.
+ * runs on every `npm run db:up` instead, and does nothing when all exist.
  *
  * It never drops anything. Only a confirmed `npm run db:reset` removes the volume.
  */
@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 const DATABASES = [
   ["track_record_dev", "the dev worker — .dev.vars points here"],
   ["track_record_test", "the suite, which drops and rebuilds it on every run"],
+  ["track_record_e2e", "the browser smoke test (npm run test:e2e), which drops and rebuilds it on every run"],
 ];
 
 for (const [name, purpose] of DATABASES) {

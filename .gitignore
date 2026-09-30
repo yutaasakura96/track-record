@@ -39,3 +39,7 @@ proxy-capture-*.txt
 # `npm run dev:session` writes a live session token for the local database here,
 # as a Playwright storageState file (docs/06, 2026-09-25).
 .dev-session/
+
+# Playwright (issue #33): traces and the HTML report from `npm run test:e2e`.
+test-results/
+playwright-report/

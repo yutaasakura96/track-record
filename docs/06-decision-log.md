@@ -4841,3 +4841,34 @@ removed.
 
 **Revisit if:** the CI step is ever removed or made optional, since it is then the only check that
 `db:down` keeps the volume.
+
+### [2026-09-30] The Playwright half is built, on a third database
+
+Builds what the 2026-09-28 entry "The Playwright smoke clicks the sign-in button, then loads a
+prepared session" decided (issue #33). Nothing in that decision changed. What it left open is below.
+
+- **Files.** `playwright.config.ts`, and under `tests/e2e/`: `smoke.spec.ts` (the one test),
+  `worker.ts` (the test entry), `wrangler.toml` (no `[[workflows]]` binding, so imports run inline
+  with the stub), `model.ts` (the stub), `fixture.ts`, `env.ts` and `global-setup.ts`. `src/server`
+  is untouched. `npm run test:e2e` builds the SPA and runs it; CI runs `npx playwright test` after
+  its own build step.
+- **A database of its own, `track_record_e2e`.** The setup drops and rebuilds `public` on every run,
+  so sharing `track_record_test` would let it race `npm test`, and `track_record_dev` is the author's
+  record. `npm run db:up` creates it beside the other two. The same `assertSuiteDatabaseIsNotDev`
+  and `current_database()` guards apply, and `E2E_DATABASE_URL` overrides it. The Worker is on port
+  8788, not 8787, so a dev worker can run beside it.
+- **The session comes from `createDevSession`**, the code behind `npm run dev:session`, run in the
+  Playwright global setup against the e2e database. The state file is `.dev-session/e2e-storage-state.json`
+  (gitignored). The Worker is given the same `BETTER_AUTH_SECRET` on the command line. That secret
+  and the Google client are placeholders that reach nothing.
+- **The stub is stateless.** `wrangler dev` may build a new isolate between the import and the
+  generation, so nothing is queued. The extraction quote is cut from the source text the call
+  receives, so the verbatim-quote rule still runs against the uploaded bytes.
+- **Google is never contacted.** The browser clicks the button, and the navigation to
+  `accounts.google.com` is answered inside the test. The test reads the `scope` and `redirect_uri`
+  from that request.
+
+`docs/11` §2.9 and §3 item 8 now say the half is built.
+
+**Revisit if:** a second smoke path is justified (`docs/11` §2.9 names 履歴書), or the test flakes on
+timing, in which case widen the expectation that flakes and do not retry the test.
