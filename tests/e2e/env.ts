@@ -5,6 +5,8 @@
  * Postgres, an invented secret, a Google client that does not exist. No
  * deployment reads any of them.
  */
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY } from "../../scripts/dev-session-core";
 import type { SuiteOwner } from "../database-guard";
 
@@ -26,6 +28,15 @@ export const E2E_DATABASE_URL =
 export const E2E_SECRET = "e2e-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
 
 export const E2E_ALLOWED_EMAIL = DEV_SESSION_IDENTITY.email;
+
+/** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
+export const STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-storage-state.json",
+);
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */
 export function workerVars(databaseUrl: string, secret: string): string[] {

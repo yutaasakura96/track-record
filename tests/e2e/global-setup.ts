@@ -18,13 +18,17 @@ import type { Bindings } from "~/server/env";
 import { DEV_SESSION_CLIENT, createDevSession, storageState } from "../../scripts/dev-session-core";
 import { assertSuiteDatabaseIsNotDev } from "../database-guard";
 import { rebuildSchema } from "../rebuild-schema";
-import { E2E_ALLOWED_EMAIL, E2E_DATABASE_URL, E2E_ORIGIN, E2E_SECRET, E2E_SUITE } from "./env";
+import {
+  E2E_ALLOWED_EMAIL,
+  E2E_DATABASE_URL,
+  E2E_ORIGIN,
+  E2E_SECRET,
+  E2E_SUITE,
+  STORAGE_STATE,
+} from "./env";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const DEV_VARS = join(root, ".dev.vars");
-
-/** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
-export const STORAGE_STATE = join(root, ".dev-session", "e2e-storage-state.json");
 
 export default async function setup() {
   // Before anything connects: the drop below is total.
