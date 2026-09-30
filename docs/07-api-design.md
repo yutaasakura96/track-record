@@ -434,8 +434,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   resolved one is specified with the build (#35).
 - **`likelyMatches` · M3, built by #36, 2026-09-28.** A candidate carries the accepted
   facts at the same employer that likely say the same thing, at most three, best first (PRD §8), so
-  Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, the `document` it
-  was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
+  Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, its `provenance` and `graded` (#37), the
+  `document` it was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
   `conflict`, true when both claims carry numbers and neither's numbers contain the other's.
   **Computed on every read and stored nowhere**, by a lexical match between claims (`03` §5), so a
   match the author rejects is gone from the next response. `PATCH`, `accept`, `reject` and `undo`

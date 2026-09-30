@@ -4876,8 +4876,9 @@ behaviour and stamps nothing, because it is how a candidate is graded before it 
 Measured still needs evidence, with the same `422`.
 
 **On the overlap card, a match with no grade carries a re-grade control and `Reject`.** It shows
-the match's current provenance and asks for one, with no segment pre-selected, so leaving the
-default in place takes a click like changing it does. `Reject` there is the existing route, and
+the match's current provenance and offers the three as buttons, none marked as chosen, so leaving
+the default in place takes a click like changing it does. Buttons rather than the card's radio
+group, because a radio group selects on arrow keys and each selection here is a write. `Reject` there is the existing route, and
 settles the portfolio-wins case without leaving the card. A graded match keeps today's row. The
 listing is the narrative's own Fact Review: a `To re-grade N` filter, shown while N is above zero,
 lists its accepted cards with no grade, each with the same control. Its list reads every page, since

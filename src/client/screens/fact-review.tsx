@@ -278,7 +278,10 @@ function FactRail({
   const open = facts.filter((f) => f.status === "candidate");
   const resolved = facts.filter((f) => f.status !== "candidate");
   const accepted = facts.filter((f) => f.status === "accepted");
-  const visible = filter === "open" ? open : filter === "resolved" ? resolved : facts;
+  // The listing the facts no portfolio matched are graded from (issue #37).
+  const ungraded = accepted.filter((f) => !f.graded);
+  const visible =
+    filter === "open" ? open : filter === "resolved" ? resolved : filter === "regrade" ? ungraded : facts;
 
   const shareable = accepted.filter((f) => f.disclosure !== "private" && f.provenance !== "generated").length;
   const priv = accepted.filter((f) => f.disclosure === "private").length;
@@ -288,6 +291,11 @@ function FactRail({
     ["all", `All ${facts.length}`],
     ["open", `Open ${open.length}`],
     ["resolved", `Resolved ${resolved.length}`],
+    // Only while there is something to re-grade, or while it is the filter in
+    // use, so the last grade does not pull the pill out from under the pointer.
+    ...(ungraded.length > 0 || filter === "regrade"
+      ? ([["regrade", `To re-grade ${ungraded.length}`]] as [FactFilter, string][])
+      : []),
   ];
 
   // The direction that did not exist (issue #6): clicking a passage never
@@ -549,6 +557,9 @@ function FactCard({
             onChange={(employerId) => edit({ employerId })}
           />
         </div>
+        {fact.status === "accepted" && !fact.graded ? (
+          <RegradeLine importId={importId} id={fact.id} provenance={fact.provenance} />
+        ) : null}
         {failure ? (
           <p role="alert" className="mt-8 text-smaller text-removed">
             {failureText(failure)}
@@ -606,7 +617,9 @@ function FactCard({
         {fact.claim}
       </div>
 
-      {fact.likelyMatches.length > 0 ? <LikelyMatches matches={fact.likelyMatches} /> : null}
+      {fact.likelyMatches.length > 0 ? (
+        <LikelyMatches importId={importId} matches={fact.likelyMatches} />
+      ) : null}
 
       {isGenerated ? (
         <div className="mt-10">
@@ -686,7 +699,7 @@ function FactCard({
  * Measured, Generated and removed, and a conflict is none of them. No score is
  * shown because none is sent; order is the only sign of which is closer.
  */
-function LikelyMatches({ matches }: { matches: LikelyMatch[] }) {
+function LikelyMatches({ importId, matches }: { importId: string; matches: LikelyMatch[] }) {
   return (
     <section
       aria-label="Likely already in your record"
@@ -711,9 +724,81 @@ function LikelyMatches({ matches }: { matches: LikelyMatch[] }) {
               </MonoId>
             </Link>
           ) : null}
+          {match.graded ? null : (
+            <RegradeLine importId={importId} id={match.id} provenance={match.provenance} />
+          )}
         </div>
       ))}
     </section>
+  );
+}
+
+const GRADES: { value: Fact["provenance"]; label: string }[] = [
+  { value: "measured", label: "Measured" },
+  { value: "attested", label: "Attested" },
+  { value: "generated", label: "Generated" },
+];
+
+/**
+ * The re-grade of an accepted fact whose provenance is not the author's — the
+ * 112 of the 2026-09-04 import (`docs/10` Screen 1, issue #37). On the overlap
+ * card it sits under a likely match, so a narrative fact is graded beside the
+ * portfolio fact that decides it; on its own import's card it is the listing.
+ *
+ * Buttons, not the card's radio group: a radio group selects on arrow keys, and
+ * each choice here is a write. None is marked as chosen, so confirming the
+ * default takes a press like changing it does. `Reject` is the portfolio
+ * winning, settled where the two claims are side by side.
+ */
+function RegradeLine({
+  importId,
+  id,
+  provenance,
+}: {
+  importId: string;
+  id: string;
+  provenance: Fact["provenance"];
+}) {
+  const { regrade, resolve } = useFactAction(importId);
+  const busy = regrade.isPending || resolve.isPending;
+  const failure = regrade.error ?? resolve.error;
+
+  return (
+    <div className="mt-6 grid gap-6">
+      <Mono className="text-text-faint">Graded by default · {provenance}</Mono>
+      <div role="group" aria-label="Re-grade" className="flex flex-wrap items-center gap-4">
+        {GRADES.map((grade) => (
+          <Button
+            key={grade.value}
+            disabled={busy}
+            disabledReason={busy ? "Saving…" : undefined}
+            onClick={() => {
+              resolve.reset();
+              regrade.mutate({ id, provenance: grade.value });
+            }}
+          >
+            {grade.label}
+          </Button>
+        ))}
+        <Button
+          variant="ghost"
+          className="ml-auto"
+          disabled={busy}
+          disabledReason={busy ? "Saving…" : undefined}
+          onClick={() => {
+            regrade.reset();
+            resolve.mutate({ id, action: "reject" });
+          }}
+        >
+          Reject
+        </Button>
+      </div>
+      {failure ? (
+        <p role="alert" className="text-smaller text-removed">
+          {failureText(failure)}
+        </p>
+      ) : null}
+    </div>
   );
 }
 

@@ -340,6 +340,13 @@ export const facts = pgTable("facts", {
   technologies: text("technologies").array().notNull().default(sql`'{}'`),
   isClientIdentifying: boolean("is_client_identifying").notNull().default(false),
   resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  /**
+   * When the author last set this accepted fact's provenance: stamped by accept
+   * and by re-grade, cleared by undo. Null on an accepted fact means the grade
+   * is nobody's choice — the 2026-09-04 import's facts, promoted by an agent's
+   * default (ADR-0002, `docs/04` §3.7).
+   */
+  gradedAt: timestamp("graded_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
   index("facts_user_status_idx").on(t.userId, t.status),

@@ -85,8 +85,9 @@ likely matches shows nothing, not an empty block.
 - **Re-grading a match · M3, #37, 2026-09-30.** A match whose grade is not the author's
   (`graded: false`, `07` §6), which is each of the 112 facts of the 2026-09-04 import, carries a
   line under its document: a mono `Graded by default · <provenance>` in `text-faint`, a `Re-grade`
-  segmented control (Measured / Attested / Generated) with **no segment selected**, and a ghost
-  `Reject`. Picking any segment, the current one included, re-grades the fact and the line goes
+  group of three buttons, Measured / Attested / Generated, with **none marked as chosen**, and a
+  ghost `Reject`. They are actions rather than a radio group, so arrowing through them grades
+  nothing. Pressing any of them, the current provenance included, re-grades the fact and the line goes
   (`POST /api/facts/:id/regrade`). `Reject` rejects the match where it stands, which is the
   portfolio winning, and it drops off the card on the next read. Measured is refused without
   evidence, and the refusal is said on the line. A graded match shows neither.
@@ -101,8 +102,8 @@ likely matches shows nothing, not an empty block.
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
 + `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough. An accepted card with no
 grade adds the same re-grade line as a match (M3, #37): this is the listing the facts no portfolio
-matched are graded from, on the 2026-09-04 import's own Fact Review, under `To re-grade`. Its
-`Reject` is the card's own, beside `Undo`.
+matched are graded from, on the 2026-09-04 import's own Fact Review, under `To re-grade`. It carries
+the same `Reject`, beside the three grades.
 
 **Card treatments:** Generated cards use a dashed amber border and a 135° hatch background. Private
 cards use `card-recessed` with a large low-opacity padlock watermark at bottom-right. Selected cards

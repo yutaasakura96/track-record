@@ -125,6 +125,11 @@ export interface Fact {
   technologies: string[];
   isClientIdentifying: boolean;
   /**
+   * False on an accepted fact whose provenance is not the author's — the 112 of
+   * the 2026-09-04 import until each is re-graded (`docs/07` §6).
+   */
+  graded: boolean;
+  /**
    * Accepted facts at the same employer this candidate likely restates, best
    * first. Empty on anything but a candidate. No score, by design.
    */
@@ -135,6 +140,9 @@ export interface Fact {
 export interface LikelyMatch {
   id: string;
   claim: string;
+  /** With `graded`, what the card's re-grade line reads (issue #37). */
+  provenance: Fact["provenance"];
+  graded: boolean;
   /** `null` for a fact with no source document. */
   document: { importId: string; filename: string; versionNo: number } | null;
   /** Both claims carry numbers, and neither's contain the other's. */
@@ -642,7 +650,20 @@ export const useImportSummary = () =>
 export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ items: Fact[] }>>) {
   return useQuery({
     queryKey: keys.facts(importId),
-    queryFn: () => api<{ items: Fact[] }>(`/api/facts?importId=${importId}`),
+    // Every page. The API pages at 100 and an import can hold more — the
+    // 2026-09-04 import holds 112, and its last dozen were never on the rail.
+    queryFn: async () => {
+      const items: Fact[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: { items: Fact[]; nextCursor: string | null } = await api(
+          `/api/facts?importId=${importId}${cursor ? `&cursor=${cursor}` : ""}`,
+        );
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return { items };
+    },
     ...options,
   });
 }
@@ -815,6 +836,15 @@ export function useFactAction(importId: string) {
       void queryClient.invalidateQueries({ queryKey: keys.documents });
     },
   });
+  /** An accepted fact's provenance, set by the author (`docs/07` §6, issue #37). */
+  const regrade = useMutation({
+    mutationFn: (input: { id: string; provenance: Fact["provenance"] }) =>
+      api<Fact>(`/api/facts/${input.id}/regrade`, {
+        method: "POST",
+        ...json({ provenance: input.provenance }),
+      }),
+    onSuccess: () => void refresh(),
+  });
   const finish = useMutation({
     mutationFn: () => api<{ acceptedFacts: number }>(`/api/imports/${importId}/finish`, { method: "POST" }),
     onSuccess: () => {
@@ -830,7 +860,7 @@ export function useFactAction(importId: string) {
     },
   });
 
-  return { patch, resolve, finish, retry };
+  return { patch, resolve, regrade, finish, retry };
 }
 
 export function useGenerate() {
