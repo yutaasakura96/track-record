@@ -6,6 +6,7 @@
  * deployment reads any of them.
  */
 import { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY } from "../../scripts/dev-session-core";
+import type { SuiteOwner } from "../database-guard";
 
 /**
  * Not 8787, which `npm run dev:worker` uses, so a developer's dev server and
@@ -15,9 +16,11 @@ export const E2E_PORT = 8788;
 export const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
 
 /** The suite's own database. `track_record_dev` is refused (`global-setup.ts`). */
+export const E2E_SUITE: SuiteOwner = { variable: "E2E_DATABASE_URL", database: "track_record_e2e" };
+
 export const E2E_DATABASE_URL =
   process.env.E2E_DATABASE_URL ??
-  "postgresql://postgres:postgres@localhost:5432/track_record_e2e?sslmode=require";
+  `postgresql://postgres:postgres@localhost:5432/${E2E_SUITE.database}?sslmode=require`;
 
 /** Signs the session cookie the setup mints and the Worker verifies. */
 export const E2E_SECRET = "e2e-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
