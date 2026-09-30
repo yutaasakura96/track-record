@@ -19,6 +19,9 @@ import type { Db } from "../db/client";
 export interface LikelyMatchResponse {
   id: string;
   claim: string;
+  /** With `graded`, what lets the card offer the re-grade beside the match (issue #37). */
+  provenance: (typeof facts.$inferSelect)["provenance"];
+  graded: boolean;
   /** Where the match was extracted from. `null` for a fact with no source. */
   document: { importId: string; filename: string; versionNo: number } | null;
   conflict: boolean;
@@ -52,6 +55,8 @@ export async function likelyMatchesFor(
     .select({
       id: facts.id,
       claim: facts.claim,
+      provenance: facts.provenance,
+      gradedAt: facts.gradedAt,
       technologies: facts.technologies,
       employerId: effectiveEmployerId,
       importId: sourceDocumentVersions.id,
@@ -108,6 +113,8 @@ export async function likelyMatchesFor(
         return {
           id,
           claim: row.claim,
+          provenance: row.provenance,
+          graded: row.gradedAt !== null,
           document:
             row.importId !== null && row.filename !== null && row.versionNo !== null
               ? { importId: row.importId, filename: row.filename, versionNo: row.versionNo }

@@ -186,6 +186,21 @@ And an exact repeat is still suppressed by dedupe before it becomes a candidate
 And Accept and Reject behave as they do without a flag, and a rejected match drops off the card
 ```
 
+### 2.6c An accepted fact is re-graded, and only that is written
+
+`tests/regrade.test.ts` over HTTP, `tests/client/fact-review.test.tsx` on the card (#37).
+
+```
+Given an import whose facts were accepted before grades were recorded, and another user's the same
+When its listing is read with status=accepted and graded=false
+Then it holds exactly that import's accepted facts with no grade, and none of the other user's
+When one is re-graded, to its own provenance or another
+Then its provenance and grade change, and no other column of any fact does
+And it leaves the listing, as a rejected one does
+And re-grading a candidate or a rejected fact is refused, Measured without evidence is refused,
+  and another user's fact is not found
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

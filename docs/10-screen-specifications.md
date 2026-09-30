@@ -54,7 +54,8 @@ so the mark sits ~34% from the top. Both directions are required.
 ### Fact rail
 
 **Header:** `Candidate facts` + mono `N extracted`. One line of explanatory copy. Filter pills:
-`All N` · `Open N` · `Resolved N`.
+`All N` · `Open N` · `Resolved N`, and `To re-grade N` while any accepted fact of the import has no
+grade (M3, #37). The rail lists every fact of the import, not only the first page of the API.
 
 **Card, open state:**
 1. Line-reference chip (mono, e.g. `L79`) — the evidence pointer into the source
@@ -80,8 +81,16 @@ likely matches shows nothing, not an empty block.
   your record` (`text-faint`). Then one row per match, at most three, best first: the match's claim
   at `text-small` in `text-secondary`, and under it the document's filename as a mono identifier in
   `text-dimmer`, with `· vN` after it when the version is above 1. The filename links to that
-  document's Fact Review, because that is where the match is rejected: `Undo` returns its card to a
-  candidate, then `Reject`.
+  document's Fact Review.
+- **Re-grading a match · M3, #37, 2026-09-30.** A match whose grade is not the author's
+  (`graded: false`, `07` §6), which is each of the 112 facts of the 2026-09-04 import, carries a
+  line under its document: a mono `Graded by default · <provenance>` in `text-faint`, a `Re-grade`
+  group of three buttons, Measured / Attested / Generated, with **none marked as chosen**, and a
+  ghost `Reject`. They are actions rather than a radio group, so arrowing through them grades
+  nothing. Pressing any of them, the current provenance included, re-grades the fact and the line goes
+  (`POST /api/facts/:id/regrade`). `Reject` rejects the match where it stands, which is the
+  portfolio winning, and it drops off the card on the next read. Measured is refused without
+  evidence, and the refusal is said on the line. A graded match shows neither.
 - **The conflict marker:** a mono label `Conflict · number differs` in `text-bright`, on its own line
   above the match's claim. **It takes no semantic colour.** Green, amber and red mean Measured,
   Generated and removed (`05` §9), and a conflict is none of those; its wording and weight carry it.
@@ -91,7 +100,10 @@ likely matches shows nothing, not an empty block.
   within an employer; picking one on the card brings it.
 
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
-+ `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough.
++ `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough. An accepted card with no
+grade adds the same re-grade line as a match (M3, #37): this is the listing the facts no portfolio
+matched are graded from, on the 2026-09-04 import's own Fact Review, under `To re-grade`. It carries
+the same `Reject`, beside the three grades.
 
 **Card treatments:** Generated cards use a dashed amber border and a 135° hatch background. Private
 cards use `card-recessed` with a large low-opacity padlock watermark at bottom-right. Selected cards

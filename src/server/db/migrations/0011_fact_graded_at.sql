@@ -1,0 +1,1 @@
+ALTER TABLE "facts" ADD COLUMN "graded_at" timestamp with time zone;

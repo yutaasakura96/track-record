@@ -26,15 +26,14 @@ are marked as the owner's in each issue.
   production project and moves the record in by `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay
   open until #40 closes.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
-- **The back-catalogue import (M3)**, in order: #37 re-grading the 112 agent-graded facts, which
-  waits on nothing open; #35 the document-level employer and the first portfolio, the first review
-  to use #36's overlap flag and #37's re-grade; #38 the remaining portfolios; #39 all five renders
-  regenerated.
+- **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
+  portfolio, the first review to use #36's overlap flag and #37's re-grade; #38 the remaining
+  portfolios; #39 all five renders regenerated. The author re-grades the 112 as they appear on the
+  overlap card, and the rest from `To re-grade` on the 2026-09-04 import's Fact Review.
 
 ## Blocked
 
 - #35 and everything after it wait on go-live, because the import lands in production (#34, #40).
-  #35 also waits on #37.
 
 ## Carrying
 

@@ -78,6 +78,12 @@ never blocks Accept. Exact repeats are not likely matches — dedupe suppresses 
 Candidates.
 _Avoid_: duplicate (a duplicate is an exact repeat), overlap as a noun for one pair.
 
+**Grade**:
+The author's own setting of an accepted fact's Provenance, made by accepting it or by re-grading it
+afterwards. An accepted fact with no grade carries a Provenance nobody chose: the 112 facts of the
+first real import, promoted by an agent's default (ADR-0002), until each is re-graded or rejected.
+_Avoid_: review (a review decides status; a grade decides worth).
+
 **Conflict**:
 A likely match whose number differs from the Candidate's (PRD §8). Resolved by the author with Accept
 and Reject, never last-write-wins and never merged.

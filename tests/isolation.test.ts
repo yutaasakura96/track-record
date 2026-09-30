@@ -166,6 +166,10 @@ describe("one user's record is unreachable from another's session", () => {
       expect(response.status, path).toBe(404);
     }
 
+    // Re-grade takes a body, so it is asked here rather than in the bare list above.
+    const regraded = await a.client.post(`/api/facts/${b.factId}/regrade`, { provenance: "generated" });
+    expect(regraded.status, "regrade").toBe(404);
+
     // And the other user's records are unchanged.
     const employers = await b.client.json<{ items: { id: string; nameJa: string }[] }>(
       "/api/employers",

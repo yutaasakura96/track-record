@@ -4841,3 +4841,48 @@ removed.
 
 **Revisit if:** the CI step is ever removed or made optional, since it is then the only check that
 `db:down` keeps the volume.
+
+### [2026-09-30] An accepted fact is re-graded from the overlap card, and a grade records who set it
+
+#37 opens with the check the 2026-09-28 entry "A portfolio outranks the narrative" left
+**unverified**: whether an accepted fact's provenance can be changed from today's Fact Review.
+
+**The answer is no, from the screen, and yes, from the API.** `PATCH /api/facts/:id` has no status
+guard, so it changes an accepted fact's provenance, and `POST /api/facts/:id/reject` rejects an
+accepted fact directly. Screen 1 offers neither. An accepted card carries only `Undo` and the
+employer picker, and a likely match on the overlap card carries only its claim and a link to its
+document. The only path on screen was to open the narrative's Fact Review, `Undo` the card back to a
+candidate, grade it and accept it again, which leaves nothing to say it was re-graded. Nothing in the
+record tells the 112 apart from a fact the author graded: the import that promoted them called the
+same `accept` route the card does. So re-grading is specified in `docs/04`, `07` and `10` before it
+is built, as the issue required.
+
+**A grade records when the author set it: `facts.graded_at`.** Accept stamps it, a new
+`POST /api/facts/:id/regrade` stamps it, and `Undo` clears it, since a candidate carries no
+decision. `Reject` leaves it as it is. A fact accepted before the column existed reads as never
+graded, which is exactly the state the 112 are in. "The 112 are re-graded" is then a query that
+comes back empty: the 2026-09-04 import's accepted facts with no grade. A rejected narrative fact
+leaves that set by being rejected, which is the portfolio winning. Stamping at accept is what keeps
+a portfolio's accepted facts out of the same set, so the listing needs no second marker for which
+import was graded by default. A per-import flag was rejected because nothing could set it on the
+real record but a hand-run write naming a row, and a date-matching migration because a date is not
+an import.
+
+**Re-grade is its own action, not `PATCH`.** It takes a provenance, answers `409` on anything but
+an accepted fact, and writes the provenance, `graded_at` and `updated_at` and nothing else. Choosing
+the provenance the fact already has is a re-grade too: the author confirming Attested is the answer
+for most of the 112, and a `PATCH` that changes nothing is not a decision. `PATCH` keeps its
+behaviour and stamps nothing, because it is how a candidate is graded before it is accepted.
+Measured still needs evidence, with the same `422`.
+
+**On the overlap card, a match with no grade carries a re-grade control and `Reject`.** It shows
+the match's current provenance and offers the three as buttons, none marked as chosen, so leaving
+the default in place takes a click like changing it does. Buttons rather than the card's radio
+group, because a radio group selects on arrow keys and each selection here is a write. `Reject` there is the existing route, and
+settles the portfolio-wins case without leaving the card. A graded match keeps today's row. The
+listing is the narrative's own Fact Review: a `To re-grade N` filter, shown while N is above zero,
+lists its accepted cards with no grade, each with the same control. Its list reads every page, since
+the import holds more than the one page of 100 the screen used to fetch.
+
+**Revisit if:** anything other than the author's click calls `accept` again, as the 2026-09-04
+import did. It would stamp a grade nobody gave, and `graded_at` would stop meaning what it says.
