@@ -10,7 +10,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { STORAGE_STATE } from "./global-setup";
+import { STORAGE_STATE } from "./env";
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
