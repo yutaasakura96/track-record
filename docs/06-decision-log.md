@@ -4894,8 +4894,10 @@ prepared session" decided (issue #33). Nothing in that decision changed. What it
 
 - **Files.** `playwright.config.ts`, and under `tests/e2e/`: `smoke.spec.ts` (the one test),
   `worker.ts` (the test entry), `wrangler.toml` (no `[[workflows]]` binding, so imports run inline
-  with the stub), `model.ts` (the stub), `fixture.ts`, `env.ts` and `global-setup.ts`. `src/server`
-  is untouched. `npm run test:e2e` builds the SPA and runs it; CI runs `npx playwright test` after
+  with the stub), `model.ts` (the stub), `fixture.ts`, `env.ts` and `global-setup.ts`. Two files are
+  shared rather than copied: `tests/rebuild-schema.ts`, the schema rebuild both setups call, and
+  `scripts/dev-session-fixture.ts`, the invented identity and client, kept apart from
+  `dev-session-core.ts` so the browser test process loads no server code. `src/server` is untouched. `npm run test:e2e` builds the SPA and runs it; CI runs `npx playwright test` after
   its own build step.
 - **A database of its own, `track_record_e2e`.** The setup drops and rebuilds `public` on every run,
   so sharing `track_record_test` would let it race `npm test`, and `track_record_dev` is the author's
