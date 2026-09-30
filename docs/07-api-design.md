@@ -359,11 +359,12 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`. Paginated |
+| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
 | `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI |
-| `POST` | `/api/facts/:id/accept` | |
+| `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
-| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate` |
+| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade |
+| `POST` | `/api/facts/:id/regrade` | `{ provenance }` on an accepted fact. M3, #37 |
 
 **`GET /api/facts?importId=imp_4Tz8` → 200**
 
@@ -386,10 +387,13 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       },
       "technologies": ["PostgreSQL", "Airflow", "Python"],
       "isClientIdentifying": false,
+      "graded": false,
       "likelyMatches": [
         {
           "id": "fct_R2k7",
           "claim": "Cut the nightly batch from six hours to 80 minutes",
+          "provenance": "attested",
+          "graded": false,
           "document": { "importId": "sdv_3Qa0", "filename": "narrative.md", "versionNo": 1 },
           "conflict": true
         }
@@ -406,6 +410,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "evidence": null,
       "technologies": [],
       "isClientIdentifying": false,
+      "graded": false,
       "likelyMatches": []
     }
   ],
@@ -439,6 +444,22 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   as do accepted and rejected facts. Like the rest of this response it carries ids and claims, never
   `quote` text, and **no score**: how alike two claims are is not in the contract, for the reason no
   confidence is.
+
+- **`graded` · M3, #37, 2026-09-30.** True once the author has set the grade of an accepted fact:
+  `accept` and `regrade` set it, `undo` clears it, `reject` leaves it (`04` §3.7). False on an
+  accepted fact means its provenance is not the author's, which is the state of the 112 facts of the
+  2026-09-04 import (ADR-0002). A likely match carries its own `provenance` and `graded`, so the card
+  can offer the re-grade beside it. **`?importId=…&status=accepted&graded=false` is the listing of
+  what is still to re-grade**, and "the 112 are re-graded" is that listing coming back empty for the
+  2026-09-04 import. `graded=true` lists the opposite; any other value is ignored, as an unknown
+  `status` is.
+
+**`POST /api/facts/:id/regrade` → 200** with `{ "provenance": "attested" }`: the fact, as the list
+returns it, with `graded: true`. It writes the provenance and the grade and **nothing else**: not
+the status, the claim, the disclosure, the employer or `resolved_at`. The provenance may be the one
+the fact already has; confirming the default is a re-grade. `409 conflict` on a candidate or a
+rejected fact (a candidate is graded on its card and accepted), `422` for Measured without evidence
+as `PATCH` answers, and `404` for another user's fact.
 
 **`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
 same answer a missing employer gets, because a `403` would confirm it exists.

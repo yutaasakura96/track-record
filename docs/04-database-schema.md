@@ -327,6 +327,7 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `technologies` | text[] | no | `'{}'` | Source of derived skill candidates |
 | `is_client_identifying` | boolean | no | `false` | Set by the scrub |
 | `resolved_at` | timestamptz | yes | — | When accepted or rejected |
+| `graded_at` | timestamptz | yes | — | When the author last set the provenance of an accepted fact: stamped by accept and by re-grade, cleared by undo, left alone by reject. Null on an accepted fact means the grade is not the author's, which is the state of the 2026-09-04 import's facts (ADR-0002, `06` 2026-09-30) |
 
 **Indexes**
 
