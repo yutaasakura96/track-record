@@ -248,7 +248,7 @@ Assert: the response is a valid zip with the .docx MIME type and a non-trivial b
 faster than it catches anything. If a second smoke path is ever justified it will be 履歴書
 generation, because that render can fail in ways the résumé cannot.
 
-> **Status, 2026-09-02: sign-in is real; the Playwright half is still not built.**
+> **Status, 2026-09-02: sign-in is real; the Playwright half was not built then. It is now — see the 2026-09-30 note below.**
 > `tests/smoke.test.ts` walks the whole path above through the real Hono application. **The session
 > resolver is no longer stubbed** — the walk signs in through `POST /api/auth/sign-in/social`, a
 > local OIDC issuer run as a fixture (`tests/helpers/oidc-issuer.ts`), Better Auth's own callback, and the
@@ -267,6 +267,10 @@ generation, because that render can fail in ways the résumé cannot.
 > nothing is added to `src/server` (§1). The test runs against the built SPA served by the Worker's
 > `ASSETS` binding. Once it passes, §3 item 8 is covered by it.
 
+> **Built 2026-09-30** (issue #33; decision log, 2026-09-30). `tests/e2e/smoke.spec.ts` under
+> `playwright.config.ts`; `npm run test:e2e` locally, and a step after the build in CI. It has its own
+> database, `track_record_e2e`, which `npm run db:up` creates. §3 item 8 is now covered by it.
+
 ---
 
 ## 3. Tested manually, from a written checklist
@@ -284,7 +288,7 @@ For signed-in local browser checks, follow `docs/12-deployment-devops.md` §8.
 | 5 | Fact-review scroll sync in both directions; selected mark lands ~34% from the top | Interaction feel |
 | 6 | Design-system conformance: no off-scale spacing, no new colours, mixed font stack on every Japanese surface | Visual |
 | 7 | Full keyboard pass through fact review | Interaction |
-| 8 | **The application loads**: static assets served, the SPA mounts, the sign-in button reaches Google | Standing in for the unbuilt half of §2.9. The *server's* sign-in path is now automated (§2.9); what is left here is the browser: the bundle, the SPA mount, and the button that starts the redirect |
+| 8 | **The application loads**: static assets served, the SPA mounts, the sign-in button reaches Google | Covered by the browser smoke test (§2.9) since 2026-09-30; kept as the fallback if it is ever removed. The *server's* sign-in path is now automated (§2.9); what is left here is the browser: the bundle, the SPA mount, and the button that starts the redirect |
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 

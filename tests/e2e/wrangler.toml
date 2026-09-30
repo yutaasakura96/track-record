@@ -1,0 +1,42 @@
+# The Worker the browser smoke test runs against (`docs/11-testing-plan.md` §2.9).
+#
+# It is `../../wrangler.toml` with three differences, each on purpose:
+#
+#   main        the test entry, which builds the app with the stubbed model.
+#               Nothing in `src/server` knows a test exists (`docs/11` §1).
+#   [[workflows]]  ABSENT. `src/pipeline/workflow.ts` builds its own seam from
+#               `createModelSeam(this.env)`, so with the binding present an import
+#               would call the real Anthropic API. Without it the import runs
+#               inline with the stub (`src/pipeline/import.ts`).
+#   [vars]      placeholders. Every credential here is invented and reaches nothing;
+#               the database URL and the sign-in secret are passed on the command
+#               line by `playwright.config.ts`, so this file names no database.
+#
+# The assets are the built SPA, served through the same ASSETS binding and the
+# same fallback rules as production: never the Vite dev server, or "static assets
+# not served" would stay uncovered.
+name = "track-record-e2e"
+main = "worker.ts"
+compatibility_date = "2026-08-12"
+compatibility_flags = ["nodejs_compat"]
+# Module rules are resolved from here, and the 履歴書 template lives under the
+# repository root.
+base_dir = "../.."
+
+workers_dev = false
+preview_urls = false
+
+[assets]
+directory = "../../dist/client"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+ANTHROPIC_API_KEY = "test-key-never-used"
+ANTHROPIC_MODEL = "claude-opus-5"
+
+[[rules]]
+type = "Data"
+globs = ["**/*.docx"]
+fallthrough = true
