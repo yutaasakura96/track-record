@@ -69,6 +69,22 @@ jobs:
         run: npm run build
       - name: Check the build is in the shell
         run: npx tsx scripts/smoke-check.ts --built dist/client/index.html
+      # docs/11 §2.9: the critical path in a real browser, against the build above
+      # served by the Worker's ASSETS binding, with the model stubbed. It needs the
+      # stack from `db:up` (its own track_record_e2e database) and no secret.
+      - name: Install the browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser smoke test
+        run: npx playwright test
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
       - name: Bundle the Worker
         run: npx wrangler deploy --dry-run --outdir "$RUNNER_TEMP/worker"
 
