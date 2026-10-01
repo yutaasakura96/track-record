@@ -4886,3 +4886,64 @@ the import holds more than the one page of 100 the screen used to fetch.
 
 **Revisit if:** anything other than the author's click calls `accept` again, as the 2026-09-04
 import did. It would stamp a grade nobody gave, and `graded_at` would stop meaning what it says.
+
+### [2026-10-01] Both production rehearsals ran, and the record has not moved
+
+#40 made both rehearsals owner-run. On 2026-10-01 the author chose to have an agent run them on
+production and to keep the move of the record for themselves. This entry records what ran. The
+record is still only in the local `track_record_dev`. The two rehearsals that `docs/12` §4 and §5
+make M1 exit criteria have now run.
+
+**Production was not empty.** Before anything ran, a row count found what a sign-in on 2026-09-29,
+eleven minutes after the first deploy, had left: one row each in `users`, `accounts`, `sessions` and
+`profiles`, and three in `verifications`. The profile holds personal fields. Every record table was
+empty. The author's choice followed from this. Production `main` was not restored, reset or written
+to, and the rehearsal never touched those rows.
+
+**Rollback, 2026-10-01 11:16–11:17 UTC: passed.** Production was serving build `4b34f8a`, the first
+CI deploy, as Worker version `503c69d3`. That is the version the last secret change created. Steps:
+
+1. Built develop's head, `335bc5b`, and deployed it by hand with `wrangler deploy`, as `docs/12` §3
+   permits. It differs from `main` only in docs, tests, a local script and `.no-mistakes.yaml`, so
+   the Worker code is the same and only the SHA in the shell changes. The smoke check passed against
+   it.
+2. Ran `wrangler rollback 503c69d3-… --message …`. By 11:17:00 the shell named `4b34f8a` again, and
+   `smoke-check.ts --origin`, run with `GITHUB_SHA` set to `4b34f8a`, passed.
+
+The version is named rather than left to the default. Every `wrangler secret put` creates a
+version, and the default ("the version uploaded before the latest") is easy to misjudge. Wrangler
+does not prompt for confirmation when it runs non-interactively, so a scripted rollback goes through
+without stopping.
+
+**Point-in-time restore, 2026-10-01 11:18–11:21 UTC: passed, on disposable branches.**
+
+- **`main`'s own history is restorable.** A branch created from `main` as it stood sixty minutes
+  earlier (`neon branches create --parent <timestamp>`) matched `main` table for table in row counts
+  and in its schema-only dump.
+- **A restore removes a change and leaves the schema intact.** On a branch copied from `main`, the
+  run recorded the time T0, then created an invented marker table holding one row. It then ran
+  `neon branches restore <branch> ^self@<T0> --preserve-under-name <backup>`, which is the command
+  that would restore `main` in place. Afterwards the marker table was gone. The schema-only dump and
+  the per-table row counts matched the branch before the marker, the schema matched `main`, and
+  Drizzle's journal still held 11 migrations.
+- **`main` was unchanged.** Its row counts and schema matched before and after. The three disposable
+  branches, the copy, its pre-restore backup and the sixty-minute branch, were deleted afterwards.
+  `main` is again the project's only branch.
+
+**What the rehearsal found:**
+
+- `neon branches create --parent` takes a bare timestamp only for the default branch.
+  `<branch>@<timestamp>` fails with "Branch … not found". To restore any other branch, use
+  `neon branches restore … <source>@<timestamp>`.
+- The pre-restore backup branch is created without a compute. Inspecting it needs one added first.
+- **Step 1 of the move (`docs/12` §5) does not hold as written.** It requires production to hold no
+  rows, and the sign-in rows above are there. A data-only restore of `track_record_dev` would stop
+  at the first duplicate key and roll back. That leaves production unchanged, but the record would
+  not have moved. Whether to clear those rows first, and how, is the author's decision, made with
+  the move.
+
+**Still open:** the move itself (#40, step 4), and whether the monthly restore drill should now be
+automated (#40, step 5; `docs/12` §5). Both stay the author's.
+
+**Revisit if:** the procedure in `docs/12` §4 or §5 changes, or production moves to a paid Neon
+plan with a different restore window. The rehearsal then needs running again.
