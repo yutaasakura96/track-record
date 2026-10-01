@@ -22,7 +22,9 @@ are marked as the owner's in each issue.
   (`docs/12` §1), with the Cloudflare account id and three of the seven Worker secrets. Production
   serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. The first
   deploy ran on 2026-09-29 and was signed into the same day, so the Cloudflare API token, the Google
-  OAuth client and the sign-up allowlist are in place. #40's rollback and
+  OAuth client and the sign-up allowlist are in place. The production `ANTHROPIC_API_KEY` is set
+  (verified 2026-10-01 by listing the Worker's secret names; no value was read). The Anthropic
+  billing alert is not yet confirmed and remains the owner's. #40's rollback and
   point-in-time restore rehearsals ran on 2026-10-01, and the record moved into Neon `main` the same
   day by the `pg_dump` procedure in `docs/12` §5 (decision log, that date). The monthly restore drill
   stays manual for now.
