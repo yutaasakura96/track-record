@@ -4975,8 +4975,10 @@ without stopping.
   not have moved. Whether to clear those rows first, and how, is the author's decision, made with
   the move.
 
-**Still open:** the move itself (#40, step 4), and whether the monthly restore drill should now be
-automated (#40, step 5; `docs/12` §5). Both stay the author's.
+**Still open:** the move itself (#40, step 4), which stays the author's.
+
+**The drill stays manual (#40, step 5).** The author decided on 2026-10-01 that the monthly restore
+drill stays manual for now, and is revisited after the record moves into production (`docs/12` §5).
 
 **Revisit if:** the procedure in `docs/12` §4 or §5 changes, or production moves to a paid Neon
 plan with a different restore window. The rehearsal then needs running again.

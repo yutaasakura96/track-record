@@ -220,7 +220,8 @@ able to run.
 > **Status, 2026-09-28: the drill is manual, and stays manual for now.** No scheduled job runs it. It
 > needs an export file taken from the author's signed-in session, so a scheduled job could not run
 > it as described above. Automating it is revisited once the record has moved into production
-> (decision log, 2026-09-28).
+> (decision log, 2026-09-28). The author confirmed on 2026-10-01 that it stays manual until after
+> the record move (decision log, 2026-10-01).
 
 > **What an export cannot restore, and why that is correct.** Source documents never render, export,
 > or appear in any output (PRD §6.1), so `extracted_text` and `original_bytes` are not in the file.
