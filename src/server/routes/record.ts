@@ -111,11 +111,12 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
     await requireOwnedEmployer(db, userId, id);
 
     const attached = await countReferences(db, userId, id);
-    if (attached.facts + attached.roles + attached.projects > 0) {
-      throw conflict(
-        `This employer has ${describe(attached)} attached. Reassign them before deleting.`,
-        { ...attached },
-      );
+    if (attached.facts + attached.roles + attached.projects + attached.documents > 0) {
+      // A document names the control that moves it, as a project's refusal does.
+      const remedy = attached.documents
+        ? "Refile them from Documents before deleting."
+        : "Reassign them before deleting.";
+      throw conflict(`This employer has ${describe(attached)} attached. ${remedy}`, { ...attached });
     }
 
     await db.batch([
@@ -247,12 +248,20 @@ type Attached = {
   facts: number;
   roles: number;
   projects: number;
+  documents: number;
 };
 
-/** Counts only. A conflict says how much is in the way, never what it says. */
+/**
+ * Counts only. A conflict says how much is in the way, never what it says.
+ *
+ * A fact counts only when its employer was set on it by hand: that is the one
+ * whose foreign key holds the employer. A fact reading its employer through a
+ * document is in the way through the document, which is counted instead
+ * (`docs/04` §3.12).
+ */
 async function countReferences(db: Db, userId: string, employerId: string): Promise<Attached> {
   const n = sql<number>`count(*)::int`;
-  const [factRows, roleRows, projectRows] = await Promise.all([
+  const [factRows, roleRows, projectRows, documentRows] = await Promise.all([
     db
       .select({ n })
       .from(facts)
@@ -265,11 +274,16 @@ async function countReferences(db: Db, userId: string, employerId: string): Prom
       .select({ n })
       .from(projects)
       .where(and(eq(projects.userId, userId), eq(projects.employerId, employerId))),
+    db
+      .select({ n })
+      .from(sourceDocuments)
+      .where(and(eq(sourceDocuments.userId, userId), eq(sourceDocuments.employerId, employerId))),
   ]);
   return {
     facts: factRows[0]?.n ?? 0,
     roles: roleRows[0]?.n ?? 0,
     projects: projectRows[0]?.n ?? 0,
+    documents: documentRows[0]?.n ?? 0,
   };
 }
 

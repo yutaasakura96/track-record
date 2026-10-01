@@ -8,11 +8,13 @@
  */
 import type { Hono } from "hono";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
+import { employers, facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import { ApiError, conflict, notFound, validationFailed, pathParam, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
+import { requireOwnedEmployer } from "./record";
+import { employerSetByHand } from "../services/employer";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
 import { runImport } from "~/pipeline/import";
 import type { AppEnv, Bindings } from "../env";
@@ -21,8 +23,23 @@ import type { ModelSeam } from "~/model/types";
 import type { Context } from "hono";
 import { z } from "zod";
 
-/** `null` is the answer `No project`, and it is the only way back to unfiled. */
-const refileBody = z.object({ projectId: z.string().trim().min(1).nullable() });
+/**
+ * `null` is the answer `No project` or `No employer`, and the only way back to
+ * unfiled. A field left out is left as it is, so changing the employer does
+ * not need the project restated (`docs/07` §5).
+ */
+const refileBody = z
+  .object({
+    projectId: z.string().trim().min(1).nullable().optional(),
+    employerId: z.string().trim().min(1).nullable().optional(),
+  })
+  .refine((body) => body.projectId !== undefined || body.employerId !== undefined, {
+    message: "Choose a project or an employer to file this document under.",
+    path: ["projectId"],
+  });
+
+/** How a document's employer is named: as Screen 1's employer picker names it. */
+const employerName = sql<string>`coalesce(${employers.nameLatin}, ${employers.nameJa})`;
 
 export function registerImportRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -41,6 +58,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     if (!(file instanceof File)) throw validationFailed("Choose a file to import.", ["file"]);
 
     const projectId = stringOrNull(form.get("projectId"));
+    const employerId = stringOrNull(form.get("employerId"));
     const sourceDocumentId = stringOrNull(form.get("sourceDocumentId"));
 
     // A foreign key alone would let one user file a document under another
@@ -53,6 +71,8 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         .limit(1);
       if (!owned) throw notFound("That project");
     }
+    // The same for the employer every fact extracted from it will read through.
+    if (employerId) await requireOwnedEmployer(db, user.id, employerId);
 
     // Type and size are rejected here, before storage and before a single model
     // token is spent — the author is never billed for a doomed import.
@@ -117,6 +137,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
           id: documentId,
           userId: user.id,
           projectId,
+          // Set on the document only. Its facts are written with no employer of
+          // their own and read this one through it (`docs/04` §3.12).
+          employerId,
           filename: file.name,
           mimeType: upload.mimeType,
         }),
@@ -165,9 +188,12 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         mimeType: sourceDocuments.mimeType,
         projectId: projects.id,
         projectName: projects.name,
+        employerId: employers.id,
+        employerName,
       })
       .from(sourceDocuments)
       .leftJoin(projects, and(eq(projects.id, sourceDocuments.projectId), eq(projects.userId, user.id)))
+      .leftJoin(employers, and(eq(employers.id, sourceDocuments.employerId), eq(employers.userId, user.id)))
       .where(eq(sourceDocuments.userId, user.id));
 
     const versions = await db
@@ -236,6 +262,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
           filename: document.filename,
           mimeType: document.mimeType,
           project: document.projectId ? { id: document.projectId, name: document.projectName! } : null,
+          // The document's own, never resolved through its project: it is what
+          // Screen 8 refiles.
+          employer: document.employerId ? { id: document.employerId, name: document.employerName } : null,
           lastImportedAt: newest?.importedAt ?? "",
           openCandidates: own.reduce((sum, v) => sum + v.facts.open, 0),
           reimportable: !newest || !isRunning(newest.status),
@@ -356,26 +385,33 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
   });
 
   /**
-   * Refiling a document (`docs/07` §5). The ONLY thing about a source document
-   * that changes after import.
+   * Refiling a document (`docs/07` §5). Its project and its employer are the
+   * only things about a source document that change after import, and the body
+   * names either or both.
    *
-   * The document and every fact extracted from every one of its versions move
-   * together, in one batch. A fact's project has always been its document's,
-   * snapshotted at extraction (`import.ts` reads `project_id` per chunk); this
-   * keeps that rule true by making the following happen more than once rather
-   * than by giving a fact a project of its own.
+   * **The project** is copied onto every fact extracted from every one of the
+   * document's versions, so the document and its facts move together, in one
+   * batch. A fact's project has always been its document's, snapshotted at
+   * extraction (`import.ts` reads `project_id` per chunk); this keeps that rule
+   * true by making the following happen more than once rather than by giving a
+   * fact a project of its own.
    *
-   * **Refused while the newest version is running**, in the words a re-import
-   * is refused in. A chunk that read the old project before the move and
-   * inserted its facts after it would leave those facts behind, filed under a
-   * project the document is no longer under, and nothing would say so.
+   * **The employer** is written on the document alone. A fact reads it through
+   * the document unless its employer was set on its card, so there is no copy
+   * to move and a hand-set employer, `No employer` included, stays where it is
+   * (`docs/04` §3.12).
+   *
+   * **A project change is refused while the newest version is running**, in
+   * the words a re-import is refused in. A chunk that read the old project
+   * before the move and inserted its facts after it would leave those facts
+   * behind, filed under a project the document is no longer under, and nothing
+   * would say so. An employer change has no such window, and is not refused.
    */
   api.patch("/api/source-documents/:id", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const id = pathParam(c, "id");
     const body = await parseBody(c, refileBody);
-    const projectId = body.projectId ?? null;
 
     const [document] = await db
       .select({ id: sourceDocuments.id })
@@ -385,60 +421,96 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     if (!document) throw notFound("That document");
 
     // A foreign key alone would let one user file a document under another
-    // user's project. Ownership is checked in the same query that reads it.
-    let project: { id: string; name: string } | null = null;
-    if (projectId) {
+    // user's project or employer. Ownership is checked in a read filtered by
+    // `user_id`, and a miss is a 404.
+    if (body.projectId) {
       const [owned] = await db
-        .select({ id: projects.id, name: projects.name })
+        .select({ id: projects.id })
         .from(projects)
-        .where(and(eq(projects.userId, user.id), eq(projects.id, projectId)))
+        .where(and(eq(projects.userId, user.id), eq(projects.id, body.projectId)))
         .limit(1);
       if (!owned) throw notFound("That project");
-      project = owned;
     }
+    if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
 
-    const [newest] = await db
-      .select({ versionNo: sourceDocumentVersions.versionNo, status: sourceDocumentVersions.importStatus })
-      .from(sourceDocumentVersions)
-      .where(
-        and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.sourceDocumentId, id)),
-      )
-      .orderBy(desc(sourceDocumentVersions.versionNo))
-      .limit(1);
-    if (newest && isRunning(newest.status)) {
-      throw conflict(`Wait for v${newest.versionNo} to finish extracting.`, {
-        versionNo: newest.versionNo,
-      });
+    if (body.projectId !== undefined) {
+      const [newest] = await db
+        .select({ versionNo: sourceDocumentVersions.versionNo, status: sourceDocumentVersions.importStatus })
+        .from(sourceDocumentVersions)
+        .where(
+          and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.sourceDocumentId, id)),
+        )
+        .orderBy(desc(sourceDocumentVersions.versionNo))
+        .limit(1);
+      if (newest && isRunning(newest.status)) {
+        throw conflict(`Wait for v${newest.versionNo} to finish extracting.`, {
+          versionNo: newest.versionNo,
+        });
+      }
     }
 
     const now = new Date();
-    // Two tables, one transaction. A document moved without its facts would be
-    // filed under one project and quoted under another, with nothing to say
-    // which was meant. The facts are matched through a subselect rather than
-    // through ids read first, so a version created between the two cannot be
-    // missed.
-    const [, moved] = await db.batch([
-      db
-        .update(sourceDocuments)
-        .set({ projectId, updatedAt: now })
-        .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, id))),
-      db
-        .update(facts)
-        .set({ projectId, updatedAt: now })
-        .where(
-          and(
-            eq(facts.userId, user.id),
-            sql`${facts.sourceDocumentVersionId} in (
-              select id from source_document_versions
-              where source_document_id = ${id} and user_id = ${user.id}
-            )`,
-          ),
-        )
-        .returning({ id: facts.id }),
-    ]);
+    // The facts are matched through a subselect rather than through ids read
+    // first, so a version created between the two cannot be missed.
+    const ofThisDocument = and(
+      eq(facts.userId, user.id),
+      sql`${facts.sourceDocumentVersionId} in (
+        select id from source_document_versions
+        where source_document_id = ${id} and user_id = ${user.id}
+      )`,
+    );
+    const documentWrite = db
+      .update(sourceDocuments)
+      .set({
+        ...(body.projectId === undefined ? {} : { projectId: body.projectId }),
+        ...(body.employerId === undefined ? {} : { employerId: body.employerId }),
+        updatedAt: now,
+      })
+      .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, id)));
+    const counted = db
+      .select({
+        facts: sql<number>`count(*)::int`,
+        employerSetByHand: sql<number>`count(*) filter (where ${employerSetByHand})::int`,
+      })
+      .from(facts)
+      .where(ofThisDocument);
+    // Where the document is filed once the writes above have run: read in the
+    // same batch, so the answer is the state they left.
+    const filed = db
+      .select({
+        projectId: projects.id,
+        projectName: projects.name,
+        employerId: employers.id,
+        employerName,
+      })
+      .from(sourceDocuments)
+      .leftJoin(projects, and(eq(projects.id, sourceDocuments.projectId), eq(projects.userId, user.id)))
+      .leftJoin(employers, and(eq(employers.id, sourceDocuments.employerId), eq(employers.userId, user.id)))
+      .where(and(eq(sourceDocuments.userId, user.id), eq(sourceDocuments.id, id)));
 
-    // A count, never a claim.
-    return c.json({ sourceDocumentId: id, project, facts: moved.length });
+    // One transaction. A document moved without its facts would be filed under
+    // one project and quoted under another, with nothing to say which was meant.
+    const [counts, where] =
+      body.projectId === undefined
+        ? await db.batch([documentWrite, counted, filed]).then(([, n, f]) => [n, f] as const)
+        : await db
+            .batch([
+              documentWrite,
+              db.update(facts).set({ projectId: body.projectId, updatedAt: now }).where(ofThisDocument),
+              counted,
+              filed,
+            ])
+            .then(([, , n, f]) => [n, f] as const);
+
+    const [row] = where;
+    // Counts, never a claim.
+    return c.json({
+      sourceDocumentId: id,
+      project: row?.projectId ? { id: row.projectId, name: row.projectName! } : null,
+      employer: row?.employerId ? { id: row.employerId, name: row.employerName! } : null,
+      facts: counts[0]?.facts ?? 0,
+      employerSetByHand: counts[0]?.employerSetByHand ?? 0,
+    });
   });
 
   /**

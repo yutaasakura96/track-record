@@ -13,7 +13,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { facts, sourceDocumentVersions, sourceDocuments } from "../db/schema";
 import { overlapMatcher, type OverlapFact } from "~/overlap";
-import { effectiveEmployerId } from "./employer";
+import { effectiveEmployerId, type FactWithEmployer } from "./employer";
 import type { Db } from "../db/client";
 
 export interface LikelyMatchResponse {
@@ -27,8 +27,6 @@ export interface LikelyMatchResponse {
   conflict: boolean;
 }
 
-type FactRow = typeof facts.$inferSelect;
-
 /**
  * Keyed by candidate id. A fact absent from the map has no likely matches:
  * it is not a candidate, its employer does not resolve, or nothing is alike.
@@ -36,18 +34,15 @@ type FactRow = typeof facts.$inferSelect;
 export async function likelyMatchesFor(
   db: Db,
   userId: string,
-  page: readonly FactRow[],
+  page: readonly FactWithEmployer[],
 ): Promise<Map<string, LikelyMatchResponse[]>> {
   const result = new Map<string, LikelyMatchResponse[]>();
   const open = page.filter((fact) => fact.status === "candidate");
   if (open.length === 0) return result;
 
-  const resolved = await db
-    .select({ id: facts.id, employerId: effectiveEmployerId })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), inArray(facts.id, open.map((fact) => fact.id))));
+  // Resolved by the select that read the page, in the order every reader uses.
   const employerOf = new Map<string, string>();
-  for (const row of resolved) if (row.employerId !== null) employerOf.set(row.id, row.employerId);
+  for (const fact of open) if (fact.resolvedEmployerId !== null) employerOf.set(fact.id, fact.resolvedEmployerId);
   const employerIds = [...new Set(employerOf.values())];
   if (employerIds.length === 0) return result;
 

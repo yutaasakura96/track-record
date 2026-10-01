@@ -186,11 +186,16 @@ describe("one user's record is unreachable from another's session", () => {
     });
     expect(response.status).toBe(404);
 
-    // And the fact is unchanged — a refused link leaves no partial write.
-    const { items } = await a.client.json<{ items: { id: string; employerId: string | null }[] }>(
-      "/api/facts",
-    );
-    expect(items.find((f) => f.id === a.factId)!.employerId).toBeNull();
+    // And the fact is unchanged — a refused link leaves no partial write. It
+    // still resolves through its project to its own user's employer, and no
+    // hand set was recorded.
+    const { items } = await a.client.json<{
+      items: { id: string; employerId: string | null; employerSetByHand: boolean }[];
+    }>("/api/facts");
+    expect(items.find((f) => f.id === a.factId)).toMatchObject({
+      employerId: a.employerId,
+      employerSetByHand: false,
+    });
   });
 
   it("cannot attach a role to another user's employer", async () => {

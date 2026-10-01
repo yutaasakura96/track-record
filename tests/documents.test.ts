@@ -263,8 +263,10 @@ describe("refiling a document", () => {
     expect(await response.json()).toEqual({
       sourceDocumentId: imported.sourceDocumentId,
       project: { id: orchard.id, name: "Orchard ledger" },
-      // A count, never a claim.
+      employer: null,
+      // Counts, never a claim.
       facts: 1,
+      employerSetByHand: 0,
     });
 
     expect((await listing()).documents[0]!.project).toEqual({ id: orchard.id, name: "Orchard ledger" });

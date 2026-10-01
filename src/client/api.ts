@@ -113,8 +113,13 @@ export interface Fact {
   provenance: "measured" | "attested" | "generated";
   disclosure: "public" | "restricted" | "private";
   status: "candidate" | "accepted" | "rejected";
-  /** Which employer the fact is filed under. `null` until it is linked. */
+  /**
+   * Which employer the fact is filed under: its hand-set one, then its
+   * document's, then its project's. `null` when none is.
+   */
   employerId: string | null;
+  /** True once set on the card; the fact then keeps it whatever its document does. */
+  employerSetByHand: boolean;
   projectId: string | null;
   evidence: {
     sourceDocumentVersionId: string;
@@ -261,6 +266,8 @@ export interface SourceDocumentRow {
   filename: string;
   mimeType: string;
   project: { id: string; name: string } | null;
+  /** The document's own employer, never its project's. Its facts read it through the document. */
+  employer: { id: string; name: string } | null;
   lastImportedAt: string;
   openCandidates: number;
   /** False exactly when the newest version is `queued` or `extracting`. */
@@ -761,10 +768,11 @@ export function useStartImport() {
   const queryClient = useQueryClient();
   return useMutation({
     /** `sourceDocumentId` makes this a re-import: a new version of that document. */
-    mutationFn: (input: { file: File; projectId?: string; sourceDocumentId?: string }) => {
+    mutationFn: (input: { file: File; projectId?: string; employerId?: string; sourceDocumentId?: string }) => {
       const form = new FormData();
       form.set("file", input.file);
       if (input.projectId) form.set("projectId", input.projectId);
+      if (input.employerId) form.set("employerId", input.employerId);
       if (input.sourceDocumentId) form.set("sourceDocumentId", input.sourceDocumentId);
       return api<{ importId: string; sourceDocumentId: string; versionNo: number }>("/api/imports", {
         method: "POST",
@@ -778,22 +786,36 @@ export function useStartImport() {
 }
 
 /**
- * Refiling a document, which moves its facts with it.
+ * Refiling a document under a project, an employer or both, which moves its
+ * facts with it. Only what changed is sent: a field left out stays as it is.
  *
  * The source-text query carries the Fact Review breadcrumb's project, so it is
- * invalidated by document prefix rather than by the one version on screen.
+ * invalidated by document prefix rather than by the one version on screen. The
+ * facts are invalidated too, because each one that reads its employer through
+ * the document now reads a different one.
  */
 export function useRefileDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { sourceDocumentId: string; projectId: string | null }) =>
-      api<{ sourceDocumentId: string; project: { id: string; name: string } | null; facts: number }>(
-        `/api/source-documents/${input.sourceDocumentId}`,
-        { method: "PATCH", ...json({ projectId: input.projectId }) },
-      ),
+    mutationFn: ({
+      sourceDocumentId,
+      ...body
+    }: {
+      sourceDocumentId: string;
+      projectId?: string | null;
+      employerId?: string | null;
+    }) =>
+      api<{
+        sourceDocumentId: string;
+        project: { id: string; name: string } | null;
+        employer: { id: string; name: string } | null;
+        facts: number;
+        employerSetByHand: number;
+      }>(`/api/source-documents/${sourceDocumentId}`, { method: "PATCH", ...json(body) }),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["source", result.sourceDocumentId] });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.allFacts });
     },
     // A refused refile re-reads the list as well: the 409 means it was stale.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),

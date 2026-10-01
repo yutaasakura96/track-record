@@ -105,8 +105,8 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 
 - **Every query filters by `user_id`.** No exceptions. Asserted by test.
 - **A fact's employer resolves through `effectiveEmployerId`** (`src/server/services/employer.ts`),
-  not a new inline `coalesce`. #35 adds the document's employer there and moves the two readers still
-  resolving their own, `collectRenderInputs` and `scripts/check-attribution.mjs` (`docs/04` §3.12).
+  not a new inline `coalesce`: hand set, then its document's, then its project's. Its SQL lives in
+  `src/server/db/fact-employer.ts`, which `scripts/check-attribution.mjs` loads too (`docs/04` §3.12).
 - **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
 - **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
   Candidates that fail are discarded before they reach the database.

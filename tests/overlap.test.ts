@@ -26,6 +26,7 @@ interface Fact {
   provenance: string;
   status: string;
   employerId: string | null;
+  employerSetByHand: boolean;
   likelyMatches: Match[];
 }
 
@@ -160,7 +161,9 @@ describe("a candidate is shown what it likely restates", () => {
     const narrativeImport = await importDocument(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], project.id);
     const [narrativeFact] = await factsOf(narrativeImport);
     await client.post(`/api/facts/${narrativeFact!.id}/accept`);
-    expect(narrativeFact!.employerId).toBeNull();
+    // No employer of its own: it resolves to the project's.
+    expect(narrativeFact!.employerSetByHand).toBe(false);
+    expect(narrativeFact!.employerId).toBe(aozora);
 
     const { items } = await portfolioCandidates(aozora);
     expect(byClaim(items, RESTATED.claim).likelyMatches.map((m) => m.id)).toEqual([narrativeFact!.id]);

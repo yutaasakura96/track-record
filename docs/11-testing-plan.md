@@ -202,6 +202,24 @@ And re-grading a candidate or a rejected fact is refused, Measured without evide
   and another user's fact is not found
 ```
 
+### 2.6d A document is filed under an employer, and its facts read it through
+
+`tests/document-employer.test.ts` over HTTP, `tests/client/documents.test.tsx` and
+`tests/client/overview.test.tsx` on the two rows (#35).
+
+```
+Given a document imported under an employer
+Then every candidate resolves to that employer, and none carries a copy of it
+And the document's employer wins over its project's
+And a re-import keeps the document's employer, whatever the upload names
+When the document's employer changes
+Then every fact reading through it follows, and a hand-set one stays, No employer included
+And the change is not refused while a version extracts, as a project change is
+And another user's employer is a 404, at import and at refile alike
+And the fact list, the render, Version Edit and the attribution check name the same employer
+And a document with no employer behaves as it did before #35
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

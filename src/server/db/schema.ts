@@ -218,6 +218,12 @@ export const sourceDocuments = pgTable("source_documents", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   projectId: text("project_id").references(() => projects.id, { onDelete: "restrict" }),
+  /**
+   * Chosen at import and changeable after it. Facts extracted from the document
+   * read their employer through it rather than carrying a copy, unless one was
+   * set on the fact by hand (`docs/04` §3.12).
+   */
+  employerId: text("employer_id").references(() => employers.id, { onDelete: "restrict" }),
   filename: text("filename").notNull(),
   mimeType: text("mime_type").notNull(),
   ...timestamps,
@@ -320,7 +326,19 @@ export const facts = pgTable("facts", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   projectId: text("project_id").references(() => projects.id, { onDelete: "restrict" }),
+  /**
+   * Only an employer set on the fact by hand. Extraction never writes one: the
+   * fact reads its document's employer, then its project's, through
+   * `effectiveEmployerId` — never this column alone (`docs/04` §3.12).
+   */
   employerId: text("employer_id").references(() => employers.id, { onDelete: "restrict" }),
+  /**
+   * When the author last set this fact's employer on its card. Stamped or with
+   * `employer_id` not null, the employer is hand set and outlasts any change to
+   * the document's; stamped with `employer_id` null, it is a hand-set
+   * `No employer` (`docs/04` §3.7).
+   */
+  employerSetAt: timestamp("employer_set_at", { withTimezone: true }),
   /** Stored PLAINLY. Impact framing is applied at render time, never here. */
   claim: text("claim").notNull(),
   /** Anything a model produces starts Generated. */
