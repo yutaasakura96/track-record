@@ -79,6 +79,7 @@ const FOREIGN_KEYS = [
   ["certifications", "user_id", "users", "id"],
   ["source_documents", "user_id", "users", "id"],
   ["source_documents", "project_id", "projects", "id"],
+  ["source_documents", "employer_id", "employers", "id"],
   ["source_document_versions", "user_id", "users", "id"],
   ["source_document_versions", "source_document_id", "source_documents", "id"],
   ["facts", "user_id", "users", "id"],
