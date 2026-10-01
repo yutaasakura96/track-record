@@ -36,7 +36,7 @@ are marked as the owner's in each issue.
 
 ## Blocked
 
-- #35 and everything after it wait on go-live, because the import lands in production (#34, #40).
+- Nothing. #35 waited on the record reaching production (#34, #40), which it did on 2026-10-01.
 
 ## Carrying
 
