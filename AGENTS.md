@@ -44,7 +44,7 @@ destroyed the dev session, profile, documents and renders. Two guards in `tests/
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
 `npm run test:e2e` (the Playwright smoke test) has a third, `track_record_e2e`, which it drops and rebuilds
 every run under the same guards; it is safe to wipe. Its Worker needs port 8788 free.
-**`track_record_dev` holds the author's real record**, and until #40 moves it into the (empty) Neon
+**`track_record_dev` holds the author's real record**, and until #40 moves it into the Neon
 production project it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
 `npm run db:down` stops the stack and keeps the volume; `npm run db:reset` removes it and refuses without
 `-- --destroy-local-record`. An agent never passes that flag, and never runs `docker compose down -v` or
