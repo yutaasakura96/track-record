@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-10-01
+**Updated:** 2026-10-02
 
 ## Done
 
@@ -23,20 +23,22 @@ are marked as the owner's in each issue.
   serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. The first
   deploy ran on 2026-09-29 and was signed into the same day, so the Cloudflare API token, the Google
   OAuth client and the sign-up allowlist are in place. The production `ANTHROPIC_API_KEY` is set
-  (verified 2026-10-01 by listing the Worker's secret names; no value was read). The Anthropic
-  billing alert is not yet confirmed and remains the owner's. #40's rollback and
+  (verified 2026-10-01 by listing the Worker's secret names; no value was read). The author
+  confirmed the Anthropic spend alert set on 2026-10-02. #40's rollback and
   point-in-time restore rehearsals ran on 2026-10-01, and the record moved into Neon `main` the same
   day by the `pg_dump` procedure in `docs/12` §5 (decision log, that date). The monthly restore drill
   stays manual for now.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
 - **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
-  portfolio, the first review to use #36's overlap flag and #37's re-grade; #38 the remaining
-  portfolios; #39 all five renders regenerated. The author re-grades the 112 as they appear on the
-  overlap card, and the rest from `To re-grade` on the 2026-09-04 import's Fact Review.
+  portfolio (the code half is built, decision log 2026-10-02; the import, its review and the
+  measurement are the owner's, in production after the merge), the first review to use #36's
+  overlap flag and #37's re-grade; #38 the remaining portfolios; #39 all five renders regenerated.
+  The author re-grades the 112 as they appear on the overlap card, and the rest from
+  `To re-grade` on the 2026-09-04 import's Fact Review.
 
 ## Blocked
 
-- Nothing. #35 waited on the record reaching production (#34, #40), which it did on 2026-10-01.
+- Nothing.
 
 ## Carrying
 
