@@ -54,7 +54,8 @@ database on the same server as a dev `DATABASE_URL` — read from `.dev.vars` an
 environment, since a shell can export one in front of `wrangler dev`. After it connects, it asks
 `current_database()` and refuses if the answer is not the database it aimed at: the URL says where a
 query was sent, the proxy decides where it lands. Both failures are silent and total without a
-guard, which is what makes a cheap check worth having.
+guard, which is what makes a cheap check worth having. The browser smoke test's setup (§2.9) runs
+both guards on `E2E_DATABASE_URL`, aimed at `track_record_e2e`.
 
 **The guards fail closed.** A `TEST_DATABASE_URL` that cannot be parsed, or a `DATABASE_URL` that is
 set but unreadable, is a refusal rather than a shrug — a drop cannot be undone, and the run nobody
