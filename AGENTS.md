@@ -42,7 +42,7 @@ Every stall recorded before 2026-09-25 was the first kind (issue #25, decision l
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
 destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
-**`track_record_dev` holds the author's real record**, and until #40 moves it into the (empty) Neon
+**`track_record_dev` holds the author's real record**, and until #40 moves it into the Neon
 production project it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
 `npm run db:down` stops the stack and keeps the volume; `npm run db:reset` removes it and refuses without
 `-- --destroy-local-record`. An agent never passes that flag, and never runs `docker compose down -v` or

@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-09-28
+**Updated:** 2026-10-01
 
 ## Done
 
@@ -22,9 +22,10 @@ are marked as the owner's in each issue.
   (`docs/12` §1), with the Cloudflare account id and three of the seven Worker secrets. Production
   serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. Still the
   owner's: the Cloudflare API token, the Google OAuth client, the Anthropic key and billing alert,
-  and the sign-up allowlist. #40 then rehearses rollback and point-in-time restore on the empty
-  production project and moves the record in by `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay
-  open until #40 closes.
+  and the sign-up allowlist. The first deploy ran on 2026-09-29, and #40's rollback and
+  point-in-time restore rehearsals ran on 2026-10-01 (decision log, that date). What remains of #40
+  is the author's: moving the record in by `pg_dump`, after deciding how to clear the sign-in rows
+  production already holds (`docs/12` §5), and whether to automate the monthly restore drill.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
 - **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
   portfolio, the first review to use #36's overlap flag and #37's re-grade; #38 the remaining
