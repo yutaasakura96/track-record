@@ -20,9 +20,9 @@ are marked as the owner's in each issue.
 - **Go-live.** #34 deploys production on every merge to `main`. The Neon project, the `production`
   Environment with `DATABASE_URL`, and protection on `main` were provisioned on 2026-09-28
   (`docs/12` §1), with the Cloudflare account id and three of the seven Worker secrets. Production
-  serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. Still the
-  owner's: the Cloudflare API token, the Google OAuth client, the Anthropic key and billing alert,
-  and the sign-up allowlist. The first deploy ran on 2026-09-29, and #40's rollback and
+  serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. The first
+  deploy ran on 2026-09-29 and was signed into the same day, so the Cloudflare API token, the Google
+  OAuth client and the sign-up allowlist are in place. #40's rollback and
   point-in-time restore rehearsals ran on 2026-10-01 (decision log, that date). What remains of #40
   is the author's: moving the record in by `pg_dump`, after deciding how to clear the sign-in rows
   production already holds (`docs/12` §5).
