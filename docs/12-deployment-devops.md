@@ -34,6 +34,10 @@
 > deploy ran on 2026-09-29, and both rehearsals in §4 and §5 ran on 2026-10-01 (decision log,
 > 2026-10-01). Production `main` holds a sign-in's rows and a filled-in profile, but no record rows.
 > The local `track_record_dev` is still the only copy of the record.
+>
+> **Status, 2026-10-01, later: the record is in production.** It moved into Neon `main` the same day
+> by the procedure in §5, after the sign-in rows were cleared (decision log, 2026-10-01, "The record
+> moved into production"). Production `main` is now the record of truth.
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
@@ -257,6 +261,9 @@ try to create every table again.
    > `users`, `accounts`, `sessions`, `verifications` and `profiles`, and the profile holds personal
    > fields. Step 5 would stop at the first duplicate key and roll back. How to clear these rows is
    > the author's decision, to be made before this procedure runs.
+   >
+   > **Resolved 2026-10-01.** At the author's instruction the sign-in and profile rows were cleared
+   > before step 5, and the move then ran (decision log, 2026-10-01).
 2. **Freeze and export.** Stop using the local app. Take a `GET /api/export` from it, as a copy that
    does not depend on this procedure.
 3. **Same schema on both sides.** Local migrations are applied by `npm run db:migrate:local`, which

@@ -23,9 +23,9 @@ are marked as the owner's in each issue.
   serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. The first
   deploy ran on 2026-09-29 and was signed into the same day, so the Cloudflare API token, the Google
   OAuth client and the sign-up allowlist are in place. #40's rollback and
-  point-in-time restore rehearsals ran on 2026-10-01 (decision log, that date). What remains of #40
-  is the author's: moving the record in by `pg_dump`, after deciding how to clear the sign-in rows
-  production already holds (`docs/12` §5).
+  point-in-time restore rehearsals ran on 2026-10-01, and the record moved into Neon `main` the same
+  day by the `pg_dump` procedure in `docs/12` §5 (decision log, that date). The monthly restore drill
+  stays manual for now.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
 - **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
   portfolio, the first review to use #36's overlap flag and #37's re-grade; #38 the remaining

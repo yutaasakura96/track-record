@@ -4982,3 +4982,27 @@ drill stays manual for now, and is revisited after the record moves into product
 
 **Revisit if:** the procedure in `docs/12` §4 or §5 changes, or production moves to a paid Neon
 plan with a different restore window. The rehearsal then needs running again.
+
+### [2026-10-01] The record moved into production, and the restore drill stays manual
+
+Supersedes the "Still open" paragraph of the previous entry, "Both production rehearsals ran, and
+the record has not moved". Later the same day, at the author's explicit instruction, firstmate
+moved the record. The author's words were "just clear both if needed it doesnt really matter that
+much" and "you can do all of this. all the stuff that you can do just do it." This closes #40.
+
+**The move, 2026-10-01, by the procedure in `docs/12` §5.**
+
+- The production sign-in and profile rows left on 2026-09-29 were cleared first, so step 1's
+  precondition held.
+- The data-only dump of `track_record_dev` was restored into Neon `main` in a single transaction.
+- Every table's row count matched the local database except `sessions` and `verifications`, which
+  the procedure excludes.
+- The author then signed in to production to check it.
+- The dump files were made outside the repository and deleted after that check.
+
+Only dates and outcomes are recorded here: no connection string, host name or row content.
+
+**The monthly restore drill stays manual (#40, step 5).** The author decided this on 2026-10-01 and
+will revisit it now that the record is in production (`docs/12` §5).
+
+**Revisit if:** production turns out to be missing something the local `track_record_dev` holds.
