@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-09-28
+**Updated:** 2026-10-01
 
 ## Done
 
@@ -20,11 +20,14 @@ are marked as the owner's in each issue.
 - **Go-live.** #34 deploys production on every merge to `main`. The Neon project, the `production`
   Environment with `DATABASE_URL`, and protection on `main` were provisioned on 2026-09-28
   (`docs/12` §1), with the Cloudflare account id and three of the seven Worker secrets. Production
-  serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. Still the
-  owner's: the Cloudflare API token, the Google OAuth client, the Anthropic key and billing alert,
-  and the sign-up allowlist. #40 then rehearses rollback and point-in-time restore on the empty
-  production project and moves the record in by `pg_dump`. M1's exit criteria in `docs/12` §4–5 stay
-  open until #40 closes.
+  serves from `https://track-record.asakurayuta.workers.dev`, with no custom domain. The first
+  deploy ran on 2026-09-29 and was signed into the same day, so the Cloudflare API token, the Google
+  OAuth client and the sign-up allowlist are in place. The production `ANTHROPIC_API_KEY` is set
+  (verified 2026-10-01 by listing the Worker's secret names; no value was read). The Anthropic
+  billing alert is not yet confirmed and remains the owner's. #40's rollback and
+  point-in-time restore rehearsals ran on 2026-10-01, and the record moved into Neon `main` the same
+  day by the `pg_dump` procedure in `docs/12` §5 (decision log, that date). The monthly restore drill
+  stays manual for now.
 - #33, the Playwright half of the end-to-end smoke test (`docs/11-testing-plan.md` §2.9).
 - **The back-catalogue import (M3)**, in order: #35 the document-level employer and the first
   portfolio, the first review to use #36's overlap flag and #37's re-grade; #38 the remaining
@@ -33,7 +36,7 @@ are marked as the owner's in each issue.
 
 ## Blocked
 
-- #35 and everything after it wait on go-live, because the import lands in production (#34, #40).
+- Nothing. #35 waited on the record reaching production (#34, #40), which it did on 2026-10-01.
 
 ## Carrying
 
