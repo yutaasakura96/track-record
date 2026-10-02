@@ -31,6 +31,7 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     disclosure: "public",
     status: "candidate",
     employerId: null,
+    employerSetByHand: false,
     projectId: null,
     evidence: {
       sourceDocumentVersionId: "dv-test-1",

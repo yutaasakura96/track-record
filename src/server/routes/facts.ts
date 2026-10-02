@@ -17,6 +17,8 @@ import { conflict, notFound, validationFailed, pathParam } from "../http/errors"
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
 import { likelyMatchesFor, type LikelyMatchResponse } from "../services/overlap";
+import { effectiveEmployerId, factWithEmployer, type FactWithEmployer } from "../services/employer";
+import { employerSetByHand } from "../db/fact-employer";
 import { requireOwnedEmployer } from "./record";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
@@ -29,7 +31,9 @@ const patchBody = z.object({
   provenance: z.enum(["measured", "attested", "generated"]).optional(),
   disclosure: z.enum(["public", "restricted", "private"]).optional(),
   /**
-   * Which employer this fact belongs to. `null` detaches it.
+   * Which employer this fact belongs to, set by hand. `null` is a hand-set
+   * `No employer`, not a return to reading through the document: either way
+   * the fact keeps it whatever later happens to its document (`docs/04` §3.12).
    *
    * Employer structure used to be reconstructed by the model from the claim
    * prose, which worked only because the imported source happened to name its
@@ -60,7 +64,8 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       filters.push(eq(facts.status, status));
     }
     const employerId = c.req.query("employerId");
-    if (employerId) filters.push(eq(facts.employerId, employerId));
+    // The employer the fact resolves to, the one the card shows.
+    if (employerId) filters.push(eq(effectiveEmployerId, employerId));
     const projectId = c.req.query("projectId");
     if (projectId) filters.push(eq(facts.projectId, projectId));
     // `graded=false` with `status=accepted` is the listing of what is still to
@@ -72,7 +77,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
 
     const rows = await c
       .get("db")
-      .select()
+      .select(factWithEmployer)
       .from(facts)
       .where(and(...filters))
       .orderBy(asc(facts.id))
@@ -99,18 +104,18 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     // employer. The check is a read filtered by `user_id`, and a miss is a 404.
     if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
 
-    const [updated] = await db
+    const now = new Date();
+    await db
       .update(facts)
       .set({
         ...(body.claim === undefined ? {} : { claim: body.claim }),
         ...(body.provenance === undefined ? {} : { provenance: body.provenance }),
         ...(body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
-        ...(body.employerId === undefined ? {} : { employerId: body.employerId }),
-        updatedAt: new Date(),
+        ...(body.employerId === undefined ? {} : { employerId: body.employerId, employerSetAt: now }),
+        updatedAt: now,
       })
-      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
-      .returning();
-    return c.json(await withMatches(db, user.id, updated!));
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    return c.json(await withMatches(db, user.id, fact.id));
   });
 
   /**
@@ -146,12 +151,11 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     requireEvidenceFor(body.provenance, fact);
 
     const now = new Date();
-    const [updated] = await db
+    await db
       .update(facts)
       .set({ provenance: body.provenance, gradedAt: now, updatedAt: now })
-      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
-      .returning();
-    return c.json(await withMatches(db, user.id, updated!));
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    return c.json(await withMatches(db, user.id, fact.id));
   });
 }
 
@@ -181,7 +185,7 @@ async function resolve(
 
   // Accepting is the author grading the fact; a candidate carries no decision.
   // A rejection leaves the grade as it was (`docs/04` §3.7).
-  const [updated] = await db
+  await db
     .update(facts)
     .set({
       status,
@@ -189,20 +193,24 @@ async function resolve(
       ...(status === "rejected" ? {} : { gradedAt: status === "accepted" ? new Date() : null }),
       updatedAt: new Date(),
     })
-    .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
-    .returning();
-  return c.json(await withMatches(db, user.id, updated!));
+    .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+  return c.json(await withMatches(db, user.id, fact.id));
 }
 
-/** One fact after a write, its likely matches read the way the list reads them. */
-async function withMatches(db: Db, userId: string, fact: typeof facts.$inferSelect) {
+/**
+ * One fact after a write, read back the way the list reads it: its employer
+ * resolved, and its likely matches computed. Read rather than taken from the
+ * write's `returning`, so the employer is resolved by the same select.
+ */
+async function withMatches(db: Db, userId: string, id: string) {
+  const fact = await requireFact(db, userId, id);
   const matches = await likelyMatchesFor(db, userId, [fact]);
   return toResponse(fact, matches.get(fact.id) ?? []);
 }
 
-async function requireFact(db: Db, userId: string, id: string) {
+async function requireFact(db: Db, userId: string, id: string): Promise<FactWithEmployer> {
   const [fact] = await db
-    .select()
+    .select(factWithEmployer)
     .from(facts)
     .where(and(eq(facts.userId, userId), eq(facts.id, id)))
     .limit(1);
@@ -223,15 +231,20 @@ const hasEvidence = (fact: typeof facts.$inferSelect) =>
  * `likelyMatches` is empty on anything but a candidate: the flag is settled on
  * the open card (`docs/10` Screen 1).
  */
-export function toResponse(fact: typeof facts.$inferSelect, likelyMatches: LikelyMatchResponse[]) {
+export function toResponse(fact: FactWithEmployer, likelyMatches: LikelyMatchResponse[]) {
   return {
     id: fact.id,
     claim: fact.claim,
     provenance: fact.provenance,
     disclosure: fact.disclosure,
     status: fact.status,
-    /** Which employer the fact is filed under — `null` until it is linked. */
-    employerId: fact.employerId,
+    /**
+     * Which employer the fact is filed under: its hand-set one, then its
+     * document's, then its project's (`docs/04` §3.12). `null` when none is.
+     */
+    employerId: fact.resolvedEmployerId,
+    /** True once the card set it; the fact then keeps it whatever its document does. */
+    employerSetByHand: employerSetByHand(fact),
     projectId: fact.projectId,
     evidence: hasEvidence(fact)
       ? {

@@ -5006,3 +5006,48 @@ Only dates and outcomes are recorded here: no connection string, host name or ro
 will revisit it now that the record is in production (`docs/12` §5).
 
 **Revisit if:** production turns out to be missing something the local `track_record_dev` holds.
+
+### [2026-10-02] A hand-set employer is a stamp, and every reader resolves through one SQL definition
+
+#35's code half. The 2026-09-28 entries left three things to the build: how a hand set is recorded,
+the body and answer of a document refile that changes the employer, and how the fact list tells a
+hand-set employer from a resolved one. `docs/04` §3.7 and §3.12, `docs/07` §4 to §6 and `docs/10`
+Screens 3 and 8 now say what was built.
+
+**A hand set is `facts.employer_set_at`, and a non-null `facts.employer_id` counts as one too.** The
+card's picker stamps it whatever it sets, so a hand-set `No employer` is a stamp with a null
+employer. A non-null `employer_id` needs no stamp to count, because extraction has never written one:
+every non-null value in the record was set on a card. That is what lets the migration add two
+nullable columns and backfill nothing, as `docs/12` §3 requires, and it keeps a pick made by the
+previous Worker during the deploy's migration window a hand set. It is a timestamp rather than a
+boolean, following `graded_at`. Nothing returns a fact to reading through. No screen offers that,
+and the issue asked for none.
+
+**The resolution order is one piece of SQL text, `src/server/db/fact-employer.ts`, with no
+imports.** `scripts/check-attribution.mjs` runs under Node and reaches the database through `psql`,
+so it could not share a Drizzle expression and had grown its own `coalesce`. It now loads the same
+text the Worker does. The fact list, its `employerId` filter, the render, Version Edit and the
+overlap matcher read it through `effectiveEmployerId`. The render is the one reader whose output
+changes for facts already in the record: a fact filed only through its project now reaches the model
+under that project's employer, where it used to arrive filed under nothing. The 2026-09-28 entry
+asked whether the old split had ever misfiled a fact. It is still **unverified**, and the next
+regenerated render is where a difference would show.
+
+**`PATCH /api/source-documents/:id` takes `projectId`, `employerId` or both**, each optional and
+nullable, and answers with where the document is filed and two counts: the document's `facts`, and
+how many of them have an employer set by hand and so did not follow the employer. Only a body with
+`projectId` is refused while a version extracts. An employer change writes one row and copies
+nothing, so it has no window. Screen 8 keeps one refile row for both, and the row still cannot open
+while a version extracts.
+
+**The fact list's `employerId` is the resolved employer, and `employerSetByHand` says whether it is
+the fact's own.** The card shows the employer the fact is filed under, which is the resolved one.
+
+**An employer with a document filed under it refuses deletion** and names Documents as the remedy,
+as a project's refusal does. Read-through facts hold no reference and are not counted.
+
+Left out on purpose, per the issue: item 8's measurement and the author's import of the first
+portfolio. They follow the merge, in production.
+
+**Revisit if:** the author asks to send a hand-set fact back to reading through its document. That
+would be a third answer on the card's picker, not a change to the stamp.

@@ -242,12 +242,9 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `id` | text | no | PK |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `project_id` | text | yes | FK → `projects.id` **restrict** |
+| `employer_id` | text | yes | FK → `employers.id` **restrict**. Set at import and changeable after it. Facts extracted from the document read their employer through it unless one was set on the fact by hand (§3.12). M3, #35 |
 | `filename` | text | no | Displayed in the fact-review breadcrumb |
 | `mime_type` | text | no | |
-
-**M3 addition, specified 2026-09-28 and not built:** a nullable `employer_id` (FK → `employers.id`
-**restrict**), set at import and changeable after it. Facts extracted from the document read their
-employer through it unless one was set on the fact by hand (§3.12).
 
 **`source_document_versions`** — one row per import of the same file.
 
@@ -313,7 +310,8 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `id` | text | no | `nanoid()` | PK |
 | `user_id` | text | no | — | FK → `users.id` **cascade** |
 | `project_id` | text | yes | — | FK → `projects.id` **restrict** |
-| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Denormalised for render queries. Null on every extracted fact today. From M3 it holds only an employer set on the fact by hand; otherwise the fact reads its document's employer, then its project's (§3.12) |
+| `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Holds only an employer set on the fact by hand, through its card. Null on every extracted fact: extraction never writes one, and the fact reads its document's employer, then its project's (§3.12) |
+| `employer_set_at` | timestamptz | yes | — | When the author last set the fact's employer by hand (`PATCH /api/facts/:id` with `employerId`, `null` included). A fact's employer is **hand set** when this is stamped **or** `employer_id` is not null; a hand set with `employer_id` null is a hand-set `No employer`. Every non-null `employer_id` was set on a card, since extraction never writes one, so the facts filed before this column existed need no backfill (§3.12, #35) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
 | `provenance` | provenance | no | `'generated'` | **Anything a model produces starts Generated** |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy** |
@@ -511,11 +509,10 @@ absence of a row means included (S13). Excluding never deletes or hides the unde
 `entity_id` names three tables and so carries no foreign key; deleting an employer, education or
 project clears its rows in the same batch instead (`06`, 2026-09-21).
 
-### 3.12 M3 additions · specified 2026-09-28, not built
+### 3.12 M3 additions · specified 2026-09-28
 
-The back-catalogue import (decision log, 2026-09-28). Nothing below exists in the schema yet, and
-the overlap flag, which is built, needs nothing in it. Each change lands with the slice that first
-needs it.
+The back-catalogue import (decision log, 2026-09-28). The document's employer and the hand-set
+marker are built (#35, migration `0012`); the overlap flag, built first (#36), needs neither column.
 
 **`source_documents.employer_id`**, nullable, FK → `employers.id` **restrict**. Chosen at import, and
 changeable afterwards (decided 2026-09-28).
@@ -529,14 +526,25 @@ no employer of its own, as today. Its employer resolves, everywhere it is read, 
 
 So changing a document's employer moves every fact that reads through it, and there is no copy to
 fall behind. **A fact whose employer was set by hand keeps it**, and that includes a hand-set
-`No employer`. A null `facts.employer_id` therefore cannot by itself mean "read through"; how a hand
-set is recorded is specified with the slice that adds the column (#35). When the document's and the
-project's employers differ, the document's wins (`06`, 2026-09-28).
+`No employer`. A null `facts.employer_id` therefore cannot by itself mean "read through". **A hand
+set is recorded by `facts.employer_set_at`** (§3.7): the card's picker stamps it whatever it sets,
+`No employer` included. A non-null `employer_id` counts as a hand set without the stamp, because
+nothing else ever writes one; that is what lets the facts filed before the column existed keep their
+employers with no backfill, and what keeps a pick made by the previous Worker during a deploy's
+migration window a hand set. Nothing returns a fact to reading through once it is hand set. When the
+document's and the project's employers differ, the document's wins (`06`, 2026-09-28).
 
-Today the resolution is not uniform: `collectEditableRecord` and the attribution check use
-`coalesce(facts.employer_id, projects.employer_id)`, and `collectRenderInputs` passes the fact's own
-`employer_id` and the project separately (`06`, 2026-09-28). With a document in the chain they must
-all read the one order above.
+**Every reader resolves the one order through one definition**: `effectiveEmployerSql` in
+`src/server/db/fact-employer.ts`, a module with no imports so that `scripts/check-attribution.mjs`
+can load it under Node. `effectiveEmployerId` in `src/server/services/employer.ts` is the same SQL
+for Drizzle, and the render (`collectRenderInputs`), Version Edit (`collectEditableRecord`), the fact
+list and its `employerId` filter, and the overlap matcher read it. Before #35 the render passed the
+fact's own `employer_id` and the project separately, while Version Edit and the attribution check
+used `coalesce(facts.employer_id, projects.employer_id)` (`06`, 2026-09-28).
+
+**Deleting an employer counts the documents filed under it**, beside its hand-set facts, roles and
+projects, because the foreign key restricts that too (`07` §4). A fact that reads its employer
+through a document holds no reference of its own and does not block the delete; the document does.
 
 **The overlap flag · built by #36, 2026-09-28.** A candidate is shown the existing facts at the same employer
 that likely say the same thing, and a likely match with a different number is marked as a conflict
@@ -551,10 +559,9 @@ What it reads, all filtered by `user_id`: the candidates on the requested page, 
 and version. The candidate's own document is not excluded. Rejected facts and other candidates are
 not in the comparison.
 
-**It is built before the document employer above** (`06`, 2026-09-28), so "the same employer" is
-the fact's own, then its project's. That order is one SQL expression, `effectiveEmployerId` in
-`src/server/services/employer.ts`, which Version Edit reads too, and #35 adds the document to it
-there.
+It was built before the document employer above (`06`, 2026-09-28), when "the same employer" was
+the fact's own, then its project's. It reads `effectiveEmployerId`, so since #35 it resolves the
+full order above, the document included.
 
 ---
 

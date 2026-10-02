@@ -251,8 +251,8 @@ extraction.
 **Zero facts extracted is a failure, not an empty success** (PRD §7). The document is retained and
 the author can retry or capture manually.
 
-**Two M3 additions, specified 2026-09-28** (decision log, 2026-09-28). The first is not built; the
-second is:
+**Two M3 additions, specified 2026-09-28** (decision log, 2026-09-28). Both are built, the second
+by #36 and the first by #35:
 
 - **A document can carry an employer, set at import and changeable after it.** A fact's employer is
   **read through its document**, not copied onto it: step 9 still persists every candidate with no
@@ -262,7 +262,8 @@ second is:
   When a document's employer and its project's differ, the document's wins. Every place that
   resolves a fact's employer (the render, Version Edit, the attribution check and the overlap
   matcher) reads the same order: the fact's hand-set employer, then its document's, then its
-  project's (decision log, 2026-09-28).
+  project's (decision log, 2026-09-28). The order is one SQL definition, shared by the Worker and
+  the attribution script (`04` §3.12).
 - **Overlap with facts already in the record is flagged, not deduplicated · built (#36).** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A
   candidate is shown the existing facts at the same employer that likely say the same thing, and a
