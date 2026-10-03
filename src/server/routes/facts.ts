@@ -10,13 +10,15 @@
  * claims and documents, never a quote and never a score.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, gt, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { facts } from "../db/schema";
-import { notFound, validationFailed, pathParam } from "../http/errors";
+import { conflict, notFound, validationFailed, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
 import { likelyMatchesFor, type LikelyMatchResponse } from "../services/overlap";
+import { effectiveEmployerId, factWithEmployer, type FactWithEmployer } from "../services/employer";
+import { employerSetByHand } from "../db/fact-employer";
 import { requireOwnedEmployer } from "./record";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
@@ -29,7 +31,9 @@ const patchBody = z.object({
   provenance: z.enum(["measured", "attested", "generated"]).optional(),
   disclosure: z.enum(["public", "restricted", "private"]).optional(),
   /**
-   * Which employer this fact belongs to. `null` detaches it.
+   * Which employer this fact belongs to, set by hand. `null` is a hand-set
+   * `No employer`, not a return to reading through the document: either way
+   * the fact keeps it whatever later happens to its document (`docs/04` §3.12).
    *
    * Employer structure used to be reconstructed by the model from the claim
    * prose, which worked only because the imported source happened to name its
@@ -40,6 +44,10 @@ const patchBody = z.object({
    * decision already made against it.
    */
   employerId: z.string().trim().min(1).nullish(),
+});
+
+const regradeBody = z.object({
+  provenance: z.enum(["measured", "attested", "generated"]),
 });
 
 export function registerFactRoutes(app: Hono<AppEnv>) {
@@ -56,15 +64,20 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       filters.push(eq(facts.status, status));
     }
     const employerId = c.req.query("employerId");
-    if (employerId) filters.push(eq(facts.employerId, employerId));
+    // The employer the fact resolves to, the one the card shows.
+    if (employerId) filters.push(eq(effectiveEmployerId, employerId));
     const projectId = c.req.query("projectId");
     if (projectId) filters.push(eq(facts.projectId, projectId));
+    // `graded=false` with `status=accepted` is the listing of what is still to
+    // re-grade (`docs/07` §6); any other value is ignored, as an unknown status is.
+    const graded = c.req.query("graded");
+    if (graded === "false") filters.push(isNull(facts.gradedAt));
     const cursor = c.req.query("cursor");
     if (cursor) filters.push(gt(facts.id, cursor));
 
     const rows = await c
       .get("db")
-      .select()
+      .select(factWithEmployer)
       .from(facts)
       .where(and(...filters))
       .orderBy(asc(facts.id))
@@ -85,30 +98,24 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     const body = await parseBody(c, patchBody);
     const fact = await requireFact(db, user.id, pathParam(c, "id"));
 
-    // The strongest tier cannot be claimed without proof. A Measured fact must
-    // have a passage in the source that proves it.
-    if (body.provenance === "measured" && !hasEvidence(fact)) {
-      throw validationFailed("A Measured fact needs a passage in the source that proves it.", [
-        "provenance",
-      ]);
-    }
+    requireEvidenceFor(body.provenance, fact);
 
     // A foreign key alone would let one user file a fact under another user's
     // employer. The check is a read filtered by `user_id`, and a miss is a 404.
     if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
 
-    const [updated] = await db
+    const now = new Date();
+    await db
       .update(facts)
       .set({
         ...(body.claim === undefined ? {} : { claim: body.claim }),
         ...(body.provenance === undefined ? {} : { provenance: body.provenance }),
         ...(body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
-        ...(body.employerId === undefined ? {} : { employerId: body.employerId }),
-        updatedAt: new Date(),
+        ...(body.employerId === undefined ? {} : { employerId: body.employerId, employerSetAt: now }),
+        updatedAt: now,
       })
-      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
-      .returning();
-    return c.json(await withMatches(db, user.id, updated!));
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    return c.json(await withMatches(db, user.id, fact.id));
   });
 
   /**
@@ -125,6 +132,42 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
 
   /** A misclick is not permanent. */
   api.post("/api/facts/:id/undo", (c) => resolve(c, "candidate"));
+
+  /**
+   * The author's grade on a fact already accepted (`docs/07` §6, issue #37).
+   * Choosing the provenance it already has is a re-grade too: confirming the
+   * agent's default is the answer for most of the 2026-09-04 import. Writes the
+   * provenance and the grade, and nothing else — not the status, and not
+   * `resolved_at`, so the accept decision stands as it was made.
+   */
+  api.post("/api/facts/:id/regrade", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const body = await parseBody(c, regradeBody);
+    const fact = await requireFact(db, user.id, pathParam(c, "id"));
+    if (fact.status !== "accepted") {
+      throw conflict("Only an accepted fact is re-graded. Grade a candidate on its card.", {});
+    }
+    requireEvidenceFor(body.provenance, fact);
+
+    const now = new Date();
+    await db
+      .update(facts)
+      .set({ provenance: body.provenance, gradedAt: now, updatedAt: now })
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    return c.json(await withMatches(db, user.id, fact.id));
+  });
+}
+
+/**
+ * The strongest tier cannot be claimed without proof. A Measured fact must
+ * have a passage in the source that proves it.
+ */
+function requireEvidenceFor(provenance: string | undefined, fact: typeof facts.$inferSelect) {
+  if (provenance !== "measured" || hasEvidence(fact)) return;
+  throw validationFailed("A Measured fact needs a passage in the source that proves it.", [
+    "provenance",
+  ]);
 }
 
 /**
@@ -140,27 +183,34 @@ async function resolve(
   const db = c.get("db");
   const fact = await requireFact(db, user.id, pathParam(c, "id"));
 
-  const [updated] = await db
+  // Accepting is the author grading the fact; a candidate carries no decision.
+  // A rejection leaves the grade as it was (`docs/04` §3.7).
+  await db
     .update(facts)
     .set({
       status,
       resolvedAt: status === "candidate" ? null : new Date(),
+      ...(status === "rejected" ? {} : { gradedAt: status === "accepted" ? new Date() : null }),
       updatedAt: new Date(),
     })
-    .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))
-    .returning();
-  return c.json(await withMatches(db, user.id, updated!));
+    .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+  return c.json(await withMatches(db, user.id, fact.id));
 }
 
-/** One fact after a write, its likely matches read the way the list reads them. */
-async function withMatches(db: Db, userId: string, fact: typeof facts.$inferSelect) {
+/**
+ * One fact after a write, read back the way the list reads it: its employer
+ * resolved, and its likely matches computed. Read rather than taken from the
+ * write's `returning`, so the employer is resolved by the same select.
+ */
+async function withMatches(db: Db, userId: string, id: string) {
+  const fact = await requireFact(db, userId, id);
   const matches = await likelyMatchesFor(db, userId, [fact]);
   return toResponse(fact, matches.get(fact.id) ?? []);
 }
 
-async function requireFact(db: Db, userId: string, id: string) {
+async function requireFact(db: Db, userId: string, id: string): Promise<FactWithEmployer> {
   const [fact] = await db
-    .select()
+    .select(factWithEmployer)
     .from(facts)
     .where(and(eq(facts.userId, userId), eq(facts.id, id)))
     .limit(1);
@@ -181,15 +231,20 @@ const hasEvidence = (fact: typeof facts.$inferSelect) =>
  * `likelyMatches` is empty on anything but a candidate: the flag is settled on
  * the open card (`docs/10` Screen 1).
  */
-export function toResponse(fact: typeof facts.$inferSelect, likelyMatches: LikelyMatchResponse[]) {
+export function toResponse(fact: FactWithEmployer, likelyMatches: LikelyMatchResponse[]) {
   return {
     id: fact.id,
     claim: fact.claim,
     provenance: fact.provenance,
     disclosure: fact.disclosure,
     status: fact.status,
-    /** Which employer the fact is filed under — `null` until it is linked. */
-    employerId: fact.employerId,
+    /**
+     * Which employer the fact is filed under: its hand-set one, then its
+     * document's, then its project's (`docs/04` §3.12). `null` when none is.
+     */
+    employerId: fact.resolvedEmployerId,
+    /** True once the card set it; the fact then keeps it whatever its document does. */
+    employerSetByHand: employerSetByHand(fact),
     projectId: fact.projectId,
     evidence: hasEvidence(fact)
       ? {
@@ -201,6 +256,8 @@ export function toResponse(fact: typeof facts.$inferSelect, likelyMatches: Likel
       : null,
     technologies: fact.technologies,
     isClientIdentifying: fact.isClientIdentifying,
+    /** False on an accepted fact whose provenance is not the author's (issue #37). */
+    graded: fact.gradedAt !== null,
     likelyMatches,
   };
 }

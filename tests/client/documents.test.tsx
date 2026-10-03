@@ -10,7 +10,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import type { DocumentVersion, DocumentsListing, Project, SourceDocumentRow } from "~/client/api";
+import type { DocumentVersion, DocumentsListing, Employer, Project, SourceDocumentRow } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
@@ -48,12 +48,28 @@ const PLINTH: Project = {
   clientIsNamed: false,
 };
 
+const QORVANE: Employer = {
+  id: "emp-test-qorvane",
+  nameJa: "株式会社コルヴェイン",
+  nameLatin: "Qorvane Labs K.K.",
+  businessDescription: null,
+  industryJa: null,
+  capitalYen: null,
+  headcount: null,
+  employmentType: "full_time",
+  startedOn: "2021-04-01",
+  endedOn: null,
+  leavingReasonJa: null,
+  sortOrder: 0,
+};
+
 function document(overrides: Partial<SourceDocumentRow> = {}): SourceDocumentRow {
   return {
     sourceDocumentId: "src-test-1",
     filename: "qorvane-notes.md",
     mimeType: "text/markdown",
     project: null,
+    employer: null,
     lastImportedAt: "2026-09-02T00:00:00.000Z",
     openCandidates: 0,
     reimportable: true,
@@ -68,6 +84,7 @@ const open = (routes: Routes = {}, documents = [document()]) =>
   mount("/documents", {
     "GET /api/imports": listing(...documents),
     "GET /api/projects": { items: [PLINTH] },
+    "GET /api/employers": { items: [] },
     ...routes,
   });
 
@@ -87,6 +104,75 @@ async function chooseFile(user: ReturnType<typeof open>["user"], chosen = file()
 
 /* ------------------------------------------------------------------ refile */
 
+describe("refiling a document under an employer", () => {
+  const PATCH = "PATCH /api/source-documents/src-test-1";
+  const LABEL = "File qorvane-notes.md under a different project or employer";
+  const filed = (employer: { id: string; name: string } | null) => ({
+    sourceDocumentId: "src-test-1",
+    project: null,
+    employer,
+    facts: 4,
+    employerSetByHand: 1,
+  });
+
+  it("names the document's employer beside its project", async () => {
+    open({}, [document({ employer: { id: QORVANE.id, name: "Qorvane Labs K.K." } })]);
+    const row = await block();
+
+    expect(within(row).getByRole("button", { name: LABEL }).textContent).toBe("No project · Qorvane Labs K.K.");
+  });
+
+  it("sends the employer alone when only the employer changed, and says hand-set facts stay", async () => {
+    const { api, user } = open({
+      "GET /api/employers": { items: [QORVANE] },
+      [PATCH]: filed({ id: QORVANE.id, name: "Qorvane Labs K.K." }),
+    });
+    const row = await block();
+
+    await user.click(within(row).getByRole("button", { name: LABEL }));
+    const employer = await within(row).findByRole("combobox", { name: "Employer" });
+    expect(within(row).getByRole("combobox", { name: "File it under" })).toBeTruthy();
+    expect(
+      within(row).getByText("Its facts move with it, except a fact whose employer you set on its card."),
+    ).toBeTruthy();
+    expect(api.writes()).toEqual([]);
+
+    await user.selectOptions(employer, QORVANE.id);
+    await user.click(within(row).getByRole("button", { name: "Refile" }));
+
+    await waitFor(() => expect(within(row).queryByRole("combobox")).toBeNull());
+    expect(api.writes()).toEqual([PATCH]);
+    expect(api.bodyOf("PATCH", "/api/source-documents/src-test-1")).toEqual({ employerId: QORVANE.id });
+  });
+
+  it("sends No employer as null, the way back to unfiled", async () => {
+    const { api, user } = open(
+      { "GET /api/employers": { items: [QORVANE] }, [PATCH]: filed(null) },
+      [document({ employer: { id: QORVANE.id, name: "Qorvane Labs K.K." } })],
+    );
+    const row = await block();
+
+    await user.click(within(row).getByRole("button", { name: LABEL }));
+    const employer = await within(row).findByRole("combobox", { name: "Employer" });
+    expect((employer as unknown as HTMLSelectElement).value).toBe(QORVANE.id);
+    await user.selectOptions(employer, "");
+    await user.click(within(row).getByRole("button", { name: "Refile" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([PATCH]));
+    expect(api.bodyOf("PATCH", "/api/source-documents/src-test-1")).toEqual({ employerId: null });
+  });
+
+  it("offers the employer alone when the record holds employers and no projects", async () => {
+    const { user } = open({ "GET /api/projects": { items: [] }, "GET /api/employers": { items: [QORVANE] } });
+    const row = await block();
+
+    await user.click(within(row).getByRole("button", { name: LABEL }));
+
+    expect(await within(row).findByRole("combobox", { name: "Employer" })).toBeTruthy();
+    expect(within(row).queryByRole("combobox", { name: "File it under" })).toBeNull();
+  });
+});
+
 describe("refiling a document", () => {
   const PATCH = "PATCH /api/source-documents/src-test-1";
 
@@ -96,7 +182,7 @@ describe("refiling a document", () => {
     });
     const row = await block();
 
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
     expect(api.writes()).toEqual([]);
 
     await user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
@@ -112,20 +198,20 @@ describe("refiling a document", () => {
     const { user } = open({}, [document({ project: { id: PLINTH.id, name: PLINTH.name } })]);
     const row = await block();
 
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
 
     const refile = await within(row).findByRole("button", { name: "Refile" });
     expect(refile.getAttribute("title")).toBe("This document is already filed there.");
   });
 
-  it("says there is nowhere to file it when the record has no projects", async () => {
+  it("says there is nowhere to file it when the record has no projects and no employers", async () => {
     const { api, user } = open({ "GET /api/projects": { items: [] } });
     const row = await block();
 
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
 
     expect((await within(row).findByRole("alert")).textContent).toBe(
-      "There are no projects to file this document under.",
+      "There are no projects or employers to file this document under.",
     );
     expect(toneOf(within(row).getByRole("alert"))).toBe("removed");
     expect(within(row).queryByRole("combobox")).toBeNull();
@@ -136,9 +222,11 @@ describe("refiling a document", () => {
     const { user } = open({ "GET /api/projects": new Refusal(500, "internal", "Something went wrong.") });
     const row = await block();
 
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
 
-    expect((await within(row).findByRole("alert")).textContent).toBe("Your projects could not be read. Try again.");
+    expect((await within(row).findByRole("alert")).textContent).toBe(
+      "Your projects and employers could not be read. Try again.",
+    );
     expect(within(row).queryByRole("combobox")).toBeNull();
   });
 
@@ -149,7 +237,7 @@ describe("refiling a document", () => {
     const { user } = open({ [PATCH]: answer });
     const row = await block();
 
-    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+    await user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
     await user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
     await user.click(within(row).getByRole("button", { name: "Refile" }));
 
@@ -311,7 +399,7 @@ async function failLaterRead(second: () => unknown, third: () => unknown = secon
     },
   });
   const row = await block();
-  await mounted.user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project" }));
+  await mounted.user.click(within(row).getByRole("button", { name: "File qorvane-notes.md under a different project or employer" }));
   await mounted.user.selectOptions(await within(row).findByRole("combobox"), PLINTH.id);
   await mounted.user.click(within(row).getByRole("button", { name: "Refile" }));
   await waitFor(() => expect(attempt).toBe(2));

@@ -14,6 +14,8 @@ import { facts as factsTable } from "~/server/db/schema";
 interface Match {
   id: string;
   claim: string;
+  provenance: string;
+  graded: boolean;
   document: { importId: string; filename: string; versionNo: number } | null;
   conflict: boolean;
 }
@@ -21,8 +23,10 @@ interface Match {
 interface Fact {
   id: string;
   claim: string;
+  provenance: string;
   status: string;
   employerId: string | null;
+  employerSetByHand: boolean;
   likelyMatches: Match[];
 }
 
@@ -127,22 +131,24 @@ describe("a candidate is shown what it likely restates", () => {
     const { items } = await portfolioCandidates(aozora);
 
     const document = { importId: narrative.importId, filename: "narrative.md", versionNo: 1 };
+    // Accepted on its cards, so the author's grade (issue #37).
+    const graded = { id: narrative.batch.id, claim: NARRATIVE_BATCH.claim, provenance: narrative.batch.provenance, graded: true };
     expect(byClaim(items, RESTATED.claim).likelyMatches).toEqual([
-      { id: narrative.batch.id, claim: NARRATIVE_BATCH.claim, document, conflict: false },
+      { ...graded, document, conflict: false },
     ]);
     expect(byClaim(items, CONFLICTING.claim).likelyMatches).toEqual([
-      { id: narrative.batch.id, claim: NARRATIVE_BATCH.claim, document, conflict: true },
+      { ...graded, document, conflict: true },
     ]);
     expect(byClaim(items, UNRELATED.claim).likelyMatches).toEqual([]);
   });
 
-  it("carries ids, claims and documents, never a quote and never a score", async () => {
+  it("carries ids, claims, grades and documents, never a quote and never a score", async () => {
     const aozora = await employer();
     await acceptedNarrative(aozora);
     const { items } = await portfolioCandidates(aozora);
 
     const [match] = byClaim(items, RESTATED.claim).likelyMatches;
-    expect(Object.keys(match!).sort()).toEqual(["claim", "conflict", "document", "id"]);
+    expect(Object.keys(match!).sort()).toEqual(["claim", "conflict", "document", "graded", "id", "provenance"]);
     const body = JSON.stringify(items.map((f) => f.likelyMatches));
     expect(body).not.toContain(NARRATIVE_BATCH.quote.slice(0, 20));
   });
@@ -155,7 +161,9 @@ describe("a candidate is shown what it likely restates", () => {
     const narrativeImport = await importDocument(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], project.id);
     const [narrativeFact] = await factsOf(narrativeImport);
     await client.post(`/api/facts/${narrativeFact!.id}/accept`);
-    expect(narrativeFact!.employerId).toBeNull();
+    // No employer of its own: it resolves to the project's.
+    expect(narrativeFact!.employerSetByHand).toBe(false);
+    expect(narrativeFact!.employerId).toBe(aozora);
 
     const { items } = await portfolioCandidates(aozora);
     expect(byClaim(items, RESTATED.claim).likelyMatches.map((m) => m.id)).toEqual([narrativeFact!.id]);

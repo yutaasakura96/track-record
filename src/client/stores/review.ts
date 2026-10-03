@@ -5,7 +5,8 @@
  */
 import { create } from "zustand";
 
-export type FactFilter = "all" | "open" | "resolved";
+/** `regrade`: accepted facts whose provenance is not yet the author's (issue #37). */
+export type FactFilter = "all" | "open" | "resolved" | "regrade";
 
 /**
  * Which half a selection came from. Part of the selection, not a detail of it

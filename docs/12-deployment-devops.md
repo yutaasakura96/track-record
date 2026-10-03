@@ -29,6 +29,15 @@
 > `BETTER_AUTH_SECRET` and `BETTER_AUTH_URL`; setting them created an empty placeholder Worker, which
 > the first deploy replaces. Still the owner's: `CLOUDFLARE_API_TOKEN`, the production Google OAuth
 > client, `ANTHROPIC_API_KEY` and `ALLOWED_SIGNUP_EMAILS`. Nothing has deployed.
+>
+> **Status, 2026-10-01: production is deployed, and the record has still not moved.** The first CI
+> deploy ran on 2026-09-29, and both rehearsals in §4 and §5 ran on 2026-10-01 (decision log,
+> 2026-10-01). Production `main` holds a sign-in's rows and a filled-in profile, but no record rows.
+> The local `track_record_dev` is still the only copy of the record.
+>
+> **Status, 2026-10-01, later: the record is in production.** It moved into Neon `main` the same day
+> by the procedure in §5, after the sign-in rows were cleared (decision log, 2026-10-01, "The record
+> moved into production"). Production `main` is now the record of truth.
 
 **Why no staging.** A staging environment for a one-person application is something you configure,
 use twice, and then let drift until it is actively misleading. What staging normally buys — a safe
@@ -155,6 +164,12 @@ procedure that has never been run is a hypothesis.
 > and dev branches have no point-in-time restore (§5). Both rehearsals run **on the fresh production
 > project, after the first deploy and before the record moves in**, as their own owner-run issue,
 > separate from the deploy automation. Until they have run, this M1 exit criterion is still open.
+>
+> **Status, 2026-10-01: the rollback is rehearsed.** A manual deploy of a second build was followed
+> by `wrangler rollback <version-id>` to the version that had been live, and the shell showed the
+> old SHA again within about fifteen seconds. Name the version: every `wrangler secret put` also
+> creates one. The point-in-time restore was rehearsed the same day, on disposable branches rather
+> than `main` itself (§5). Details are in the decision log, 2026-10-01.
 
 ---
 
@@ -185,6 +200,13 @@ record ever starts feeling irreplaceable.
 **A restore is tested once before M1 is done** — restore a branch to a point in time, confirm the
 record is intact. Untested backups are not backups.
 
+> **Status, 2026-10-01: tested, and `main` was left untouched.** A branch taken from `main`'s history
+> matched `main`. On a copy of `main`, an invented marker table was removed by
+> `neon branches restore <branch> ^self@<timestamp>`, the command an in-place restore of `main` would
+> use, and the schema and row counts afterwards matched the copy as it stood before the marker.
+> `neon branches create --parent` takes a bare timestamp only for the default branch. The restore's
+> backup branch has no compute. Decision log, 2026-10-01.
+
 **And then monthly — the restore drill.** Decided 2026-08-29. A scheduled job loads
 the most recent `GET /api/export` output into a scratch database and asserts row counts per table
 and referential integrity across every foreign key. It fails loudly. This is what converts the
@@ -202,7 +224,8 @@ able to run.
 > **Status, 2026-09-28: the drill is manual, and stays manual for now.** No scheduled job runs it. It
 > needs an export file taken from the author's signed-in session, so a scheduled job could not run
 > it as described above. Automating it is revisited once the record has moved into production
-> (decision log, 2026-09-28).
+> (decision log, 2026-09-28). The author confirmed on 2026-10-01 that it stays manual until after
+> the record move (decision log, 2026-10-01).
 
 > **What an export cannot restore, and why that is correct.** Source documents never render, export,
 > or appear in any output (PRD §6.1), so `extracted_text` and `original_bytes` are not in the file.
@@ -233,6 +256,14 @@ try to create every table again.
 1. **Preconditions.** The first deploy has run and #40's rehearsals are done. Production holds no
    rows: only the author will sign in, and not before step 5. `ALLOWED_SIGNUP_EMAILS` in production
    names the author.
+
+   > **Status, 2026-10-01: this precondition does not hold.** A sign-in on 2026-09-29 left rows in
+   > `users`, `accounts`, `sessions`, `verifications` and `profiles`, and the profile holds personal
+   > fields. Step 5 would stop at the first duplicate key and roll back. How to clear these rows is
+   > the author's decision, to be made before this procedure runs.
+   >
+   > **Resolved 2026-10-01.** At the author's instruction the sign-in and profile rows were cleared
+   > before step 5, and the move then ran (decision log, 2026-10-01).
 2. **Freeze and export.** Stop using the local app. Take a `GET /api/export` from it, as a copy that
    does not depend on this procedure.
 3. **Same schema on both sides.** Local migrations are applied by `npm run db:migrate:local`, which

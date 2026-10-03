@@ -4825,3 +4825,229 @@ records how `workers.dev` is turned off, and is left as it is.
 
 **Revisit if:** a second user is invited (`08` §2.2), or the author wants an address that does not name
 the account. Moving to a custom domain is then the steps `docs/13` §3 lists.
+
+### [2026-09-29] The volume guard is proved by behaviour, not by reading `package.json`
+
+Supersedes the "It is proved twice" paragraph of the 2026-09-28 entry "`npm run db:down` keeps the
+local volume". A review found that the `tests/db-volume.test.ts` cases for `db:down` compared,
+split and regex-searched the script text rather than running anything, and that the
+`removesVolumes` flag rule they used was a parallel copy the reset command never called. Both are
+removed.
+
+**What remains:** `tests/db-volume.test.ts` proves `resetArgs` refuses without
+`--destroy-local-record` and returns `compose down --volumes` with it. The CI job is the proof for
+`db:down`: it runs `db:down` and an unconfirmed `db:reset` against its own stack and checks that
+`db:up` finds both databases still present.
+
+**Revisit if:** the CI step is ever removed or made optional, since it is then the only check that
+`db:down` keeps the volume.
+
+### [2026-09-30] An accepted fact is re-graded from the overlap card, and a grade records who set it
+
+#37 opens with the check the 2026-09-28 entry "A portfolio outranks the narrative" left
+**unverified**: whether an accepted fact's provenance can be changed from today's Fact Review.
+
+**The answer is no, from the screen, and yes, from the API.** `PATCH /api/facts/:id` has no status
+guard, so it changes an accepted fact's provenance, and `POST /api/facts/:id/reject` rejects an
+accepted fact directly. Screen 1 offers neither. An accepted card carries only `Undo` and the
+employer picker, and a likely match on the overlap card carries only its claim and a link to its
+document. The only path on screen was to open the narrative's Fact Review, `Undo` the card back to a
+candidate, grade it and accept it again, which leaves nothing to say it was re-graded. Nothing in the
+record tells the 112 apart from a fact the author graded: the import that promoted them called the
+same `accept` route the card does. So re-grading is specified in `docs/04`, `07` and `10` before it
+is built, as the issue required.
+
+**A grade records when the author set it: `facts.graded_at`.** Accept stamps it, a new
+`POST /api/facts/:id/regrade` stamps it, and `Undo` clears it, since a candidate carries no
+decision. `Reject` leaves it as it is. A fact accepted before the column existed reads as never
+graded, which is exactly the state the 112 are in. "The 112 are re-graded" is then a query that
+comes back empty: the 2026-09-04 import's accepted facts with no grade. A rejected narrative fact
+leaves that set by being rejected, which is the portfolio winning. Stamping at accept is what keeps
+a portfolio's accepted facts out of the same set, so the listing needs no second marker for which
+import was graded by default. A per-import flag was rejected because nothing could set it on the
+real record but a hand-run write naming a row, and a date-matching migration because a date is not
+an import.
+
+**Re-grade is its own action, not `PATCH`.** It takes a provenance, answers `409` on anything but
+an accepted fact, and writes the provenance, `graded_at` and `updated_at` and nothing else. Choosing
+the provenance the fact already has is a re-grade too: the author confirming Attested is the answer
+for most of the 112, and a `PATCH` that changes nothing is not a decision. `PATCH` keeps its
+behaviour and stamps nothing, because it is how a candidate is graded before it is accepted.
+Measured still needs evidence, with the same `422`.
+
+**On the overlap card, a match with no grade carries a re-grade control and `Reject`.** It shows
+the match's current provenance and offers the three as buttons, none marked as chosen, so leaving
+the default in place takes a click like changing it does. Buttons rather than the card's radio
+group, because a radio group selects on arrow keys and each selection here is a write. `Reject` there is the existing route, and
+settles the portfolio-wins case without leaving the card. A graded match keeps today's row. The
+listing is the narrative's own Fact Review: a `To re-grade N` filter, shown while N is above zero,
+lists its accepted cards with no grade, each with the same control. Its list reads every page, since
+the import holds more than the one page of 100 the screen used to fetch.
+
+**Revisit if:** anything other than the author's click calls `accept` again, as the 2026-09-04
+import did. It would stamp a grade nobody gave, and `graded_at` would stop meaning what it says.
+
+### [2026-09-30] The Playwright half is built, on a third database
+
+Builds what the 2026-09-28 entry "The Playwright smoke clicks the sign-in button, then loads a
+prepared session" decided (issue #33). Nothing in that decision changed. What it left open is below.
+
+- **Files.** `playwright.config.ts`, and under `tests/e2e/`: `smoke.spec.ts` (the one test),
+  `worker.ts` (the test entry), `wrangler.toml` (no `[[workflows]]` binding, so imports run inline
+  with the stub), `model.ts` (the stub), `fixture.ts`, `env.ts` and `global-setup.ts`. Two files are
+  shared rather than copied: `tests/rebuild-schema.ts`, the schema rebuild both setups call, and
+  `scripts/dev-session-fixture.ts`, the invented identity and client, kept apart from
+  `dev-session-core.ts` so the browser test process loads no server code. `src/server` is untouched. `npm run test:e2e` builds the SPA and runs it; CI runs `npx playwright test` after
+  its own build step.
+- **A database of its own, `track_record_e2e`.** The setup drops and rebuilds `public` on every run,
+  so sharing `track_record_test` would let it race `npm test`, and `track_record_dev` is the author's
+  record. `npm run db:up` creates it beside the other two. The same `assertSuiteDatabaseIsNotDev`
+  and `current_database()` guards apply, and `E2E_DATABASE_URL` overrides it. The Worker is on port
+  8788, not 8787, so a dev worker can run beside it.
+- **The session comes from `createDevSession`**, the code behind `npm run dev:session`, run in the
+  Playwright global setup against the e2e database. The state file is `.dev-session/e2e-storage-state.json`
+  (gitignored). The Worker is given the same `BETTER_AUTH_SECRET` on the command line. That secret
+  and the Google client are placeholders that reach nothing.
+- **The stub is stateless.** `wrangler dev` may build a new isolate between the import and the
+  generation, so nothing is queued. The extraction quote is cut from the source text the call
+  receives, so the verbatim-quote rule still runs against the uploaded bytes.
+- **Google is never contacted.** The browser clicks the button, and the navigation to
+  `accounts.google.com` is answered inside the test. The test reads the `scope` and `redirect_uri`
+  from that request.
+
+`docs/11` §2.9 and §3 item 8 now say the half is built.
+
+**Revisit if:** a second smoke path is justified (`docs/11` §2.9 names 履歴書), or the test flakes on
+timing, in which case widen the expectation that flakes and do not retry the test.
+
+### [2026-10-01] Both production rehearsals ran, and the record has not moved
+
+#40 made both rehearsals owner-run. On 2026-10-01 the author chose to have an agent run them on
+production and to keep the move of the record for themselves. This entry records what ran. The
+record is still only in the local `track_record_dev`. The two rehearsals that `docs/12` §4 and §5
+make M1 exit criteria have now run.
+
+**Production was not empty.** Before anything ran, a row count found what a sign-in on 2026-09-29,
+eleven minutes after the first deploy, had left: one row each in `users`, `accounts`, `sessions` and
+`profiles`, and three in `verifications`. The profile holds personal fields. Every record table was
+empty. The author's choice followed from this. Production `main` was not restored, reset or written
+to, and the rehearsal never touched those rows.
+
+**Rollback, 2026-10-01 11:16–11:17 UTC: passed.** Production was serving build `4b34f8a`, the first
+CI deploy, as Worker version `503c69d3`. That is the version the last secret change created. Steps:
+
+1. Built develop's head, `335bc5b`, and deployed it by hand with `wrangler deploy`, as `docs/12` §3
+   permits. It differs from `main` only in docs, tests, a local script and `.no-mistakes.yaml`, so
+   the Worker code is the same and only the SHA in the shell changes. The smoke check passed against
+   it.
+2. Ran `wrangler rollback 503c69d3-… --message …`. By 11:17:00 the shell named `4b34f8a` again, and
+   `smoke-check.ts --origin`, run with `GITHUB_SHA` set to `4b34f8a`, passed.
+
+The version is named rather than left to the default. Every `wrangler secret put` creates a
+version, and the default ("the version uploaded before the latest") is easy to misjudge. Wrangler
+does not prompt for confirmation when it runs non-interactively, so a scripted rollback goes through
+without stopping.
+
+**Point-in-time restore, 2026-10-01 11:18–11:21 UTC: passed, on disposable branches.**
+
+- **`main`'s own history is restorable.** A branch created from `main` as it stood sixty minutes
+  earlier (`neon branches create --parent <timestamp>`) matched `main` table for table in row counts
+  and in its schema-only dump.
+- **A restore removes a change and leaves the schema intact.** On a branch copied from `main`, the
+  run recorded the time T0, then created an invented marker table holding one row. It then ran
+  `neon branches restore <branch> ^self@<T0> --preserve-under-name <backup>`, which is the command
+  that would restore `main` in place. Afterwards the marker table was gone. The schema-only dump and
+  the per-table row counts matched the branch before the marker, the schema matched `main`, and
+  Drizzle's journal still held 11 migrations.
+- **`main` was unchanged.** Its row counts and schema matched before and after. The three disposable
+  branches, the copy, its pre-restore backup and the sixty-minute branch, were deleted afterwards.
+  `main` is again the project's only branch.
+
+**What the rehearsal found:**
+
+- `neon branches create --parent` takes a bare timestamp only for the default branch.
+  `<branch>@<timestamp>` fails with "Branch … not found". To restore any other branch, use
+  `neon branches restore … <source>@<timestamp>`.
+- The pre-restore backup branch is created without a compute. Inspecting it needs one added first.
+- **Step 1 of the move (`docs/12` §5) does not hold as written.** It requires production to hold no
+  rows, and the sign-in rows above are there. A data-only restore of `track_record_dev` would stop
+  at the first duplicate key and roll back. That leaves production unchanged, but the record would
+  not have moved. Whether to clear those rows first, and how, is the author's decision, made with
+  the move.
+
+**Still open:** the move itself (#40, step 4), which stays the author's.
+
+**The drill stays manual (#40, step 5).** The author decided on 2026-10-01 that the monthly restore
+drill stays manual for now, and is revisited after the record moves into production (`docs/12` §5).
+
+**Revisit if:** the procedure in `docs/12` §4 or §5 changes, or production moves to a paid Neon
+plan with a different restore window. The rehearsal then needs running again.
+
+### [2026-10-01] The record moved into production, and the restore drill stays manual
+
+Supersedes the "Still open" paragraph of the previous entry, "Both production rehearsals ran, and
+the record has not moved". Later the same day, at the author's explicit instruction, firstmate
+moved the record. The author's words were "just clear both if needed it doesnt really matter that
+much" and "you can do all of this. all the stuff that you can do just do it." This closes #40.
+
+**The move, 2026-10-01, by the procedure in `docs/12` §5.**
+
+- The production sign-in and profile rows left on 2026-09-29 were cleared first, so step 1's
+  precondition held.
+- The data-only dump of `track_record_dev` was restored into Neon `main` in a single transaction.
+- Every table's row count matched the local database except `sessions` and `verifications`, which
+  the procedure excludes.
+- The author then signed in to production to check it.
+- The dump files were made outside the repository and deleted after that check.
+
+Only dates and outcomes are recorded here: no connection string, host name or row content.
+
+**The monthly restore drill stays manual (#40, step 5).** The author decided this on 2026-10-01 and
+will revisit it now that the record is in production (`docs/12` §5).
+
+**Revisit if:** production turns out to be missing something the local `track_record_dev` holds.
+
+### [2026-10-02] A hand-set employer is a stamp, and every reader resolves through one SQL definition
+
+#35's code half. The 2026-09-28 entries left three things to the build: how a hand set is recorded,
+the body and answer of a document refile that changes the employer, and how the fact list tells a
+hand-set employer from a resolved one. `docs/04` §3.7 and §3.12, `docs/07` §4 to §6 and `docs/10`
+Screens 3 and 8 now say what was built.
+
+**A hand set is `facts.employer_set_at`, and a non-null `facts.employer_id` counts as one too.** The
+card's picker stamps it whatever it sets, so a hand-set `No employer` is a stamp with a null
+employer. A non-null `employer_id` needs no stamp to count, because extraction has never written one:
+every non-null value in the record was set on a card. That is what lets the migration add two
+nullable columns and backfill nothing, as `docs/12` §3 requires, and it keeps a pick made by the
+previous Worker during the deploy's migration window a hand set. It is a timestamp rather than a
+boolean, following `graded_at`. Nothing returns a fact to reading through. No screen offers that,
+and the issue asked for none.
+
+**The resolution order is one piece of SQL text, `src/server/db/fact-employer.ts`, with no
+imports.** `scripts/check-attribution.mjs` runs under Node and reaches the database through `psql`,
+so it could not share a Drizzle expression and had grown its own `coalesce`. It now loads the same
+text the Worker does. The fact list, its `employerId` filter, the render, Version Edit and the
+overlap matcher read it through `effectiveEmployerId`. The render is the one reader whose output
+changes for facts already in the record: a fact filed only through its project now reaches the model
+under that project's employer, where it used to arrive filed under nothing. The 2026-09-28 entry
+asked whether the old split had ever misfiled a fact. It is still **unverified**, and the next
+regenerated render is where a difference would show.
+
+**`PATCH /api/source-documents/:id` takes `projectId`, `employerId` or both**, each optional and
+nullable, and answers with where the document is filed and two counts: the document's `facts`, and
+how many of them have an employer set by hand and so did not follow the employer. Only a body with
+`projectId` is refused while a version extracts. An employer change writes one row and copies
+nothing, so it has no window. Screen 8 keeps one refile row for both, and the row still cannot open
+while a version extracts.
+
+**The fact list's `employerId` is the resolved employer, and `employerSetByHand` says whether it is
+the fact's own.** The card shows the employer the fact is filed under, which is the resolved one.
+
+**An employer with a document filed under it refuses deletion** and names Documents as the remedy,
+as a project's refusal does. Read-through facts hold no reference and are not counted.
+
+Left out on purpose, per the issue: item 8's measurement and the author's import of the first
+portfolio. They follow the merge, in production.
+
+**Revisit if:** the author asks to send a hand-set fact back to reading through its document. That
+would be a third answer on the card's picker, not a change to the stamp.

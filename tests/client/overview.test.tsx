@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
-import type { Overview, RenderRow } from "~/client/api";
+import type { Employer, Overview, RenderRow } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
@@ -282,6 +282,7 @@ describe("an empty record", () => {
     const { user } = open([], {
       "GET /api/overview": empty(),
       "GET /api/projects": { items: [] },
+      "GET /api/employers": { items: [] },
       "POST /api/imports": UNREACHABLE,
     });
     await screen.findByRole("heading", { name: "Your record is empty" });
@@ -295,7 +296,11 @@ describe("an empty record", () => {
 
 describe("importing a document from the header", () => {
   it("says so when the upload never reaches the server", async () => {
-    const { api, user } = open([row()], { "GET /api/projects": { items: [] }, "POST /api/imports": UNREACHABLE });
+    const { api, user } = open([row()], {
+      "GET /api/projects": { items: [] },
+      "GET /api/employers": { items: [] },
+      "POST /api/imports": UNREACHABLE,
+    });
     await documentRow();
 
     const header = screen.getByRole("button", { name: "Import a document" }).closest("header")!;
@@ -304,6 +309,81 @@ describe("importing a document from the header", () => {
     expect((await screen.findByRole("alert")).textContent).toBe(NOT_REACHED);
     expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.writes()).toEqual(["POST /api/imports"]);
+  });
+});
+
+describe("filing a new document at import", () => {
+  const QORVANE: Employer = {
+    id: "emp-test-qorvane",
+    nameJa: "株式会社コルヴェイン",
+    nameLatin: "Qorvane Labs K.K.",
+    businessDescription: null,
+    industryJa: null,
+    capitalYen: null,
+    headcount: null,
+    employmentType: "full_time",
+    startedOn: "2021-04-01",
+    endedOn: null,
+    leavingReasonJa: null,
+    sortOrder: 0,
+  };
+  const CREATED = { importId: "imp-test-9", sourceDocumentId: "src-test-9", versionNo: 1 };
+
+  async function choose(routes: Routes) {
+    const mounted = open([row()], { "POST /api/imports": CREATED, ...routes });
+    await documentRow();
+    const header = screen.getByRole("button", { name: "Import a document" }).closest("header")!;
+    await mounted.user.upload(header.querySelector<HTMLInputElement>('input[type="file"]')!, file());
+    return mounted;
+  }
+
+  it("offers the employer alone when the record holds employers and no projects, and sends the one chosen", async () => {
+    const { api, user } = await choose({
+      "GET /api/projects": { items: [] },
+      "GET /api/employers": { items: [QORVANE] },
+    });
+
+    const employer = await screen.findByRole("combobox", { name: "Employer" });
+    expect(screen.queryByRole("combobox", { name: "File it under" })).toBeNull();
+    expect(within(employer).getAllByRole("option").map((o) => o.textContent)).toEqual([
+      "No employer",
+      "Qorvane Labs K.K.",
+    ]);
+    // Choosing a file writes nothing on its own.
+    expect(api.writes()).toEqual([]);
+
+    await user.selectOptions(employer, QORVANE.id);
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/imports"]));
+    const form = api.bodyOf("POST", "/api/imports") as Record<string, unknown>;
+    expect(form.employerId).toBe(QORVANE.id);
+    expect(form.projectId).toBeUndefined();
+  });
+
+  it("sends no employer when the select is left at No employer", async () => {
+    const { api, user } = await choose({
+      "GET /api/projects": { items: [] },
+      "GET /api/employers": { items: [QORVANE] },
+    });
+
+    await screen.findByRole("combobox", { name: "Employer" });
+    await user.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/imports"]));
+    expect((api.bodyOf("POST", "/api/imports") as Record<string, unknown>).employerId).toBeUndefined();
+  });
+
+  it("imports nothing when the employers cannot be read", async () => {
+    const { api } = await choose({
+      "GET /api/projects": { items: [] },
+      "GET /api/employers": new Refusal(500, "internal", "Something went wrong."),
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe(
+      "Your projects and employers could not be read, so this document was not imported. Try again.",
+    );
+    expect(api.writes()).toEqual([]);
   });
 });
 

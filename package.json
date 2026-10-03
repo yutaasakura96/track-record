@@ -10,6 +10,7 @@
     "deploy": "npm run build && wrangler deploy",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vite build && playwright test",
     "db:up": "docker compose up -d --wait && node scripts/ensure-databases.mjs",
     "db:down": "docker compose down",
     "db:reset": "tsx scripts/db-reset.ts",
@@ -47,6 +48,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.22.0",
     "@cloudflare/workers-types": "^5.20260819.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "^4.3.3",
     "@tanstack/router-plugin": "^1.168.35",
     "@testing-library/dom": "^10.4.2",

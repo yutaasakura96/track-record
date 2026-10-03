@@ -31,6 +31,7 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     disclosure: "public",
     status: "candidate",
     employerId: null,
+    employerSetByHand: false,
     projectId: null,
     evidence: {
       sourceDocumentVersionId: "dv-test-1",
@@ -40,6 +41,7 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     },
     technologies: [],
     isClientIdentifying: false,
+    graded: false,
     likelyMatches: [],
     ...overrides,
   };
@@ -508,12 +510,16 @@ describe("likely matches on the card", () => {
       {
         id: "f-old-1",
         claim: "Brought the zentrel batch down to 12 minutes",
+        provenance: "attested",
+        graded: true,
         document: { importId: "imp-old-1", filename: "qorvane-retelling.md", versionNo: 1 },
         conflict: true,
       },
       {
         id: "f-old-2",
         claim: "Rewrote the zentrel batch",
+        provenance: "measured",
+        graded: true,
         document: { importId: "imp-old-2", filename: "zentrel-portfolio.md", versionNo: 3 },
         conflict: false,
       },
@@ -555,5 +561,128 @@ describe("likely matches on the card", () => {
     await waitFor(() =>
       expect(api.writes()).toEqual(["POST /api/facts/f-measured/accept", "POST /api/facts/f-measured/reject"]),
     );
+  });
+});
+
+describe("re-grading an accepted fact (issue #37)", () => {
+  const UNGRADED_MATCH = {
+    id: "f-old-3",
+    claim: "Brought the zentrel batch down to 9 minutes",
+    provenance: "attested" as const,
+    graded: false,
+    document: { importId: "imp-old-1", filename: "qorvane-retelling.md", versionNo: 1 },
+    conflict: false,
+  };
+  const PORTFOLIO = fact("f-measured", "from 40 minutes to 9 minutes", {
+    employerId: "emp-test-1",
+    likelyMatches: [UNGRADED_MATCH],
+  });
+
+  it("offers the re-grade under a match graded by default, with no grade marked as chosen", async () => {
+    open([PORTFOLIO]);
+    const block = within(await card("f-measured")).getByRole("region", { name: "Likely already in your record" });
+
+    expect(within(block).getByText("Graded by default · attested")).toBeTruthy();
+    const grades = within(block).getByRole("group", { name: "Re-grade" });
+    expect(within(grades).getAllByRole("button").map((b) => b.textContent)).toEqual([
+      "Measured",
+      "Attested",
+      "Generated",
+      "Reject",
+    ]);
+    // Actions, not a radio group: nothing reads as already chosen.
+    expect(within(block).queryAllByRole("radio")).toEqual([]);
+  });
+
+  it("re-grades the match, not the card, and confirming the default is a re-grade", async () => {
+    const { api, user } = open([PORTFOLIO], {
+      routes: { "POST /api/facts/f-old-3/regrade": { ...fact("f-old-3", "Cut the zentrel batch"), status: "accepted", graded: true } },
+    });
+    const grades = within(await card("f-measured")).getByRole("group", { name: "Re-grade" });
+
+    await user.click(within(grades).getByRole("button", { name: "Attested" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-old-3/regrade"]));
+    expect(api.bodyOf("POST", "/api/facts/f-old-3/regrade")).toEqual({ provenance: "attested" });
+  });
+
+  it("rejects the match where it stands, and leaves the candidate open", async () => {
+    const { api, user } = open([PORTFOLIO], {
+      routes: { "POST /api/facts/f-old-3/reject": { ...fact("f-old-3", "Cut the zentrel batch"), status: "rejected" } },
+    });
+    const grades = within(await card("f-measured")).getByRole("group", { name: "Re-grade" });
+
+    await user.click(within(grades).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-old-3/reject"]));
+  });
+
+  it("says a refused grade on the line", async () => {
+    const { user } = open([PORTFOLIO], {
+      routes: {
+        "POST /api/facts/f-old-3/regrade": new Refusal(422, "validation_failed", "A Measured fact needs a passage in the source that proves it."),
+      },
+    });
+    const block = within(await card("f-measured")).getByRole("region", { name: "Likely already in your record" });
+
+    await user.click(within(block).getByRole("button", { name: "Measured" }));
+
+    expect((await within(block).findByRole("alert")).textContent).toBe(
+      "A Measured fact needs a passage in the source that proves it.",
+    );
+  });
+
+  it("shows nothing to re-grade under a match the author has graded", async () => {
+    open([{ ...PORTFOLIO, likelyMatches: [{ ...UNGRADED_MATCH, graded: true }] }]);
+    const block = within(await card("f-measured")).getByRole("region", { name: "Likely already in your record" });
+
+    expect(within(block).queryByRole("group", { name: "Re-grade" })).toBeNull();
+    expect(within(block).queryByText(/Graded by default/)).toBeNull();
+  });
+
+  it("lists the import's accepted facts with no grade under To re-grade", async () => {
+    const { user } = open([
+      fact("f-default", "weekly plinth review", { status: "accepted" }),
+      fact("f-graded", "from 40 minutes to 9 minutes", { status: "accepted", graded: true }),
+      fact("f-open", "Likely improved morale"),
+    ]);
+
+    await user.click(await screen.findByRole("button", { name: "To re-grade 1" }));
+
+    expect(within(await card("f-default")).getByRole("group", { name: "Re-grade" })).toBeTruthy();
+    expect(document.querySelector('[data-fact-card="f-graded"]')).toBeNull();
+    expect(document.querySelector('[data-fact-card="f-open"]')).toBeNull();
+  });
+
+  it("offers no To re-grade filter when every accepted fact is graded", async () => {
+    open([fact("f-graded", "weekly plinth review", { status: "accepted", graded: true })]);
+
+    await card("f-graded");
+    expect(screen.queryByRole("button", { name: /To re-grade/ })).toBeNull();
+  });
+
+  it("reads every page of the import, not only the first", async () => {
+    mount(`/imports/${IMPORT}`, {
+      [`GET /api/imports/${IMPORT}`]: status(),
+      [`GET /api/facts?importId=${IMPORT}`]: {
+        items: [fact("f-page-1", "weekly plinth review", { status: "accepted" })],
+        nextCursor: "f-page-1",
+      },
+      [`GET /api/facts?importId=${IMPORT}&cursor=f-page-1`]: {
+        items: [fact("f-page-2", "from 40 minutes to 9 minutes", { status: "accepted" })],
+        nextCursor: null,
+      },
+      [`GET /api/source-documents/${DOCUMENT}/versions/1/text`]: {
+        sourceDocumentVersionId: "dv-test-1",
+        filename: "qorvane-notes.md",
+        project: null,
+        wordCount: 42,
+        importedAt: "2026-09-01T00:00:00.000Z",
+        text: SOURCE,
+      },
+      "GET /api/employers": { items: EMPLOYERS },
+    });
+
+    expect(await screen.findByRole("button", { name: "To re-grade 2" })).toBeTruthy();
   });
 });

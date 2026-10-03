@@ -70,6 +70,15 @@ export function devVar(contents: string | null, name: string): string | null {
 }
 
 /**
+ * Which suite is about to drop a database: the variable that aims it, and the
+ * database it ships aimed at. A refusal names these, so it sends the reader to
+ * the variable they actually set.
+ */
+export type SuiteOwner = { variable: string; database: string };
+
+export const VITEST_SUITE: SuiteOwner = { variable: "TEST_DATABASE_URL", database: SUITE_DATABASE };
+
+/**
  * Refuses the run when the suite is aimed at a database local development is
  * using. A dev database that is elsewhere — a Neon branch, another port — is not
  * at risk and is not blocked, however it is named.
@@ -83,21 +92,22 @@ export function assertSuiteDatabaseIsNotDev(
   suiteUrl: string,
   devVars: string | null,
   envDatabaseUrl: string | null = null,
+  owner: SuiteOwner = VITEST_SUITE,
 ): void {
   const suite = databaseTarget(suiteUrl);
   if (!suite) {
     throw new Error(
-      `TEST_DATABASE_URL is not a connection string this can read: ${JSON.stringify(suiteUrl)}. ` +
+      `${owner.variable} is not a connection string this can read: ${JSON.stringify(suiteUrl)}. ` +
         "Refusing to run, because there is no way to tell what would be dropped.",
     );
   }
 
-  // The name alone is enough. `TEST_DATABASE_URL` is an override, and an
+  // The name alone is enough. The suite's URL is an override, and an
   // override pointed at the dev database is a mistake whatever else is set.
   if (suite.database === DEV_DATABASE) {
     throw new Error(
       `The suite is aimed at ${where(suite)} — the development database. ` +
-        `TEST_DATABASE_URL should name the suite's own database, ${SUITE_DATABASE}.`,
+        `${owner.variable} should name the suite's own database, ${owner.database}.`,
     );
   }
 
@@ -115,7 +125,7 @@ export function assertSuiteDatabaseIsNotDev(
     throw new Error(
       [
         `The suite and local development are pointed at the same database: ${where(suite)},`,
-        `named by TEST_DATABASE_URL and by DATABASE_URL in ${source}.`,
+        `named by ${owner.variable} and by DATABASE_URL in ${source}.`,
         "",
         "Every suite run drops and rebuilds `public` (docs/11 §1), which would destroy the",
         "dev session, the profile, the imported documents and every accepted render version.",

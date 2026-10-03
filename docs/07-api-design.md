@@ -102,7 +102,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` | `/api/employers` | M1 | Reverse chronological |
 | `POST` | `/api/employers` | M1 | |
 | `PATCH` | `/api/employers/:id` | M1 | |
-| `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles or projects reference it. A delete that succeeds clears the employer's `render_inclusions` rows in the same batch |
+| `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles, projects or source documents reference it. A fact counts only when its employer was set on it by hand; one reading through its document is counted as the document (`04` §3.12). A delete that succeeds clears the employer's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
 | `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
@@ -158,19 +158,21 @@ rejected with `403 forbidden` — the only 403 in the API.
   "error": {
     "code": "conflict",
     "message": "This employer has 14 facts, 2 roles and 3 projects attached. Reassign them before deleting.",
-    "details": { "facts": 14, "roles": 2, "projects": 3 }
+    "details": { "facts": 14, "roles": 2, "projects": 3, "documents": 0 }
   }
 }
 ```
 
-Facts are never silently orphaned (PRD §8).
+Facts are never silently orphaned (PRD §8). When a source document is filed under the employer the
+message names the control that moves it, as a project's does: `This employer has 1 document
+attached. Refile them from Documents before deleting.`
 
 ---
 
 ## 5. Imports · M1
 
 **`POST /api/imports` — `multipart/form-data`** · fields: `file`, `projectId` (optional),
-`sourceDocumentId` (optional — supplying it makes this a **re-import**, a new version of an existing
+`employerId` (optional), `sourceDocumentId` (optional — supplying it makes this a **re-import**, a new version of an existing
 document). → **`202 Accepted`**
 
 ```json
@@ -189,11 +191,12 @@ re-import is also refused at **`409 conflict`** while the document's newest vers
 refuse, because its text was stored before extraction. A re-import may carry a different filename
 or type; the document's `filename` and `mime_type` are not changed.
 
-**`employerId` (optional) · M3, specified 2026-09-28, not built.** Files the new document under an
-employer the session owns; every fact extracted from it reads its employer through the document
-(§6, `04` §3.12). An employer the session does not own answers `404`, as `projectId` does. Like
-`projectId`, it is offered only for a new document: a re-import keeps the document's employer, which
-is changed afterwards through `PATCH /api/source-documents/:id`.
+**`employerId` (optional) · M3, #35.** Files the new document under an employer the session owns;
+every fact extracted from it reads its employer through the document (§6, `04` §3.12). An employer
+the session does not own answers `404`, as `projectId` does. Like `projectId`, it is offered only
+for a new document: a re-import keeps the document's employer, which is changed afterwards through
+`PATCH /api/source-documents/:id`. An `employerId` sent with a re-import is checked for ownership
+and then ignored, as a `projectId` is.
 
 **Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
 supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
@@ -252,34 +255,48 @@ an empty success.
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
-| `PATCH` | `/api/source-documents/:id` | M1 | **Refile.** Body `{ "projectId": "prj_9f2" }` or `{ "projectId": null }`. Shape below |
+| `PATCH` | `/api/source-documents/:id` | M1 | **Refile.** Body `{ "projectId": "prj_9f2" }`, `{ "employerId": "emp_2Kd9" }`, both, or either as `null`. Shape below |
 | `GET` | `/api/source-documents/:id/versions/:n/text` | M1 | The source pane. Plain text with stable line numbering — **the only endpoint that returns source content, and it is never used by generation**. Also carries the document's `filename` and `project` (`{ id, name }` or `null`) for Fact Review's breadcrumb |
 
-**`PATCH /api/source-documents/:id` → 200** — the **only** thing about a source document that
-changes after import. `projectId` is required and nullable: `null` is the answer `No project`, and
-it is the only way back to unfiled.
+**`PATCH /api/source-documents/:id` → 200** — the document's project and its employer are the
+**only** things about a source document that change after import. The body carries `projectId`,
+`employerId` or both; a field left out is left as it is, and a body with neither is `422`. Each is
+nullable: `null` is the answer `No project` or `No employer`, and it is the only way back to
+unfiled.
 
 ```json
-{ "sourceDocumentId": "doc_Ln3", "project": { "id": "prj_9f2", "name": "Harbour lantern" }, "facts": 7 }
+{
+  "sourceDocumentId": "doc_Ln3",
+  "project": { "id": "prj_9f2", "name": "Harbour lantern" },
+  "employer": { "id": "emp_2Kd9", "name": "Aozora Logistics K.K." },
+  "facts": 7,
+  "employerSetByHand": 2
+}
 ```
+
+`project` and `employer` are where the document is filed after the change, whichever of the two the
+body named. An employer's `name` is its Latin name, or its 日本語 name when it has none: the name
+Screen 1's employer picker shows.
 
 - **The document and every fact extracted from every one of its versions move together**, in one
   transaction. A fact's project has always been its document's, snapshotted at extraction; this
   keeps that rule true by letting the following happen more than once, not by giving a fact a
   project of its own. `PATCH /api/facts/:id` still takes no `projectId` (§6).
-- **`facts` is the number moved.** A count and never a claim.
-- **`404`** for a document the author does not own, and for a `projectId` they do not own — checked
-  in the same query that reads it, never as a bare foreign-key failure.
-- **`employerId` · M3, specified 2026-09-28, not built.** The document's employer is the second thing
-  that changes after import. It moves every fact that reads its employer through the document and
-  leaves a fact whose employer was set by hand where it is (`04` §3.12). Nothing is copied onto the
-  facts, so the extracting-window race below does not arise for it. The body's exact shape (whether
-  `projectId` stays required when only the employer changes) and the count returned are specified
-  with the build (#35).
-- **`409 conflict` while the document's newest version is `queued` or `extracting`**, in the words
-  `POST /api/imports` refuses a re-import in: `Wait for v2 to finish extracting.` A chunk that read
-  the old project before the move and inserted its facts after it would leave those facts behind,
-  filed under a project the document is no longer under, and nothing would say so.
+- **`facts` is the number of facts extracted from every version of the document**, all of which a
+  `projectId` moves. **`employerSetByHand` is how many of them carry an employer set on their card**,
+  which an `employerId` does not move: the other `facts − employerSetByHand` follow it. Counts and
+  never a claim, returned whichever field the body named.
+- **`employerId` · M3, #35.** It writes one row, the document's. Every fact that reads its employer
+  through the document follows it, and a fact whose employer was set by hand, a hand-set
+  `No employer` included, stays where it is (`04` §3.12). Nothing is copied onto the facts.
+- **`404`** for a document the author does not own, and for a `projectId` or an `employerId` they
+  do not own — checked in the same query that reads it, never as a bare foreign-key failure.
+- **`409 conflict` while the document's newest version is `queued` or `extracting`, when the body
+  carries `projectId`**, in the words `POST /api/imports` refuses a re-import in:
+  `Wait for v2 to finish extracting.` A chunk that read the old project before the move and inserted
+  its facts after it would leave those facts behind, filed under a project the document is no longer
+  under, and nothing would say so. A body carrying only `employerId` is not refused: nothing is
+  copied onto a fact, so there is no window for a chunk to fall into.
 
 This is what makes `DELETE /api/projects/:id` (§4) a refusal with a remedy rather than a dead end.
 
@@ -295,6 +312,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "filename": "harbor-notes.md",
       "mimeType": "text/markdown",
       "project": null,
+      "employer": { "id": "emp_2Kd9", "name": "Aozora Logistics K.K." },
       "lastImportedAt": "2026-09-15T02:10:00Z",
       "openCandidates": 2,
       "reimportable": true,
@@ -327,6 +345,9 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   `message`.
 - **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
   number of that version's facts still `candidate`.
+- **`employer`** is the document's own, named as `PATCH /api/source-documents/:id` names it, or
+  `null`. It is never resolved through the document's project: it is what the document is filed
+  under, which is what Screen 8 changes.
 - **`reimportable`** is `false` exactly when the newest version is `queued` or `extracting`, the
   case `POST /api/imports` refuses at `409`. The screen disables the button from it rather than
   restating the rule.
@@ -359,11 +380,12 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI |
-| `POST` | `/api/facts/:id/accept` | |
+| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. `employerId`, `null` included, is a hand set |
+| `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
-| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate` |
+| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade |
+| `POST` | `/api/facts/:id/regrade` | `{ provenance }` on an accepted fact. M3, #37 |
 
 **`GET /api/facts?importId=imp_4Tz8` → 200**
 
@@ -377,6 +399,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "disclosure": "public",
       "status": "candidate",
       "employerId": "emp_2Kd9",
+      "employerSetByHand": false,
       "projectId": null,
       "evidence": {
         "sourceDocumentVersionId": "sdv_7Yh1",
@@ -386,10 +409,13 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       },
       "technologies": ["PostgreSQL", "Airflow", "Python"],
       "isClientIdentifying": false,
+      "graded": false,
       "likelyMatches": [
         {
           "id": "fct_R2k7",
           "claim": "Cut the nightly batch from six hours to 80 minutes",
+          "provenance": "attested",
+          "graded": false,
           "document": { "importId": "sdv_3Qa0", "filename": "narrative.md", "versionNo": 1 },
           "conflict": true
         }
@@ -402,10 +428,12 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "disclosure": "public",
       "status": "candidate",
       "employerId": null,
+      "employerSetByHand": true,
       "projectId": null,
       "evidence": null,
       "technologies": [],
       "isClientIdentifying": false,
+      "graded": false,
       "likelyMatches": []
     }
   ],
@@ -419,26 +447,43 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   cannot be rendered by accident (decision log, 2026-08-12).
 - **`quote` text is not returned.** The client already has the source text and the offsets, so
   sending the quote again would duplicate record content into another response.
-- **`employerId` is `null` on every extracted fact and is set from the fact list.** Extraction never
-  guesses one. Setting it on an accepted fact does not disturb the accept decision, which is what
-  makes an already-reviewed import linkable without a re-import (issue #14). An `employerId` naming
-  another user's employer answers `404`. **From M3** (specified 2026-09-28, not built) a fact
-  extracted from a document that carries an employer reads that employer through the document
-  until one is set on the fact by hand, and a hand set, `No employer` included, then outlasts any
-  change to the document's employer (`04` §3.12). How the fact list tells a hand-set employer from a
-  resolved one is specified with the build (#35).
+- **`employerId` is the employer the fact resolves to**: the one set on it by hand, then its
+  document's, then its project's (`04` §3.12, #35). Extraction never guesses one; a fact extracted
+  from a document filed under an employer reads that employer through the document. The `employerId`
+  filter matches the same resolved employer.
+- **`employerSetByHand`** is true once `PATCH` has set the fact's employer, and then the fact keeps
+  it, `null` included, whatever later happens to its document's employer or its project's. False
+  means `employerId` is read through. `PATCH` with `employerId` is the only way to set one, and
+  nothing sets it back. Setting it on an accepted fact does not disturb the accept decision, which is
+  what makes an already-reviewed import linkable without a re-import (issue #14). An `employerId`
+  naming another user's employer answers `404`.
 - **`likelyMatches` · M3, built by #36, 2026-09-28.** A candidate carries the accepted
   facts at the same employer that likely say the same thing, at most three, best first (PRD §8), so
-  Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, the `document` it
-  was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
+  Screen 1 can show them on the card. Each carries the match's `id`, its `claim`, its `provenance` and `graded` (#37), the
+  `document` it was extracted from (`importId`, `filename`, `versionNo`, or `null` for a fact with no source) and
   `conflict`, true when both claims carry numbers and neither's numbers contain the other's.
   **Computed on every read and stored nowhere**, by a lexical match between claims (`03` §5), so a
-  match the author rejects is gone from the next response. `PATCH`, `accept`, `reject` and `undo`
-  answer with the fact's list computed the same way. "The same employer" is the fact's own,
-  then its project's (`04` §3.12); a candidate whose employer resolves to neither has an empty list,
+  match the author rejects is gone from the next response. `PATCH`, `accept`, `reject`, `undo` and `regrade`
+  answer with the fact's list computed the same way. "The same employer" is the resolved
+  `employerId` above, on both sides (`04` §3.12); a candidate whose employer resolves to neither has an empty list,
   as do accepted and rejected facts. Like the rest of this response it carries ids and claims, never
   `quote` text, and **no score**: how alike two claims are is not in the contract, for the reason no
   confidence is.
+
+- **`graded` · M3, #37, 2026-09-30.** True once the author has set the grade of an accepted fact:
+  `accept` and `regrade` set it, `undo` clears it, `reject` leaves it (`04` §3.7). False on an
+  accepted fact means its provenance is not the author's, which is the state of the 112 facts of the
+  2026-09-04 import (ADR-0002). A likely match carries its own `provenance` and `graded`, so the card
+  can offer the re-grade beside it. **`?importId=…&status=accepted&graded=false` is the listing of
+  what is still to re-grade**, and "the 112 are re-graded" is that listing coming back empty for the
+  2026-09-04 import. Any other value of `graded` is ignored, as an unknown `status` is.
+
+**`POST /api/facts/:id/regrade` → 200** with `{ "provenance": "attested" }`: the fact, as the list
+returns it, with `graded: true`. It writes the provenance and the grade and **nothing else**: not
+the status, the claim, the disclosure, the employer or `resolved_at`. The provenance may be the one
+the fact already has; confirming the default is a re-grade. `409 conflict` on a candidate or a
+rejected fact (a candidate is graded on its card and accepted), `422` for Measured without evidence
+as `PATCH` answers, and `404` for another user's fact.
 
 **`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
 same answer a missing employer gets, because a `403` would confirm it exists.

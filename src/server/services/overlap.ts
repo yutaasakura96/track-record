@@ -13,18 +13,19 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { facts, sourceDocumentVersions, sourceDocuments } from "../db/schema";
 import { overlapMatcher, type OverlapFact } from "~/overlap";
-import { effectiveEmployerId } from "./employer";
+import { effectiveEmployerId, type FactWithEmployer } from "./employer";
 import type { Db } from "../db/client";
 
 export interface LikelyMatchResponse {
   id: string;
   claim: string;
+  /** With `graded`, what lets the card offer the re-grade beside the match (issue #37). */
+  provenance: (typeof facts.$inferSelect)["provenance"];
+  graded: boolean;
   /** Where the match was extracted from. `null` for a fact with no source. */
   document: { importId: string; filename: string; versionNo: number } | null;
   conflict: boolean;
 }
-
-type FactRow = typeof facts.$inferSelect;
 
 /**
  * Keyed by candidate id. A fact absent from the map has no likely matches:
@@ -33,18 +34,15 @@ type FactRow = typeof facts.$inferSelect;
 export async function likelyMatchesFor(
   db: Db,
   userId: string,
-  page: readonly FactRow[],
+  page: readonly FactWithEmployer[],
 ): Promise<Map<string, LikelyMatchResponse[]>> {
   const result = new Map<string, LikelyMatchResponse[]>();
   const open = page.filter((fact) => fact.status === "candidate");
   if (open.length === 0) return result;
 
-  const resolved = await db
-    .select({ id: facts.id, employerId: effectiveEmployerId })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), inArray(facts.id, open.map((fact) => fact.id))));
+  // Resolved by the select that read the page, in the order every reader uses.
   const employerOf = new Map<string, string>();
-  for (const row of resolved) if (row.employerId !== null) employerOf.set(row.id, row.employerId);
+  for (const fact of open) if (fact.resolvedEmployerId !== null) employerOf.set(fact.id, fact.resolvedEmployerId);
   const employerIds = [...new Set(employerOf.values())];
   if (employerIds.length === 0) return result;
 
@@ -52,6 +50,8 @@ export async function likelyMatchesFor(
     .select({
       id: facts.id,
       claim: facts.claim,
+      provenance: facts.provenance,
+      gradedAt: facts.gradedAt,
       technologies: facts.technologies,
       employerId: effectiveEmployerId,
       importId: sourceDocumentVersions.id,
@@ -108,6 +108,8 @@ export async function likelyMatchesFor(
         return {
           id,
           claim: row.claim,
+          provenance: row.provenance,
+          graded: row.gradedAt !== null,
           document:
             row.importId !== null && row.filename !== null && row.versionNo !== null
               ? { importId: row.importId, filename: row.filename, versionNo: row.versionNo }

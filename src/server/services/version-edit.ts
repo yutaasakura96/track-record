@@ -44,11 +44,11 @@ export interface EditableRecord {
  * the record, not an id that is merely not accepted yet, or the two refusals
  * would name each other's cause.
  *
- * A fact's EFFECTIVE employer is its own, or its project's when it is filed to
- * a project rather than straight to an employer — `effectiveEmployerId`, the one
- * order every reader shares. Resolved in SQL, so that `checkAttribution` stays a
- * pure function of what it is given — the same hop
- * `scripts/check-attribution.mjs` resolves for the instrument.
+ * A fact's EFFECTIVE employer is its hand-set one, then its document's, then
+ * its project's — `effectiveEmployerId`, the one order every reader shares.
+ * Resolved in SQL, so that `checkAttribution` stays a pure function of what it
+ * is given — the same SQL `scripts/check-attribution.mjs` reads for the
+ * instrument.
  */
 export async function collectEditableRecord(db: Db, userId: string): Promise<EditableRecord> {
   const factRows = await db

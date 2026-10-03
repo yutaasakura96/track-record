@@ -1,6 +1,7 @@
-# no-mistakes gate config. commands/agent/pr.base_branch are read only from the
-# default branch (develop), so this file must exist there too.
-allow_repo_commands: true
+# no-mistakes gate config. With allow_repo_commands disabled, the commands,
+# agent, and pr.base_branch are read only from the default branch's (develop)
+# copy, so this file must exist there too.
+allow_repo_commands: false
 
 commands:
   # The run worktree has tracked files only; copy any local, gitignored env files in.

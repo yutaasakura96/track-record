@@ -136,6 +136,20 @@ describe("the guard", () => {
     expect(() => assertSuiteDatabaseIsNotDev(SUITE, null, exported)).toThrow(/same database/);
     expect(() => assertSuiteDatabaseIsNotDev(SUITE, null, DEV)).not.toThrow();
   });
+
+  it("names the variable the refused suite is aimed by, not the Vitest one", () => {
+    const e2e = { variable: "E2E_DATABASE_URL", database: "track_record_e2e" };
+    const refusals = [
+      () => assertSuiteDatabaseIsNotDev(DEV, null, null, e2e),
+      () => assertSuiteDatabaseIsNotDev("not a url", null, null, e2e),
+      () => assertSuiteDatabaseIsNotDev(SUITE, null, SUITE, e2e),
+    ];
+    for (const refusal of refusals) {
+      expect(refusal).toThrow(/E2E_DATABASE_URL/);
+      expect(refusal).not.toThrow(/TEST_DATABASE_URL/);
+    }
+    expect(refusals[0]).toThrow(/track_record_e2e/);
+  });
 });
 
 describe("the second guard, after connecting", () => {

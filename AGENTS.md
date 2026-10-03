@@ -8,7 +8,7 @@ English résumé, every stage present and no stage elaborated past what the path
 the source of truth; the prototype in `design/prototype/` is a visual reference only. Where they
 disagree, the docs win.
 
-Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and both databases), `npm run db:migrate:local`
+Run it: `npm run db:up` (Postgres + the Neon HTTP proxy, and all three databases), `npm run db:migrate:local`
 on a first run, then `npm run dev:worker` and `npm run dev`. `npm test` needs the database up; the client screen tests
 alone (`npx vitest run --project client`) do not.
 To see signed-in screens locally, follow `docs/12-deployment-devops.md` §8 and run `npm run dev:session`.
@@ -42,8 +42,10 @@ Every stall recorded before 2026-09-25 was the first kind (issue #25, decision l
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
 destroyed the dev session, profile, documents and renders. Two guards in `tests/database-guard.ts`
 keep them apart; do not point `.dev.vars` at `track_record_test` to get around one.
-**`track_record_dev` holds the author's real record**, and until #40 moves it into the (empty) Neon
-production project it is the only copy (`docs/12` §1). Never reset, drop or re-migrate it destructively.
+`npm run test:e2e` (the Playwright smoke test) has a third, `track_record_e2e`, which it drops and rebuilds
+every run under the same guards; it is safe to wipe. Its Worker needs port 8788 free.
+**`track_record_dev` holds a copy of the author's real record**; the record moved into Neon production
+`main` on 2026-10-01 (#40, `docs/12` §5). Never reset, drop or re-migrate it destructively.
 `npm run db:down` stops the stack and keeps the volume; `npm run db:reset` removes it and refuses without
 `-- --destroy-local-record`. An agent never passes that flag, and never runs `docker compose down -v` or
 `docker volume rm` against it.
@@ -103,8 +105,8 @@ two-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 
 - **Every query filters by `user_id`.** No exceptions. Asserted by test.
 - **A fact's employer resolves through `effectiveEmployerId`** (`src/server/services/employer.ts`),
-  not a new inline `coalesce`. #35 adds the document's employer there and moves the two readers still
-  resolving their own, `collectRenderInputs` and `scripts/check-attribution.mjs` (`docs/04` §3.12).
+  not a new inline `coalesce`: hand set, then its document's, then its project's. Its SQL lives in
+  `src/server/db/fact-employer.ts`, which `scripts/check-attribution.mjs` loads too (`docs/04` §3.12).
 - **Deny-by-default routing.** Auth middleware covers every route except the auth callbacks.
 - **A fact's `quote` must exist verbatim in its source document**, verified by exact string match.
   Candidates that fail are discarded before they reach the database.

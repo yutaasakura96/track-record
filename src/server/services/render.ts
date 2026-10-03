@@ -12,7 +12,7 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, asc, desc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import {
   certifications,
@@ -29,6 +29,7 @@ import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
 import { excludesProject, exclusionsFor } from "./inclusion";
+import { effectiveEmployerId } from "./employer";
 import { curatedGroups, curationForRender } from "./skills";
 
 export interface RenderInputs {
@@ -99,8 +100,14 @@ export async function collectRenderInputs(
   kind: RenderKind,
   subjectName: string,
 ): Promise<RenderInputs> {
+  // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
+  // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
+  // filing and heading below reads the order Version Edit and the attribution
+  // check read. It used to be the fact's own column, with the project passed
+  // separately, and a fact filed only through its project or its document
+  // reached the model as filed under nothing.
   const accepted = await db
-    .select()
+    .select({ ...getTableColumns(facts), employerId: effectiveEmployerId })
     .from(facts)
     .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
 

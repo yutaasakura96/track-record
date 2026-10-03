@@ -12,7 +12,7 @@
  * look different. Here the timeouts stop at about 30,000ms; after a sleep they
  * run as long as the sleep did.
  *
- * The probe is not an extra round trip. `global-setup.ts` already asks
+ * The probe is not an extra round trip. `rebuild-schema.ts` already asks
  * `current_database()` before it drops anything, to prove the proxy routed the
  * connection where the URL aimed it; this puts a clock on that same query. A
  * proxy that answers it is serving queries.

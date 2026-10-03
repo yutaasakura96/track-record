@@ -21,6 +21,7 @@ import {
   useRetryImport,
   useStartImport,
   type DocumentVersion,
+  type Employer,
   type Project,
   type SourceDocumentRow,
 } from "../api";
@@ -31,6 +32,7 @@ import {
   IMPORT_ACCEPT,
   ImportDropTarget,
   SELECT_CONTROL,
+  employerLabel,
   useImportPicker,
 } from "../components/import-picker";
 import { absolute, relative } from "../format";
@@ -102,14 +104,19 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
   const start = useStartImport();
   const refile = useRefileDocument();
   const readProjects = useEntitiesOnDemand<Project>("projects");
+  const readEmployers = useEntitiesOnDemand<Employer>("employers");
   const input = useRef<HTMLInputElement>(null);
   const [chosen, setChosen] = useState<File | null>(null);
-  const [refiling, setRefiling] = useState<Project[] | null>(null);
+  const [refiling, setRefiling] = useState<{ projects: Project[]; employers: Employer[] } | null>(null);
   const [filedUnder, setFiledUnder] = useState("");
+  const [employedBy, setEmployedBy] = useState("");
   const [refusal, setRefusal] = useState<string | null>(null);
 
   const newest = document.versions[0];
   const count = document.versions.length;
+  const currentProject = document.project?.id ?? "";
+  const currentEmployer = document.employer?.id ?? "";
+  const unchanged = filedUnder === currentProject && employedBy === currentEmployer;
 
   // Asked for at the moment the row opens, not read off the listing: a select
   // built from a query still in flight would offer `No project` and nothing
@@ -117,26 +124,38 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
   const openRefile = async () => {
     setRefusal(null);
     let projects: Project[];
+    let employers: Employer[];
     try {
-      projects = (await readProjects()).items;
+      [projects, employers] = await Promise.all([
+        readProjects().then((read) => read.items),
+        readEmployers().then((read) => read.items),
+      ]);
     } catch {
-      setRefusal("Your projects could not be read. Try again.");
+      setRefusal("Your projects and employers could not be read. Try again.");
       return;
     }
-    if (projects.length === 0 && !document.project) {
-      setRefusal("There are no projects to file this document under.");
+    // A select is offered only when it has something to offer: a choice of
+    // `No project` alone is not a choice. The document's own project and
+    // employer are in these lists, so `No project` as the way back is offered
+    // whenever it is one.
+    if (projects.length === 0 && employers.length === 0) {
+      setRefusal("There are no projects or employers to file this document under.");
       return;
     }
-    setFiledUnder(document.project?.id ?? "");
-    setRefiling(projects);
+    setFiledUnder(currentProject);
+    setEmployedBy(currentEmployer);
+    setRefiling({ projects, employers });
   };
 
+  // Only what changed is sent. A project change moves every fact's project and
+  // is refused while a version extracts; an employer change moves no fact row.
   const confirmRefile = async () => {
     setRefusal(null);
     try {
       await refile.mutateAsync({
         sourceDocumentId: document.sourceDocumentId,
-        projectId: filedUnder || null,
+        ...(filedUnder === currentProject ? {} : { projectId: filedUnder || null }),
+        ...(employedBy === currentEmployer ? {} : { employerId: employedBy || null }),
       });
       setRefiling(null);
     } catch (caught) {
@@ -162,22 +181,23 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
       <div className="flex items-center gap-12 px-16 py-12 border-b border-border-inner">
         <Chip>{document.filename}</Chip>
         {/*
-          The project is the only thing about a document that changes after
-          import, so it is the label itself that opens the row rather than a
-          sixth control competing with `Re-import` on the right.
+          The project and the employer are the only things about a document
+          that change after import, so it is the label itself that opens the
+          row rather than a sixth control competing with `Re-import` on the
+          right.
         */}
         {document.reimportable ? (
           <Button
             variant="bare"
             className={document.project ? "text-smaller text-text-dim" : "text-smaller text-text-dimmer"}
-            aria-label={`File ${document.filename} under a different project`}
+            aria-label={`File ${document.filename} under a different project or employer`}
             onClick={() => void openRefile()}
           >
-            {document.project ? document.project.name : "No project"}
+            <FiledUnder document={document} />
           </Button>
         ) : (
           <span className={document.project ? "text-smaller text-text-dim" : "text-smaller text-text-dimmer"}>
-            {document.project?.name ?? "No project"}
+            <FiledUnder document={document} />
           </span>
         )}
         <Mono className="text-text-dimmer">
@@ -216,22 +236,50 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
 
       {refiling ? (
         <div className="flex items-center gap-12 px-16 py-10 border-b border-border-inner">
-          <label className="flex items-center gap-8 text-smaller text-text-dim">
-            File it under
-            <select
-              className={SELECT_CONTROL}
-              value={filedUnder}
-              onChange={(event) => setFiledUnder(event.target.value)}
-            >
-              <option value="">No project</option>
-              {refiling.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <p className="text-smaller text-text-dimmer">Its facts move with it.</p>
+          {refiling.projects.length > 0 ? (
+            <label className="flex items-center gap-8 text-smaller text-text-dim">
+              File it under
+              <select
+                className={SELECT_CONTROL}
+                value={filedUnder}
+                onChange={(event) => setFiledUnder(event.target.value)}
+              >
+                <option value="">No project</option>
+                {refiling.projects.map((project) => (
+                  <option key={project.id} value={project.id}>
+                    {project.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {refiling.employers.length > 0 ? (
+            <label className="flex items-center gap-8 text-smaller text-text-dim">
+              Employer
+              <select
+                className={SELECT_CONTROL}
+                value={employedBy}
+                onChange={(event) => setEmployedBy(event.target.value)}
+              >
+                <option value="">No employer</option>
+                {refiling.employers.map((employer) => (
+                  <option key={employer.id} value={employer.id}>
+                    {employerLabel(employer)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {/*
+            A fact whose employer the author set on its card keeps it, a
+            hand-set `No employer` included: that pick was a judgement about
+            the one fact, and a change to the document is not (`docs/04` §3.12).
+          */}
+          <p className="text-smaller text-text-dimmer">
+            {refiling.employers.length > 0
+              ? "Its facts move with it, except a fact whose employer you set on its card."
+              : "Its facts move with it."}
+          </p>
           <span className="ml-auto flex items-center gap-8">
             <Button variant="bare" onClick={() => setRefiling(null)}>
               Cancel
@@ -239,13 +287,9 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
             <Button
               variant="primary"
               onClick={() => void confirmRefile()}
-              disabled={refile.isPending || filedUnder === (document.project?.id ?? "")}
+              disabled={refile.isPending || unchanged}
               disabledReason={
-                refile.isPending
-                  ? "Refiling…"
-                  : filedUnder === (document.project?.id ?? "")
-                    ? "This document is already filed there."
-                    : undefined
+                refile.isPending ? "Refiling…" : unchanged ? "This document is already filed there." : undefined
               }
             >
               Refile
@@ -294,6 +338,16 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
         ))}
       </ul>
     </section>
+  );
+}
+
+/** `No project`, or the project's name, then the employer's when the document has one. */
+function FiledUnder({ document }: { document: SourceDocumentRow }) {
+  return (
+    <>
+      {document.project ? document.project.name : "No project"}
+      {document.employer ? ` · ${document.employer.name}` : null}
+    </>
   );
 }
 

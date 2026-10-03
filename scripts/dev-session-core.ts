@@ -9,27 +9,9 @@ import { isAllowedEmail } from "~/server/auth";
 import { SUITE_DATABASE, databaseTarget, devVar } from "../tests/database-guard";
 import { createIssuer, type IssuerCredentials, type OidcIdentity } from "../tests/helpers/oidc-issuer";
 import { CookieJar, walkSignIn, type Send, type StoredCookie } from "../tests/helpers/sign-in";
+import { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY } from "./dev-session-fixture";
 
-/**
- * The local test user. Invented, like every fixture here, and the same on every
- * run: Better Auth finds the account by provider subject, so a second run signs
- * the same user in again rather than creating another one.
- */
-export const DEV_SESSION_IDENTITY: OidcIdentity = {
-  sub: "dev-session-local",
-  email: "dev-session@example.invalid",
-  name: "Dev Session",
-};
-
-/**
- * What the in-process Better Auth and the fixture issuer agree on. Not a Google
- * client: the script never reads `GOOGLE_CLIENT_*` from `.dev.vars`, because the
- * session cookie does not depend on them and the real ones have no business here.
- */
-export const DEV_SESSION_CLIENT: IssuerCredentials = {
-  clientId: "dev-session-fixture-client",
-  clientSecret: "dev-session-fixture-secret",
-};
+export { DEV_SESSION_CLIENT, DEV_SESSION_IDENTITY };
 
 /** The Vite dev server's default port, which `npm run dev` serves the SPA on. */
 const VITE_PORT = "5173";

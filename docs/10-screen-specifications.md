@@ -54,7 +54,8 @@ so the mark sits ~34% from the top. Both directions are required.
 ### Fact rail
 
 **Header:** `Candidate facts` + mono `N extracted`. One line of explanatory copy. Filter pills:
-`All N` · `Open N` · `Resolved N`.
+`All N` · `Open N` · `Resolved N`, and `To re-grade N` while any accepted fact of the import has no
+grade (M3, #37). The rail lists every fact of the import, not only the first page of the API.
 
 **Card, open state:**
 1. Line-reference chip (mono, e.g. `L79`) — the evidence pointer into the source
@@ -80,8 +81,16 @@ likely matches shows nothing, not an empty block.
   your record` (`text-faint`). Then one row per match, at most three, best first: the match's claim
   at `text-small` in `text-secondary`, and under it the document's filename as a mono identifier in
   `text-dimmer`, with `· vN` after it when the version is above 1. The filename links to that
-  document's Fact Review, because that is where the match is rejected: `Undo` returns its card to a
-  candidate, then `Reject`.
+  document's Fact Review.
+- **Re-grading a match · M3, #37, 2026-09-30.** A match whose grade is not the author's
+  (`graded: false`, `07` §6), which is each of the 112 facts of the 2026-09-04 import, carries a
+  line under its document: a mono `Graded by default · <provenance>` in `text-faint`, a `Re-grade`
+  group of three buttons, Measured / Attested / Generated, with **none marked as chosen**, and a
+  ghost `Reject`. They are actions rather than a radio group, so arrowing through them grades
+  nothing. Pressing any of them, the current provenance included, re-grades the fact and the line goes
+  (`POST /api/facts/:id/regrade`). `Reject` rejects the match where it stands, which is the
+  portfolio winning, and it drops off the card on the next read. Measured is refused without
+  evidence, and the refusal is said on the line. A graded match shows neither.
 - **The conflict marker:** a mono label `Conflict · number differs` in `text-bright`, on its own line
   above the match's claim. **It takes no semantic colour.** Green, amber and red mean Measured,
   Generated and removed (`05` §9), and a conflict is none of those; its wording and weight carry it.
@@ -91,7 +100,10 @@ likely matches shows nothing, not an empty block.
   within an employer; picking one on the card brings it.
 
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
-+ `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough.
++ `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough. An accepted card with no
+grade adds the same re-grade line as a match (M3, #37): this is the listing the facts no portfolio
+matched are graded from, on the 2026-09-04 import's own Fact Review, under `To re-grade`. It carries
+the same `Reject`, beside the three grades.
 
 **Card treatments:** Generated cards use a dashed amber border and a 135° hatch background. Private
 cards use `card-recessed` with a large low-opacity padlock watermark at bottom-right. Selected cards
@@ -221,45 +233,59 @@ in the mixed font stack.**
 ### Importing a document
 
 `Import a document` opens a file picker restricted to the types that import, the same list the
-empty state names. What happens next depends on whether the record holds any projects, because
-`POST /api/imports` takes an optional `projectId` (`07-api-design.md` §5) and Flow 2 step 2 offers
-the choice.
+empty state names. What happens next depends on whether the record holds any projects or employers,
+because `POST /api/imports` takes an optional `projectId` and an optional `employerId`
+(`07-api-design.md` §5) and Flow 2 step 2 offers the choice. Both lists are read when the file is
+chosen, and a failed read imports nothing: `Your projects and employers could not be read, so this
+document was not imported. Try again.`
 
-- **No projects.** The import starts on the file choice alone and Fact Review opens. A select whose
+- **Neither.** The import starts on the file choice alone and Fact Review opens. A select whose
   only option is `No project` is not a choice, and a step with nothing in it is worse than no step
-- **One or more projects.** Choosing a file does not upload it. A confirmation row appears at the
-  top of the content column, above anything else there: the chosen filename in a mono chip, the
-  label `File it under`, a project select defaulting to `No project`, then `Cancel` (bare) and
-  `Import` (primary). `Import` sends `POST /api/imports` with the chosen `projectId`, or without one
-  when the select is left at `No project`, and opens Fact Review on the new version
+- **Projects or employers.** Choosing a file does not upload it. A confirmation row appears at the
+  top of the content column, above anything else there: the chosen filename in a mono chip, then
+  the label `File it under` and a project select defaulting to `No project` when the record holds a
+  project, then the label `Employer` and an employer select defaulting to `No employer` when it
+  holds an employer, then `Cancel` (bare) and `Import` (primary). A select is left out when its
+  only option would be the default, for the reason the row is. `Import` sends `POST /api/imports`
+  with the chosen `projectId` and `employerId`, leaving out whichever select is at its default, and
+  opens Fact Review on the new version
 
-**An employer choice · M3, specified 2026-09-28, not built.** The confirmation row gains a second
-select: the label `Employer`, then an employer select defaulting to `No employer`. It exists so a
-per-employer portfolio is filed once instead of fact by fact. Every fact extracted from the document
-is filed under that employer, and the card's employer picker still changes any one of them. With
-the employer select the row appears when the record holds **projects or employers**, and the rule
-for a record with neither is unchanged. The document's employer can be changed later (Screen 8,
-"Refiling a document").
+**The employer choice · M3, #35.** It exists so a per-employer portfolio is filed once instead of
+fact by fact. Every fact extracted from the document is filed under that employer, and the card's
+employer picker still changes any one of them. An employer reads as its Latin name, or its 日本語
+name when it has none, as the card's picker reads it. The document's employer can be changed later
+(Screen 8, "Refiling a document").
 
 The same row and the same rule serve the empty state's drop target and Screen 8's
 `Import a document`, which is the same control. **The choice is offered only for a new document.**
-A re-import keeps the document's project, which is stored on the document and not on the version
-(`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
+A re-import keeps the document's project and employer, which are stored on the document and not on
+the version (`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
 
 ### Refiling a document
 
-**The project is the only thing about a document that changes after import**, so the project label
-on the document's header row *is* the control rather than a sixth button competing with `Re-import`
-on the right. It reads the project's name, or `No project`, and clicking it opens a refile row under
-the header: the label `File it under`, a project select set to where the document is filed now, the
-line `Its facts move with it.`, then `Cancel` (bare) and `Refile` (primary).
+**The project and the employer are the only things about a document that change after import**, so
+the label on the document's header row *is* the control rather than a sixth button competing with
+`Re-import` on the right. It reads the project's name, or `No project`, followed by ` · ` and the
+employer's name when the document has one, and clicking it opens a refile row under the header:
+the label `File it under` and a project select set to where the document is filed now, the label
+`Employer` and an employer select set to the document's employer, the line `Its facts move with it.`,
+then `Cancel` (bare) and `Refile` (primary).
 
-- **The projects are read when the row opens**, not off the listing, for the reason the import
-  picker reads them when a file is chosen: a select built from a query still in flight offers
-  `No project` and nothing else, which reads as a record with no projects in it. A failed read
-  shows `Your projects could not be read. Try again.` and does not open the row
-- **`Refile` is disabled while the select still names the current project**, with the reason
-  `This document is already filed there.`
+- **The projects and the employers are read when the row opens**, not off the listing, for the
+  reason the import picker reads them when a file is chosen: a select built from a query still in
+  flight offers `No project` and nothing else, which reads as a record with no projects in it. A
+  failed read shows `Your projects and employers could not be read. Try again.` and does not open
+  the row. With no project and no employer in the record it shows
+  `There are no projects or employers to file this document under.`
+- **A select is left out when it has nothing to offer**: the project select when the record holds
+  no project and the document is filed under none, and the employer select likewise. The row never
+  offers a choice with one answer
+- **With the employer select, the line under it says what stays.** `Its facts move with it.` becomes
+  `Its facts move with it, except a fact whose employer you set on its card.` A hand-set employer,
+  `No employer` included, is a judgement about that one fact, and a change to the document is not
+  (`04-database-schema.md` §3.12)
+- **`Refile` sends only what changed** and is disabled while both selects still name where the
+  document is filed, with the reason `This document is already filed there.`
 - **The label is not a control while a version is extracting** — the same `reimportable` flag that
   disables `Re-import`, because `PATCH /api/source-documents/:id` refuses in the same window and for
   the same reason (`07-api-design.md` §5)
@@ -268,11 +294,9 @@ line `Its facts move with it.`, then `Cancel` (bare) and `Refile` (primary).
 Refiling moves the document's facts with it, which is what makes Screen 4's project `Delete`
 reachable at all: its `409` says `Refile them from Documents before deleting.` and means it.
 
-**The document's employer · M3, specified 2026-09-28, not built.** From M3 a document's employer
-also changes after import, and its facts follow it, except a fact whose employer the author set by
-hand on its card, which keeps it (`04` §3.12). The control, its wording and how it says that
-hand-set facts stay where they are, are specified with the build (#35). The refile row, which
-already changes the project, is the expected place for it.
+**The document's employer · M3, #35.** Changing it moves no row but the document's, so the server
+does not refuse it while a version extracts (`07` §5). The row still cannot open then, because it
+changes the project in the same step and one control is clearer than a row that is half disabled.
 
 ### Empty state
 
@@ -643,15 +667,16 @@ Sidebar chrome, reached from the `Documents` row at `/documents`. The row's mono
 of open candidates across every version, shown only when it is above zero. Header title
 `Documents`, contextual note `The files your facts are quoted from`, and on the right the same
 `Import a document` primary Screen 3 has. That button always creates a **new** document, and it
-offers the project choice Screen 3 describes, under the same rule: only when the record holds a
-project to offer.
+offers the project and employer choice Screen 3 describes, under the same rule: only when the record
+holds a project or an employer to offer.
 
 ### Layout
 
 One block per source document, the most recently imported first. Content column `max-width 940px`,
 centred, as on Screen 3. Nothing collapses: a document's versions are always listed under it.
 
-**The document row.** Filename in a mono chip · project name, or `No project` in `text-dimmer` ·
+**The document row.** Filename in a mono chip · project name, or `No project` in `text-dimmer`,
+then ` · ` and the employer's name when the document has one ·
 mono `N versions` · `last imported <relative time>` · amber mono `N open` when any version of it has
 open candidates · right: `Re-import` (ghost).
 

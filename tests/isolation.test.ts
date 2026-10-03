@@ -166,6 +166,10 @@ describe("one user's record is unreachable from another's session", () => {
       expect(response.status, path).toBe(404);
     }
 
+    // Re-grade takes a body, so it is asked here rather than in the bare list above.
+    const regraded = await a.client.post(`/api/facts/${b.factId}/regrade`, { provenance: "generated" });
+    expect(regraded.status, "regrade").toBe(404);
+
     // And the other user's records are unchanged.
     const employers = await b.client.json<{ items: { id: string; nameJa: string }[] }>(
       "/api/employers",
@@ -182,11 +186,16 @@ describe("one user's record is unreachable from another's session", () => {
     });
     expect(response.status).toBe(404);
 
-    // And the fact is unchanged — a refused link leaves no partial write.
-    const { items } = await a.client.json<{ items: { id: string; employerId: string | null }[] }>(
-      "/api/facts",
-    );
-    expect(items.find((f) => f.id === a.factId)!.employerId).toBeNull();
+    // And the fact is unchanged — a refused link leaves no partial write. It
+    // still resolves through its project to its own user's employer, and no
+    // hand set was recorded.
+    const { items } = await a.client.json<{
+      items: { id: string; employerId: string | null; employerSetByHand: boolean }[];
+    }>("/api/facts");
+    expect(items.find((f) => f.id === a.factId)).toMatchObject({
+      employerId: a.employerId,
+      employerSetByHand: false,
+    });
   });
 
   it("cannot attach a role to another user's employer", async () => {

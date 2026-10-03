@@ -113,8 +113,13 @@ export interface Fact {
   provenance: "measured" | "attested" | "generated";
   disclosure: "public" | "restricted" | "private";
   status: "candidate" | "accepted" | "rejected";
-  /** Which employer the fact is filed under. `null` until it is linked. */
+  /**
+   * Which employer the fact is filed under: its hand-set one, then its
+   * document's, then its project's. `null` when none is.
+   */
   employerId: string | null;
+  /** True once set on the card; the fact then keeps it whatever its document does. */
+  employerSetByHand: boolean;
   projectId: string | null;
   evidence: {
     sourceDocumentVersionId: string;
@@ -124,6 +129,11 @@ export interface Fact {
   } | null;
   technologies: string[];
   isClientIdentifying: boolean;
+  /**
+   * False on an accepted fact whose provenance is not the author's — the 112 of
+   * the 2026-09-04 import until each is re-graded (`docs/07` §6).
+   */
+  graded: boolean;
   /**
    * Accepted facts at the same employer this candidate likely restates, best
    * first. Empty on anything but a candidate. No score, by design.
@@ -135,6 +145,9 @@ export interface Fact {
 export interface LikelyMatch {
   id: string;
   claim: string;
+  /** With `graded`, what the card's re-grade line reads (issue #37). */
+  provenance: Fact["provenance"];
+  graded: boolean;
   /** `null` for a fact with no source document. */
   document: { importId: string; filename: string; versionNo: number } | null;
   /** Both claims carry numbers, and neither's contain the other's. */
@@ -253,6 +266,8 @@ export interface SourceDocumentRow {
   filename: string;
   mimeType: string;
   project: { id: string; name: string } | null;
+  /** The document's own employer, never its project's. Its facts read it through the document. */
+  employer: { id: string; name: string } | null;
   lastImportedAt: string;
   openCandidates: number;
   /** False exactly when the newest version is `queued` or `extracting`. */
@@ -642,7 +657,20 @@ export const useImportSummary = () =>
 export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ items: Fact[] }>>) {
   return useQuery({
     queryKey: keys.facts(importId),
-    queryFn: () => api<{ items: Fact[] }>(`/api/facts?importId=${importId}`),
+    // Every page. The API pages at 100 and an import can hold more — the
+    // 2026-09-04 import holds 112, and its last dozen were never on the rail.
+    queryFn: async () => {
+      const items: Fact[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: { items: Fact[]; nextCursor: string | null } = await api(
+          `/api/facts?importId=${importId}${cursor ? `&cursor=${cursor}` : ""}`,
+        );
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return { items };
+    },
     ...options,
   });
 }
@@ -740,10 +768,11 @@ export function useStartImport() {
   const queryClient = useQueryClient();
   return useMutation({
     /** `sourceDocumentId` makes this a re-import: a new version of that document. */
-    mutationFn: (input: { file: File; projectId?: string; sourceDocumentId?: string }) => {
+    mutationFn: (input: { file: File; projectId?: string; employerId?: string; sourceDocumentId?: string }) => {
       const form = new FormData();
       form.set("file", input.file);
       if (input.projectId) form.set("projectId", input.projectId);
+      if (input.employerId) form.set("employerId", input.employerId);
       if (input.sourceDocumentId) form.set("sourceDocumentId", input.sourceDocumentId);
       return api<{ importId: string; sourceDocumentId: string; versionNo: number }>("/api/imports", {
         method: "POST",
@@ -757,22 +786,36 @@ export function useStartImport() {
 }
 
 /**
- * Refiling a document, which moves its facts with it.
+ * Refiling a document under a project, an employer or both, which moves its
+ * facts with it. Only what changed is sent: a field left out stays as it is.
  *
  * The source-text query carries the Fact Review breadcrumb's project, so it is
- * invalidated by document prefix rather than by the one version on screen.
+ * invalidated by document prefix rather than by the one version on screen. The
+ * facts are invalidated too, because each one that reads its employer through
+ * the document now reads a different one.
  */
 export function useRefileDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: { sourceDocumentId: string; projectId: string | null }) =>
-      api<{ sourceDocumentId: string; project: { id: string; name: string } | null; facts: number }>(
-        `/api/source-documents/${input.sourceDocumentId}`,
-        { method: "PATCH", ...json({ projectId: input.projectId }) },
-      ),
+    mutationFn: ({
+      sourceDocumentId,
+      ...body
+    }: {
+      sourceDocumentId: string;
+      projectId?: string | null;
+      employerId?: string | null;
+    }) =>
+      api<{
+        sourceDocumentId: string;
+        project: { id: string; name: string } | null;
+        employer: { id: string; name: string } | null;
+        facts: number;
+        employerSetByHand: number;
+      }>(`/api/source-documents/${sourceDocumentId}`, { method: "PATCH", ...json(body) }),
     onSuccess: (result) => {
       void queryClient.invalidateQueries({ queryKey: ["source", result.sourceDocumentId] });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.allFacts });
     },
     // A refused refile re-reads the list as well: the 409 means it was stale.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
@@ -815,6 +858,15 @@ export function useFactAction(importId: string) {
       void queryClient.invalidateQueries({ queryKey: keys.documents });
     },
   });
+  /** An accepted fact's provenance, set by the author (`docs/07` §6, issue #37). */
+  const regrade = useMutation({
+    mutationFn: (input: { id: string; provenance: Fact["provenance"] }) =>
+      api<Fact>(`/api/facts/${input.id}/regrade`, {
+        method: "POST",
+        ...json({ provenance: input.provenance }),
+      }),
+    onSuccess: () => void refresh(),
+  });
   const finish = useMutation({
     mutationFn: () => api<{ acceptedFacts: number }>(`/api/imports/${importId}/finish`, { method: "POST" }),
     onSuccess: () => {
@@ -830,7 +882,7 @@ export function useFactAction(importId: string) {
     },
   });
 
-  return { patch, resolve, finish, retry };
+  return { patch, resolve, regrade, finish, retry };
 }
 
 export function useGenerate() {

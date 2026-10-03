@@ -204,7 +204,7 @@ describe("the entity layer", () => {
     };
     expect(body.error.code).toBe("conflict");
     // Counts, so the refusal can say what is in the way without naming any of it.
-    expect(body.error.details).toEqual({ facts: 1, roles: 1, projects: 1 });
+    expect(body.error.details).toEqual({ facts: 1, roles: 1, projects: 1, documents: 0 });
     expect(body.error.message).not.toContain("Reduced nightly batch runtime");
 
     // And nothing was deleted.

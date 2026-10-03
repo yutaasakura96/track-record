@@ -43,6 +43,7 @@ import { execSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { checkAttribution, countByInvariant } from "../src/render/attribution.ts";
 import { capitalInJapanese } from "../src/render/yen.ts";
+import { effectiveEmployerSql } from "../src/server/db/fact-employer.ts";
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -92,9 +93,11 @@ function proposal(proposalId) {
  * Every query filters by `user_id` (CLAUDE.md). No exceptions, and an
  * operations script is not one.
  *
- * A fact's EFFECTIVE employer is its own, or its project's when it is filed to
- * a project rather than straight to an employer. That hop is resolved here so
- * that the definition module stays a pure function of what it is given.
+ * A fact's EFFECTIVE employer is its hand-set one, then its document's, then
+ * its project's. It is resolved here, by the SQL the Worker resolves it by
+ * (`src/server/db/fact-employer.ts`), so that the definition module stays a
+ * pure function of what it is given and the instrument cannot disagree with
+ * Version Edit about where a fact is filed.
  *
  * Every fact, whatever its status: `unknown-fact` has to mean an id that is not
  * in the record, not an id that is merely not accepted yet.
@@ -102,9 +105,8 @@ function proposal(proposalId) {
 function readRecord(userId) {
   const facts = queryJson(
     `select coalesce(json_agg(json_build_object(` +
-      `'id', f.id, 'employerId', coalesce(f.employer_id, p.employer_id))), '[]') ` +
-      `from facts f left join projects p on p.id = f.project_id and p.user_id = f.user_id ` +
-      `where f.user_id = '${userId}'`,
+      `'id', f.id, 'employerId', ${effectiveEmployerSql("f")})), '[]') ` +
+      `from facts f where f.user_id = '${userId}'`,
   );
   const employers = queryJson(
     `select coalesce(json_agg(json_build_object(` +
