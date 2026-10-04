@@ -308,6 +308,14 @@ export interface Overview {
   activeImport: (ImportStatus & { filename: string }) | null;
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
+  /**
+   * Candidates waiting across every version of every document, how many
+   * documents they sit in, and the newest version holding any, which is where
+   * reviewing them starts. `null` when nothing waits.
+   */
+  review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
+  /** The newest version holding an accepted fact that is still Generated. */
+  unconfirmed: { importId: string; filename: string } | null;
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
@@ -613,8 +621,14 @@ export function useSaveSkillCuration() {
   });
 }
 
+/** Screen 3. Polls while an import runs, so its progress moves without a reload. */
 export const useOverview = () =>
-  useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/api/overview") });
+  useQuery({
+    queryKey: keys.overview,
+    queryFn: () => api<Overview>("/api/overview"),
+    refetchInterval: (query) =>
+      isImportRunning(query.state.data?.activeImport?.status) ? POLL_MS : false,
+  });
 
 export const useRenders = () =>
   useQuery({

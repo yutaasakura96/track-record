@@ -24,96 +24,129 @@ import {
 import { routes } from "../http/registry";
 import { renderState } from "./renders";
 import { importStatus } from "./imports";
+import { provenanceCounts } from "./facts";
 import type { AppEnv } from "../env";
 
 export function registerOverviewRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
 
-  /** One request backs the whole home screen. */
+  /**
+   * One request backs the whole home screen, and it waits on the database for
+   * ONE round trip: its own batch and the renders' batch go out side by side.
+   *
+   * It was up to seventeen queries, most of them awaited in turn. Each is its
+   * own HTTPS request to Neon (`../db/client.ts`), so the home screen stood on
+   * `Loading your record…` for as long as they took one after the other
+   * (issue #58). A batch is one request and one transaction, so the counts in
+   * it are all true at the same instant.
+   */
   api.get("/api/overview", async (c) => {
     const userId = c.get("user").id;
     const db = c.get("db");
+    const count = sql<number>`count(*)::int`;
+    const acceptedFacts = and(eq(facts.userId, userId), eq(facts.status, "accepted"));
+    // A fact's document, through its version. Both joins carry the user.
+    const versionOfFact = and(
+      eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId),
+      eq(sourceDocumentVersions.userId, userId),
+    );
+    const documentOfVersion = and(
+      eq(sourceDocuments.id, sourceDocumentVersions.sourceDocumentId),
+      eq(sourceDocuments.userId, userId),
+    );
 
-    const [employerRows, projectRows, roleRows, educationRows, certificationRows] =
-      await Promise.all([
-        db.select().from(employers).where(eq(employers.userId, userId)),
-        db.select().from(projects).where(eq(projects.userId, userId)),
-        db.select({ id: roles.id }).from(roles).where(eq(roles.userId, userId)),
-        db.select({ id: educations.id }).from(educations).where(eq(educations.userId, userId)),
+    const [
+      [
+        employerRows,
+        [projectCount],
+        [roleCount],
+        [educationCount],
+        [certificationCount],
+        [provenance = { measured: 0, attested: 0, generated: 0 }],
+        [latestImport],
+        [measured],
+        [usable],
+        waiting,
+        [unconfirmed],
+      ],
+      documents,
+    ] = await Promise.all([
+      db.batch([
+        db.select({ endedOn: employers.endedOn }).from(employers).where(eq(employers.userId, userId)),
+        db.select({ n: count }).from(projects).where(eq(projects.userId, userId)),
+        db.select({ n: count }).from(roles).where(eq(roles.userId, userId)),
+        db.select({ n: count }).from(educations).where(eq(educations.userId, userId)),
+        db.select({ n: count }).from(certifications).where(eq(certifications.userId, userId)),
+        provenanceCounts(db, userId),
+        // The newest version, and the document it is a version of: the progress
+        // panel names it, which `importStatus` does not.
         db
-          .select({ id: certifications.id, expiresOn: certifications.expiresOn })
-          .from(certifications)
-          .where(eq(certifications.userId, userId)),
-      ]);
+          .select({
+            id: sourceDocumentVersions.id,
+            importStatus: sourceDocumentVersions.importStatus,
+            importedAt: sourceDocumentVersions.importedAt,
+            filename: sourceDocuments.filename,
+          })
+          .from(sourceDocumentVersions)
+          .innerJoin(sourceDocuments, documentOfVersion)
+          .where(eq(sourceDocumentVersions.userId, userId))
+          .orderBy(desc(sourceDocumentVersions.importedAt))
+          .limit(1),
+        db
+          .select({ n: sql<number>`count(distinct ${facts.projectId})::int` })
+          .from(facts)
+          .where(and(acceptedFacts, eq(facts.provenance, "measured"))),
+        // What generation would actually be given. The client offers no Generate
+        // without it rather than enabling one into a 428.
+        db
+          .select({ n: count })
+          .from(facts)
+          .where(and(acceptedFacts, ne(facts.disclosure, "private"), ne(facts.provenance, "generated"))),
+        // Candidates waiting, per version, newest first: the Next step opens the
+        // first and says how many documents the rest sit in.
+        db
+          .select({
+            importId: sourceDocumentVersions.id,
+            sourceDocumentId: sourceDocumentVersions.sourceDocumentId,
+            filename: sourceDocuments.filename,
+            open: count,
+          })
+          .from(facts)
+          .innerJoin(sourceDocumentVersions, versionOfFact)
+          .innerJoin(sourceDocuments, documentOfVersion)
+          .where(and(eq(facts.userId, userId), eq(facts.status, "candidate")))
+          .groupBy(
+            sourceDocumentVersions.id,
+            sourceDocumentVersions.sourceDocumentId,
+            sourceDocumentVersions.importedAt,
+            sourceDocuments.filename,
+          )
+          .orderBy(desc(sourceDocumentVersions.importedAt)),
+        // Where the accepted facts still Generated are confirmed: the newest
+        // version holding any.
+        db
+          .select({ importId: sourceDocumentVersions.id, filename: sourceDocuments.filename })
+          .from(facts)
+          .innerJoin(sourceDocumentVersions, versionOfFact)
+          .innerJoin(sourceDocuments, documentOfVersion)
+          .where(and(acceptedFacts, eq(facts.provenance, "generated")))
+          .orderBy(desc(sourceDocumentVersions.importedAt))
+          .limit(1),
+      ]),
+      renderState(db, userId),
+    ]);
 
-    const [provenance = { measured: 0, attested: 0, generated: 0 }] = await db
-      .select({
-        measured: sql<number>`count(*) filter (where ${facts.provenance} = 'measured')::int`,
-        attested: sql<number>`count(*) filter (where ${facts.provenance} = 'attested')::int`,
-        generated: sql<number>`count(*) filter (where ${facts.provenance} = 'generated')::int`,
-      })
-      .from(facts)
-      .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
-
-    // "Import in progress" is a row above At a glance, linking to fact review.
-    const [latestImport] = await db
-      .select({
-        id: sourceDocumentVersions.id,
-        importStatus: sourceDocumentVersions.importStatus,
-        importedAt: sourceDocumentVersions.importedAt,
-      })
-      .from(sourceDocumentVersions)
-      .where(eq(sourceDocumentVersions.userId, userId))
-      .orderBy(desc(sourceDocumentVersions.importedAt))
-      .limit(1);
-
+    // Read only while an import runs, so the usual visit stays at one round trip.
     const running =
       latestImport && (latestImport.importStatus === "queued" || latestImport.importStatus === "extracting")
         ? await importStatus(db, userId, latestImport.id)
         : null;
-    // The row names the document it is importing, which `importStatus` does not
-    // carry: Fact Review reads the filename with the source text instead.
-    const [document] = running
-      ? await db
-          .select({ filename: sourceDocuments.filename })
-          .from(sourceDocuments)
-          .where(and(eq(sourceDocuments.userId, userId), eq(sourceDocuments.id, running.sourceDocumentId)))
-          .limit(1)
-      : [];
-    const active = running && document ? { ...running, filename: document.filename } : null;
+    const active = running && latestImport ? { ...running, filename: latestImport.filename } : null;
 
     const currentEmployers = employerRows.filter((e) => e.endedOn === null).length;
-    const projectsWithMeasured = await db
-      .select({ projectId: facts.projectId })
-      .from(facts)
-      .where(
-        and(
-          eq(facts.userId, userId),
-          eq(facts.status, "accepted"),
-          eq(facts.provenance, "measured"),
-        ),
-      );
-    const measuredProjects = new Set(
-      projectsWithMeasured.map((f) => f.projectId).filter(Boolean),
-    ).size;
-
-    const documents = await renderState(db, userId);
+    const measuredProjects = measured?.n ?? 0;
     const totalFacts = provenance.measured + provenance.attested + provenance.generated;
-
-    // What generation would actually be given. The client disables Generate with
-    // this reason rather than enabling it into a 428 (`docs/05` §6: a disabled
-    // control always states why).
-    const [{ usable } = { usable: 0 }] = await db
-      .select({ usable: sql<number>`count(*)::int` })
-      .from(facts)
-      .where(
-        and(
-          eq(facts.userId, userId),
-          eq(facts.status, "accepted"),
-          ne(facts.disclosure, "private"),
-          ne(facts.provenance, "generated"),
-        ),
-      );
+    const newestWaiting = waiting[0];
 
     return c.json({
       lastImportAt: latestImport?.importedAt.toISOString() ?? null,
@@ -125,18 +158,29 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
             ? `${currentEmployers} current, ${employerRows.length - currentEmployers} past`
             : null,
         },
-        roles: { count: roleRows.length, note: null },
+        roles: { count: roleCount?.n ?? 0, note: null },
         projects: {
-          count: projectRows.length,
+          count: projectCount?.n ?? 0,
           note: measuredProjects ? `${measuredProjects} with measured outcomes` : null,
         },
         // Educations and certifications together — the split is storage, not
         // interface.
-        credentials: { count: educationRows.length + certificationRows.length, note: null },
+        credentials: { count: (educationCount?.n ?? 0) + (certificationCount?.n ?? 0), note: null },
       },
       factsByProvenance: provenance,
+      /** Candidates waiting for a decision, and where reviewing them starts. `null` at none. */
+      review: newestWaiting
+        ? {
+            openCandidates: waiting.reduce((sum, row) => sum + row.open, 0),
+            documents: new Set(waiting.map((row) => row.sourceDocumentId)).size,
+            importId: newestWaiting.importId,
+            filename: newestWaiting.filename,
+          }
+        : null,
+      /** Where the accepted facts still Generated are confirmed. `null` when no version holds one. */
+      unconfirmed: unconfirmed ?? null,
       documents,
-      canGenerate: usable > 0,
+      canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */
       isEmpty: totalFacts === 0 && employerRows.length === 0 && latestImport === undefined,
     });

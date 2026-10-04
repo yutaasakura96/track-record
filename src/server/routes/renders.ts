@@ -7,7 +7,7 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -918,44 +918,46 @@ interface RenderState {
  * section. All five kinds are always reported, whether or not a row exists.
  */
 export async function renderState(db: Db, userId: string): Promise<RenderState[]> {
-  const rows = await db.select().from(renders).where(eq(renders.userId, userId));
+  // One round trip, not four in a row: this backs the home screen (issue #58).
+  const [rows, versions, pending, [{ accepted } = { accepted: 0 }]] = await db.batch([
+    db.select().from(renders).where(eq(renders.userId, userId)),
+    // Each render's current version, by join rather than by a list of ids read
+    // first, which is what made this a query that had to wait for another.
+    db
+      .select({
+        id: renderVersions.id,
+        versionNo: renderVersions.versionNo,
+        acceptedAt: renderVersions.acceptedAt,
+      })
+      .from(renderVersions)
+      .innerJoin(
+        renders,
+        and(eq(renders.currentVersionId, renderVersions.id), eq(renders.userId, userId)),
+      )
+      .where(eq(renderVersions.userId, userId)),
+    // A proposal whose generation failed stays `pending` — nothing was decided —
+    // but it holds no document: there is no diff to review and generating again is
+    // the way out. Excluded here exactly as it is at generation time.
+    db
+      .select({ id: renderProposals.id, renderId: renderProposals.renderId })
+      .from(renderProposals)
+      .where(
+        and(
+          eq(renderProposals.userId, userId),
+          eq(renderProposals.status, "pending"),
+          ne(renderProposals.generationStatus, "failed"),
+        ),
+      )
+      .orderBy(desc(renderProposals.generatedAt)),
+    db
+      .select({ accepted: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(and(eq(facts.userId, userId), eq(facts.status, "accepted"))),
+  ]);
   const byKind = new Map(rows.map((r) => [r.kind, r]));
-
-  const versionIds = rows.map((r) => r.currentVersionId).filter((id): id is string => id !== null);
-  const versions =
-    versionIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: renderVersions.id,
-            versionNo: renderVersions.versionNo,
-            acceptedAt: renderVersions.acceptedAt,
-          })
-          .from(renderVersions)
-          .where(and(eq(renderVersions.userId, userId), inArray(renderVersions.id, versionIds)));
   const versionById = new Map(versions.map((v) => [v.id, v]));
-
-  // A proposal whose generation failed stays `pending` — nothing was decided —
-  // but it holds no document: there is no diff to review and generating again is
-  // the way out. Excluded here exactly as it is at generation time.
-  const pending = await db
-    .select({ id: renderProposals.id, renderId: renderProposals.renderId })
-    .from(renderProposals)
-    .where(
-      and(
-        eq(renderProposals.userId, userId),
-        eq(renderProposals.status, "pending"),
-        ne(renderProposals.generationStatus, "failed"),
-      ),
-    )
-    .orderBy(desc(renderProposals.generatedAt));
   const pendingByRender = new Map<string, string>();
   for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p.id);
-
-  const [{ accepted } = { accepted: 0 }] = await db
-    .select({ accepted: sql<number>`count(*)::int` })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
 
   return RENDER_KINDS.map((kind) => {
     const row = byKind.get(kind);

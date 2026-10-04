@@ -635,30 +635,32 @@ async function requireVersion(db: Db, userId: string, versionId: string) {
  * re-uploading.
  */
 export async function importStatus(db: Db, userId: string, versionId: string) {
-  const [version] = await db
-    .select()
-    .from(sourceDocumentVersions)
-    .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)))
-    .limit(1);
+  // One round trip: this is polled every 1.5 s while an import runs, by Fact
+  // Review and, through the overview, by the home screen (issue #58).
+  const [[version], [{ extracted } = { extracted: 0 }], [failedChunk]] = await db.batch([
+    db
+      .select()
+      .from(sourceDocumentVersions)
+      .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)))
+      .limit(1),
+    db
+      .select({ extracted: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(and(eq(facts.userId, userId), eq(facts.sourceDocumentVersionId, versionId))),
+    db
+      .select({ chunkIndex: importChunks.chunkIndex })
+      .from(importChunks)
+      .where(
+        and(
+          eq(importChunks.userId, userId),
+          eq(importChunks.sourceDocumentVersionId, versionId),
+          eq(importChunks.status, "failed"),
+        ),
+      )
+      .orderBy(asc(importChunks.chunkIndex))
+      .limit(1),
+  ]);
   if (!version) throw notFound("That import");
-
-  const [{ extracted } = { extracted: 0 }] = await db
-    .select({ extracted: sql<number>`count(*)::int` })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.sourceDocumentVersionId, versionId)));
-
-  const [failedChunk] = await db
-    .select({ chunkIndex: importChunks.chunkIndex })
-    .from(importChunks)
-    .where(
-      and(
-        eq(importChunks.userId, userId),
-        eq(importChunks.sourceDocumentVersionId, versionId),
-        eq(importChunks.status, "failed"),
-      ),
-    )
-    .orderBy(asc(importChunks.chunkIndex))
-    .limit(1);
 
   return {
     importId: version.id,

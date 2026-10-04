@@ -13,22 +13,25 @@ import { useThemeStore, type Theme } from "../stores/theme";
 import { Mono, SegmentedControl } from "./ui";
 
 /**
- * Not every row `docs/10` specifies is built. The unbuilt rows stay
- * visible so the shape of the application is legible, but they are DISABLED and
- * they say why (`docs/05` §6) — a row that navigates to Home while reading as
- * Facts is a lie about where it goes, and an active test of `path === to` with
- * every `to` set to "/" marked all three rows active at once (issue #10).
+ * A destination that is not built has no row (`docs/10`, Shared chrome). `Facts`
+ * stood here disabled, with its reason in a tooltip, so the shape of the
+ * application was legible; it was read as a broken link (issue #58). Before
+ * that it navigated to Home while reading as Facts, which marked three rows
+ * active at once (issue #10).
  *
- * A row earns a `to` when its route exists. `to` is what makes it navigable and
- * what makes exactly one row active, so the two cannot drift apart.
+ * A row earns its place when its route exists. `to` is what makes it navigable
+ * and what makes exactly one row active, so the two cannot drift apart.
  */
-const NAV: ({ label: string } & ({ to: string; counts?: "openCandidates" } | { unbuilt: string }))[] = [
+const NAV: { label: string; to: string; counts?: "openCandidates" }[] = [
   { label: "Home", to: "/" },
   { label: "Record", to: "/record" },
   { label: "Skills", to: "/skills" },
-  { label: "Facts", unbuilt: "Browsing facts outside an import is not built yet." },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
 ];
+
+/** `1,085 facts to review`: the count with its unit, so it cannot be read as documents. */
+const toReview = (openCandidates: number) =>
+  `${openCandidates.toLocaleString("en-US")} ${openCandidates === 1 ? "fact" : "facts"} to review`;
 
 export function Sidebar({ name }: { name: string }) {
   const path = useRouterState({ select: (state) => state.location.pathname });
@@ -48,32 +51,22 @@ export function Sidebar({ name }: { name: string }) {
 
       <ul className="p-10 grid gap-2">
         {NAV.map((item) => {
-          const row = "flex items-center px-10 py-6 rounded-control text-row";
-          if (!("to" in item)) {
-            return (
-              <li key={item.label}>
-                <span
-                  aria-disabled="true"
-                  title={item.unbuilt}
-                  className={`${row} text-text-ghost cursor-not-allowed`}
-                >
-                  {item.label}
-                </span>
-              </li>
-            );
-          }
           const active = path === item.to;
           return (
             <li key={item.label}>
               <Link
                 to={item.to}
-                className={`${row} ${
-                  active ? "bg-hover text-text font-medium" : "text-text-dim hover:bg-hover"
+                className={`block px-10 py-6 rounded-control text-row ${
+                  active ? "bg-hover text-text font-medium" : "text-text-muted hover:bg-hover"
                 }`}
               >
                 {item.label}
+                {/* On a line of its own and in words: a bare number beside
+                    `Documents` read as a number of documents (issue #58). */}
                 {item.counts && openCandidates > 0 ? (
-                  <Mono className="ml-auto text-text-dimmer">{openCandidates}</Mono>
+                  <span className="block text-small font-normal text-generated-text">
+                    {toReview(openCandidates)}
+                  </span>
                 ) : null}
               </Link>
             </li>
@@ -86,7 +79,7 @@ export function Sidebar({ name }: { name: string }) {
           <span className="size-avatar rounded-full bg-chip shrink-0" aria-hidden />
           <span className="min-w-0">
             <span className="block text-smaller text-text-secondary truncate">{name || "—"}</span>
-            <Mono className="block text-text-faint">Personal record</Mono>
+            <Mono className="block text-text-muted">Personal record</Mono>
           </span>
         </div>
         {/* Light by default, dark as the author's choice, kept for this browser (`docs/05`). */}
