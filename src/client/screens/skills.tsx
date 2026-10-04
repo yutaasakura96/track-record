@@ -21,6 +21,7 @@ import {
 import { Button, Dot, Mono, Panel } from "../components/ui";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
+import { ScreenIntro } from "../components/screen-intro";
 import { moved } from "../reorder";
 
 const CONTROL =
@@ -107,6 +108,17 @@ export function Skills() {
               </p>
             </Panel>
           ) : (
+            <div className="grid gap-20">
+            <ScreenIntro
+              next={
+                data.groups.length === 0
+                  ? "add a group on the left, then add skills to it from the candidates on the right."
+                  : "nothing is waiting here. Every change saves at once."
+              }
+            >
+              Which technologies your documents list, and in what order. Every name comes from an
+              accepted fact or a certification; nothing is typed here.
+            </ScreenIntro>
             <div className="grid grid-cols-2 gap-20 items-start">
               <Panel heading="Curated">
                 {data.groups.length === 0 && drafts.length === 0 ? (
@@ -221,6 +233,7 @@ export function Skills() {
                 </ul>
                 {notice("candidates")}
               </Panel>
+            </div>
             </div>
           )}
         </div>

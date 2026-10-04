@@ -492,3 +492,90 @@ describe("a listing that could not be read", () => {
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
   });
 });
+
+/* --------------------------------------------------- intro, counts and waits */
+
+describe("saying what the screen is for and what to do next", () => {
+  const next = async () => (await screen.findByText("Next:")).parentElement!.textContent;
+
+  it("says nothing is waiting when every fact is reviewed", async () => {
+    open();
+
+    expect(await next()).toBe(
+      "Next: nothing is waiting. Import another document, or go Home to generate a document from your record.",
+    );
+    expect(screen.getByText(/Importing reads a file and finds candidate facts in it/)).toBeTruthy();
+  });
+
+  it("counts the facts waiting across documents, and says where to press", async () => {
+    open({}, [
+      document({ openCandidates: 2, versions: [version(1, { facts: { accepted: 0, rejected: 0, open: 2 } })] }),
+      document({ sourceDocumentId: "src-test-2", filename: "zentrel-portfolio.md", openCandidates: 1 }),
+    ]);
+
+    expect(await next()).toBe("Next: 3 facts are waiting for you. Press Review on a row marked to review.");
+  });
+
+  it("names the document still being read ahead of the facts waiting", async () => {
+    open({}, [
+      document({
+        openCandidates: 4,
+        reimportable: false,
+        versions: [version(1, { status: "extracting", chunksTotal: 150, chunksDone: 9 })],
+      }),
+    ]);
+
+    expect(await next()).toBe(
+      "Next: qorvane-notes.md is still being read. You can start reviewing the facts found so far.",
+    );
+  });
+
+  it("says to import the first document, and explains no counts, when there are none", async () => {
+    open({}, []);
+
+    expect(await next()).toBe("Next: import your first document.");
+    expect(screen.queryByText(/accepted: in your record/)).toBeNull();
+  });
+});
+
+describe("the counts on a version", () => {
+  it("says to review, not open, on the row and on its document", async () => {
+    open({}, [
+      document({ openCandidates: 2, versions: [version(1, { facts: { accepted: 3, rejected: 1, open: 2 } })] }),
+    ]);
+
+    const row = await versionRow(1);
+    expect(row.textContent).toContain("3 accepted · 1 rejected · 2 to review");
+    // Once on the document's own row and once on the version's.
+    expect(within(await block()).getAllByText("2 to review")).toHaveLength(2);
+    expect(screen.getByText(/to review: waiting for your decision/)).toBeTruthy();
+  });
+});
+
+describe("the wait while a version is read", () => {
+  it("shows how far along it is under the version's row, and that review can start", async () => {
+    open({}, [
+      document({
+        reimportable: false,
+        versions: [version(1, { status: "extracting", chunksTotal: 150, chunksDone: 9 })],
+      }),
+    ]);
+
+    const row = await versionRow(1);
+    const bar = within(row).getByRole("progressbar", { name: "Reading the document" });
+    expect(bar.getAttribute("aria-valuenow")).toBe("6");
+    expect(within(row).getByText("6%")).toBeTruthy();
+    expect(
+      within(row).getByText(
+        "9 of 150 sections read. Still working, please wait: a long document takes several minutes. Press Review to start on the facts already found.",
+      ),
+    ).toBeTruthy();
+    expect(within(row).getByRole("button", { name: "Review" })).toBeTruthy();
+  });
+
+  it("shows no wait on a version that is ready", async () => {
+    open();
+
+    expect(within(await versionRow(1)).queryByRole("progressbar")).toBeNull();
+  });
+});

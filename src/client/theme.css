@@ -2,6 +2,10 @@
  * Generated from docs/05-design-system.md. Every value here comes from that
  * document; nothing is invented at the call site.
  *
+ * TWO THEMES, ONE SET OF NAMES. `@theme` holds the light values, which are the
+ * default, and `:root[data-theme="dark"]` redefines them. No screen names a
+ * theme.
+ *
  * `--*: initial` DISABLES EVERY DEFAULT THEME VARIABLE. With it set, only the
  * tokens below generate utilities — so `bg-red-500`, `p-7` and `rounded-xl` do
  * not exist. "No new colours" and "no off-scale spacing" stop being things to
@@ -16,73 +20,84 @@
 @theme {
   --*: initial;
 
+  /* THE LIGHT VALUES. Light is the default theme; `:root[data-theme="dark"]`
+   * below redefines every one of these. A colour with a value in one theme
+   * only fails `npm run lint` (`docs/05` §8b). */
+
   /* ---------------------------------------------------------- surfaces */
-  --color-bg: #08090a;
-  --color-surface: #0a0b0c;
-  --color-surface-raised: #0d0e10;
-  --color-card: #101113;
-  --color-card-selected: #13141a;
-  --color-card-recessed: #0b0c0d;
-  --color-chip: #131416;
-  --color-hover: #17181b;
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-surface-raised: #f3f4f7;
+  --color-card: #ffffff;
+  --color-card-selected: #f4f5fe;
+  --color-card-recessed: #eef0f3;
+  --color-chip: #eceef2;
+  --color-hover: #e8eaee;
 
   /* ------------------------------------------------------------ borders */
-  --color-border: #1a1b1e;
-  --color-border-subtle: #141517;
-  --color-border-inner: #17181b;
-  --color-border-control: #1f2023;
-  --color-border-strong: #232427;
-  --color-border-active: #2c2e33;
-  --color-border-dashed: #26282c;
+  --color-border: #dcdfe5;
+  --color-border-subtle: #e9ebef;
+  --color-border-inner: #e4e6eb;
+  --color-border-control: #c9ced6;
+  --color-border-strong: #b9bfc9;
+  --color-border-active: #9aa1ad;
+  --color-border-dashed: #b3b9c4;
 
   /* --------------------------------------------------------------- text */
-  --color-text-bright: #f2f3f5;
-  --color-text: #e8e8ea;
-  --color-text-strong: #e2e4e7;
-  --color-text-secondary: #c9ccd1;
-  --color-text-body: #a8acb3;
-  --color-text-muted: #8a8f98;
-  --color-text-dim: #7c8189;
-  --color-text-dimmer: #62666d;
-  --color-text-faint: #54585e;
-  --color-text-ghost: #3c3f45;
+  /* `text-bright` to `text-faint` hold 4.5:1 on every surface above, in both
+   * themes, and the lint computes it. `text-ghost` is exempt: disabled rows
+   * and zeros only. */
+  --color-text-bright: #0d0e12;
+  --color-text: #1a1c21;
+  --color-text-strong: #22252b;
+  --color-text-secondary: #383c45;
+  --color-text-body: #2e3138;
+  --color-text-muted: #4a4f59;
+  --color-text-dim: #525762;
+  --color-text-dimmer: #595e69;
+  --color-text-faint: #5f6470;
+  --color-text-ghost: #8a909b;
+  /* Text on an accent fill. Not `text-bright`, which is near-black here. */
+  --color-on-accent: #ffffff;
 
   /* ----------------------------------------------- accent and semantics */
   --color-accent: #5e6ad2;
-  --color-accent-text: #a3abf0;
-  --color-accent-link: #8b93e8;
-  --color-accent-link-hover: #a8afef;
+  --color-accent-text: #3f4bb3;
+  --color-accent-link: #4450bd;
+  --color-accent-link-hover: #323c9c;
 
   /* Green means VERIFIED OR ADDED. Amber means NOT USABLE YET. Red means
    * REMOVED. Never decorative — these carry provenance meaning (`docs/05` §9). */
-  --color-measured: #4cb782;
-  --color-measured-text: #5ec99a;
-  --color-generated: #e0a851;
-  --color-generated-text: #c2a06a;
-  --color-generated-claim: #a9a290;
-  --color-removed: #c25a5f;
-  --color-restricted: #a6b3c6;
-  --color-restricted-bg: rgba(126, 146, 178, 0.16);
-  --color-private: #cfd2d6;
-  --color-private-bg: #2b2d31;
+  --color-measured: #1f8a55;
+  --color-measured-text: #146c43;
+  --color-generated: #b97a14;
+  --color-generated-text: #7d5207;
+  --color-generated-claim: #6b5a36;
+  --color-removed: #b3363c;
+  --color-restricted: #374c6e;
+  --color-restricted-bg: rgba(84, 110, 150, 0.16);
+  --color-private: #33373f;
+  --color-private-bg: #dfe2e7;
 
-  /* Mark and diff tints, at the exact opacities the document specifies. */
-  --color-mark-idle: rgba(94, 106, 210, 0.07);
-  --color-mark-rule: rgba(94, 106, 210, 0.4);
-  --color-mark-selected: rgba(94, 106, 210, 0.26);
-  --color-generated-mark: rgba(224, 168, 81, 0.07);
-  --color-generated-rule: rgba(224, 168, 81, 0.6);
-  --color-private-mark: rgba(255, 255, 255, 0.04);
-  --color-private-rule: #4a4d53;
-  --color-rejected-rule: #3a3d42;
-  --color-add-idle: rgba(76, 183, 130, 0.11);
-  --color-add-selected: rgba(76, 183, 130, 0.26);
-  --color-add-row: rgba(76, 183, 130, 0.05);
-  --color-remove-idle: rgba(194, 90, 95, 0.11);
-  --color-remove-selected: rgba(194, 90, 95, 0.26);
-  --color-remove-row: rgba(194, 90, 95, 0.05);
-  --color-progress-track: #1c1d20;
-  --color-disabled-bg: #141518;
+  /* Mark and diff tints, at the fractions the document specifies. */
+  --color-selection: rgba(94, 106, 210, 0.25);
+  --color-mark-idle: rgba(94, 106, 210, 0.1);
+  --color-mark-rule: rgba(94, 106, 210, 0.55);
+  --color-mark-selected: rgba(94, 106, 210, 0.24);
+  --color-generated-mark: rgba(185, 122, 20, 0.1);
+  --color-generated-rule: rgba(185, 122, 20, 0.75);
+  --color-private-mark: rgba(13, 14, 18, 0.05);
+  --color-private-rule: #8a909b;
+  --color-private-mark-text: #555a64;
+  --color-rejected-rule: #9aa1ad;
+  --color-add-idle: rgba(31, 138, 85, 0.13);
+  --color-add-selected: rgba(31, 138, 85, 0.28);
+  --color-add-row: rgba(31, 138, 85, 0.06);
+  --color-remove-idle: rgba(179, 54, 60, 0.11);
+  --color-remove-selected: rgba(179, 54, 60, 0.26);
+  --color-remove-row: rgba(179, 54, 60, 0.05);
+  --color-progress-track: #dfe2e7;
+  --color-disabled-bg: #eef0f3;
 
   /* ----------------------------------------------------------- typography */
   --font-sans: "Geist", system-ui, -apple-system, sans-serif;
@@ -97,6 +112,9 @@
   --text-doc-title--line-height: 1.25;
   --text-page: 19px;
   --text-page--line-height: 1.3;
+  /* Heading 3 of a rendered Markdown document — the one size that view adds. */
+  --text-doc-heading: 16px;
+  --text-doc-heading--line-height: 1.4;
   --text-stat: 23px;
   --text-stat--line-height: 1.1;
   --text-render-heading: 11px;
@@ -119,9 +137,12 @@
   --text-small--line-height: 1.5;
   --text-smaller: 11px;
   --text-smaller--line-height: 1.55;
-  --text-micro: 10.5px;
+  --text-button: 12px;
+  --text-button--line-height: 1.4;
+  /* Nothing is set below 11px (`docs/05` §2). */
+  --text-micro: 11px;
   --text-micro--line-height: 1.4;
-  --text-mono-label: 9.5px;
+  --text-mono-label: 11px;
   --text-mono-label--line-height: 1;
 
   /* Three weights, and only three. */
@@ -185,15 +206,97 @@
   --radius-full: 50%;
 
   /* ------------------------------------------------------------ elevation */
+  --shadow-ring: inset 0 0 0 1px rgba(13, 14, 18, 0.12);
+  --shadow-selected: 0 0 0 1px rgba(94, 106, 210, 0.5);
+  --shadow-lifted: 0 0 0 1px rgba(94, 106, 210, 0.4), 0 10px 26px rgba(13, 14, 18, 0.12);
+  --shadow-lifted-generated: 0 0 0 1px rgba(185, 122, 20, 0.4), 0 10px 26px rgba(13, 14, 18, 0.12);
+  --shadow-lifted-private: 0 0 0 1px rgba(108, 112, 120, 0.4), 0 10px 26px rgba(13, 14, 18, 0.12);
+  --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.55), 0 0 22px rgba(94, 106, 210, 0.2);
+
+  /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
+  --breakpoint-wide: 1280px;
+}
+
+/* ------------------------------------------------------------------ dark */
+
+/* THE DARK VALUES, chosen in the sidebar (`docs/10` Shared chrome). A colour
+ * utility compiles to `var(--color-…)`, so redefining the variable re-themes
+ * every utility and no call site carries a `dark:` variant. Every `--color-*`
+ * and `--shadow-*` above appears here, the unchanged ones included: that is
+ * what lets the lint tell "the same in both" from "forgotten in one". */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --color-bg: #08090a;
+  --color-surface: #0a0b0c;
+  --color-surface-raised: #0d0e10;
+  --color-card: #101113;
+  --color-card-selected: #13141a;
+  --color-card-recessed: #0b0c0d;
+  --color-chip: #131416;
+  --color-hover: #17181b;
+
+  --color-border: #1a1b1e;
+  --color-border-subtle: #141517;
+  --color-border-inner: #17181b;
+  --color-border-control: #1f2023;
+  --color-border-strong: #232427;
+  --color-border-active: #2c2e33;
+  --color-border-dashed: #26282c;
+
+  --color-text-bright: #f2f3f5;
+  --color-text: #e8e8ea;
+  --color-text-strong: #e2e4e7;
+  --color-text-secondary: #c9ccd1;
+  --color-text-body: #c4c8ce;
+  --color-text-muted: #a6abb4;
+  --color-text-dim: #9da2ab;
+  --color-text-dimmer: #9398a2;
+  --color-text-faint: #8a8f99;
+  --color-text-ghost: #5d6169;
+  --color-on-accent: #ffffff;
+
+  --color-accent: #5e6ad2;
+  --color-accent-text: #a3abf0;
+  --color-accent-link: #8b93e8;
+  --color-accent-link-hover: #a8afef;
+
+  --color-measured: #4cb782;
+  --color-measured-text: #5ec99a;
+  --color-generated: #e0a851;
+  --color-generated-text: #d1ab6e;
+  --color-generated-claim: #b3ab97;
+  --color-removed: #e07a7f;
+  --color-restricted: #a6b3c6;
+  --color-restricted-bg: rgba(126, 146, 178, 0.16);
+  --color-private: #cfd2d6;
+  --color-private-bg: #2b2d31;
+
+  --color-selection: rgba(94, 106, 210, 0.35);
+  --color-mark-idle: rgba(94, 106, 210, 0.07);
+  --color-mark-rule: rgba(94, 106, 210, 0.4);
+  --color-mark-selected: rgba(94, 106, 210, 0.26);
+  --color-generated-mark: rgba(224, 168, 81, 0.07);
+  --color-generated-rule: rgba(224, 168, 81, 0.6);
+  --color-private-mark: rgba(255, 255, 255, 0.04);
+  --color-private-rule: #4a4d53;
+  --color-private-mark-text: #9a9fa8;
+  --color-rejected-rule: #3a3d42;
+  --color-add-idle: rgba(76, 183, 130, 0.11);
+  --color-add-selected: rgba(76, 183, 130, 0.26);
+  --color-add-row: rgba(76, 183, 130, 0.05);
+  --color-remove-idle: rgba(194, 90, 95, 0.11);
+  --color-remove-selected: rgba(194, 90, 95, 0.26);
+  --color-remove-row: rgba(194, 90, 95, 0.05);
+  --color-progress-track: #1c1d20;
+  --color-disabled-bg: #141518;
+
   --shadow-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
   --shadow-selected: 0 0 0 1px rgba(94, 106, 210, 0.5);
   --shadow-lifted: 0 0 0 1px rgba(94, 106, 210, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
   --shadow-lifted-generated: 0 0 0 1px rgba(224, 168, 81, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
   --shadow-lifted-private: 0 0 0 1px rgba(108, 112, 120, 0.18), 0 10px 26px rgba(0, 0, 0, 0.5);
   --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.5), 0 0 22px rgba(94, 106, 210, 0.18);
-
-  /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
-  --breakpoint-wide: 1280px;
 }
 
 /* ------------------------------------------------------------------ base */
@@ -201,7 +304,7 @@
 @layer base {
   html {
     background: var(--color-bg);
-    color-scheme: dark;
+    color-scheme: light;
   }
 
   body {
@@ -225,7 +328,7 @@
   }
 
   ::selection {
-    background: rgba(94, 106, 210, 0.35);
+    background: var(--color-selection);
   }
 
   * {
@@ -261,6 +364,193 @@
   select {
     font: inherit;
     color: inherit;
+  }
+}
+
+/* ------------------------------------------------------ rendered Markdown */
+
+/* A source document, rendered (`docs/05` §2, "Rendered Markdown"). Written as
+ * descendant rules rather than utilities because the markup is the parser's
+ * tree, not ours: the space above a heading depends on what came before it,
+ * and that is a selector, not a class on the element. Every value is a token. */
+@layer components {
+  .md-doc {
+    font-size: var(--text-doc-body);
+    line-height: var(--text-doc-body--line-height);
+    color: var(--color-text-body);
+  }
+
+  .md-doc > * + *,
+  .md-doc blockquote > * + *,
+  .md-doc li > * + *,
+  .md-doc .md-footnote > * + * {
+    margin-top: var(--spacing-14);
+  }
+
+  .md-doc h1,
+  .md-doc h2,
+  .md-doc h3 {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-bright);
+  }
+
+  .md-doc h1 {
+    font-size: var(--text-doc-title);
+    line-height: var(--text-doc-title--line-height);
+  }
+
+  .md-doc h2 {
+    font-size: var(--text-page);
+    line-height: var(--text-page--line-height);
+    padding-bottom: var(--spacing-6);
+    border-bottom: 1px solid var(--color-border-subtle);
+  }
+
+  .md-doc h3 {
+    font-size: var(--text-doc-heading);
+    line-height: var(--text-doc-heading--line-height);
+  }
+
+  .md-doc h4,
+  .md-doc h5,
+  .md-doc h6 {
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-strong);
+  }
+
+  .md-doc * + h1,
+  .md-doc * + h2 {
+    margin-top: var(--spacing-26);
+  }
+
+  .md-doc * + h3 {
+    margin-top: var(--spacing-20);
+  }
+
+  .md-doc ul,
+  .md-doc ol {
+    padding-left: var(--spacing-20);
+  }
+
+  .md-doc ul {
+    list-style: disc;
+  }
+
+  .md-doc ol {
+    list-style: decimal;
+  }
+
+  .md-doc li + li,
+  .md-doc li > ul,
+  .md-doc li > ol {
+    margin-top: var(--spacing-4);
+  }
+
+  .md-doc li.md-task {
+    list-style: none;
+  }
+
+  .md-doc .md-check {
+    font-family: var(--font-mono);
+    font-size: var(--text-doc-compact);
+    color: var(--color-text-dim);
+    margin-right: var(--spacing-6);
+  }
+
+  /* A task item's first paragraph sits beside its box, not under it. */
+  .md-doc li.md-task > .md-check + p {
+    display: inline;
+  }
+
+  .md-doc strong,
+  .md-quote strong {
+    font-weight: var(--font-weight-semibold);
+  }
+
+  .md-doc em,
+  .md-quote em {
+    font-style: italic;
+  }
+
+  .md-doc del,
+  .md-quote del {
+    text-decoration: line-through;
+  }
+
+  .md-doc code,
+  .md-quote code {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+    background: var(--color-chip);
+    border-radius: var(--radius-chip);
+    padding: 0 var(--spacing-4);
+  }
+
+  .md-doc pre {
+    background: var(--color-chip);
+    border-radius: var(--radius-chip);
+    padding: var(--spacing-10) var(--spacing-12);
+    overflow-x: auto;
+    white-space: pre;
+    font-size: var(--text-doc-compact);
+    line-height: var(--text-doc-compact--line-height);
+  }
+
+  .md-doc pre code {
+    background: none;
+    padding: 0;
+    font-size: inherit;
+  }
+
+  .md-doc blockquote {
+    border-left: 2px solid var(--color-border-strong);
+    padding-left: var(--spacing-12);
+    color: var(--color-text-secondary);
+  }
+
+  .md-doc .md-table {
+    overflow-x: auto;
+  }
+
+  .md-doc table {
+    border-collapse: collapse;
+    font-size: var(--text-doc-compact);
+    line-height: var(--text-doc-compact--line-height);
+  }
+
+  .md-doc th,
+  .md-doc td {
+    border: 1px solid var(--color-border);
+    padding: var(--spacing-6) var(--spacing-10);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .md-doc th {
+    background: var(--color-surface-raised);
+    font-weight: var(--font-weight-semibold);
+    color: var(--color-text-strong);
+  }
+
+  .md-doc hr {
+    border: 0;
+    border-top: 1px solid var(--color-border);
+    margin: var(--spacing-20) 0;
+  }
+
+  .md-doc .md-link,
+  .md-quote .md-link {
+    color: var(--color-accent-link);
+    text-decoration: underline;
+  }
+
+  .md-doc .md-image {
+    color: var(--color-text-dim);
+  }
+
+  .md-doc .md-footnote {
+    font-size: var(--text-doc-compact);
+    color: var(--color-text-secondary);
   }
 }
 
@@ -300,7 +590,7 @@
 @utility mark-private {
   background: var(--color-private-mark);
   border-bottom: 1px dotted var(--color-private-rule);
-  color: #8d9198;
+  color: var(--color-private-mark-text);
 }
 
 @utility mark-accepted {
@@ -344,6 +634,26 @@
 
 @utility motion-progress {
   transition: width 0.25s ease;
+}
+
+/* The ONE looping animation (`docs/05` §8): the dot beside an import that is
+ * still being read. It runs exactly as long as that work does, and holds still
+ * for a reader who asked for less motion — the words beside it carry the state. */
+@keyframes working {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@utility motion-working {
+  animation: working 1.4s ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
 }
 
 /* The 16px app mark — the ONE gradient in the product (§9, rule 2). */

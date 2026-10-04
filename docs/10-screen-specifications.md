@@ -100,7 +100,7 @@ would join its lines into paragraphs; it has no view control and no contents.
 **The source is one press away.** The label strip carries a two-segment `Rendered` / `Source` radio
 group. `Source` shows the stored text exactly, whitespace preserved, with the same marks on the same
 characters. It is the view for when the exact quote matters: a fact's quote is verified against
-these characters, not the rendered ones (`03` §5). Switching keeps the selected passage in view. The
+these characters, not the rendered ones (`03` §4.1). Switching keeps the selected passage in view. The
 choice lasts while the app is open and is not stored.
 
 **Marks in the rendered view.** A mark covers the rendered text its quote's characters produce.
@@ -122,13 +122,14 @@ document with fewer than two headings.
 
 ### Fact rail
 
-**Header:** `Candidate facts` + mono `N extracted`. Then the guide and the `Next:` line below, then
-the filter pills: `All N` · `To review N` · `Reviewed N`, and `To re-grade N` while any accepted
-fact of the import has no grade (M3, #37). The rail lists every fact of the import, not only the
-first page of the API.
+**Header:** `Candidate facts` + mono `N extracted`. Then the `Next:` line below, then the filter
+pills: `All N` · `To review N` · `Reviewed N`, and `To re-grade N` while any accepted fact of the
+import has no grade (M3, #37). The rail lists every fact of the import, not only the first page of
+the API.
 
-**How to review · #56.** This screen's intro, in place of the one line of copy it used to carry. A
-block headed `How to review` with a bare `Hide`:
+**How to review · #56.** This screen's intro, in place of the one line of copy the header used to
+carry. It is the first item in the card list and scrolls with the cards, so it is read once at the
+top and is out of the way by the third card. A block headed `How to review` with a bare `Hide`:
 
 1. `Read the highlighted passage on the left. It is the evidence.`
 2. `Check that the claim on its card says what the passage says. Click the claim to reword it.`
@@ -143,9 +144,11 @@ definitions of PRD §5 in the author's words; the block explains the controls an
 about them. It is open until the author hides it, and that is remembered for this browser; hidden,
 it is one line, `How to review` and a bare `Show`.
 
-**The `Next:` line** sits under it and is never hidden: `Next: N facts left to review.`, or
-`Next: everything here is reviewed. Press Finish review.` when none is left, or
-`Next: nothing was found to review.` for an import with no facts.
+**The `Next:` line** is in the header, under the title, and is never hidden. The first of these
+that applies: `Next: review the facts found so far while the rest of the document is read.` while
+the import is `queued` or `extracting`; `Next: nothing was found to review.` for an import with no
+facts; `Next: everything here is reviewed. Press Finish review.` when none is left;
+`Next: N facts left to review.` otherwise.
 
 **Extraction progress** is pinned between the header and the card list while the import is `queued`
 or `extracting`, so scrolling the cards never scrolls it away. It is the shared block (Shared
@@ -448,7 +451,8 @@ year only**.
 entered by hand. Your documents take their headings and dates from here.` Then
 `Next: add an employer. Roles and imported documents are filed under one.` while the record holds no
 employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
-it does.
+it does. The `Next:` line waits for the employers to be read: telling a record with three employers
+to add one is worse than saying nothing for a moment.
 
 Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
 employer exists, because a role belongs to one; and deleting an entry something still references
@@ -554,6 +558,8 @@ failure mode this screen exists to prevent.
   target is *after*, so the diff reads as the change the commit will make.
 - The toolbar, rationale bar and per-change navigation behave as specced. A change's rationale is
   the fact behind the *target* version's text.
+- The guide line under the toolbar (#56) reads `Left is your document as it stands. Right is the
+  version you would restore. Read the highlighted changes, then cancel or restore.`
 - The footer reads `Restoring v<m> saves it as a new version v<n+1>. v<n> stays readable and
   downloadable.` with `Cancel` (secondary) and `Restore v<m>` (primary).
 

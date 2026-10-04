@@ -192,7 +192,8 @@ already in the table above, so a rendered document adds one size and no colour.
 | Paragraph, list item | Document body role, `text-body` |
 | List | `disc` or `decimal` markers, `20px` indent, `4px` between items |
 | Strong / emphasis / strikethrough | 600 / italic / `line-through`, in the surrounding colour |
-| Inline code, code block | Mono at the compact body size on `chip`, `radius-chip`. A block scrolls sideways rather than wrapping |
+| Inline code | Mono on `chip`, `radius-chip`, at `.92em` of the text it sits in, so it stays in proportion inside a heading or a card |
+| Code block | Mono at the compact body size on `chip`, `radius-chip`, `10px 12px` padding. It scrolls sideways rather than wrapping |
 | Blockquote | A `border-strong` left rule, `12px` in, `text-secondary` |
 | Table | Compact body size. `border` cell rules, `6px 10px` cell padding, header row on `surface-raised` at 600. A wide table scrolls sideways inside the measure |
 | Rule | A `border` line with `20px` above and below |

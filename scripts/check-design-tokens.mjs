@@ -10,6 +10,8 @@
  *      and the tokens live in exactly one file.
  *   3. `mark-base` declares a `color`. Not a design-system rule but a browser
  *      one: see `checkMarkBase` below.
+ *   4. Both themes define every colour, and every text token reads at 4.5:1 on
+ *      every surface in each: see `checkThemes` below.
  *
  * Run by `npm run lint`. See docs/06, 2026-08-30, for why this is a script
  * rather than `eslint-plugin-tailwindcss`.
@@ -108,8 +110,141 @@ function checkMarkBase() {
   });
 }
 
+/**
+ * The light theme is `@theme`; the dark one is `:root[data-theme="dark"]`
+ * redefining the same variables (`docs/05` §1, §8b). Two things can go wrong
+ * that no call site would show:
+ *
+ *   - A colour or shadow defined in one theme only. Half a theme: the token
+ *     keeps the other theme's value, which is dark text on a dark surface.
+ *   - A text token too faint for a surface. The author's first import found the
+ *     dark theme's `text-dimmer` and `text-faint` unreadable, and they measured
+ *     3.4:1 and 2.7:1 (issue #56). 4.5:1 is WCAG AA for body text.
+ *
+ * `text-ghost` is deliberately not in `TEXT`: it is for disabled rows and zeros.
+ */
+const TEXT = [
+  "text-bright",
+  "text",
+  "text-strong",
+  "text-secondary",
+  "text-body",
+  "text-muted",
+  "text-dim",
+  "text-dimmer",
+  "text-faint",
+  "accent-text",
+  "accent-link",
+  "accent-link-hover",
+  "measured-text",
+  "generated-text",
+  "generated-claim",
+  "removed",
+  "restricted",
+  "private-mark-text",
+];
+const SURFACES = [
+  "bg",
+  "surface",
+  "surface-raised",
+  "card",
+  "card-selected",
+  "card-recessed",
+  "chip",
+  "hover",
+];
+/** Text that sits on one fill of its own rather than on a surface. */
+const PAIRS = [
+  ["on-accent", "accent"],
+  ["private", "private-bg"],
+];
+const MIN_CONTRAST = 4.5;
+
+function declarations(block) {
+  const found = new Map();
+  for (const match of block.matchAll(/(--(?:color|shadow)-[a-z0-9-]+)\s*:\s*([^;]+);/g)) {
+    found.set(match[1], match[2].trim());
+  }
+  return found;
+}
+
+function luminance(hex) {
+  const value = Number.parseInt(hex.slice(1), 16);
+  const [r, g, b] = [value >> 16, (value >> 8) & 255, value & 255].map((channel) => {
+    const c = channel / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrast(a, b) {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+function checkThemes() {
+  const source = readFileSync(THEME, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const lightBlock = source.match(/@theme\s*\{([\s\S]*?)\n\}/);
+  const darkBlock = source.match(/:root\[data-theme="dark"\]\s*\{([\s\S]*?)\n\}/);
+  if (!lightBlock || !darkBlock) {
+    failures.push({
+      path: THEME,
+      line: 1,
+      rule: "two-themes",
+      found: lightBlock ? ':root[data-theme="dark"] is missing' : "@theme is missing",
+      why: "Light is the default and dark is the option. Both blocks must exist.",
+    });
+    return;
+  }
+  const themes = { light: declarations(lightBlock[1]), dark: declarations(darkBlock[1]) };
+
+  for (const [name, other] of [
+    ["light", "dark"],
+    ["dark", "light"],
+  ]) {
+    for (const token of themes[name].keys()) {
+      if (themes[other].has(token)) continue;
+      failures.push({
+        path: THEME,
+        line: 1,
+        rule: "two-themes",
+        found: `${token} has a ${name} value and no ${other} one`,
+        why: "A colour in one theme only is half a theme (docs/05 §9, rule 8).",
+      });
+    }
+  }
+
+  for (const [name, tokens] of Object.entries(themes)) {
+    const pairs = [...TEXT.flatMap((text) => SURFACES.map((surface) => [text, surface])), ...PAIRS];
+    for (const [text, surface] of pairs) {
+      const fg = tokens.get(`--color-${text}`);
+      const bg = tokens.get(`--color-${surface}`);
+      if (!/^#[0-9a-f]{6}$/i.test(fg ?? "") || !/^#[0-9a-f]{6}$/i.test(bg ?? "")) {
+        failures.push({
+          path: THEME,
+          line: 1,
+          rule: "contrast",
+          found: `${name}: ${text} on ${surface} cannot be measured (${fg ?? "missing"} on ${bg ?? "missing"})`,
+          why: "A text token and a surface are opaque six-digit hex, so their contrast is a number.",
+        });
+        continue;
+      }
+      const ratio = contrast(fg, bg);
+      if (ratio >= MIN_CONTRAST) continue;
+      failures.push({
+        path: THEME,
+        line: 1,
+        rule: "contrast",
+        found: `${name}: ${text} (${fg}) on ${surface} (${bg}) is ${ratio.toFixed(2)}:1`,
+        why: `Text reads at ${MIN_CONTRAST}:1 or better on every surface, in both themes (docs/05 §1).`,
+      });
+    }
+  }
+}
+
 walk(CLIENT);
 checkMarkBase();
+checkThemes();
 
 if (failures.length === 0) {
   console.log("design tokens: clean");

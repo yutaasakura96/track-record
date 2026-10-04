@@ -9,7 +9,8 @@
  */
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useImportSummary } from "../api";
-import { Mono } from "./ui";
+import { useThemeStore, type Theme } from "../stores/theme";
+import { Mono, SegmentedControl } from "./ui";
 
 /**
  * Not every row `docs/10` specifies is built. The unbuilt rows stay
@@ -35,6 +36,8 @@ export function Sidebar({ name }: { name: string }) {
   // Read from the summary, not the listing: the badge is one number and this is
   // the only query the chrome makes on Home, Record and Skills.
   const openCandidates = useImportSummary().data?.openCandidates ?? 0;
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
 
   return (
     <nav className="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">
@@ -78,12 +81,24 @@ export function Sidebar({ name }: { name: string }) {
         })}
       </ul>
 
-      <div className="mt-auto p-10 border-t border-border flex items-center gap-8">
-        <span className="size-avatar rounded-full bg-chip shrink-0" aria-hidden />
-        <span className="min-w-0">
-          <span className="block text-smaller text-text-secondary truncate">{name || "—"}</span>
-          <Mono className="block text-text-faint">Personal record</Mono>
-        </span>
+      <div className="mt-auto p-10 border-t border-border grid gap-10">
+        <div className="flex items-center gap-8">
+          <span className="size-avatar rounded-full bg-chip shrink-0" aria-hidden />
+          <span className="min-w-0">
+            <span className="block text-smaller text-text-secondary truncate">{name || "—"}</span>
+            <Mono className="block text-text-faint">Personal record</Mono>
+          </span>
+        </div>
+        {/* Light by default, dark as the author's choice, kept for this browser (`docs/05`). */}
+        <SegmentedControl<Theme>
+          label="Theme"
+          value={theme}
+          onChange={setTheme}
+          segments={[
+            { value: "light", label: "Light", tone: "neutral" },
+            { value: "dark", label: "Dark", tone: "neutral" },
+          ]}
+        />
       </div>
     </nav>
   );

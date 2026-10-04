@@ -7,7 +7,17 @@
          in a search index or a referrer sent to another origin. -->
     <meta name="robots" content="noindex, nofollow" />
     <meta name="referrer" content="same-origin" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="light dark" />
+    <!-- Light is the default; dark is the author's choice, kept for this
+         browser (`docs/05`). Set before first paint, so a dark reader never
+         sees a light flash. `stores/theme.ts` owns the same key. -->
+    <script>
+      try {
+        if (localStorage.getItem("track-record:theme") === "dark") {
+          document.documentElement.dataset.theme = "dark";
+        }
+      } catch {}
+    </script>
     <title>Track Record</title>
   </head>
   <body>

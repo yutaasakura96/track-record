@@ -25,7 +25,9 @@ import {
   type Project,
   type SourceDocumentRow,
 } from "../api";
-import { Button, Chip, Mono, ProgressBar } from "../components/ui";
+import { Button, Chip, Mono } from "../components/ui";
+import { ExtractionProgress } from "../components/extraction-progress";
+import { ScreenIntro } from "../components/screen-intro";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import {
@@ -84,16 +86,50 @@ function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
     return (
       <>
         {refresh}
+        <Intro documents={listing.data.documents} />
         <ImportDropTarget className="mx-auto w-measure max-w-full" />
       </>
     );
   return (
     <>
       {refresh}
+      <Intro documents={listing.data.documents} />
       {listing.data.documents.map((document) => (
         <DocumentBlock key={document.sourceDocumentId} document={document} />
       ))}
     </>
+  );
+}
+
+/**
+ * What this screen is for and the one thing to do now (`docs/10` Screen 8).
+ * The first state that applies wins: a document still being read outranks facts
+ * waiting, because it is the one the author is watching.
+ */
+function Intro({ documents }: { documents: SourceDocumentRow[] }) {
+  const reading = documents.find((document) => document.versions.some((v) => isImportRunning(v.status)));
+  const waiting = documents.reduce((sum, document) => sum + document.openCandidates, 0);
+  const next =
+    documents.length === 0
+      ? "import your first document."
+      : reading
+        ? `${reading.filename} is still being read. You can start reviewing the facts found so far.`
+        : waiting > 0
+          ? `${waiting} fact${waiting === 1 ? " is" : "s are"} waiting for you. Press Review on a row marked to review.`
+          : "nothing is waiting. Import another document, or go Home to generate a document from your record.";
+
+  return (
+    <ScreenIntro
+      next={next}
+      legend={
+        documents.length === 0
+          ? undefined
+          : "accepted: in your record · rejected: set aside and never used · to review: waiting for your decision"
+      }
+    >
+      Every file you have imported, and every version of it. Importing reads a file and finds
+      candidate facts in it; nothing enters your record until you review them.
+    </ScreenIntro>
   );
 }
 
@@ -205,7 +241,7 @@ function DocumentBlock({ document }: { document: SourceDocumentRow }) {
         </Mono>
         <span className="text-smaller text-text-dimmer">last imported {relative(document.lastImportedAt)}</span>
         {document.openCandidates > 0 ? (
-          <Mono className="text-generated-text">{document.openCandidates} open</Mono>
+          <Mono className="text-generated-text">{document.openCandidates} to review</Mono>
         ) : null}
         <span className="ml-auto">
           {/* Choosing a file does not upload it: the confirmation line comes first. */}
@@ -391,6 +427,16 @@ function VersionRow({ version }: { version: DocumentVersion }) {
           />
         </span>
       </div>
+      {/* Under the row and across its width: the wait is the row's main fact while it lasts. */}
+      {isImportRunning(version.status) ? (
+        <ExtractionProgress
+          className="ml-40 mr-16 mb-12"
+          status={version.status}
+          chunksDone={version.chunksDone}
+          chunksTotal={version.chunksTotal}
+          meanwhile="Press Review to start on the facts already found."
+        />
+      ) : null}
       {refusal ? (
         <p role="alert" className="pl-40 pr-16 pb-10 text-smaller text-removed">
           {refusal}
@@ -440,17 +486,7 @@ function Action({
 
 function Outcome({ version, unchanged }: { version: DocumentVersion; unchanged: boolean }) {
   if (isImportRunning(version.status)) {
-    return (
-      <span className="flex items-center gap-8">
-        <ProgressBar
-          className="w-progress"
-          value={version.chunksTotal ? version.chunksDone / version.chunksTotal : 0}
-        />
-        <Mono className="text-text-dimmer">
-          {version.chunksDone} of {version.chunksTotal} chunks
-        </Mono>
-      </span>
-    );
+    return <span className="text-small text-text-secondary">Reading…</span>;
   }
   if (version.status === "failed") {
     return <span className="text-smaller text-removed">{version.error?.message}</span>;
@@ -459,11 +495,13 @@ function Outcome({ version, unchanged }: { version: DocumentVersion; unchanged: 
     return <span className="text-smaller text-text-dim">No changes · nothing to review</span>;
   }
   const { accepted, rejected, open } = version.facts;
+  // Sentence case at a readable size, not an uppercase mono label: these three
+  // counts are the row's answer to "what is left to do here" (issue #56).
   return (
-    <Mono className="text-text-dimmer">
+    <span className="text-small text-text-secondary">
       {accepted} accepted · {rejected} rejected ·{" "}
-      <span className={open > 0 ? "text-generated-text" : ""}>{open} open</span>
-    </Mono>
+      <span className={open > 0 ? "font-medium text-generated-text" : ""}>{open} to review</span>
+    </span>
   );
 }
 
