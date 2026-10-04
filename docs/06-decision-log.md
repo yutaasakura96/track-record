@@ -5198,3 +5198,64 @@ hover is now a fill of its own, `accent-hover`, darker than `accent` and the sam
 themes, with `on-accent` at 5.79:1 on it. The pair is in the design-token check beside
 `on-accent` on `accent`, so the build measures it. A filter is not a token and could not be
 measured, which is how it got through.
+
+### [2026-10-05] Home says what to do next, in plain words, and its frame is on screen before its data
+
+#58. The author could not say what the home screen showed, and found it too dark to read. `docs/10`
+Screen 3 and the sidebar were rewritten before the build, as the issue required; `docs/07` §8 and
+`docs/09` Flows 1 and 3 follow.
+
+**The screen leads with one Next step, and it holds the only primary button in the content column.**
+The old screen expressed "everything waiting for the author" in the Generated row of a chart, with a
+`Review N →` that was never a link. The step is now computed in one pure function,
+`src/client/next-step.ts`, as a list in the order to take it: candidates to review, a proposal to
+check, accepted facts still Generated, a document never generated, a document out of date. The first
+is the step and the rest stand under it as `Also waiting`. Rejected: a banner per condition. Five
+banners is the problem the screen already had.
+
+**Plain words lead and the product's term follows.** `Backed by a number`, `Stated by you` and
+`Not confirmed` head the three rows, and `Measured`, `Attested` and `Generated` stand beside them in
+a chip. The terms are not removed: they are the words on the fact card (Screen 1), and an author who
+learns the plain words here has to be able to recognise the card. **A zero is written as words**,
+`None yet`, because `Measured 0` in the faintest text on the screen read as a failure to load. The
+glossary in `CONTEXT.md` is unchanged; this is wording on one screen, not a rename.
+
+**The sidebar has no row for a screen that is not built**, which supersedes the rule that unbuilt
+rows stay visible and disabled so the shape of the application is legible (issue #10, in
+`src/client/components/sidebar.tsx` until today). `Facts` was read as a broken link. It returns with
+its screen. **The Documents row writes its count out**, `1,085 facts to review`, on a second line.
+A badge on a `Facts` row was considered and rejected: the row would need somewhere to go, and where
+candidates are reviewed is a document's Fact Review, which Documents already lists.
+
+**One line above the documents says which to act on, and each row has one button.** The honest
+answer to "which of five stale documents first" is that they do not depend on each other, so the
+line says that. `Version history` and `Download` became the links `History` and `Download`. With no
+usable fact the rows offer no Generate at all and the line gives the reason once, where five
+disabled buttons each gave it in a tooltip. The section is headed `Your career documents`, because
+`Documents` is the sidebar's word for the files facts are quoted from.
+
+**The frame is drawn before any read answers, and the three reads run side by side.** The gate in
+`src/client/router.tsx` held every screen behind the session read and then the profile read, so
+Home's overview was the third request in a row. Home is now let through at once and shows its frame
+until all three have answered; every other screen keeps the gate as it was. `GET /api/overview` went
+from up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
+to one batch beside the renders' batch. `importStatus` and `renderState` are each one batch too.
+Measured on the local proxy, where a query costs about 12 ms: 230 ms before, 65 ms after, with an
+import running. **Unverified:** that this is what made production stand on `Loading your record…`
+for about ten seconds. The count of round trips is the likeliest cause and the only one this change
+removes; a cold Neon compute would add to it and is untouched.
+
+**The screen polls while an import runs**, at the 1.5 s `docs/07` §1 gives every non-terminal
+resource. It did not, so the progress bar moved only on a reload, which is part of why it read as
+stalled.
+
+**Readable by rule, with the tokens there are.** No text on Home uses `text-dimmer`, `text-faint`
+or `text-ghost`, which measure 3.35, 2.70 and 1.83 to 1 on the panel surface. No token was added or
+changed: the theme is #56's, built at the same time, and a screen that names tokens by role takes
+whatever values that issue gives them.
+
+Left out on purpose: a Facts screen, the light theme and rendered Markdown (#56), the English and
+Japanese split (#59) and the master document (#57).
+
+**Revisit if:** the home screen is still slow in production after this deploys. The next thing to
+measure is the session read, which every request pays before its own queries.

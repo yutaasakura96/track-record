@@ -15,7 +15,7 @@ Six flows. Each lists the steps, **what can go wrong at every step and what the 
 2. App calls `GET /api/profile` → `404`.
 3. **Redirect to the profile form.** Nothing else in the app is reachable.
 4. Author fills identity fields and saves → `PUT /api/profile`.
-5. Land on the Record Overview, in its **empty state**.
+5. Land on Home, in its **empty state**.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
@@ -65,7 +65,8 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 
 ## Flow 3 · Generate the English résumé and review the diff · M1
 
-1. Overview → the Résumé row shows `3 new facts since it was generated` → **Review proposal**.
+1. Home → the Next step reads `Update your Résumé (English)`, and the Résumé row shows `3 new facts`
+   → **Update**, on either.
 2. `POST /api/renders/english_resume/generate` → `202`.
 3. Diff Review screen opens. **The current version is fully readable throughout**; the proposed
    column shows a skeleton while generating.

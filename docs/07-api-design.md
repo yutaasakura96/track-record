@@ -713,7 +713,10 @@ that neither ever blocks.
 
 ## 8. Overview · M1
 
-**`GET /api/overview` → 200** — one request backs the whole home screen.
+**`GET /api/overview` → 200** — one request backs the whole home screen, **and it costs the
+database one round trip** (#58): every query below goes in one batch, beside the renders' own. It
+was up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
+and the home screen waited for all of them.
 
 ```json
 {
@@ -726,6 +729,10 @@ that neither ever blocks.
     "credentials": { "count": 12, "note": "1 expires Mar 2027" }
   },
   "factsByProvenance": { "measured": 41, "attested": 66, "generated": 7 },
+  "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
+  "unconfirmed": { "importId": "sdv_…", "filename": "case-study.md" },
+  "documents": [],
+  "canGenerate": true,
   "isEmpty": false
 }
 ```
@@ -734,8 +741,17 @@ that neither ever blocks.
 `activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
 is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
 overview's progress row shows.
-`factsByProvenance.generated` being non-zero is what turns the overview's Generated row amber with
-its `Review N →` action.
+While it is not `null` the request costs a second round trip, for that body.
+`factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
+screen's Not confirmed row amber.
+`review` is `null` when no candidate is waiting. Otherwise `openCandidates` is the same count
+`GET /api/imports/summary` gives the sidebar, `documents` is how many source documents they sit in,
+and `importId` and `filename` are the most recently imported version that holds any, which is where
+the Next step opens Fact Review (#58).
+`unconfirmed` is the most recently imported version holding an accepted fact that is still
+Generated, or `null`. It is where the Not confirmed row and its step open Fact Review.
+`documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
+fact is both not Private and not Generated, and the home screen then offers no Generate.
 
 ---
 

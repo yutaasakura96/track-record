@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56)
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -12,10 +12,20 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Facts, Documents, Settings, each with an optional right-aligned mono count. There is
-no separate Imports row: imports are versions of a document and are listed on Screen 8.
-Active row: `bg hover`, `color text`, weight 500. Footer: 22px circular avatar, name, and the
-literal label `Personal record` — the single-user posture stated in the interface.
+rows: Home, Record, Skills, Documents. There is no separate Imports row: imports are versions of a
+document and are listed on Screen 8.
+Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
+circular avatar, name, and the literal label `Personal record` — the single-user posture stated in
+the interface.
+
+- **A destination that is not built has no row** (#58). `Facts` stood in the list disabled, with its
+  reason in a tooltip, so that the shape of the application was legible; what it was read as is a
+  broken link. It is the rule Screen 3 already follows for Quick capture, hidden rather than
+  disabled. `Facts` and `Settings` take their rows when their screens exist
+- **The Documents row says what its count counts** (#58). The count is the open candidates across
+  every version of every document, shown only above zero, and it is written out on a second line of
+  the row: `1,085 facts to review`, at `text-small` in `generated-text`, amber because a candidate
+  is not usable yet. A bare `1085` beside the word `Documents` read as a number of documents
 
 **Header** — 46px, `surface`, bottom border `border`. Screen title at 12.5px/600, contextual note
 in `text-dimmer`, actions right-aligned.
@@ -317,34 +327,117 @@ Same layout, same components. Differences that are **requirements, not styling**
 
 ---
 
-## Screen 3 — Record Overview
+## Screen 3 — Home
 
-**Purpose.** Home. What the record contains, what the documents say, what needs attention.
+**Purpose.** Home, and the first thing the author sees. In this order: what to do next, what the
+record holds, what the documents say. **Rewritten 2026-10-05 (#58)**: the screen it replaces led
+with four counts and a chart of `Facts by provenance`, and the author could not say what they were
+looking at. The test of this screen is that a first-time author and a returning one can both say
+what it shows and what to do, without knowing a word of the product's vocabulary.
 
 ### Layout
 
-Sidebar + header (`Your record`, note `Last import <relative time>`, actions `Quick capture`
-(ghost) and `Import a document` (primary)). Content column: `max-width 940px`, centred.
+Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
+(primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
+`Quick capture` (ghost) joins the header when it is built (M3). Content column: `max-width 940px`,
+centred. Each section is a panel with a heading and, under it, one sentence saying what the
+section is.
 
-**Section 1 — At a glance.** Four-tile grid, 1px gaps over a `border` background so the tiles read
-as one object. Each tile: label, 23px value, sub-note (`2 current, 2 past` / `4 with measured
-outcomes` / `1 expires Mar 2027`). Entities: Employers · Roles · Projects · Credentials.
-**Credentials counts educations and certifications together** — the split is a storage decision
-(`04-database-schema.md` §3.8–3.9), not an interface one.
+**Readable by rule.** No text on this screen is set in `text-dimmer`, `text-faint` or `text-ghost`.
+On the panel surface they measure 3.35, 2.70 and 1.83 to 1, under the 4.5 to 1 a reader needs, and
+the screen this replaces set its counts, its notes and its section label in them. Supporting text is
+`text-muted` (5.94 to 1) or brighter and descriptions are `text-body`. Nothing the author reads is
+smaller than `text-small`, so a count is set as text, never as a 9.5px mono label. A section's
+heading is 14.5px/600 in `text-bright` and its sentence is the UI default, 13px.
 
-**Section 2 — Facts by provenance.** A panel with a 7px stacked bar (green / accent / amber, 2px
-gaps) and a legend row per value: dot, name, one-line description, count.
-**The Generated row is the action row** — when nonzero it takes an amber tint, an amber inset ring,
-and a `Review N →` call to action. Everything waiting for the author is expressed here.
+**Section 1 — Next step.** One panel that says the single thing most worth doing now: a title at
+the page-heading size, one sentence of why, and one button. **It holds the only primary button in
+the content column**, so the eye has one place to go. The step is the first of these that applies.
 
-**Section 3 — Documents.** One row per render: icon tile, name, `<language> · generated <date>`,
-status dot + text, right-aligned action.
+| When | Title | Sentence | Button |
+|---|---|---|---|
+| Candidates are waiting | `Review N facts` | `Found in <filename>. A fact is used in your documents only after you accept it.` With more than one document holding any: `Found in N documents, newest first. …` | `Review facts`, into Fact Review on the newest version that holds any |
+| An import is running and has found none yet | `Wait for the first facts` | `The import is still reading. Open the review to watch the facts arrive.` | `Open review`, into that import's Fact Review |
+| A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
+| Accepted facts are still Generated | `Confirm N facts` | `The importer wrote them and you have not confirmed them, so no document uses them.` | `Open them`, into Fact Review on the newest version that holds any |
+| No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
+| A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
+| A document is out of date | `Update your <document>` | `N new facts since it was generated.` | `Update` |
+| None of the above | `You are up to date` | `Nothing is waiting for you. Import another document to add to your record.` | None |
 
-- Up to date → green dot, `Up to date with your record`, action `Open`
-- Stale → accent dot, `N new facts since it was generated`, action `Review proposal`
+Every other step that applies is listed under it, below the line `Also waiting`, as one row each:
+its title and a ghost button. So a returning author reads the whole of what is waiting in one
+place, in the order to take it. `Wait for the first facts`, `Import a document` and
+`You are up to date` are answers to "what now" and never appear in that list. One document stands
+for all of them in the two document steps, the first in the list that needs it; Section 4 says the
+rest. **The two document steps need a fact a document may use**; without one they are not offered,
+and `Import a document` stands only when nothing else is waiting, because the way to a usable fact
+is then to deal with what is. A Generate or Update pressed here that the server refuses says the
+server's reason in this panel, under the step.
 
-Five rows: Résumé (English), 履歴書, 職務経歴書, and both career stories. **Japanese titles render
-in the mixed font stack.**
+**Section 2 — Your record.** Heading `Your record`, sentence `What you entered by hand: where you
+worked, and what you hold.`, and a link `Open Record` to Screen 4. Under it a four-tile grid, 1px
+gaps over a `border` background so the tiles read as one object. Each tile: label, 23px value,
+sub-note (`2 current, 2 past` / `4 with measured outcomes` / `1 expires Mar 2027`). Entities:
+Employers · Roles · Projects · Credentials. **Credentials counts educations and certifications
+together** — the split is a storage decision (`04-database-schema.md` §3.8–3.9), not an interface
+one. **A tile at zero says so in words**: its sub-note reads `None added yet`, so a `0` reads as an
+answer and not as a failure to load.
+
+**Section 3 — Facts in your record.** Heading `Facts in your record`, sentence
+`A fact is one claim about your work, quoted from a document you imported. N accepted.` Then an
+8px stacked bar (green / accent / amber, 2px gaps) and one row per provenance value. **The row
+leads with plain words and names the product's term second**, because `Measured`, `Attested` and
+`Generated` are the words on the fact card and mean nothing at a glance (#58):
+
+| Row | Term | Description | At zero |
+|---|---|---|---|
+| `Backed by a number` | `Measured` | `A result with a figure, and the passage that proves it.` | `None yet` |
+| `Stated by you` | `Attested` | `True, and yours, with no figure behind it.` | `None yet` |
+| `Not confirmed` | `Generated` | `Written by the importer. Left out of every document until you confirm it.` | `Nothing waiting` |
+
+Each row: dot, the plain words, the term in a chip, the description, and the count at the row-title
+size. **A zero is written as words, never as `0`.** `Measured 0` in the faintest text on the screen
+read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — above
+zero it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
+Review the Next step does. With no accepted fact at all, the bar and the rows give way to one line:
+`No accepted facts yet. They arrive when you review a document you imported.`
+
+**Section 4 — Your career documents.** Heading `Your career documents`, sentence
+`Generated from your accepted facts. Each one is a file you can download.` The heading is not
+`Documents`: that is the sidebar's word for the files facts are quoted *from*, and this section is
+what is generated *out*. One row per render, in a fixed order: Résumé (English), 履歴書, 職務経歴書,
+and both career stories. **Japanese titles render in the mixed font stack.**
+
+**One line above the rows says which to act on** (#58). Five rows each reading
+`N new facts since it was generated` beside the same three buttons said nothing about where to
+start, and the honest answer is that they do not depend on each other:
+
+- No accepted fact can be used → `Nothing can be generated until your record holds an accepted fact a document may use.` No row then offers Generate, Update or Regenerate; the line is their reason, said once
+- A proposal waiting → `<Document> has a new version waiting for you. Check it first.`
+- One out of date → `<Document> is out of date. Update it when you next need it.`
+- More than one → `N of 5 are out of date. Update the one you need next; each is updated on its own, and the rest can wait.`
+- None generated → `None generated yet. Generate the one you need first; each is made on its own.`
+- Otherwise → `Every document you have generated is up to date with your record.`
+
+Each row: name, `<language> · generated <relative time>`, status dot + text, then the quiet links
+`History` (Screen 5) and `Download`, offered once a version exists, and **one** button.
+
+| Status | Dot and text | Button |
+|---|---|---|
+| Never generated | muted, `Not generated yet` | `Generate` (secondary) |
+| Proposal waiting | accent, `New version waiting` | `Review changes` (secondary) |
+| Out of date | accent, `N new facts` | `Update` (secondary) |
+| Up to date | green, `Up to date` | `Regenerate` (ghost) |
+| Not built | muted, `Not available yet` | None |
+
+`Download` reads the same on every row so the rows line up; the file's type is the document's own
+and is in the name of what is saved. A Generate or Update the server refuses says the server's
+reason above the rows.
+
+**Section 5 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
+you entered, every fact, and where each fact is quoted from. The imported documents themselves are
+not included.`, and a secondary `Export my record`, which is `GET /api/export` (S15).
 
 ### Importing a document
 
@@ -416,28 +509,34 @@ changes the project in the same step and one control is clearer than a row that 
 
 ### Empty state
 
-Not a variant of the populated screen — a different screen.
+Not a variant of the populated screen — a different screen. The header keeps its title, `Home`,
+so the frame does not change under a first-time author; it carries no note and no action.
 
 - Heading `Your record is empty`
-- One paragraph explaining the loop: import a document you already have, review the facts it extracts
+- One sentence, `Three steps turn a document you already wrote into a résumé.`, and the steps as a
+  numbered list, each a bold word and a sentence (#58): **Import** `a document about your work: a case
+  study, a project write-up, a portfolio.` **Review** `the facts found in it, one at a time, and keep
+  the ones you stand behind.` **Generate** `your résumé, 履歴書 and 職務経歴書 from the facts you kept.`
+  A paragraph said the same thing and was not read as an instruction
 - A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
   **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
   grows as `07-api-design.md` §5 grows. Offering Word or PDF here and rejecting them at upload is a
   worse empty state than a narrower one
-- Footnote: `Quick capture and document generation open up once your record holds its first facts.`
+- Footnote: `Document generation opens up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
-- Stat tiles and the documents list are absent entirely
+- The four sections of the populated screen are absent entirely
 
 ### States
 
 | State | Behaviour |
 |---|---|
 | **No profile** | Redirect to the profile form. Every render needs a name |
-| **Could not be read** | Centred in the content area, with the sidebar still beside it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the `Loading your record…` line returns. Only a first read shows this. |
+| **Loading** | **The frame is drawn at once and filled as the reads answer** (#58): the sidebar, the header with `Home` and the note `Loading your record…`, and the four section headings over blank blocks the height of what they will hold. Nothing animates (`05` §8). It replaced a bare `Loading your record…` on an empty page that stood for about ten seconds. The session, the profile and the overview are read at the same time, not one after the other, and the screen shows this frame until all three have answered. After four seconds the note becomes `Still loading. This is taking longer than usual.` |
+| **Could not be read** | Centred in the content area, with the sidebar beside it and the header above it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the loading frame returns. Only a first read shows this. |
 | **Could not refresh** | The overview, populated or empty, stays on screen. A later read that fails puts one dim line above it, at the top of the content, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
-| **Import in progress** | A row above At a glance: `Importing`, the document's filename in a mono chip, `— review is open`, and the chunks done out of the total with a progress bar. It links to fact review. The row stays one line: a filename too long for it is cut short with an ellipsis and shown whole on hover, and nothing else in the row gives way |
-| **All documents stale** | Normal. Five accent dots is a valid state, not an error |
-| **Zero Generated facts** | Row renders in the resting style with `Nothing waiting` — no amber, no call to action |
+| **Import in progress** | A panel above the Next step, which carries the way into the review. First line: `Reading`, the document's filename in a mono chip, and the share done as a percentage at the row-title size. Then an 8px progress bar, twice the control's 4px because here it is the status and not a detail of a row. Then the sentence `Still working, please wait. N of M parts read.`, or `Still working, please wait. Getting the document ready.` before the document has been split; a part is a chunk, in the author's word for it. Then `A long document takes several minutes. You can leave this page and it carries on.` The percentage is how much of the document has been read, which is not the model certainty `05` §9 rule 12 forbids. The screen reads again every 1.5 s while it runs, so the bar moves. The first line stays one line: a filename too long for it is cut short with an ellipsis and shown whole on hover, and nothing else in it gives way |
+| **All documents stale** | Normal. Five accent dots is a valid state, not an error, and the line above the rows says the rest can wait |
+| **Zero Generated facts** | The Not confirmed row renders in the resting style with `Nothing waiting` — no amber, no call to action |
 
 ---
 
@@ -799,8 +898,9 @@ Added 2026-09-15. Every file the record's facts are quoted from, with every vers
 where a re-import starts (Flow 4) and where an import the author walked away from is found again.
 Source text never appears here; the screen shows names, dates and counts.
 
-Sidebar chrome, reached from the `Documents` row at `/documents`. The row's mono count is the total
-of candidates waiting for review across every version, shown only when it is above zero. Header title
+Sidebar chrome, reached from the `Documents` row at `/documents`. The row carries the total of
+candidates waiting for review across every version, written out as `N facts to review` and shown only
+when it is above zero (Shared chrome). Header title
 `Documents`, contextual note `The files your facts are quoted from`, and on the right the same
 `Import a document` primary Screen 3 has. That button always creates a **new** document, and it
 offers the project and employer choice Screen 3 describes, under the same rule: only when the record
