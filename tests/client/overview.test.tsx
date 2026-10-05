@@ -718,6 +718,50 @@ describe("an overview a write has made untrue", () => {
     expect(screen.queryByText(/Still working, please wait\./)).toBeNull();
   });
 
+  it("holds the next step back after Generate, on a return to Home before the proposal is decided", async () => {
+    const POST = "POST /api/renders/english_resume/generate";
+    let reads = 0;
+    let answer!: (fresh: Overview) => void;
+    const after = new Promise<Overview>((resolve) => (answer = resolve));
+    const { api, user, pathname, back } = mount("/", {
+      "GET /api/overview": () => (++reads === 1 ? overview([row()]) : after),
+      "GET /api/imports/summary": { openCandidates: 0, running: false },
+      [POST]: { proposalId: "prop-test-plinth" },
+      "GET /api/proposals/prop-test-plinth": {
+        id: "prop-test-plinth",
+        renderKind: "english_resume",
+        status: "pending",
+        generationStatus: "generating",
+        error: null,
+        basedOnVersionNo: null,
+        proposedVersionNo: 1,
+        generatedAt: "2026-09-01T00:00:00.000Z",
+        reason: null,
+        warnings: [],
+        unchanged: false,
+        withheld: { privateFactCount: 0, generatedFactCount: 0 },
+      },
+    });
+    await user.click(within(await nextStep()).getByRole("button", { name: "Generate" }));
+    await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-plinth"));
+    await screen.findByText("Writing the first version. Nothing is saved until you accept it.");
+    expect(api.writes()).toEqual([POST]);
+
+    back();
+    await waitFor(() => expect(pathname()).toBe("/"));
+
+    // The overview Home had still says to generate, and the read after the write is still out.
+    expect((await screen.findByRole("status")).textContent).toBe("Checking what is waiting for you now…");
+    expect(screen.queryByText("Generate your English résumé")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
+
+    answer(overview([row({ status: "proposal_generating", pendingProposalId: "prop-test-plinth" })]));
+
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("Wait for the new English résumé");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(api.writes()).toEqual([POST]);
+  });
+
   it("holds nothing back for a poll while an import runs", async () => {
     let reads = 0;
     mount("/", {

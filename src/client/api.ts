@@ -859,7 +859,10 @@ export function useFactAction(importId: string) {
   const queryClient = useQueryClient();
   // Every import's list, not only this one's: rejecting a fact here drops it
   // from the likely matches on another document's cards.
-  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    return queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  };
 
   const patch = useMutation({
     mutationFn: (input: {
@@ -910,7 +913,10 @@ export function useGenerate() {
   return useMutation({
     mutationFn: (kind: RenderKind) =>
       api<{ proposalId: string }>(`/api/renders/${kind}/generate`, { method: "POST" }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.renders }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
   });
 }
 
