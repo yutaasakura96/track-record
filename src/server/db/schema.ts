@@ -471,8 +471,9 @@ export const renderVersions = pgTable("render_versions", {
    */
   origin: versionOrigin("origin").notNull().default("accepted"),
   /**
-   * The accepted-fact count at the moment this row was created, written by all
-   * three writers alike (`docs/06`, 2026-09-12).
+   * The count of facts a document may use (accepted, neither Private nor
+   * Generated; `docs/06`, 2026-10-05) at the moment this row was created,
+   * written by all three writers alike (`docs/06`, 2026-09-12).
    *
    * It exists so a RESTORE can move the render's `stale_since_fact_count` back
    * to the era the restored content was generated from — a document restored to

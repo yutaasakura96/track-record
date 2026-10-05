@@ -675,9 +675,33 @@ describe("documents and downloads", () => {
     const more = await client.json<{ items: Fact[] }>(`/api/facts?importId=${another.importId}`);
     for (const fact of more.items) await client.post(`/api/facts/${fact.id}/accept`);
 
-    resume = (await client.json<{ items: RenderRow[] }>("/api/renders")).items.find(
-      (r) => r.kind === "english_resume",
-    )!;
+    // Accepted as the importer left it, Generated and Private, a fact reaches
+    // no document: updating would give the same document, so nothing is new.
+    const read = async () => {
+      const [renders, overview] = await Promise.all([
+        client.json<{ items: RenderRow[] }>("/api/renders"),
+        client.json<{ documents: RenderRow[] }>("/api/overview"),
+      ]);
+      const row = renders.items.find((r) => r.kind === "english_resume")!;
+      // Home reads the same rows through the overview.
+      expect(overview.documents.find((r) => r.kind === "english_resume")).toEqual(row);
+      return row;
+    };
+    resume = await read();
+    expect(resume.status).toBe("up_to_date");
+    expect(resume.newFactsSince).toBe(0);
+
+    // Disclosed but still Generated, it is still not one a document may use.
+    for (const fact of more.items) await client.patch(`/api/facts/${fact.id}`, { disclosure: "public" });
+    resume = await read();
+    expect(resume.status).toBe("up_to_date");
+    expect(resume.newFactsSince).toBe(0);
+
+    // Confirmed, it is, and the document is out of date by it.
+    for (const fact of more.items) {
+      await client.post(`/api/facts/${fact.id}/regrade`, { provenance: "attested" });
+    }
+    resume = await read();
     expect(resume.status).toBe("stale");
     expect(resume.newFactsSince).toBe(more.items.length);
   });
@@ -1118,7 +1142,8 @@ describe("a version is edited by hand", () => {
     const record = await seedRecord();
     // Held back so that accepting it AFTER the version makes the render stale
     // by exactly one fact. It is cited by nothing, so no edit below depends on
-    // its status.
+    // its status. Disclosed first: a Private fact makes no document stale.
+    await client.patch(`/api/facts/${record.measuredPrivate.id}`, { disclosure: "restricted" });
     await client.post(`/api/facts/${record.measuredPrivate.id}/reject`);
 
     const created = (await (
@@ -1208,13 +1233,15 @@ describe("a version is restored", () => {
 
   /**
    * Two versions, and one accepted fact that entered the record between them —
-   * so v1 belongs to a three-fact era and v2 to a four-fact one, which is what
+   * so v1 belongs to a two-fact era and v2 to a three-fact one, which is what
    * makes the staleness assertion below mean anything.
    */
   async function twoVersions() {
     const record = await seedRecord();
     // Held back so it can enter the record BETWEEN the two versions. It is
-    // cited by neither, so no restore below depends on its status.
+    // cited by neither, so no restore below depends on its status. Disclosed
+    // first: a Private fact makes no document stale.
+    await client.patch(`/api/facts/${record.measuredPrivate.id}`, { disclosure: "restricted" });
     await client.post(`/api/facts/${record.measuredPrivate.id}/reject`);
 
     const v1 = await accept(
@@ -1263,7 +1290,7 @@ describe("a version is restored", () => {
     expect(download.status).toBe(200);
     expect(await download.text()).toContain("single window");
 
-    // Staleness MOVED. The document's content is back in the three-fact era, so
+    // Staleness MOVED. The document's content is back in the two-fact era, so
     // the fact accepted after v1 is new again — the opposite of what an edit
     // does, and the honest reading of what a restore changed.
     const after = await client.json<{ items: RenderRow[] }>("/api/renders");
@@ -1278,14 +1305,14 @@ describe("a version is restored", () => {
    * unchanged, so the new row records the era of what it is carrying rather
    * than the day it was made — otherwise a restore of a restore would read its
    * own creation date as the content's age and report a document from the
-   * three-fact era as current with the record (`docs/06`, 2026-09-12 second
+   * two-fact era as current with the record (`docs/06`, 2026-09-12 second
    * entry).
    */
   it("restores staleness through a restore of a restore", async () => {
     const { v1, v2 } = await twoVersions();
 
-    await restore(v1.id); // v3, carrying the three-fact era
-    await restore(v2.id); // v4, carrying the four-fact one
+    await restore(v1.id); // v3, carrying the two-fact era
+    await restore(v2.id); // v4, carrying the three-fact one
     const backUpToDate = await client.json<{ items: RenderRow[] }>("/api/renders");
     expect(backUpToDate.items.find((i) => i.kind === "english_resume")!.status).toBe("up_to_date");
 

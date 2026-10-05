@@ -547,6 +547,114 @@ describe("an overview that could not be read", () => {
   });
 });
 
+describe("an overview a write has made untrue", () => {
+  const IMPORT = "imp-test-1";
+  const READING: Overview = {
+    ...overview([row()]),
+    activeImport: {
+      importId: IMPORT,
+      sourceDocumentId: "doc-test-1",
+      versionNo: 1,
+      status: "extracting",
+      chunksTotal: 4,
+      chunksDone: 0,
+      candidatesExtracted: 0,
+      candidatesDiscarded: 0,
+      candidatesSuppressed: 0,
+      wordCount: 42,
+      changedRegionShare: null,
+      error: null,
+      failedAtChunk: null,
+      filename: "quillset-notes.md",
+    },
+  };
+  const SOURCE = "Cut the zentrel batch from 40 minutes to 9 minutes.";
+
+  it("holds the next step and the progress panel back until the read after it answers", async () => {
+    let finished = false;
+    let answer!: (fresh: Overview) => void;
+    const { api, user, pathname } = mount("/", {
+      // The read after the write is slow, as it is in production (issue #58).
+      "GET /api/overview": () =>
+        finished ? new Promise<Overview>((resolve) => (answer = resolve)) : READING,
+      "GET /api/imports/summary": { openCandidates: 0, running: true },
+      [`GET /api/imports/${IMPORT}`]: { ...READING.activeImport, status: "ready", chunksDone: 4 },
+      [`GET /api/facts?importId=${IMPORT}`]: {
+        items: [
+          {
+            id: "fact-test-1",
+            claim: "Cut the zentrel batch to 9 minutes",
+            provenance: "measured",
+            disclosure: "public",
+            status: "accepted",
+            employerId: null,
+            employerSetByHand: false,
+            projectId: null,
+            evidence: {
+              sourceDocumentVersionId: "dv-test-1",
+              lineNumber: 1,
+              quoteStart: 0,
+              quoteEnd: SOURCE.length,
+            },
+            technologies: [],
+            isClientIdentifying: false,
+            graded: true,
+            likelyMatches: [],
+          },
+        ],
+      },
+      "GET /api/source-documents/doc-test-1/versions/1/text": {
+        sourceDocumentVersionId: "dv-test-1",
+        filename: "quillset-notes.md",
+        project: null,
+        wordCount: 42,
+        importedAt: "2026-09-01T00:00:00.000Z",
+        text: SOURCE,
+      },
+      "GET /api/employers": { items: [] },
+      [`POST /api/imports/${IMPORT}/finish`]: () => {
+        finished = true;
+        return { acceptedFacts: 1 };
+      },
+    });
+    await screen.findByText(/Still working, please wait\./);
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("Wait for the first facts");
+
+    await user.click(within(await nextStep()).getByRole("link", { name: "Open review" }));
+    await user.click(await screen.findByRole("button", { name: "Add 1 facts to record" }));
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(api.writes()).toEqual([`POST /api/imports/${IMPORT}/finish`]);
+
+    // Home is back with the overview it had, and the read after the write is still out.
+    expect((await screen.findByRole("status")).textContent).toBe("Checking what is waiting for you now…");
+    expect(screen.queryByText(/Still working, please wait\./)).toBeNull();
+    expect(screen.queryByText("Wait for the first facts")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
+    // Only those two are held: the rest of the page stands.
+    for (const heading of SECTIONS) expect(screen.getByRole("heading", { name: heading })).toBeTruthy();
+
+    answer(overview([row()]));
+
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("Generate your English résumé");
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByText(/Still working, please wait\./)).toBeNull();
+  });
+
+  it("holds nothing back for a poll while an import runs", async () => {
+    let reads = 0;
+    mount("/", {
+      "GET /api/overview": () => (++reads === 1 ? READING : new Promise(() => {})),
+      "GET /api/imports/summary": { openCandidates: 0, running: true },
+    });
+    await screen.findByText(/Still working, please wait\./);
+
+    // The second read is the poll, and it never answers.
+    await waitFor(() => expect(reads).toBe(2), { timeout: 4_000 });
+    expect(screen.getByText(/Still working, please wait\./)).toBeTruthy();
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("Wait for the first facts");
+  });
+});
+
 describe("the frame, before any read has answered", () => {
   const NEVER = () => new Promise(() => {});
   afterEach(() => vi.useRealTimers());

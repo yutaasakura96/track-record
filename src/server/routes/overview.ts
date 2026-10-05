@@ -6,7 +6,7 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import {
   certifications,
   educations,
@@ -22,7 +22,7 @@ import {
   sourceDocuments,
 } from "../db/schema";
 import { routes } from "../http/registry";
-import { renderState } from "./renders";
+import { renderState, usableFacts } from "./renders";
 import { importStatus } from "./imports";
 import { provenanceCounts } from "./facts";
 import type { AppEnv } from "../env";
@@ -101,7 +101,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         db
           .select({ n: count })
           .from(facts)
-          .where(and(acceptedFacts, ne(facts.disclosure, "private"), ne(facts.provenance, "generated"))),
+          .where(usableFacts(userId)),
         // Candidates waiting, per version, newest first: the Next step opens the
         // first and says how many documents the rest sit in.
         db

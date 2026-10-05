@@ -16,8 +16,10 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   failureText,
+  keys,
   useGenerate,
   useOverview,
   useProfile,
@@ -47,6 +49,7 @@ const PRIMARY =
   "motion-surface whitespace-nowrap bg-accent text-text-bright px-16 py-10 rounded-control text-ui font-medium hover:brightness-110";
 
 export function Overview() {
+  const queryClient = useQueryClient();
   const overview = useOverview();
   const session = useSession();
   const profile = useProfile();
@@ -57,6 +60,12 @@ export function Overview() {
   const settling = session.isPending || profile.isPending || profile.data === null;
   // A later read that fails leaves the overview on screen, and says it may be out of date.
   const refresh = overview.data && overview.isError ? <RefreshFailure query={overview} /> : null;
+  // A write elsewhere said this overview is no longer true, and its replacement
+  // is on the way. What it says to do next is held back until then: Home once
+  // told the author to wait for an import they had just finished reviewing.
+  // A poll or a return to the page invalidates nothing, and holds nothing.
+  const superseded =
+    overview.isFetching && queryClient.getQueryState(keys.overview)?.isInvalidated === true;
 
   // The sidebar renders in every state: a failed read with nothing around it
   // left the author on a blank page with no way to another screen.
@@ -70,7 +79,7 @@ export function Overview() {
           overview.data.isEmpty ? (
             <EmptyRecord refresh={refresh} />
           ) : (
-            <PopulatedRecord data={overview.data} refresh={refresh} />
+            <PopulatedRecord data={overview.data} refresh={refresh} superseded={superseded} />
           )
         ) : (
           <>
@@ -152,9 +161,7 @@ function LoadingRecord() {
       />
       <div className="flex-1 overflow-y-auto px-20 py-26" aria-busy="true">
         <div className="mx-auto w-content max-w-full grid gap-20">
-          <Section heading="Next step" about="What is most worth doing now.">
-            {blank("h-40")}
-          </Section>
+          <NextStepFrame about="What is most worth doing now." />
           <Section heading={RECORD.heading} about={RECORD.about}>
             <div className="grid grid-cols-4 gap-2">{[0, 1, 2, 3].map((n) => blank("h-60", n))}</div>
           </Section>
@@ -167,6 +174,15 @@ function LoadingRecord() {
         </div>
       </div>
     </>
+  );
+}
+
+/** The Next step with nothing in it yet: on the loading frame, and while a superseded one is read again. */
+function NextStepFrame({ about }: { about: ReactNode }) {
+  return (
+    <Section heading="Next step" about={about}>
+      <div className="h-40 rounded-control bg-hover" />
+    </Section>
   );
 }
 
@@ -189,7 +205,15 @@ const DOCUMENTS = {
 /** Where a failed Generate is said: beside the button that was pressed. */
 type GenerateFrom = "next" | "documents";
 
-function PopulatedRecord({ data, refresh }: { data: OverviewData; refresh: ReactNode }) {
+function PopulatedRecord({
+  data,
+  refresh,
+  superseded,
+}: {
+  data: OverviewData;
+  refresh: ReactNode;
+  superseded: boolean;
+}) {
   const navigate = useNavigate();
   const importFile = useImportPicker();
   const generate = useGenerate();
@@ -225,14 +249,20 @@ function PopulatedRecord({ data, refresh }: { data: OverviewData; refresh: React
             </p>
           ) : null}
 
-          {data.activeImport ? <ImportProgress active={data.activeImport} /> : null}
-          <NextStep
-            steps={nextSteps(data)}
-            busy={generate.isPending}
-            failure={failed("next")}
-            onGenerate={(kind) => void onGenerate(kind, "next")}
-            onImport={importFile.choose}
-          />
+          {superseded ? (
+            <NextStepFrame about={<span role="status">Checking what is waiting for you now…</span>} />
+          ) : (
+            <>
+              {data.activeImport ? <ImportProgress active={data.activeImport} /> : null}
+              <NextStep
+                steps={nextSteps(data)}
+                busy={generate.isPending}
+                failure={failed("next")}
+                onGenerate={(kind) => void onGenerate(kind, "next")}
+                onImport={importFile.choose}
+              />
+            </>
+          )}
           <YourRecord tiles={data.tiles} />
           <Facts counts={data.factsByProvenance} unconfirmed={data.unconfirmed} />
           <CareerDocuments

@@ -541,6 +541,9 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 ```
 
 `status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending`.
+`newFactsSince` counts only facts a document may use: accepted, and neither Private nor Generated,
+the rule `canGenerate` applies (§8). Accepting a fact that is still Generated makes nothing `stale`;
+confirming it does.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
 a first generation awaiting review is not `never_generated`. A proposal whose generation `failed`

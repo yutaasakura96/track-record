@@ -5259,3 +5259,36 @@ Japanese split (#59) and the master document (#57).
 
 **Revisit if:** the home screen is still slow in production after this deploys. The next thing to
 measure is the session read, which every request pays before its own queries.
+
+### [2026-10-05] A document is out of date only by facts it may use, and Home holds its next step back after a write
+
+Two findings from driving the new Home (#58), both decided by the owner.
+
+**Staleness counts usable facts.** `newFactsSince`, and so `stale`, the `N new facts` on every row
+and the `Update your …` step, counted every accepted fact. A fact accepted while still Generated, or
+Private, reaches no document, so Home said `Confirm 2 facts … no document uses them` beside
+`5 of 5 are out of date`, and updating gave the same document. The count is now the one
+`canGenerate` asks about: accepted, not Private, not Generated. Both read one definition,
+`usableFacts` in `src/server/routes/renders.ts`. Confirming a Generated fact, or disclosing a Private
+one, now makes a document out of date, which is right: that is the moment it becomes usable.
+This narrows what `stale_since_fact_count` and `fact_count_at` count; the 2026-09-12 entries stand
+in everything else, restore and edit included.
+
+**Migration 0013 restates the stored counts.** They were taken over all accepted facts, and left
+alone each would stand above the new count by the unusable facts it included and hide that many new
+ones. Each loses the accepted facts that are unusable today and were resolved by the era it
+describes; a restored version's era is that of the version it restored. Approximate, as 0008's
+backfill was: a fact re-graded or re-disclosed since is judged by what it is now. Checked against a
+scratch database seeded with accept, restore-of-a-restore and edit rows for two users. Rejected:
+leaving the stored counts and clamping at zero, which would report the author's documents as up to
+date until as many usable facts arrived as there were unusable ones.
+
+**Home holds the Next step and the import panel back while a superseded overview is read again.**
+Arriving from `Finish review` showed the cached overview, `Reading … 0%` and `Wait for the first
+facts`, for an import that was finished, for as long as the read took. The cache is still shown,
+but those two areas wait for the read whenever a write has invalidated the overview. A poll and a
+plain return invalidate nothing and hold nothing. Rejected: the whole loading frame, which would
+unmount the import picker on Home in the middle of an import it had just started.
+
+Not changed: the primary button's label measures 4.23 to 1 on the accent background. The tokens are
+#56's.

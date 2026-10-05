@@ -234,7 +234,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const versionId = newId("renderVersion");
     const acceptedAt = new Date();
-    const accepted = await acceptedFactCount(db, user.id);
+    const accepted = await usableFactCount(db, user.id);
 
     // Three statements, one transaction. `db.transaction()` throws on the
     // neon-http driver; `db.batch([...])` reaches the driver's own
@@ -669,7 +669,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // Written even though this route does not READ it: the column holds
         // the era of every row alike, and a restore of this version later is
         // what reads it back.
-        factCountAt: await acceptedFactCount(db, user.id),
+        factCountAt: await usableFactCount(db, user.id),
       }),
       db
         .update(renders)
@@ -952,7 +952,7 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
     db
       .select({ accepted: sql<number>`count(*)::int` })
       .from(facts)
-      .where(and(eq(facts.userId, userId), eq(facts.status, "accepted"))),
+      .where(usableFacts(userId)),
   ]);
   const byKind = new Map(rows.map((r) => [r.kind, r]));
   const versionById = new Map(versions.map((v) => [v.id, v]));
@@ -1018,14 +1018,28 @@ async function highestVersionNo(db: Db, userId: string, renderId: string): Promi
 }
 
 /**
+ * The facts a document may use: accepted, and neither Private nor Generated.
+ * The overview's `canGenerate` asks whether there is one, and staleness counts
+ * them, so Home never calls a document out of date when updating it would give
+ * the same document (`docs/06`, 2026-10-05).
+ */
+export const usableFacts = (userId: string) =>
+  and(
+    eq(facts.userId, userId),
+    eq(facts.status, "accepted"),
+    ne(facts.disclosure, "private"),
+    ne(facts.provenance, "generated"),
+  );
+
+/**
  * The staleness number, counted the one way `renders.stale_since_fact_count`
  * and `render_versions.fact_count_at` both mean it.
  */
-async function acceptedFactCount(db: Db, userId: string): Promise<number> {
+async function usableFactCount(db: Db, userId: string): Promise<number> {
   const [{ accepted } = { accepted: 0 }] = await db
     .select({ accepted: sql<number>`count(*)::int` })
     .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+    .where(usableFacts(userId));
   return accepted;
 }
 
