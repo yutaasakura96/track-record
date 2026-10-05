@@ -108,7 +108,8 @@ A quote that runs across bold text, two list items or several table cells is dra
 runs that belong to one fact: clicking any of them selects the card, and selecting the card scrolls
 to the first. Markup characters inside a quote (`**`, `|`, `- `) are not text and carry no mark. A
 quote that falls wholly on markup has no mark in the rendered view; its card works as before and
-`Source` shows it. The border styles above mean the same in both views.
+`Source` shows it. An image is one unit: a quote that touches any part of it marks its alt text
+whole. The border styles above mean the same in both views.
 
 **Contents.** A rendered document with two or more headings gets a contents column on the left of
 the pane: 212px, `surface`, a `border-subtle` right edge, scrolling on its own. A `Contents` label
@@ -171,8 +172,8 @@ chrome), and its last sentence here is `You can review the facts already found.`
 **The quoted passage on the card · #56.** Every open card shows the passage it quotes,
 directly under the claim, so the evidence and the decision are in one place: a left rule in
 `border-strong`, `10px` in from it, a mono label `Quoted passage`, then the passage at the small
-role in `text-secondary`. For a Markdown document it is rendered: emphasis, code and links as in the
-source pane, with block structure flattened to a line break between blocks and ` · ` between table
+role in `text-secondary`. For a Markdown document it is rendered: emphasis, code, links and images as
+in the source pane, with block structure flattened to a line break between blocks and ` · ` between table
 cells. A bare `Exact text` beside the label swaps it for the stored characters, verbatim and with
 whitespace preserved, and `Rendered` swaps back. A plain-text document shows the exact text and no
 toggle. A resolved card shows none. **It does not depend on selection:** a press on an unselected
