@@ -7,8 +7,7 @@
  * bar on one row of one screen (issue #56).
  *
  * The percentage counts sections read. It is not a confidence in anything
- * (`docs/05` §9, rule 12), and it rounds DOWN so it never reads 100% while a
- * section is still out.
+ * (`docs/05` §9, rule 12).
  */
 import type { ImportStatus } from "../api";
 import { ProgressBar } from "./ui";
@@ -30,7 +29,7 @@ export function ExtractionProgress({
   // `queued`, or extracting before the document has been split: there is no
   // total to be a fraction of yet, and 0% of nothing is not a fact.
   const counted = status === "extracting" && chunksTotal > 0;
-  const percent = counted ? Math.floor((chunksDone / chunksTotal) * 100) : null;
+  const percent = counted ? Math.min(99, Math.floor((chunksDone / chunksTotal) * 100)) : null;
   const title = counted ? "Reading the document" : "Getting ready to read this document";
 
   return (
@@ -49,7 +48,7 @@ export function ExtractionProgress({
         aria-valuemax={100}
         aria-valuenow={percent ?? undefined}
       >
-        <ProgressBar size="block" value={counted ? chunksDone / chunksTotal : 0} />
+        <ProgressBar size="block" value={percent === null ? 0 : percent / 100} />
       </div>
       <p aria-live="polite" className="text-small text-text-secondary">
         {counted

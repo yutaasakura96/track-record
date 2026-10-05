@@ -166,12 +166,7 @@ function render(node: Nodes, context: Context, key: number): ReactNode {
       );
     case "image":
     case "imageReference":
-      // Never fetched. The alt text is what the document says is there.
-      return (
-        <span key={key} className="md-image">
-          [image{node.alt ? `: ${node.alt}` : ""}]
-        </span>
-      );
+      return imageAlt(node, key);
     case "list": {
       const Tag = node.ordered ? "ol" : "ul";
       return (
@@ -246,6 +241,10 @@ function render(node: Nodes, context: Context, key: number): ReactNode {
   }
 }
 
+function imageAlt(node: { alt?: string | null }, key: number): ReactNode {
+  return <span key={key} className="md-image">[image{node.alt ? `: ${node.alt}` : ""}]</span>;
+}
+
 /* ------------------------------------------------------------------ excerpt */
 
 /** Node types whose children are blocks, each on its own line in an excerpt. */
@@ -270,6 +269,8 @@ export function quoteExcerpt(tree: Root, source: string, start: number, end: num
 function excerpt(node: Nodes, range: { source: string; start: number; end: number }, key: number): ReactNode {
   const at = span(node);
   if (at && (at.end <= range.start || at.start >= range.end)) return null;
+
+  if (node.type === "image" || node.type === "imageReference") return imageAlt(node, key);
 
   if ("value" in node) {
     if (!at || node.type === "yaml") return null;

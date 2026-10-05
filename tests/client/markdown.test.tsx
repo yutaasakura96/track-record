@@ -214,6 +214,15 @@ describe("a quoted passage, cut out of the document", () => {
     expect(text("Cut it from **40 minutes** to `9m`.", "from **40 minutes** to `9m`")).toBe("from 40 minutes to 9m");
   });
 
+  it.each([
+    ["inline image", "![rack diagram](https://example.invalid/rack.png)"],
+    ["reference image", "![rack diagram][rack]"],
+  ])("renders a %s within prose and alone", (_name, image) => {
+    const source = `${image} and reduced wait time.\n\n[rack]: https://example.invalid/rack.png`;
+    expect(text(source, `${image} and reduced wait time.`)).toBe("[image: rack diagram] and reduced wait time.");
+    expect(text(source, image)).toBe("[image: rack diagram]");
+  });
+
   it("puts a line break between blocks and a dot between cells", () => {
     const source = "## Numbers\n\n| Batch | 40 min | 9 min |\n|---|---|---|\n| Cost | 30% | 12% |";
     const at = range(source, "| Cost | 30% | 12% |");
