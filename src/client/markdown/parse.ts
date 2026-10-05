@@ -40,7 +40,7 @@ export function span(node: Nodes): { start: number; end: number } | null {
 /** The text a reader sees for a node: its own value, an image's alt, or its children's. */
 export function plainText(node: Nodes): string {
   if ("value" in node) return node.value;
-  if (node.type === "image") return node.alt ?? "";
+  if (node.type === "image" || node.type === "imageReference") return node.alt ?? "";
   if ("children" in node) return (node.children as Nodes[]).map(plainText).join("");
   return "";
 }

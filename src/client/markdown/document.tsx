@@ -166,7 +166,7 @@ function render(node: Nodes, context: Context, key: number): ReactNode {
       );
     case "image":
     case "imageReference":
-      return imageAlt(node, key);
+      return imageAlt(node, key, context);
     case "list": {
       const Tag = node.ordered ? "ol" : "ul";
       return (
@@ -241,8 +241,20 @@ function render(node: Nodes, context: Context, key: number): ReactNode {
   }
 }
 
-function imageAlt(node: { alt?: string | null }, key: number): ReactNode {
-  return <span key={key} className="md-image">[image{node.alt ? `: ${node.alt}` : ""}]</span>;
+function imageAlt(node: Nodes & { alt?: string | null }, key: number, context?: Context): ReactNode {
+  const alt = <span className="md-image">[image{node.alt ? `: ${node.alt}` : ""}]</span>;
+  const at = span(node);
+  const range = at && context?.ranges.find((range) => range.start < at.end && range.end > at.start);
+  return range ? (
+    <mark
+      key={key}
+      data-fact={range.id}
+      className={`mark-base ${range.className}`}
+      onClick={() => context?.onMark?.(range.id)}
+    >
+      {alt}
+    </mark>
+  ) : <span key={key}>{alt}</span>;
 }
 
 /* ------------------------------------------------------------------ excerpt */

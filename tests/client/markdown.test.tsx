@@ -6,8 +6,8 @@
  * characters became. The cases are the ones where the two differ. All fixtures
  * are invented.
  */
-import { describe, expect, it } from "vitest";
-import { render } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render } from "@testing-library/react";
 import { MarkdownDocument, quoteExcerpt } from "~/client/markdown/document";
 import { contents, isMarkdownFile, parseMarkdown } from "~/client/markdown/parse";
 import { alignOffsets, pieces, resolveRanges, type MarkRange } from "~/client/markdown/ranges";
@@ -86,6 +86,23 @@ describe("splitting a node's text into marked runs", () => {
 });
 
 describe("marks in a rendered document", () => {
+  it.each([
+    ["inline image", "![rack diagram](https://example.invalid/rack.png)"],
+    ["reference image", "![rack diagram][rack]"],
+  ])("marks and selects a fact quoted from an %s", (_name, image) => {
+    const source = `${image} and reduced wait time.\n\n[rack]: https://example.invalid/rack.png`;
+    const tree = parseMarkdown(source)!;
+    const onMark = vi.fn();
+    const { container } = render(
+      <MarkdownDocument tree={tree} source={source} ranges={[range(source, image)]} onMark={onMark} />,
+    );
+    const mark = container.querySelector<HTMLElement>('mark[data-fact="f-1"]');
+
+    expect(mark?.textContent).toBe("[image: rack diagram]");
+    fireEvent.click(mark!);
+    expect(onMark).toHaveBeenCalledWith("f-1");
+  });
+
   it("covers a quote that crosses emphasis, and leaves the markup out", () => {
     const source = "Cut the batch from **40 minutes** to *9 minutes* overall.";
     const { marks, container } = show(source, [range(source, "from **40 minutes** to *9 minutes*")]);
@@ -177,6 +194,18 @@ describe("what a rendered document will not do", () => {
 });
 
 describe("the contents of a document", () => {
+  it.each([
+    ["inline image", "![Architecture](https://example.invalid/diagram.png)"],
+    ["reference image", "![Architecture][diagram]"],
+  ])("includes alt text from a heading with an %s", (_name, image) => {
+    const source = `# ${image}\n\n## Results\n\n[diagram]: https://example.invalid/diagram.png`;
+    const tree = parseMarkdown(source)!;
+    const { container } = show(source);
+
+    expect(contents(tree).map((entry) => entry.text)).toEqual(["Architecture", "Results"]);
+    expect(container.querySelector("h1")?.textContent).toBe("[image: Architecture]");
+  });
+
   it("lists headings of level 1 to 3 in order, as plain text", () => {
     const tree = parseMarkdown("# One\n\n## Two **bold**\n\n### Three\n\n#### Four\n\n## Five")!;
 
