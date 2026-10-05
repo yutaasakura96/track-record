@@ -88,7 +88,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 | 6 | Private facts were excluded | Footer states `N private facts in your record were not used` — that something was withheld, **never what** |
 
 **If abandoned before deciding:** the proposal stays `pending`. The overview shows the render as
-`proposal_pending`. The current version is unchanged. Re-entering resumes at the diff.
+`proposal_pending` (`proposal_generating` while it is still being written). The current version is unchanged. Re-entering resumes at the diff.
 
 ---
 

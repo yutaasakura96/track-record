@@ -359,6 +359,7 @@ the content column**, so the eye has one place to go. The step is the first of t
 | Candidates are waiting | `Review N facts` | `Found in <filename>. A fact is used in your documents only after you accept it.` With more than one document holding any: `Found in N documents, newest first. …` | `Review facts`, into Fact Review on the newest version that holds any |
 | An import is running and has found none yet | `Wait for the first facts` | `The import is still reading. Open the review to watch the facts arrive.` | `Open review`, into that import's Fact Review |
 | A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
+| A proposal is still being written, and none is ready | `Wait for the new <document>` | `It is still being written. Open it to watch it arrive.` | `Open it`, into Diff Review |
 | Accepted facts are still Generated | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
@@ -416,6 +417,7 @@ start, and the honest answer is that they do not depend on each other:
 
 - No accepted fact can be used → `Nothing can be generated until your record holds an accepted fact a document may use.` No row then offers Generate, Update or Regenerate; the line is their reason, said once
 - A proposal waiting → `<Document> has a new version waiting for you. Check it first.`
+- A proposal still being written, and none ready → `A new version of <Document> is being written. Check it when it is ready.`
 - One out of date → `<Document> is out of date. Update it when you next need it.`
 - More than one → `N of 5 are out of date. Update the one you need next; each is updated on its own, and the rest can wait.`
 - None generated → `None generated yet. Generate the one you need first; each is made on its own.`
@@ -428,6 +430,7 @@ Each row: name, `<language> · generated <relative time>`, status dot + text, th
 |---|---|---|
 | Never generated | muted, `Not generated yet` | `Generate` (secondary) |
 | Proposal waiting | accent, `New version waiting` | `Review changes` (secondary) |
+| Proposal being written | accent, `Writing a new version` | `Open it` (secondary) |
 | Out of date | accent, `N new facts` | `Update` (secondary) |
 | Up to date | green, `Up to date` | `Regenerate` (ghost) |
 | Not built | muted, `Not available yet` | None |

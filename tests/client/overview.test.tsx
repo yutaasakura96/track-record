@@ -145,6 +145,22 @@ describe("generating a document", () => {
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-zentrel"));
     expect(api.writes()).toEqual([]);
   });
+
+  it("says a proposal is still being written rather than waiting, and still opens it", async () => {
+    const { api, user, pathname } = open([
+      row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }),
+    ]);
+    const item = await documentRow();
+
+    expect(within(item).getByText("Writing a new version")).toBeTruthy();
+    expect(within(item).queryByText("New version waiting")).toBeNull();
+    expect(within(item).queryByRole("link", { name: "Review changes" })).toBeNull();
+    expect(within(item).queryByRole("button", { name: "Generate" })).toBeNull();
+    await user.click(within(item).getByRole("link", { name: "Open it" }));
+
+    await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-vorbit"));
+    expect(api.writes()).toEqual([]);
+  });
 });
 
 describe("the next step", () => {
@@ -369,6 +385,45 @@ describe("which document to act on", () => {
     );
   });
 
+  it("says to wait for a proposal still being written, then to check it once it is ready", async () => {
+    let reads = 0;
+    const WRITING = row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" });
+    open([], {
+      "GET /api/overview": () =>
+        overview([++reads === 1 ? WRITING : { ...WRITING, status: "proposal_pending" }]),
+    });
+    const step = await nextStep();
+
+    expect(within(step).getByRole("heading", { name: "Wait for the new English résumé" })).toBeTruthy();
+    expect(within(step).getByText("It is still being written. Open it to watch it arrive.")).toBeTruthy();
+    expect(within(step).queryByText("A new version is ready. Nothing changes until you accept it.")).toBeNull();
+    expect(within(step).getByRole("link", { name: "Open it" }).getAttribute("href")).toBe(
+      "/proposals/prop-test-vorbit",
+    );
+
+    // Nothing is pressed: the screen asks again on its own while one is being written.
+    await waitFor(
+      () => expect(within(step).getByRole("heading", { name: "Check the new English résumé" })).toBeTruthy(),
+      { timeout: 4_000 },
+    );
+    expect(within(step).getByRole("link", { name: "Review changes" }).getAttribute("href")).toBe(
+      "/proposals/prop-test-vorbit",
+    );
+  });
+
+  it("puts a proposal ready to check before one still being written", async () => {
+    open([
+      row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }),
+      row({ kind: "rirekisho", language: "ja", title: "Qorvane 履歴書", status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+    ]);
+    const step = await nextStep();
+
+    expect(within(step).getByRole("heading", { name: "Check the new Qorvane 履歴書" })).toBeTruthy();
+    expect(within(step).getByRole("link", { name: "Review changes" }).getAttribute("href")).toBe(
+      "/proposals/prop-test-zentrel",
+    );
+  });
+
   it("names the one document that is out of date", async () => {
     open([row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 3 }), row(JA)]);
 
@@ -388,6 +443,23 @@ describe("which document to act on", () => {
     open([row({ status: "proposal_pending", pendingProposalId: "prop-test-waiting" })], {}, false);
 
     expect((await line()).textContent).toBe("English résumé has a new version waiting for you. Check it first.");
+  });
+
+  it("says a new version is being written, not that it is waiting", async () => {
+    open([row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }), row(JA)]);
+
+    expect((await line()).textContent).toBe(
+      "A new version of English résumé is being written. Check it when it is ready.",
+    );
+  });
+
+  it("points at the version that is ready when another is still being written", async () => {
+    open([
+      row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }),
+      row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+    ]);
+
+    expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
   });
 
   it("says none is generated yet", async () => {

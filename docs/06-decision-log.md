@@ -5294,3 +5294,33 @@ unmount the import picker on Home in the middle of an import it had just started
 
 Not changed: the primary button's label measures 4.23 to 1 on the accent background. The tokens are
 #56's.
+
+### [2026-10-06] Staleness stays a count difference, with a known blind spot, and Home tells a proposal being written from one ready to check
+
+Two review findings on the new Home (#58), both decided by the owner.
+
+**The count difference stays, and its blind spot is accepted.** `newFactsSince` is still the usable
+facts now minus the usable facts counted when the current version was made, clamped at zero. A fact
+can leave the usable set without being undone: made Private, or re-graded to Generated. If one the
+current version used leaves and a new usable fact is then accepted, the two counts are equal again,
+so the row reads `Up to date`, the line above reads `Every document you have generated is up to
+date with your record`, and no `Update your …` step is offered, although updating would drop the
+one and add the other. Each fact hidden or re-graded this way hides one later new fact until the
+document is next generated.
+
+An exact answer compares two sets: the facts a version could use when it was made, and the facts a
+document may use now. The record does not hold the first. A version's content names the facts it
+*used*, not every fact that was eligible, and a fact row keeps only its current disclosure and
+provenance, not when either changed. Holding it needs a schema change, which this change was told
+not to make. The exact rule is
+[#62](https://github.com/yutaasakura96/track-record/issues/62). Migration 0013 and the 2026-10-05
+entry stand.
+
+**A proposal still being written is not one ready to check.** Generation inserts the proposal and
+returns; the document arrives after. Home read every undecided proposal as waiting, so for that
+interval it said `A new version is ready`, `Check it first` and `New version waiting` for a diff the
+server would still refuse. `renderState` now reports `proposal_generating` until generation lands,
+with `pendingProposalId` set as before, and Home says so in all three places: `Wait for the new
+<document>`, `A new version of <document> is being written`, `Writing a new version`. A proposal
+that is ready, on any document, comes before one that is not. The overview is polled while one is
+being written, as it is while an import runs, so the wording changes without a reload.

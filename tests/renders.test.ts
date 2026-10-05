@@ -34,7 +34,7 @@ interface Fact {
 
 interface RenderRow {
   kind: string;
-  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending";
+  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   currentVersionNo: number | null;
   newFactsSince: number | null;
   pendingProposalId: string | null;
@@ -426,6 +426,35 @@ describe("the proposal", () => {
     expect(resume.currentVersionNo).toBeNull();
     expect(resume.status).toBe("proposal_pending");
     expect(resume.pendingProposalId).toBe(first.proposalId);
+  });
+
+  it("shows as still generating, not as waiting, until the document lands", async () => {
+    const record = await seedRecord();
+    let land!: () => void;
+    const held = new Promise<void>((resolve) => (land = resolve));
+    const generateRender = model.generateRender;
+    model.generateRender = async (...args) => {
+      await held;
+      return generateRender(...args);
+    };
+    model.generations = [
+      resumeFrom([{ text: "Reduced nightly batch runtime to 3 hours", factIds: [record.measuredPublic.id] }]),
+    ];
+    const resume = async () =>
+      (await client.json<{ items: RenderRow[] }>("/api/renders")).items.find((r) => r.kind === "english_resume")!;
+
+    const { proposalId } = (await (await client.post("/api/renders/english_resume/generate")).json()) as {
+      proposalId: string;
+    };
+    try {
+      expect(await resume()).toMatchObject({ status: "proposal_generating", pendingProposalId: proposalId });
+      expect((await client.request(`/api/proposals/${proposalId}/diff`)).status).toBe(409);
+    } finally {
+      land();
+      await settle();
+    }
+
+    expect(await resume()).toMatchObject({ status: "proposal_pending", pendingProposalId: proposalId });
   });
 
   it("is a proposal rather than a replacement, and shows as a diff", async () => {

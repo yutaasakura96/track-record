@@ -57,13 +57,21 @@ export function nextSteps(data: Overview): Step[] {
     });
   }
 
-  const pending = documents.find((row) => row.buildable && row.pendingProposalId);
+  const proposed = documents.filter((row) => row.buildable && row.pendingProposalId);
+  const pending = proposed.find((row) => row.status === "proposal_pending") ?? proposed[0];
   if (pending) {
+    const ready = pending.status === "proposal_pending";
     steps.push({
       key: "proposal",
-      title: `Check the new ${pending.title}`,
-      why: "A new version is ready. Nothing changes until you accept it.",
-      action: { kind: "proposal", label: "Review changes", proposalId: pending.pendingProposalId! },
+      title: ready ? `Check the new ${pending.title}` : `Wait for the new ${pending.title}`,
+      why: ready
+        ? "A new version is ready. Nothing changes until you accept it."
+        : "It is still being written. Open it to watch it arrive.",
+      action: {
+        kind: "proposal",
+        label: ready ? "Review changes" : "Open it",
+        proposalId: pending.pendingProposalId!,
+      },
     });
   }
 

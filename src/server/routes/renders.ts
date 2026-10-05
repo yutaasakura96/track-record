@@ -908,7 +908,7 @@ interface RenderState {
   currentVersionId: string | null;
   currentVersionNo: number | null;
   generatedAt: string | null;
-  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending";
+  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
   pendingProposalId: string | null;
 }
@@ -939,7 +939,11 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
     // but it holds no document: there is no diff to review and generating again is
     // the way out. Excluded here exactly as it is at generation time.
     db
-      .select({ id: renderProposals.id, renderId: renderProposals.renderId })
+      .select({
+        id: renderProposals.id,
+        renderId: renderProposals.renderId,
+        generationStatus: renderProposals.generationStatus,
+      })
       .from(renderProposals)
       .where(
         and(
@@ -956,19 +960,22 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
   ]);
   const byKind = new Map(rows.map((r) => [r.kind, r]));
   const versionById = new Map(versions.map((v) => [v.id, v]));
-  const pendingByRender = new Map<string, string>();
-  for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p.id);
+  const pendingByRender = new Map<string, (typeof pending)[number]>();
+  for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p);
 
   return RENDER_KINDS.map((kind) => {
     const row = byKind.get(kind);
     const version = row?.currentVersionId ? versionById.get(row.currentVersionId) : undefined;
-    const pendingProposalId = row ? (pendingByRender.get(row.id) ?? null) : null;
+    const proposal = row ? pendingByRender.get(row.id) : undefined;
+    const pendingProposalId = proposal?.id ?? null;
     const newFactsSince = version ? Math.max(0, accepted - (row?.staleSinceFactCount ?? 0)) : null;
 
     // A pending proposal outranks a missing version: a first generation awaiting
     // review is not "never generated", and offering Generate there makes a second.
-    const status: RenderState["status"] = pendingProposalId
-      ? "proposal_pending"
+    const status: RenderState["status"] = proposal
+      ? proposal.generationStatus === "generating"
+        ? "proposal_generating"
+        : "proposal_pending"
       : !version
         ? "never_generated"
         : (newFactsSince ?? 0) > 0

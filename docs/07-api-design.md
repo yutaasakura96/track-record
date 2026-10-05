@@ -540,13 +540,15 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 }
 ```
 
-`status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending`.
+`status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending` · `proposal_generating`.
 `newFactsSince` counts only facts a document may use: accepted, and neither Private nor Generated,
 the rule `canGenerate` applies (§8). Accepting a fact that is still Generated makes nothing `stale`;
 confirming it does.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
-a first generation awaiting review is not `never_generated`. A proposal whose generation `failed`
+a first generation awaiting review is not `never_generated`. While that proposal is still being
+written the status is `proposal_generating` instead, with `pendingProposalId` set all the same: the
+diff answers `conflict` until it lands. A proposal whose generation `failed`
 is not one: it is still `pending`, but there is no diff to review, so the render reports the status
 it would have without it and `pendingProposalId` is `null`.
 

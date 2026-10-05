@@ -608,9 +608,11 @@ function Facts({
  */
 function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   const built = rows.filter((row) => row.buildable);
-  const pending = built.find((row) => row.pendingProposalId);
+  const pending = built.find((row) => row.status === "proposal_pending");
+  const generating = built.find((row) => row.status === "proposal_generating");
   const stale = built.filter((row) => row.status === "stale");
   if (pending) return `${pending.title} has a new version waiting for you. Check it first.`;
+  if (generating) return `A new version of ${generating.title} is being written. Check it when it is ready.`;
   if (!canGenerate) {
     return "Nothing can be generated until your record holds an accepted fact a document may use.";
   }
@@ -698,6 +700,13 @@ function StatusText({ row }: { row: RenderRow }) {
       </span>
     );
   }
+  if (row.status === "proposal_generating") {
+    return (
+      <span className={`${line} text-accent-text`}>
+        <Dot tone="accent" /> Writing a new version
+      </span>
+    );
+  }
   if (row.status === "never_generated") {
     return (
       <span className={`${line} text-text-muted`}>
@@ -736,7 +745,7 @@ function Action({
   if (row.pendingProposalId) {
     return (
       <Link to="/proposals/$proposalId" params={{ proposalId: row.pendingProposalId }} className={SECONDARY}>
-        Review changes
+        {row.status === "proposal_generating" ? "Open it" : "Review changes"}
       </Link>
     );
   }

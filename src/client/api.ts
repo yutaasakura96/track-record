@@ -297,7 +297,7 @@ export interface RenderRow {
   currentVersionId: string | null;
   currentVersionNo: number | null;
   generatedAt: string | null;
-  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending";
+  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
   pendingProposalId: string | null;
 }
@@ -621,13 +621,19 @@ export function useSaveSkillCuration() {
   });
 }
 
-/** Screen 3. Polls while an import runs, so its progress moves without a reload. */
+/**
+ * Screen 3. Polls while an import runs or a proposal is being written, so its
+ * progress moves, and the new version becomes ready, without a reload.
+ */
 export const useOverview = () =>
   useQuery({
     queryKey: keys.overview,
     queryFn: () => api<Overview>("/api/overview"),
     refetchInterval: (query) =>
-      isImportRunning(query.state.data?.activeImport?.status) ? POLL_MS : false,
+      isImportRunning(query.state.data?.activeImport?.status) ||
+      query.state.data?.documents.some((row) => row.status === "proposal_generating")
+        ? POLL_MS
+        : false,
   });
 
 export const useRenders = () =>
