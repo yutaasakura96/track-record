@@ -51,7 +51,7 @@ afterEach(() => {
   });
   // The theme and the hidden guide are kept per browser; a test that sets one
   // would otherwise hand it to the next.
-  localStorage.clear();
   useThemeStore.getState().setTheme("light");
+  localStorage.clear();
   useDiffStore.setState({ selectedChangeId: null });
 });

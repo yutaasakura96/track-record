@@ -148,8 +148,10 @@ it is one line, `How to review` and a bare `Show`.
 that applies: `Next: wait for the first facts. They appear here as they are found.` while the
 import is `queued` or `extracting` and has no fact yet;
 `Next: review the facts found so far while the rest of the document is read.` while it is still
-being read; `Next: nothing was found to review.` for a finished import with no
-facts; `Next: everything here is reviewed. Press Finish review.` when none is left;
+being read; `Next: this import stopped before it finished. Press Retry to read the rest.` for a
+`failed` import with no fact left to review, whether none was found or every one found is reviewed:
+a failed import never says nothing was found, and never says to finish;
+`Next: nothing was found to review.` for a finished import with no facts; `Next: everything here is reviewed. Press Finish review.` when none is left;
 `Next: N facts left to review.` otherwise.
 
 **Extraction progress** is pinned between the header and the card list while the import is `queued`

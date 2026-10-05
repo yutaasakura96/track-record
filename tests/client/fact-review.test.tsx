@@ -790,6 +790,26 @@ describe("import states", () => {
     await waitFor(() => expect(api.writes()).toEqual([`POST /api/imports/${IMPORT}/retry`]));
   });
 
+  it.each([
+    ["no facts yet", [] as Fact[]],
+    ["every found fact reviewed", [fact("f-accepted", "weekly plinth review", { status: "accepted" })]],
+  ])("tells the author to retry a failed import with %s", async (_case, facts) => {
+    open(facts, {
+      status: {
+        status: "failed",
+        candidatesExtracted: facts.length,
+        error: { code: "model_unavailable", message: "The model stopped answering." },
+        failedAtChunk: 2,
+      },
+    });
+
+    expect(
+      await screen.findByText(/this import stopped before it finished\. Press Retry to read the rest\./),
+    ).toBeTruthy();
+    expect(screen.queryByText(/nothing was found to review/)).toBeNull();
+    expect(screen.queryByText(/Press Finish review/)).toBeNull();
+  });
+
   it("says a re-import with nothing changed has nothing to review", async () => {
     mount(`/imports/${IMPORT}`, {
       [`GET /api/imports/${IMPORT}`]: status({ versionNo: 2, chunksTotal: 0, chunksDone: 0, candidatesExtracted: 0 }),

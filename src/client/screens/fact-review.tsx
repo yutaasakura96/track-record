@@ -580,11 +580,13 @@ function FactRail({
             ? "wait for the first facts. They appear here as they are found."
             : running
               ? "review the facts found so far while the rest of the document is read."
-              : facts.length === 0
-                ? "nothing was found to review."
-                : open.length === 0
-                  ? "everything here is reviewed. Press Finish review."
-                  : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
+              : status.status === "failed" && open.length === 0
+                ? "this import stopped before it finished. Press Retry to read the rest."
+                : facts.length === 0
+                  ? "nothing was found to review."
+                  : open.length === 0
+                    ? "everything here is reviewed. Press Finish review."
+                    : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
         </NextStep>
         {status.candidatesDiscarded > 0 ? (
           <p className="mt-8 text-smaller text-text-faint">
