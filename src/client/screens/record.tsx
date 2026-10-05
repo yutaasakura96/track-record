@@ -34,6 +34,7 @@ import {
 } from "../api";
 import { Button, Mono, Panel } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
+import { ScreenIntro } from "../components/screen-intro";
 import { fromMonth, toMonth } from "~/shared/calendar";
 import { RENDER_KINDS, RENDER_TITLE } from "~/shared/render-content";
 
@@ -330,6 +331,20 @@ export function Record() {
 
         <div className="flex-1 overflow-y-auto px-20 py-26">
           <div className="mx-auto w-content max-w-full grid gap-20">
+            {/* The `Next:` waits for the read: "add an employer" said over a
+                record that has three is worse than saying nothing for a moment. */}
+            <ScreenIntro
+              next={
+                !employers.data
+                  ? undefined
+                  : rows.length === 0
+                    ? "add an employer. Roles and imported documents are filed under one."
+                    : "nothing is waiting here. Add or correct an entry when something changes."
+              }
+            >
+              Your employers, roles, projects, education and certifications, entered by hand. Your
+              documents take their headings and dates from here.
+            </ScreenIntro>
             <EntitySection section={EMPLOYERS} employers={rows} inclusion="employer" />
             <EntitySection section={ROLES} employers={rows} />
             <EntitySection section={PROJECTS} employers={rows} inclusion="project" />

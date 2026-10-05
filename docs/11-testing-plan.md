@@ -373,7 +373,7 @@ in §2. Items 1–4 stay human — they are judgement calls about a document a p
 |---|---|
 | Model output *quality* | Not assertable. This is what the by-eye comparison against the hand-produced documents is for |
 | A broad end-to-end suite | One smoke test exists (§2.9). Beyond that, E2E suites rot fastest and catch least at three screens and one developer |
-| Visual regression / screenshot diffing | One developer, three screens, dark theme only. The setup cost exceeds the bugs it would catch |
+| Visual regression / screenshot diffing | One developer and two themes whose contrast `npm run lint` already holds to a number (`05` §8b). The setup cost exceeds the bugs it would catch |
 | Load and performance | One user. Revisit at the first invited second user |
 | Better Auth internals | Testing a maintained library's own behaviour. **Our allowlist and session middleware are tested; its storage, crypto and cookie attributes are not.** Since 2026-09-02 the sign-in *path* is walked end to end against a local issuer fixture (§2.9) — that asserts our wiring through Better Auth, not Better Auth |
 | Browser compatibility beyond current Chrome and Safari | Desktop only, one known user |

@@ -25,9 +25,14 @@ function topWithin(container: HTMLElement, element: HTMLElement): number {
 }
 
 /** Scrolls `container` so `element` sits `band` of the way down it. */
-export function scrollToBand(container: HTMLElement, element: HTMLElement, band = SELECTION_BAND): void {
+export function scrollToBand(
+  container: HTMLElement,
+  element: HTMLElement,
+  band = SELECTION_BAND,
+  behavior: ScrollBehavior = "smooth",
+): void {
   const top = topWithin(container, element) - container.clientHeight * band;
-  container.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  container.scrollTo({ top: Math.max(0, top), behavior });
 }
 
 /**

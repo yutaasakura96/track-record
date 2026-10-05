@@ -11,11 +11,11 @@ type Variant = "primary" | "secondary" | "ghost" | "bare";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-text-bright px-12 py-6 rounded-control text-micro font-medium hover:brightness-110",
+    "bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover",
   secondary:
-    "border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover",
+    "border border-border-strong text-text-secondary px-14 py-8 rounded-control text-button font-medium hover:bg-hover",
   ghost:
-    "border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary",
+    "border border-border-strong text-text-muted px-10 py-6 rounded-control text-small font-medium hover:bg-hover hover:text-text-secondary",
   bare: "text-text-dim px-6 py-4 rounded-chip text-smaller hover:bg-border hover:text-text-secondary",
 };
 
@@ -46,7 +46,7 @@ export function Button({
       {...rest}
       disabled={disabled}
       title={disabled ? disabledReason : rest.title}
-      className={`${base} ${disabled ? `${off} px-12 py-6 rounded-control text-micro font-medium` : VARIANTS[variant]} ${className}`}
+      className={`${base} ${disabled ? `${off} px-12 py-6 rounded-control text-button font-medium` : VARIANTS[variant]} ${className}`}
     >
       {children}
     </button>
@@ -91,8 +91,13 @@ export function Chip({ children, className = "" }: { children: ReactNode; classN
 export interface Segment<T extends string> {
   value: T;
   label: string;
-  /** The semantic tone of THIS value, not of the control. */
-  tone: "measured" | "accent" | "generated" | "restricted" | "private";
+  /**
+   * The semantic tone of THIS value, not of the control. `neutral` is for a
+   * choice that carries no provenance or disclosure meaning: a view, a theme.
+   */
+  tone: "measured" | "accent" | "generated" | "restricted" | "private" | "neutral";
+  /** What choosing this value means, in a sentence, for a reader hovering it. */
+  hint?: string;
 }
 
 const TONES: Record<Segment<string>["tone"], string> = {
@@ -101,6 +106,7 @@ const TONES: Record<Segment<string>["tone"], string> = {
   generated: "bg-generated-mark text-generated-text",
   restricted: "bg-restricted-bg text-restricted",
   private: "bg-private-bg text-private",
+  neutral: "bg-hover text-text-strong",
 };
 
 /** Arrow keys that move within a radio group, and by how much. */
@@ -129,11 +135,14 @@ export function SegmentedControl<T extends string>({
   value,
   segments,
   onChange,
+  showLabel = true,
 }: {
   label: string;
   value: T;
   segments: Segment<T>[];
   onChange: (value: T) => void;
+  /** False where the control sits in a strip that has no room for a label column. It keeps its name. */
+  showLabel?: boolean;
 }) {
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
     const current = segments.findIndex((s) => s.value === value);
@@ -158,9 +167,11 @@ export function SegmentedControl<T extends string>({
 
   return (
     <div className="flex items-center gap-8">
-      <span className="text-mono-label font-mono uppercase tracking-mono text-text-faint w-60 shrink-0">
-        {label}
-      </span>
+      {showLabel ? (
+        <span className="text-mono-label font-mono uppercase tracking-mono text-text-faint w-60 shrink-0">
+          {label}
+        </span>
+      ) : null}
       <div
         role="radiogroup"
         aria-label={label}
@@ -176,6 +187,7 @@ export function SegmentedControl<T extends string>({
               role="radio"
               aria-checked={active}
               tabIndex={active ? 0 : -1}
+              title={segment.hint}
               onClick={() => onChange(segment.value)}
               className={`px-8 py-4 rounded-chip text-micro font-medium motion-tone ${
                 active
@@ -192,9 +204,20 @@ export function SegmentedControl<T extends string>({
   );
 }
 
-export function ProgressBar({ value, className = "" }: { value: number; className?: string }) {
+/** 4px inline, beside a count; 8px in the extraction progress block (`docs/05` §7). */
+export function ProgressBar({
+  value,
+  size = "inline",
+  className = "",
+}: {
+  value: number;
+  size?: "inline" | "block";
+  className?: string;
+}) {
   return (
-    <div className={`h-4 bg-progress-track rounded-mark overflow-hidden ${className}`}>
+    <div
+      className={`${size === "block" ? "h-8" : "h-4"} bg-progress-track rounded-mark overflow-hidden ${className}`}
+    >
       <div
         className="h-full bg-accent motion-progress"
         style={{ width: `${Math.round(Math.min(1, Math.max(0, value)) * 100)}%` }}

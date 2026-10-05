@@ -36,9 +36,10 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
    the document under one, defaulting to none; when it holds none, the import starts on the file
    choice alone (`10-screen-specifications.md` Screen 3). → `POST /api/imports` → `202`.
 3. **Fact Review screen opens immediately.** The document renders as soon as text extraction
-   finishes; the rail shows skeleton cards.
+   finishes; the rail shows the extraction progress block above the cards
+   (`10-screen-specifications.md` Shared chrome).
 4. Client polls `GET /api/imports/:id` every 1.5 s. Cards appear **incrementally** as each chunk
-   completes; the progress bar advances.
+   completes; the progress block advances.
 5. Author works card by card: read the claim, check the marked passage, edit the claim if needed,
    set **Provenance** and **Disclosure**, then **Accept** or **Reject**.
 6. When all cards are resolved, **Finish review** becomes primary.

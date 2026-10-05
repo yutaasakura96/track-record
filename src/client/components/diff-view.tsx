@@ -26,12 +26,15 @@ export function DiffPanes({
   changes,
   additions,
   removals,
+  guide,
 }: {
   before: PaneHeading;
   after: PaneHeading;
   changes: DiffChange[];
   additions: number;
   removals: number;
+  /** What the two columns are and what to do with them, in one line (`docs/10` Screen 2). */
+  guide: string;
 }) {
   const selectedChangeId = useDiffStore((s) => s.selectedChangeId);
   const select = useDiffStore((s) => s.select);
@@ -70,6 +73,10 @@ export function DiffPanes({
           </Button>
         </div>
       </div>
+
+      <p className="h-strip shrink-0 flex items-center px-20 border-b border-border-subtle text-small text-text-secondary">
+        {guide}
+      </p>
 
       <div className="flex-1 min-h-0 grid grid-cols-2">
         <Column

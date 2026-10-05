@@ -283,6 +283,7 @@ function Review({
   return (
     <>
       <DiffPanes
+        guide="Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one."
         before={{
           title: "Current",
           badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo ?? 0}</Mono>,

@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -24,6 +24,47 @@ The fact-review and diff-review screens replace the sidebar with a breadcrumb in
 (`Documents / <project> · <filename>`, `Outputs / <render>`) — they are focused, full-width tasks, not
 navigation destinations.
 
+### Theme · added 2026-10-05, issue #56
+
+**Light by default, dark as an option** (`05` intro and §1). The sidebar footer carries the control,
+under the name: a two-segment `Light` / `Dark` radio group labelled `Theme`, one tab stop, arrow
+keys inside it. It takes effect at once and is remembered for this browser. The focused screens have
+no sidebar and so no control; they open in whichever theme was chosen. Every screen is checked in
+both themes before it ships.
+
+### Screen intro · added 2026-10-05, issue #56
+
+The author's first pass through Documents and Review was not self-explanatory: nothing said what a
+screen was for or what to do next. **Every sidebar screen opens its content column with two lines:**
+
+1. **What the screen is for**, one or two plain sentences at the UI size in `text-secondary`.
+2. **`Next:`** and the one thing to do now, in `text-strong`, chosen from the screen's state. When
+   nothing is waiting it says so, because "nothing to do" is also an answer.
+
+It is not dismissible. Two lines cost less than a first-time reader's guess, and a `Next:` that
+tracks state stays useful on the hundredth visit. The words for each screen are given under that
+screen. Home's intro belongs to its own layout (issue #58) and follows the same two-line shape. The
+focused screens say the same things in place: Fact Review in its rail, Diff Review above its columns.
+
+**Plain words over internal ones.** A fact waiting for a decision is `to review`, not `open`. A
+decided one is `reviewed`, not `resolved`. A part of a document sent to the model is a `section`,
+not a `chunk`. The API keeps its field names (`07`); the interface does not show them.
+
+### Extraction progress · added 2026-10-05, issue #56
+
+Reading one portfolio took 150 sections, and the only sign of it was a 96px bar on one row. **Wherever
+the author waits on an import, the same block says three things: that work is under way, how far
+along it is, and that they can keep going.** It is the block specified in `05` §7.
+
+| Import state | Title | Percentage | Line |
+|---|---|---|---|
+| `queued`, or `extracting` with no section count yet | `Getting ready to read this document` | None | `Still working, please wait. This page updates on its own.` |
+| `extracting` | `Reading the document` | Sections read over the total, rounded **down** and capped at `99%`: the last section is counted before the import leaves `extracting`, and the block never reads `100%` while the import is `queued` or `extracting` | `N of M sections read. Still working, please wait: a long document takes several minutes.` then the surface's own sentence about what to do meanwhile |
+
+It appears on Fact Review, pinned above the cards (Screen 1), and under the version's row on
+Documents (Screen 8). Home's import row shows the same percentage and count (issue #58). The
+percentage counts work done; it is not a confidence in anything (`05` §9, rule 12).
+
 ---
 
 ## Screen 1 — Fact Review
@@ -39,7 +80,7 @@ right rail, decided one at a time.
 | Region | Spec |
 |---|---|
 | Header (46px) | Breadcrumb `Documents / <project> · <filename>`, `Documents` linking to Screen 8 (filename in a mono chip). A document filed under no project reads `Documents / <filename>`: the project and its `·` are left out, not labelled `No project` · right: `N of M reviewed` + 96×4px progress bar + **Finish review** (primary; secondary-styled until all facts are resolved) |
-| Source pane (flex) | 34px label strip: `Source document · N words · imported <relative time>` · right `N passages marked`. Below: the document, 740px measure, centred, `text-body` |
+| Source pane (flex) | 34px label strip: `Source document · N words · imported <relative time>` · right: the `Rendered` / `Source` control, a `Contents` button while the contents column is hidden, and `N passages marked`. Below: the contents column (212px) and the document, 740px measure, centred, `text-body` |
 | Fact rail (412px) | Fixed right column, `surface`, left border `border`. Header + scrolling card list + summary footer |
 
 ### Source pane
@@ -51,21 +92,93 @@ green underline = accepted.
 Clicking a mark selects its card and scrolls the rail to it. Selecting a card scrolls the document
 so the mark sits ~34% from the top. Both directions are required.
 
+**Rendered by default · #56.** A Markdown document (`.md`, `.markdown`) is shown rendered, per `05`
+§2 Rendered Markdown: headings, lists, tables, emphasis and code read as what they are and not as
+`#`, `**`, `-` and `|`. A plain-text document is shown as stored, because rendering it as Markdown
+would join its lines into paragraphs; it has no view control and no contents.
+
+**The source is one press away.** The label strip carries a two-segment `Rendered` / `Source` radio
+group. `Source` shows the stored text exactly, whitespace preserved, with the same marks on the same
+characters. It is the view for when the exact quote matters: a fact's quote is verified against
+these characters, not the rendered ones (`03` §4.1). Switching keeps the selected passage in view. The
+choice lasts while the app is open and is not stored.
+
+**Marks in the rendered view.** A mark covers the rendered text its quote's characters produce.
+A quote that runs across bold text, two list items or several table cells is drawn as several marked
+runs that belong to one fact: clicking any of them selects the card, and selecting the card scrolls
+to the first. Markup characters inside a quote (`**`, `|`, `- `) are not text and carry no mark. A
+quote that falls wholly on markup has no mark in the rendered view; its card works as before and
+`Source` shows it. An image is one unit: a quote that touches any part of it marks its alt text
+whole. The border styles above mean the same in both views.
+
+**Contents.** A rendered document with two or more headings gets a contents column on the left of
+the pane: 212px, `surface`, a `border-subtle` right edge, scrolling on its own. A `Contents` label
+and a bare `Hide`, then one link per heading of level 1 to 3 in document order, at the small role,
+indented `12px` per level below the first. Clicking a link scrolls the pane so that heading sits at
+its top. The entry for the section being read, which is the last heading at or above the top of the
+pane, is `text-strong` on `hover` with `aria-current`; the others are `text-dim`. `Hide` closes the
+column and a ghost `Contents` button in the label strip opens it again. Headings of level 4 and
+deeper are not listed. The column is absent in `Source`, for a plain-text document, and for a
+document with fewer than two headings.
+
 ### Fact rail
 
-**Header:** `Candidate facts` + mono `N extracted`. One line of explanatory copy. Filter pills:
-`All N` · `Open N` · `Resolved N`, and `To re-grade N` while any accepted fact of the import has no
-grade (M3, #37). The rail lists every fact of the import, not only the first page of the API.
+**Header:** `Candidate facts` + mono `N extracted`. Then the `Next:` line below, then the filter
+pills: `All N` · `To review N` · `Reviewed N`, and `To re-grade N` while any accepted fact of the
+import has no grade (M3, #37). The rail lists every fact of the import, not only the first page of
+the API.
+
+**How to review · #56.** This screen's intro, in place of the one line of copy the header used to
+carry. It is the first item in the card list and scrolls with the cards, so it is read once at the
+top and is out of the way by the third card. A block headed `How to review` with a bare `Hide`:
+
+1. `Read the highlighted passage on the left. It is the evidence.`
+2. `Check that the claim on its card says what the passage says. Click the claim to reword it.`
+3. `Accept it into your record, or reject it. Either can be undone.`
+
+Then what the three controls on a card ask, each as its label and one line: **Worth**, `Measured`
+is a number the passage states, `Attested` is true and yours but not a number, `Generated` is the
+importer's guess and stays out of every document until you change it. **Who**, `Public` can go to
+any employer, `Restricted` is used only in general terms with the client unnamed, `Private` stays
+in your record and is never put in a document. **Where**, the employer it happened at. These are the
+definitions of PRD §5 in the author's words; the block explains the controls and changes nothing
+about them. It is open until the author hides it, and that is remembered for this browser; hidden,
+it is one line, `How to review` and a bare `Show`.
+
+**The `Next:` line** is in the header, under the title, and is never hidden. The first of these
+that applies: `Next: wait for the first facts. They appear here as they are found.` while the
+import is `queued` or `extracting` and has no fact yet;
+`Next: review the facts found so far while the rest of the document is read.` while it is still
+being read; `Next: this import stopped before it finished. Press Retry to read the rest.` for a
+`failed` import with no fact left to review, whether none was found or every one found is reviewed:
+a failed import never says nothing was found, and never says to finish;
+`Next: nothing was found to review.` for a finished import with no facts; `Next: everything here is reviewed. Press Finish review.` when none is left;
+`Next: N facts left to review.` otherwise.
+
+**Extraction progress** is pinned between the header and the card list while the import is `queued`
+or `extracting`, so scrolling the cards never scrolls it away. It is the shared block (Shared
+chrome), and its last sentence here is `You can review the facts already found.`
 
 **Card, open state:**
 1. Line-reference chip (mono, e.g. `L79`) — the evidence pointer into the source
 2. Status badge when applicable — `DRAFT · NOT USABLE` (Generated, dashed amber) or `PRIVATE · NEVER SHARED` (locked grey)
-3. Claim text — inline editable, commits on blur. Generated claims render *italic* in `#a9a290`
+3. Claim text — inline editable, commits on blur. Generated claims render *italic* in `generated-claim`
 4. Warning block for Generated: *"Inferred by the importer — this number is not stated in the source. Promote it to Attested or Measured before it can be accepted."*
 5. `Provenance` segmented control — Measured / Attested / Generated
 6. `Disclosure` segmented control — Public / Restricted / Private
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
+
+**The quoted passage on the card · #56.** Every open card shows the passage it quotes,
+directly under the claim, so the evidence and the decision are in one place: a left rule in
+`border-strong`, `10px` in from it, a mono label `Quoted passage`, then the passage at the small
+role in `text-secondary`. For a Markdown document it is rendered: emphasis, code, links and images as
+in the source pane, with block structure flattened to a line break between blocks and ` · ` between table
+cells. A bare `Exact text` beside the label swaps it for the stored characters, verbatim and with
+whitespace preserved, and `Rendered` swaps back. A plain-text document shows the exact text and no
+toggle. A resolved card shows none. **It does not depend on selection:** a press on an unselected
+card selects it at mousedown, and a passage that appeared at that moment would move the grade and
+the buttons out from under the press. No part of a card changes height with selection.
 
 **Overlap on the card · M3, built by #36, 2026-09-28.** A candidate with likely matches
 among the accepted facts at the same employer shows them on the card, beside its claim: each
@@ -100,7 +213,9 @@ likely matches shows nothing, not an empty block.
   within an employer; picking one on the card brings it.
 
 **Card, resolved state:** collapses to icon + claim + mono `ACCEPTED · MEASURED · PUBLIC` meta line
-+ `Undo`. Accepted at `.78` opacity, rejected at `.5` with strikethrough. An accepted card with no
++ `Undo`, on `card-recessed`. An accepted claim stays `text-strong`; a rejected one is `text-dim`
+with a strikethrough. Neither is dimmed with opacity, which was `.78` and `.5` until 2026-10-05 and
+took the text under the contrast floor (`05` §1). An accepted card with no
 grade adds the same re-grade line as a match (M3, #37): this is the listing the facts no portfolio
 matched are graded from, on the 2026-09-04 import's own Fact Review, under `To re-grade`. It carries
 the same `Reject`, beside the three grades.
@@ -123,7 +238,7 @@ full-width primary button: `Add N facts to record`, disabled reading `Nothing ac
 
 | State | Behaviour |
 |---|---|
-| **Loading (extracting)** | Document renders immediately; rail shows skeleton cards with the progress bar active. Extraction is visibly incremental |
+| **Loading (extracting)** | Document renders immediately; the rail shows the extraction progress block pinned above the cards (Shared chrome), and cards appear as they are found. Extraction is visibly incremental |
 | **Zero facts extracted** | Rail shows a failure, not an empty success: *"No facts could be extracted from this document."* Actions: retry, or capture manually. Document is retained |
 | **Nothing new (re-import)** | A re-import that is `ready` with zero candidates, version 2 or later. Two causes, both a success and never the failure above (Flow 4). **No changed text** (zero chunks): the rail's card list shows one bordered block: `Nothing new to review` (row, strong) and *"vN adds no new or changed passages since vN−1, so there was nothing to extract. Your record is unchanged."* (smaller, dim). The wording avoids "no changes" because a version that only removes text also lands here. **Only repeats** (chunks ran, every candidate suppressed): the same block, with *"Everything in the changed passages of vN is already in your record (N facts), so there is nothing new to review. Your record is unchanged."* No actions in either; `Finish review` and the footer keep their zero states |
 | **Repeats suppressed** | Whenever `candidatesSuppressed` is above zero, the rail header carries a faint line under the description, beside the discarded-quote line: *"N candidates repeated facts already in your record and were not offered again."* A count, never which facts |
@@ -145,6 +260,7 @@ generation safe.
 |---|---|
 | Header (46px) | Breadcrumb `Outputs / <render name>` + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`) + **Version history** (ghost) |
 | Toolbar (38px) | `N additions` (green dot) · `N removals` (red dot) · section summary · right: `Change N of M` + prev/next icon buttons |
+| Guide (34px) | One line under the toolbar, at the small role in `text-secondary` (#56): `Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one.` |
 | Split body | Two equal columns with a 1px centre rule. Sticky column headers: **Current** + mono `v4` + saved date; **Proposed** + accent `v5 draft` chip + generated timestamp |
 | Rationale bar | Above the footer. Dot in the change's tone + the provenance of the selected change |
 | Footer | Consequence copy + `Keep current version` (secondary) + `Accept proposed version` (primary) |
@@ -338,6 +454,13 @@ on, which is what the English résumé selects rows by; the field is required on
 alternative is a render classifying a school by its name. All calendar fields collect **month and
 year only**.
 
+**Intro** (Shared chrome, #56): `Your employers, roles, projects, education and certifications,
+entered by hand. Your documents take their headings and dates from here.` Then
+`Next: add an employer. Roles and imported documents are filed under one.` while the record holds no
+employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
+it does. The `Next:` line waits for the employers to be read: telling a record with three employers
+to add one is worse than saying nothing for a moment.
+
 Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
 employer exists, because a role belongs to one; and deleting an entry something still references
 surfaces the server's `409` message in place, rather than being pre-empted by a check the client
@@ -388,6 +511,11 @@ specced in the Screen 2 header. Route: `/renders/:kind/history`.
 
 **Japanese render names use the mixed font stack**, as on Screen 3.
 
+**Intro** (Shared chrome, #56): `Every saved version of this document, newest first. Nothing here is
+ever deleted.` Then `Next: download the current version, or press Compare on an older one to see
+what restoring it would change.`, shortened to `Next: download the current version.` when there is
+only one, and absent while there is none, where the state below already names the action.
+
 ### The row
 
 Four entry kinds share one row shape. The kind is carried by the mono meta line, never by colour
@@ -437,6 +565,8 @@ failure mode this screen exists to prevent.
   target is *after*, so the diff reads as the change the commit will make.
 - The toolbar, rationale bar and per-change navigation behave as specced. A change's rationale is
   the fact behind the *target* version's text.
+- The guide line under the toolbar (#56) reads `Left is your document as it stands. Right is the
+  version you would restore. Read the highlighted changes, then cancel or restore.`
 - The footer reads `Restoring v<m> saves it as a new version v<n+1>. v<n> stays readable and
   downloadable.` with `Cancel` (secondary) and `Restore v<m>` (primary).
 
@@ -612,6 +742,12 @@ every name is a technology some accepted fact or certification already carries (
 Sidebar chrome, with a `Skills` row under `Record`. Header title `Skills`, contextual note
 `Chosen from the technologies your facts and certifications name`.
 
+**Intro** (Shared chrome, #56): `Which technologies your documents list, and in what order. Every
+name comes from an accepted fact or a certification; nothing is typed here.` Then
+`Next: add a group on the left, then add skills to it from the candidates on the right.` while
+nothing is curated, and `Next: nothing is waiting here. Every change saves at once.` once something
+is. Absent in the `No candidates` state, which says the same thing itself.
+
 ### Layout
 
 Two panels side by side, each half the content width.
@@ -664,7 +800,7 @@ where a re-import starts (Flow 4) and where an import the author walked away fro
 Source text never appears here; the screen shows names, dates and counts.
 
 Sidebar chrome, reached from the `Documents` row at `/documents`. The row's mono count is the total
-of open candidates across every version, shown only when it is above zero. Header title
+of candidates waiting for review across every version, shown only when it is above zero. Header title
 `Documents`, contextual note `The files your facts are quoted from`, and on the right the same
 `Import a document` primary Screen 3 has. That button always creates a **new** document, and it
 offers the project and employer choice Screen 3 describes, under the same rule: only when the record
@@ -672,13 +808,28 @@ holds a project or an employer to offer.
 
 ### Layout
 
+**Intro** (Shared chrome, #56), at the top of the content column: `Every file you have imported,
+and every version of it. Importing reads a file and finds candidate facts in it; nothing enters
+your record until you review them.` Then the `Next:` line, the first of these that applies:
+
+| State | `Next:` |
+|---|---|
+| No documents | `Next: import your first document.` |
+| A version is being read | `Next: <filename> is still being read. You can start reviewing the facts found so far.` |
+| Facts are waiting | `Next: N facts are waiting for you. Press Review on a row marked to review.` |
+| Otherwise | `Next: nothing is waiting. Import another document, or go Home to generate a document from your record.` |
+
+Under it, one line at the smaller role in `text-dim` saying what the counts on each row mean:
+`accepted: in your record · rejected: set aside and never used · to review: waiting for your
+decision`. It is absent with no documents.
+
 One block per source document, the most recently imported first. Content column `max-width 940px`,
 centred, as on Screen 3. Nothing collapses: a document's versions are always listed under it.
 
 **The document row.** Filename in a mono chip · project name, or `No project` in `text-dimmer`,
 then ` · ` and the employer's name when the document has one ·
-mono `N versions` · `last imported <relative time>` · amber mono `N open` when any version of it has
-open candidates · right: `Re-import` (ghost).
+mono `N versions` · `last imported <relative time>` · amber mono `N to review` when any version of
+it has candidates waiting · right: `Re-import` (ghost).
 
 **The version rows**, newest first, indented beneath it:
 
@@ -693,12 +844,12 @@ open candidates · right: `Re-import` (ghost).
 
 | Status | Outcome | Action |
 |---|---|---|
-| `queued` · `extracting` | The 96×4px progress bar and mono `N of M chunks` | `Review`, into Fact Review, which renders incrementally |
-| `ready` | Mono `N accepted · N rejected · N open`, the open count amber when above zero | `Review` |
+| `queued` · `extracting` | `Reading…` on the row, and the extraction progress block (Shared chrome) under it, across the row's width. Its last sentence here is `Press Review to start on the facts already found.` | `Review`, into Fact Review, which renders incrementally |
+| `ready` | `N accepted · N rejected · N to review` at the small role in `text-secondary`, in sentence case and not as an uppercase mono label; the to-review count is amber and 500 when above zero | `Review` |
 | `ready` with `changed_region_share` of `0` | `No changes · nothing to review`. The share is `0` only when the text is identical | None |
 | `failed` | The stored `import_error` reason, in the error tone | `Retry` (ghost), which is `POST /api/imports/:id/retry` |
 
-`Review` opens Fact Review for **that** version. An older version's open candidates stay open after
+`Review` opens Fact Review for **that** version. An older version's candidates stay waiting after
 a newer version exists, and they are decided there as on any import.
 
 ### Re-import
@@ -743,7 +894,7 @@ needs it.
 
 ### Rules
 
-- **Review state is derived from facts, never stored.** `N open` is the count of that version's
+- **Review state is derived from facts, never stored.** `N to review` is the count of that version's
   facts still in `candidate`. Finishing a review writes nothing, so an abandoned review and an open
   one are the same thing and read the same way.
 - Nothing on this screen deletes. Source document versions are never deleted (`04` §3.6).

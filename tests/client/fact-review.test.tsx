@@ -6,7 +6,7 @@
  * disagrees with the cards under it. All fixtures are invented.
  */
 import { describe, expect, it } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Employer, Fact, ImportStatus } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 
@@ -99,16 +99,330 @@ const card = async (id: string) => {
 };
 
 /** The document text arrives after the facts, so wait for it rather than read an empty pane. */
-const article = async () => {
+const rendered = async () => {
+  const pane = () => document.querySelector<HTMLElement>("article.md-doc");
+  await waitFor(() => expect(pane()?.textContent).toBeTruthy());
+  return pane()!;
+};
+
+/**
+ * The stored text, which is one press from the rendered view of a Markdown
+ * document and the only view of a plain-text one.
+ */
+const article = async (user?: ReturnType<typeof open>["user"]) => {
+  if (user) {
+    await rendered();
+    await user.click(screen.getByRole("radio", { name: "Source" }));
+  }
   const pane = () => document.querySelector<HTMLElement>("article.whitespace-pre-wrap");
   await waitFor(() => expect(pane()?.textContent).toBeTruthy());
   return pane()!;
 };
 
+/** A portfolio in miniature: headings, emphasis, a list and a table. All invented. */
+const PORTFOLIO = [
+  "# Qorvane Labs",
+  "",
+  "## Batch platform",
+  "",
+  "Cut the zentrel batch from **40 minutes** to 9 minutes.",
+  "",
+  "- Ran the weekly plinth review",
+  "- Mentored two engineers",
+  "",
+  "### Numbers",
+  "",
+  "| Measure | Before | After |",
+  "|---|---|---|",
+  "| Batch time | 40 min | 9 min |",
+  "",
+  "## Hiring",
+  "",
+  "Interviewed for the platform group.",
+].join("\n");
+
+function portfolioFact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
+  const start = PORTFOLIO.indexOf(quote);
+  if (start < 0) throw new Error(`Fixture quote not in the portfolio: ${quote}`);
+  return {
+    ...fact(id, "Qorvane Labs", overrides),
+    evidence: {
+      sourceDocumentVersionId: "dv-test-1",
+      lineNumber: PORTFOLIO.slice(0, start).split("\n").length,
+      quoteStart: start,
+      quoteEnd: start + quote.length,
+    },
+  };
+}
+
+const openPortfolio = (facts: Fact[], filename = "qorvane-portfolio.md") =>
+  open(facts, {
+    routes: {
+      [`GET /api/source-documents/${DOCUMENT}/versions/1/text`]: {
+        sourceDocumentVersionId: "dv-test-1",
+        filename,
+        project: null,
+        wordCount: 42,
+        importedAt: "2026-09-01T00:00:00.000Z",
+        text: PORTFOLIO,
+      },
+    },
+  });
+
+describe("a rendered Markdown document", () => {
+  it("reads as a document, with no markup characters left in it", async () => {
+    openPortfolio([]);
+    const pane = await rendered();
+
+    expect(pane.querySelector("h1")?.textContent).toBe("Qorvane Labs");
+    expect([...pane.querySelectorAll("h2")].map((h) => h.textContent)).toEqual(["Batch platform", "Hiring"]);
+    expect([...pane.querySelectorAll("li")].map((li) => li.textContent)).toEqual([
+      "Ran the weekly plinth review",
+      "Mentored two engineers",
+    ]);
+    expect([...pane.querySelectorAll("th")].map((th) => th.textContent)).toEqual(["Measure", "Before", "After"]);
+    expect(pane.querySelector("strong")?.textContent).toBe("40 minutes");
+    expect(pane.textContent).not.toMatch(/[#*|]/);
+  });
+
+  it("marks a quote that crosses bold text as runs of one fact, without its markup", async () => {
+    openPortfolio([portfolioFact("f-bold", "from **40 minutes** to 9 minutes")]);
+    const pane = await rendered();
+
+    const marks = [...pane.querySelectorAll<HTMLElement>('mark[data-fact="f-bold"]')];
+    expect(marks.map((m) => m.textContent)).toEqual(["from ", "40 minutes", " to 9 minutes"]);
+  });
+
+  it("marks a quote that is a table row, cell by cell", async () => {
+    openPortfolio([portfolioFact("f-row", "| Batch time | 40 min | 9 min |")]);
+    const pane = await rendered();
+
+    const marks = [...pane.querySelectorAll<HTMLElement>('mark[data-fact="f-row"]')];
+    expect(marks.map((m) => m.textContent)).toEqual(["Batch time", "40 min", "9 min"]);
+    expect(marks.every((m) => m.closest("td"))).toBe(true);
+  });
+
+  it("selects the fact's card when any run of its passage is clicked", async () => {
+    const { user } = openPortfolio([
+      portfolioFact("f-bold", "from **40 minutes** to 9 minutes"),
+      portfolioFact("f-list", "Mentored two engineers"),
+    ]);
+    const pane = await rendered();
+    await user.click(pane.querySelectorAll('mark[data-fact="f-bold"]')[1]!);
+
+    expect((await card("f-bold")).getAttribute("aria-current")).toBe("true");
+    expect((await card("f-list")).getAttribute("aria-current")).toBe("false");
+  });
+
+  it("shows the stored text exactly, with the same marks, on Source", async () => {
+    const { user } = openPortfolio([portfolioFact("f-bold", "from **40 minutes** to 9 minutes")]);
+    const pane = await article(user);
+
+    expect(pane.textContent).toBe(PORTFOLIO);
+    expect([...pane.querySelectorAll("mark")].map((m) => [m.dataset.fact, m.textContent])).toEqual([
+      ["f-bold", "from **40 minutes** to 9 minutes"],
+    ]);
+    // And back: the choice is a view, not a one-way door.
+    await user.click(screen.getByRole("radio", { name: "Rendered" }));
+    expect((await rendered()).querySelector("h1")?.textContent).toBe("Qorvane Labs");
+  });
+
+  it("shows a plain-text document as stored, with no view to choose", async () => {
+    openPortfolio([], "qorvane-notes.txt");
+    const pane = await article();
+
+    expect(pane.textContent).toBe(PORTFOLIO);
+    expect(screen.queryByRole("radio", { name: "Rendered" })).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Contents" })).toBeNull();
+  });
+});
+
+describe("the contents of a rendered document", () => {
+  it("lists the headings down to level 3, in order", async () => {
+    openPortfolio([]);
+    await rendered();
+
+    const entries = within(screen.getByRole("navigation", { name: "Contents" })).getAllByRole("button");
+    expect(entries.map((b) => b.textContent)).toEqual([
+      "Hide",
+      "Qorvane Labs",
+      "Batch platform",
+      "Numbers",
+      "Hiring",
+    ]);
+  });
+
+  it("scrolls the pane to the heading its entry names", async () => {
+    const { user } = openPortfolio([]);
+    const pane = await rendered();
+    const scrolled: Element[] = [];
+    pane.parentElement!.scrollTo = function scrollTo(this: Element) {
+      scrolled.push(this);
+    } as typeof Element.prototype.scrollTo;
+
+    await user.click(within(screen.getByRole("navigation", { name: "Contents" })).getByRole("button", { name: "Hiring" }));
+
+    expect(scrolled).toEqual([pane.parentElement]);
+  });
+
+  it("hides, and comes back from the label strip", async () => {
+    const { user } = openPortfolio([]);
+    await rendered();
+
+    await user.click(within(screen.getByRole("navigation", { name: "Contents" })).getByRole("button", { name: "Hide" }));
+    expect(screen.queryByRole("navigation", { name: "Contents" })).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Contents" }));
+    expect(screen.getByRole("navigation", { name: "Contents" })).toBeTruthy();
+  });
+
+  it("is absent for a document with a single heading, and on Source", async () => {
+    const { user } = open(CANDIDATES);
+    await rendered();
+    expect(screen.queryByRole("navigation", { name: "Contents" })).toBeNull();
+
+    await user.click(screen.getByRole("radio", { name: "Source" }));
+    expect(screen.queryByRole("button", { name: "Contents" })).toBeNull();
+  });
+});
+
+describe("the quoted passage on a card", () => {
+  it("shows a card's passage rendered, and its stored characters on Exact text", async () => {
+    const { user } = openPortfolio([
+      portfolioFact("f-bold", "from **40 minutes** to 9 minutes"),
+      portfolioFact("f-list", "Mentored two engineers"),
+    ]);
+    await rendered();
+
+    const passage = within(await card("f-bold")).getByRole("region", { name: "Quoted passage" });
+    expect(passage.querySelector("p")?.textContent).toBe("from 40 minutes to 9 minutes");
+    expect(passage.querySelector("strong")?.textContent).toBe("40 minutes");
+
+    await user.click(within(passage).getByRole("button", { name: "Exact text" }));
+    expect(passage.querySelector("p")?.textContent).toBe("from **40 minutes** to 9 minutes");
+  });
+
+  // A passage that mounted on selection would move the grade out from under the
+  // press that selected the card; the browser smoke test is what loses the click.
+  it("is on every open card whichever is selected, and on no resolved one", async () => {
+    const { user } = openPortfolio([
+      portfolioFact("f-bold", "from **40 minutes** to 9 minutes"),
+      portfolioFact("f-list", "Mentored two engineers"),
+      portfolioFact("f-done", "Hiring", { status: "accepted" }),
+    ]);
+    await rendered();
+    const passages = async () =>
+      Promise.all(
+        ["f-bold", "f-list", "f-done"].map(async (id) =>
+          within(await card(id)).queryAllByRole("region", { name: "Quoted passage" }).length,
+        ),
+      );
+
+    expect(await passages()).toEqual([1, 1, 0]);
+    await user.click(await card("f-list"));
+    expect(await passages()).toEqual([1, 1, 0]);
+  });
+
+  it("flattens a table row to its cells", async () => {
+    openPortfolio([portfolioFact("f-row", "| Batch time | 40 min | 9 min |")]);
+    await rendered();
+
+    const passage = within(await card("f-row")).getByRole("region", { name: "Quoted passage" });
+    expect(passage.querySelector("p")?.textContent).toBe("Batch time · 40 min · 9 min");
+  });
+});
+
+describe("the wait while a document is read", () => {
+  const extracting = { status: { status: "extracting", chunksTotal: 150, chunksDone: 9 } as Partial<ImportStatus> };
+
+  it("says work is under way, how far along it is, and that review can start", async () => {
+    open(CANDIDATES, extracting);
+    await card("f-measured");
+
+    const bar = screen.getByRole("progressbar", { name: "Reading the document" });
+    expect(bar.getAttribute("aria-valuenow")).toBe("6");
+    const block = bar.parentElement!;
+    expect(within(block).getByText("6%")).toBeTruthy();
+    expect(
+      within(block).getByText(
+        "9 of 150 sections read. Still working, please wait: a long document takes several minutes. You can review the facts already found.",
+      ),
+    ).toBeTruthy();
+    // Pinned above the cards, not among them: scrolling the list cannot lose it.
+    expect(block.closest("[data-fact-card]")).toBeNull();
+    expect((await card("f-measured")).parentElement!.contains(block)).toBe(false);
+  });
+
+  it("never reads 100% while a section is still out", async () => {
+    open(CANDIDATES, { status: { status: "extracting", chunksTotal: 150, chunksDone: 149 } });
+    await card("f-measured");
+
+    expect(screen.getByRole("progressbar").getAttribute("aria-valuenow")).toBe("99");
+  });
+
+  it("claims no percentage before the document has been split", async () => {
+    open([], { status: { status: "queued", chunksTotal: 0, chunksDone: 0, candidatesExtracted: 0 } });
+
+    const bar = await screen.findByRole("progressbar", { name: "Getting ready to read this document" });
+    expect(bar.hasAttribute("aria-valuenow")).toBe(false);
+    expect(within(bar.parentElement!).queryByText(/%/)).toBeNull();
+    expect(screen.getByText("Still working, please wait. This page updates on its own.")).toBeTruthy();
+  });
+
+  it("does not ask for a review of facts that have not been found yet", async () => {
+    open([], { status: { status: "extracting", chunksTotal: 150, chunksDone: 2, candidatesExtracted: 0 } });
+
+    await screen.findByRole("progressbar", { name: "Reading the document" });
+    expect(screen.getByText("wait for the first facts. They appear here as they are found.")).toBeTruthy();
+    expect(screen.queryByText(/review the facts found so far/)).toBeNull();
+  });
+
+  it("is gone once the import is ready", async () => {
+    open(CANDIDATES);
+    await card("f-measured");
+
+    expect(screen.queryByRole("progressbar")).toBeNull();
+  });
+});
+
+describe("the guide to this screen", () => {
+  it("says what to do and what each control asks, and names the next step", async () => {
+    open(CANDIDATES);
+    await card("f-measured");
+
+    const guide = screen.getByRole("region", { name: "How to review" });
+    expect(within(guide).getByText("Read the highlighted passage on the left. It is the evidence.")).toBeTruthy();
+    expect(within(guide).getByText("Worth")).toBeTruthy();
+    expect(guide.textContent).toContain("Generated: the importer's guess.");
+    expect(screen.getByText("4 facts left to review.")).toBeTruthy();
+  });
+
+  it("stays hidden once hidden, for this browser", async () => {
+    const first = open(CANDIDATES);
+    await card("f-measured");
+    await first.user.click(within(screen.getByRole("region", { name: "How to review" })).getByRole("button", { name: "Hide" }));
+    expect(screen.queryByText("Read the highlighted passage on the left. It is the evidence.")).toBeNull();
+    cleanup();
+
+    open(CANDIDATES);
+    await card("f-measured");
+    const guide = screen.getByRole("region", { name: "How to review" });
+    expect(within(guide).getByRole("button", { name: "Show" })).toBeTruthy();
+    expect(within(guide).queryByRole("list")).toBeNull();
+  });
+
+  it("says to finish when nothing is left to review", async () => {
+    open(CANDIDATES.map((f) => ({ ...f, status: "accepted" as const })));
+    await card("f-measured");
+
+    expect(screen.getByText("everything here is reviewed. Press Finish review.")).toBeTruthy();
+  });
+});
+
 describe("the source pane", () => {
   it("renders the whole document, in order, with each quote marked for its own fact", async () => {
-    open(CANDIDATES);
-    const pane = await article();
+    const { user } = open(CANDIDATES);
+    const pane = await article(user);
 
     expect(pane.textContent).toBe(SOURCE);
     const marks = [...pane.querySelectorAll("mark")].map((m) => [m.dataset.fact, m.textContent]);
@@ -121,11 +435,11 @@ describe("the source pane", () => {
   });
 
   it("keeps the text when two quotes overlap, marking only the first", async () => {
-    open([
+    const { user } = open([
       fact("f-wide", "Ran the weekly plinth review"),
       fact("f-inner", "plinth review with four teams"),
     ]);
-    const pane = await article();
+    const pane = await article(user);
 
     expect(pane.textContent).toBe(SOURCE);
     expect([...pane.querySelectorAll("mark")].map((m) => m.dataset.fact)).toEqual(["f-wide"]);
@@ -133,7 +447,7 @@ describe("the source pane", () => {
 
   it("selects the fact's card when its passage is clicked", async () => {
     const { user } = open(CANDIDATES);
-    await user.click((await article()).querySelector('[data-fact="f-attested"]')!);
+    await user.click((await article(user)).querySelector('[data-fact="f-attested"]')!);
 
     expect((await card("f-attested")).getAttribute("aria-current")).toBe("true");
     expect((await card("f-measured")).getAttribute("aria-current")).toBe("false");
@@ -329,15 +643,15 @@ describe("the rail", () => {
     expect(finish.title).toBe("Nothing accepted yet");
   });
 
-  it("filters to open and to resolved facts, with counts that match the cards", async () => {
+  it("filters to facts to review and to reviewed ones, with counts that match the cards", async () => {
     const { user } = open(RESOLVED);
     await card("f-open");
     const shown = () => [...document.querySelectorAll<HTMLElement>("[data-fact-card]")].map((c) => c.dataset.factCard);
 
-    await user.click(screen.getByRole("button", { name: "Open 1" }));
+    await user.click(screen.getByRole("button", { name: "To review 1" }));
     expect(shown()).toEqual(["f-open"]);
 
-    await user.click(screen.getByRole("button", { name: "Resolved 4" }));
+    await user.click(screen.getByRole("button", { name: "Reviewed 4" }));
     expect(shown()).toEqual(["f-measured", "f-private", "f-generated", "f-attested"]);
 
     await user.click(screen.getByRole("button", { name: "All 5" }));
@@ -476,6 +790,26 @@ describe("import states", () => {
     await waitFor(() => expect(api.writes()).toEqual([`POST /api/imports/${IMPORT}/retry`]));
   });
 
+  it.each([
+    ["no facts yet", [] as Fact[]],
+    ["every found fact reviewed", [fact("f-accepted", "weekly plinth review", { status: "accepted" })]],
+  ])("tells the author to retry a failed import with %s", async (_case, facts) => {
+    open(facts, {
+      status: {
+        status: "failed",
+        candidatesExtracted: facts.length,
+        error: { code: "model_unavailable", message: "The model stopped answering." },
+        failedAtChunk: 2,
+      },
+    });
+
+    expect(
+      await screen.findByText(/this import stopped before it finished\. Press Retry to read the rest\./),
+    ).toBeTruthy();
+    expect(screen.queryByText(/nothing was found to review/)).toBeNull();
+    expect(screen.queryByText(/Press Finish review/)).toBeNull();
+  });
+
   it("says a re-import with nothing changed has nothing to review", async () => {
     mount(`/imports/${IMPORT}`, {
       [`GET /api/imports/${IMPORT}`]: status({ versionNo: 2, chunksTotal: 0, chunksDone: 0, candidatesExtracted: 0 }),
@@ -543,7 +877,7 @@ describe("likely matches on the card", () => {
     // Generated and Measured, and a conflict is none of them (`docs/05` §9).
     expect(within(block).getByText("Conflict · number differs").className).not.toMatch(/removed|generated|measured/);
 
-    expect(within(await card("f-attested")).queryByRole("region")).toBeNull();
+    expect(within(await card("f-attested")).queryByRole("region", { name: "Likely already in your record" })).toBeNull();
   });
 
   it("leaves Accept and Reject as they are", async () => {

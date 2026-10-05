@@ -20,20 +20,35 @@ export type FactFilter = "all" | "open" | "resolved" | "regrade";
  */
 export type SelectionOrigin = "document" | "rail";
 
+/**
+ * How the source pane shows a Markdown document (`docs/10` Screen 1).
+ * `rendered` reads as a document; `source` is the stored characters a quote is
+ * verified against. It lasts while the app is open and is not stored.
+ */
+export type SourceView = "rendered" | "source";
+
 interface ReviewState {
   selectedFactId: string | null;
   selectionOrigin: SelectionOrigin | null;
   filter: FactFilter;
+  view: SourceView;
+  contentsOpen: boolean;
   select: (id: string | null, origin?: SelectionOrigin | null) => void;
   setFilter: (filter: FactFilter) => void;
+  setView: (view: SourceView) => void;
+  setContentsOpen: (open: boolean) => void;
 }
 
 export const useReviewStore = create<ReviewState>((set) => ({
   selectedFactId: null,
   selectionOrigin: null,
   filter: "all",
+  view: "rendered",
+  contentsOpen: true,
   select: (selectedFactId, selectionOrigin = null) => set({ selectedFactId, selectionOrigin }),
   setFilter: (filter) => set({ filter }),
+  setView: (view) => set({ view }),
+  setContentsOpen: (contentsOpen) => set({ contentsOpen }),
 }));
 
 interface DiffState {

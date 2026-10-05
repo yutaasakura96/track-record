@@ -5051,3 +5051,150 @@ portfolio. They follow the merge, in production.
 
 **Revisit if:** the author asks to send a hand-set fact back to reading through its document. That
 would be a third answer on the card's picker, not a change to the stamp.
+
+### [2026-10-05] Light is the default theme, dark is the option, and contrast is a number the build holds
+
+Issue #56. The author's first real import, on 2026-10-03, found the interface too dark, with grey
+text too faint to read at the sizes it was set. This supersedes the 2026-08-12 position, `05`'s
+"Theme: dark only" and its forbidden-list rule 8, "No light mode in v1". That rule was written to
+stop half a light mode, and its replacement keeps that part: a colour token with a value in one
+theme only fails the build.
+
+**Light is what a new browser gets. The operating system's preference is not read.** The issue asks
+for "a light theme by default (dark as an option)", and following `prefers-color-scheme` would hand
+the author the theme they reported as unreadable on any machine set to dark. The choice is one
+attribute on `<html>`, kept in `localStorage`. It is not a column: it is a property of a screen in a
+room, not of the record, and a second browser may reasonably differ.
+
+**One set of token names, two sets of values, and no `dark:` variant at a call site.** A Tailwind v4
+colour utility compiles to `var(--color-…)`, so `@theme` carries the light values and
+`:root[data-theme="dark"]` redefines the same variables. No screen changed to gain a theme, and none
+can drift between themes, because no screen names one. The cost is that a colour must be picked
+twice; the check below is what makes that cost visible at build time.
+
+**The contrast floor is 4.5:1 and `npm run lint` computes it.** Every text token from `text-bright`
+to `text-faint`, on every surface, in both themes. The dark theme failed it where the author said it
+did: `text-dimmer` measured 3.4:1 and `text-faint` 2.7:1, and they were the tokens on the chunk
+counts and status labels. Their dark values were raised rather than their uses re-pointed, because
+120 call sites choosing a dimmer token is the same defect again. `text-ghost` is exempt and is kept
+for disabled rows and zeros.
+
+**Two things lowered contrast without touching a token, and both went.** The mono label was 9.5px
+and the micro role 10.5px; nothing is now set under 11px. Resolved cards were dimmed with
+`opacity`, to .78 and .5; they are now carried by surface, text token and strikethrough. Screen 5's
+dismissed-proposal row still uses `.5` and is left for its own change, since it is outside the flow
+#56 is about.
+
+**The light values have no prototype behind them.** `design/prototype/` is dark only. They were
+chosen for `05` §1 and are held to the floor above; nothing else vouches for them, and the author
+reading the first build is the review.
+
+**Revisit if:** the author wants the theme to follow the operating system, which is a third value
+for the same attribute; or a second user arrives, when a per-browser choice may want to be a
+per-account one.
+
+### [2026-10-05] Source documents are rendered from a Markdown syntax tree, and a mark is projected through it
+
+Issue #56. A source document was shown as its stored characters, so a portfolio read as `#`, `**`
+and `|`. It is now rendered, with the stored text one press away.
+
+**The parser is `mdast-util-from-markdown` with the GFM extensions, client-side only.** Every node
+in its tree carries the start and end offset of the source it came from, and that is the whole
+reason for choosing a tree over a Markdown-to-HTML function: a fact's quote is a pair of offsets
+into the stored text (`04` §3.7), and placing a mark means knowing which rendered text those
+characters became. A hand-written renderer would have had the offsets and not CommonMark; an
+HTML-emitting library would have had CommonMark and not the offsets. The renderer over the tree is
+ours, about one element per node type.
+
+**A mark is the intersection of a quote's range with each text node, so one fact may draw several
+runs.** A quote crossing `**bold**`, two list items or a table row marks the text on each side and
+skips the markup between. Inside a text node the characters are aligned to the source by walking
+both, which absorbs the cases where they differ: an escaped character, an entity, the indent a list
+strips from a continuation line. The alignment decides only where a mark's edge falls. What is
+displayed is always the parser's text, so a misalignment can move an edge by a character and can
+never drop or invent one.
+
+**Verbatim matching is untouched.** The quote is verified against the stored text at import and
+nothing here reads the rendered form back. `Source` shows those characters with the same marks, and
+it is the view of record for an exact quote. Suburi's finding about reading rendered structure back
+(`AGENTS.md`) is the reason this stays one-directional.
+
+**The rendered view loads nothing and runs nothing.** Links are shown and not followed, images are
+their alt text, raw HTML is text. A source document is the one place in the product that holds
+internal addresses and client names by design, and a pane that fetches an image from one tells a
+third party it was read.
+
+**Plain text is not rendered.** A `.txt` file put through a Markdown parser has its lines joined
+into paragraphs and its indented lines turned into code. The filename decides, as it decides the
+extractor.
+
+**The contents column is headings 1 to 3 of the rendered tree**, with the section being read marked
+by scroll position. It is absent in `Source`, where there are no headings to jump to, only lines
+that start with `#`.
+
+**Revisit if:** a quote is reported as marked in the wrong place, which would be the alignment and
+has a test waiting for its case; or `.docx` import arrives, whose extracted text is not Markdown and
+needs its own decision about structure.
+
+### [2026-10-05] A waiting author is told three things, and the interface says them in plain words
+
+Issue #56, the two additions the author made on 2026-10-03 and the third complaint of the original
+report.
+
+**One progress block wherever the author waits on an import**, specified once in `05` §7 and `10`
+Shared chrome: that work is under way, how far along it is, and that they can carry on. It shows a
+percentage. `05` rule 12 bans percentages as model certainty, and its wording now says so: a count
+of sections read is not a confidence in anything. The percentage rounds down, so it never reads
+100% while a section is still out.
+
+**It has the product's one looping animation.** `05` §8 said nothing animates and no spinner
+outlives its work. Both still hold. A six-pixel dot that pulses while an import runs, and stops when
+it stops, is a spinner exactly as long as its work; a 150-section import with a bar that moves once
+a minute looked like a hang, and that was the report.
+
+**Every sidebar screen states its purpose and its next action, and neither can be dismissed.** A
+dismissible tour teaches the first visit and abandons the second. Two lines whose second one is
+computed from state are cheap enough to keep. Fact Review's longer guide, which explains the three
+controls on a card, is the one that hides, because it is a dozen lines on the most-used screen.
+
+**The interface stops using the pipeline's nouns.** `open` becomes `to review`, `resolved` becomes
+`reviewed`, `chunk` becomes `section`. The API fields keep their names; this is wording on a screen
+and changes nothing the review asks of the author, which is #57's question and was out of scope
+here.
+
+**Home is not in this change.** Its layout is #58, built in parallel. The shared progress block and
+intro are specified for it and adopted there.
+
+### [2026-10-05] Nothing on a fact card changes height with selection
+
+Issue #56. The quoted passage was first built on the selected card only, to keep the rail short.
+
+**A press on an unselected card selects it at mousedown**, because the card selects on focus. The
+passage mounted in the same instant, between the claim and the grade, and the grade moved down
+before the mouse came up: the click landed on the passage and the grade was never set. The browser
+smoke test caught it, as an accepted fact still graded Generated and a `Generate` button that
+stayed disabled. The component tests could not have, because jsdom lays nothing out.
+
+**Every open card now shows its passage.** The rail is longer by a passage per open fact, and the
+claim and its evidence can be read as a pair down the whole list without selecting anything.
+Deferring the mount until the press ended was the alternative; it keeps the short rail and still
+moves a card under the pointer once per selection.
+
+### [2026-10-05] The running percentage stops at 99, and a hovered primary button gets darker
+
+Issue #56, two corrections from review. The first supersedes one sentence of "A waiting author is
+told three things, and the interface says them in plain words" above: "The percentage rounds down,
+so it never reads 100% while a section is still out."
+
+**Rounding down was not enough.** The last section is counted before the import leaves
+`extracting`, so for that interval every section was in and the block read 100% under a title that
+still said the document was being read. The percentage and the bar are now capped at 99 for as long
+as the import is `queued` or `extracting` (`10` Shared chrome). The block is not shown in any other
+state, so it never reads 100% at all; the import finishing is what says the work is done.
+
+**The primary button's hover was `filter: brightness(1.1)`**, which lightened `accent` under a white
+label from 4.70:1 to about 3.98:1, below the 4.5:1 floor `05` §1 sets for text in both themes. The
+hover is now a fill of its own, `accent-hover`, darker than `accent` and the same value in both
+themes, with `on-accent` at 5.79:1 on it. The pair is in the design-token check beside
+`on-accent` on `accent`, so the build measures it. A filter is not a token and could not be
+measured, which is how it got through.

@@ -92,6 +92,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   │   ├── components/
 │   │   ├── components/ui/      # shadcn — owned, restyled to doc 05
 │   │   ├── stores/             # Zustand — UI state only
+│   │   ├── markdown/           # source documents rendered from an mdast tree, marks projected by offset
 │   │   └── theme.css           # @theme — generated from 05-design-system.md
 │   ├── server/
 │   │   ├── index.ts            # Hono app, deny-by-default middleware
