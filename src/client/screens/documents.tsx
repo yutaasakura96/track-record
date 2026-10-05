@@ -6,7 +6,7 @@
  * away from is found again. Names, dates and counts only: source text never
  * appears here.
  *
- * Review state is derived, never stored. `N open` is the count of a version's
+ * Review state is derived, never stored. `N to review` is the count of a version's
  * facts still `candidate`, so an abandoned review and an open one read the same.
  */
 import { useRef, useState } from "react";
