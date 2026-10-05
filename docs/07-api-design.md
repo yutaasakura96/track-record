@@ -730,7 +730,7 @@ and the home screen waited for all of them.
   },
   "factsByProvenance": { "measured": 41, "attested": 66, "generated": 7 },
   "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
-  "unconfirmed": { "importId": "sdv_…", "filename": "case-study.md" },
+  "unconfirmed": { "importId": "sdv_…", "count": 3 },
   "documents": [],
   "canGenerate": true,
   "isEmpty": false
@@ -749,7 +749,8 @@ screen's Not confirmed row amber.
 and `importId` and `filename` are the most recently imported version that holds any, which is where
 the Next step opens Fact Review (#58).
 `unconfirmed` is the most recently imported version holding an accepted fact that is still
-Generated, or `null`. It is where the Not confirmed row and its step open Fact Review.
+Generated, or `null`. Its `count` covers only that version. It is where the Not confirmed row and
+its step open Fact Review.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
 

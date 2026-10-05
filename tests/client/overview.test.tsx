@@ -189,7 +189,7 @@ describe("the next step", () => {
         {
           review: REVIEW,
           factsByProvenance: { measured: 0, attested: 96, generated: 16 },
-          unconfirmed: { importId: "imp-test-quillset", filename: "quillset-notes.md" },
+          unconfirmed: { importId: "imp-test-quillset", count: 3 },
         },
         [
           row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
@@ -203,7 +203,7 @@ describe("the next step", () => {
     const rest = within(step).getAllByRole("listitem");
     expect(rest.map((item) => item.querySelector("span")!.textContent)).toEqual([
       "Check the new Qorvane 履歴書",
-      "Confirm 16 facts",
+      "Confirm 3 facts",
       "Update your English résumé",
     ]);
     expect(within(rest[0]!).getByRole("link", { name: "Review changes" }).getAttribute("href")).toBe(
@@ -213,6 +213,27 @@ describe("the next step", () => {
       "/imports/imp-test-quillset",
     );
     expect(within(rest[2]!).getByRole("button", { name: "Update" })).toBeTruthy();
+  });
+
+  it("counts the facts to confirm in the import it opens, and says how many sit in older ones", async () => {
+    open(
+      [],
+      waiting({
+        factsByProvenance: { measured: 0, attested: 96, generated: 16 },
+        unconfirmed: { importId: "imp-test-quillset", count: 3 },
+      }),
+    );
+    const step = await nextStep();
+
+    expect(within(step).getByRole("heading", { name: "Confirm 3 facts" })).toBeTruthy();
+    expect(
+      within(step).getByText(
+        "The importer wrote them and you have not confirmed them, so no document uses them. 13 more are in older imports.",
+      ),
+    ).toBeTruthy();
+    expect(within(step).getByRole("link", { name: "Open them" }).getAttribute("href")).toBe(
+      "/imports/imp-test-quillset",
+    );
   });
 
   it("generates the first document from the step itself, and says a refusal beside it", async () => {
@@ -297,12 +318,13 @@ describe("the facts, in plain words", () => {
       [],
       facts(
         { measured: 0, attested: 96, generated: 16 },
-        { unconfirmed: { importId: "imp-test-quillset", filename: "quillset-notes.md" } },
+        { unconfirmed: { importId: "imp-test-quillset", count: 3 } },
       ),
     );
     const item = await factRow("Not confirmed");
 
-    expect(within(item).getByRole("link", { name: "Confirm 16" }).getAttribute("href")).toBe(
+    expect(within(item).getByText("16")).toBeTruthy();
+    expect(within(item).getByRole("link", { name: "Confirm 3" }).getAttribute("href")).toBe(
       "/imports/imp-test-quillset",
     );
   });

@@ -315,7 +315,7 @@ export interface Overview {
    */
   review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
   /** The newest version holding an accepted fact that is still Generated. */
-  unconfirmed: { importId: string; filename: string } | null;
+  unconfirmed: { importId: string; count: number } | null;
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;

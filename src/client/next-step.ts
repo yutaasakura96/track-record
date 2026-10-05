@@ -67,14 +67,18 @@ export function nextSteps(data: Overview): Step[] {
     });
   }
 
-  if (generated > 0 && unconfirmed) {
+  if (unconfirmed) {
+    const n = unconfirmed.count;
+    const older = generated - n;
     steps.push({
       key: "confirm",
-      title: `Confirm ${count(generated, "fact", "facts")}`,
-      why: `The importer wrote ${generated === 1 ? "it" : "them"} and you have not confirmed ${
-        generated === 1 ? "it" : "them"
-      }, so no document uses ${generated === 1 ? "it" : "them"}.`,
-      action: { kind: "review", label: generated === 1 ? "Open it" : "Open them", importId: unconfirmed.importId },
+      title: `Confirm ${count(n, "fact", "facts")}`,
+      why: `The importer wrote ${n === 1 ? "it" : "them"} and you have not confirmed ${
+        n === 1 ? "it" : "them"
+      }, so no document uses ${n === 1 ? "it" : "them"}.${
+        older > 0 ? ` ${count(older, "more is", "more are")} in older imports.` : ""
+      }`,
+      action: { kind: "review", label: n === 1 ? "Open it" : "Open them", importId: unconfirmed.importId },
     });
   }
 

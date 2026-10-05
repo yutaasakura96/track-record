@@ -122,14 +122,12 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
             sourceDocuments.filename,
           )
           .orderBy(desc(sourceDocumentVersions.importedAt)),
-        // Where the accepted facts still Generated are confirmed: the newest
-        // version holding any.
         db
-          .select({ importId: sourceDocumentVersions.id, filename: sourceDocuments.filename })
+          .select({ importId: sourceDocumentVersions.id, count })
           .from(facts)
           .innerJoin(sourceDocumentVersions, versionOfFact)
-          .innerJoin(sourceDocuments, documentOfVersion)
           .where(and(acceptedFacts, eq(facts.provenance, "generated")))
+          .groupBy(sourceDocumentVersions.id, sourceDocumentVersions.importedAt)
           .orderBy(desc(sourceDocumentVersions.importedAt))
           .limit(1),
       ]),

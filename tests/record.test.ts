@@ -620,7 +620,7 @@ describe("the overview", () => {
   }
   type Waiting = {
     review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
-    unconfirmed: { importId: string; filename: string } | null;
+    unconfirmed: { importId: string; count: number } | null;
     factsByProvenance: { generated: number };
   };
 
@@ -674,8 +674,23 @@ describe("the overview", () => {
 
     const overview = await client.json<Waiting>("/api/overview");
     expect(overview.factsByProvenance.generated).toBe(1);
-    expect(overview.unconfirmed).toEqual({ importId: imported.importId, filename: "aozora-batch.md" });
+    expect(overview.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
     // An accepted fact is not waiting for review.
     expect(overview.review).toBeNull();
+
+    const newer = await importOne(
+      "plinth-notes.md",
+      "Added partition pruning on the ledger table",
+      "A second pass added partition pruning on the ledger table.",
+    );
+    await client.post(`/api/facts/${newer.factId}/accept`);
+    const acrossVersions = await client.json<Waiting>("/api/overview");
+    expect(acrossVersions.factsByProvenance.generated).toBe(2);
+    expect(acrossVersions.unconfirmed).toEqual({ importId: newer.importId, count: 1 });
+
+    await client.post(`/api/facts/${newer.factId}/regrade`, { provenance: "attested" });
+    const remaining = await client.json<Waiting>("/api/overview");
+    expect(remaining.factsByProvenance.generated).toBe(1);
+    expect(remaining.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
   });
 });

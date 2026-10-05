@@ -375,6 +375,7 @@ function StepControl({
   onImport: () => void;
 }) {
   if (!action) return null;
+  const primary = className === PRIMARY;
   if (action.kind === "review") {
     return (
       <Link to="/imports/$importId" params={{ importId: action.importId }} className={`shrink-0 ${className}`}>
@@ -391,21 +392,27 @@ function StepControl({
   }
   if (action.kind === "import") {
     return (
-      <button type="button" onClick={onImport} className={`shrink-0 ${className}`}>
+      <Button
+        type="button"
+        variant={primary ? "primary" : "ghost"}
+        onClick={onImport}
+        className={primary ? "shrink-0 px-16 py-10 text-ui" : "shrink-0"}
+      >
         {action.label}
-      </button>
+      </Button>
     );
   }
   return (
-    <button
+    <Button
       type="button"
+      variant={primary ? "primary" : "ghost"}
       onClick={() => onGenerate(action.render)}
       disabled={busy}
-      title={busy ? "Generating…" : undefined}
-      className={`shrink-0 ${className}`}
+      disabledReason={busy ? "Generating…" : undefined}
+      className={primary ? "shrink-0 px-16 py-10 text-ui" : "shrink-0"}
     >
       {action.label}
-    </button>
+    </Button>
   );
 }
 
@@ -550,7 +557,7 @@ function Facts({
                         params={{ importId: unconfirmed.importId }}
                         className={GHOST}
                       >
-                        Confirm {number(n)}
+                        Confirm {number(unconfirmed.count)}
                       </Link>
                     ) : null}
                   </span>

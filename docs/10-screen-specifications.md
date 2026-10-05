@@ -359,7 +359,7 @@ the content column**, so the eye has one place to go. The step is the first of t
 | Candidates are waiting | `Review N facts` | `Found in <filename>. A fact is used in your documents only after you accept it.` With more than one document holding any: `Found in N documents, newest first. …` | `Review facts`, into Fact Review on the newest version that holds any |
 | An import is running and has found none yet | `Wait for the first facts` | `The import is still reading. Open the review to watch the facts arrive.` | `Open review`, into that import's Fact Review |
 | A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
-| Accepted facts are still Generated | `Confirm N facts` | `The importer wrote them and you have not confirmed them, so no document uses them.` | `Open them`, into Fact Review on the newest version that holds any |
+| Accepted facts are still Generated | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
 | A document is out of date | `Update your <document>` | `N new facts since it was generated.` | `Update` |
@@ -400,7 +400,8 @@ Each row: dot, the plain words, the term in a chip, the description, and the cou
 size. **A zero is written as words, never as `0`.** `Measured 0` in the faintest text on the screen
 read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — above
 zero it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
-Review the Next step does. With no accepted fact at all, the bar and the rows give way to one line:
+Review the Next step does, N being that version's facts as it is in the step. With no accepted fact
+at all, the bar and the rows give way to one line:
 `No accepted facts yet. They arrive when you review a document you imported.`
 
 **Section 4 — Your career documents.** Heading `Your career documents`, sentence
