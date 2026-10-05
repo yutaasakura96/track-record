@@ -610,10 +610,10 @@ function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   const built = rows.filter((row) => row.buildable);
   const pending = built.find((row) => row.pendingProposalId);
   const stale = built.filter((row) => row.status === "stale");
+  if (pending) return `${pending.title} has a new version waiting for you. Check it first.`;
   if (!canGenerate) {
     return "Nothing can be generated until your record holds an accepted fact a document may use.";
   }
-  if (pending) return `${pending.title} has a new version waiting for you. Check it first.`;
   if (stale.length === 1) return `${stale[0]!.title} is out of date. Update it when you next need it.`;
   if (stale.length > 1) {
     return `${stale.length} of ${built.length} are out of date. Update the one you need next; each is updated on its own, and the rest can wait.`;

@@ -384,6 +384,12 @@ describe("which document to act on", () => {
     expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
   });
 
+  it("points at a waiting version when no fact remains usable", async () => {
+    open([row({ status: "proposal_pending", pendingProposalId: "prop-test-waiting" })], {}, false);
+
+    expect((await line()).textContent).toBe("English résumé has a new version waiting for you. Check it first.");
+  });
+
   it("says none is generated yet", async () => {
     open([row(), row(JA)]);
 
