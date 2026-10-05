@@ -145,8 +145,10 @@ about them. It is open until the author hides it, and that is remembered for thi
 it is one line, `How to review` and a bare `Show`.
 
 **The `Next:` line** is in the header, under the title, and is never hidden. The first of these
-that applies: `Next: review the facts found so far while the rest of the document is read.` while
-the import is `queued` or `extracting`; `Next: nothing was found to review.` for an import with no
+that applies: `Next: wait for the first facts. They appear here as they are found.` while the
+import is `queued` or `extracting` and has no fact yet;
+`Next: review the facts found so far while the rest of the document is read.` while it is still
+being read; `Next: nothing was found to review.` for a finished import with no
 facts; `Next: everything here is reviewed. Press Finish review.` when none is left;
 `Next: N facts left to review.` otherwise.
 
@@ -164,14 +166,16 @@ chrome), and its last sentence here is `You can review the facts already found.`
 7. Explanatory footnote for Private: what it means, in one sentence
 8. Actions — `Reject` (ghost, left) · optional hint · `Accept` (primary, right)
 
-**The quoted passage on the card · #56.** The selected open card shows the passage it quotes,
+**The quoted passage on the card · #56.** Every open card shows the passage it quotes,
 directly under the claim, so the evidence and the decision are in one place: a left rule in
 `border-strong`, `10px` in from it, a mono label `Quoted passage`, then the passage at the small
 role in `text-secondary`. For a Markdown document it is rendered: emphasis, code and links as in the
 source pane, with block structure flattened to a line break between blocks and ` · ` between table
 cells. A bare `Exact text` beside the label swaps it for the stored characters, verbatim and with
 whitespace preserved, and `Rendered` swaps back. A plain-text document shows the exact text and no
-toggle. Only the selected card shows it, so the rail does not grow, and a resolved card shows none.
+toggle. A resolved card shows none. **It does not depend on selection:** a press on an unselected
+card selects it at mousedown, and a passage that appeared at that moment would move the grade and
+the buttons out from under the press. No part of a card changes height with selection.
 
 **Overlap on the card · M3, built by #36, 2026-09-28.** A candidate with likely matches
 among the accepted facts at the same employer shows them on the card, beside its claim: each

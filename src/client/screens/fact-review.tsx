@@ -576,13 +576,15 @@ function FactRail({
           <Mono className="text-text-dimmer">{status.candidatesExtracted} extracted</Mono>
         </div>
         <NextStep className="mt-6">
-          {running
-            ? "review the facts found so far while the rest of the document is read."
-            : facts.length === 0
-              ? "nothing was found to review."
-              : open.length === 0
-                ? "everything here is reviewed. Press Finish review."
-                : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
+          {running && facts.length === 0
+            ? "wait for the first facts. They appear here as they are found."
+            : running
+              ? "review the facts found so far while the rest of the document is read."
+              : facts.length === 0
+                ? "nothing was found to review."
+                : open.length === 0
+                  ? "everything here is reviewed. Press Finish review."
+                  : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
         </NextStep>
         {status.candidatesDiscarded > 0 ? (
           <p className="mt-8 text-smaller text-text-faint">
@@ -871,7 +873,7 @@ function FactCard({
         {fact.claim}
       </div>
 
-      {selected && source ? <QuotedPassage fact={fact} source={source} tree={tree} /> : null}
+      {source ? <QuotedPassage fact={fact} source={source} tree={tree} /> : null}
 
       {fact.likelyMatches.length > 0 ? (
         <LikelyMatches importId={importId} matches={fact.likelyMatches} />
@@ -1057,8 +1059,9 @@ function GuideTerm({
  * document, with the stored characters one press away: a quote is verified
  * against those, not against what they render as.
  *
- * Only the selected card shows it, so the rail does not grow by a passage per
- * fact.
+ * EVERY OPEN CARD SHOWS IT, NOT ONLY THE SELECTED ONE. A press on an unselected
+ * card selects it at mousedown; a passage that mounted then would move the
+ * control out from under the press, and the click would be lost.
  */
 function QuotedPassage({ fact, source, tree }: { fact: Fact; source: SourceText; tree: Root | null }) {
   const [exact, setExact] = useState(false);

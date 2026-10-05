@@ -5165,3 +5165,17 @@ here.
 **Home is not in this change.** Its layout is #58, built in parallel. The shared progress block and
 intro are specified for it and adopted there.
 
+### [2026-10-05] Nothing on a fact card changes height with selection
+
+Issue #56. The quoted passage was first built on the selected card only, to keep the rail short.
+
+**A press on an unselected card selects it at mousedown**, because the card selects on focus. The
+passage mounted in the same instant, between the claim and the grade, and the grade moved down
+before the mouse came up: the click landed on the passage and the grade was never set. The browser
+smoke test caught it, as an accepted fact still graded Generated and a `Generate` button that
+stayed disabled. The component tests could not have, because jsdom lays nothing out.
+
+**Every open card now shows its passage.** The rail is longer by a passage per open fact, and the
+claim and its evidence can be read as a pair down the whole list without selecting anything.
+Deferring the mount until the press ended was the alternative; it keeps the short rail and still
+moves a card under the pointer once per selection.

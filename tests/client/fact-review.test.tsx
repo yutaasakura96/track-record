@@ -287,29 +287,45 @@ describe("the contents of a rendered document", () => {
 });
 
 describe("the quoted passage on a card", () => {
-  it("shows the selected card's passage rendered, and its stored characters on Exact text", async () => {
+  it("shows a card's passage rendered, and its stored characters on Exact text", async () => {
     const { user } = openPortfolio([
       portfolioFact("f-bold", "from **40 minutes** to 9 minutes"),
       portfolioFact("f-list", "Mentored two engineers"),
     ]);
     await rendered();
-    expect(screen.queryByRole("region", { name: "Quoted passage" })).toBeNull();
 
-    await user.click(await card("f-bold"));
     const passage = within(await card("f-bold")).getByRole("region", { name: "Quoted passage" });
     expect(passage.querySelector("p")?.textContent).toBe("from 40 minutes to 9 minutes");
     expect(passage.querySelector("strong")?.textContent).toBe("40 minutes");
-    // Only the selected card carries one.
-    expect(within(await card("f-list")).queryByRole("region", { name: "Quoted passage" })).toBeNull();
 
     await user.click(within(passage).getByRole("button", { name: "Exact text" }));
     expect(passage.querySelector("p")?.textContent).toBe("from **40 minutes** to 9 minutes");
   });
 
-  it("flattens a table row to its cells", async () => {
-    const { user } = openPortfolio([portfolioFact("f-row", "| Batch time | 40 min | 9 min |")]);
+  // A passage that mounted on selection would move the grade out from under the
+  // press that selected the card; the browser smoke test is what loses the click.
+  it("is on every open card whichever is selected, and on no resolved one", async () => {
+    const { user } = openPortfolio([
+      portfolioFact("f-bold", "from **40 minutes** to 9 minutes"),
+      portfolioFact("f-list", "Mentored two engineers"),
+      portfolioFact("f-done", "Hiring", { status: "accepted" }),
+    ]);
     await rendered();
-    await user.click(await card("f-row"));
+    const passages = async () =>
+      Promise.all(
+        ["f-bold", "f-list", "f-done"].map(async (id) =>
+          within(await card(id)).queryAllByRole("region", { name: "Quoted passage" }).length,
+        ),
+      );
+
+    expect(await passages()).toEqual([1, 1, 0]);
+    await user.click(await card("f-list"));
+    expect(await passages()).toEqual([1, 1, 0]);
+  });
+
+  it("flattens a table row to its cells", async () => {
+    openPortfolio([portfolioFact("f-row", "| Batch time | 40 min | 9 min |")]);
+    await rendered();
 
     const passage = within(await card("f-row")).getByRole("region", { name: "Quoted passage" });
     expect(passage.querySelector("p")?.textContent).toBe("Batch time · 40 min · 9 min");
@@ -351,6 +367,14 @@ describe("the wait while a document is read", () => {
     expect(bar.hasAttribute("aria-valuenow")).toBe(false);
     expect(within(bar.parentElement!).queryByText(/%/)).toBeNull();
     expect(screen.getByText("Still working, please wait. This page updates on its own.")).toBeTruthy();
+  });
+
+  it("does not ask for a review of facts that have not been found yet", async () => {
+    open([], { status: { status: "extracting", chunksTotal: 150, chunksDone: 2, candidatesExtracted: 0 } });
+
+    await screen.findByRole("progressbar", { name: "Reading the document" });
+    expect(screen.getByText("wait for the first facts. They appear here as they are found.")).toBeTruthy();
+    expect(screen.queryByText(/review the facts found so far/)).toBeNull();
   });
 
   it("is gone once the import is ready", async () => {
@@ -833,7 +857,7 @@ describe("likely matches on the card", () => {
     // Generated and Measured, and a conflict is none of them (`docs/05` §9).
     expect(within(block).getByText("Conflict · number differs").className).not.toMatch(/removed|generated|measured/);
 
-    expect(within(await card("f-attested")).queryByRole("region")).toBeNull();
+    expect(within(await card("f-attested")).queryByRole("region", { name: "Likely already in your record" })).toBeNull();
   });
 
   it("leaves Accept and Reject as they are", async () => {
