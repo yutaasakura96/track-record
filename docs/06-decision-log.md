@@ -5231,7 +5231,9 @@ candidates are reviewed is a document's Fact Review, which Documents already lis
 answer to "which of five stale documents first" is that they do not depend on each other, so the
 line says that. `Version history` and `Download` became the links `History` and `Download`. With no
 usable fact the rows offer no Generate at all and the line gives the reason once, where five
-disabled buttons each gave it in a tooltip. The section is headed `Your career documents`, because
+disabled buttons each gave it in a tooltip. **This supersedes PRD §7's rule that render actions with
+no accepted fact are "disabled with a reason, not hidden"**, for the render actions on Home; the
+reason is still always stated, once. The section is headed `Your career documents`, because
 `Documents` is the sidebar's word for the files facts are quoted from.
 
 **The frame is drawn before any read answers, and the three reads run side by side.** The gate in
