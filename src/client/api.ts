@@ -846,7 +846,10 @@ export function useRetryImport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (importId: string) => api<ImportStatus>(`/api/imports/${importId}/retry`, { method: "POST" }),
-    onSuccess: (status) => void queryClient.invalidateQueries({ queryKey: keys.importStatus(status.importId) }),
+    onSuccess: (status) => {
+      void queryClient.invalidateQueries({ queryKey: keys.importStatus(status.importId) });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
   });
 }
@@ -902,6 +905,7 @@ export function useFactAction(importId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.importStatus(importId) });
       void queryClient.invalidateQueries({ queryKey: keys.documents });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
     },
   });
 

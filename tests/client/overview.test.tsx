@@ -762,6 +762,70 @@ describe("an overview a write has made untrue", () => {
     expect(api.writes()).toEqual([POST]);
   });
 
+  it("holds the next step back after a failed import is retried, on a return to Home", async () => {
+    const RETRY = `POST /api/imports/${IMPORT}/retry`;
+    const { activeImport } = READING;
+    const { filename, ...queued } = { ...activeImport!, status: "queued" as const };
+    let reads = 0;
+    let answer!: (fresh: Overview) => void;
+    const after = new Promise<Overview>((resolve) => (answer = resolve));
+    const { api, user, pathname } = mount("/", {
+      "GET /api/overview": () => (++reads === 1 ? overview([row({ status: "up_to_date", currentVersionId: "ver-test-1" })]) : after),
+      "GET /api/imports/summary": { openCandidates: 0, running: false },
+      "GET /api/imports": {
+        openCandidates: 0,
+        documents: [
+          {
+            sourceDocumentId: "doc-test-1",
+            filename,
+            mimeType: "text/markdown",
+            project: null,
+            employer: null,
+            lastImportedAt: "2026-09-02T00:00:00.000Z",
+            openCandidates: 0,
+            reimportable: true,
+            versions: [
+              {
+                importId: IMPORT,
+                versionNo: 1,
+                importedAt: "2026-09-01T00:00:00.000Z",
+                status: "failed",
+                wordCount: 42,
+                changedRegionShare: null,
+                chunksTotal: 4,
+                chunksDone: 1,
+                extractorVersion: "test",
+                facts: { accepted: 0, rejected: 0, open: 0 },
+                error: { code: "extraction_failed", message: "Extraction stopped at chunk 2." },
+              },
+            ],
+          },
+        ],
+      },
+      "GET /api/projects": { items: [] },
+      "GET /api/employers": { items: [] },
+      [RETRY]: queued,
+    });
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("You are up to date");
+
+    await user.click(screen.getByRole("link", { name: "Documents" }));
+    await user.click(await screen.findByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(api.writes()).toEqual([RETRY]));
+    await user.click(screen.getByRole("link", { name: "Home" }));
+    await waitFor(() => expect(pathname()).toBe("/"));
+
+    // The overview Home had says nothing is waiting, and the read after the write is still out.
+    expect((await screen.findByRole("status")).textContent).toBe("Checking what is waiting for you now…");
+    expect(screen.queryByText("You are up to date")).toBeNull();
+    expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
+
+    answer({ ...READING, activeImport: { ...queued, filename } });
+
+    expect(within(await nextStep()).getByRole("heading").textContent).toBe("Wait for the first facts");
+    expect(await screen.findByText(/Still working, please wait\./)).toBeTruthy();
+    expect(api.writes()).toEqual([RETRY]);
+  });
+
   it("holds nothing back for a poll while an import runs", async () => {
     let reads = 0;
     mount("/", {
