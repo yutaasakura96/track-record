@@ -525,7 +525,7 @@ so the frame does not change under a first-time author; it carries no note and n
   worse empty state than a narrower one
 - Footnote: `Document generation opens up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
-- The four sections of the populated screen are absent entirely
+- The sections of the populated screen are absent entirely
 
 ### States
 
@@ -600,7 +600,7 @@ a version, a dismissed one did not, and both are retained.
 **Interaction model:** a read destination, not a focused task — it keeps the **sidebar**, unlike
 fact review and diff review. The restore *preview* is a focused task and borrows Screen 2 whole.
 
-Reached from the Documents row on Screen 3 and from the `Version history` ghost button already
+Reached from the `History` link on a document's row on Screen 3 and from the `Version history` ghost button already
 specced in the Screen 2 header. Route: `/renders/:kind/history`.
 
 ### Layout

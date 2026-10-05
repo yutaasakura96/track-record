@@ -508,7 +508,7 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `GET` | `/api/renders` | M1 | All five, with status. Backs the overview's Documents section |
+| `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
 | `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
@@ -573,7 +573,7 @@ belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
 `pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
 and restore routes give. Accepting either of two proposals would discard the other unread. It is
-checked before the profile and the facts, because it is the one refusal Review proposal answers. A
+checked before the profile and the facts, because it is the one refusal `Review changes` answers. A
 proposal whose generation `failed` does not refuse: it has nothing to decide, and refusing on it
 would leave the render with no way to try again. The edit and restore routes exclude it on the same
 reading — accept itself refuses a proposal that is not `ready`, so a failed one can discard neither.
@@ -743,7 +743,7 @@ and the home screen waited for all of them.
 `tiles.credentials` sums `educations` and `certifications` — the split is storage, not interface.
 `activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
 is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
-overview's progress row shows.
+home screen's progress panel shows.
 While it is not `null` the request costs a second round trip, for that body.
 `factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
 screen's Not confirmed row amber.

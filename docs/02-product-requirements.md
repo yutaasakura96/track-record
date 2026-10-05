@@ -203,7 +203,7 @@ Empty states are requirements, not afterthoughts.
 |---|---|
 | **No profile** | First run goes to the profile form. Nothing else is reachable until identity exists — every render needs a name |
 | **No employers, no facts** | The record view explains the loop in one screen — import a document, review the facts, generate a document — with import as the only action |
-| **Facts exist, no accepted facts** | Render actions are **disabled with a reason**, not hidden and not silently producing an empty document |
+| **Facts exist, no accepted facts** | Render actions are **not offered, and the reason is stated once** beside the documents; never an empty document produced silently. They were to be disabled with a reason each, which on Home was the same reason five times in tooltips (decision log, 2026-10-05) |
 | **Employer with no facts** | Renders as a period of employment with description and no outcomes. Not an error; a new job legitimately looks like this |
 | **Import produced zero facts** | Reported as a failure of extraction with the document retained, not as an empty success. The author can retry or capture manually |
 | **No credentials** | The section is omitted from renders entirely rather than rendered empty |

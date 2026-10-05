@@ -12,7 +12,7 @@
  * text, never as a 9.5px mono label.
  *
  * **The empty state is not a variant of this screen — it is a different
- * screen.** The four sections are absent entirely and import is the only action.
+ * screen.** Its sections are absent entirely and import is the only action.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";

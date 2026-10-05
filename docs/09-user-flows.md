@@ -31,7 +31,7 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 
 ## Flow 2 · Import a document and review its facts · M1 — the core loop
 
-1. Overview → **Import a document** (or drop a file on the empty-state target).
+1. Home → **Import a document** (or drop a file on the empty-state target).
 2. Choose file. **When the record holds at least one project**, a confirmation row offers to file
    the document under one, defaulting to none; when it holds none, the import starts on the file
    choice alone (`10-screen-specifications.md` Screen 3). → `POST /api/imports` → `202`.
@@ -43,7 +43,7 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 5. Author works card by card: read the claim, check the marked passage, edit the claim if needed,
    set **Provenance** and **Disclosure**, then **Accept** or **Reject**.
 6. When all cards are resolved, **Finish review** becomes primary.
-7. **Add N facts to record** / **Finish review** → `POST /api/imports/:id/finish` → back to Overview.
+7. **Add N facts to record** / **Finish review** → `POST /api/imports/:id/finish` → back to Home.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
@@ -79,7 +79,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 2 | No facts accepted yet | The action is **disabled with a stated reason**, not hidden, and never silently produces an empty document (PRD §7) |
+| 2 | No accepted fact a document may use | No Generate or Update is offered, and one line above the documents **states the reason**. Never a silently empty document (PRD §7, `10-screen-specifications.md` Screen 3) |
 | 3 | Generation fails or returns nothing usable | Error with the reason and a retry. **The current version is untouched and still readable.** Never a blank proposed column with no explanation |
 | 4 | **Nothing changed** | The diff does not open. The overview reports `Already up to date with your record` |
 | 4 | Nearly every line changed | Renders normally. Rejecting the whole thing remains **one action** |
@@ -95,7 +95,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 ## Flow 4 · Re-import an updated document · M1 — the normal case, not an edge case
 
 1. Documents (Screen 8) → **Re-import** on the document's own row, then confirm
-   `This becomes vN of <filename>`. Overview's **Import a document** always starts a new document.
+   `This becomes vN of <filename>`. Home's **Import a document** always starts a new document.
 2. `POST /api/imports` with `sourceDocumentId` → a new **version** of that document.
 3. The pipeline diffs the new text against the previous version and **sends only changed and added
    passages to the model**.
@@ -118,7 +118,7 @@ diff-against-previous baseline is correct on the next import.
 
 ## Flow 5 · Restore a previous version · M2
 
-1. Diff Review or Overview → **Version history**.
+1. Diff Review → **Version history**, or Home → **History** on the document's row.
 2. Accepted versions and dismissed proposals are listed, **visibly distinct**.
 3. Choose a version → preview.
 4. **Restore** → creates a **new** version whose content matches the old one.
