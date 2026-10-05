@@ -59,7 +59,7 @@ along it is, and that they can keep going.** It is the block specified in `05` Â
 | Import state | Title | Percentage | Line |
 |---|---|---|---|
 | `queued`, or `extracting` with no section count yet | `Getting ready to read this document` | None | `Still working, please wait. This page updates on its own.` |
-| `extracting` | `Reading the document` | Sections read over the total, rounded **down**, so it never reads `100%` while work remains | `N of M sections read. Still working, please wait: a long document takes several minutes.` then the surface's own sentence about what to do meanwhile |
+| `extracting` | `Reading the document` | Sections read over the total, rounded **down** and capped at `99%`: the last section is counted before the import leaves `extracting`, and the block never reads `100%` while the import is `queued` or `extracting` | `N of M sections read. Still working, please wait: a long document takes several minutes.` then the surface's own sentence about what to do meanwhile |
 
 It appears on Fact Review, pinned above the cards (Screen 1), and under the version's row on
 Documents (Screen 8). Home's import row shows the same percentage and count (issue #58). The

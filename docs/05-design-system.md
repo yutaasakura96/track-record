@@ -72,7 +72,7 @@ Every table gives the light value first, because light is the default.
 | `text-dimmer` | `#595e69` | `#9398a2` | Metadata, timestamps |
 | `text-faint` | `#5f6470` | `#8a8f99` | Tertiary notes, control labels |
 | `text-ghost` | `#8a909b` | `#5d6169` | Disabled rows, empty-row labels, zero counts |
-| `on-accent` | `#ffffff` | `#ffffff` | Text on an `accent` fill. Never `text-bright`, which is near-black in light |
+| `on-accent` | `#ffffff` | `#ffffff` | Text on an `accent` or `accent-hover` fill. Never `text-bright`, which is near-black in light |
 
 **Every text token from `text-bright` down to `text-faint` reads at 4.5:1 or better on every surface
 in the table above, in both themes.** That is WCAG AA for body text, and it is checked by
@@ -91,6 +91,7 @@ its text token and a strikethrough, not by transparency.
 | Token | Light | Dark | Use |
 |---|---|---|---|
 | `accent` | `#5e6ad2` | `#5e6ad2` | Primary buttons, Attested tone, selection, progress |
+| `accent-hover` | `#4f5bc4` | `#4f5bc4` | A hovered primary button. Darker than `accent`, so `on-accent` reads at 5.79:1 on it |
 | `accent-text` | `#3f4bb3` | `#a3abf0` | Accent text on a surface (status text, draft badge) |
 | `accent-link` | `#4450bd` → `#323c9c` hover | `#8b93e8` → `#a8afef` hover | Links |
 | `accent-gradient` | `linear-gradient(160deg,#5e6ad2,#3d4699)` | same | App mark only |
@@ -272,7 +273,7 @@ in both themes.
 
 | Variant | Default | Hover | Disabled |
 |---|---|---|---|
-| **Primary** | `bg accent` · `color on-accent` · no border · `6px 12px` · `radius 6px` · button label, `500 12px` | `filter: brightness(1.1)` | `bg disabled-bg` · `color text-faint` · `border 1px solid border-control` · `cursor: not-allowed` |
+| **Primary** | `bg accent` · `color on-accent` · no border · `6px 12px` · `radius 6px` · button label, `500 12px` | `bg accent-hover` | `bg disabled-bg` · `color text-faint` · `border 1px solid border-control` · `cursor: not-allowed` |
 | **Secondary** | `transparent` · `border 1px solid border-strong` · `color text-secondary` · `8px 14px` · button label | `bg hover` | same as primary disabled |
 | **Ghost** | `transparent` · `border 1px solid border-strong` · `color text-muted` · `6px 10px` · `500 11.5px` | `bg hover` · `color text-secondary` | — |
 | **Bare** | `transparent` · no border · `color text-dim` · `4px 6px` | `bg border` · `color text-secondary` | — |

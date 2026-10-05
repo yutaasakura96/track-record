@@ -5179,3 +5179,22 @@ stayed disabled. The component tests could not have, because jsdom lays nothing 
 claim and its evidence can be read as a pair down the whole list without selecting anything.
 Deferring the mount until the press ended was the alternative; it keeps the short rail and still
 moves a card under the pointer once per selection.
+
+### [2026-10-05] The running percentage stops at 99, and a hovered primary button gets darker
+
+Issue #56, two corrections from review. The first supersedes one sentence of "A waiting author is
+told three things, and the interface says them in plain words" above: "The percentage rounds down,
+so it never reads 100% while a section is still out."
+
+**Rounding down was not enough.** The last section is counted before the import leaves
+`extracting`, so for that interval every section was in and the block read 100% under a title that
+still said the document was being read. The percentage and the bar are now capped at 99 for as long
+as the import is `queued` or `extracting` (`10` Shared chrome). The block is not shown in any other
+state, so it never reads 100% at all; the import finishing is what says the work is done.
+
+**The primary button's hover was `filter: brightness(1.1)`**, which lightened `accent` under a white
+label from 4.70:1 to about 3.98:1, below the 4.5:1 floor `05` §1 sets for text in both themes. The
+hover is now a fill of its own, `accent-hover`, darker than `accent` and the same value in both
+themes, with `on-accent` at 5.79:1 on it. The pair is in the design-token check beside
+`on-accent` on `accent`, so the build measures it. A filter is not a token and could not be
+measured, which is how it got through.

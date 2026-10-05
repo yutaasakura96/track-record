@@ -156,6 +156,7 @@ const SURFACES = [
 /** Text that sits on one fill of its own rather than on a surface. */
 const PAIRS = [
   ["on-accent", "accent"],
+  ["on-accent", "accent-hover"],
   ["private", "private-bg"],
 ];
 const MIN_CONTRAST = 4.5;

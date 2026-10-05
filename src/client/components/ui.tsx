@@ -11,7 +11,7 @@ type Variant = "primary" | "secondary" | "ghost" | "bare";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:brightness-110",
+    "bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover",
   secondary:
     "border border-border-strong text-text-secondary px-14 py-8 rounded-control text-button font-medium hover:bg-hover",
   ghost:

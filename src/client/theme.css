@@ -62,6 +62,7 @@
 
   /* ----------------------------------------------- accent and semantics */
   --color-accent: #5e6ad2;
+  --color-accent-hover: #4f5bc4;
   --color-accent-text: #3f4bb3;
   --color-accent-link: #4450bd;
   --color-accent-link-hover: #323c9c;
@@ -257,6 +258,7 @@
   --color-on-accent: #ffffff;
 
   --color-accent: #5e6ad2;
+  --color-accent-hover: #4f5bc4;
   --color-accent-text: #a3abf0;
   --color-accent-link: #8b93e8;
   --color-accent-link-hover: #a8afef;
