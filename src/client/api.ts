@@ -861,7 +861,8 @@ export function useRetryImport() {
 export function useFactAction(importId: string) {
   const queryClient = useQueryClient();
   // Every import's list, not only this one's: rejecting a fact here drops it
-  // from the likely matches on another document's cards.
+  // from the likely matches on another document's cards. The overview too:
+  // Home counts these facts, and holds its Next step back only once told.
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.overview });
     return queryClient.invalidateQueries({ queryKey: keys.allFacts });
