@@ -607,4 +607,90 @@ describe("the overview", () => {
 
     expect(during.activeImport?.filename).toBe("plinth-notes.md");
   });
+
+  /** One extracted candidate per call, quoted from `CASE_STUDY`. */
+  async function importOne(filename: string, claim: string, quote: string) {
+    model.extractions = [[{ claim, quote, technologies: [] }]];
+    const { importId } = (await (
+      await client.request("/api/imports", { method: "POST", body: uploadForm(CASE_STUDY, filename) })
+    ).json()) as { importId: string };
+    await settle();
+    const { items } = await client.json<{ items: { id: string }[] }>(`/api/facts?importId=${importId}`);
+    return { importId, factId: items[0]!.id };
+  }
+  type Waiting = {
+    review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
+    unconfirmed: { importId: string; count: number } | null;
+    factsByProvenance: { generated: number };
+  };
+
+  it("says how many candidates wait, in how many documents, and where reviewing starts", async () => {
+    const first = await importOne(
+      "aozora-batch.md",
+      "Reduced nightly batch runtime",
+      "Nightly batch runtime fell from 6 hours to 90 minutes.",
+    );
+    const second = await importOne(
+      "plinth-notes.md",
+      "Added partition pruning on the ledger table",
+      "A second pass added partition pruning on the ledger table.",
+    );
+
+    const waiting = await client.json<Waiting>("/api/overview");
+    // The newest version holding any is where the review opens.
+    expect(waiting.review).toEqual({
+      openCandidates: 2,
+      documents: 2,
+      importId: second.importId,
+      filename: "plinth-notes.md",
+    });
+
+    await client.post(`/api/facts/${second.factId}/reject`);
+    const one = await client.json<Waiting>("/api/overview");
+    expect(one.review).toEqual({
+      openCandidates: 1,
+      documents: 1,
+      importId: first.importId,
+      filename: "aozora-batch.md",
+    });
+
+    await client.patch(`/api/facts/${first.factId}`, { provenance: "attested" });
+    await client.post(`/api/facts/${first.factId}/accept`);
+    const none = await client.json<Waiting>("/api/overview");
+    expect(none.review).toBeNull();
+  });
+
+  it("names the version holding an accepted fact that is still Generated", async () => {
+    const before = await client.json<Waiting>("/api/overview");
+    expect(before.unconfirmed).toBeNull();
+
+    // Accepted as extracted: anything a model produces starts Generated.
+    const imported = await importOne(
+      "aozora-batch.md",
+      "Reduced nightly batch runtime",
+      "Nightly batch runtime fell from 6 hours to 90 minutes.",
+    );
+    await client.post(`/api/facts/${imported.factId}/accept`);
+
+    const overview = await client.json<Waiting>("/api/overview");
+    expect(overview.factsByProvenance.generated).toBe(1);
+    expect(overview.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
+    // An accepted fact is not waiting for review.
+    expect(overview.review).toBeNull();
+
+    const newer = await importOne(
+      "plinth-notes.md",
+      "Added partition pruning on the ledger table",
+      "A second pass added partition pruning on the ledger table.",
+    );
+    await client.post(`/api/facts/${newer.factId}/accept`);
+    const acrossVersions = await client.json<Waiting>("/api/overview");
+    expect(acrossVersions.factsByProvenance.generated).toBe(2);
+    expect(acrossVersions.unconfirmed).toEqual({ importId: newer.importId, count: 1 });
+
+    await client.post(`/api/facts/${newer.factId}/regrade`, { provenance: "attested" });
+    const remaining = await client.json<Waiting>("/api/overview");
+    expect(remaining.factsByProvenance.generated).toBe(1);
+    expect(remaining.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
+  });
 });

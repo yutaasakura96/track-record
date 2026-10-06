@@ -5198,3 +5198,129 @@ hover is now a fill of its own, `accent-hover`, darker than `accent` and the sam
 themes, with `on-accent` at 5.79:1 on it. The pair is in the design-token check beside
 `on-accent` on `accent`, so the build measures it. A filter is not a token and could not be
 measured, which is how it got through.
+
+### [2026-10-05] Home says what to do next, in plain words, and its frame is on screen before its data
+
+#58. The author could not say what the home screen showed, and found it too dark to read. `docs/10`
+Screen 3 and the sidebar were rewritten before the build, as the issue required; `docs/07` §8 and
+`docs/09` Flows 1 and 3 follow.
+
+**The screen leads with one Next step, and it holds the only primary button in the content column.**
+The old screen expressed "everything waiting for the author" in the Generated row of a chart, with a
+`Review N →` that was never a link. The step is now computed in one pure function,
+`src/client/next-step.ts`, as a list in the order to take it: candidates to review, a proposal to
+check, accepted facts still Generated, a document never generated, a document out of date. The first
+is the step and the rest stand under it as `Also waiting`. Rejected: a banner per condition. Five
+banners is the problem the screen already had.
+
+**Plain words lead and the product's term follows.** `Backed by a number`, `Stated by you` and
+`Not confirmed` head the three rows, and `Measured`, `Attested` and `Generated` stand beside them in
+a chip. The terms are not removed: they are the words on the fact card (Screen 1), and an author who
+learns the plain words here has to be able to recognise the card. **A zero is written as words**,
+`None yet`, because `Measured 0` in the faintest text on the screen read as a failure to load. The
+glossary in `CONTEXT.md` is unchanged; this is wording on one screen, not a rename.
+
+**The sidebar has no row for a screen that is not built**, which supersedes the rule that unbuilt
+rows stay visible and disabled so the shape of the application is legible (issue #10, in
+`src/client/components/sidebar.tsx` until today). `Facts` was read as a broken link. It returns with
+its screen. **The Documents row writes its count out**, `1,085 facts to review`, on a second line.
+A badge on a `Facts` row was considered and rejected: the row would need somewhere to go, and where
+candidates are reviewed is a document's Fact Review, which Documents already lists.
+
+**One line above the documents says which to act on, and each row has one button.** The honest
+answer to "which of five stale documents first" is that they do not depend on each other, so the
+line says that. `Version history` and `Download` became the links `History` and `Download`. With no
+usable fact the rows offer no Generate at all and the line gives the reason once, where five
+disabled buttons each gave it in a tooltip. **This supersedes PRD §7's rule that render actions with
+no accepted fact are "disabled with a reason, not hidden"**, for the render actions on Home; the
+reason is still always stated, once. The section is headed `Your career documents`, because
+`Documents` is the sidebar's word for the files facts are quoted from.
+
+**The frame is drawn before any read answers, and the three reads run side by side.** The gate in
+`src/client/router.tsx` held every screen behind the session read and then the profile read, so
+Home's overview was the third request in a row. Home is now let through at once and shows its frame
+until all three have answered; every other screen keeps the gate as it was. `GET /api/overview` went
+from up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
+to one batch beside the renders' batch. `importStatus` and `renderState` are each one batch too.
+Measured on the local proxy, where a query costs about 12 ms: 230 ms before, 65 ms after, with an
+import running. **Unverified:** that this is what made production stand on `Loading your record…`
+for about ten seconds. The count of round trips is the likeliest cause and the only one this change
+removes; a cold Neon compute would add to it and is untouched.
+
+**The screen polls while an import runs**, at the 1.5 s `docs/07` §1 gives every non-terminal
+resource. It did not, so the progress bar moved only on a reload, which is part of why it read as
+stalled.
+
+**Readable by rule, with the tokens there are.** No text on Home uses `text-dimmer`, `text-faint`
+or `text-ghost`, which measure 3.35, 2.70 and 1.83 to 1 on the panel surface. No token was added or
+changed: the theme is #56's, built at the same time, and a screen that names tokens by role takes
+whatever values that issue gives them.
+
+Left out on purpose: a Facts screen, the light theme and rendered Markdown (#56), the English and
+Japanese split (#59) and the master document (#57).
+
+**Revisit if:** the home screen is still slow in production after this deploys. The next thing to
+measure is the session read, which every request pays before its own queries.
+
+### [2026-10-05] A document is out of date only by facts it may use, and Home holds its next step back after a write
+
+Two findings from driving the new Home (#58), both decided by the owner.
+
+**Staleness counts usable facts.** `newFactsSince`, and so `stale`, the `N new facts` on every row
+and the `Update your …` step, counted every accepted fact. A fact accepted while still Generated, or
+Private, reaches no document, so Home said `Confirm 2 facts … no document uses them` beside
+`5 of 5 are out of date`, and updating gave the same document. The count is now the one
+`canGenerate` asks about: accepted, not Private, not Generated. Both read one definition,
+`usableFacts` in `src/server/routes/renders.ts`. Confirming a Generated fact, or disclosing a Private
+one, now makes a document out of date, which is right: that is the moment it becomes usable.
+This narrows what `stale_since_fact_count` and `fact_count_at` count; the 2026-09-12 entries stand
+in everything else, restore and edit included.
+
+**Migration 0013 restates the stored counts.** They were taken over all accepted facts, and left
+alone each would stand above the new count by the unusable facts it included and hide that many new
+ones. Each loses the accepted facts that are unusable today and were resolved by the era it
+describes; a restored version's era is that of the version it restored. Approximate, as 0008's
+backfill was: a fact re-graded or re-disclosed since is judged by what it is now. Checked against a
+scratch database seeded with accept, restore-of-a-restore and edit rows for two users. Rejected:
+leaving the stored counts and clamping at zero, which would report the author's documents as up to
+date until as many usable facts arrived as there were unusable ones.
+
+**Home holds the Next step and the import panel back while a superseded overview is read again.**
+Arriving from `Finish review` showed the cached overview, `Reading … 0%` and `Wait for the first
+facts`, for an import that was finished, for as long as the read took. The cache is still shown,
+but those two areas wait for the read whenever a write has invalidated the overview. A poll and a
+plain return invalidate nothing and hold nothing. Rejected: the whole loading frame, which would
+unmount the import picker on Home in the middle of an import it had just started.
+
+Not changed: the primary button's label measures 4.23 to 1 on the accent background. The tokens are
+#56's.
+
+### [2026-10-06] Staleness stays a count difference, with a known blind spot, and Home tells a proposal being written from one ready to check
+
+Two review findings on the new Home (#58), both decided by the owner.
+
+**The count difference stays, and its blind spot is accepted.** `newFactsSince` is still the usable
+facts now minus the usable facts counted when the current version was made, clamped at zero. A fact
+can leave the usable set without being undone: made Private, or re-graded to Generated. If one the
+current version used leaves and a new usable fact is then accepted, the two counts are equal again,
+so the row reads `Up to date`, the line above reads `Every document you have generated is up to
+date with your record`, and no `Update your …` step is offered, although updating would drop the
+one and add the other. Each fact hidden or re-graded this way hides one later new fact until the
+document is next generated.
+
+An exact answer compares two sets: the facts a version could use when it was made, and the facts a
+document may use now. The record does not hold the first. A version's content names the facts it
+*used*, not every fact that was eligible, and a fact row keeps only its current disclosure and
+provenance, not when either changed. Holding it needs a schema change, which this change was told
+not to make. The exact rule is
+[#62](https://github.com/yutaasakura96/track-record/issues/62). Migration 0013 and the 2026-10-05
+entry stand.
+
+**A proposal still being written is not one ready to check.** Generation inserts the proposal and
+returns; the document arrives after. Home read every undecided proposal as waiting, so for that
+interval it said `A new version is ready`, `Check it first` and `New version waiting` for a diff the
+server would still refuse. `renderState` now reports `proposal_generating` until generation lands,
+with `pendingProposalId` set as before, and Home says so in all three places: `Wait for the new
+<document>`, `A new version of <document> is being written`, `Writing a new version`. A proposal
+that is ready, on any document, comes before one that is not. The overview is polled while one is
+being written, as it is while an import runs, so the wording changes without a reload.

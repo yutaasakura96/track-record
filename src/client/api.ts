@@ -297,7 +297,7 @@ export interface RenderRow {
   currentVersionId: string | null;
   currentVersionNo: number | null;
   generatedAt: string | null;
-  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending";
+  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
   pendingProposalId: string | null;
 }
@@ -308,6 +308,14 @@ export interface Overview {
   activeImport: (ImportStatus & { filename: string }) | null;
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
+  /**
+   * Candidates waiting across every version of every document, how many
+   * documents they sit in, and the newest version holding any, which is where
+   * reviewing them starts. `null` when nothing waits.
+   */
+  review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
+  /** The newest version holding an accepted fact that is still Generated. */
+  unconfirmed: { importId: string; count: number } | null;
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
@@ -613,8 +621,20 @@ export function useSaveSkillCuration() {
   });
 }
 
+/**
+ * Screen 3. Polls while an import runs or a proposal is being written, so its
+ * progress moves, and the new version becomes ready, without a reload.
+ */
 export const useOverview = () =>
-  useQuery({ queryKey: keys.overview, queryFn: () => api<Overview>("/api/overview") });
+  useQuery({
+    queryKey: keys.overview,
+    queryFn: () => api<Overview>("/api/overview"),
+    refetchInterval: (query) =>
+      isImportRunning(query.state.data?.activeImport?.status) ||
+      query.state.data?.documents.some((row) => row.status === "proposal_generating")
+        ? POLL_MS
+        : false,
+  });
 
 export const useRenders = () =>
   useQuery({
@@ -826,7 +846,10 @@ export function useRetryImport() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (importId: string) => api<ImportStatus>(`/api/imports/${importId}/retry`, { method: "POST" }),
-    onSuccess: (status) => void queryClient.invalidateQueries({ queryKey: keys.importStatus(status.importId) }),
+    onSuccess: (status) => {
+      void queryClient.invalidateQueries({ queryKey: keys.importStatus(status.importId) });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
     onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
   });
 }
@@ -838,8 +861,12 @@ export function useRetryImport() {
 export function useFactAction(importId: string) {
   const queryClient = useQueryClient();
   // Every import's list, not only this one's: rejecting a fact here drops it
-  // from the likely matches on another document's cards.
-  const refresh = () => queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  // from the likely matches on another document's cards. The overview too:
+  // Home counts these facts, and holds its Next step back only once told.
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    return queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  };
 
   const patch = useMutation({
     mutationFn: (input: {
@@ -879,6 +906,7 @@ export function useFactAction(importId: string) {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.importStatus(importId) });
       void queryClient.invalidateQueries({ queryKey: keys.documents });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
     },
   });
 
@@ -890,7 +918,10 @@ export function useGenerate() {
   return useMutation({
     mutationFn: (kind: RenderKind) =>
       api<{ proposalId: string }>(`/api/renders/${kind}/generate`, { method: "POST" }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.renders }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
   });
 }
 

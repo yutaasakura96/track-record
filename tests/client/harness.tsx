@@ -118,6 +118,8 @@ export function mount(path: string, routes: Routes) {
     user: userEvent.setup(),
     /** Where the router is now. */
     pathname: () => router.state.location.pathname,
+    /** The browser's Back. */
+    back: () => router.history.back(),
   };
 }
 

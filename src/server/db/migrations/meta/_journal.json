@@ -92,6 +92,13 @@
       "when": 1790892211321,
       "tag": "0012_document_employer",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791200334131,
+      "tag": "0013_usable_fact_count",
+      "breakpoints": true
     }
   ]
 }
