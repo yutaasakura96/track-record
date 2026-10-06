@@ -508,7 +508,7 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `GET` | `/api/renders` | M1 | All five, with status. Backs the overview's Documents section |
+| `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
 | `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
@@ -540,10 +540,15 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 }
 ```
 
-`status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending`.
+`status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending` · `proposal_generating`.
+`newFactsSince` counts only facts a document may use: accepted, and neither Private nor Generated,
+the rule `canGenerate` applies (§8). Accepting a fact that is still Generated makes nothing `stale`;
+confirming it does.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
-a first generation awaiting review is not `never_generated`. A proposal whose generation `failed`
+a first generation awaiting review is not `never_generated`. While that proposal is still being
+written the status is `proposal_generating` instead, with `pendingProposalId` set all the same: the
+diff answers `conflict` until it lands. A proposal whose generation `failed`
 is not one: it is still `pending`, but there is no diff to review, so the render reports the status
 it would have without it and `pendingProposalId` is `null`.
 
@@ -570,7 +575,7 @@ belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
 `pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
 and restore routes give. Accepting either of two proposals would discard the other unread. It is
-checked before the profile and the facts, because it is the one refusal Review proposal answers. A
+checked before the profile and the facts, because it is the one refusal `Review changes` answers. A
 proposal whose generation `failed` does not refuse: it has nothing to decide, and refusing on it
 would leave the render with no way to try again. The edit and restore routes exclude it on the same
 reading — accept itself refuses a proposal that is not `ready`, so a failed one can discard neither.
@@ -713,7 +718,10 @@ that neither ever blocks.
 
 ## 8. Overview · M1
 
-**`GET /api/overview` → 200** — one request backs the whole home screen.
+**`GET /api/overview` → 200** — one request backs the whole home screen, **and it costs the
+database one round trip** (#58): every query below goes in one batch, beside the renders' own. It
+was up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
+and the home screen waited for all of them.
 
 ```json
 {
@@ -726,6 +734,10 @@ that neither ever blocks.
     "credentials": { "count": 12, "note": "1 expires Mar 2027" }
   },
   "factsByProvenance": { "measured": 41, "attested": 66, "generated": 7 },
+  "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
+  "unconfirmed": { "importId": "sdv_…", "count": 3 },
+  "documents": [],
+  "canGenerate": true,
   "isEmpty": false
 }
 ```
@@ -733,9 +745,19 @@ that neither ever blocks.
 `tiles.credentials` sums `educations` and `certifications` — the split is storage, not interface.
 `activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
 is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
-overview's progress row shows.
-`factsByProvenance.generated` being non-zero is what turns the overview's Generated row amber with
-its `Review N →` action.
+home screen's progress panel shows.
+While it is not `null` the request costs a second round trip, for that body.
+`factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
+screen's Not confirmed row amber.
+`review` is `null` when no candidate is waiting. Otherwise `openCandidates` is the same count
+`GET /api/imports/summary` gives the sidebar, `documents` is how many source documents they sit in,
+and `importId` and `filename` are the most recently imported version that holds any, which is where
+the Next step opens Fact Review (#58).
+`unconfirmed` is the most recently imported version holding an accepted fact that is still
+Generated, or `null`. Its `count` covers only that version. It is where the Not confirmed row and
+its step open Fact Review.
+`documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
+fact is both not Private and not Generated, and the home screen then offers no Generate.
 
 ---
 

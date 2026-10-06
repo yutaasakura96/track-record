@@ -32,6 +32,7 @@ import {
   type RenderVersion,
 } from "../api";
 import { Button, Chip, Dot, Mono, Panel } from "../components/ui";
+import { ScreenIntro } from "../components/screen-intro";
 import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
@@ -110,7 +111,19 @@ function History({ kind }: { kind: RenderKind }) {
       </header>
 
       <div className="flex-1 overflow-y-auto px-20 py-26">
-        <div className="mx-auto w-content max-w-full">
+        <div className="mx-auto w-content max-w-full grid gap-20">
+          {/* Absent with no versions: that state names its own action. */}
+          {!loading && versions.length > 0 ? (
+            <ScreenIntro
+              next={
+                versions.length > 1
+                  ? "download the current version, or press Compare on an older one to see what restoring it would change."
+                  : "download the current version."
+              }
+            >
+              Every saved version of this document, newest first. Nothing here is ever deleted.
+            </ScreenIntro>
+          ) : null}
           {loading ? (
             <Skeleton />
           ) : versions.length === 0 ? (
@@ -404,6 +417,7 @@ function RestorePreview({
       </header>
 
       <DiffPanes
+        guide="Left is your document as it stands. Right is the version you would restore. Read the highlighted changes, then cancel or restore."
         before={{
           title: "Current",
           badge: <Mono className="text-text-dimmer">v{current.versionNo}</Mono>,

@@ -5051,3 +5051,276 @@ portfolio. They follow the merge, in production.
 
 **Revisit if:** the author asks to send a hand-set fact back to reading through its document. That
 would be a third answer on the card's picker, not a change to the stamp.
+
+### [2026-10-05] Light is the default theme, dark is the option, and contrast is a number the build holds
+
+Issue #56. The author's first real import, on 2026-10-03, found the interface too dark, with grey
+text too faint to read at the sizes it was set. This supersedes the 2026-08-12 position, `05`'s
+"Theme: dark only" and its forbidden-list rule 8, "No light mode in v1". That rule was written to
+stop half a light mode, and its replacement keeps that part: a colour token with a value in one
+theme only fails the build.
+
+**Light is what a new browser gets. The operating system's preference is not read.** The issue asks
+for "a light theme by default (dark as an option)", and following `prefers-color-scheme` would hand
+the author the theme they reported as unreadable on any machine set to dark. The choice is one
+attribute on `<html>`, kept in `localStorage`. It is not a column: it is a property of a screen in a
+room, not of the record, and a second browser may reasonably differ.
+
+**One set of token names, two sets of values, and no `dark:` variant at a call site.** A Tailwind v4
+colour utility compiles to `var(--color-…)`, so `@theme` carries the light values and
+`:root[data-theme="dark"]` redefines the same variables. No screen changed to gain a theme, and none
+can drift between themes, because no screen names one. The cost is that a colour must be picked
+twice; the check below is what makes that cost visible at build time.
+
+**The contrast floor is 4.5:1 and `npm run lint` computes it.** Every text token from `text-bright`
+to `text-faint`, on every surface, in both themes. The dark theme failed it where the author said it
+did: `text-dimmer` measured 3.4:1 and `text-faint` 2.7:1, and they were the tokens on the chunk
+counts and status labels. Their dark values were raised rather than their uses re-pointed, because
+120 call sites choosing a dimmer token is the same defect again. `text-ghost` is exempt and is kept
+for disabled rows and zeros.
+
+**Two things lowered contrast without touching a token, and both went.** The mono label was 9.5px
+and the micro role 10.5px; nothing is now set under 11px. Resolved cards were dimmed with
+`opacity`, to .78 and .5; they are now carried by surface, text token and strikethrough. Screen 5's
+dismissed-proposal row still uses `.5` and is left for its own change, since it is outside the flow
+#56 is about.
+
+**The light values have no prototype behind them.** `design/prototype/` is dark only. They were
+chosen for `05` §1 and are held to the floor above; nothing else vouches for them, and the author
+reading the first build is the review.
+
+**Revisit if:** the author wants the theme to follow the operating system, which is a third value
+for the same attribute; or a second user arrives, when a per-browser choice may want to be a
+per-account one.
+
+### [2026-10-05] Source documents are rendered from a Markdown syntax tree, and a mark is projected through it
+
+Issue #56. A source document was shown as its stored characters, so a portfolio read as `#`, `**`
+and `|`. It is now rendered, with the stored text one press away.
+
+**The parser is `mdast-util-from-markdown` with the GFM extensions, client-side only.** Every node
+in its tree carries the start and end offset of the source it came from, and that is the whole
+reason for choosing a tree over a Markdown-to-HTML function: a fact's quote is a pair of offsets
+into the stored text (`04` §3.7), and placing a mark means knowing which rendered text those
+characters became. A hand-written renderer would have had the offsets and not CommonMark; an
+HTML-emitting library would have had CommonMark and not the offsets. The renderer over the tree is
+ours, about one element per node type.
+
+**A mark is the intersection of a quote's range with each text node, so one fact may draw several
+runs.** A quote crossing `**bold**`, two list items or a table row marks the text on each side and
+skips the markup between. Inside a text node the characters are aligned to the source by walking
+both, which absorbs the cases where they differ: an escaped character, an entity, the indent a list
+strips from a continuation line. The alignment decides only where a mark's edge falls. What is
+displayed is always the parser's text, so a misalignment can move an edge by a character and can
+never drop or invent one.
+
+**Verbatim matching is untouched.** The quote is verified against the stored text at import and
+nothing here reads the rendered form back. `Source` shows those characters with the same marks, and
+it is the view of record for an exact quote. Suburi's finding about reading rendered structure back
+(`AGENTS.md`) is the reason this stays one-directional.
+
+**The rendered view loads nothing and runs nothing.** Links are shown and not followed, images are
+their alt text, raw HTML is text. A source document is the one place in the product that holds
+internal addresses and client names by design, and a pane that fetches an image from one tells a
+third party it was read.
+
+**Plain text is not rendered.** A `.txt` file put through a Markdown parser has its lines joined
+into paragraphs and its indented lines turned into code. The filename decides, as it decides the
+extractor.
+
+**The contents column is headings 1 to 3 of the rendered tree**, with the section being read marked
+by scroll position. It is absent in `Source`, where there are no headings to jump to, only lines
+that start with `#`.
+
+**Revisit if:** a quote is reported as marked in the wrong place, which would be the alignment and
+has a test waiting for its case; or `.docx` import arrives, whose extracted text is not Markdown and
+needs its own decision about structure.
+
+### [2026-10-05] A waiting author is told three things, and the interface says them in plain words
+
+Issue #56, the two additions the author made on 2026-10-03 and the third complaint of the original
+report.
+
+**One progress block wherever the author waits on an import**, specified once in `05` §7 and `10`
+Shared chrome: that work is under way, how far along it is, and that they can carry on. It shows a
+percentage. `05` rule 12 bans percentages as model certainty, and its wording now says so: a count
+of sections read is not a confidence in anything. The percentage rounds down, so it never reads
+100% while a section is still out.
+
+**It has the product's one looping animation.** `05` §8 said nothing animates and no spinner
+outlives its work. Both still hold. A six-pixel dot that pulses while an import runs, and stops when
+it stops, is a spinner exactly as long as its work; a 150-section import with a bar that moves once
+a minute looked like a hang, and that was the report.
+
+**Every sidebar screen states its purpose and its next action, and neither can be dismissed.** A
+dismissible tour teaches the first visit and abandons the second. Two lines whose second one is
+computed from state are cheap enough to keep. Fact Review's longer guide, which explains the three
+controls on a card, is the one that hides, because it is a dozen lines on the most-used screen.
+
+**The interface stops using the pipeline's nouns.** `open` becomes `to review`, `resolved` becomes
+`reviewed`, `chunk` becomes `section`. The API fields keep their names; this is wording on a screen
+and changes nothing the review asks of the author, which is #57's question and was out of scope
+here.
+
+**Home is not in this change.** Its layout is #58, built in parallel. The shared progress block and
+intro are specified for it and adopted there.
+
+### [2026-10-05] Nothing on a fact card changes height with selection
+
+Issue #56. The quoted passage was first built on the selected card only, to keep the rail short.
+
+**A press on an unselected card selects it at mousedown**, because the card selects on focus. The
+passage mounted in the same instant, between the claim and the grade, and the grade moved down
+before the mouse came up: the click landed on the passage and the grade was never set. The browser
+smoke test caught it, as an accepted fact still graded Generated and a `Generate` button that
+stayed disabled. The component tests could not have, because jsdom lays nothing out.
+
+**Every open card now shows its passage.** The rail is longer by a passage per open fact, and the
+claim and its evidence can be read as a pair down the whole list without selecting anything.
+Deferring the mount until the press ended was the alternative; it keeps the short rail and still
+moves a card under the pointer once per selection.
+
+### [2026-10-05] The running percentage stops at 99, and a hovered primary button gets darker
+
+Issue #56, two corrections from review. The first supersedes one sentence of "A waiting author is
+told three things, and the interface says them in plain words" above: "The percentage rounds down,
+so it never reads 100% while a section is still out."
+
+**Rounding down was not enough.** The last section is counted before the import leaves
+`extracting`, so for that interval every section was in and the block read 100% under a title that
+still said the document was being read. The percentage and the bar are now capped at 99 for as long
+as the import is `queued` or `extracting` (`10` Shared chrome). The block is not shown in any other
+state, so it never reads 100% at all; the import finishing is what says the work is done.
+
+**The primary button's hover was `filter: brightness(1.1)`**, which lightened `accent` under a white
+label from 4.70:1 to about 3.98:1, below the 4.5:1 floor `05` §1 sets for text in both themes. The
+hover is now a fill of its own, `accent-hover`, darker than `accent` and the same value in both
+themes, with `on-accent` at 5.79:1 on it. The pair is in the design-token check beside
+`on-accent` on `accent`, so the build measures it. A filter is not a token and could not be
+measured, which is how it got through.
+
+### [2026-10-05] Home says what to do next, in plain words, and its frame is on screen before its data
+
+#58. The author could not say what the home screen showed, and found it too dark to read. `docs/10`
+Screen 3 and the sidebar were rewritten before the build, as the issue required; `docs/07` §8 and
+`docs/09` Flows 1 and 3 follow.
+
+**The screen leads with one Next step, and it holds the only primary button in the content column.**
+The old screen expressed "everything waiting for the author" in the Generated row of a chart, with a
+`Review N →` that was never a link. The step is now computed in one pure function,
+`src/client/next-step.ts`, as a list in the order to take it: candidates to review, a proposal to
+check, accepted facts still Generated, a document never generated, a document out of date. The first
+is the step and the rest stand under it as `Also waiting`. Rejected: a banner per condition. Five
+banners is the problem the screen already had.
+
+**Plain words lead and the product's term follows.** `Backed by a number`, `Stated by you` and
+`Not confirmed` head the three rows, and `Measured`, `Attested` and `Generated` stand beside them in
+a chip. The terms are not removed: they are the words on the fact card (Screen 1), and an author who
+learns the plain words here has to be able to recognise the card. **A zero is written as words**,
+`None yet`, because `Measured 0` in the faintest text on the screen read as a failure to load. The
+glossary in `CONTEXT.md` is unchanged; this is wording on one screen, not a rename.
+
+**The sidebar has no row for a screen that is not built**, which supersedes the rule that unbuilt
+rows stay visible and disabled so the shape of the application is legible (issue #10, in
+`src/client/components/sidebar.tsx` until today). `Facts` was read as a broken link. It returns with
+its screen. **The Documents row writes its count out**, `1,085 facts to review`, on a second line.
+A badge on a `Facts` row was considered and rejected: the row would need somewhere to go, and where
+candidates are reviewed is a document's Fact Review, which Documents already lists.
+
+**One line above the documents says which to act on, and each row has one button.** The honest
+answer to "which of five stale documents first" is that they do not depend on each other, so the
+line says that. `Version history` and `Download` became the links `History` and `Download`. With no
+usable fact the rows offer no Generate at all and the line gives the reason once, where five
+disabled buttons each gave it in a tooltip. **This supersedes PRD §7's rule that render actions with
+no accepted fact are "disabled with a reason, not hidden"**, for the render actions on Home; the
+reason is still always stated, once. The section is headed `Your career documents`, because
+`Documents` is the sidebar's word for the files facts are quoted from.
+
+**The frame is drawn before any read answers, and the three reads run side by side.** The gate in
+`src/client/router.tsx` held every screen behind the session read and then the profile read, so
+Home's overview was the third request in a row. Home is now let through at once and shows its frame
+until all three have answered; every other screen keeps the gate as it was. `GET /api/overview` went
+from up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
+to one batch beside the renders' batch. `importStatus` and `renderState` are each one batch too.
+Measured on the local proxy, where a query costs about 12 ms: 230 ms before, 65 ms after, with an
+import running. **Unverified:** that this is what made production stand on `Loading your record…`
+for about ten seconds. The count of round trips is the likeliest cause and the only one this change
+removes; a cold Neon compute would add to it and is untouched.
+
+**The screen polls while an import runs**, at the 1.5 s `docs/07` §1 gives every non-terminal
+resource. It did not, so the progress bar moved only on a reload, which is part of why it read as
+stalled.
+
+**Readable by rule, with the tokens there are.** No text on Home uses `text-dimmer`, `text-faint`
+or `text-ghost`, which measure 3.35, 2.70 and 1.83 to 1 on the panel surface. No token was added or
+changed: the theme is #56's, built at the same time, and a screen that names tokens by role takes
+whatever values that issue gives them.
+
+Left out on purpose: a Facts screen, the light theme and rendered Markdown (#56), the English and
+Japanese split (#59) and the master document (#57).
+
+**Revisit if:** the home screen is still slow in production after this deploys. The next thing to
+measure is the session read, which every request pays before its own queries.
+
+### [2026-10-05] A document is out of date only by facts it may use, and Home holds its next step back after a write
+
+Two findings from driving the new Home (#58), both decided by the owner.
+
+**Staleness counts usable facts.** `newFactsSince`, and so `stale`, the `N new facts` on every row
+and the `Update your …` step, counted every accepted fact. A fact accepted while still Generated, or
+Private, reaches no document, so Home said `Confirm 2 facts … no document uses them` beside
+`5 of 5 are out of date`, and updating gave the same document. The count is now the one
+`canGenerate` asks about: accepted, not Private, not Generated. Both read one definition,
+`usableFacts` in `src/server/routes/renders.ts`. Confirming a Generated fact, or disclosing a Private
+one, now makes a document out of date, which is right: that is the moment it becomes usable.
+This narrows what `stale_since_fact_count` and `fact_count_at` count; the 2026-09-12 entries stand
+in everything else, restore and edit included.
+
+**Migration 0013 restates the stored counts.** They were taken over all accepted facts, and left
+alone each would stand above the new count by the unusable facts it included and hide that many new
+ones. Each loses the accepted facts that are unusable today and were resolved by the era it
+describes; a restored version's era is that of the version it restored. Approximate, as 0008's
+backfill was: a fact re-graded or re-disclosed since is judged by what it is now. Checked against a
+scratch database seeded with accept, restore-of-a-restore and edit rows for two users. Rejected:
+leaving the stored counts and clamping at zero, which would report the author's documents as up to
+date until as many usable facts arrived as there were unusable ones.
+
+**Home holds the Next step and the import panel back while a superseded overview is read again.**
+Arriving from `Finish review` showed the cached overview, `Reading … 0%` and `Wait for the first
+facts`, for an import that was finished, for as long as the read took. The cache is still shown,
+but those two areas wait for the read whenever a write has invalidated the overview. A poll and a
+plain return invalidate nothing and hold nothing. Rejected: the whole loading frame, which would
+unmount the import picker on Home in the middle of an import it had just started.
+
+Not changed: the primary button's label measures 4.23 to 1 on the accent background. The tokens are
+#56's.
+
+### [2026-10-06] Staleness stays a count difference, with a known blind spot, and Home tells a proposal being written from one ready to check
+
+Two review findings on the new Home (#58), both decided by the owner.
+
+**The count difference stays, and its blind spot is accepted.** `newFactsSince` is still the usable
+facts now minus the usable facts counted when the current version was made, clamped at zero. A fact
+can leave the usable set without being undone: made Private, or re-graded to Generated. If one the
+current version used leaves and a new usable fact is then accepted, the two counts are equal again,
+so the row reads `Up to date`, the line above reads `Every document you have generated is up to
+date with your record`, and no `Update your …` step is offered, although updating would drop the
+one and add the other. Each fact hidden or re-graded this way hides one later new fact until the
+document is next generated.
+
+An exact answer compares two sets: the facts a version could use when it was made, and the facts a
+document may use now. The record does not hold the first. A version's content names the facts it
+*used*, not every fact that was eligible, and a fact row keeps only its current disclosure and
+provenance, not when either changed. Holding it needs a schema change, which this change was told
+not to make. The exact rule is
+[#62](https://github.com/yutaasakura96/track-record/issues/62). Migration 0013 and the 2026-10-05
+entry stand.
+
+**A proposal still being written is not one ready to check.** Generation inserts the proposal and
+returns; the document arrives after. Home read every undecided proposal as waiting, so for that
+interval it said `A new version is ready`, `Check it first` and `New version waiting` for a diff the
+server would still refuse. `renderState` now reports `proposal_generating` until generation lands,
+with `pendingProposalId` set as before, and Home says so in all three places: `Wait for the new
+<document>`, `A new version of <document> is being written`, `Writing a new version`. A proposal
+that is ready, on any document, comes before one that is not. The overview is polled while one is
+being written, as it is while an import runs, so the wording changes without a reload.

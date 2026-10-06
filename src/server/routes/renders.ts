@@ -7,7 +7,7 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -234,7 +234,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const versionId = newId("renderVersion");
     const acceptedAt = new Date();
-    const accepted = await acceptedFactCount(db, user.id);
+    const accepted = await usableFactCount(db, user.id);
 
     // Three statements, one transaction. `db.transaction()` throws on the
     // neon-http driver; `db.batch([...])` reaches the driver's own
@@ -669,7 +669,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // Written even though this route does not READ it: the column holds
         // the era of every row alike, and a restore of this version later is
         // what reads it back.
-        factCountAt: await acceptedFactCount(db, user.id),
+        factCountAt: await usableFactCount(db, user.id),
       }),
       db
         .update(renders)
@@ -908,7 +908,7 @@ interface RenderState {
   currentVersionId: string | null;
   currentVersionNo: number | null;
   generatedAt: string | null;
-  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending";
+  status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
   pendingProposalId: string | null;
 }
@@ -918,55 +918,64 @@ interface RenderState {
  * section. All five kinds are always reported, whether or not a row exists.
  */
 export async function renderState(db: Db, userId: string): Promise<RenderState[]> {
-  const rows = await db.select().from(renders).where(eq(renders.userId, userId));
+  // One round trip, not four in a row: this backs the home screen (issue #58).
+  const [rows, versions, pending, [{ accepted } = { accepted: 0 }]] = await db.batch([
+    db.select().from(renders).where(eq(renders.userId, userId)),
+    // Each render's current version, by join rather than by a list of ids read
+    // first, which is what made this a query that had to wait for another.
+    db
+      .select({
+        id: renderVersions.id,
+        versionNo: renderVersions.versionNo,
+        acceptedAt: renderVersions.acceptedAt,
+      })
+      .from(renderVersions)
+      .innerJoin(
+        renders,
+        and(eq(renders.currentVersionId, renderVersions.id), eq(renders.userId, userId)),
+      )
+      .where(eq(renderVersions.userId, userId)),
+    // A proposal whose generation failed stays `pending` — nothing was decided —
+    // but it holds no document: there is no diff to review and generating again is
+    // the way out. Excluded here exactly as it is at generation time.
+    db
+      .select({
+        id: renderProposals.id,
+        renderId: renderProposals.renderId,
+        generationStatus: renderProposals.generationStatus,
+      })
+      .from(renderProposals)
+      .where(
+        and(
+          eq(renderProposals.userId, userId),
+          eq(renderProposals.status, "pending"),
+          ne(renderProposals.generationStatus, "failed"),
+        ),
+      )
+      .orderBy(desc(renderProposals.generatedAt)),
+    db
+      .select({ accepted: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(usableFacts(userId)),
+  ]);
   const byKind = new Map(rows.map((r) => [r.kind, r]));
-
-  const versionIds = rows.map((r) => r.currentVersionId).filter((id): id is string => id !== null);
-  const versions =
-    versionIds.length === 0
-      ? []
-      : await db
-          .select({
-            id: renderVersions.id,
-            versionNo: renderVersions.versionNo,
-            acceptedAt: renderVersions.acceptedAt,
-          })
-          .from(renderVersions)
-          .where(and(eq(renderVersions.userId, userId), inArray(renderVersions.id, versionIds)));
   const versionById = new Map(versions.map((v) => [v.id, v]));
-
-  // A proposal whose generation failed stays `pending` — nothing was decided —
-  // but it holds no document: there is no diff to review and generating again is
-  // the way out. Excluded here exactly as it is at generation time.
-  const pending = await db
-    .select({ id: renderProposals.id, renderId: renderProposals.renderId })
-    .from(renderProposals)
-    .where(
-      and(
-        eq(renderProposals.userId, userId),
-        eq(renderProposals.status, "pending"),
-        ne(renderProposals.generationStatus, "failed"),
-      ),
-    )
-    .orderBy(desc(renderProposals.generatedAt));
-  const pendingByRender = new Map<string, string>();
-  for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p.id);
-
-  const [{ accepted } = { accepted: 0 }] = await db
-    .select({ accepted: sql<number>`count(*)::int` })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+  const pendingByRender = new Map<string, (typeof pending)[number]>();
+  for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p);
 
   return RENDER_KINDS.map((kind) => {
     const row = byKind.get(kind);
     const version = row?.currentVersionId ? versionById.get(row.currentVersionId) : undefined;
-    const pendingProposalId = row ? (pendingByRender.get(row.id) ?? null) : null;
+    const proposal = row ? pendingByRender.get(row.id) : undefined;
+    const pendingProposalId = proposal?.id ?? null;
     const newFactsSince = version ? Math.max(0, accepted - (row?.staleSinceFactCount ?? 0)) : null;
 
     // A pending proposal outranks a missing version: a first generation awaiting
     // review is not "never generated", and offering Generate there makes a second.
-    const status: RenderState["status"] = pendingProposalId
-      ? "proposal_pending"
+    const status: RenderState["status"] = proposal
+      ? proposal.generationStatus === "generating"
+        ? "proposal_generating"
+        : "proposal_pending"
       : !version
         ? "never_generated"
         : (newFactsSince ?? 0) > 0
@@ -1016,14 +1025,28 @@ async function highestVersionNo(db: Db, userId: string, renderId: string): Promi
 }
 
 /**
+ * The facts a document may use: accepted, and neither Private nor Generated.
+ * The overview's `canGenerate` asks whether there is one, and staleness counts
+ * them, so Home never calls a document out of date when updating it would give
+ * the same document (`docs/06`, 2026-10-05).
+ */
+export const usableFacts = (userId: string) =>
+  and(
+    eq(facts.userId, userId),
+    eq(facts.status, "accepted"),
+    ne(facts.disclosure, "private"),
+    ne(facts.provenance, "generated"),
+  );
+
+/**
  * The staleness number, counted the one way `renders.stale_since_fact_count`
  * and `render_versions.fact_count_at` both mean it.
  */
-async function acceptedFactCount(db: Db, userId: string): Promise<number> {
+async function usableFactCount(db: Db, userId: string): Promise<number> {
   const [{ accepted } = { accepted: 0 }] = await db
     .select({ accepted: sql<number>`count(*)::int` })
     .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+    .where(usableFacts(userId));
   return accepted;
 }
 

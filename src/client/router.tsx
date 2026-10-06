@@ -59,9 +59,15 @@ function Gate({ children }: { children: ReactNode }) {
   // `isPending`, not `isLoading`: the latter is true again on every refetch of a
   // query holding no data, and gating the tree on it unmounts and remounts the
   // very screen that triggers the refetch.
-  if (session.isPending) return <Loading />;
+  //
+  // Home is not held back by either read. It draws its frame at once and asks
+  // for the overview while these two are still out, where waiting here meant
+  // three reads one after the other behind a blank page (`docs/10` Screen 3,
+  // Loading). It shows nothing of the record until both have answered.
+  const home = path === "/";
+  if (session.isPending) return home ? <>{children}</> : <Loading />;
   if (signedOut) return <SignIn reason={session.error as ApiError} />;
-  if (profile.isPending) return <Loading />;
+  if (profile.isPending) return home ? <>{children}</> : <Loading />;
   return <>{children}</>;
 }
 

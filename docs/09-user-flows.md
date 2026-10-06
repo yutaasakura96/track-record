@@ -15,7 +15,7 @@ Six flows. Each lists the steps, **what can go wrong at every step and what the 
 2. App calls `GET /api/profile` → `404`.
 3. **Redirect to the profile form.** Nothing else in the app is reachable.
 4. Author fills identity fields and saves → `PUT /api/profile`.
-5. Land on the Record Overview, in its **empty state**.
+5. Land on Home, in its **empty state**.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
@@ -31,18 +31,19 @@ stored. **Every render needs a name**, which is why this gate exists (PRD §7).
 
 ## Flow 2 · Import a document and review its facts · M1 — the core loop
 
-1. Overview → **Import a document** (or drop a file on the empty-state target).
+1. Home → **Import a document** (or drop a file on the empty-state target).
 2. Choose file. **When the record holds at least one project**, a confirmation row offers to file
    the document under one, defaulting to none; when it holds none, the import starts on the file
    choice alone (`10-screen-specifications.md` Screen 3). → `POST /api/imports` → `202`.
 3. **Fact Review screen opens immediately.** The document renders as soon as text extraction
-   finishes; the rail shows skeleton cards.
+   finishes; the rail shows the extraction progress block above the cards
+   (`10-screen-specifications.md` Shared chrome).
 4. Client polls `GET /api/imports/:id` every 1.5 s. Cards appear **incrementally** as each chunk
-   completes; the progress bar advances.
+   completes; the progress block advances.
 5. Author works card by card: read the claim, check the marked passage, edit the claim if needed,
    set **Provenance** and **Disclosure**, then **Accept** or **Reject**.
 6. When all cards are resolved, **Finish review** becomes primary.
-7. **Add N facts to record** / **Finish review** → `POST /api/imports/:id/finish` → back to Overview.
+7. **Add N facts to record** / **Finish review** → `POST /api/imports/:id/finish` → back to Home.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
@@ -64,7 +65,8 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 
 ## Flow 3 · Generate the English résumé and review the diff · M1
 
-1. Overview → the Résumé row shows `3 new facts since it was generated` → **Review proposal**.
+1. Home → the Next step reads `Update your Résumé (English)`, and the Résumé row shows `3 new facts`
+   → **Update**, on either.
 2. `POST /api/renders/english_resume/generate` → `202`.
 3. Diff Review screen opens. **The current version is fully readable throughout**; the proposed
    column shows a skeleton while generating.
@@ -77,7 +79,7 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 2 | No facts accepted yet | The action is **disabled with a stated reason**, not hidden, and never silently produces an empty document (PRD §7) |
+| 2 | No accepted fact a document may use | No Generate or Update is offered, and one line above the documents **states the reason**. Never a silently empty document (PRD §7, `10-screen-specifications.md` Screen 3) |
 | 3 | Generation fails or returns nothing usable | Error with the reason and a retry. **The current version is untouched and still readable.** Never a blank proposed column with no explanation |
 | 4 | **Nothing changed** | The diff does not open. The overview reports `Already up to date with your record` |
 | 4 | Nearly every line changed | Renders normally. Rejecting the whole thing remains **one action** |
@@ -86,14 +88,14 @@ progress. Returning reopens exactly where it was. Nothing is lost by closing the
 | 6 | Private facts were excluded | Footer states `N private facts in your record were not used` — that something was withheld, **never what** |
 
 **If abandoned before deciding:** the proposal stays `pending`. The overview shows the render as
-`proposal_pending`. The current version is unchanged. Re-entering resumes at the diff.
+`proposal_pending` (`proposal_generating` while it is still being written). The current version is unchanged. Re-entering resumes at the diff.
 
 ---
 
 ## Flow 4 · Re-import an updated document · M1 — the normal case, not an edge case
 
 1. Documents (Screen 8) → **Re-import** on the document's own row, then confirm
-   `This becomes vN of <filename>`. Overview's **Import a document** always starts a new document.
+   `This becomes vN of <filename>`. Home's **Import a document** always starts a new document.
 2. `POST /api/imports` with `sourceDocumentId` → a new **version** of that document.
 3. The pipeline diffs the new text against the previous version and **sends only changed and added
    passages to the model**.
@@ -116,7 +118,7 @@ diff-against-previous baseline is correct on the next import.
 
 ## Flow 5 · Restore a previous version · M2
 
-1. Diff Review or Overview → **Version history**.
+1. Diff Review → **Version history**, or Home → **History** on the document's row.
 2. Accepted versions and dismissed proposals are listed, **visibly distinct**.
 3. Choose a version → preview.
 4. **Restore** → creates a **new** version whose content matches the old one.

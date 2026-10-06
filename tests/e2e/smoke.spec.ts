@@ -63,23 +63,26 @@ test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) 
   await card.getByRole("button", { name: "Accept", exact: true }).click();
   await app.getByRole("button", { name: "Finish review" }).click();
 
-  // 5 · Generate the English résumé, and read the proposal.
-  await expect(app.getByRole("heading", { name: "Your record" })).toBeVisible();
-  const row = app.getByRole("listitem").filter({ hasText: "Résumé (English)" });
-  await row.getByRole("button", { name: "Generate" }).click();
+  // 5 · Generate the English résumé from Home's next step, and read the proposal.
+  const home = app.getByRole("heading", { name: "Home", exact: true });
+  await expect(home).toBeVisible();
+  const step = app.getByRole("region", { name: "Next step" });
+  await expect(step.getByRole("heading", { name: "Generate your Résumé (English)" })).toBeVisible();
+  await step.getByRole("button", { name: "Generate" }).click();
   await expect(app).toHaveURL(/\/proposals\/[^/]+$/);
   await expect(app.getByText(CLAIM).first()).toBeVisible();
 
   // 6 · Accept it.
   await app.getByRole("button", { name: "Accept proposed version" }).click();
-  await expect(app.getByRole("heading", { name: "Your record" })).toBeVisible();
-  await expect(row).toContainText("Up to date with your record");
+  await expect(home).toBeVisible();
+  const row = app.getByRole("listitem").filter({ hasText: "Résumé (English)" });
+  await expect(row).toContainText("Up to date");
 
   // 7 · Download the .docx: the response is the Word MIME type, and what the
   //     browser saved is a zip of a non-trivial length.
   const response = app.waitForResponse((r) => r.url().includes("/api/renders/english_resume/download"));
   const download = app.waitForEvent("download");
-  await row.getByRole("button", { name: "Download .docx" }).click();
+  await row.getByRole("button", { name: "Download", exact: true }).click();
   expect((await response).headers()["content-type"]).toBe(DOCX);
   const saved = await download;
   expect(saved.suggestedFilename()).toMatch(/\.docx$/);
