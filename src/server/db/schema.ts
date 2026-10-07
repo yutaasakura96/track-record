@@ -66,6 +66,13 @@ export const proposalStatus = pgEnum("proposal_status", ["pending", "accepted", 
 export const generationStatus = pgEnum("generation_status", ["generating", "ready", "failed"]);
 export const importStatus = pgEnum("import_status", ["queued", "extracting", "ready", "failed"]);
 export const chunkStatus = pgEnum("chunk_status", ["pending", "done", "failed"]);
+/**
+ * Why a fact is on the author's list to check (issue #57). `confidential`: it
+ * may name a client, a person or an internal system. `number`: its claim states
+ * a number. `unsure`: the importer was not sure the passage says it. `repeat`:
+ * it likely restates a fact already in the record, and may disagree with it.
+ */
+export const factFlagKind = pgEnum("fact_flag_kind", ["confidential", "number", "unsure", "repeat"]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -365,6 +372,13 @@ export const facts = pgTable("facts", {
    * default (ADR-0002, `docs/04` §3.7).
    */
   gradedAt: timestamp("graded_at", { withTimezone: true }),
+  /**
+   * When the importer accepted this fact on its own (issue #57). Null on a fact
+   * the author accepted on its card, and on every fact from before automatic
+   * acceptance. With `graded_at` null, the provenance is the importer's and the
+   * author has not changed it.
+   */
+  autoAcceptedAt: timestamp("auto_accepted_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
   index("facts_user_status_idx").on(t.userId, t.status),
@@ -373,6 +387,35 @@ export const facts = pgTable("facts", {
     .where(sql`${t.dedupeHash} is not null`),
   index("facts_tech_gin_idx").using("gin", t.technologies),
   index("facts_employer_status_idx").on(t.employerId, t.status),
+]);
+
+/**
+ * One row per reason a fact is on the author's list to check (issue #57). A
+ * flag never removes a fact from the record and never rejects one: the fact is
+ * kept, and the flag says why it is worth a look.
+ *
+ * `reason` is short and always present. `explanation` is the longer, plain
+ * account the author asks for with `Explain this`; it is written by one model
+ * call when the button is pressed, and stored so that asking twice costs once.
+ */
+export const factFlags = pgTable("fact_flags", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  factId: text("fact_id").notNull().references(() => facts.id, { onDelete: "cascade" }),
+  kind: factFlagKind("kind").notNull(),
+  reason: text("reason").notNull(),
+  explanation: text("explanation"),
+  /** What the explanation cost, in tokens. Null until one is asked for. */
+  inputTokens: integer("input_tokens"),
+  outputTokens: integer("output_tokens"),
+  cacheCreationInputTokens: integer("cache_creation_input_tokens"),
+  cacheReadInputTokens: integer("cache_read_input_tokens"),
+  /** When the author marked it checked. Null while it is still on the list. */
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("fact_flags_fact_kind_uq").on(t.factId, t.kind),
+  index("fact_flags_user_checked_idx").on(t.userId, t.checkedAt),
 ]);
 
 /* ------------------------------------------------ education & credentials */
@@ -441,11 +484,25 @@ export const renders = pgTable("renders", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   kind: renderKind("kind").notNull(),
+  /**
+   * Set on a tailored résumé and null on a main document (issue #57). A
+   * tailored résumé is a render of its own, with its own proposals and
+   * versions, generated from the same facts with this text beside them. The
+   * text is the author's paste of a job posting: it is never a source of
+   * facts, and it is never logged.
+   */
+  jobDescription: text("job_description"),
+  /** The author's name for a tailored résumé. Null on a main document. */
+  label: text("label"),
   /** null = NEVER GENERATED, which is distinct from generated-and-unchanged. */
   currentVersionId: text("current_version_id"),
   staleSinceFactCount: integer("stale_since_fact_count"),
   ...timestamps,
-}, (t) => [uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind)]);
+}, (t) => [
+  // One main document per kind. A tailored résumé is outside it: there may be
+  // any number of those.
+  uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind).where(sql`${t.jobDescription} is null`),
+]);
 
 /** Accepted versions. NEVER deleted. */
 export const renderVersions = pgTable("render_versions", {

@@ -80,3 +80,10 @@ export const RENDER_TITLE: Record<RenderKind, string> = {
   career_story_en: "Career story (English)",
   career_story_ja: "職務経歴ストーリー",
 };
+
+/**
+ * The kinds a tailored résumé can be made from (issue #57). One for now: the
+ * Japanese documents wait for the language split (#59), and the 履歴書 is a
+ * form filled from the record, with two prose cells and nothing to tailor.
+ */
+export const TAILORABLE_KINDS = ["english_resume"] as const satisfies readonly RenderKind[];

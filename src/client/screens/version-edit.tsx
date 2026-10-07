@@ -26,35 +26,32 @@ import { useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
   failureText,
+  useDoc,
   useEditVersion,
   useStoredVersion,
   useVersionHistory,
+  type Doc,
   type EditResult,
 } from "../api";
 import { Button, Mono, MonoId, Notice, Panel } from "../components/ui";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { moved } from "../reorder";
 import { sameContent } from "~/render/edit";
-import {
-  RENDER_KINDS,
-  RENDER_TITLE,
-  type Block,
-  type BlockKind,
-  type RenderContent,
-  type RenderKind,
-} from "~/shared/render-content";
+import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export function VersionEditScreen() {
-  const { kind } = useParams({ from: "/renders/$kind/edit" });
-  const known = (RENDER_KINDS as readonly string[]).includes(kind);
+  const { ref } = useParams({ from: "/renders/$ref/edit" });
+  const { doc, missing } = useDoc(ref);
 
   // No sidebar: this is a focused task. There is unsaved work on this screen,
   // and a nav row that discards it on a click is the failure mode.
-  return known ? (
-    <Editor kind={kind as RenderKind} />
+  return doc ? (
+    <Editor doc={doc} />
   ) : (
     <main className="min-h-screen grid place-items-center px-20">
-      <p className="text-ui text-text-dim">That document was not found.</p>
+      <p className="text-ui text-text-dim">
+        {missing ? "That document was not found." : "Opening the document…"}
+      </p>
     </main>
   );
 }
@@ -102,12 +99,12 @@ const isEmpty = (content: RenderContent) =>
 
 /* ------------------------------------------------------------------ screen */
 
-function Editor({ kind }: { kind: RenderKind }) {
+function Editor({ doc }: { doc: Doc }) {
   const navigate = useNavigate();
-  const history = useVersionHistory(kind);
+  const history = useVersionHistory(doc.ref);
   const currentVersionId = history.data?.currentVersionId ?? null;
-  const version = useStoredVersion(kind, currentVersionId);
-  const save = useEditVersion(kind);
+  const version = useStoredVersion(doc.ref, currentVersionId);
+  const save = useEditVersion(doc.ref);
 
   const [draft, setDraft] = useState<RenderContent | null>(null);
   // Anything the save threw: a refusal, or a request that never arrived.
@@ -130,7 +127,7 @@ function Editor({ kind }: { kind: RenderKind }) {
   const changed = proposed !== null && loaded !== undefined && !sameContent(proposed, loaded.content);
   const emptied = proposed !== null && isEmpty(proposed);
 
-  const leave = () => void navigate({ to: "/renders/$kind/history", params: { kind } });
+  const leave = () => void navigate({ to: "/renders/$ref/history", params: { ref: doc.ref } });
 
   const commit = async () => {
     if (!proposed || !loaded) return;
@@ -152,7 +149,7 @@ function Editor({ kind }: { kind: RenderKind }) {
 
   if (history.isPending || (currentVersionId !== null && version.isPending)) {
     return (
-      <Frame kind={kind} note="">
+      <Frame doc={doc} note="">
         <Panel>
           <p className="text-smaller text-text-dim">Reading the current version…</p>
         </Panel>
@@ -162,11 +159,11 @@ function Editor({ kind }: { kind: RenderKind }) {
 
   // Reaching the editor for a render with no current version is the same
   // nothing Screen 5 reports, and it gets the same sentence.
-  if (currentVersionId === null || !loaded) return <NotGeneratedYet kind={kind} />;
+  if (currentVersionId === null || !loaded) return <NotGeneratedYet doc={doc} />;
 
   if (saved) {
     return (
-      <SavedPanel kind={kind} result={saved} onLeave={leave} />
+      <SavedPanel doc={doc} result={saved} onLeave={leave} />
     );
   }
 
@@ -175,7 +172,7 @@ function Editor({ kind }: { kind: RenderKind }) {
 
   return (
     <Frame
-      kind={kind}
+      doc={doc}
       note={`Saving creates v${nextVersionNo}. v${versionNo} stays readable and downloadable.`}
       title={`editing v${versionNo}`}
       actions={
@@ -200,7 +197,7 @@ function Editor({ kind }: { kind: RenderKind }) {
     >
       {/* The Screen 5 caveat, for the same reason: without it the screen
           promises a document it does not produce. */}
-      {kind === "rirekisho" ? (
+      {doc.kind === "rirekisho" ? (
         <p className="mb-14 text-smaller text-text-dim">
           Editing changes the summary text only — the education, employment and qualification
           tables always reflect your record as it is now.
@@ -328,13 +325,13 @@ function Editor({ kind }: { kind: RenderKind }) {
 /* -------------------------------------------------------------------- frame */
 
 function Frame({
-  kind,
+  doc,
   note,
   title,
   actions,
   children,
 }: {
-  kind: RenderKind;
+  doc: Doc;
   note: string;
   title?: string;
   actions?: ReactNode;
@@ -344,7 +341,7 @@ function Frame({
     <div className="min-h-screen flex flex-col">
       <header className="h-header shrink-0 flex items-center gap-12 px-20 bg-surface border-b border-border">
         <h1 className="text-panel font-semibold tracking-snug text-text-strong">
-          {RENDER_TITLE[kind]}
+          {doc.title}
           {/* The header waits for the version number rather than rendering v0. */}
           {title ? ` · ${title}` : ""}
         </h1>
@@ -575,16 +572,16 @@ function ConfirmDiscard({
  * ask.
  */
 function SavedPanel({
-  kind,
+  doc,
   result,
   onLeave,
 }: {
-  kind: RenderKind;
+  doc: Doc;
   result: EditResult;
   onLeave: () => void;
 }) {
   return (
-    <Frame kind={kind} note="" title={`saved as v${result.newVersionNo}`}>
+    <Frame doc={doc} note="" title={`saved as v${result.newVersionNo}`}>
       <Panel heading={`Saved as v${result.newVersionNo}.`}>
         <p className="text-smaller text-text-dim">Worth checking:</p>
         <ul className="mt-8 grid gap-6">
@@ -599,7 +596,7 @@ function SavedPanel({
           <div className="ml-auto flex items-center gap-10">
             {/* No `versionId`: the version just saved IS the current one, and
                 the server's own default is the control that says so. */}
-            <DownloadButton kind={kind} label={`Download v${result.newVersionNo}`} />
+            <DownloadButton kind={doc.kind} docRef={doc.ref} label={`Download v${result.newVersionNo}`} />
             <Button variant="primary" onClick={onLeave}>
               Back to version history
             </Button>
@@ -617,17 +614,17 @@ function SavedPanel({
  * `Generate` lives there, on the screen that reads what generation produced,
  * and a second copy of it here would be a second place to keep it right.
  */
-function NotGeneratedYet({ kind }: { kind: RenderKind }) {
+function NotGeneratedYet({ doc }: { doc: Doc }) {
   const navigate = useNavigate();
 
   return (
-    <Frame kind={kind} note="">
+    <Frame doc={doc} note="">
       <Panel>
         <div className="flex items-center gap-12">
           <p className="text-ui text-text-dim">This document has not been generated yet.</p>
           <div className="ml-auto shrink-0">
             <Button
-              onClick={() => void navigate({ to: "/renders/$kind/history", params: { kind } })}
+              onClick={() => void navigate({ to: "/renders/$ref/history", params: { ref: doc.ref } })}
             >
               Go to version history
             </Button>

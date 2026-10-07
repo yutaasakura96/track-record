@@ -30,6 +30,10 @@ Seven entity types. Only **Project** uses the expensive import path; the rest ar
 
 ## 3. The five renders
 
+Five kinds. Since 2026-10-08 the English résumé can also be **tailored**: any number of résumés of
+that kind, each written toward one job description (S19). The untailored one is the main résumé.
+The master document (S18) is not a render: no model writes it, and it has no versions.
+
 | Render | Language | Nature |
 |---|---|---|
 | English résumé | EN | Sections: profile summary, technical skills, professional experience, projects, education, certifications |
@@ -49,21 +53,25 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S1 · Import a case study** — `MUST` · M1
 > As the Author, I want to import the long technical document I generate per project, so that its content becomes reusable facts instead of prose I have to re-read.
 
-**Acceptance:** A document is imported. The app extracts a list of candidate facts, each with a pointer to the passage it came from. No fact is accepted until reviewed (S2).
+**Acceptance:** A document is imported. The app extracts a list of facts, each with a pointer to the passage it came from, and grades each: Measured, Attested or Generated, and confidential or not (§5). **Every fact it extracts is accepted into the record**, and the ones worth a look are flagged with the reason (S17). The app never rejects a fact on its own. The one thing it discards is a fact whose quoted passage is not in the document, which is how an invented fact is kept out.
+
+**Changed 2026-10-08 (#57).** A fact used to wait as a candidate until the author accepted it (S2). The first portfolio produced over a thousand candidates, and reviewing each by hand was the afternoon this tool exists to remove.
 
 ---
 
-**S2 · Review candidate facts** — `MUST` · M1
-> As the Author, I want to accept, edit or reject each candidate fact and set its provenance and disclosure, so that the record contains only claims I stand behind.
+**S2 · Change or reject any fact** — `MUST` · M1
+> As the Author, I want to edit, re-grade or reject any fact and set who may read it, so that the record contains only claims I stand behind.
 
-**Acceptance:** Each candidate can be accepted, edited then accepted, or rejected. Every accepted fact has a provenance value (Measured / Attested / Generated) and a disclosure value (Public / Restricted / Private). Rejecting is one action and does not re-offer the same fact on a later import of the same document.
+**Acceptance:** Any fact can be edited, re-graded, re-disclosed or rejected on its card, at any time. Every accepted fact has a provenance value (Measured / Attested / Generated) and a disclosure value (Public / Restricted / Private). Rejecting is one action and does not re-offer the same fact on a later import of the same document. A grade records whether the author or the importer set it.
+
+**Changed 2026-10-08 (#57).** This was a review of every candidate before it entered the record. It is now the author's control over a record the importer fills. Facts imported before the change still wait as candidates: they can be sorted in one action, which grades, accepts and flags each, or reviewed one at a time as before.
 
 ---
 
 **S3 · Scrub confidential material on import** — `MUST` · M1
 > As the Author, I want anything categorically confidential flagged before I see it, so that a leak requires a deliberate act rather than an inattentive moment.
 
-**Acceptance:** On import, content matching known-sensitive shapes — GUIDs, IP addresses, email addresses, employee numbers, personal names other than the author's — is marked **Private** by default. Promotion out of Private is possible but never a default, never bulk, and never silent.
+**Acceptance:** On import, content matching known-sensitive shapes — GUIDs, IP addresses, email addresses, employee numbers, personal names other than the author's — is marked **Private** by default. So is a fact the importer reads as naming a client, a person or an internal system, whatever its shape (added 2026-10-08, #57). Each is flagged with the reason. A matched shape is a floor: nothing the importer says makes that fact less than Private. Promotion out of Private is possible but never a default, never bulk, and never silent: it is one fact at a time, by the author's hand.
 
 ---
 
@@ -153,6 +161,29 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 
 ---
 
+**S17 · Check what was flagged, when I want to** — `MUST` · M3
+> As the Author, I want the facts worth checking shown as a list with the reason for each, so that I look at the few that need me and not at every fact.
+
+**Acceptance:** Four things are flagged: a fact kept Private as confidential, a claim that states a number, a fact the importer was unsure of, and a fact that likely repeats one already in the record. **Every flag says why**, in a sentence. A flag is advice: nothing waits on it, and a flagged fact that is neither Private nor Generated is used by the next document unopened. The author opens a flagged fact only by choosing to, and marks a flag checked when they have looked. **`Explain this`** on a flag asks the AI to explain it in plain words; it is the only thing on the list that calls the AI, it does so only when pressed, and the answer is kept so that a second press costs nothing.
+
+---
+
+**S18 · Read everything in one document** — `MUST` · M3
+> As the Author, I want one long document holding everything I have ever done, from every source I imported, so that I can read my whole record and know every résumé is drawn from it.
+
+**Acceptance:** The master document lists every accepted fact, grouped by employer and project, with each fact's worth and disclosure, and the roles, education and certifications. It includes what a résumé leaves out: Private facts, Generated facts, and facts no document has used. It is **a view generated from the record** each time it is opened, by no AI call, and stored nowhere, so there is one source of truth; it cannot be edited, and a fact is changed on its own card. It can be downloaded in full, Private facts included, and the file says so in its first lines. It holds no source-document text.
+
+---
+
+**S19 · Tailor a résumé to a job** — `MUST` · M3
+> As the Author, I want to paste or upload a job description and get a résumé written for that job, so that applying does not mean rewriting my résumé by hand each time.
+
+**Acceptance:** The untailored English résumé is the **main résumé**. A tailored résumé is a document of its own, written toward one job description from the same facts by the same rules: no Private fact, no Generated fact, nothing the record does not state. The job description decides what leads and what is left out; it is never a source of facts. Any number can be made. Each is a proposal read as a diff (S5), with its own versions, history and download. English only until the language split (#59).
+
+**S17 to S19 added 2026-10-08 (#57).**
+
+---
+
 **S15 · Export the record** — `MUST` · M1
 > As the Author, I want to export the entire record in an open format, so that my career data is not trapped in an application I might stop maintaining.
 
@@ -176,7 +207,9 @@ Two independent attributes on every fact. Neither is optional.
 | **Attested** | True and done by the author, but not numeric | Yes |
 | **Generated** | Inferred or estimated by a model, not confirmed | **Never** |
 
-Anything a model produces starts as **Generated**. Promotion is a deliberate act by the author.
+**The importer grades each fact it extracts, against the passage it quoted** (decided 2026-10-08, #57). Measured when the passage states the number, Attested when it states the work with no number, Generated when the claim says more than the passage does. A fact it returns no grade for is Generated. Generated still never renders, so a fact the importer could not ground stays out of every document until the author grades it. The author can re-grade any fact, and the record keeps whether a grade is the author's or the importer's.
+
+This replaces the rule of 2026-08-11, that anything a model produces starts Generated and is promoted only by the author. That rule made every fact wait for a ruling; it survives for a fact captured without a passage (S12) and for the facts the importer is not sure of.
 
 **Disclosure** — what may be said, and to whom:
 
@@ -217,11 +250,11 @@ The ugliest case per feature, and what happens.
 |---|---|---|
 | Import | A very large document (the existing corpus is ~2.4 MB of prose) | Must not fail, block the interface, or silently truncate. Partial progress is visible |
 | Import | The **same document re-imported** after being updated at work — the normal case, since case studies are regenerated | Facts already accepted are recognised, not duplicated. Only genuinely new content is extracted. Previously rejected facts stay rejected |
-| Import | Two documents assert **different numbers for the same thing** | Surfaced as a conflict for the author to resolve. Never silently last-write-wins. **Decided 2026-09-28:** the candidate's review card shows the existing facts at the same employer that likely say the same thing, and marks a likely match whose number differs as a conflict. The author resolves it with Accept and Reject; there is no merge. "Likely the same" is a lexical match between the two claims, computed when the card is read (`03` §5, decided 2026-09-28) |
+| Import | Two documents assert **different numbers for the same thing** | Surfaced as a conflict for the author to resolve. Never silently last-write-wins. **Decided 2026-09-28:** the candidate's review card shows the existing facts at the same employer that likely say the same thing, and marks a likely match whose number differs as a conflict. The author resolves it with Accept and Reject; there is no merge. "Likely the same" is a lexical match between the two claims, computed when the card is read (`03` §5, decided 2026-09-28). **Since 2026-10-08** a fact is accepted on arrival, so the same check raises a `Likely a repeat` flag (S17) whose reason says when the number differs; both facts are kept, and the pair is shown on the flagged fact's card |
 | Import | A per-employer portfolio **restates a fact already accepted from the narrative** (the 2026-09-04 import) | **The portfolio's fact wins.** The author accepts it and rejects the narrative fact, so the citation is the primary case study. The rejected fact is retained, as every rejection is. The same card flag above is where the pair meets |
 | Import | A per-employer portfolio's hundreds of facts all belong to **one employer** | The employer is chosen once, at import, and every extracted fact is filed under it. Any one fact can still be refiled on its card. The document's employer can be changed later, and its facts follow it, except one whose employer was set by hand (decided 2026-09-28) |
-| Import | The model invents a plausible fact absent from the source | Contained by design: everything model-produced starts **Generated**, and Generated never renders |
-| Scrub | A confidential identifier is missed by the scrub | Mitigated, not solved: scrubbing is a default, not a guarantee. Review is the real control, and the review UI must make unreviewed material obvious |
+| Import | The model invents a plausible fact absent from the source | Contained by design: a fact whose quoted passage is not in the document is discarded before it is stored, and a claim that says more than its passage is graded **Generated**, which never renders |
+| Scrub | A confidential identifier is missed by the scrub | Mitigated, not solved: scrubbing is a default, not a guarantee. Since 2026-10-08 the importer's own reading is a second net, told to err toward Private, and every document is still a proposal the author reads before it becomes a version. Neither is a guarantee either; a Restricted fact is written without the client's name whatever it holds |
 | 履歴書 | A gap between employment periods | Warned about explicitly. The convention treats unexplained gaps as a defect |
 | 履歴書 | Profile PII incomplete | Generation blocked with the missing fields named. A 履歴書 missing conventional fields is worse than none |
 | Diff | Japanese prose comparison | Word-level segmentation required. Character-level diffs on Japanese are unreadable |
@@ -236,8 +269,8 @@ The ugliest case per feature, and what happens.
 1. **Reading work repositories, ticket systems or git history.** They are client-owned and private, and the strongest material left almost no commits.
 2. **LinkedIn.** `LATER` — a copy-paste text render off the same facts, cheap once the five renders are right.
 3. **The portfolio site.** Its own design, hosting and audience.
-4. **The legacy master document.** Retired, not supported.
-5. **Application tracking** — target company, status, per-company tailoring. Renders are dated versions instead.
+4. **The legacy master document.** Retired, not supported. The master document of S18 is not that file: it is a view generated from the record, with nothing to maintain beside it.
+5. **Application tracking** — target company and status. A résumé tailored to one job description is S19; tracking the application it was sent for is #60.
 6. **Multi-user anything** — accounts, sharing, roles, permission surfaces.
 7. **Consistency checking as a goal.** Welcome as a side effect of provenance; not a target.
 8. **A hand-maintained skills taxonomy.** Skills are derived and curated, never authored from scratch.

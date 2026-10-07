@@ -3,20 +3,27 @@
  * (`docs/03-technical-design.md` §7).
  *
  * Shape-based, and deliberately so: it recognises identifiers by their form,
- * not by knowing who anyone is. It is a DEFAULT and not a guarantee — review is
- * the real control, which is why the review interface makes unreviewed material
- * obvious.
+ * not by knowing who anyone is. It is a DEFAULT and not a guarantee. Since
+ * facts are accepted without a one-by-one review (issue #57) it is also a
+ * FLOOR: the importer's own reading can make a fact Private that no shape
+ * matched, and nothing here or there makes a shape-matched fact less than
+ * Private (`flags.ts`).
  *
  * The asymmetry governs every judgement call here: an over-cautious résumé
  * costs a sentence; a leaked client identifier costs a career.
  */
 import type { CandidateFact } from "~/model/types";
 
-const SHAPES: RegExp[] = [
+/**
+ * Each shape with what it is called when a flag says why a fact was kept
+ * Private (issue #57). The name is the kind of thing, never the match: a flag's
+ * reason is read in lists, and must not repeat the identifier it is about.
+ */
+const SHAPES: { pattern: RegExp; name: string }[] = [
   // GUID / UUID
-  /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i,
+  { name: "a system identifier", pattern: /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i },
   // IPv4, including the private ranges an internal network address lives in
-  /\b(?:\d{1,3}\.){3}\d{1,3}\b/,
+  { name: "an IP address", pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/ },
   // IPv6, in the full eight-group form and in the compressed `::` forms.
   // `\b` cannot sit next to a colon, so the earlier shape matched NO address
   // written with `::` — which is how one is normally written — while matching
@@ -24,29 +31,39 @@ const SHAPES: RegExp[] = [
   // the same reason, and they are what keeps `std::vector` out. `a::b` is
   // matched: it expands to `000a::000b`, and a valid address is the cautious
   // reading either way.
-  /(?<![0-9a-z:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})(?![0-9a-z:])/i,
+  {
+    name: "an IP address",
+    pattern:
+      /(?<![0-9a-z:])(?:(?:[0-9a-f]{1,4}:){7}[0-9a-f]{1,4}|(?:[0-9a-f]{1,4}:){1,7}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})?|::[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,6})(?![0-9a-z:])/i,
+  },
   // Email address
-  /\b[^\s@]+@[^\s@]+\.[a-z]{2,}\b/i,
+  { name: "an email address", pattern: /\b[^\s@]+@[^\s@]+\.[a-z]{2,}\b/i },
   // Internal hostname or UNC path
-  /\\\\[A-Za-z0-9._-]+\\/,
+  { name: "an internal network path", pattern: /\\\\[A-Za-z0-9._-]+\\/ },
   // Employee / staff / badge numbers, in the shapes they are usually written
-  /\b(?:emp(?:loyee)?|staff|badge|社員)\s*(?:no\.?|number|id|番号)?\s*[:#]?\s*\d{3,}\b/i,
+  {
+    name: "a staff number",
+    pattern: /\b(?:emp(?:loyee)?|staff|badge|社員)\s*(?:no\.?|number|id|番号)?\s*[:#]?\s*\d{3,}\b/i,
+  },
   // Bare long identifier runs — ticket keys, account numbers, system codes.
   // The excluded prefixes are vendor error codes, which have this exact shape
   // and identify nobody: they are public constants documented by Oracle, and a
   // migration portfolio quotes them constantly.
-  /\b(?!(?:ORA|TNS|RMAN|IMP|EXP|PLS)[-_])[A-Z]{2,}[-_]\d{4,}\b/,
+  {
+    name: "a ticket, account or system code",
+    pattern: /\b(?!(?:ORA|TNS|RMAN|IMP|EXP|PLS)[-_])[A-Z]{2,}[-_]\d{4,}\b/,
+  },
   // Drive-letter path. The UNC shape above catches `\\server\share` and walks
   // straight past `C:\`, which is the form the portfolios actually use and the
   // one that carries a client's directory structure.
-  /\b[A-Za-z]:\\[^\s]+/,
+  { name: "a file path", pattern: /\b[A-Za-z]:\\[^\s]+/ },
   // Hostname on an internal suffix, inside a URL or standing alone.
-  /\b[a-z0-9][a-z0-9-]*\.(?:corp|local|internal|intra|lan|ad)\b/i,
+  { name: "an internal hostname", pattern: /\b[a-z0-9][a-z0-9-]*\.(?:corp|local|internal|intra|lan|ad)\b/i },
   // A URL naming an explicit port. Public sites do not publish one; an internal
   // service endpoint is the reason this appears in a case study at all.
-  /\bhttps?:\/\/[^\s\/]+:\d{2,5}\b/i,
+  { name: "an internal service address", pattern: /\bhttps?:\/\/[^\s\/]+:\d{2,5}\b/i },
   // Cloud resource identifier. Carries the account id in its third field.
-  /\barn:aws:[a-z0-9-]+:/i,
+  { name: "a cloud resource identifier", pattern: /\barn:aws:[a-z0-9-]+:/i },
 ];
 
 export interface ScrubResult {
@@ -58,13 +75,16 @@ export interface ScrubResult {
    */
   disclosure: "restricted" | "private";
   isClientIdentifying: boolean;
+  /** What the first matching shape is called. `null` when none matched. */
+  shape: string | null;
 }
 
 export function scrub(candidate: Pick<CandidateFact, "claim" | "quote">): ScrubResult {
   const subject = `${candidate.claim}\n${candidate.quote}`;
-  const identifying = SHAPES.some((shape) => shape.test(subject));
+  const matched = SHAPES.find((shape) => shape.pattern.test(subject));
   return {
-    disclosure: identifying ? "private" : "restricted",
-    isClientIdentifying: identifying,
+    disclosure: matched ? "private" : "restricted",
+    isClientIdentifying: matched !== undefined,
+    shape: matched?.name ?? null,
   };
 }

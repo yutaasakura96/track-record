@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
-import { CASE_STUDY, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { asCandidates, CASE_STUDY, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { facts as factsTable } from "~/server/db/schema";
 
 const QUOTE = "Nightly batch runtime fell from 6 hours to 90 minutes.";
@@ -107,11 +107,23 @@ describe("review moves at reading pace", () => {
     expect(reread.items[0]!.claim).toBe("Cut nightly batch runtime to 90 minutes");
   });
 
-  it("undoes an accept or a reject", async () => {
+  it("undoes a reject, back to where the importer left the fact", async () => {
     const { fact } = await importOne();
+    expect(fact.status).toBe("accepted");
     await client.post(`/api/facts/${fact.id}/reject`);
     const undone = (await (await client.post(`/api/facts/${fact.id}/undo`)).json()) as Fact;
-    expect(undone.status).toBe("candidate");
+    // Never back to a candidate: nothing the importer accepted waits again.
+    expect(undone.status).toBe("accepted");
+  });
+
+  it("undoes an accept or a reject on a fact that was waiting, back to waiting", async () => {
+    const { fact, importId } = await importOne();
+    await asCandidates(importId);
+    for (const ruling of ["accept", "reject"]) {
+      await client.post(`/api/facts/${fact.id}/${ruling}`);
+      const undone = (await (await client.post(`/api/facts/${fact.id}/undo`)).json()) as Fact;
+      expect(undone.status).toBe("candidate");
+    }
   });
 
   it("treats a repeated accept as the same outcome, not an error", async () => {

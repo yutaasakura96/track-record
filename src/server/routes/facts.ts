@@ -10,16 +10,21 @@
  * claims and documents, never a quote and never a score.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, gt, isNull, sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
-import { facts } from "../db/schema";
-import { conflict, notFound, validationFailed, pathParam } from "../http/errors";
+import { factFlags, facts } from "../db/schema";
+import { ApiError, conflict, notFound, validationFailed, pathParam } from "../http/errors";
+import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
 import { likelyMatchesFor, type LikelyMatchResponse } from "../services/overlap";
 import { effectiveEmployerId, factWithEmployer, type FactWithEmployer } from "../services/employer";
+import { flagRepeats, settleRepeats } from "../services/repeats";
 import { employerSetByHand } from "../db/fact-employer";
 import { requireOwnedEmployer } from "./record";
+import { flagsOf, repeatFlagged, type FlagResponse } from "./flags";
+import { sortFact } from "~/pipeline/flags";
+import { ModelUnavailableError, type ModelUsage } from "~/model";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
 import type { Db } from "../db/client";
@@ -50,6 +55,15 @@ const regradeBody = z.object({
   provenance: z.enum(["measured", "attested", "generated"]),
 });
 
+/**
+ * How many waiting facts one sort grades. One model call per request, sized so
+ * the call answers while the browser is still waiting on it; the client asks
+ * again until none are left (`docs/07` §6).
+ */
+const SORT_BATCH = 25;
+
+const sortBody = z.object({ importId: z.string().trim().min(1).optional() });
+
 export function registerFactRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
 
@@ -71,7 +85,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     // `graded=false` with `status=accepted` is the listing of what is still to
     // re-grade (`docs/07` §6); any other value is ignored, as an unknown status is.
     const graded = c.req.query("graded");
-    if (graded === "false") filters.push(isNull(facts.gradedAt));
+    if (graded === "false") filters.push(isNull(facts.gradedAt), isNull(facts.autoAcceptedAt));
     const cursor = c.req.query("cursor");
     if (cursor) filters.push(gt(facts.id, cursor));
 
@@ -85,9 +99,10 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
 
     const page = rows.slice(0, PAGE_SIZE);
     // Advisory, computed on this read and stored nowhere (`docs/04` §3.12).
-    const matches = await likelyMatchesFor(c.get("db"), user.id, page);
+    const flags = await flagsOf(c.get("db"), user.id, page.map((fact) => fact.id));
+    const matches = await likelyMatchesFor(c.get("db"), user.id, page, repeatFlagged(flags));
     return c.json({
-      items: page.map((fact) => toResponse(fact, matches.get(fact.id) ?? [])),
+      items: page.map((fact) => toResponse(fact, matches.get(fact.id) ?? [], flags.get(fact.id) ?? [])),
       nextCursor: rows.length > PAGE_SIZE ? (page[page.length - 1]?.id ?? null) : null,
     });
   });
@@ -115,6 +130,11 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
         updatedAt: now,
       })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    // A new wording or a new employer can make a pair, and can unmake one.
+    if (body.claim !== undefined || body.employerId !== undefined) {
+      await flagRepeats(db, user.id, eq(facts.id, fact.id));
+      await settleRepeats(db, user.id);
+    }
     return c.json(await withMatches(db, user.id, fact.id));
   });
 
@@ -130,8 +150,93 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
   api.post("/api/facts/:id/accept", (c) => resolve(c, "accepted"));
   api.post("/api/facts/:id/reject", (c) => resolve(c, "rejected"));
 
-  /** A misclick is not permanent. */
+  /**
+   * A misclick is not permanent. Undo returns a fact to where it stood before
+   * the author ruled on it: a candidate, or, for a fact the importer accepted
+   * (issue #57), accepted again. It never takes such a fact out of the record.
+   */
   api.post("/api/facts/:id/undo", (c) => resolve(c, "candidate"));
+
+  /**
+   * Sorts facts still waiting from before the importer accepted on its own
+   * (issue #57): grades up to `SORT_BATCH` of them in one model call, accepts
+   * every one, and flags what is worth a look.
+   *
+   * **Every fact it reads is accepted**, the graded and the ungraded alike. A
+   * fact the model returned no grade for is kept as Generated and flagged; it
+   * is not left waiting, and it is never rejected. So a call that returns
+   * always moves the count down, and the client's loop always ends.
+   *
+   * A fact the author already made Private stays Private, and one they made
+   * Public is made Private only if it reads as confidential. Nothing here
+   * loosens a disclosure.
+   */
+  api.post("/api/facts/sort", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const body = await parseBody(c, sortBody);
+    const waiting = and(
+      eq(facts.userId, user.id),
+      eq(facts.status, "candidate"),
+      ...(body.importId ? [eq(facts.sourceDocumentVersionId, body.importId)] : []),
+    );
+
+    const batch = await db.select().from(facts).where(waiting).orderBy(asc(facts.id)).limit(SORT_BATCH);
+    if (batch.length === 0) return c.json({ sorted: 0, flagged: 0, remaining: 0 });
+
+    let usage: ModelUsage | null = null;
+    let grades;
+    try {
+      grades = await c.get("model").gradeFacts(
+        batch.map((fact) => ({ id: fact.id, claim: fact.claim, quote: fact.quote })),
+        { onUsage: (u) => (usage = u) },
+      );
+    } catch (err) {
+      if (!(err instanceof ModelUnavailableError)) throw err;
+      throw new ApiError("upstream_unavailable", "The facts could not be sorted just now. Nothing was changed; try again.");
+    }
+
+    const now = new Date();
+    const flags: (typeof factFlags.$inferInsert)[] = [];
+    const updates = batch.map((fact) => {
+      const sorted = sortFact(fact, grades.get(fact.id) ?? null);
+      for (const flag of sorted.flags) {
+        flags.push({ id: newId("factFlag"), userId: user.id, factId: fact.id, kind: flag.kind, reason: flag.reason });
+      }
+      const confidential = sorted.disclosure === "private";
+      return db
+        .update(facts)
+        .set({
+          status: "accepted",
+          provenance: sorted.provenance,
+          disclosure: confidential ? "private" : fact.disclosure,
+          isClientIdentifying: fact.isClientIdentifying || sorted.isClientIdentifying,
+          autoAcceptedAt: now,
+          resolvedAt: now,
+          updatedAt: now,
+        })
+        // Still a candidate: a fact the author ruled on while the model was
+        // answering keeps the author's ruling.
+        .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.status, "candidate")));
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await db.batch([...updates, ...(flags.length > 0 ? [db.insert(factFlags).values(flags).onConflictDoNothing()] : [])] as any);
+
+    // The check a candidate's card made, now that there is no card to make it on.
+    const repeats = await flagRepeats(db, user.id, inArray(facts.id, batch.map((fact) => fact.id)));
+    const flagged = new Set([...flags.map((flag) => flag.factId), ...repeats]).size;
+
+    const [{ remaining } = { remaining: 0 }] = await db
+      .select({ remaining: sql<number>`count(*)::int` })
+      .from(facts)
+      .where(waiting);
+
+    // Counts only. No claim, no quote, no note.
+    console.log(
+      JSON.stringify({ event: "facts_sorted", sorted: batch.length, flagged, remaining, ...(usage ?? {}) }),
+    );
+    return c.json({ sorted: batch.length, flagged, remaining });
+  });
 
   /**
    * The author's grade on a fact already accepted (`docs/07` §6, issue #37).
@@ -183,6 +288,16 @@ async function resolve(
   const db = c.get("db");
   const fact = await requireFact(db, user.id, pathParam(c, "id"));
 
+  // Undoing the author's ruling on a fact the importer accepted puts it back
+  // as the importer left it: accepted, and graded by nobody but the importer.
+  if (status === "candidate" && fact.autoAcceptedAt !== null) {
+    await db
+      .update(facts)
+      .set({ status: "accepted", resolvedAt: fact.autoAcceptedAt, updatedAt: new Date() })
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    return c.json(await withMatches(db, user.id, fact.id));
+  }
+
   // Accepting is the author grading the fact; a candidate carries no decision.
   // A rejection leaves the grade as it was (`docs/04` §3.7).
   await db
@@ -194,6 +309,8 @@ async function resolve(
       updatedAt: new Date(),
     })
     .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+  // A rejected fact is no longer in the record for another to restate.
+  if (status === "rejected") await settleRepeats(db, user.id);
   return c.json(await withMatches(db, user.id, fact.id));
 }
 
@@ -204,8 +321,9 @@ async function resolve(
  */
 async function withMatches(db: Db, userId: string, id: string) {
   const fact = await requireFact(db, userId, id);
-  const matches = await likelyMatchesFor(db, userId, [fact]);
-  return toResponse(fact, matches.get(fact.id) ?? []);
+  const flags = await flagsOf(db, userId, [fact.id]);
+  const matches = await likelyMatchesFor(db, userId, [fact], repeatFlagged(flags));
+  return toResponse(fact, matches.get(fact.id) ?? [], flags.get(fact.id) ?? []);
 }
 
 async function requireFact(db: Db, userId: string, id: string): Promise<FactWithEmployer> {
@@ -231,7 +349,11 @@ const hasEvidence = (fact: typeof facts.$inferSelect) =>
  * `likelyMatches` is empty on anything but a candidate: the flag is settled on
  * the open card (`docs/10` Screen 1).
  */
-export function toResponse(fact: FactWithEmployer, likelyMatches: LikelyMatchResponse[]) {
+export function toResponse(
+  fact: FactWithEmployer,
+  likelyMatches: LikelyMatchResponse[],
+  flags: FlagResponse[],
+) {
   return {
     id: fact.id,
     claim: fact.claim,
@@ -256,8 +378,18 @@ export function toResponse(fact: FactWithEmployer, likelyMatches: LikelyMatchRes
       : null,
     technologies: fact.technologies,
     isClientIdentifying: fact.isClientIdentifying,
-    /** False on an accepted fact whose provenance is not the author's (issue #37). */
-    graded: fact.gradedAt !== null,
+    /**
+     * False on an accepted fact whose provenance nobody chose: neither the
+     * author (issue #37) nor the importer (issue #57). Those are the facts an
+     * agent's default promoted, and the only ones still to re-grade.
+     */
+    graded: fact.gradedAt !== null || fact.autoAcceptedAt !== null,
+    /** True on a fact the importer accepted on its own. It stays true whatever the author does next. */
+    autoAccepted: fact.autoAcceptedAt !== null,
+    /** Whose grade the provenance is: the author's once they set it, else the importer's, else nobody's. */
+    gradedBy: fact.gradedAt !== null ? "author" : fact.autoAcceptedAt !== null ? "importer" : null,
+    /** Why the fact is worth a look, each with its reason. Empty on most facts. */
+    flags,
     likelyMatches,
   };
 }

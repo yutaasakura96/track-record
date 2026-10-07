@@ -34,6 +34,10 @@ const V3 = version(3, { isCurrent: true });
 
 const history = (items: RenderVersion[]): VersionHistory => ({
   renderKind: KIND,
+  renderRef: KIND,
+  title: "Résumé (English)",
+  tailored: false,
+  buildable: true,
   currentVersionId: items.find((v) => v.isCurrent)?.id ?? null,
   currentVersionNo: items.find((v) => v.isCurrent)?.versionNo ?? null,
   items,

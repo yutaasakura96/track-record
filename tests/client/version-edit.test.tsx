@@ -36,6 +36,10 @@ const CONTENT: RenderContent = {
 
 const HISTORY: VersionHistory = {
   renderKind: KIND,
+  renderRef: KIND,
+  title: "Résumé (English)",
+  tailored: false,
+  buildable: true,
   currentVersionId: CURRENT,
   currentVersionNo: 3,
   items: [],

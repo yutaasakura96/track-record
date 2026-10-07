@@ -54,14 +54,13 @@ test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) 
   });
   await expect(app).toHaveURL(/\/imports\/[^/]+$/);
 
-  // 4 · Extraction finishes and the candidate is on the page. Promote it out
-  //     of Generated, which no render will ever use, and accept it.
+  // 4 · Extraction finishes and the fact is on the page, already in the
+  //     record with the importer's grade. There is nothing to accept
+  //     (issue #57), so the author reads it and goes on.
   const card = app.getByRole("article").filter({ hasText: CLAIM });
   await expect(card).toBeVisible();
-  await card.getByRole("radio", { name: "Measured" }).click();
-  await card.getByRole("radio", { name: "Public" }).click();
-  await card.getByRole("button", { name: "Accept", exact: true }).click();
-  await app.getByRole("button", { name: "Finish review" }).click();
+  await expect(card).toContainText("accepted · measured · restricted");
+  await app.getByRole("button", { name: "Done", exact: true }).first().click();
 
   // 5 · Generate the English résumé from Home's next step, and read the proposal.
   const home = app.getByRole("heading", { name: "Home", exact: true });

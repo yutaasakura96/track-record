@@ -5,7 +5,8 @@
  */
 import { env } from "cloudflare:test";
 import { createDb } from "~/server/db/client";
-import { users } from "~/server/db/schema";
+import { eq, inArray } from "drizzle-orm";
+import { factFlags, facts, users } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import type { SeededUser } from "./harness";
 
@@ -40,6 +41,24 @@ export async function seedAllowedUser(base = AUTHOR_EMAIL): Promise<SeededUser> 
   });
   // The session's email is what the allowlist is checked against.
   return { id, email: base, name: "Test Author" };
+}
+
+/**
+ * Puts an import's facts back in the state every fact arrived in before issue
+ * #57: a candidate, Generated, graded by nobody, with no flags. The 2026-09-04
+ * record and every import before automatic acceptance are in this state, and it
+ * is what `POST /api/facts/sort` and the one-at-a-time review still act on.
+ */
+export async function asCandidates(importId: string): Promise<void> {
+  const db = createDb(bindings.DATABASE_URL);
+  const ofImport = db.select({ id: facts.id }).from(facts).where(eq(facts.sourceDocumentVersionId, importId));
+  await db.batch([
+    db.delete(factFlags).where(inArray(factFlags.factId, ofImport)),
+    db
+      .update(facts)
+      .set({ status: "candidate", provenance: "generated", autoAcceptedAt: null, gradedAt: null, resolvedAt: null })
+      .where(eq(facts.sourceDocumentVersionId, importId)),
+  ]);
 }
 
 export const PROFILE_FIXTURE = {

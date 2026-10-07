@@ -21,6 +21,7 @@ import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
   failureText,
+  useDoc,
   useGenerate,
   useProfile,
   useRenderProposals,
@@ -28,6 +29,7 @@ import {
   useRestoreVersion,
   useVersionDiff,
   useVersionHistory,
+  type Doc,
   type ProposalRow,
   type RenderVersion,
 } from "../api";
@@ -36,23 +38,24 @@ import { ScreenIntro } from "../components/screen-intro";
 import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
-import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
 import { DownloadButton, WithheldFacts } from "../components/download-button";
 
 export function VersionHistoryScreen() {
-  const { kind } = useParams({ from: "/renders/$kind/history" });
+  const { ref } = useParams({ from: "/renders/$ref/history" });
   const profile = useProfile();
-  const known = (RENDER_KINDS as readonly string[]).includes(kind);
+  const { doc, missing } = useDoc(ref);
 
   return (
     <div className="min-h-screen flex">
       <Sidebar name={profile.data?.nameLatin ?? ""} />
       <div className="flex-1 min-w-0 flex flex-col">
-        {known ? (
-          <History kind={kind as RenderKind} />
+        {doc ? (
+          <History doc={doc} />
         ) : (
           <main className="flex-1 grid place-items-center px-20">
-            <p className="text-ui text-text-dim">That document was not found.</p>
+            <p className="text-ui text-text-dim">
+              {missing ? "That document was not found." : "Opening the document…"}
+            </p>
           </main>
         )}
       </div>
@@ -65,9 +68,9 @@ type Entry =
   | { row: "version"; at: string; version: RenderVersion }
   | { row: "dismissed"; at: string; proposal: ProposalRow };
 
-function History({ kind }: { kind: RenderKind }) {
-  const history = useVersionHistory(kind);
-  const proposals = useRenderProposals(kind);
+function History({ doc }: { doc: Doc }) {
+  const history = useVersionHistory(doc.ref);
+  const proposals = useRenderProposals(doc.ref);
   const [restoring, setRestoring] = useState<RenderVersion | null>(null);
 
   const versions = history.data?.items ?? [];
@@ -94,7 +97,7 @@ function History({ kind }: { kind: RenderKind }) {
       <header className="h-header shrink-0 flex items-center gap-12 px-20 bg-surface border-b border-border">
         {/* Japanese render names use the mixed font stack, as on Screen 3. */}
         <h1 className="text-panel font-semibold tracking-snug text-text-strong">
-          {RENDER_TITLE[kind]} · version history
+          {doc.title} · version history
         </h1>
         {/* The count WAITS rather than rendering `0 versions` while loading. */}
         {loading ? null : (
@@ -105,7 +108,7 @@ function History({ kind }: { kind: RenderKind }) {
         )}
         {current ? (
           <span className="ml-auto">
-            <DownloadButton kind={kind} versionId={current.id} label="Download current" />
+            <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={current.id} label="Download current" />
           </span>
         ) : null}
       </header>
@@ -127,14 +130,14 @@ function History({ kind }: { kind: RenderKind }) {
           {loading ? (
             <Skeleton />
           ) : versions.length === 0 ? (
-            <NotGeneratedYet kind={kind} />
+            <NotGeneratedYet doc={doc} />
           ) : (
             <Panel>
               {/* A 履歴書 version stores two prose blocks; its three tables are
                   filled from the record at download time. Without this line the
                   screen promises a document it does not produce — which makes
                   the sentence a requirement rather than copy (`docs/10`). */}
-              {kind === "rirekisho" ? (
+              {doc.kind === "rirekisho" ? (
                 <p className="pb-12 border-b border-border-inner text-smaller text-text-dim">
                   Restoring changes the summary text only — the education, employment and
                   qualification tables always reflect your record as it is now.
@@ -145,7 +148,7 @@ function History({ kind }: { kind: RenderKind }) {
                   entry.row === "version" ? (
                     <VersionRow
                       key={entry.version.id}
-                      kind={kind}
+                      doc={doc}
                       version={entry.version}
                       onCompare={() => setRestoring(entry.version)}
                     />
@@ -161,7 +164,7 @@ function History({ kind }: { kind: RenderKind }) {
 
       {restoring && current ? (
         <RestorePreview
-          kind={kind}
+          doc={doc}
           current={current}
           target={restoring}
           nextVersionNo={nextVersionNo}
@@ -194,11 +197,11 @@ const ANCESTRY: Record<RenderVersion["origin"], string | null> = {
 };
 
 function VersionRow({
-  kind,
+  doc,
   version,
   onCompare,
 }: {
-  kind: RenderKind;
+  doc: Doc;
   version: RenderVersion;
   onCompare: () => void;
 }) {
@@ -243,7 +246,7 @@ function VersionRow({
       <div className="ml-auto flex items-center gap-8">
         {/* `?versionId=` serves any version, and a 履歴書 is `.docx` only —
             the download rules are the ones that already exist. */}
-        <DownloadButton kind={kind} versionId={version.id} label="Download" />
+        <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={version.id} label="Download" />
         {comparable ? (
           <Button variant="ghost" onClick={onCompare}>
             Compare
@@ -253,8 +256,8 @@ function VersionRow({
           // edit made against any other, and a control that is refused is not
           // offered (`docs/10` Screen 6).
           <Link
-            to="/renders/$kind/edit"
-            params={{ kind }}
+            to="/renders/$ref/edit"
+            params={{ ref: doc.ref }}
             className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
           >
             Edit
@@ -313,12 +316,12 @@ const Skeleton = () => (
  * or not — what differs is whether the action can run, and a disabled control
  * says why (`docs/05` §6).
  */
-function NotGeneratedYet({ kind }: { kind: RenderKind }) {
+function NotGeneratedYet({ doc }: { doc: Doc }) {
   const renders = useRenders();
   const generate = useGenerate();
   const navigate = useNavigate();
   const [failure, setFailure] = useState<string | null>(null);
-  const buildable = renders.data?.items.find((r) => r.kind === kind)?.buildable ?? false;
+  const buildable = renders.data?.items.find((r) => r.kind === doc.kind)?.buildable ?? false;
 
   return (
     <Panel>
@@ -333,7 +336,7 @@ function NotGeneratedYet({ kind }: { kind: RenderKind }) {
               onClick={async () => {
                 setFailure(null);
                 try {
-                  const created = await generate.mutateAsync(kind);
+                  const created = await generate.mutateAsync(doc.ref);
                   await navigate({
                     to: "/proposals/$proposalId",
                     params: { proposalId: created.proposalId },
@@ -375,20 +378,20 @@ function NotGeneratedYet({ kind }: { kind: RenderKind }) {
  * produced (`docs/06`, 2026-09-12).
  */
 function RestorePreview({
-  kind,
+  doc,
   current,
   target,
   nextVersionNo,
   onClose,
 }: {
-  kind: RenderKind;
+  doc: Doc;
   current: RenderVersion;
   target: RenderVersion;
   nextVersionNo: number;
   onClose: () => void;
 }) {
-  const diff = useVersionDiff(kind, current.id, target.id);
-  const restore = useRestoreVersion(kind);
+  const diff = useVersionDiff(doc.ref, current.id, target.id);
+  const restore = useRestoreVersion(doc.ref);
   // Anything the restore threw: a refusal, or a request that never arrived.
   const [refusal, setRefusal] = useState<unknown>(null);
 
@@ -408,7 +411,7 @@ function RestorePreview({
     <div className="fixed inset-0 bg-bg flex flex-col" role="dialog" aria-modal="true">
       <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
         <span className="text-panel font-semibold tracking-snug text-text-strong">
-          {RENDER_TITLE[kind]}
+          {doc.title}
         </span>
         <Chip className="ml-4">restoring v{target.versionNo}</Chip>
         <span className="ml-auto text-smaller text-text-dimmer">

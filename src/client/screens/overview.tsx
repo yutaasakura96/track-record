@@ -24,6 +24,8 @@ import {
   useOverview,
   useProfile,
   useSession,
+  useSortFacts,
+  type SortProgress,
   type Overview as OverviewData,
   type RenderRow,
 } from "../api";
@@ -32,18 +34,14 @@ import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
-import { DownloadButton } from "../components/download-button";
+import { DocumentRow, QUIET, SECONDARY } from "../components/document-row";
 import { nextSteps, type Step, type StepAction } from "../next-step";
 
 const number = (n: number) => n.toLocaleString("en-US");
 
-/** A text link inside a row: quieter than a button, for what is not the row's one action. */
-const QUIET = "text-small text-accent-link hover:text-accent-link-hover motion-tone whitespace-nowrap";
-/** `Button`'s ghost and secondary, for a control that is a link and so cannot be a `Button`. */
+/** `Button`'s ghost, for a control that is a link and so cannot be a `Button`. */
 const GHOST =
   "motion-surface whitespace-nowrap border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary";
-const SECONDARY =
-  "motion-surface whitespace-nowrap border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover";
 /** The one primary button in the content column, a size up from the header's. */
 const PRIMARY =
   "motion-surface whitespace-nowrap bg-accent text-text-bright px-16 py-10 rounded-control text-ui font-medium hover:brightness-110";
@@ -203,7 +201,7 @@ const DOCUMENTS = {
 /* --------------------------------------------------------------- populated */
 
 /** Where a failed Generate is said: beside the button that was pressed. */
-type GenerateFrom = "next" | "documents";
+type GenerateFrom = "next" | "documents" | "tailored";
 
 function PopulatedRecord({
   data,
@@ -217,12 +215,13 @@ function PopulatedRecord({
   const navigate = useNavigate();
   const importFile = useImportPicker();
   const generate = useGenerate();
+  const sort = useSortFacts();
   const [failure, setFailure] = useState<{ from: GenerateFrom; text: string } | null>(null);
 
-  const onGenerate = async (kind: RenderRow["kind"], from: GenerateFrom) => {
+  const onGenerate = async (ref: string, from: GenerateFrom) => {
     setFailure(null);
     try {
-      const created = await generate.mutateAsync(kind);
+      const created = await generate.mutateAsync(ref);
       await navigate({ to: "/proposals/$proposalId", params: { proposalId: created.proposalId } });
     } catch (error) {
       setFailure({ from, text: failureText(error) });
@@ -257,20 +256,29 @@ function PopulatedRecord({
               <NextStep
                 steps={nextSteps(data)}
                 busy={generate.isPending}
-                failure={failed("next")}
-                onGenerate={(kind) => void onGenerate(kind, "next")}
+                failure={failed("next") ?? sort.progress.failure}
+                sorting={sort.progress}
+                onGenerate={(ref) => void onGenerate(ref, "next")}
                 onImport={importFile.choose}
+                onSort={() => void sort.run()}
               />
             </>
           )}
           <YourRecord tiles={data.tiles} />
-          <Facts counts={data.factsByProvenance} unconfirmed={data.unconfirmed} />
+          <Facts counts={data.factsByProvenance} unconfirmed={data.unconfirmed} flagged={data.flagged} />
           <CareerDocuments
             rows={data.documents}
             canGenerate={data.canGenerate}
             busy={generate.isPending}
             failure={failed("documents")}
-            onGenerate={(kind) => void onGenerate(kind, "documents")}
+            onGenerate={(ref) => void onGenerate(ref, "documents")}
+          />
+          <TailoredResumes
+            rows={data.tailored}
+            canGenerate={data.canGenerate}
+            busy={generate.isPending}
+            failure={failed("tailored")}
+            onGenerate={(ref) => void onGenerate(ref, "tailored")}
           />
           <Backup />
         </div>
@@ -337,19 +345,31 @@ function NextStep({
   steps,
   busy,
   failure,
+  sorting,
   onGenerate,
   onImport,
+  onSort,
 }: {
   steps: Step[];
   busy: boolean;
   failure: string | null;
-  onGenerate: (kind: RenderRow["kind"]) => void;
+  sorting: SortProgress;
+  onGenerate: (ref: string) => void;
   onImport: () => void;
+  onSort: () => void;
 }) {
   const [first, ...rest] = steps;
   if (!first) return null;
   const act = (action: StepAction | null, className: string) => (
-    <StepControl action={action} className={className} busy={busy} onGenerate={onGenerate} onImport={onImport} />
+    <StepControl
+      action={action}
+      className={className}
+      busy={busy}
+      sorting={sorting.running}
+      onGenerate={onGenerate}
+      onImport={onImport}
+      onSort={onSort}
+    />
   );
 
   return (
@@ -367,6 +387,12 @@ function NextStep({
         </div>
         {act(first.action, PRIMARY)}
       </div>
+      {sorting.running || sorting.sorted > 0 ? (
+        <p role="status" className="mt-12 text-small text-text-secondary">
+          {number(sorting.sorted)} sorted, {number(sorting.flagged)} flagged
+          {sorting.running && sorting.remaining ? `. ${number(sorting.remaining)} to go; keep this page open.` : "."}
+        </p>
+      ) : null}
       {failure ? (
         <p role="alert" className="mt-12 text-small text-text-secondary">
           {failure}
@@ -395,17 +421,35 @@ function StepControl({
   action,
   className,
   busy,
+  sorting,
   onGenerate,
   onImport,
+  onSort,
 }: {
   action: StepAction | null;
   className: string;
   busy: boolean;
-  onGenerate: (kind: RenderRow["kind"]) => void;
+  sorting: boolean;
+  onGenerate: (ref: string) => void;
   onImport: () => void;
+  onSort: () => void;
 }) {
   if (!action) return null;
   const primary = className === PRIMARY;
+  if (action.kind === "sort") {
+    return (
+      <Button
+        type="button"
+        variant={primary ? "primary" : "ghost"}
+        onClick={onSort}
+        disabled={sorting}
+        disabledReason={sorting ? "Sorting…" : undefined}
+        className={primary ? "shrink-0 px-16 py-10 text-ui" : "shrink-0"}
+      >
+        {sorting ? "Sorting…" : action.label}
+      </Button>
+    );
+  }
   if (action.kind === "review") {
     return (
       <Link to="/imports/$importId" params={{ importId: action.importId }} className={`shrink-0 ${className}`}>
@@ -520,9 +564,11 @@ const PROVENANCE = [
 function Facts({
   counts,
   unconfirmed,
+  flagged,
 }: {
   counts: OverviewData["factsByProvenance"];
   unconfirmed: OverviewData["unconfirmed"];
+  flagged: number;
 }) {
   const total = counts.measured + counts.attested + counts.generated;
 
@@ -535,10 +581,17 @@ function Facts({
           {total > 0 ? ` ${number(total)} accepted.` : ""}
         </>
       }
+      action={
+        total > 0 ? (
+          <Link to="/master" className={`shrink-0 ${QUIET}`}>
+            Open master document
+          </Link>
+        ) : undefined
+      }
     >
       {total === 0 ? (
         <p className="text-ui text-text-secondary">
-          No accepted facts yet. They arrive when you review a document you imported.
+          No accepted facts yet. They are accepted for you as a document you import is read.
         </p>
       ) : (
         <>
@@ -555,8 +608,9 @@ function Facts({
           <ul>
             {PROVENANCE.map((row) => {
               const n = counts[row.key];
-              // The Not confirmed row is the ACTION row.
-              const waiting = row.key === "generated" && n > 0;
+              // The Not confirmed row is the ACTION row, while the author has
+              // one to confirm. One the importer accepted is flagged instead.
+              const waiting = row.key === "generated" && unconfirmed !== null;
               return (
                 <li
                   key={row.key}
@@ -595,6 +649,17 @@ function Facts({
               );
             })}
           </ul>
+          {/* Advice, not a step: the list is there for when the author wants it. */}
+          {flagged > 0 ? (
+            <p className="mt-12 flex items-center justify-between gap-12 text-ui text-text-secondary">
+              <span>
+                {number(flagged)} {flagged === 1 ? "is" : "are"} flagged for you to check when you want. Each says why.
+              </span>
+              <Link to="/flagged" className={`shrink-0 ${GHOST}`}>
+                Open the list
+              </Link>
+            </p>
+          ) : null}
         </>
       )}
     </Section>
@@ -637,7 +702,7 @@ function CareerDocuments({
   canGenerate: boolean;
   busy: boolean;
   failure: string | null;
-  onGenerate: (kind: RenderRow["kind"]) => void;
+  onGenerate: (ref: string) => void;
 }) {
   return (
     <Section heading={DOCUMENTS.heading} about={DOCUMENTS.about}>
@@ -649,128 +714,79 @@ function CareerDocuments({
       ) : null}
       <ul>
         {rows.map((row) => (
-          <li
-            key={row.kind}
-            className="flex items-center gap-12 px-10 py-12 border-b border-border-inner last:border-b-0"
-          >
-            <div className="min-w-0">
-              {/* Japanese titles render in the mixed stack — the body default. */}
-              <div className="text-row font-medium text-text-strong">{row.title}</div>
-              <div className="text-small text-text-muted">
-                {row.language === "ja" ? "Japanese" : "English"}
-                {row.generatedAt ? ` · generated ${relative(row.generatedAt)}` : ""}
-              </div>
-            </div>
-            <div className="ml-auto flex items-center gap-16">
-              <StatusText row={row} />
-              {/* Offered only once there is something to read or to download:
-                  the row already says `Not generated yet`. */}
-              {row.currentVersionId ? (
-                <>
-                  <Link to="/renders/$kind/history" params={{ kind: row.kind }} className={QUIET}>
-                    History
-                  </Link>
-                  {/* One word on every row, so the rows line up: the file's type
-                      differs by document and is the document's own business. */}
-                  <DownloadButton kind={row.kind} label="Download" className={QUIET} />
-                </>
-              ) : null}
-              <Action row={row} canGenerate={canGenerate} busy={busy} onGenerate={() => onGenerate(row.kind)} />
-            </div>
-          </li>
+          <DocumentRow
+            key={row.ref}
+            row={row}
+            // The one a tailored résumé is a variant of (issue #57).
+            note={row.kind === "english_resume" ? "English · your main résumé, tailored to no job" : undefined}
+            canGenerate={canGenerate}
+            busy={busy}
+            onGenerate={() => onGenerate(row.ref)}
+          />
         ))}
       </ul>
     </Section>
   );
 }
 
-function StatusText({ row }: { row: RenderRow }) {
-  const line = "flex items-center gap-6 text-small whitespace-nowrap";
-  if (!row.buildable) {
-    return (
-      <span className={`${line} text-text-muted`}>
-        <Dot tone="muted" /> Not available yet
-      </span>
-    );
-  }
-  if (row.status === "proposal_pending") {
-    return (
-      <span className={`${line} text-accent-text`}>
-        <Dot tone="accent" /> New version waiting
-      </span>
-    );
-  }
-  if (row.status === "proposal_generating") {
-    return (
-      <span className={`${line} text-accent-text`}>
-        <Dot tone="accent" /> Writing a new version
-      </span>
-    );
-  }
-  if (row.status === "never_generated") {
-    return (
-      <span className={`${line} text-text-muted`}>
-        <Dot tone="muted" /> Not generated yet
-      </span>
-    );
-  }
-  if (row.status === "stale") {
-    const n = row.newFactsSince ?? 0;
-    const gone = row.withdrawnFactsSince ?? 0;
-    const arrived = `${number(n)} new ${n === 1 ? "fact" : "facts"}`;
-    return (
-      <span className={`${line} text-accent-text`}>
-        <Dot tone="accent" />{" "}
-        {gone === 0
-          ? arrived
-          : n === 0
-            ? `${number(gone)} ${gone === 1 ? "fact" : "facts"} no longer usable`
-            : `${arrived}, ${number(gone)} no longer usable`}
-      </span>
-    );
-  }
-  return (
-    <span className={`${line} text-measured-text`}>
-      <Dot tone="measured" /> Up to date
-    </span>
-  );
-}
+/** How many tailored résumés Home lists before it points at the screen that lists them all. */
+const TAILORED_ON_HOME = 3;
 
-/** The row's ONE button. History and Download are links beside it. */
-function Action({
-  row,
+/**
+ * The newest tailored résumés, and the way to the rest (issue #57). A row here
+ * is the row on the Tailored résumés screen: same status, same one action.
+ */
+function TailoredResumes({
+  rows,
   canGenerate,
   busy,
+  failure,
   onGenerate,
 }: {
-  row: RenderRow;
+  rows: RenderRow[];
   canGenerate: boolean;
   busy: boolean;
-  onGenerate: () => void;
+  failure: string | null;
+  onGenerate: (ref: string) => void;
 }) {
-  if (!row.buildable) return null;
-  if (row.pendingProposalId) {
-    return (
-      <Link to="/proposals/$proposalId" params={{ proposalId: row.pendingProposalId }} className={SECONDARY}>
-        {row.status === "proposal_generating" ? "Open it" : "Review changes"}
-      </Link>
-    );
-  }
-  // Not offered at all rather than disabled five times over: the line above the
-  // rows is the reason, said once.
-  if (!canGenerate) return null;
-
-  const label =
-    row.status === "never_generated" ? "Generate" : row.status === "stale" ? "Update" : "Regenerate";
   return (
-    <Button
-      variant={row.status === "up_to_date" ? "ghost" : "secondary"}
-      onClick={onGenerate}
-      disabled={busy}
-      disabledReason={busy ? "Generating…" : undefined}
+    <Section
+      heading="Tailored résumés"
+      about="Your résumé, rewritten for one job from the same facts. Paste a job description to make one."
+      action={
+        <Link to="/tailored" className={`shrink-0 ${QUIET}`}>
+          {rows.length === 0 ? "Make one" : "Open tailored résumés"}
+        </Link>
+      }
     >
-      {label}
-    </Button>
+      {failure === null && rows.length === 0 ? null : (
+        <>
+          {failure ? (
+            <p role="alert" className="mb-6 text-small text-text-secondary">
+              {failure}
+            </p>
+          ) : null}
+          <ul>
+            {rows.slice(0, TAILORED_ON_HOME).map((row) => (
+              <DocumentRow
+                key={row.ref}
+                row={row}
+                title={row.tailored?.label ?? row.title}
+                note={row.tailored ? `Made ${relative(row.tailored.createdAt)}` : undefined}
+                canGenerate={canGenerate}
+                busy={busy}
+                onGenerate={() => onGenerate(row.ref)}
+              />
+            ))}
+          </ul>
+          {rows.length > TAILORED_ON_HOME ? (
+            <p className="mt-6 text-small text-text-muted">
+              And {number(rows.length - TAILORED_ON_HOME)} more on the Tailored résumés screen.
+            </p>
+          ) : null}
+        </>
+      )}
+    </Section>
   );
 }
 
@@ -779,7 +795,7 @@ function Action({
 /** The loop, as steps to follow rather than a paragraph to read. */
 const FIRST_STEPS: [string, string][] = [
   ["Import", "a document about your work: a case study, a project write-up, a portfolio."],
-  ["Review", "the facts found in it, one at a time, and keep the ones you stand behind."],
+  ["Check", "the facts found in it. They are added to your record for you, and the ones worth a look are flagged with the reason."],
   ["Generate", "your résumé, 履歴書 and 職務経歴書 from the facts you kept."],
 ];
 

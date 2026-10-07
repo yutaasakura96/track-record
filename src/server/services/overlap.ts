@@ -27,17 +27,51 @@ export interface LikelyMatchResponse {
   conflict: boolean;
 }
 
+const NONE: ReadonlySet<string> = new Set();
+
 /**
- * Keyed by candidate id. A fact absent from the map has no likely matches:
- * it is not a candidate, its employer does not resolve, or nothing is alike.
+ * Keyed by fact id. A fact absent from the map has no likely matches: the
+ * author has settled it, its employer does not resolve, or nothing is alike.
+ *
+ * Shown on a candidate, and on an accepted fact carrying an open `repeat` flag
+ * (`repeatFlagged`, issue #57). The second is what a candidate's match became
+ * when facts stopped being reviewed one by one: the flag is what says a pair
+ * is still unsettled, and marking it checked is what takes the pair away.
  */
 export async function likelyMatchesFor(
   db: Db,
   userId: string,
   page: readonly FactWithEmployer[],
+  repeatFlagged: ReadonlySet<string> = NONE,
+): Promise<Map<string, LikelyMatchResponse[]>> {
+  return matchesFor(
+    db,
+    userId,
+    page.filter(
+      (fact) => fact.status === "candidate" || (fact.status === "accepted" && repeatFlagged.has(fact.id)),
+    ),
+  );
+}
+
+/**
+ * The same comparison for accepted facts, whatever flags they carry: what
+ * decides whether a `repeat` flag is written or has outlived its pair
+ * (`./repeats.ts`).
+ */
+export async function repeatsAmong(
+  db: Db,
+  userId: string,
+  accepted: readonly FactWithEmployer[],
+): Promise<Map<string, LikelyMatchResponse[]>> {
+  return matchesFor(db, userId, accepted.filter((fact) => fact.status === "accepted"));
+}
+
+async function matchesFor(
+  db: Db,
+  userId: string,
+  open: readonly FactWithEmployer[],
 ): Promise<Map<string, LikelyMatchResponse[]>> {
   const result = new Map<string, LikelyMatchResponse[]>();
-  const open = page.filter((fact) => fact.status === "candidate");
   if (open.length === 0) return result;
 
   // Resolved by the select that read the page, in the order every reader uses.
@@ -52,8 +86,10 @@ export async function likelyMatchesFor(
       claim: facts.claim,
       provenance: facts.provenance,
       gradedAt: facts.gradedAt,
+      autoAcceptedAt: facts.autoAcceptedAt,
       technologies: facts.technologies,
       employerId: effectiveEmployerId,
+      sourceDocumentVersionId: facts.sourceDocumentVersionId,
       importId: sourceDocumentVersions.id,
       versionNo: sourceDocumentVersions.versionNo,
       filename: sourceDocuments.filename,
@@ -94,10 +130,22 @@ export async function likelyMatchesFor(
     const employerId = employerOf.get(candidate.id);
     const pool = employerId === undefined ? undefined : byEmployer.get(employerId);
     if (employerId === undefined || pool === undefined) continue;
-    let match = matchers.get(employerId);
+    // An accepted fact is in the pool itself, and so are the facts read from
+    // the same version of the same document. Neither is "already in your
+    // record" from where it stands, so it is matched against the rest.
+    const key = candidate.status === "candidate" ? employerId : `${employerId}\0${candidate.sourceDocumentVersionId}`;
+    let match = matchers.get(key);
     if (!match) {
-      match = overlapMatcher(pool);
-      matchers.set(employerId, match);
+      match = overlapMatcher(
+        candidate.status === "candidate"
+          ? pool
+          : pool.filter(
+              (row) =>
+                row.sourceDocumentVersionId === null ||
+                row.sourceDocumentVersionId !== candidate.sourceDocumentVersionId,
+            ),
+      );
+      matchers.set(key, match);
     }
     const found = match(candidate);
     if (found.length === 0) continue;
@@ -109,7 +157,7 @@ export async function likelyMatchesFor(
           id,
           claim: row.claim,
           provenance: row.provenance,
-          graded: row.gradedAt !== null,
+          graded: row.gradedAt !== null || row.autoAcceptedAt !== null,
           document:
             row.importId !== null && row.filename !== null && row.versionNo !== null
               ? { importId: row.importId, filename: row.filename, versionNo: row.versionNo }

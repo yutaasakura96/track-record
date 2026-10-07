@@ -7,12 +7,15 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
+import { z } from "zod";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { collectRenderInputs, generateIntoProposal } from "../services/render";
+import { parseBody } from "../services/validate";
+import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
   proposalResponse,
@@ -37,11 +40,29 @@ import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
   RENDER_TITLE,
+  TAILORABLE_KINDS,
   type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
+
+/** Long enough for any posting; short enough that a pasted file of something else is refused. */
+const JOB_DESCRIPTION_MAX = 20_000;
+
+const tailoredBody = z.object({
+  label: z
+    .string()
+    .trim()
+    .min(1, "Name this résumé, for example the company and the role.")
+    .max(120, "Keep the name under 120 characters."),
+  jobDescription: z
+    .string()
+    .trim()
+    .min(1, "Paste the job description this résumé is for.")
+    .max(JOB_DESCRIPTION_MAX, `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`),
+  kind: z.enum(TAILORABLE_KINDS).default("english_resume"),
+});
 
 export function registerRenderRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -51,24 +72,80 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
     const state = await renderState(db, user.id);
-    return c.json({ items: state });
+    return c.json({ items: state.documents });
   });
 
-  api.post("/api/renders/:kind/generate", async (c) => {
+  /**
+   * The tailored résumés (issue #57), newest first. Each is a document of its
+   * own, addressed by `ref` on every `/api/renders/:ref/…` route. The job
+   * description is not in the listing: it is long, and one résumé's is read
+   * from its own route.
+   */
+  api.get("/api/tailored-resumes", async (c) => {
+    const state = await renderState(c.get("db"), c.get("user").id);
+    // `canGenerate` with the list, so the screen offers no Generate into a 428.
+    return c.json({ items: state.tailored, canGenerate: state.usableFacts > 0 });
+  });
+
+  /**
+   * Names a tailored résumé and stores the job description it is written
+   * toward. It generates nothing: the client asks for the first version with
+   * the same Generate every document has, so a refusal there (no usable fact,
+   * a missing profile field) is said the way it is said everywhere else, and
+   * the résumé is still there to generate later.
+   */
+  api.post("/api/tailored-resumes", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const body = await parseBody(c, tailoredBody);
+
+    const id = newId("render");
+    await db.insert(renders).values({
+      id,
+      userId: user.id,
+      kind: body.kind,
+      label: body.label,
+      jobDescription: body.jobDescription,
+    });
+    // An id and a length. Never the text: a job description names a company.
+    console.log(JSON.stringify({ event: "tailored_resume_created", renderId: id, characters: body.jobDescription.length }));
+
+    const state = await renderState(db, user.id);
+    return c.json(state.tailored.find((row) => row.id === id), 201);
+  });
+
+  /** One tailored résumé, with the job description it was written toward. */
+  api.get("/api/tailored-resumes/:id", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    const [row] = await db
+      .select({ jobDescription: renders.jobDescription })
+      .from(renders)
+      .where(and(eq(renders.userId, user.id), eq(renders.id, id), isNotNull(renders.jobDescription)))
+      .limit(1);
+    if (!row) throw notFound("That résumé");
+
+    const state = await renderState(db, user.id);
+    return c.json({ ...state.tailored.find((r) => r.id === id), jobDescription: row.jobDescription });
+  });
+
+  api.post("/api/renders/:ref/generate", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind } = target;
     const definition = RENDER_DEFINITIONS[kind];
 
     if (!definition.buildable) {
-      throw new ApiError("conflict", `${RENDER_TITLE[kind]} is not built yet.`);
+      throw new ApiError("conflict", `${target.title} is not built yet.`);
     }
 
     // A second proposal beside a waiting one means accepting either discards the
     // other unread. A failed generation has nothing to decide, so it does not
     // hold the render: refusing on it would leave no way to try again.
-    const waiting = await waitingProposalId(db, user.id, kind);
-    if (waiting) throw proposalWaiting(kind, waiting);
+    const waiting = await waitingProposalId(db, user.id, target);
+    if (waiting) throw proposalWaiting(target, waiting);
 
     const [profile] = await db
       .select()
@@ -88,7 +165,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       );
     }
 
-    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin);
+    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
     // The tool never silently produces an empty document, and the reason is
     // stated rather than left to the author to work out.
     if (inputs.facts.length === 0) {
@@ -107,7 +184,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // record, and may not be there next time — is read first.
     const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [];
 
-    const render = await ensureRender(db, user.id, kind);
+    const render = await ensureRender(db, user.id, target);
     const proposalId = newId("renderProposal");
     // The waiting check above is a read, then this insert, with no lock between
     // them. Two simultaneous requests can both pass it; the unique index lets
@@ -132,8 +209,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       });
     } catch (err) {
       if (!violatesUnique(err, "render_proposals_one_waiting_uq")) throw err;
-      const winner = await waitingProposalId(db, user.id, kind);
-      throw proposalWaiting(kind, winner);
+      const winner = await waitingProposalId(db, user.id, target);
+      throw proposalWaiting(target, winner);
     }
 
     // Returns immediately with a resource to poll. The current version stays
@@ -147,7 +224,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     });
     c.executionCtx.waitUntil(run);
 
-    return c.json({ proposalId, renderKind: kind, status: "generating", warnings }, 202);
+    return c.json({ proposalId, renderKind: kind, renderRef: target.ref, status: "generating", warnings }, 202);
   });
 
   /**
@@ -162,24 +239,27 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
   api.get("/api/proposals", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(c.req.query("kind"));
+    // `kind` names the document: a kind, or a tailored résumé's id.
+    const target = await resolveRender(db, user.id, c.req.query("kind"));
 
-    const rows = await db
-      .select({
-        id: renderProposals.id,
-        status: renderProposals.status,
-        generationStatus: renderProposals.generationStatus,
-        generatedAt: renderProposals.generatedAt,
-        decidedAt: renderProposals.decidedAt,
-        reason: renderProposals.reason,
-      })
-      .from(renderProposals)
-      .innerJoin(renders, eq(renders.id, renderProposals.renderId))
-      .where(and(eq(renderProposals.userId, user.id), eq(renders.kind, kind)))
-      .orderBy(desc(renderProposals.generatedAt));
+    const rows = target.render
+      ? await db
+          .select({
+            id: renderProposals.id,
+            status: renderProposals.status,
+            generationStatus: renderProposals.generationStatus,
+            generatedAt: renderProposals.generatedAt,
+            decidedAt: renderProposals.decidedAt,
+            reason: renderProposals.reason,
+          })
+          .from(renderProposals)
+          .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.renderId, target.render.id)))
+          .orderBy(desc(renderProposals.generatedAt))
+      : [];
 
     return c.json({
-      renderKind: kind,
+      renderKind: target.kind,
+      renderRef: target.ref,
       items: rows.map((row) => ({
         id: row.id,
         status: row.status,
@@ -272,6 +352,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     return c.json({
       renderKind: render.kind,
+      renderRef: refOf(render),
       newVersionNo: highest + 1,
       acceptedAt: acceptedAt.toISOString(),
     });
@@ -314,18 +395,22 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
    * A never-generated render answers `200` with nothing in it: having no
    * history is a state, not a missing resource.
    */
-  api.get("/api/renders/:kind/versions", async (c) => {
+  api.get("/api/renders/:ref/versions", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
+    // What the screen is headed with, and whether Generate can be offered on it.
+    const named = {
+      renderKind: kind,
+      renderRef: target.ref,
+      title: target.title,
+      tailored: target.jobDescription !== null,
+      buildable: RENDER_DEFINITIONS[kind].buildable,
+    };
 
-    const [render] = await db
-      .select()
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
-      .limit(1);
     if (!render) {
-      return c.json({ renderKind: kind, currentVersionId: null, currentVersionNo: null, items: [] });
+      return c.json({ ...named, currentVersionId: null, currentVersionNo: null, items: [] });
     }
 
     const rows = await db
@@ -342,7 +427,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const numberById = new Map(rows.map((r) => [r.id, r.versionNo]));
     return c.json({
-      renderKind: kind,
+      ...named,
       currentVersionId: render.currentVersionId,
       currentVersionNo: render.currentVersionId
         ? (numberById.get(render.currentVersionId) ?? null)
@@ -373,10 +458,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
    * (`docs/06`, 2026-09-12). **Nothing here writes to `render_proposals`** —
    * this comparison is not a proposal.
    */
-  api.get("/api/renders/:kind/diff", async (c) => {
+  api.get("/api/renders/:ref/diff", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind } = target;
 
     const from = c.req.query("from");
     const to = c.req.query("to");
@@ -384,8 +470,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       throw validationFailed("A comparison needs two versions.", ["from", "to"]);
     }
 
-    const before = await requireVersion(db, user.id, kind, from);
-    const after = await requireVersion(db, user.id, kind, to);
+    const before = await requireVersion(db, user.id, target, from);
+    const after = await requireVersion(db, user.id, target, to);
 
     const beforeContent = before.content as RenderContent;
     const afterContent = after.content as RenderContent;
@@ -407,16 +493,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
    * deliberately do not transfer — restoring is not made against the current
    * version, and the content it produces is by definition not new.
    */
-  api.post("/api/renders/:kind/versions/:id/restore", async (c) => {
+  api.post("/api/renders/:ref/versions/:id/restore", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
-
-    const [render] = await db
-      .select()
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
-      .limit(1);
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
     if (!render) throw notFound("That version");
 
     // The same reason the edit route refuses: a proposal generated against the
@@ -439,16 +520,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (pending) {
       throw new ApiError(
         "conflict",
-        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before restoring.`,
+        `${target.title} has a proposal waiting. Accept or dismiss it before restoring.`,
         { proposalId: pending.id },
       );
     }
 
-    const target = await requireVersion(db, user.id, kind, pathParam(c, "id"));
+    const restored = await requireVersion(db, user.id, target, pathParam(c, "id"));
     // Not an error the author can act on by retrying, and not a silent no-op
     // that appends an identical version to the history.
-    if (target.id === render.currentVersionId) {
-      throw new ApiError("conflict", `v${target.versionNo} is already the current version.`, {
+    if (restored.id === render.currentVersionId) {
+      throw new ApiError("conflict", `v${restored.versionNo} is already the current version.`, {
         currentVersionId: render.currentVersionId,
       });
     }
@@ -462,7 +543,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
      * route whose purpose is to put a withheld claim back into the live
      * document.
      */
-    const content = target.content as RenderContent;
+    const content = restored.content as RenderContent;
     const record = await collectEditableRecord(db, user.id);
     const bad = badCitations(citedFactIds(content), record);
     if (bad.length > 0) {
@@ -484,7 +565,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         content,
         acceptedAt,
         origin: "restored",
-        sourceVersionId: target.id,
+        sourceVersionId: restored.id,
         /**
          * The TARGET's era, not today's. The column describes the content, and
          * a restore copies the content forward unchanged, so the era comes
@@ -493,9 +574,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
          * restore would read the first one's creation date as its era
          * (`docs/06`, 2026-09-12 second entry, superseding the first).
          */
-        factCountAt: target.factCountAt,
+        factCountAt: restored.factCountAt,
         // The same rule, for the set the count stood in for.
-        usableFactIds: target.usableFactIds,
+        usableFactIds: restored.usableFactIds,
       }),
       db
         .update(renders)
@@ -511,7 +592,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
            * reading (`docs/06`, 2026-09-12). It is the new row's own
            * `factCountAt` because the two now mean the same thing.
            */
-          staleSinceFactCount: target.factCountAt,
+          staleSinceFactCount: restored.factCountAt,
           updatedAt: acceptedAt,
         })
         .where(and(eq(renders.userId, user.id), eq(renders.id, render.id))),
@@ -520,10 +601,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     return c.json(
       {
         renderKind: kind,
+        renderRef: target.ref,
         newVersionNo: highest + 1,
         origin: "restored" as const,
-        sourceVersionId: target.id,
-        sourceVersionNo: target.versionNo,
+        sourceVersionId: restored.id,
+        sourceVersionNo: restored.versionNo,
         acceptedAt: acceptedAt.toISOString(),
       },
       201,
@@ -542,16 +624,18 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
    * `:id` rather than "the current one" because a version never stops being
    * readable — the one an edit was made from is still here afterwards.
    */
-  api.get("/api/renders/:kind/versions/:id", async (c) => {
+  api.get("/api/renders/:ref/versions/:id", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind } = target;
 
-    const version = await requireVersion(db, user.id, kind, pathParam(c, "id"));
+    const version = await requireVersion(db, user.id, target, pathParam(c, "id"));
 
     return c.json({
       id: version.id,
       renderKind: kind,
+      renderRef: target.ref,
       versionNo: version.versionNo,
       origin: version.origin,
       sourceVersionId: version.sourceVersionId,
@@ -573,10 +657,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
    * work; showing the author the sentence they just typed is ceremony, and the
    * version history is where an edit is read back.
    */
-  api.post("/api/renders/:kind/versions", async (c) => {
+  api.post("/api/renders/:ref/versions", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
 
     const body = await c.req.json().catch(() => null);
     if (typeof body !== "object" || body === null) {
@@ -590,11 +675,6 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       );
     }
 
-    const [render] = await db
-      .select()
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
-      .limit(1);
     if (!render?.currentVersionId) throw notFound("A version of that document");
 
     // A proposal generated against the version being edited would still be
@@ -617,7 +697,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (pending) {
       throw new ApiError(
         "conflict",
-        `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before editing.`,
+        `${target.title} has a proposal waiting. Accept or dismiss it before editing.`,
         { proposalId: pending.id },
       );
     }
@@ -635,7 +715,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const [current] = await db
       .select()
       .from(renderVersions)
-      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.id, basedOnVersionId)))
+      .where(
+        and(
+          eq(renderVersions.userId, user.id),
+          eq(renderVersions.renderId, render.id),
+          eq(renderVersions.id, basedOnVersionId),
+        ),
+      )
       .limit(1);
     if (!current) throw notFound("That version");
 
@@ -695,6 +781,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     return c.json(
       {
         renderKind: kind,
+        renderRef: target.ref,
         newVersionNo: highest + 1,
         origin: "edited" as const,
         sourceVersionId: current.id,
@@ -708,27 +795,19 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
   });
 
   /** Assembled from the stored content on each request. NEVER stored. */
-  api.get("/api/renders/:kind/download", async (c) => {
+  api.get("/api/renders/:ref/download", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
-    const kind = requireKind(pathParam(c, "kind"));
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
     const format = c.req.query("format") === "md" ? "md" : "docx";
-
-    const [render] = await db
-      .select()
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.kind, kind)))
-      .limit(1);
 
     const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
     if (!versionId) throw notFound("A version of that document");
 
-    const [version] = await db
-      .select()
-      .from(renderVersions)
-      .where(and(eq(renderVersions.userId, user.id), eq(renderVersions.id, versionId)))
-      .limit(1);
-    if (!version) throw notFound("That version");
+    // A version of this document and no other: a tailored résumé's version is
+    // not served under the main résumé's address, nor the reverse.
+    const version = await requireVersion(db, user.id, target, versionId);
 
     const content = version.content as RenderContent;
 
@@ -755,7 +834,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const title = RENDER_TITLE[kind];
-    const filename = downloadFilename(kind, format, version.acceptedAt);
+    const filename = downloadFilename(kind, format, version.acceptedAt, render?.label ?? null);
 
     // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
     // derived from the record rather than read out of the version, its identity
@@ -829,7 +908,9 @@ const alreadyDecided = () =>
  * is not waiting: it has nothing to decide, and it sits outside the unique index
  * for the same reason.
  */
-async function waitingProposalId(db: Db, userId: string, kind: RenderKind): Promise<string | null> {
+async function waitingProposalId(db: Db, userId: string, target: RenderRef): Promise<string | null> {
+  // Re-read rather than taken from `target.render`: the loser of a generate
+  // race asks again after the winner has created the row.
   const [waiting] = await db
     .select({ id: renderProposals.id })
     .from(renderProposals)
@@ -837,7 +918,7 @@ async function waitingProposalId(db: Db, userId: string, kind: RenderKind): Prom
     .where(
       and(
         eq(renderProposals.userId, userId),
-        eq(renders.kind, kind),
+        target.jobDescription === null ? mainRender(userId, target.kind) : eq(renders.id, target.ref),
         eq(renderProposals.status, "pending"),
         ne(renderProposals.generationStatus, "failed"),
       ),
@@ -851,10 +932,10 @@ async function waitingProposalId(db: Db, userId: string, kind: RenderKind): Prom
  * The loser of a race rereads to name the winner, and the winner may already
  * have failed by then, in which case there is no id to name.
  */
-const proposalWaiting = (kind: RenderKind, proposalId: string | null) =>
+const proposalWaiting = (target: RenderRef, proposalId: string | null) =>
   new ApiError(
     "conflict",
-    `${RENDER_TITLE[kind]} has a proposal waiting. Accept or dismiss it before generating again.`,
+    `${target.title} has a proposal waiting. Accept or dismiss it before generating again.`,
     proposalId ? { proposalId } : undefined,
   );
 
@@ -893,21 +974,22 @@ async function renderIdentity(db: Db, userId: string): Promise<RenderIdentity> {
   };
 }
 
-function requireKind(value: string | undefined): RenderKind {
-  if (!value || !(RENDER_KINDS as readonly string[]).includes(value)) {
-    throw notFound("That document");
-  }
-  return value as RenderKind;
-}
-
-/** A `renders` row is created on first generation, not on sign-up. */
-async function ensureRender(db: Db, userId: string, kind: RenderKind) {
-  const read = async () => (await renderState(db, userId)).find((r) => r.kind === kind)!;
+/**
+ * A main document's `renders` row is created on first generation, not on
+ * sign-up. A tailored résumé's row exists from the moment it is named.
+ */
+async function ensureRender(db: Db, userId: string, target: RenderRef) {
+  const read = async () => {
+    const state = await renderState(db, userId);
+    return target.jobDescription === null
+      ? state.documents.find((r) => r.kind === target.kind)!
+      : state.tailored.find((r) => r.id === target.ref)!;
+  };
   let state = await read();
   if (state.id === null) {
     await db
       .insert(renders)
-      .values({ id: newId("render"), userId, kind })
+      .values({ id: newId("render"), userId, kind: target.kind })
       .onConflictDoNothing();
     state = await read();
   }
@@ -916,6 +998,10 @@ async function ensureRender(db: Db, userId: string, kind: RenderKind) {
 
 interface RenderState {
   id: string | null;
+  /** What the render routes address it by: its kind, or a tailored résumé's id. */
+  ref: string;
+  /** A tailored résumé's name and when it was made. `null` on a main document. */
+  tailored: { label: string; createdAt: string } | null;
   kind: RenderKind;
   language: "en" | "ja";
   title: string;
@@ -932,10 +1018,14 @@ interface RenderState {
 }
 
 /**
- * One query set backs both `GET /api/renders` and the overview's Documents
- * section. All five kinds are always reported, whether or not a row exists.
+ * One query set backs `GET /api/renders`, the tailored résumés and the
+ * overview's Documents section. All five kinds are always reported, whether or
+ * not a row exists; a tailored résumé is reported once it has been named.
  */
-export async function renderState(db: Db, userId: string): Promise<RenderState[]> {
+export async function renderState(
+  db: Db,
+  userId: string,
+): Promise<{ documents: RenderState[]; tailored: RenderState[]; usableFacts: number }> {
   // One round trip, not four in a row: this backs the home screen (issue #58).
   const [rows, versions, pending, usable] = await db.batch([
     db.select().from(renders).where(eq(renders.userId, userId)),
@@ -975,13 +1065,12 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
     db.select({ id: facts.id }).from(facts).where(usableFacts(userId)),
   ]);
   const usableNow = new Set(usable.map((f) => f.id));
-  const byKind = new Map(rows.map((r) => [r.kind, r]));
+  const byKind = new Map(rows.filter((r) => r.jobDescription === null).map((r) => [r.kind, r]));
   const versionById = new Map(versions.map((v) => [v.id, v]));
   const pendingByRender = new Map<string, (typeof pending)[number]>();
   for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p);
 
-  return RENDER_KINDS.map((kind) => {
-    const row = byKind.get(kind);
+  const stateOf = (kind: RenderKind, row: (typeof rows)[number] | undefined): RenderState => {
     const version = row?.currentVersionId ? versionById.get(row.currentVersionId) : undefined;
     const proposal = row ? pendingByRender.get(row.id) : undefined;
     const pendingProposalId = proposal?.id ?? null;
@@ -1003,9 +1092,14 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
 
     return {
       id: row?.id ?? null,
+      ref: row ? refOf(row) : kind,
+      tailored:
+        row && row.jobDescription !== null
+          ? { label: row.label ?? "", createdAt: row.createdAt.toISOString() }
+          : null,
       kind,
       language: RENDER_DEFINITIONS[kind].language,
-      title: RENDER_TITLE[kind],
+      title: row ? titleOf(row) : RENDER_TITLE[kind],
       buildable: RENDER_DEFINITIONS[kind].buildable,
       currentVersionId: row?.currentVersionId ?? null,
       currentVersionNo: version?.versionNo ?? null,
@@ -1015,7 +1109,17 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
       withdrawnFactsSince: since?.withdrawn ?? null,
       pendingProposalId,
     };
-  });
+  };
+
+  return {
+    documents: RENDER_KINDS.map((kind) => stateOf(kind, byKind.get(kind))),
+    // Newest first: the one just made is the one being worked on.
+    tailored: rows
+      .filter((r) => r.jobDescription !== null)
+      .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+      .map((row) => stateOf(row.kind as RenderKind, row)),
+    usableFacts: usableNow.size,
+  };
 }
 
 /**
@@ -1041,20 +1145,28 @@ function factsSince(
 }
 
 /**
- * One version of one render kind, or a 404.
+ * One version of one document, or a 404.
  *
- * A version of another kind is not this render's, and saying so would confirm
- * it exists — so the wrong kind and a missing row give the same answer.
+ * A version of another document is not this one's, and saying so would confirm
+ * it exists — so the wrong document and a missing row give the same answer. A
+ * tailored résumé shares its kind with the main résumé, so the test is the
+ * render row and not the kind.
  */
-async function requireVersion(db: Db, userId: string, kind: RenderKind, id: string) {
-  const [row] = await db
-    .select({ version: renderVersions, renderKind: renders.kind })
+async function requireVersion(db: Db, userId: string, target: RenderRef, id: string) {
+  if (!target.render) throw notFound("That version");
+  const [version] = await db
+    .select()
     .from(renderVersions)
-    .innerJoin(renders, eq(renders.id, renderVersions.renderId))
-    .where(and(eq(renderVersions.userId, userId), eq(renderVersions.id, id)))
+    .where(
+      and(
+        eq(renderVersions.userId, userId),
+        eq(renderVersions.renderId, target.render.id),
+        eq(renderVersions.id, id),
+      ),
+    )
     .limit(1);
-  if (!row || row.renderKind !== kind) throw notFound("That version");
-  return row.version;
+  if (!version) throw notFound("That version");
+  return version;
 }
 
 /** The next version number for a render. Versions are numbered per render. */

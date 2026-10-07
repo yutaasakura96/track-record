@@ -42,6 +42,9 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     technologies: [],
     isClientIdentifying: false,
     graded: false,
+    autoAccepted: false,
+    gradedBy: null,
+    flags: [],
     likelyMatches: [],
     ...overrides,
   };
@@ -335,7 +338,7 @@ describe("the quoted passage on a card", () => {
 describe("the wait while a document is read", () => {
   const extracting = { status: { status: "extracting", chunksTotal: 150, chunksDone: 9 } as Partial<ImportStatus> };
 
-  it("says work is under way, how far along it is, and that review can start", async () => {
+  it("says work is under way, how far along it is, and that the facts found are already kept", async () => {
     open(CANDIDATES, extracting);
     await card("f-measured");
 
@@ -345,7 +348,7 @@ describe("the wait while a document is read", () => {
     expect(within(block).getByText("6%")).toBeTruthy();
     expect(
       within(block).getByText(
-        "9 of 150 sections read. Still working, please wait: a long document takes several minutes. You can review the facts already found.",
+        "9 of 150 sections read. Still working, please wait: a long document takes several minutes. The facts already found are in your record.",
       ),
     ).toBeTruthy();
     // Pinned above the cards, not among them: scrolling the list cannot lose it.
@@ -391,9 +394,10 @@ describe("the guide to this screen", () => {
     await card("f-measured");
 
     const guide = screen.getByRole("region", { name: "How to review" });
-    expect(within(guide).getByText("Read the highlighted passage on the left. It is the evidence.")).toBeTruthy();
+    expect(within(guide).getByText("Facts are accepted into your record as they are found. You do not have to open them.")).toBeTruthy();
+    expect(within(guide).getByText("A flagged fact says why. Press Explain this for more, in plain words.")).toBeTruthy();
     expect(within(guide).getByText("Worth")).toBeTruthy();
-    expect(guide.textContent).toContain("Generated: the importer's guess.");
+    expect(guide.textContent).toContain("Generated: not stated in the passage.");
     expect(screen.getByText("4 facts left to review.")).toBeTruthy();
   });
 
@@ -401,7 +405,7 @@ describe("the guide to this screen", () => {
     const first = open(CANDIDATES);
     await card("f-measured");
     await first.user.click(within(screen.getByRole("region", { name: "How to review" })).getByRole("button", { name: "Hide" }));
-    expect(screen.queryByText("Read the highlighted passage on the left. It is the evidence.")).toBeNull();
+    expect(screen.queryByText("Facts are accepted into your record as they are found. You do not have to open them.")).toBeNull();
     cleanup();
 
     open(CANDIDATES);
@@ -1018,5 +1022,254 @@ describe("re-grading an accepted fact (issue #37)", () => {
     });
 
     expect(await screen.findByRole("button", { name: "To re-grade 2" })).toBeTruthy();
+  });
+});
+
+/**
+ * Issue #57. An import now arrives with every fact accepted and graded, so the
+ * screen stops asking for a ruling on each card: it shows what was flagged and
+ * why, and puts every control behind a press the author chooses to make.
+ */
+describe("an import whose facts were accepted on arrival (issue #57)", () => {
+  const NUMBER_FLAG = {
+    id: "flg-test-1",
+    kind: "number" as const,
+    reason: "It states a number. Check the number against the passage it was read from.",
+    explanation: null,
+    checked: false,
+  };
+  const PRIVATE_FLAG = {
+    id: "flg-test-2",
+    kind: "confidential" as const,
+    reason: "The importer read it as confidential. It is kept Private and out of every document.",
+    explanation: null,
+    checked: false,
+  };
+  const sorted = (id: string, quote: string, overrides: Partial<Fact> = {}) =>
+    fact(id, quote, {
+      status: "accepted",
+      disclosure: "restricted",
+      graded: true,
+      autoAccepted: true,
+      gradedBy: "importer",
+      ...overrides,
+    });
+  const SORTED = [
+    sorted("f-measured", "from 40 minutes to 9 minutes", { provenance: "measured", flags: [NUMBER_FLAG] }),
+    sorted("f-attested", "weekly plinth review"),
+    sorted("f-private", "Pay was renegotiated", { disclosure: "private", flags: [PRIVATE_FLAG] }),
+  ];
+
+  it("says the facts are already in the record, and asks for no review", async () => {
+    open(SORTED);
+    await card("f-measured");
+
+    expect(screen.getByText("3 facts, already in your record")).toBeTruthy();
+    expect(screen.queryByText(/reviewed$/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Finish review" })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Done" }).length).toBeGreaterThan(0);
+    // Nothing to review, so neither review pill; what is flagged has one.
+    expect(screen.queryByRole("button", { name: /^To review/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Reviewed/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Flagged 2" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^To re-grade/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Sort / })).toBeNull();
+  });
+
+  it("offers no Accept, no Reject and no Undo on a card until Change is pressed", async () => {
+    const { api } = open(SORTED);
+    const plain = await card("f-attested");
+
+    expect(within(plain).queryByRole("button", { name: "Accept" })).toBeNull();
+    expect(within(plain).queryByRole("button", { name: "Reject" })).toBeNull();
+    expect(within(plain).queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(within(plain).queryByRole("region", { name: "Change this fact" })).toBeNull();
+    expect(within(plain).getByRole("button", { name: "Change" }).getAttribute("aria-expanded")).toBe("false");
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("shows each open flag on its card with its reason, and none on an unflagged card", async () => {
+    open(SORTED);
+    const flagged = within(await card("f-measured")).getByRole("region", { name: "Flagged" });
+
+    expect(within(flagged).getByText(NUMBER_FLAG.reason, { exact: false })).toBeTruthy();
+    expect(within(flagged).getByRole("button", { name: "Explain this" })).toBeTruthy();
+    expect(within(await card("f-private")).getByText(PRIVATE_FLAG.reason, { exact: false })).toBeTruthy();
+    expect(within(await card("f-attested")).queryByRole("region", { name: "Flagged" })).toBeNull();
+  });
+
+  it("drops a checked flag from its card and from the Flagged count", async () => {
+    open([sorted("f-measured", "from 40 minutes to 9 minutes", { flags: [{ ...NUMBER_FLAG, checked: true }] })]);
+    const only = await card("f-measured");
+
+    expect(within(only).queryByRole("region", { name: "Flagged" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Flagged/ })).toBeNull();
+  });
+
+  it("explains a flag from the card with one request, for that flag", async () => {
+    const { api, user } = open(SORTED, {
+      routes: { "POST /api/flags/flg-test-1/explain": { ...NUMBER_FLAG, explanation: "Two figures are stated." } },
+    });
+    const flagged = within(await card("f-measured")).getByRole("region", { name: "Flagged" });
+    await user.click(within(flagged).getByRole("button", { name: "Explain this" }));
+
+    expect((await within(flagged).findByLabelText("Explanation")).textContent).toBe("Two figures are stated.");
+    expect(api.writes()).toEqual(["POST /api/flags/flg-test-1/explain"]);
+  });
+
+  it("lists only the flagged facts under the Flagged pill", async () => {
+    const { user } = open(SORTED);
+    await card("f-attested");
+    await user.click(screen.getByRole("button", { name: "Flagged 2" }));
+
+    await waitFor(() => expect(document.querySelector('[data-fact-card="f-attested"]')).toBeNull());
+    expect(document.querySelector('[data-fact-card="f-measured"]')).not.toBeNull();
+    expect(document.querySelector('[data-fact-card="f-private"]')).not.toBeNull();
+  });
+
+  it("re-grades through the grade route, so the choice is recorded as the author's", async () => {
+    const { api, user } = open(SORTED, {
+      routes: { "POST /api/facts/f-attested/regrade": sorted("f-attested", "weekly plinth review", { provenance: "generated", gradedBy: "author" }) },
+    });
+    const plain = await card("f-attested");
+    await user.click(within(plain).getByRole("button", { name: "Change" }));
+    const panel = within(plain).getByRole("region", { name: "Change this fact" });
+    await user.click(within(panel).getByRole("radio", { name: "Generated" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-attested/regrade"]));
+    expect(api.bodyOf("POST", "/api/facts/f-attested/regrade")).toEqual({ provenance: "generated" });
+  });
+
+  it("makes a Private fact usable only by the author's own press, on that one fact", async () => {
+    const { api, user } = open(SORTED, {
+      routes: { "PATCH /api/facts/f-private": sorted("f-private", "Pay was renegotiated", { disclosure: "restricted" }) },
+    });
+    const priv = await card("f-private");
+    await user.click(within(priv).getByRole("button", { name: "Change" }));
+    await user.click(within(within(priv).getByRole("region", { name: "Change this fact" })).getByRole("radio", { name: "Restricted" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["PATCH /api/facts/f-private"]));
+    expect(api.bodyOf("PATCH", "/api/facts/f-private")).toEqual({ disclosure: "restricted" });
+  });
+
+  it("rejects from under Change, with one write for that fact", async () => {
+    const { api, user } = open(SORTED, {
+      routes: { "POST /api/facts/f-attested/reject": sorted("f-attested", "weekly plinth review", { status: "rejected" }) },
+    });
+    const plain = await card("f-attested");
+    await user.click(within(plain).getByRole("button", { name: "Change" }));
+    await user.click(within(plain).getByRole("button", { name: "Reject" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-attested/reject"]));
+  });
+
+  it("offers Undo on a fact the author rejected, which is the way back", async () => {
+    const { api, user } = open([sorted("f-attested", "weekly plinth review", { status: "rejected" })], {
+      routes: { "POST /api/facts/f-attested/undo": sorted("f-attested", "weekly plinth review") },
+    });
+    await user.click(within(await card("f-attested")).getByRole("button", { name: "Undo" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/f-attested/undo"]));
+  });
+
+  it("shows the pair a Likely a repeat flag is about, on the accepted card", async () => {
+    const REPEAT_FLAG = {
+      id: "flg-test-3",
+      kind: "repeat" as const,
+      reason: "It likely restates a fact already in your record. Open it to see both, and reject one if they say the same thing.",
+      explanation: null,
+      checked: false,
+    };
+    open([
+      sorted("f-measured", "from 40 minutes to 9 minutes", {
+        flags: [REPEAT_FLAG],
+        likelyMatches: [
+          {
+            id: "f-old-3",
+            claim: "Brought the zentrel batch down to 9 minutes",
+            provenance: "attested",
+            graded: true,
+            document: { importId: "imp-old-1", filename: "qorvane-retelling.md", versionNo: 1 },
+            conflict: false,
+          },
+        ],
+      }),
+    ]);
+    const only = await card("f-measured");
+
+    expect(within(only).getByText("Likely a repeat")).toBeTruthy();
+    const pair = within(only).getByRole("region", { name: "Likely already in your record" });
+    expect(within(pair).getByText("Brought the zentrel batch down to 9 minutes")).toBeTruthy();
+  });
+
+  it("opens on the fact the Flagged list asked for", async () => {
+    mount(`/imports/${IMPORT}?fact=f-private`, {
+      [`GET /api/imports/${IMPORT}`]: status(),
+      [`GET /api/facts?importId=${IMPORT}`]: { items: SORTED },
+      [`GET /api/source-documents/${DOCUMENT}/versions/1/text`]: {
+        sourceDocumentVersionId: "dv-test-1",
+        filename: "qorvane-notes.md",
+        project: null,
+        wordCount: 42,
+        importedAt: "2026-09-01T00:00:00.000Z",
+        text: SOURCE,
+      },
+      "GET /api/employers": { items: EMPLOYERS },
+    });
+
+    await waitFor(async () => expect((await card("f-private")).getAttribute("aria-current")).toBe("true"));
+    expect((await card("f-measured")).getAttribute("aria-current")).toBe("false");
+  });
+});
+
+describe("facts still waiting from before automatic acceptance (issue #57)", () => {
+  const SORT = "POST /api/facts/sort";
+
+  it("sorts them in one press, a batch a request, until none are left", async () => {
+    let left = 2;
+    const { api, user } = open(CANDIDATES, {
+      routes: {
+        [SORT]: () => {
+          left -= 1;
+          return { sorted: 2, flagged: 1, remaining: left * 2 };
+        },
+      },
+    });
+    await card("f-measured");
+    await user.click(screen.getByRole("button", { name: "Sort 4 facts" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([SORT, SORT]));
+    // Only this document's facts: the request names the import.
+    expect(api.calls.filter((c) => c.method === "POST").map((c) => c.body)).toEqual([
+      { importId: IMPORT },
+      { importId: IMPORT },
+    ]);
+  });
+
+  it("stops where it is and says why when a batch fails, with what was sorted kept", async () => {
+    let attempt = 0;
+    const { api, user } = open(CANDIDATES, {
+      routes: {
+        [SORT]: () =>
+          ++attempt === 1
+            ? { sorted: 2, flagged: 0, remaining: 2 }
+            : new Refusal(503, "upstream_unavailable", "The facts could not be sorted just now. Nothing was changed; try again."),
+      },
+    });
+    await card("f-measured");
+    await user.click(screen.getByRole("button", { name: "Sort 4 facts" }));
+
+    expect((await screen.findByText("The facts could not be sorted just now. Nothing was changed; try again.")).getAttribute("role")).toBe("alert");
+    expect(api.writes()).toEqual([SORT, SORT]);
+    expect(screen.getByRole("status").textContent).toContain("2 sorted");
+  });
+
+  it("still lets each be reviewed on its own card", async () => {
+    open(CANDIDATES);
+    const waiting = await card("f-attested");
+
+    expect(within(waiting).getByRole("button", { name: "Accept" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Finish review" })).toBeTruthy();
+    expect(screen.getByText("0 of 4 reviewed")).toBeTruthy();
   });
 });

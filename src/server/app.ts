@@ -24,6 +24,8 @@ import { registerInclusionRoutes } from "./routes/inclusions";
 import { registerSkillRoutes } from "./routes/skills";
 import { registerImportRoutes } from "./routes/imports";
 import { registerFactRoutes } from "./routes/facts";
+import { registerFlagRoutes } from "./routes/flags";
+import { registerMasterRoutes } from "./routes/master";
 import { registerRenderRoutes } from "./routes/renders";
 import { registerOverviewRoutes } from "./routes/overview";
 
@@ -60,6 +62,8 @@ export function createApp(options: AppOptions = {}) {
   registerSkillRoutes(app);
   registerImportRoutes(app);
   registerFactRoutes(app);
+  registerFlagRoutes(app);
+  registerMasterRoutes(app);
   registerRenderRoutes(app);
   registerOverviewRoutes(app);
 

@@ -5,10 +5,14 @@
  * Through the API, as a portfolio restating a narrative would arrive: one
  * document imported and accepted, then a second whose candidates restate it.
  * Every document and claim here is invented.
+ *
+ * Since issue #57 a fact is accepted on arrival, so the match a candidate's
+ * card computed is kept as a `repeat` flag. Both are here: the candidate card,
+ * which the backlog still reads, and the flag.
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { asCandidates, EMPLOYER_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { facts as factsTable } from "~/server/db/schema";
 
 interface Match {
@@ -20,6 +24,13 @@ interface Match {
   conflict: boolean;
 }
 
+interface Flag {
+  id: string;
+  kind: string;
+  reason: string;
+  checked: boolean;
+}
+
 interface Fact {
   id: string;
   claim: string;
@@ -28,6 +39,7 @@ interface Fact {
   employerId: string | null;
   employerSetByHand: boolean;
   likelyMatches: Match[];
+  flags: Flag[];
 }
 
 interface Extracted {
@@ -85,15 +97,32 @@ async function employer(nameJa = EMPLOYER_FIXTURE.nameJa) {
   return ((await response.json()) as { id: string }).id;
 }
 
-async function importDocument(text: string, filename: string, extracted: Extracted[], projectId?: string) {
-  model.extractions = [extracted.map((e) => ({ ...e, technologies: [] }))];
+/** As the importer leaves it now: every fact accepted on arrival (issue #57). */
+async function importAccepted(
+  text: string,
+  filename: string,
+  extracted: Extracted[],
+  filed: { projectId?: string; employerId?: string } = {},
+) {
+  model.extractions = [extracted.map((e) => ({ ...e, technologies: [], provenance: "attested" as const }))];
   const form = uploadForm(text, filename);
-  if (projectId) form.set("projectId", projectId);
+  for (const [key, value] of Object.entries(filed)) form.set(key, value);
   const created = (await (await client.request("/api/imports", { method: "POST", body: form })).json()) as {
     importId: string;
   };
   await settle();
   return created.importId;
+}
+
+/**
+ * As a document imported before automatic acceptance arrived: every fact a
+ * candidate. The backlog is in this state, and its cards still compute the
+ * match on the read.
+ */
+async function importDocument(text: string, filename: string, extracted: Extracted[], projectId?: string) {
+  const importId = await importAccepted(text, filename, extracted, projectId ? { projectId } : {});
+  await asCandidates(importId);
+  return importId;
 }
 
 async function factsOf(importId: string) {
@@ -265,5 +294,168 @@ describe("the flag is settled by Accept and Reject, as they are today", () => {
     const undone = (await (await client.post(`/api/facts/${conflicting.id}/undo`)).json()) as Fact;
     expect(undone.status).toBe("candidate");
     expect(undone.likelyMatches.map((m) => m.conflict)).toEqual([true]);
+  });
+});
+
+describe("a fact accepted on arrival is flagged when it likely restates another", () => {
+  const repeatOf = (fact: Fact) => fact.flags.find((flag) => flag.kind === "repeat");
+  const openRepeats = async () =>
+    (await client.json<{ items: { kind: string; fact: { claim: string } }[] }>("/api/flags")).items
+      .filter((item) => item.kind === "repeat")
+      .map((item) => item.fact.claim)
+      .sort();
+
+  /** The narrative and then the portfolio, both filed under `employerId` at upload. */
+  async function bothAccepted(employerId: string) {
+    const narrativeImport = await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH, NARRATIVE_REVIEW], { employerId });
+    const portfolioImport = await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, CONFLICTING, UNRELATED], { employerId });
+    return { narrativeImport, portfolioImport, narrative: await factsOf(narrativeImport), portfolio: await factsOf(portfolioImport) };
+  }
+
+  it("flags the restatement and the conflict, says which is which, and shows the pair on the card", async () => {
+    const { narrative, portfolio } = await bothAccepted(await employer());
+
+    const restated = byClaim(portfolio, RESTATED.claim);
+    expect(restated.status).toBe("accepted");
+    expect(repeatOf(restated)!.reason).toBe(
+      "It likely restates a fact already in your record. Open it to see both, and reject one if they say the same thing.",
+    );
+    expect(restated.likelyMatches.map((m) => [m.id, m.conflict])).toEqual([
+      [byClaim(narrative, NARRATIVE_BATCH.claim).id, false],
+    ]);
+
+    const conflicting = byClaim(portfolio, CONFLICTING.claim);
+    expect(repeatOf(conflicting)!.reason).toContain("the number differs");
+    expect(conflicting.likelyMatches.map((m) => m.conflict)).toEqual([true]);
+
+    expect(repeatOf(byClaim(portfolio, UNRELATED.claim))).toBeUndefined();
+    // The fact that was there first is not the repeat.
+    expect(narrative.every((fact) => repeatOf(fact) === undefined)).toBe(true);
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+  });
+
+  it("never flags two facts read from the same document against each other", async () => {
+    const aozora = await employer();
+    // The restatement and the conflict sit in one document and nothing else does.
+    const importId = await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, CONFLICTING], { employerId: aozora });
+    expect((await factsOf(importId)).every((fact) => repeatOf(fact) === undefined)).toBe(true);
+  });
+
+  it("flags nothing at another employer, and nothing while the employer does not resolve", async () => {
+    const aozora = await employer();
+    await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], { employerId: aozora });
+    await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED], { employerId: await employer("株式会社ミドリ運輸") });
+    await importAccepted(`${PORTFOLIO}\n`, "unfiled.md", [CONFLICTING]);
+    expect(await openRepeats()).toEqual([]);
+  });
+
+  it("is raised when the employer is set on the card afterwards", async () => {
+    const aozora = await employer();
+    await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], { employerId: aozora });
+    const portfolioImport = await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED]);
+    const [unfiled] = await factsOf(portfolioImport);
+    expect(repeatOf(unfiled!)).toBeUndefined();
+
+    const filed = (await (await client.patch(`/api/facts/${unfiled!.id}`, { employerId: aozora })).json()) as Fact;
+    expect(repeatOf(filed)).toBeDefined();
+    expect(filed.likelyMatches).toHaveLength(1);
+  });
+
+  it("is raised when the whole document is filed under the employer afterwards", async () => {
+    const aozora = await employer();
+    await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], { employerId: aozora });
+    model.extractions = [[{ ...RESTATED, technologies: [], provenance: "attested" }]];
+    const created = (await (
+      await client.request("/api/imports", { method: "POST", body: uploadForm(PORTFOLIO, "portfolio.md") })
+    ).json()) as { importId: string; sourceDocumentId: string };
+    await settle();
+    expect(await openRepeats()).toEqual([]);
+
+    await client.patch(`/api/source-documents/${created.sourceDocumentId}`, { employerId: aozora });
+    expect(await openRepeats()).toEqual([RESTATED.claim]);
+  });
+
+  it("takes the pair off the card when the flag is marked checked, and raises it no second time", async () => {
+    const aozora = await employer();
+    const { portfolio, portfolioImport } = await bothAccepted(aozora);
+    const restated = byClaim(portfolio, RESTATED.claim);
+
+    await client.post(`/api/flags/${repeatOf(restated)!.id}/check`);
+    const checked = byClaim(await factsOf(portfolioImport), RESTATED.claim);
+    expect(checked.likelyMatches).toEqual([]);
+    expect(repeatOf(checked)!.checked).toBe(true);
+
+    // An edit that leaves the pair standing does not raise what was dismissed.
+    await client.patch(`/api/facts/${restated.id}`, { employerId: aozora });
+    expect(await openRepeats()).toEqual([CONFLICTING.claim]);
+  });
+
+  it("keeps the pair on the card after the author re-grades the fact", async () => {
+    const { portfolio, portfolioImport } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+
+    await client.post(`/api/facts/${restated.id}/regrade`, { provenance: "measured" });
+    // Grading it says nothing about the repeat: the flag is still open.
+    expect(byClaim(await factsOf(portfolioImport), RESTATED.claim).likelyMatches).toHaveLength(1);
+  });
+
+  it("settles the flag when the fact it restates is rejected", async () => {
+    const { narrative, portfolioImport } = await bothAccepted(await employer());
+
+    await client.post(`/api/facts/${byClaim(narrative, NARRATIVE_BATCH.claim).id}/reject`);
+    // Neither is sent to a card with one fact on it.
+    expect(await openRepeats()).toEqual([]);
+    const after = await factsOf(portfolioImport);
+    expect(byClaim(after, RESTATED.claim).likelyMatches).toEqual([]);
+    expect(repeatOf(byClaim(after, RESTATED.claim))!.checked).toBe(true);
+    // The repeat itself is untouched: still accepted, still in the record.
+    expect(byClaim(after, RESTATED.claim).status).toBe("accepted");
+  });
+
+  it("settles the flag when the fact is reworded so that nothing is alike", async () => {
+    const { portfolio } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+
+    await client.patch(`/api/facts/${restated.id}`, { claim: "Wrote the handover notes for the operations desk" });
+    expect(await openRepeats()).toEqual([CONFLICTING.claim]);
+  });
+
+  it("drops the rejected repeat from the list and leaves the other fact alone", async () => {
+    const { narrative, portfolio, narrativeImport } = await bothAccepted(await employer());
+
+    await client.post(`/api/facts/${byClaim(portfolio, RESTATED.claim).id}/reject`);
+    expect(await openRepeats()).toEqual([CONFLICTING.claim]);
+    expect(byClaim(await factsOf(narrativeImport), NARRATIVE_BATCH.claim).status).toBe("accepted");
+    expect(narrative).toHaveLength(2);
+  });
+
+  it("is raised by the sort, for a fact that was waiting", async () => {
+    const aozora = await employer();
+    await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH], { employerId: aozora });
+    const portfolioImport = await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, UNRELATED], { employerId: aozora });
+    await asCandidates(portfolioImport);
+    expect(await openRepeats()).toEqual([]);
+
+    const sorted = (await (await client.post("/api/facts/sort", {})).json()) as { sorted: number; flagged: number };
+    // Both come back ungraded, so both are flagged; one of them twice.
+    expect(sorted).toMatchObject({ sorted: 2, flagged: 2 });
+    expect(await openRepeats()).toEqual([RESTATED.claim]);
+  });
+
+  it("never flags against another user's fact", async () => {
+    const aozora = await employer();
+    const other = await seedAllowedUser();
+    await harness(model).db.insert(factsTable).values({
+      id: `fct_other_${Date.now()}`,
+      userId: other.id,
+      employerId: aozora,
+      claim: NARRATIVE_BATCH.claim,
+      provenance: "attested",
+      disclosure: "public",
+      status: "accepted",
+    });
+
+    await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, CONFLICTING], { employerId: aozora });
+    expect(await openRepeats()).toEqual([]);
   });
 });

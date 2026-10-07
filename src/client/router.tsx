@@ -26,6 +26,9 @@ import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
 import { VersionEditScreen } from "./screens/version-edit";
+import { FlaggedScreen } from "./screens/flagged";
+import { MasterDocumentScreen } from "./screens/master-document";
+import { TailoredScreen } from "./screens/tailored";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -107,10 +110,32 @@ const documentsRoute = createRoute({
   component: DocumentsScreen,
 });
 
+const flaggedRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/flagged",
+  component: FlaggedScreen,
+});
+
+const masterDocumentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/master",
+  component: MasterDocumentScreen,
+});
+
+const tailoredRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/tailored",
+  component: TailoredScreen,
+});
+
 const factReviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/imports/$importId",
   component: FactReview,
+  // `?fact=` opens the screen on one fact: where the Flagged list and the
+  // master document send the author when they click into one.
+  validateSearch: (search: Record<string, unknown>): { fact?: string } =>
+    typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {},
 });
 
 const diffReviewRoute = createRoute({
@@ -121,13 +146,13 @@ const diffReviewRoute = createRoute({
 
 const versionHistoryRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/renders/$kind/history",
+  path: "/renders/$ref/history",
   component: VersionHistoryScreen,
 });
 
 const versionEditRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: "/renders/$kind/edit",
+  path: "/renders/$ref/edit",
   component: VersionEditScreen,
 });
 
@@ -137,6 +162,9 @@ const routeTree = rootRoute.addChildren([
   recordRoute,
   skillsRoute,
   documentsRoute,
+  flaggedRoute,
+  masterDocumentRoute,
+  tailoredRoute,
   factReviewRoute,
   diffReviewRoute,
   versionHistoryRoute,

@@ -102,7 +102,17 @@ export async function toDocx(
 }
 
 /** `resume-2026-08-12.docx` — dated, so a downloaded file names its own vintage. */
-export function downloadFilename(kind: string, extension: string, date: Date): string {
+export function downloadFilename(kind: string, extension: string, date: Date, label: string | null = null): string {
   const stem = kind === "english_resume" ? "resume" : kind.replace(/_/g, "-");
-  return `${stem}-${date.toISOString().slice(0, 10)}.${extension}`;
+  // A tailored résumé carries its name, so two downloaded on one day are two
+  // files. ASCII only: the name goes in a `content-disposition` header.
+  const tail = label ? `-${slug(label)}`.replace(/-$/, "") : "";
+  return `${stem}${tail}-${date.toISOString().slice(0, 10)}.${extension}`;
 }
+
+const slug = (label: string) =>
+  label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);

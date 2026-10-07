@@ -105,6 +105,8 @@ export async function collectRenderInputs(
   userId: string,
   kind: RenderKind,
   subjectName: string,
+  /** Set for a tailored résumé. The facts it is given are the main document's. */
+  jobDescription: string | null = null,
 ): Promise<RenderInputs> {
   // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
   // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
@@ -341,6 +343,7 @@ export async function collectRenderInputs(
       // facts as it did before S9. Rows that leave this render nothing is a
       // curation all the same, and becomes an empty list, never `null`.
       curatedSkills: curation.length > 0 ? curationForRender(curation, renderable) : null,
+      jobDescription,
     },
     privateFactCount: privateFacts.length,
     generatedFactCount: generatedFacts.length,

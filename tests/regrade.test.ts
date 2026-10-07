@@ -10,7 +10,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { and, eq, inArray } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { asCandidates, EMPLOYER_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { facts as factsTable } from "~/server/db/schema";
 
 interface Fact {
@@ -82,6 +82,8 @@ async function importDocument(as: Client, text: string, filename: string, extrac
     await as.request("/api/imports", { method: "POST", body: uploadForm(text, filename) })
   ).json()) as { importId: string };
   await settle();
+  // As a document imported before automatic acceptance: every fact a candidate.
+  await asCandidates(created.importId);
   return created.importId;
 }
 
