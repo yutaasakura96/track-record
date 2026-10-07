@@ -5350,6 +5350,10 @@ and it goes with it.
 hold, restated for a set: an edit consumes no facts, so the edited version is out of date by what
 its source was; a restore copies content forward, and the set describes the content.
 
+For a version with no recorded set, an edit also carries its source's `fact_count_at`. Otherwise a
+later restore of that edit would use the count at edit time and could call older content up to date.
+Edits of versions with a set continue to record the current count.
+
 **A version with no recorded set keeps the count rule.** Every version made before migration 0014
 has a null set, and so has an edit or a restore of one. The set cannot be rebuilt: a fact row keeps
 only its current disclosure and provenance, which is what the 2026-10-06 entry found. Those versions

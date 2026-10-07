@@ -679,7 +679,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // Written even though this route does not READ it: the column holds
         // the era of every row alike, and a restore of this version later is
         // what reads it back.
-        factCountAt: await usableFactCount(db, user.id),
+        factCountAt: current.usableFactIds === null
+          ? current.factCountAt
+          : await usableFactCount(db, user.id),
         // The source's, because an edit consumes no facts: the document is
         // still out of date by exactly what it was before the edit.
         usableFactIds: current.usableFactIds,

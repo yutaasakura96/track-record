@@ -894,6 +894,43 @@ describe("documents and downloads", () => {
     expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 0, 1]);
   });
 
+  it("keeps a legacy version's count when its edit is restored", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime", factIds: [record.measuredPublic.id] },
+          { text: "From six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    const v1 = (await resumeRow()).currentVersionId!;
+    await createDb((env as unknown as Bindings).DATABASE_URL)
+      .update(renderVersions)
+      .set({ usableFactIds: null });
+
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "attested" });
+    const { content } = await client.json<{ content: RenderContent }>(
+      `/api/renders/english_resume/versions/${v1}`,
+    );
+    const edited = await client.post("/api/renders/english_resume/versions", {
+      basedOnVersionId: v1,
+      content: { sections: content.sections.map((s) => ({ ...s, blocks: s.blocks.slice(0, 1) })) },
+    });
+    expect(edited.status).toBe(201);
+    const v2 = (await resumeRow()).currentVersionId!;
+
+    const next = (await (
+      await generate(resumeFrom([{ text: "A bullet", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${next.proposalId}/accept`);
+    const restored = await client.post(`/api/renders/english_resume/versions/${v2}/restore`);
+    expect(restored.status).toBe(201);
+    const resume = await resumeRow();
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 1, 0]);
+  });
+
   it("downloads a .docx that is a zip with the Word MIME type", async () => {
     const record = await seedRecord();
     const created = (await (
