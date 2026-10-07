@@ -716,9 +716,16 @@ function StatusText({ row }: { row: RenderRow }) {
   }
   if (row.status === "stale") {
     const n = row.newFactsSince ?? 0;
+    const gone = row.withdrawnFactsSince ?? 0;
+    const arrived = `${number(n)} new ${n === 1 ? "fact" : "facts"}`;
     return (
       <span className={`${line} text-accent-text`}>
-        <Dot tone="accent" /> {number(n)} new {n === 1 ? "fact" : "facts"}
+        <Dot tone="accent" />{" "}
+        {gone === 0
+          ? arrived
+          : n === 0
+            ? `${number(gone)} ${gone === 1 ? "fact" : "facts"} no longer usable`
+            : `${arrived}, ${number(gone)} no longer usable`}
       </span>
     );
   }

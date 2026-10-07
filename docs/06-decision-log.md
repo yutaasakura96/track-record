@@ -5324,3 +5324,54 @@ with `pendingProposalId` set as before, and Home says so in all three places: `W
 <document>`, `A new version of <document> is being written`, `Writing a new version`. A proposal
 that is ready, on any document, comes before one that is not. The overview is polled while one is
 being written, as it is while an import runs, so the wording changes without a reload.
+
+### [2026-10-08] A document is out of date by a set of facts, not a count, and a version made before that keeps the count
+
+[#62](https://github.com/yutaasakura96/track-record/issues/62), the blind spot the 2026-10-06 entry
+accepted. This supersedes that entry's first decision for every version generated from here on.
+
+**A version records the facts it could have used.** `render_versions.usable_fact_ids` holds the ids
+of the facts a document could use when the content was generated: accepted, not Private, not
+Generated, the definition `usableFacts` already states. Home compares that set with the same set
+now. A document is out of date exactly when they differ, and it says by what: `newFactsSince` is
+the facts in today's set and not the version's, and the new `withdrawnFactsSince` is the facts in
+the version's and not today's. Making a fact Private and accepting another leaves the count where
+it was and both numbers at one. Putting both back leaves the document up to date, which the count
+could also not have said for the right reason.
+
+**The set is taken when generation reads the record, not when the author accepts.** It comes from
+the same read `collectRenderInputs` builds the model's input from, is held on the proposal
+(`render_proposals.usable_fact_ids`) and moves to the version on accept. The count was taken at
+accept, so a fact that became usable while a proposal waited was counted as used by a version with
+no sentence from it. That was a second wrong `Up to date`, smaller than the one the issue names,
+and it goes with it.
+
+**An edit and a restore carry the set of the version they were made from.** The 2026-09-12 rules
+hold, restated for a set: an edit consumes no facts, so the edited version is out of date by what
+its source was; a restore copies content forward, and the set describes the content.
+
+**A version with no recorded set keeps the count rule.** Every version made before migration 0014
+has a null set, and so has an edit or a restore of one. The set cannot be rebuilt: a fact row keeps
+only its current disclosure and provenance, which is what the 2026-10-06 entry found. Those versions
+are judged as before, by `stale_since_fact_count`, blind spot included, and report no withdrawn
+fact. The first generation after the migration ends it for that document. Both counts are still
+written on every path, so a restore to an old version has its number. Rejected: backfilling the set
+from today's usable facts, which would state as recorded something that was not, and would mark
+every existing document up to date on the day of the migration.
+
+**What the set is not.** It is the facts any document may use, not the facts this document's
+inclusions leave it. Changing an inclusion still does not mark a document out of date (2026-09-13),
+nor does changing the skills curation; neither was reopened here. It is ids, so a claim reworded in
+place is the same fact and changes nothing. It holds no claim text and only facts that were usable
+when it was taken; a fact later made Private stays in an old set as an id, which is what lets Home
+count it as withdrawn, and reaches no render by it.
+
+**Wording.** The row reads `N new facts`, `N facts no longer usable` or `N new facts, M no longer
+usable`. The Next step reads `N new facts since it was generated.`, `N facts it was generated from
+can no longer be used.` or both in one sentence. A proposal's reason gains `… after N facts could
+no longer be used`. The line above the rows is unchanged: it already speaks of documents that are
+out of date, not of new facts.
+
+**Storage.** An array of ids on the row, not a join table. The read is always one version's whole
+set, compared in the Worker with a list of usable ids that replaces the count query in the same
+batch, and nothing asks which versions a fact was eligible for.

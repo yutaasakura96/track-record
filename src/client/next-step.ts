@@ -12,6 +12,22 @@
  */
 import type { Overview, RenderRow } from "./api";
 
+/**
+ * Why a document is out of date. It is out of date by facts that arrived, by
+ * facts it was generated from that it may no longer use, or by both; a row
+ * that is out of date always has one of the two (`docs/06`, 2026-10-08).
+ */
+function outOfDateBy(row: RenderRow): string {
+  const added = row.newFactsSince ?? 0;
+  const withdrawn = row.withdrawnFactsSince ?? 0;
+  const arrived = `${count(added, "new fact", "new facts")} since it was generated`;
+  if (withdrawn === 0) return `${arrived}.`;
+  if (added === 0) {
+    return `${count(withdrawn, "fact", "facts")} it was generated from can no longer be used.`;
+  }
+  return `${arrived}, and ${withdrawn.toLocaleString("en-US")} it was generated from can no longer be used.`;
+}
+
 const count = (n: number, one: string, many: string) =>
   `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
@@ -120,7 +136,7 @@ export function nextSteps(data: Overview): Step[] {
     steps.push({
       key: "update",
       title: `Update your ${stale.title}`,
-      why: `${count(stale.newFactsSince ?? 0, "new fact", "new facts")} since it was generated.`,
+      why: outOfDateBy(stale),
       action: { kind: "generate", label: "Update", render: stale.kind },
     });
   }

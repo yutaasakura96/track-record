@@ -7,6 +7,7 @@
  * filtered BEFORE the request is built, so it never leaves the database —
  * rather than being filtered out of the response afterwards.
  */
+import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import {
@@ -17,6 +18,9 @@ import {
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
+import { createDb } from "~/server/db/client";
+import { renderVersions } from "~/server/db/schema";
+import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
@@ -35,8 +39,10 @@ interface Fact {
 interface RenderRow {
   kind: string;
   status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
+  currentVersionId: string | null;
   currentVersionNo: number | null;
   newFactsSince: number | null;
+  withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
 }
 
@@ -733,6 +739,159 @@ describe("documents and downloads", () => {
     resume = await read();
     expect(resume.status).toBe("stale");
     expect(resume.newFactsSince).toBe(more.items.length);
+  });
+
+  /**
+   * Issue #62. One fact leaves the usable set and another enters it, so the
+   * count is what it was when the version was made and the set is not.
+   */
+  it("is out of date when a fact it was generated from is withheld and another arrives", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "A bullet", factIds: [record.attestedRestricted.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const read = async () => {
+      const [renders, overview] = await Promise.all([
+        client.json<{ items: RenderRow[] }>("/api/renders"),
+        client.json<{ documents: RenderRow[] }>("/api/overview"),
+      ]);
+      const row = renders.items.find((r) => r.kind === "english_resume")!;
+      expect(overview.documents.find((r) => r.kind === "english_resume")).toEqual(row);
+      return row;
+    };
+    let resume = await read();
+    expect(resume.status).toBe("up_to_date");
+    expect(resume.newFactsSince).toBe(0);
+    expect(resume.withdrawnFactsSince).toBe(0);
+
+    // Withheld alone, it is already a different document.
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "private" });
+    resume = await read();
+    expect(resume.status).toBe("stale");
+    expect(resume.newFactsSince).toBe(0);
+    expect(resume.withdrawnFactsSince).toBe(1);
+
+    // Two usable facts again, as at generation, and not the same two.
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "attested" });
+    resume = await read();
+    expect(resume.status).toBe("stale");
+    expect(resume.newFactsSince).toBe(1);
+    expect(resume.withdrawnFactsSince).toBe(1);
+
+    // Put back as they were, the set is the one the version was made from.
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "restricted" });
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "generated" });
+    resume = await read();
+    expect(resume.status).toBe("up_to_date");
+  });
+
+  const resumeRow = async () =>
+    (await client.json<{ items: RenderRow[] }>("/api/renders")).items.find(
+      (r) => r.kind === "english_resume",
+    )!;
+
+  /**
+   * The set is the one generation read, not the one standing when the author
+   * got round to accepting. A fact that became usable in between is in no
+   * sentence of the version, and the count taken at accept called it used.
+   */
+  it("is out of date by a fact that became usable while its proposal waited", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "A bullet", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "attested" });
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const resume = await resumeRow();
+    expect(resume.status).toBe("stale");
+    expect(resume.newFactsSince).toBe(1);
+    expect(resume.withdrawnFactsSince).toBe(0);
+  });
+
+  /**
+   * An edit consumes no facts and a restore brings its content's era with it,
+   * so both carry the set of the version they were made from, and the next
+   * proposal says why it was made.
+   */
+  it("carries the set through an edit and a restore, and gives it as the reason", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime", factIds: [record.measuredPublic.id] },
+          { text: "From six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "private" });
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "attested" });
+
+    const v1 = (await resumeRow()).currentVersionId!;
+    const { content } = await client.json<{ content: RenderContent }>(
+      `/api/renders/english_resume/versions/${v1}`,
+    );
+    const edited = await client.post("/api/renders/english_resume/versions", {
+      basedOnVersionId: v1,
+      content: { sections: content.sections.map((s) => ({ ...s, blocks: s.blocks.slice(0, 1) })) },
+    });
+    expect(edited.status).toBe(201);
+    let resume = await resumeRow();
+    expect(resume.currentVersionNo).toBe(2);
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 1, 1]);
+
+    const restored = await client.post(`/api/renders/english_resume/versions/${v1}/restore`);
+    expect(restored.status).toBe(201);
+    resume = await resumeRow();
+    expect(resume.currentVersionNo).toBe(3);
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 1, 1]);
+
+    await generate(resumeFrom([{ text: "A bullet", factIds: [record.measuredPublic.id] }]));
+    const { items } = await client.json<{ items: { reason: string }[] }>(
+      "/api/proposals?kind=english_resume",
+    );
+    expect(items[0]!.reason).toBe(
+      "Regenerated after 1 new fact entered your record and 1 fact could no longer be used",
+    );
+  });
+
+  /**
+   * A version made before migration 0014 has no recorded set, and nothing it
+   * could be rebuilt from. It keeps the count difference, blind spot included
+   * (`docs/06`, 2026-10-06), until the document is next generated.
+   */
+  it("keeps the count rule for a version with no recorded set", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "A bullet", factIds: [record.attestedRestricted.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    // The row as migration 0014 leaves one that was already there.
+    await createDb((env as unknown as Bindings).DATABASE_URL)
+      .update(renderVersions)
+      .set({ usableFactIds: null });
+
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "private" });
+    await client.post(`/api/facts/${record.generatedPublic.id}/regrade`, { provenance: "attested" });
+    let resume = await resumeRow();
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["up_to_date", 0, 0]);
+
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "restricted" });
+    resume = await resumeRow();
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 1, 0]);
+
+    // Generated again, it has a set, and the same two moves are seen.
+    const next = (await (
+      await generate(resumeFrom([{ text: "A bullet", factIds: [record.attestedRestricted.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${next.proposalId}/accept`);
+    expect((await resumeRow()).status).toBe("up_to_date");
+    await client.patch(`/api/facts/${record.attestedRestricted.id}`, { disclosure: "private" });
+    resume = await resumeRow();
+    expect([resume.status, resume.newFactsSince, resume.withdrawnFactsSince]).toEqual(["stale", 0, 1]);
   });
 
   it("downloads a .docx that is a zip with the Word MIME type", async () => {

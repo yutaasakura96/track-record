@@ -268,7 +268,7 @@ generation safe.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Outputs / <render name>` + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`) + **Version history** (ghost) |
+| Header (46px) | Breadcrumb `Outputs / <render name>` + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost) |
 | Toolbar (38px) | `N additions` (green dot) · `N removals` (red dot) · section summary · right: `Change N of M` + prev/next icon buttons |
 | Guide (34px) | One line under the toolbar, at the small role in `text-secondary` (#56): `Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one.` |
 | Split body | Two equal columns with a 1px centre rule. Sticky column headers: **Current** + mono `v4` + saved date; **Proposed** + accent `v5 draft` chip + generated timestamp |
@@ -363,7 +363,7 @@ the content column**, so the eye has one place to go. The step is the first of t
 | Accepted facts are still Generated | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
-| A document is out of date | `Update your <document>` | `N new facts since it was generated.` | `Update` |
+| A document is out of date | `Update your <document>` | `N new facts since it was generated.` When it is out of date only by facts it may no longer use: `N facts it was generated from can no longer be used.` Both: `N new facts since it was generated, and M it was generated from can no longer be used.` | `Update` |
 | None of the above | `You are up to date` | `Nothing is waiting for you. Import another document to add to your record.` | None |
 
 Every other step that applies is listed under it, below the line `Also waiting`, as one row each:
@@ -431,7 +431,7 @@ Each row: name, `<language> · generated <relative time>`, status dot + text, th
 | Never generated | muted, `Not generated yet` | `Generate` (secondary) |
 | Proposal waiting | accent, `New version waiting` | `Review changes` (secondary) |
 | Proposal being written | accent, `Writing a new version` | `Open it` (secondary) |
-| Out of date | accent, `N new facts` | `Update` (secondary) |
+| Out of date | accent, `N new facts`, `N facts no longer usable`, or `N new facts, M no longer usable` | `Update` (secondary) |
 | Up to date | green, `Up to date` | `Regenerate` (ghost) |
 | Not built | muted, `Not available yet` | None |
 
@@ -582,7 +582,8 @@ generation input and nothing else — the row stays on this screen, every other 
 and the facts filed under it leave that render with it. A project under an unchecked employer leaves
 too. Saving is immediate, as it is for the forms. Roles and certifications carry no setting: a role
 follows its employer, and S13 does not name certifications. Changing a setting does not mark a
-document out of date, because staleness counts facts (`docs/06`, 2026-09-13). Deleting an entry
+document out of date, because staleness compares facts a document may use, whatever one render
+leaves out (`docs/06`, 2026-09-13 and 2026-10-08). Deleting an entry
 takes its settings with it (`docs/06`, 2026-09-21).
 
 The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of

@@ -99,6 +99,13 @@
       "when": 1791200334131,
       "tag": "0013_usable_fact_count",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791409528562,
+      "tag": "0014_usable_fact_ids",
+      "breakpoints": true
     }
   ]
 }

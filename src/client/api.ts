@@ -299,6 +299,8 @@ export interface RenderRow {
   generatedAt: string | null;
   status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
+  /** Facts the current version was generated from that a document may no longer use. */
+  withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
 }
 
