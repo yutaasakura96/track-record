@@ -5379,3 +5379,207 @@ out of date, not of new facts.
 **Storage.** An array of ids on the row, not a join table. The read is always one version's whole
 set, compared in the Worker with a list of usable ids that replaces the count query in the same
 batch, and nothing asks which versions a fact was eligible for.
+
+### [2026-10-08] The importer accepts and grades facts, and flags what is worth a look; the author no longer accepts them one by one
+
+Issue #57, points 4 to 7, and the owner's answer of 2026-10-08 to the question of which automatically
+accepted facts may reach a résumé: **the AI grades facts, and flags are advice.**
+
+**What changes.** A fact the import extracts is stored `accepted`, with `auto_accepted_at` set. The
+extraction call that finds it also grades it: Measured, Attested or Generated, whether it reads as
+confidential, whether the importer is unsure, and one sentence of note. `src/pipeline/flags.ts`
+turns that into the stored fact and its flags. A fact graded Measured or Attested and not
+confidential is usable by the next document without having been opened.
+
+**What this supersedes.** The PRD rule that *anything a model produces starts as Generated, and
+promotion is a deliberate act by the author* (`02` §5), and the first half of the 2026-08-12 entry
+on accepting a Generated fact, which assumed an author pressing Accept. ADR-0002 recorded an agent's
+default promotion of 112 facts as an exception to explain; it is now the rule, made by the importer
+with a grade for each fact and a flag where it doubts one.
+
+**What does not change**, because the owner asked that no confidentiality or visibility rule be
+weakened:
+
+- **Generated and Private facts never reach a render**, and the block is still at render time.
+  Automatic acceptance moves who sets the grade, not what a grade permits.
+- **Nothing imported is Public.** A fact arrives Restricted or Private.
+- **The scrub is a floor.** A fact matching a confidential shape is Private whatever the importer
+  read. The importer's reading can only add to what is kept Private, never take from it.
+- **Making a Private fact usable is by hand, one fact at a time.** There is no default and no bulk
+  action, on the Flagged list or anywhere else.
+- **Every document is still a proposal read as a diff.** What is automatic is the fact, which is the
+  source's own words with a line to check them against. Nothing written *from* facts is applied
+  unread.
+- **A quote that is not in the document is still discarded**, and counted. It is the one candidate
+  that is not kept, and it was never a fact: with no passage there is nothing to check it against.
+
+**Never dropping information (point 7).** The importer has no way to reject. A fact it is unsure of
+keeps its grade and is flagged. One it graded Generated is kept and flagged. One it returned no
+grade for at all is kept as Generated and flagged, and so is every fact of a batch whose grading
+came back short. Measured without a passage is lowered to Attested, the rule the author is held to.
+Nothing is deleted, as before.
+
+**What the old rule cost** is what the owner was answering. The sidebar was reading `1,085 facts to
+review` (the figure the 2026-10-05 entry quotes), each waiting on a press of its own, and a record
+nobody finishes reviewing produces no documents at all.
+
+Rejected: **accepting everything as Generated and flagging all of it**, which keeps the old rule in
+name and leaves no document able to use a new fact until each is opened, the same queue under
+another word. **Accepting only unflagged facts and leaving flagged ones as candidates**, which makes
+a flag a gate and brings back a review queue for exactly the facts that carry numbers, the ones a
+résumé most wants. **Letting the importer set Public**, which no one asked for and would widen who
+may read a fact on a model's say.
+
+### [2026-10-08] Four kinds of flag, each with its reason stored; a flag is advice and never a step
+
+`fact_flags` (migration 0014, `04` §3.13): one row a fact and kind, a `reason` that is `not null`,
+an `explanation`, and `checked_at`.
+
+| Kind | Raised when | What it does to the fact |
+|---|---|---|
+| `confidential` | a shape matched, or the importer read a client, a person or an internal system | stored Private |
+| `number` | the claim states a figure | nothing: it is usable |
+| `unsure` | the importer said so, graded it Generated, or gave no grade | nothing beyond the grade it has |
+| `repeat` | it likely restates an accepted fact at the same employer | nothing: both are kept |
+
+**Every flag says why** (point 5), and the reason is stored rather than rebuilt, so it reads the
+same on the list, on the card and in the export. A confidential reason names the *kind* of
+identifier found, never the identifier: a reason is shown in a list and must not become a second
+copy of what it is hiding.
+
+**The number rule takes the fact's technology names out of the claim before it looks for a digit**,
+and reads a kanji figure with its counter (`三割`, `五名`). `S3`, `EC2` and `Java 17` carry a digit
+and state no figure, and a list on which every AWS fact is flagged is a list nobody reads.
+
+**A flag is advice.** No document waits on one and no step on Home asks for one: Home says how many
+are open in a sentence under the fact counts, with a link. For the same reason Home's `Confirm N
+facts` step now counts only facts **the author** accepted while Generated. One the importer accepted
+as Generated carries an `unsure` flag instead; counting it would have made every doubtful fact a
+step again. Marking a flag checked stamps `checked_at` and changes nothing about the fact.
+
+Rejected: **a flags column on `facts`** (an array or jsonb), which cannot hold a reason, an
+explanation and a checked time for each kind without becoming a table inside a column. **Computing
+flags on read**, which is right for the pair behind a `repeat` flag (next entry) and wrong for the
+rest: the importer's reason is its own sentence and exists only at import.
+
+### [2026-10-08] The overlap check carries over to automatic acceptance as a `repeat` flag, with the pair still computed on read
+
+The 2026-09-28 entry put a likely restatement on the **candidate's** card, because that was where
+the author decided. A fact that arrives accepted has no such moment, so without a change the check
+would have stopped running for every new import, silently, and two wordings of one result would
+both reach a résumé.
+
+- **The stored flag says a pair exists; the pair is still computed on read**, by the same matcher,
+  as 2026-09-28 decided. An accepted fact carries `likelyMatches` while its `repeat` flag is open.
+- **Raised** when an import finishes, after a sort, after a fact's claim or employer is changed, and
+  after a document is refiled, because a document filed under no employer has no pairs until it is.
+- **Not against its own version.** Two facts read from one version of one document are that
+  document's own two sentences. A candidate is still compared against everything, as before.
+- **Settled** (marked checked) when the pair is gone: the other fact rejected, the claim reworded,
+  the employer changed. A list item that opens onto nothing is a broken promise.
+- **Never raised twice.** One row a fact and kind, inserted with `on conflict do nothing`, so a flag
+  the author checked stays checked.
+
+Rejected: **storing the pair**, which 2026-09-28 already rejected and which a second writer would
+now have to keep true. **Suppressing the repeat at import**, which is dedupe's job for exact repeats
+only; a lexical match is a likelihood, and dropping a fact on a likelihood is what point 7 forbids.
+
+### [2026-10-08] `Explain this` calls the model only when pressed, once a flag, and stores the answer
+
+Point 6. `POST /api/flags/:id/explain` is the one route that calls the model for a flag. No list,
+poll, card or page load does. The answer and its token counts are stored on the flag; a second
+press, a reload and the fact's own card read the stored text.
+
+It runs at **`effort: low`**, the first call in the seam that does. The 2026-09-06 entry wrote
+`high` down for the calls that decide what enters the record and left lowering it as a separate
+decision; it stands for those. This call decides nothing: it restates a reason in plainer words, and it is the
+only call the author waits on with a finger on a button.
+
+A failure stores nothing and answers `503`, so the next press tries again. The call is given the
+flag's kind and reason and the fact's claim, quote, grade and disclosure, and nothing else of the
+record.
+
+Rejected: **writing the explanation at import**, for every flag, which spends the tokens point 6
+says to spend only on a press. **Not storing it**, which charges twice for the same sentence.
+
+### [2026-10-08] The model seam grows from two functions to four
+
+`extractFacts` and `generateRender` are joined by `gradeFacts` and `explainFlag`. The 2026-08-12
+decision was a seam of two because the product made two kinds of call; it now makes four, and the
+alternative was to hide grading and explaining inside the two names. `src/model/` is still the only
+place that imports the SDK, and every test still stubs the seam and nothing below it.
+
+`extractFacts` returns the grade with each candidate, so a new import costs no extra call.
+`gradeFacts` exists for facts that were extracted before grades were asked for.
+
+### [2026-10-08] Facts imported before automatic acceptance are sorted in batches of twenty-five, at the author's press
+
+The candidates that predate this change, the 1,085 above, are not migrated: a migration cannot call a
+model, and accepting them ungraded would make every one Generated and flagged.
+
+`POST /api/facts/sort` takes up to twenty-five, oldest first, makes one `gradeFacts` call, and
+accepts and flags all of them by the rules an import applies. The client repeats it until none
+remain and shows the count falling. Twenty-five keeps one call well inside a Worker request and
+makes a failure cost one batch: what earlier calls sorted stays sorted.
+
+**It never loosens a disclosure the author set**, and makes a fact Private when it reads as
+confidential. A fact the model returned no grade for is accepted as Generated and flagged, so
+`remaining` falls on every call and the loop ends.
+
+The one-at-a-time review is kept, unchanged, for an author who would rather read them. Rejected:
+**a Workflow** for the sort, which is the right shape for a long import and more machinery than a
+loop the author is watching needs; revisit if a batch ever nears the request limit.
+
+### [2026-10-08] The master document is a view generated from the record, downloadable in full
+
+Issue #57, point 1, and the owner's answers: one source of truth, and **downloadable in full,
+Private facts included**.
+
+`GET /api/master-document` builds it from the record on each read. **No model writes it and nothing
+stores it**, so it cannot fall out of step and there is nothing to edit: a fact is changed on its
+card. It lists every accepted fact, Private and Generated included, under the employer it resolves
+to (`effectiveEmployerId`) and its project, with roles, education and certifications.
+
+**This does not bring back the legacy master document** the brief retired (`01`, out of scope 4).
+That was a hand-maintained file kept alongside the record; this is the record, read. The name is the
+author's and is kept.
+
+**It is the one place a Private fact leaves the application in a file**, and that is the owner's
+decision, taken knowing it: the file is the author's own copy of their own record, and a master
+document missing what the résumés leave out is not one. The page says so beside the button, and the
+file's first lines say it holds Private facts and is not to be sent to an employer. It carries **no
+source text**: a fact names its document and line, never the passage, so the file is not a second
+copy of NDA-bound documents. The rule that Private never reaches a *render* is untouched; the
+master document is not a render, is sent to no model, and has no proposal, version or .docx.
+
+Rejected: **generating it with the model**, which would make it a document that can be wrong about
+the record it is meant to be. **Storing it as a render**, which gives it versions to go stale.
+**Leaving Private facts out of the download**, the option the owner declined.
+
+### [2026-10-08] A tailored résumé is a `renders` row with a job description, addressed by its id
+
+Issue #57, points 2 and 3. The main résumé is the `english_resume` row with no job description, and
+there is still exactly one (a partial unique index on `(user_id, kind)` where `job_description is
+null`). A tailored résumé is another row of that kind with `label` and `job_description` set, and
+there may be any number.
+
+**Every render route takes a ref**, a kind or a tailored résumé's id (`render-ref.ts`), so
+proposals, the diff, history, compare, restore, edit and download serve a tailored résumé with no
+second implementation and no second set of rules to keep equal. A version asked for under another
+document's ref is a 404.
+
+**It is given exactly the facts the main résumé is given.** The job description reaches the model as
+text to read, marked as such, and decides what leads and what is left out. It is never a source of
+facts, and a requirement the record does not meet is not written in. It is stored on the row, kept
+out of listings and never logged: it names a company.
+
+Creating one generates nothing. The client then calls the same Generate every document has, so a
+refusal is said once, in one place, and the résumé is still there to generate later.
+
+**English only** until #59 separates the languages. Tracking the application a résumé was written
+for is #60 and is not here.
+
+Rejected: **a `tailored_resumes` table** with its own versions and proposals, which duplicates the
+most rule-laden part of the schema. **A new render kind per tailored résumé**, which the kind enum
+cannot hold. **Uploading the job description as a source document**, which would extract an
+employer's requirements into the author's record as facts about the author.

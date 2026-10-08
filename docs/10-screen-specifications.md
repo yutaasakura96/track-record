@@ -12,7 +12,8 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Record, Skills, Documents. There is no separate Imports row: imports are versions of a
+rows: Home, Record, Skills, Documents, Flagged, Master document, Tailored résumés (the last three
+added 2026-10-08, #57). There is no separate Imports row: imports are versions of a
 document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
 circular avatar, name, and the literal label `Personal record` — the single-user posture stated in
@@ -26,6 +27,11 @@ the interface.
   every version of every document, shown only above zero, and it is written out on a second line of
   the row: `1,085 facts to review`, at `text-small` in `generated-text`, amber because a candidate
   is not usable yet. A bare `1085` beside the word `Documents` read as a number of documents
+- **Since 2026-10-08 that line reads `N facts to sort`** (#57). A fact imported since then never
+  waits, so the count is only the facts found before, and what they wait for is one press, not a
+  review each (Screen 3). **The Flagged row carries its own line, `N to check`**, the flags not
+  marked checked, shown only above zero. It is set in `text-muted`, not amber: amber is for what is
+  held back, and a flag is advice
 
 **Header** — 46px, `surface`, bottom border `border`. Screen title at 12.5px/600, contextual note
 in `text-dimmer`, actions right-aligned.
@@ -81,6 +87,13 @@ percentage counts work done; it is not a confidence in anything (`05` §9, rule 
 
 **Purpose.** Turn one imported document into accepted facts. The most-used screen in the product
 and the one M1 is judged on.
+
+**Changed 2026-10-08 (#57): the importer accepts, the author checks.** A fact now arrives accepted,
+with its Worth and Who set and its flags on it, so on an import made since then nothing on this
+screen waits. It is where a fact is opened when the author wants to check it, change it or reject
+it. Everything below about a *candidate* still holds for the facts imported before, which wait
+until they are sorted or reviewed. "After automatic acceptance", at the end of the Fact rail
+section, is what differs.
 
 **Interaction model:** Grammarly's editor — highlighted spans in a document, one card per span in a
 right rail, decided one at a time.
@@ -237,8 +250,56 @@ use the lifted elevation with a tone-matched ring.
 **Footer:** legend — `N shareable` (green) · `N private` (grey) · `N need promotion` (amber). Then a
 full-width primary button: `Add N facts to record`, disabled reading `Nothing accepted yet` at zero.
 
+### After automatic acceptance · 2026-10-08, #57
+
+An import is **sorted** when no fact of it is a candidate and the importer accepted at least one.
+A sorted import changes the words of a review for the words of a record:
+
+| Where | Reviewed by hand | Sorted |
+|---|---|---|
+| Header, right | `N of M reviewed`, the progress bar, **Finish review** | `N facts, already in your record` and **Done**. No progress bar: nothing is in progress |
+| Rail title | `Candidate facts` | `Facts`, whenever no candidate is left |
+| `Next:` line | as above | `Next: nothing is waiting. N of these are flagged; check them when you want.`, or with none flagged `Next: nothing is waiting. Every fact here is in your record.` While the document is still being read: `Next: the facts found so far are already in your record. The rest of the document is still being read.` |
+| Filter pills | `All` · `To review` · `Reviewed` | `All`, and `Flagged N` while any fact has an open flag. `To review` and `Reviewed` are left out |
+| Extraction progress, last sentence | `You can review the facts already found.` | `The facts already found are in your record.` |
+| Footer button | `Add N facts to record` | `Done` |
+
+**The accepted card.** Collapsed as before: icon, claim, the mono `ACCEPTED · MEASURED · RESTRICTED`
+line. Then, in this order:
+
+1. **`Change`**, a bare text button on the meta line, which opens the card's controls in place: the
+   quoted passage, the claim (editable, commits on blur), Worth, Who and a ghost **Reject**. It
+   reads `Close` while open. They are behind a press of their own because a card must not change
+   height by being selected. **Setting Worth here records the grade as the author's**
+   (`POST /api/facts/:id/regrade`), so the fact stops being one the importer graded.
+2. **`Undo`** only on a fact the author accepted or rejected. A fact the importer accepted has
+   nothing to undo; rejecting it is under `Change`, and `Undo` on the rejected card puts it back
+   accepted, as the importer left it.
+3. **Its open flags**, one block each, under the meta line: the kind as a mono label, **the reason
+   in a sentence**, and the two controls of Screen 9, `Explain this` and `Mark as checked`. A fact
+   with no open flag shows no block.
+4. **The overlap block**, when the fact has an open `Likely a repeat` flag: the same block a
+   candidate shows, with the other fact's claim and document. Marking the flag checked removes it.
+
+**Waiting facts, on an import made before the change.** While the import has a candidate and is not
+still being read, the rail header carries, under the `Next:` line:
+`These were found before facts were accepted for you. Sort them in one go: the AI grades each, keeps
+every one, and flags the ones worth a look.` and a primary **`Sort N facts`**. While it runs the
+button reads `Sorting…` and a status line beside it counts `N sorted, M to go`. A failure is said
+under it, and what was sorted before the failure stays sorted. Reviewing them one card at a time
+still works exactly as specified above.
+
+**Opened from elsewhere.** `/imports/:importId?fact=:id` selects that fact once its card exists,
+with the filter set to `All` so the card cannot be filtered out. Screen 9 and Screen 10 link here.
+
+**`How to review`** gains one line: `A flagged fact says why. Press Explain this for more, in plain
+words.`
+
 ### Rules
 
+- **The importer never rejects, and never leaves a fact out.** What it is unsure of is accepted as
+  Generated and flagged. The one thing it discards is a candidate whose quote is not in the
+  document, which is counted and was never a fact (`03` §5).
 - **A Generated fact can be accepted.** It is accepted, flagged, and excluded at render time. The prototype blocks acceptance outright; that is wrong — see the decision log entry of 2026-08-12. Accept must remain enabled, with the card clearly marked as not renderable.
 - **Private facts are accepted normally.** The accept button reads `Accept · private`.
 - **No confidence score.** The prototype shows `p 0.96`; it is cut.
@@ -356,11 +417,11 @@ the content column**, so the eye has one place to go. The step is the first of t
 
 | When | Title | Sentence | Button |
 |---|---|---|---|
-| Candidates are waiting | `Review N facts` | `Found in <filename>. A fact is used in your documents only after you accept it.` With more than one document holding any: `Found in N documents, newest first. …` | `Review facts`, into Fact Review on the newest version that holds any |
+| Candidates are waiting (facts imported before 2026-10-08, #57) | `Sort N waiting facts` | `Found in <filename> before facts were accepted for you. One press grades each, keeps every one, and flags the ones worth a look.` With more than one document holding any: `Found in N documents before …` | `Sort them`. It sorts where it stands and opens nothing: the button reads `Sorting…`, and a status line under the step counts `N sorted, M flagged. K to go; keep this page open.` The step goes when none are left. Until 2026-10-08 this row was `Review N facts` with `Review facts` into Fact Review |
 | An import is running and has found none yet | `Wait for the first facts` | `The import is still reading. Open the review to watch the facts arrive.` | `Open review`, into that import's Fact Review |
 | A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
 | A proposal is still being written, and none is ready | `Wait for the new <document>` | `It is still being written. Open it to watch it arrive.` | `Open it`, into Diff Review |
-| Accepted facts are still Generated | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
+| Facts **the author accepted on a card** are still Generated. One the importer accepted is not counted: it carries a `Not sure` flag, and a flag is never a step (#57) | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
 | A document is out of date | `Update your <document>` | `N new facts since it was generated.` When it is out of date only by facts it may no longer use: `N facts it was generated from can no longer be used.` Both: `N new facts since it was generated, and M it was generated from can no longer be used.` | `Update` |
@@ -397,13 +458,18 @@ leads with plain words and names the product's term second**, because `Measured`
 | `Stated by you` | `Attested` | `True, and yours, with no figure behind it.` | `None yet` |
 | `Not confirmed` | `Generated` | `Written by the importer. Left out of every document until you confirm it.` | `Nothing waiting` |
 
+**Flags are a line under the rows, not a row and not a step** (#57). While any flag is open:
+`N are flagged for you to check when you want. Each says why.` and a ghost `Open the list` to Screen
+9. The section's heading carries a quiet `Open master document` link to Screen 10 once the record
+holds an accepted fact.
+
 Each row: dot, the plain words, the term in a chip, the description, and the count at the row-title
 size. **A zero is written as words, never as `0`.** `Measured 0` in the faintest text on the screen
-read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — above
-zero it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
+read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — while
+the author has a fact of their own to confirm (above zero, until 2026-10-08) it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
 Review the Next step does, N being that version's facts as it is in the step. With no accepted fact
 at all, the bar and the rows give way to one line:
-`No accepted facts yet. They arrive when you review a document you imported.`
+`No accepted facts yet. They are accepted for you as a document you import is read.`
 
 **Section 4 — Your career documents.** Heading `Your career documents`, sentence
 `Generated from your accepted facts. Each one is a file you can download.` The heading is not
@@ -519,8 +585,9 @@ so the frame does not change under a first-time author; it carries no note and n
 - Heading `Your record is empty`
 - One sentence, `Three steps turn a document you already wrote into a résumé.`, and the steps as a
   numbered list, each a bold word and a sentence (#58): **Import** `a document about your work: a case
-  study, a project write-up, a portfolio.` **Review** `the facts found in it, one at a time, and keep
-  the ones you stand behind.` **Generate** `your résumé, 履歴書 and 職務経歴書 from the facts you kept.`
+  study, a project write-up, a portfolio.` **Check** `the facts found in it. They are added to your record
+  for you, and the ones worth a look are flagged with the reason.` (until 2026-10-08, **Review**
+  `the facts found in it, one at a time, and keep the ones you stand behind.`) **Generate** `your résumé, 履歴書 and 職務経歴書 from the facts you kept.`
   A paragraph said the same thing and was not read as an instruction
 - A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
   **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
@@ -905,8 +972,8 @@ where a re-import starts (Flow 4) and where an import the author walked away fro
 Source text never appears here; the screen shows names, dates and counts.
 
 Sidebar chrome, reached from the `Documents` row at `/documents`. The row carries the total of
-candidates waiting for review across every version, written out as `N facts to review` and shown only
-when it is above zero (Shared chrome). Header title
+candidates waiting across every version, written out as `N facts to sort` (`N facts to review` until
+2026-10-08) and shown only when it is above zero (Shared chrome). Header title
 `Documents`, contextual note `The files your facts are quoted from`, and on the right the same
 `Import a document` primary Screen 3 has. That button always creates a **new** document, and it
 offers the project and employer choice Screen 3 describes, under the same rule: only when the record
@@ -1015,6 +1082,184 @@ needs it.
 | **No documents** | The list is replaced by Screen 3's empty-state drop target, **the same component**, so the types it names cannot drift |
 | **Re-import refused** | The server's `409` or `422` reason beneath the document row. The list re-reads from the server |
 | **Retry refused** | The server's reason beneath the version row |
+
+---
+
+## Screen 9 — Flagged
+
+Added 2026-10-08 (issue #57). What replaced accepting facts one at a time: the list of the facts the
+importer thinks are worth a look, each with its reason. **Nothing on it waits on the author.** A
+flagged fact is already in the record and stays there whatever is done here.
+
+Sidebar chrome, at `/flagged`. Header title `Flagged`, note `Facts worth a look, each with the
+reason`. Content column as Screen 3.
+
+### Layout
+
+1. **The screen intro** (Shared chrome). Body: `Facts are accepted into your record as they are
+   imported. The ones listed here are the ones worth checking, and each says why. A flagged fact
+   stays in your record whatever you do here.` `Next:` is `open one when you want to check it.
+   Nothing here is waiting on you.`, or `nothing is flagged.` Legend: `Explain this asks the AI to
+   say more about one flag. It is the only button here that uses the AI, and only when you press it.`
+2. **Two pills:** `To check N` and `Checked N`.
+3. **One panel a kind that has any**, in this order, headed with the kind's label and its count, and
+   under the heading one sentence saying what the kind means for the fact:
+
+| Kind | Label | What the panel says |
+|---|---|---|
+| `confidential` | `Kept private` | `These look like they name a client, a person or an internal system. Each is stored Private, so no document uses it. To use one, open it and change who may read it.` |
+| `unsure` | `Not sure` | `The importer was not confident in these. Each is kept in your record; the reason says what it doubted.` |
+| `repeat` | `Likely a repeat` | `These likely say again what another fact in your record already says. Both are kept; open one to see the pair, and reject one if they are the same.` |
+| `number` | `States a number` | `A wrong number on a résumé is costly. These can already be used; check the number when you want to.` |
+
+### The row
+
+- The fact's claim, at the claim size in `text-strong`.
+- A mono line, `<provenance> · <disclosure>`, and a link `Open it in <filename>, line N` to that
+  fact on Screen 1. A fact with no source document has no link.
+- **The flag:** its label as a mono chip (`private` tone for `Kept private`, `text-dim` otherwise)
+  and **its reason, always**, as a sentence. A flag with no reason cannot be stored (`04` §3.13).
+- **`Explain this`** (ghost). Pressing it makes one model call and puts a few plain sentences under
+  the reason, behind a left rule in `border-strong`. While it runs it reads `Explaining…`. Once an
+  explanation exists the button is gone and the text is shown on every later read, here and on the
+  fact's card. **Nothing on this screen calls the model except this press.**
+- **`Mark as checked`** (ghost). The row leaves the list. Under `Checked` the same button reads
+  `Put back on the list`.
+
+### Rules
+
+- **Checking a flag changes nothing about the fact.** A `Kept private` fact is still Private after
+  its flag is checked. Making it usable is done on the fact, one at a time.
+- **No "mark all checked", and no bulk un-Private.** A list cleared unread was not checked.
+- **A flag is never required.** No document and no step on Home waits on this list.
+- **No source text.** A row shows the claim and where it was read, never the passage; the passage is
+  one click away, on the card.
+- A rejected fact's flags are not listed; undoing the rejection brings them back.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | `Loading the list…` |
+| **Nothing flagged** | One panel: `Nothing is flagged. Facts that need a look appear here as documents are imported.` Under `Checked`: `Nothing is marked as checked yet.` |
+| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. The flag and its reason are unchanged and the button is still there |
+| **Read failed** | The shared read failure, with retry. A refresh that fails over a list already shown keeps the list and says so above it |
+
+---
+
+## Screen 10 — Master document
+
+Added 2026-10-08 (issue #57). Everything in the record in one long readable piece: every accepted
+fact from every imported document, **Private and Generated ones included**, under the employer and
+project it belongs to. Every résumé is written from this.
+
+**It is a view.** It is built from the record each time it is opened, by no model, and stored
+nowhere (`07` §9). It cannot be edited here, and there is no second copy to fall out of step: a fact
+is changed on its own card.
+
+Sidebar chrome, at `/master`. Header title `Master document`, note `Everything in your record, in
+one place`, and on the right, once the record holds an accepted fact, the note `The file includes
+Private facts. It is your copy.` and **`Download .md`**.
+
+### Layout
+
+1. **The screen intro.** Body: `Every fact you have accepted, from every document you imported,
+   including the ones a résumé leaves out. Every résumé is written from this. It is built from your
+   record each time you open it, so it cannot be edited here: change a fact on its own card.`
+   Legend: `Private facts and Generated facts are listed here and marked. No résumé uses them.`
+2. **One line of counts:** `N facts: N a document may use, N Private, N Generated.` Then, when any,
+   `N flagged to check` as a link to Screen 9, and `N more are waiting to be sorted and are not
+   listed yet. Sort them from Home.`
+3. **One panel an employer**, headed with its name, and its Japanese name in brackets when the
+   heading is the Latin one. Under it: its period to the month and its industry, its roles with
+   their periods, then each project as a sub-heading with its summary and its facts, then the facts
+   filed under the employer and no project, under `Other work here` when there are projects above.
+4. **`Work outside employment`**, for projects and facts under no employer.
+5. **`Education`** and **`Certifications`**, each a list, when the record holds any.
+
+### The fact
+
+The claim, then one mono line: its Worth (`Measured` in the measured tone, `Generated` in the
+generated tone), its Who (`Private` in the private tone), `Flagged` when a flag is open on it, and
+its document and line as a link to that fact on Screen 1. **A Private or Generated fact's claim is
+set in `text-dim`**: it is here, and it is not what a résumé is written from.
+
+### Rules
+
+- **Everything accepted is listed, and nothing else.** A rejected fact is not, and a fact still
+  waiting to be sorted is not yet; the count line says how many.
+- **The download is the page**, as Markdown, **Private facts included**, by the owner's decision
+  (`docs/06`, 2026-10-08). The page says so beside the button and the file says so in its first
+  lines, with an instruction not to send it to an employer.
+- **No source text**, on the page or in the file. A fact names its document and line.
+- **Month precision.** A period is `2022-04 to 2024-09`; the day is never shown.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | `Building the master document…` |
+| **No accepted fact** | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
+| **An employer or project with no fact** | Listed, with `No facts filed here yet.` |
+| **Download failed** | The reason replaces the note beside the button; the button stays |
+
+---
+
+## Screen 11 — Tailored résumés
+
+Added 2026-10-08 (issue #57). One résumé per job. The author gives a job description and gets a
+résumé written toward it from the same record and by the same rules as the main résumé: only facts
+a document may use, read as a diff before it becomes a version, with its own history, edits and
+download. Any number can be made. **English only**, until the languages are separated (#59).
+
+Sidebar chrome, at `/tailored`. Header title `Tailored résumés`, note `One résumé per job, written
+from the same record`.
+
+### Layout
+
+1. **The screen intro.** Body: `Paste a job description and get a résumé written for that job. It is
+   written from the same facts as your main résumé, and you read it as a set of changes before it
+   becomes a version. The job description decides what leads and what is left out; it never adds a
+   skill or a claim that is not in your record.` `Next:` is `paste a job description below to make
+   the first one.`, `nothing is waiting here. Make another, or update one below.`, or with no usable
+   fact `your record holds no fact a document may use yet. Import a document first.`
+2. **Panel `New tailored résumé`**, a form:
+   - `Name, for you to tell it apart`, a text field, placeholder `The company and the role`, at most
+     120 characters.
+   - `Job description`, a ten-row text area, placeholder `Paste the posting here.`
+   - **`Read it from a text file`** (ghost), which fills the text area from a `.txt` or `.md` file
+     and, when the name is empty, the name from the file's name. Beside it: `A .txt or .md file. It
+     is kept with this résumé and is not imported as a source of facts.`
+   - **`Generate résumé`** (primary, right). Disabled with its reason until both fields are filled,
+     and when the job description is over 20,000 characters. It stores the résumé, then generates,
+     then opens Diff Review; the label reads `Saving…` then `Generating…`. With no usable fact it
+     reads `Save` and only stores.
+3. **Panel `Your tailored résumés`**, newest first. Each row is the row of Screen 3's documents
+   section, titled with the résumé's name and noted `Made <relative time>`: status, `History` and
+   `Download` once it has a version, and the one button (`Generate`, `Update`, `Regenerate`,
+   `Review changes`).
+
+### Rules
+
+- **The job description is never a source of facts.** It reaches the model as text to read, and the
+  résumé is written from the facts alone. A requirement the record does not meet is not written in.
+- **It is given exactly the facts the main résumé is given.** No Private fact, no Generated fact.
+  Tailoring chooses and orders; it does not widen what may be used.
+- **A refusal to generate leaves the résumé stored**, on the list, to generate later.
+- **Screens 2, 5 and 6 serve a tailored résumé unchanged**, addressed by its id where a main
+  document is addressed by its kind. Their titles carry the résumé's name.
+- **Home lists the newest three** in a `Tailored résumés` section under the documents, with `Open
+  tailored résumés` (or `Make one`) to this screen, and `And N more on the Tailored résumés screen.`
+  The main résumé's row on Home is noted `English · your main résumé, tailored to no job`.
+
+### States
+
+| State | Behaviour |
+|---|---|
+| **Loading** | `Loading your tailored résumés…` under the form, which is usable at once |
+| **None yet** | `None yet. Your main résumé is on Home; a tailored one is a variant of it for one job.` |
+| **Create or generate failed** | The reason under the form, or above the list when it came from a row |
+| **File could not be read** | `That file could not be read. Paste the text instead.` |
 
 ---
 
