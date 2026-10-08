@@ -116,6 +116,7 @@ export function TailoredScreen() {
               <label className="grid gap-4">
                 <span className="text-small text-text-secondary">Name, for you to tell it apart</span>
                 <input
+                  name="label"
                   aria-label="Name"
                   value={label}
                   maxLength={120}
@@ -127,6 +128,7 @@ export function TailoredScreen() {
               <label className="grid gap-4">
                 <span className="text-small text-text-secondary">Job description</span>
                 <textarea
+                  name="jobDescription"
                   aria-label="Job description"
                   value={jobDescription}
                   rows={10}
