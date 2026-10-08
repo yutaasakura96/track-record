@@ -41,6 +41,12 @@ export interface RenderInputs {
   generatedFactCount: number;
   /** Every accepted fact, however excluded — what staleness is measured against. */
   acceptedFactCount: number;
+  /**
+   * Every fact a document may use, whatever THIS render leaves out, from the
+   * same read `facts` came from. Staleness compares it with the same set later
+   * (`docs/06`, 2026-10-08), and an inclusion is not part of that.
+   */
+  usableFactIds: string[];
 }
 
 type Chronology = NonNullable<RenderDefinition["chronology"]>;
@@ -339,6 +345,9 @@ export async function collectRenderInputs(
     privateFactCount: privateFacts.length,
     generatedFactCount: generatedFacts.length,
     acceptedFactCount: accepted.length,
+    usableFactIds: accepted
+      .filter((f) => f.disclosure !== "private" && f.provenance !== "generated")
+      .map((f) => f.id),
   };
 }
 

@@ -121,7 +121,14 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         status: "pending",
         generationStatus: "generating",
         basedOnVersionId: render.currentVersionId,
-        reason: regenerationReason(render.newFactsSince, render.currentVersionNo !== null),
+        reason: regenerationReason(
+          render.newFactsSince,
+          render.withdrawnFactsSince,
+          render.currentVersionNo !== null,
+        ),
+        // What the record held when generation read it, not when the author
+        // accepts: a fact that becomes usable in between is new to the version.
+        usableFactIds: inputs.usableFactIds,
       });
     } catch (err) {
       if (!violatesUnique(err, "render_proposals_one_waiting_uq")) throw err;
@@ -251,6 +258,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // version as well as on the render: the render only ever remembers its
         // CURRENT era, and restore needs an older one (`docs/06`, 2026-09-12).
         factCountAt: accepted,
+        usableFactIds: proposal.usableFactIds,
       }),
       db
         .update(renders)
@@ -486,6 +494,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
          * (`docs/06`, 2026-09-12 second entry, superseding the first).
          */
         factCountAt: target.factCountAt,
+        // The same rule, for the set the count stood in for.
+        usableFactIds: target.usableFactIds,
       }),
       db
         .update(renders)
@@ -669,7 +679,12 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // Written even though this route does not READ it: the column holds
         // the era of every row alike, and a restore of this version later is
         // what reads it back.
-        factCountAt: await usableFactCount(db, user.id),
+        factCountAt: current.usableFactIds === null
+          ? current.factCountAt
+          : await usableFactCount(db, user.id),
+        // The source's, because an edit consumes no facts: the document is
+        // still out of date by exactly what it was before the edit.
+        usableFactIds: current.usableFactIds,
       }),
       db
         .update(renders)
@@ -909,7 +924,10 @@ interface RenderState {
   currentVersionNo: number | null;
   generatedAt: string | null;
   status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
+  /** Facts a document may use now that the current version was not generated from. */
   newFactsSince: number | null;
+  /** Facts the current version was generated from that a document may no longer use. */
+  withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
 }
 
@@ -919,7 +937,7 @@ interface RenderState {
  */
 export async function renderState(db: Db, userId: string): Promise<RenderState[]> {
   // One round trip, not four in a row: this backs the home screen (issue #58).
-  const [rows, versions, pending, [{ accepted } = { accepted: 0 }]] = await db.batch([
+  const [rows, versions, pending, usable] = await db.batch([
     db.select().from(renders).where(eq(renders.userId, userId)),
     // Each render's current version, by join rather than by a list of ids read
     // first, which is what made this a query that had to wait for another.
@@ -928,6 +946,7 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
         id: renderVersions.id,
         versionNo: renderVersions.versionNo,
         acceptedAt: renderVersions.acceptedAt,
+        usableFactIds: renderVersions.usableFactIds,
       })
       .from(renderVersions)
       .innerJoin(
@@ -953,11 +972,9 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
         ),
       )
       .orderBy(desc(renderProposals.generatedAt)),
-    db
-      .select({ accepted: sql<number>`count(*)::int` })
-      .from(facts)
-      .where(usableFacts(userId)),
+    db.select({ id: facts.id }).from(facts).where(usableFacts(userId)),
   ]);
+  const usableNow = new Set(usable.map((f) => f.id));
   const byKind = new Map(rows.map((r) => [r.kind, r]));
   const versionById = new Map(versions.map((v) => [v.id, v]));
   const pendingByRender = new Map<string, (typeof pending)[number]>();
@@ -968,7 +985,9 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
     const version = row?.currentVersionId ? versionById.get(row.currentVersionId) : undefined;
     const proposal = row ? pendingByRender.get(row.id) : undefined;
     const pendingProposalId = proposal?.id ?? null;
-    const newFactsSince = version ? Math.max(0, accepted - (row?.staleSinceFactCount ?? 0)) : null;
+    const since = version
+      ? factsSince(version.usableFactIds, usableNow, row?.staleSinceFactCount ?? 0)
+      : null;
 
     // A pending proposal outranks a missing version: a first generation awaiting
     // review is not "never generated", and offering Generate there makes a second.
@@ -976,9 +995,9 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
       ? proposal.generationStatus === "generating"
         ? "proposal_generating"
         : "proposal_pending"
-      : !version
+      : !since
         ? "never_generated"
-        : (newFactsSince ?? 0) > 0
+        : since.added + since.withdrawn > 0
           ? "stale"
           : "up_to_date";
 
@@ -992,10 +1011,33 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
       currentVersionNo: version?.versionNo ?? null,
       generatedAt: version?.acceptedAt.toISOString() ?? null,
       status,
-      newFactsSince,
+      newFactsSince: since?.added ?? null,
+      withdrawnFactsSince: since?.withdrawn ?? null,
       pendingProposalId,
     };
   });
+}
+
+/**
+ * How the facts a document may use now differ from the ones a version was
+ * generated from. With a recorded set, a document is out of date exactly when
+ * either number is nonzero (`docs/06`, 2026-10-08).
+ *
+ * A version made before the set was recorded has only the count taken then, so
+ * it keeps the count difference and its blind spot (`docs/06`, 2026-10-06): a
+ * fact withdrawn hides one that arrived, and none is ever reported withdrawn.
+ */
+function factsSince(
+  recorded: string[] | null,
+  usableNow: Set<string>,
+  countThen: number,
+): { added: number; withdrawn: number } {
+  if (recorded === null) return { added: Math.max(0, usableNow.size - countThen), withdrawn: 0 };
+  const then = new Set(recorded);
+  return {
+    added: [...usableNow].filter((id) => !then.has(id)).length,
+    withdrawn: [...then].filter((id) => !usableNow.has(id)).length,
+  };
 }
 
 /**
@@ -1026,9 +1068,9 @@ async function highestVersionNo(db: Db, userId: string, renderId: string): Promi
 
 /**
  * The facts a document may use: accepted, and neither Private nor Generated.
- * The overview's `canGenerate` asks whether there is one, and staleness counts
- * them, so Home never calls a document out of date when updating it would give
- * the same document (`docs/06`, 2026-10-05).
+ * The overview's `canGenerate` asks whether there is one, and staleness compares
+ * their ids (or their count for a legacy version). Other changes to generation
+ * input do not affect this status (`docs/06`, 2026-10-08).
  */
 export const usableFacts = (userId: string) =>
   and(
@@ -1039,8 +1081,8 @@ export const usableFacts = (userId: string) =>
   );
 
 /**
- * The staleness number, counted the one way `renders.stale_since_fact_count`
- * and `render_versions.fact_count_at` both mean it.
+ * The count retained for versions with no recorded usable-fact set. Both
+ * `renders.stale_since_fact_count` and `render_versions.fact_count_at` use it.
  */
 async function usableFactCount(db: Db, userId: string): Promise<number> {
   const [{ accepted } = { accepted: 0 }] = await db

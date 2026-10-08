@@ -449,7 +449,7 @@ résumé reads the same index backwards, for the same reason employers do.
 | `id` / `user_id` | text | no | |
 | `kind` | render_kind | no | **Unique** with `user_id` |
 | `current_version_id` | text | yes | `null` = never generated. Distinct from generated-and-unchanged (PRD §7) |
-| `stale_since_fact_count` | integer | yes | Drives `N new facts since it was generated`. Counts the facts a document may use: accepted, and neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately |
+| `stale_since_fact_count` | integer | yes | Fallback for a current version with no recorded set (`render_versions.usable_fact_ids` null): its saved usable count. Usable means accepted, neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately. Versions with a recorded set use set differences instead (decision log, 2026-10-08). Accept and restore still write this count; edit leaves it unchanged |
 
 **`render_versions`** — accepted versions. **Never deleted.**
 
@@ -462,7 +462,8 @@ résumé reads the same index backwards, for the same reason employers do.
 | `accepted_at` | timestamptz | no | |
 | `source_version_id` | text | yes | The version this one was made from. Null only for a version accepted from a proposal, which is made from a record rather than from a version |
 | `origin` | enum | no | `accepted` · `restored` · `edited`. Default `accepted`. Three writers, one column — without it a history where every row looks alike cannot say which rows the author typed (S14, S16) |
-| `fact_count_at` | integer | no | The count of facts a document may use (accepted, neither Private nor Generated; restated by migration 0013, decision log 2026-10-05) for the era the row's CONTENT belongs to. Accept and edit write the count at creation, which for them is the same thing; a **restore inherits the count of the version it restores**, because it copies content forward unchanged and the era comes with it (decision log, 2026-09-12, superseding the entry before it). A render's `stale_since_fact_count` is therefore its current version's own `fact_count_at` in every case, so a document moved back to an August version reports as stale in September; nothing else stored that number. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
+| `fact_count_at` | integer | no | The count of facts a document may use (accepted, neither Private nor Generated; restated by migration 0013, decision log 2026-10-05) for the era the row's CONTENT belongs to. Accept writes the count at creation. An edit of a version with no recorded set inherits its source's count; an edit of a version with a set writes today's count (decision log, 2026-10-08). A **restore inherits the count of the version it restores**, because it copies content forward unchanged and the era comes with it (decision log, 2026-09-12, superseding the entry before it). Accept and restore also write this value to `renders.stale_since_fact_count`; edit leaves that render count unchanged. For a version with a recorded set, neither count determines staleness. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
+| `usable_fact_ids` | text[] | yes | The ids of the facts a document could use (accepted, neither Private nor Generated) **when this content was generated**. Home compares it with the same set now: a document is out of date exactly when the two differ, by facts that arrived, by facts that left, or both (decision log, 2026-10-08, issue #62). An accepted version takes its proposal's; an edit and a restore carry their source version's forward, as `fact_count_at` carries the era. Ids only, of facts that were usable. **Null on every version made before migration 0014**, and on a version carrying such a version's content: the set was never recorded and cannot be rebuilt, so those keep the count rule |
 
 **Unique:** `(render_id, version_no)`.
 
@@ -477,7 +478,8 @@ résumé reads the same index backwards, for the same reason employers do.
 | `generation_status` | generation_status | no | Default `'generating'`. The row exists from the moment generation starts, because `POST /api/renders/:kind/generate` returns `202` with a resource to poll. **This is what the poll reads** |
 | `generation_error` | text | yes | A stated reason, populated when `failed`. A failure never mutates a stored version |
 | `based_on_version_id` | text | yes | What it was diffed against |
-| `reason` | text | yes | `Regenerated after 3 new facts entered your record` |
+| `reason` | text | yes | `Regenerated after 3 new facts entered your record`, `… after 1 fact could no longer be used`, or both joined by `and` |
+| `usable_fact_ids` | text[] | yes | The same set, taken from the read generation was given, which is before the author accepts. Copied to the version on accept. Null before migration 0014 |
 | `generated_at` / `decided_at` | timestamptz | | |
 
 **Indexes:** `(render_id, status)`; **partial unique** `(render_id) WHERE status = 'pending' AND

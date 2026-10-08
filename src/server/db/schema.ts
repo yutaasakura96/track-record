@@ -483,6 +483,18 @@ export const renderVersions = pgTable("render_versions", {
    * the migration and the decision log both say so.
    */
   factCountAt: integer("fact_count_at").notNull(),
+  /**
+   * The ids of the facts a document could use when this content was generated,
+   * which is what staleness compares with the facts it may use now: a count can
+   * come back to what it was while the set does not (`docs/06`, 2026-10-08,
+   * issue #62). An accepted version takes its proposal's; an edit and a restore
+   * carry their source's forward, because the column describes the content.
+   *
+   * Null on a version made before migration 0014, and on any version carrying
+   * such a version's content. Nothing recorded the set then and it cannot be
+   * rebuilt, so those are judged by `fact_count_at` as before.
+   */
+  usableFactIds: text("usable_fact_ids").array(),
   ...timestamps,
 }, (t) => [
   uniqueIndex("render_versions_render_no_uq").on(t.renderId, t.versionNo),
@@ -516,6 +528,12 @@ export const renderProposals = pgTable("render_proposals", {
   cacheReadInputTokens: integer("cache_read_input_tokens"),
   basedOnVersionId: text("based_on_version_id"),
   reason: text("reason"),
+  /**
+   * The ids of the facts a document could use when generation read the record,
+   * which is before the author accepts it. The version takes them on accept
+   * (`render_versions.usable_fact_ids`). Null before migration 0014.
+   */
+  usableFactIds: text("usable_fact_ids").array(),
   generatedAt: timestamp("generated_at", { withTimezone: true }).notNull().defaultNow(),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   ...timestamps,

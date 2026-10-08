@@ -34,6 +34,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   generatedAt: null,
   status: "never_generated",
   newFactsSince: null,
+  withdrawnFactsSince: null,
   pendingProposalId: null,
   ...over,
 });
@@ -280,6 +281,25 @@ describe("the next step", () => {
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-plinth"));
     expect(api.writes()).toEqual([POST]);
+  });
+
+  // Issue #62: a document is out of date by a fact it can no longer use, too.
+  it("says a document lost a fact it was generated from", async () => {
+    open([row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 0, withdrawnFactsSince: 1 })]);
+    const step = await nextStep();
+    expect(within(step).getByRole("heading", { name: "Update your English résumé" })).toBeTruthy();
+    expect(within(step).getByText("1 fact it was generated from can no longer be used.")).toBeTruthy();
+    expect(screen.getByText("1 fact no longer usable")).toBeTruthy();
+  });
+
+  it("says both when facts arrived and one it was generated from left", async () => {
+    open([row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 2, withdrawnFactsSince: 1 })]);
+    expect(
+      within(await nextStep()).getByText(
+        "2 new facts since it was generated, and 1 it was generated from can no longer be used.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("2 new facts, 1 no longer usable")).toBeTruthy();
   });
 
   it("offers the import when no fact can be used and nothing is waiting", async () => {
