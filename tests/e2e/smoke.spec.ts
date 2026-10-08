@@ -57,7 +57,9 @@ test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) 
   // 4 · Extraction finishes and the fact is on the page, already in the
   //     record with the importer's grade. There is nothing to accept
   //     (issue #57), so the author reads it and goes on.
-  const card = app.getByRole("article").filter({ hasText: CLAIM });
+  //     The source pane is an article too and holds the same sentence, so the
+  //     card is asked for by what only a card carries.
+  const card = app.locator("article[data-fact-card]").filter({ hasText: CLAIM });
   await expect(card).toBeVisible();
   await expect(card).toContainText("accepted · measured · restricted");
   await app.getByRole("button", { name: "Done", exact: true }).first().click();
