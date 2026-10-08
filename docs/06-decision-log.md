@@ -5432,7 +5432,7 @@ may read a fact on a model's say.
 
 ### [2026-10-08] Four kinds of flag, each with its reason stored; a flag is advice and never a step
 
-`fact_flags` (migration 0014, `04` §3.13): one row a fact and kind, a `reason` that is `not null`,
+`fact_flags` (migration 0015, `04` §3.13): one row a fact and kind, a `reason` that is `not null`,
 an `explanation`, and `checked_at`.
 
 | Kind | Raised when | What it does to the fact |
@@ -5583,3 +5583,34 @@ Rejected: **a `tailored_resumes` table** with its own versions and proposals, wh
 most rule-laden part of the schema. **A new render kind per tailored résumé**, which the kind enum
 cannot hold. **Uploading the job description as a source document**, which would extract an
 employer's requirements into the author's record as facts about the author.
+
+### [2026-10-09] The local proxy reuses ports in TIME_WAIT, because a whole suite run nearly spends the range
+
+Found while verifying #57. A full `npm test` on a private stack failed twice the same way: 47 and 49
+tests across `renders`, `smoke`, `allowlist` and `dev-session`, every one of them the proxy answering
+`Control plane request failed: error connecting to server: Cannot assign requested address (os error
+99)`, all inside one or two seconds near the end of the run. No assertion failed, and each of those
+files passed when run alone. It is a third signature, and neither of the two a stalled run has
+(2026-09-25): nothing times out and the proxy keeps answering.
+
+**The cause is the proxy container running out of local ports.** The proxy authenticates every query
+against Postgres on connections of its own (2026-09-19) and closes them itself, so each one leaves a
+port in `TIME_WAIT` for 60 seconds. Sampled once a second through a run that passed, the container
+held **22,811** sockets in `TIME_WAIT` at its peak, against the **28,232** ports of the default range
+(`32768`–`60999`). The runs that failed took 60 to 78 seconds; the one that was sampled took 239 on a
+busier machine. A suite that fits inside the 60 seconds asks for more ports than exist.
+
+**The fix is two per-container settings on the `neon-proxy` service** in `docker-compose.yml`:
+`net.ipv4.tcp_tw_reuse: 1`, which lets a new outgoing connection take a port that has waited a
+second, and `net.ipv4.ip_local_port_range: "1024 65535"` as headroom. Postgres is untouched.
+
+**Checked with the range narrowed on purpose**, because a busy machine hides the fault. With the
+range cut to 7,233 ports and reuse left at the default, 239 tests failed and the proxy logged the
+error 260 times. With the same 7,233 ports and reuse on, all 965 passed and it logged none.
+
+A stack that is already running keeps its old settings until its proxy container is recreated, which
+`npm run db:up` does on its own when the compose file has changed. It does not touch the volume.
+
+Rejected: **running the server project's files one at a time**, which hides the fault by making every
+run slow. **Fewer queries per test**, which moves a threshold the next test file crosses again.
+**Raising the range alone**, which doubles the room and leaves the same cliff.

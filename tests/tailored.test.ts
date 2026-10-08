@@ -8,9 +8,14 @@
  * own id so that it and the main résumé never serve each other's versions.
  * Every entry here is INVENTED.
  */
+import { env } from "cloudflare:test";
+import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { createDb } from "~/server/db/client";
+import { renderVersions } from "~/server/db/schema";
+import type { Bindings } from "~/server/env";
 import type { CandidateFact } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
 
@@ -239,6 +244,26 @@ describe("generating a tailored résumé", () => {
     expect(
       (await client.get(`/api/renders/english_resume/download?format=md&versionId=${tailoredVersion!.id}`)).status,
     ).toBe(404);
+  });
+
+  it("records the facts its version could use, and is out of date once one of them is withdrawn", async () => {
+    const { usable } = await seedRecord();
+    const row = await createdRow();
+    const { proposalId } = (await (
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${proposalId}/accept`);
+
+    // The set the main résumé's version records (issue #62), not the count alone.
+    const [version] = await createDb((env as unknown as Bindings).DATABASE_URL)
+      .select({ usableFactIds: renderVersions.usableFactIds })
+      .from(renderVersions)
+      .where(eq(renderVersions.renderId, row.id));
+    expect(version!.usableFactIds).toEqual([usable.id]);
+    expect((await list()).items[0]).toMatchObject({ status: "up_to_date", newFactsSince: 0, withdrawnFactsSince: 0 });
+
+    await client.patch(`/api/facts/${usable.id}`, { disclosure: "private" });
+    expect((await list()).items[0]).toMatchObject({ status: "stale", newFactsSince: 0, withdrawnFactsSince: 1 });
   });
 
   it("withholds the file once a fact it cites is made Private, as the main résumé's is", async () => {

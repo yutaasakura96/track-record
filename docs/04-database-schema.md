@@ -307,7 +307,7 @@ step ever carries text across a workflow step boundary — steps pass IDs, never
 **One table holds candidates, accepted facts and rejected facts.** `status` distinguishes them.
 Rejected rows are retained forever, because that is what stops a re-import re-offering them.
 
-**Since migration 0014 an import writes its facts as `accepted`** (#57, `03` §5). `candidate` is the
+**Since migration 0015 an import writes its facts as `accepted`** (#57, `03` §5). `candidate` is the
 state of the facts imported before that, until they are sorted or reviewed, and of nothing new. The
 column defaults below are unchanged and are no longer what an import writes.
 
@@ -329,9 +329,9 @@ column defaults below are unchanged and are no longer what an import writes.
 | `line_number` | integer | yes | — | Derived. Rendered as the `L79` chip |
 | `dedupe_hash` | text | yes | — | `sha256(normalise(quote) + '\x00' + normalise(claim))` |
 | `technologies` | text[] | no | `'{}'` | Source of derived skill candidates |
-| `is_client_identifying` | boolean | no | `false` | Set by the scrub, and since 0014 by the importer reading the fact as confidential |
+| `is_client_identifying` | boolean | no | `false` | Set by the scrub, and since 0015 by the importer reading the fact as confidential |
 | `resolved_at` | timestamptz | yes | — | When accepted or rejected |
-| `auto_accepted_at` | timestamptz | yes | — | When the importer accepted the fact, at import or by the sort (migration 0014, #57). Null on a fact the author accepted on its card. With `graded_at` null it means the grade is the importer's; it is what Undo returns a rejected fact to, and it is never cleared |
+| `auto_accepted_at` | timestamptz | yes | — | When the importer accepted the fact, at import or by the sort (migration 0015, #57). Null on a fact the author accepted on its card. With `graded_at` null it means the grade is the importer's; it is what Undo returns a rejected fact to, and it is never cleared |
 | `graded_at` | timestamptz | yes | — | When the author last set the provenance of an accepted fact: stamped by accept and by re-grade, cleared by undo, left alone by reject. Null on an accepted fact means the grade is not the author's: the importer's when `auto_accepted_at` is set, and otherwise the agent default of the 2026-09-04 import's facts, which is what `To re-grade` lists (ADR-0002, `06` 2026-09-30) |
 
 **Indexes**
@@ -450,7 +450,7 @@ résumé reads the same index backwards, for the same reason employers do.
 ### 3.10 `renders`, `render_versions`, `render_proposals`
 
 **`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
-number of **tailored** rows (migration 0014, #57). A tailored row is created when the author names
+number of **tailored** rows (migration 0015, #57). A tailored row is created when the author names
 it and pastes the job description, before anything is generated.
 
 | Column | Type | Null | Notes |
@@ -580,7 +580,7 @@ It was built before the document employer above (`06`, 2026-09-28), when "the sa
 the fact's own, then its project's. It reads `effectiveEmployerId`, so since #35 it resolves the
 full order above, the document included.
 
-### 3.13 `fact_flags` · migration 0014, 2026-10-08 (#57)
+### 3.13 `fact_flags` · migration 0015, 2026-10-08 (#57)
 
 Why a fact is worth a look. Written when the fact is accepted by the importer, and for `repeat`
 also when a later edit makes a pair (`03` §5). **A flag gates nothing**: what keeps a fact out of a
