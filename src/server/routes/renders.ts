@@ -1020,8 +1020,8 @@ export async function renderState(db: Db, userId: string): Promise<RenderState[]
 
 /**
  * How the facts a document may use now differ from the ones a version was
- * generated from. A document is out of date exactly when either number is not
- * zero: regenerating would be given a different set (`docs/06`, 2026-10-08).
+ * generated from. With a recorded set, a document is out of date exactly when
+ * either number is nonzero (`docs/06`, 2026-10-08).
  *
  * A version made before the set was recorded has only the count taken then, so
  * it keeps the count difference and its blind spot (`docs/06`, 2026-10-06): a
@@ -1068,9 +1068,9 @@ async function highestVersionNo(db: Db, userId: string, renderId: string): Promi
 
 /**
  * The facts a document may use: accepted, and neither Private nor Generated.
- * The overview's `canGenerate` asks whether there is one, and staleness counts
- * them, so Home never calls a document out of date when updating it would give
- * the same document (`docs/06`, 2026-10-05).
+ * The overview's `canGenerate` asks whether there is one, and staleness compares
+ * their ids (or their count for a legacy version). Other changes to generation
+ * input do not affect this status (`docs/06`, 2026-10-08).
  */
 export const usableFacts = (userId: string) =>
   and(
@@ -1081,8 +1081,8 @@ export const usableFacts = (userId: string) =>
   );
 
 /**
- * The staleness number, counted the one way `renders.stale_since_fact_count`
- * and `render_versions.fact_count_at` both mean it.
+ * The count retained for versions with no recorded usable-fact set. Both
+ * `renders.stale_since_fact_count` and `render_versions.fact_count_at` use it.
  */
 async function usableFactCount(db: Db, userId: string): Promise<number> {
   const [{ accepted } = { accepted: 0 }] = await db

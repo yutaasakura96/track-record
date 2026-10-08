@@ -532,18 +532,25 @@ same answer a missing employer gets, because a `403` would confirm it exists.
   "items": [
     { "kind": "english_resume", "language": "en", "currentVersionNo": 4,
       "generatedAt": "2026-08-09T02:11:00Z", "status": "stale", "newFactsSince": 3,
+      "withdrawnFactsSince": 1,
       "pendingProposalId": null },
     { "kind": "rirekisho", "language": "ja", "currentVersionNo": null,
       "generatedAt": null, "status": "never_generated", "newFactsSince": null,
+      "withdrawnFactsSince": null,
       "pendingProposalId": null }
   ]
 }
 ```
 
 `status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending` · `proposal_generating`.
-`newFactsSince` counts only facts a document may use: accepted, and neither Private nor Generated,
-the rule `canGenerate` applies (§8). Accepting a fact that is still Generated makes nothing `stale`;
-confirming it does.
+For a version with a recorded fact set, `newFactsSince` counts facts usable now but absent when
+generation read the record; `withdrawnFactsSince` counts facts usable then but no longer usable.
+The version's set is copied from its proposal when accepted and carried forward by an edit or
+restore. Usable means accepted, neither Private nor Generated (§8). Either difference makes the
+version `stale`, even if the usable count has not changed. Accepting a fact that is still Generated
+makes nothing `stale`; confirming it does. For a version made before the set was recorded, or an
+edit or restore carrying its content, `newFactsSince` keeps the usable-count fallback and
+`withdrawnFactsSince` is `0`. Both fields are `null` if there is no current version.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
 a first generation awaiting review is not `never_generated`. While that proposal is still being
