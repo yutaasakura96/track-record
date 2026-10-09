@@ -419,7 +419,8 @@ describe("a fact accepted on arrival is flagged when it likely restates another"
     expect(await openRepeats()).toEqual([]);
 
     await client.post(`/api/facts/${matched.id}/undo`);
-    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+    // The fact that came back is flagged too: it is the one that now stands beside the others.
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, NARRATIVE_BATCH.claim, RESTATED.claim].sort());
     expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(false);
   });
 
@@ -518,6 +519,38 @@ Nightly batch runtime fell from 6 hours to 70 minutes.
     expect(await openRepeats()).toEqual([]);
 
     await client.patch(`/api/facts/${matched.id}`, { employerId: aozora });
+    // The fact that moved back is flagged too.
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, NARRATIVE_BATCH.claim, RESTATED.claim].sort());
+  });
+
+  it("settles the flag when the author's own accept of the fact it restates is undone", async () => {
+    const aozora = await employer();
+    const { batch } = await acceptedNarrative(aozora);
+    await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, CONFLICTING, UNRELATED], { employerId: aozora });
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+
+    const undone = (await (await client.post(`/api/facts/${batch.id}/undo`)).json()) as Fact;
+    expect(undone.status).toBe("candidate");
+    expect(await openRepeats()).toEqual([]);
+  });
+
+  it("flags and settles repeats as a project moves between employers", async () => {
+    const aozora = await employer();
+    const other = await employer("株式会社ミドリ運輸");
+    const { id: projectId } = (await (
+      await client.post("/api/projects", { name: "Settlement batch", employerId: other })
+    ).json()) as { id: string };
+    await importAccepted(NARRATIVE, "narrative.md", [NARRATIVE_BATCH, NARRATIVE_REVIEW], { employerId: aozora });
+    await importAccepted(PORTFOLIO, "portfolio.md", [RESTATED, CONFLICTING, UNRELATED], { projectId });
+    expect(await openRepeats()).toEqual([]);
+
+    expect((await client.patch(`/api/projects/${projectId}`, { employerId: aozora })).status).toBe(200);
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+
+    await client.patch(`/api/projects/${projectId}`, { employerId: other });
+    expect(await openRepeats()).toEqual([]);
+
+    await client.patch(`/api/projects/${projectId}`, { employerId: aozora });
     expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
   });
 
@@ -545,7 +578,8 @@ Nightly batch runtime fell from 6 hours to 70 minutes.
 
     expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(true);
     expect(repeatOf(byClaim(await factsOf(portfolioImport), CONFLICTING.claim))!.checked).toBe(true);
-    expect(await openRepeats()).toEqual([]);
+    // Only the fact that came back is raised, and only from its own side.
+    expect(await openRepeats()).toEqual([NARRATIVE_BATCH.claim]);
   });
 
   it("settles the flag when the fact is reworded so that nothing is alike", async () => {

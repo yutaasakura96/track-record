@@ -356,7 +356,7 @@ async function resolve(
       updatedAt: new Date(),
     })
     .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-  if (status !== "candidate") await settleRepeats(db, user.id);
+  await settleRepeats(db, user.id);
   return c.json(await withMatches(db, user.id, fact.id));
 }
 
