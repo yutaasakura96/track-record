@@ -433,12 +433,16 @@ describe("the facts, in plain words", () => {
 
 describe("which document to act on", () => {
   const JA = { kind: "rirekisho", language: "ja", title: "Qorvane 履歴書" } as const;
-  const line = async () => (await documentRow()).closest("section")!.querySelector("p + p, header + div > p")!;
+  const STORY = { kind: "career_story_en", title: "Career story" } as const;
+  // The line speaks for the rows of the tab that is open (issue #59).
+  const line = async (title?: string) => (await documentRow(title)).closest('[role="tabpanel"]')!.querySelector("p")!;
 
   it("says how many are out of date and that the rest can wait", async () => {
     open([
       row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
-      row({ ...JA, status: "stale", currentVersionId: "ver-test-2", newFactsSince: 12 }),
+      row({ ...STORY, status: "stale", currentVersionId: "ver-test-2", newFactsSince: 12 }),
+      // Out of date too, and under the other tab: it is not this line's to count.
+      row({ ...JA, status: "stale", currentVersionId: "ver-test-3", newFactsSince: 12 }),
     ]);
 
     expect((await line()).textContent).toBe(
@@ -501,10 +505,24 @@ describe("which document to act on", () => {
   it("points at the document with a version waiting", async () => {
     open([
       row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
+      row({ ...STORY, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+    ]);
+
+    expect((await line()).textContent).toBe("Career story has a new version waiting for you. Check it first.");
+  });
+
+  it("says on the other tab that a version is waiting under it, and points at it once that tab is open", async () => {
+    const { user } = open([
+      row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
       row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
     ]);
 
-    expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
+    // The English tab speaks for the English rows only.
+    expect((await line()).textContent).toBe("English résumé is out of date. Update it when you next need it.");
+    expect(screen.getByRole("tab", { name: "English" })).toBeTruthy();
+    await user.click(screen.getByRole("tab", { name: "日本語 new version waiting" }));
+
+    expect((await line(JA.title)).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
   });
 
   it("points at a waiting version when no fact remains usable", async () => {
@@ -524,10 +542,10 @@ describe("which document to act on", () => {
   it("points at the version that is ready when another is still being written", async () => {
     open([
       row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }),
-      row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+      row({ ...STORY, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
     ]);
 
-    expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
+    expect((await line()).textContent).toBe("Career story has a new version waiting for you. Check it first.");
   });
 
   it("says none is generated yet", async () => {
@@ -543,6 +561,121 @@ describe("which document to act on", () => {
 
     expect((await line()).textContent).toBe("Every document you have generated is up to date with your record.");
     expect(within(await documentRow()).getByRole("button", { name: "Regenerate" })).toBeTruthy();
+  });
+});
+
+/**
+ * Issue #59. One mixed list of five became two tabs, English and 日本語, each
+ * led by the master document every document on it is written from.
+ */
+describe("the English documents and the Japanese ones, apart", () => {
+  const ROWS = [
+    row(),
+    row({ kind: "rirekisho", language: "ja", title: "履歴書" }),
+    row({ kind: "shokumu_keirekisho", language: "ja", title: "職務経歴書" }),
+    row({ kind: "career_story_en", title: "Career story" }),
+    row({ kind: "career_story_ja", language: "ja", title: "職務経歴ストーリー" }),
+  ];
+  // `Master document` is a sidebar row too; this is the one that leads a tab.
+  const masterRow = async (title: string) => {
+    return (await within(await screen.findByRole("tabpanel")).findByText(title)).closest("li")!;
+  };
+  const titles = () =>
+    within(screen.getByRole("tabpanel"))
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector("div > div")!.textContent);
+
+  it("shows the English documents first, under the English master document", async () => {
+    open(ROWS);
+    await documentRow();
+
+    expect(screen.getAllByRole("tab").map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([
+      ["English", "true"],
+      ["日本語", "false"],
+    ]);
+    expect(titles()).toEqual(["Master document", "English résumé", "Career story"]);
+    expect(screen.queryByText("履歴書")).toBeNull();
+    // The panel is named by the tab that is open.
+    expect(screen.getByRole("tabpanel", { name: "English" })).toBeTruthy();
+  });
+
+  it("shows the Japanese documents under 日本語, led by the Japanese master document", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    expect(titles()).toEqual(["マスタードキュメント", "履歴書", "職務経歴書", "職務経歴ストーリー"]);
+    expect(screen.queryByText("English résumé")).toBeNull();
+    expect(screen.getByRole("tabpanel", { name: "日本語" })).toBeTruthy();
+    expect(within(await documentRow("履歴書")).getByRole("button", { name: "Generate" })).toBeTruthy();
+  });
+
+  it("moves between the tabs with the arrow keys, from one tab stop", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    const [english, japanese] = screen.getAllByRole("tab");
+    expect([english!.tabIndex, japanese!.tabIndex]).toEqual([0, -1]);
+
+    english!.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(japanese!.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(japanese);
+    expect(titles()[0]).toBe("マスタードキュメント");
+
+    await user.keyboard("{ArrowRight}");
+    expect(english!.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps the chosen language for the next visit", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    expect(localStorage.getItem("track-record:document-language")).toBe("ja");
+  });
+
+  it("leads each tab with a master document row: how many facts it lists, and one way in", async () => {
+    const { user } = open(ROWS);
+    const english = await masterRow("Master document");
+
+    expect(within(english).getByText("4 facts")).toBeTruthy();
+    expect(within(english).getByText(/^English · everything in your record/)).toBeTruthy();
+    expect(within(english).getByRole("link", { name: "Open the English master document" }).getAttribute("href")).toBe("/master");
+    // Not a generated document: nothing to generate, no history, and no download from here.
+    expect(within(english).queryAllByRole("button")).toEqual([]);
+
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+    const japanese = await masterRow("マスタードキュメント");
+    expect(within(japanese).getByRole("link", { name: "Open the Japanese master document" }).getAttribute("href")).toBe("/master");
+  });
+
+  it("opens the master document of the tab it was opened from", async () => {
+    const { api, user, pathname } = open(ROWS, {
+      "GET /api/master-document?language=ja": {
+        language: "ja",
+        builtAt: "2026-10-10T03:00:00.000Z",
+        subjectName: null,
+        counts: { facts: 0, usable: 0, private: 0, generated: 0, flagged: 0, waiting: 0 },
+        employers: [],
+        independent: { projects: [], facts: [] },
+        educations: [],
+        certifications: [],
+      },
+    });
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+    await user.click(screen.getByRole("link", { name: "Open the Japanese master document" }));
+
+    await waitFor(() => expect(pathname()).toBe("/master"));
+    await waitFor(() => expect(api.calls.map((call) => call.path)).toContain("/api/master-document?language=ja"));
+    expect(api.calls.map((call) => call.path)).not.toContain("/api/master-document");
+    expect((await screen.findByRole("tab", { name: "日本語" })).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("says the master document has no facts yet rather than a zero", async () => {
+    open([], { "GET /api/overview": { ...overview(ROWS), factsByProvenance: { measured: 0, attested: 0, generated: 0 } } });
+
+    expect(within(await masterRow("Master document")).getByText("No facts yet")).toBeTruthy();
   });
 });
 
@@ -758,7 +891,7 @@ describe("an overview that could not be read", () => {
     await screen.findByRole("status");
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
-    await screen.findByText("Qorvane 履歴書");
+    await screen.findByText("English résumé");
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(api.writes()).toEqual([]);

@@ -10,6 +10,7 @@ import { afterEach, vi } from "vitest";
 import { cleanup } from "@testing-library/react";
 import { useDiffStore, useReviewStore } from "~/client/stores/review";
 import { useThemeStore } from "~/client/stores/theme";
+import { useDocumentLanguageStore } from "~/client/stores/document-language";
 
 if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = function scrollTo() {};
@@ -52,6 +53,9 @@ afterEach(() => {
   // The theme and the hidden guide are kept per browser; a test that sets one
   // would otherwise hand it to the next.
   useThemeStore.getState().setTheme("light");
+  // So is the documents' language: 日本語 chosen in one test would hide the
+  // English rows from the next.
+  useDocumentLanguageStore.getState().setLanguage("en");
   localStorage.clear();
   useDiffStore.setState({ selectedChangeId: null });
 });

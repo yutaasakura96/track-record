@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58)
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -472,20 +472,46 @@ at all, the bar and the rows give way to one line:
 `No accepted facts yet. They are accepted for you as a document you import is read.`
 
 **Section 4 — Your career documents.** Heading `Your career documents`, sentence
-`Generated from your accepted facts. Each one is a file you can download.` The heading is not
-`Documents`: that is the sidebar's word for the files facts are quoted *from*, and this section is
-what is generated *out*. One row per render, in a fixed order: Résumé (English), 履歴書, 職務経歴書,
-and both career stories. **Japanese titles render in the mixed font stack.**
+`Generated from your accepted facts, in English and in Japanese. Each one is a file you can
+download.` The heading is not `Documents`: that is the sidebar's word for the files facts are quoted
+*from*, and this section is what is generated *out*. **Japanese titles render in the mixed font
+stack.**
 
-**One line above the rows says which to act on** (#58). Five rows each reading
-`N new facts since it was generated` beside the same three buttons said nothing about where to
-start, and the honest answer is that they do not depend on each other:
+**Two tabs separate the languages** (2026-10-10, #59). The section was one list of five that mixed
+two readers' documents. It is now a tab list, `English` and `日本語`, each tab named in its own
+language, and one panel under it:
+
+| Tab | Rows, in order |
+|---|---|
+| `English` | The English master document, Résumé (English), the English career story |
+| `日本語` | The 日本語 master document, 履歴書, 職務経歴書, 職務経歴ストーリー |
+
+- **The tab list is a WAI-ARIA tab list**: one tab stop, the arrow keys, Home and End inside it,
+  selection following focus, and the panel named by the tab that is open. It is drawn as the
+  segmented control's track with chip-radius segments, at the row-title size.
+- **`English` is open on a first visit, and the choice is kept for this browser** under the
+  `localStorage` key `track-record:document-language`, as the theme is. It is not a column: it says
+  which tab is open, and nothing about the record. **Screen 10 reads the same choice**, so the
+  language open here is the language of the master document that opens.
+- **A tab says when a new version is waiting under it**: the note `new version waiting` beside its
+  name, in the accent text. A document that wants checking is then never hidden by the other tab.
+  The Next step still names it, whichever tab is open.
+- **The first row of each tab is that language's master document** (Screen 10). Title
+  `Master document` or `マスタードキュメント`, note `English · everything in your record, and what
+  every English document is written from` (or `Japanese · … every Japanese document …`), the count
+  `N facts` (`No facts yet` at zero) and one secondary `Open`. It is not generated and has no
+  versions, so it has no status dot, no `History`, no button and no `Download`: the file is
+  downloaded on Screen 10, beside the note that it holds Private facts.
+
+**One line above the rows says which to act on** (#58), and it speaks for the rows of the tab that
+is open. Five rows each reading `N new facts since it was generated` beside the same three buttons
+said nothing about where to start, and the honest answer is that they do not depend on each other:
 
 - No accepted fact can be used → `Nothing can be generated until your record holds an accepted fact a document may use.` No row then offers Generate, Update or Regenerate; the line is their reason, said once
 - A proposal waiting → `<Document> has a new version waiting for you. Check it first.`
 - A proposal still being written, and none ready → `A new version of <Document> is being written. Check it when it is ready.`
 - One out of date → `<Document> is out of date. Update it when you next need it.`
-- More than one → `N of 5 are out of date. Update the one you need next; each is updated on its own, and the rest can wait.`
+- More than one → `N of M are out of date. Update the one you need next; each is updated on its own, and the rest can wait.`, M being the documents on that tab
 - None generated → `None generated yet. Generate the one you need first; each is made on its own.`
 - Otherwise → `Every document you have generated is up to date with your record.`
 
@@ -1153,6 +1179,13 @@ Added 2026-10-08 (issue #57). Everything in the record in one long readable piec
 fact from every imported document, **Private and Generated ones included**, under the employer and
 project it belongs to. Every résumé is written from this.
 
+**There is one per language** (2026-10-10, #59), and both are this one view. The language decides
+what the record is *called*: an employer, a role, a project, a school and a certification each by
+the name a document of that language uses (the renders' own rule, `nameInLanguage`), the section
+headings, and how a month is written. **It never decides what a fact says.** A claim reads as it was
+written in the document it was imported from, in both, because turning it into the other language
+is a model's work and no model writes this.
+
 **It is a view.** It is built from the record each time it is opened, by no model, and stored
 nowhere (`07` §9). It cannot be edited here, and there is no second copy to fall out of step: a fact
 is changed on its own card.
@@ -1163,19 +1196,45 @@ Private facts. It is your copy.` and **`Download .md`**.
 
 ### Layout
 
+0. **The tabs `English` and `日本語`**, the tab list of Screen 3's documents section and the same
+   stored choice: the one open on Home is the one open here, and choosing here changes it there.
+   Everything under the intro is the tab's panel.
 1. **The screen intro.** Body: `Every fact you have accepted, from every document you imported,
-   including the ones a résumé leaves out. Every résumé is written from this. It is built from your
-   record each time you open it, so it cannot be edited here: change a fact on its own card.`
+   including the ones a résumé leaves out. Your résumé and your career story are written from this.`
+   (under `日本語`: `Your 履歴書, 職務経歴書 and 職務経歴ストーリー are written from this.`) `It is
+   built from your record each time you open it, so it cannot be edited here: change a fact on its
+   own card. The tabs change the names and headings to the ones a document of that language uses;
+   each fact reads as it was written, and none is translated.`
    Legend: `Private facts and Generated facts are listed here and marked. No résumé uses them.`
 2. **One line of counts:** `N facts: N a document may use, N Private, N Generated.` Then, when any,
    `N flagged to check` as a link to Screen 9, and `N more are waiting to be sorted and are not
    listed yet. Sort them from Home.`
-3. **One panel an employer**, headed with its name, and its Japanese name in brackets when the
-   heading is the Latin one. Under it: its period to the month and its industry, its roles with
+3. **One panel an employer**, headed with its name in the document's language, and its name in the
+   other language in brackets when the record holds both. Under it: its period to the month and its industry, its roles with
    their periods, then each project as a sub-heading with its summary and its facts, then the facts
    filed under the employer and no project, under `Other work here` when there are projects above.
 4. **`Work outside employment`**, for projects and facts under no employer.
 5. **`Education`** and **`Certifications`**, each a list, when the record holds any.
+
+**Under `日本語` the document's own words are Japanese**, on the page and in the file, from one
+table (`MASTER_WORDS` in `src/shared/master-document.ts`):
+
+| English | 日本語 |
+|---|---|
+| `Work outside employment` | `雇用外の活動` |
+| `Other work here` | `その他の業務` |
+| `Not filed under a project` | `プロジェクト未分類` |
+| `Education` | `学歴` |
+| `Certifications` | `資格` |
+| `No facts filed here yet.` | `まだ事実がありません。` |
+| `2022-04 to present` | `2022年4月〜現在` |
+| `graduated`, `completed`, `withdrawn`, `expected` | `卒業`, `修了`, `中退`, `卒業見込み` |
+| `issued 2019-06` | `2019年6月取得` |
+
+The intro, the count line and the header stay English, as the application's own chrome is on every
+screen. `Measured`, `Attested`, `Generated`, `Public`, `Restricted`, `Private` and `Flagged` stay as
+they are in both: they are the words on the fact card, and a second word for each would be a second
+vocabulary.
 
 ### The fact
 
@@ -1192,13 +1251,19 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
   (`docs/06`, 2026-10-08). The page says so beside the button and the file says so in its first
   lines, with an instruction not to send it to an employer.
 - **No source text**, on the page or in the file. A fact names its document and line.
-- **Month precision.** A period is `2022-04 to 2024-09`; the day is never shown.
+- **Month precision.** A period is `2022-04 to 2024-09`, or `2022年4月〜2024年9月`; the day is never
+  shown.
+- **Nothing is translated.** The two documents hold the same facts with the same claims. Only the
+  record's names, the headings and the dates differ.
+- **`Download .md` saves the file of the tab that is open**, `master-document-en-<date>.md` or
+  `master-document-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
+  says that the claims are in the language they were written in.
 
 ### States
 
 | State | Behaviour |
 |---|---|
-| **Loading** | `Building the master document…` |
+| **Loading** | `Building the master document…`, again on the first visit to the other tab |
 | **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
 | **An employer or project with no fact** | Listed, with `No facts filed here yet.` |
 | **Download failed** | The reason replaces the note beside the button; the button stays |
@@ -1210,7 +1275,8 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 Added 2026-10-08 (issue #57). One résumé per job. The author gives a job description and gets a
 résumé written toward it from the same record and by the same rules as the main résumé: only facts
 a document may use, read as a diff before it becomes a version, with its own history, edits and
-download. Any number can be made. **English only**, until the languages are separated (#59).
+download. Any number can be made. **English only**: it is a variant of the English résumé, and
+Home's `Tailored résumés` section says so in its sentence. A tailored 職務経歴書 is not built.
 
 Sidebar chrome, at `/tailored`. Header title `Tailored résumés`, note `One résumé per job, written
 from the same record`.

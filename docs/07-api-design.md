@@ -885,16 +885,21 @@ fact is both not Private and not Generated, and the home screen then offers no G
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
-| `GET` | `/api/master-document/download` | The same structure as Markdown, `master-document-<date>.md`, `cache-control: no-store` |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `master-document-<language>-<date>.md`, `cache-control: no-store` |
+
+Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
+value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
+`GET /api/facts`.
 
 ```json
 {
+  "language": "en",
   "builtAt": "2026-10-08T03:00:00Z",
   "subjectName": "Yosuke Aoki",
   "counts": { "facts": 214, "usable": 180, "private": 22, "generated": 12, "flagged": 14, "waiting": 0 },
   "employers": [
     {
-      "id": "emp_2Kd9", "name": "Aozora Logistics K.K.", "nameJa": "株式会社アオゾラ物流",
+      "id": "emp_2Kd9", "name": "Aozora Logistics K.K.", "alternateName": "株式会社アオゾラ物流",
       "industry": "運輸業", "startedOn": "2022-04-01", "endedOn": "2024-09-01",
       "roles": [{ "title": "Backend Engineer", "startedOn": "2022-04-01", "endedOn": "2023-09-01" }],
       "projects": [{ "id": "prj_9f2", "name": "Settlement batch", "summary": null, "facts": [] }],
@@ -916,6 +921,12 @@ fact is both not Private and not Generated, and the home screen then offers no G
 - **No source text**, in either route: a fact names its document and line, never the passage.
 - **The download holds Private facts**, by the owner's decision (`docs/06`, 2026-10-08). Its first
   lines say so and say not to send it to an employer.
+- **`language` decides names, never claims** (`docs/06`, 2026-10-10). `subjectName`, an employer's
+  `name`, a role's `title`, a project's `name`, an education's `institution` and a certification's
+  `name` are each the one a document of that language uses, falling back to the other where the
+  record holds only one. `alternateName` is the employer's name in the other language, or `null`
+  when the record holds one. Every fact, every count and the grouping are the same in both. The
+  file's headings, dates and opening lines are in that language too.
 
 ---
 

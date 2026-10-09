@@ -41,6 +41,8 @@ are marked as the owner's in each issue.
   tailored résumés. This changes the M3 steps above: a portfolio imported from now on needs no
   review, and the candidates already waiting are sorted from Home in one press. The owner's part is
   that press in production, and reading the Flagged list when they want to.
+- **#59, built 2026-10-10** (decision log, that date): Home's documents are two tabs, English and
+  日本語, each led by that language's master document. Nothing is owed by the owner.
 
 ## Blocked
 

@@ -10,6 +10,10 @@
  * **The download carries Private facts** (`docs/06`, 2026-10-08), as
  * `GET /api/export` always has. It is the author's copy of their own record
  * and says so in its first lines. Source document text is in neither.
+ *
+ * **`?language=ja` is the 日本語 one** (issue #59): the same facts under the
+ * same headings, with the record named as a Japanese document names it. The
+ * rule is the renders' own, `nameInLanguage`. No claim is translated.
  */
 import type { Hono } from "hono";
 import { and, asc, desc, eq, isNull, ne, sql } from "drizzle-orm";
@@ -27,34 +31,63 @@ import {
 } from "../db/schema";
 import { routes } from "../http/registry";
 import { effectiveEmployerId } from "../services/employer";
+import { nameInLanguage } from "../services/render";
 import { masterMarkdown } from "~/render/master-document";
-import type { MasterDocument, MasterFact, MasterProject } from "~/shared/master-document";
+import {
+  MASTER_WORDS,
+  masterLanguage,
+  type MasterDocument,
+  type MasterFact,
+  type MasterLanguage,
+  type MasterProject,
+} from "~/shared/master-document";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
 export function registerMasterRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
 
-  api.get("/api/master-document", async (c) => c.json(await buildMasterDocument(c.get("db"), c.get("user").id)));
+  api.get("/api/master-document", async (c) =>
+    c.json(await buildMasterDocument(c.get("db"), c.get("user").id, masterLanguage(c.req.query("language")))),
+  );
 
   api.get("/api/master-document/download", async (c) => {
-    const doc = await buildMasterDocument(c.get("db"), c.get("user").id);
-    // The user id and counts. No claim.
-    console.log(JSON.stringify({ event: "master_document_downloaded", userId: c.get("user").id, facts: doc.counts.facts }));
+    const doc = await buildMasterDocument(c.get("db"), c.get("user").id, masterLanguage(c.req.query("language")));
+    // The user id, the language and counts. No claim.
+    console.log(
+      JSON.stringify({
+        event: "master_document_downloaded",
+        userId: c.get("user").id,
+        language: doc.language,
+        facts: doc.counts.facts,
+      }),
+    );
     return new Response(masterMarkdown(doc), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",
-        "content-disposition": `attachment; filename="master-document-${doc.builtAt.slice(0, 10)}.md"`,
+        "content-disposition": `attachment; filename="master-document-${doc.language}-${doc.builtAt.slice(0, 10)}.md"`,
         "cache-control": "no-store",
       },
     });
   });
 }
 
-export async function buildMasterDocument(db: Db, userId: string): Promise<MasterDocument> {
+export async function buildMasterDocument(
+  db: Db,
+  userId: string,
+  language: MasterLanguage = "en",
+): Promise<MasterDocument> {
   const [profileRows, employerRows, roleRows, projectRows, factRows, flagRows, educationRows, certificationRows, [waiting]] =
     await db.batch([
-      db.select({ nameLatin: profiles.nameLatin }).from(profiles).where(eq(profiles.userId, userId)).limit(1),
+      db
+        .select({
+          nameLatin: profiles.nameLatin,
+          familyNameKanji: profiles.familyNameKanji,
+          givenNameKanji: profiles.givenNameKanji,
+        })
+        .from(profiles)
+        .where(eq(profiles.userId, userId))
+        .limit(1),
       db.select().from(employers).where(eq(employers.userId, userId)).orderBy(desc(employers.startedOn), asc(employers.id)),
       db.select().from(roles).where(eq(roles.userId, userId)).orderBy(desc(roles.startedOn), asc(roles.id)),
       db
@@ -145,15 +178,20 @@ export async function buildMasterDocument(db: Db, userId: string): Promise<Maste
       .filter((project) => (project.employerId ?? NONE) === employerKey || byProject?.has(project.id))
       .map((project) => ({
         id: project.id,
-        name: project.name,
+        name: nameInLanguage(language, project.nameJa, project.name),
         summary: project.summary,
         facts: byProject?.get(project.id) ?? [],
       }));
   };
 
+  const profile = profileRows[0];
+  // 姓 and 名 apart by a full-width space, as the 履歴書 writes them.
+  const nameKanji = profile ? `${profile.familyNameKanji}　${profile.givenNameKanji}`.trim() : "";
+
   return {
+    language,
     builtAt: new Date().toISOString(),
-    subjectName: profileRows[0]?.nameLatin ?? null,
+    subjectName: profile ? (language === "ja" && nameKanji ? nameKanji : profile.nameLatin) : null,
     counts: {
       facts: factRows.length,
       usable: factRows.filter((f) => f.disclosure !== "private" && f.provenance !== "generated").length,
@@ -164,15 +202,20 @@ export async function buildMasterDocument(db: Db, userId: string): Promise<Maste
     },
     employers: employerRows.map((employer) => ({
       id: employer.id,
-      name: employer.nameLatin ?? employer.nameJa,
-      nameJa: employer.nameLatin ? employer.nameJa : null,
+      name: nameInLanguage(language, employer.nameJa, employer.nameLatin),
+      // Both names where the record holds both: the same employer is on a
+      // résumé under one and on a 職務経歴書 under the other.
+      alternateName: employer.nameLatin ? (language === "ja" ? employer.nameLatin : employer.nameJa) : null,
       industry: employer.industryJa,
       startedOn: employer.startedOn,
       endedOn: employer.endedOn,
       roles: roleRows
         .filter((role) => role.employerId === employer.id)
         .map((role) => ({
-          title: role.titleLatin ?? role.titleJa ?? role.shokushuJa ?? "Role",
+          title:
+            (language === "ja"
+              ? (role.titleJa ?? role.shokushuJa ?? role.titleLatin)
+              : (role.titleLatin ?? role.titleJa ?? role.shokushuJa)) ?? MASTER_WORDS[language].role,
           startedOn: role.startedOn,
           endedOn: role.endedOn,
         })),
@@ -182,15 +225,17 @@ export async function buildMasterDocument(db: Db, userId: string): Promise<Maste
     independent: { projects: projectsUnder(NONE), facts: placed.get(NONE)?.get(NONE) ?? [] },
     educations: educationRows.map((education) => ({
       id: education.id,
-      institution: education.institution,
-      detail: [education.faculty, education.degree, education.fieldOfStudy].filter(Boolean).join(", ") || null,
+      institution: language === "ja" ? (education.institutionJa ?? education.institution) : education.institution,
+      detail:
+        [education.faculty, education.degree, education.fieldOfStudy].filter(Boolean).join(language === "ja" ? "、" : ", ") ||
+        null,
       startedOn: education.startedOn,
       endedOn: education.endedOn,
       outcome: education.outcome,
     })),
     certifications: certificationRows.map((certification) => ({
       id: certification.id,
-      name: certification.name,
+      name: language === "ja" ? (certification.nameJa ?? certification.name) : certification.name,
       issuingOrganization: certification.issuingOrganization,
       issuedOn: certification.issuedOn,
       expiresOn: certification.expiresOn,

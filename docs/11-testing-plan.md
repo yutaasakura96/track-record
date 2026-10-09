@@ -282,6 +282,34 @@ Then the file is Markdown, in full, Private facts included, and says so in its f
 And another user's record is never in either
 ```
 
+**One per language** (#59), in the same two files:
+
+```
+Given a record whose employer, role, project, school and certification each have two names
+When the master document is read with language=ja
+Then each is called by its Japanese name, and by its only name where the record holds one
+And it holds the same facts, claims and counts as the English one, and no model call was made
+When it is downloaded
+Then the file is named for its language, headed and dated in Japanese, and says nothing is translated
+And an unknown language is the English one
+```
+
+### 2.6g-2 Home separates the two languages
+
+`tests/client/overview.test.tsx`, `tests/client/master-document.test.tsx` (#59).
+
+```
+Given the five documents
+When Home is opened
+Then the English tab is open, and lists the English master document, the résumé and the career story
+When 日本語 is chosen, by a press or by the arrow keys
+Then it lists the 日本語 master document, 履歴書, 職務経歴書 and 職務経歴ストーリー, and the choice is kept
+And a tab says when a new version is waiting under it
+And the line above the rows speaks for the rows of the tab that is open
+When the master document is opened from a tab
+Then it is the one of that language, and its download is that language's file
+```
+
 ### 2.6h A tailored résumé is the main résumé's rules with a job description
 
 `tests/tailored.test.ts`, `tests/client/tailored.test.tsx`, and the prompt in `tests/prompt.test.ts`

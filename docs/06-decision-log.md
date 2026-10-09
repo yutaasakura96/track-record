@@ -5614,3 +5614,57 @@ A stack that is already running keeps its old settings until its proxy container
 Rejected: **running the server project's files one at a time**, which hides the fault by making every
 run slow. **Fewer queries per test**, which moves a threshold the next test file crosses again.
 **Raising the range alone**, which doubles the room and leaves the same cliff.
+
+### [2026-10-10] The documents are two tabs, and each language's master document is the same view named in that language
+
+Issue #59, and the owner's decision of 2026-10-05: two tabs, `English` and `日本語`, with the master
+document at the top of each.
+
+**Home's documents are a tab list, not a filter.** A filter over one list still reads as one list
+with rows missing. A tab is a place: the English documents are in one and the Japanese in the other,
+and each is led by the document every row under it is written from. The choice is one
+`localStorage` key, as the theme is, because it says which tab is open in this browser and nothing
+about the record. Screen 10 reads the same key, so `Open` on the 日本語 tab opens the 日本語 master
+document without the language being carried in a link.
+
+**A tab says when a new version is waiting under it.** The line above the rows now speaks for one
+tab's rows, so without the note a proposal in the other language would be visible only in the Next
+step. Out-of-date documents get no such note: nothing is lost by updating one later, and a note on
+every tab is a note on none.
+
+**"Its own master document" is the 2026-10-08 view, read in that language.** The issue says each
+language has its own because every document in that language is created out of it. The record has
+no second set of facts to make a second document from: a fact has no language, and a 職務経歴書 and
+a résumé are written from the same ones. What does differ by language is what the record is
+*called*, and the renders already have the rule (`nameInLanguage`). So `GET /api/master-document`
+takes `?language=ja` and answers the same structure with the employer, role, project, school and
+certification each under its Japanese name, the kanji name as the subject, and the other language's
+employer name beside it. The page and the file head their sections in Japanese, write a month as
+`2022年4月`, and close an education with the 履歴書's words, so a withdrawal reads `中退`.
+
+**No claim is translated, and both documents say so.** A claim is shown as it was written in the
+document it was imported from. Translating it is a model's work, and the 2026-10-08 entry rejected a
+model-written master document because it could then be wrong about the record it is meant to be.
+That holds for a translation as much as for a summary. So a 日本語 master document of a record
+imported from English portfolios has Japanese headings over English claims, which is the truth
+about that record. The intro says it on the page and the file says it in its first lines.
+
+**The product's terms stay as they are in both.** `Measured`, `Private`, `Flagged` and the rest are
+the words on the fact card. The intro, the count line and the header stay English with the rest of
+the application's chrome.
+
+The 2026-10-08 entry is otherwise untouched: still a view, still built on the read by no model,
+still stored nowhere, still downloadable in full with Private facts and with no source text.
+Tailored résumés stay English only, as a variant of the English résumé; that entry said "until #59
+separates the languages", and separating them did not add a tailored 職務経歴書, which nobody asked
+for and which is nearer #60 than this.
+
+Rejected: **one master document row repeated on both tabs**, which is the same page behind two
+links and is not "its own". **A language column on facts, so each master document lists only the
+facts written in its language**, which would leave a Japanese document blind to most of the record
+it is generated from. **Translating claims on the read**, above. **Carrying the language in the
+URL** (`/master?language=ja`), which would make the sidebar's `Master document` row always open English
+for an author working in Japanese; the stored choice follows them instead.
+
+**Revisit if:** the author wants the claims themselves in Japanese. That is a translated render with
+versions and a diff to read, not a view, and would be a new document kind.

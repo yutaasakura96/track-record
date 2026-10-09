@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
-import type { MasterDocument } from "~/shared/master-document";
+import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
@@ -493,7 +493,7 @@ export const keys = {
   facts: (importId: string) => ["facts", importId] as const,
   // Under `allFacts`: a ruling on a fact changes what the list holds.
   flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
-  masterDocument: ["facts", "master-document"] as const,
+  masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
   sourceText: (documentId: string, versionNo: number) =>
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
@@ -1267,15 +1267,22 @@ export function useSortFacts(importId?: string) {
   return { progress, run };
 }
 
-/** The master document: built from the record on each read, by no model. */
-export const useMasterDocument = () =>
+/** English is the route with nothing asked of it; 日本語 is asked for (`docs/07` §9). */
+const masterQuery = (language: MasterLanguage) => (language === "ja" ? "?language=ja" : "");
+
+/** One language's master document: built from the record on each read, by no model. */
+export const useMasterDocument = (language: MasterLanguage) =>
   useQuery({
-    queryKey: keys.masterDocument,
-    queryFn: () => api<MasterDocument>("/api/master-document"),
+    queryKey: keys.masterDocument(language),
+    queryFn: () => api<MasterDocument>(`/api/master-document${masterQuery(language)}`),
   });
 
 /** The master document as a file. It contains Private facts; the screen says so beside the button. */
-export const downloadMasterDocument = () =>
-  saveResponse("/api/master-document/download", "master-document.md", "The master document could not be downloaded.");
+export const downloadMasterDocument = (language: MasterLanguage) =>
+  saveResponse(
+    `/api/master-document/download${masterQuery(language)}`,
+    `master-document-${language}.md`,
+    "The master document could not be downloaded.",
+  );
 
 export type { RenderContent };
