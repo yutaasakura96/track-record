@@ -580,7 +580,7 @@ It was built before the document employer above (`06`, 2026-09-28), when "the sa
 the fact's own, then its project's. It reads `effectiveEmployerId`, so since #35 it resolves the
 full order above, the document included.
 
-### 3.13 `fact_flags` · migration 0015, 2026-10-08 (#57)
+### 3.13 `fact_flags` · migrations 0015–0016, 2026-10-08 (#57)
 
 Why a fact is worth a look. Written when the fact is accepted by the importer, and for `repeat`
 also when a later edit makes a pair (`03` §5). **A flag gates nothing**: what keeps a fact out of a
@@ -596,6 +596,7 @@ document is its own `disclosure` and `provenance`, which a flag only explains.
 | `explanation` | text | yes | What `Explain this` wrote. Null until it is pressed; never regenerated |
 | `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What that one call cost. Null until then |
 | `checked_at` | timestamptz | yes | When the author marked it checked, or when a `repeat` flag's pair went away. Null while it is on the list |
+| `system_settled_at` | timestamptz | yes | Migration 0016. Set with `checked_at` when the system closes a `repeat` flag because its pair disappeared. Cleared when the pair returns or the author changes the check state. Null for deliberate author dismissal |
 
 **Unique:** `(fact_id, kind)`, so a fact carries at most one flag of a kind and a retried import
 step writes no second. **Index:** `(user_id, checked_at)`, the list and its counts.

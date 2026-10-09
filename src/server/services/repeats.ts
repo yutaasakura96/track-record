@@ -10,7 +10,7 @@
  * Every query here filters by `user_id`, joins included. Nothing is logged:
  * the rows read are claims.
  */
-import { and, eq, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or, type SQL } from "drizzle-orm";
 import { factFlags, facts } from "../db/schema";
 import { newId } from "../http/ids";
 import { repeatFlag } from "~/pipeline/flags";
@@ -55,31 +55,30 @@ export async function flagRepeats(db: Db, userId: string, where: SQL | undefined
   return [...matches.keys()];
 }
 
-/**
- * Marks checked every open `repeat` flag whose pair is gone: the other fact
- * was rejected, or one of the two was reworded or filed elsewhere. Called after
- * the writes that can do that, so the list never sends the author to a card
- * with one fact on it.
- */
 export async function settleRepeats(db: Db, userId: string): Promise<void> {
-  const open = await db
-    .select({ ...factWithEmployer, flagId: factFlags.id })
+  const tracked = await db
+    .select({ ...factWithEmployer, flagId: factFlags.id, checkedAt: factFlags.checkedAt, systemSettledAt: factFlags.systemSettledAt })
     .from(factFlags)
     .innerJoin(facts, and(eq(facts.id, factFlags.factId), eq(facts.userId, factFlags.userId)))
     .where(
       and(
         eq(factFlags.userId, userId),
         eq(factFlags.kind, "repeat"),
-        isNull(factFlags.checkedAt),
+        or(isNull(factFlags.checkedAt), isNotNull(factFlags.systemSettledAt)),
         eq(facts.status, "accepted"),
       ),
     );
-  if (open.length === 0) return;
-  const matches = await repeatsAmong(db, userId, open);
-  const gone = open.filter((fact) => !matches.has(fact.id)).map((fact) => fact.flagId);
-  if (gone.length === 0) return;
-  await db
-    .update(factFlags)
-    .set({ checkedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(factFlags.userId, userId), inArray(factFlags.id, gone)));
+  if (tracked.length === 0) return;
+  const matches = await repeatsAmong(db, userId, tracked);
+  const gone = tracked.filter((fact) => fact.checkedAt === null && !matches.has(fact.id)).map((fact) => fact.flagId);
+  const restored = tracked.filter((fact) => fact.systemSettledAt !== null && matches.has(fact.id)).map((fact) => fact.flagId);
+  const now = new Date();
+  const updates = [];
+  if (gone.length > 0) updates.push(db.update(factFlags)
+    .set({ checkedAt: now, systemSettledAt: now, updatedAt: now })
+    .where(and(eq(factFlags.userId, userId), inArray(factFlags.id, gone), isNull(factFlags.checkedAt))));
+  if (restored.length > 0) updates.push(db.update(factFlags)
+    .set({ checkedAt: null, systemSettledAt: null, updatedAt: now })
+    .where(and(eq(factFlags.userId, userId), inArray(factFlags.id, restored), isNotNull(factFlags.systemSettledAt))));
+  if (updates.length > 0) await db.batch(updates as any);
 }

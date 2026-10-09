@@ -601,7 +601,7 @@ document: asked for under another's ref it is `404`. A response that carried `re
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` | `/api/tailored-resumes` | M3 | `{ items, canGenerate }`: the tailored résumés, newest first, each in the shape of a `GET /api/renders` item. No job description in the listing |
-| `POST` | `/api/tailored-resumes` | M3 | Body `{ label, jobDescription }` → `201` + the row. **Generates nothing**: the client then calls `generate` with the row's `ref`, so a refusal there is said as it is everywhere. `422` for an empty name, an empty job description, one over 20,000 characters, or a `kind` other than `english_resume` |
+| `POST` | `/api/tailored-resumes` | M3 | Body `{ label, jobDescription }` → `201` + the row. **Generates nothing**: the client then calls `generate` with the row's `ref`, so a refusal there is said as it is everywhere. `422` for an empty name, an empty job description, one over 20,000 characters, or an extra field (including `kind`). The created row's kind is always `english_resume` |
 | `GET` | `/api/tailored-resumes/:id` | M3 | One row, with its `jobDescription` |
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
@@ -771,6 +771,7 @@ Accepting an already-decided proposal → `409 conflict`.
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
 `Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
+For a tailored résumé, the filename also includes an ASCII label slug when nonempty and its render ID before the date; the ID keeps Japanese labels and shared slug prefixes distinct.
 Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 

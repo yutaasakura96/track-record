@@ -185,11 +185,11 @@ export function registerFlagRoutes(app: Hono<AppEnv>) {
 
 async function setChecked(db: Db, userId: string, id: string, checked: boolean): Promise<FlagResponse> {
   const { flag } = await requireFlag(db, userId, id);
-  if ((flag.checkedAt !== null) === checked) return flagResponse(flag);
+  if ((flag.checkedAt !== null) === checked && !(checked && flag.systemSettledAt !== null)) return flagResponse(flag);
   const now = new Date();
   const [updated] = await db
     .update(factFlags)
-    .set({ checkedAt: checked ? now : null, updatedAt: now })
+    .set({ checkedAt: checked ? now : null, systemSettledAt: null, updatedAt: now })
     .where(and(eq(factFlags.userId, userId), eq(factFlags.id, id)))
     .returning();
   return flagResponse(updated ?? flag);

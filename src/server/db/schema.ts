@@ -410,8 +410,9 @@ export const factFlags = pgTable("fact_flags", {
   outputTokens: integer("output_tokens"),
   cacheCreationInputTokens: integer("cache_creation_input_tokens"),
   cacheReadInputTokens: integer("cache_read_input_tokens"),
-  /** When the author marked it checked. Null while it is still on the list. */
+  /** Null while the flag is on the list. */
   checkedAt: timestamp("checked_at", { withTimezone: true }),
+  systemSettledAt: timestamp("system_settled_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
   uniqueIndex("fact_flags_fact_kind_uq").on(t.factId, t.kind),

@@ -295,6 +295,8 @@ async function resolve(
       .update(facts)
       .set({ status: "accepted", resolvedAt: fact.autoAcceptedAt, updatedAt: new Date() })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    await flagRepeats(db, user.id, eq(facts.id, fact.id));
+    await settleRepeats(db, user.id);
     return c.json(await withMatches(db, user.id, fact.id));
   }
 
@@ -309,8 +311,7 @@ async function resolve(
       updatedAt: new Date(),
     })
     .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-  // A rejected fact is no longer in the record for another to restate.
-  if (status === "rejected") await settleRepeats(db, user.id);
+  if (status !== "candidate") await settleRepeats(db, user.id);
   return c.json(await withMatches(db, user.id, fact.id));
 }
 

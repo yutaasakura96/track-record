@@ -412,6 +412,77 @@ describe("a fact accepted on arrival is flagged when it likely restates another"
     expect(byClaim(after, RESTATED.claim).status).toBe("accepted");
   });
 
+  it("reopens system-settled repeats when a rejection is undone", async () => {
+    const { narrative, portfolioImport } = await bothAccepted(await employer());
+    const matched = byClaim(narrative, NARRATIVE_BATCH.claim);
+    await client.post(`/api/facts/${matched.id}/reject`);
+    expect(await openRepeats()).toEqual([]);
+
+    await client.post(`/api/facts/${matched.id}/undo`);
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(false);
+  });
+
+  it("reopens the partner's repeat when a rejected fact is accepted directly", async () => {
+    const { narrative } = await bothAccepted(await employer());
+    const matched = byClaim(narrative, NARRATIVE_BATCH.claim);
+    await client.post(`/api/facts/${matched.id}/reject`);
+    expect(await openRepeats()).toEqual([]);
+
+    await client.post(`/api/facts/${matched.id}/accept`);
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+  });
+
+  it("reopens a repeat after its claim changes away and back", async () => {
+    const { portfolio, portfolioImport } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+    await client.patch(`/api/facts/${restated.id}`, { claim: "Wrote the operations handover notes" });
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), "Wrote the operations handover notes"))!.checked).toBe(true);
+
+    await client.patch(`/api/facts/${restated.id}`, { claim: RESTATED.claim });
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(false);
+    expect(await openRepeats()).toContain(RESTATED.claim);
+  });
+
+  it("reopens the unchanged partner's flag after an employer change is undone", async () => {
+    const aozora = await employer();
+    const other = await employer("株式会社ミドリ運輸");
+    const { narrative } = await bothAccepted(aozora);
+    const matched = byClaim(narrative, NARRATIVE_BATCH.claim);
+    await client.patch(`/api/facts/${matched.id}`, { employerId: other });
+    expect(await openRepeats()).toEqual([]);
+
+    await client.patch(`/api/facts/${matched.id}`, { employerId: aozora });
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+  });
+
+  it("reopens a repeat after its document is refiled away and back", async () => {
+    const aozora = await employer();
+    const other = await employer("株式会社ミドリ運輸");
+    const { portfolioImport } = await bothAccepted(aozora);
+    const { sourceDocumentId } = await client.json<{ sourceDocumentId: string }>(`/api/imports/${portfolioImport}`);
+    await client.patch(`/api/source-documents/${sourceDocumentId}`, { employerId: other });
+    expect(await openRepeats()).toEqual([]);
+
+    await client.patch(`/api/source-documents/${sourceDocumentId}`, { employerId: aozora });
+    expect(await openRepeats()).toEqual([CONFLICTING.claim, RESTATED.claim].sort());
+  });
+
+  it("keeps an author-dismissed repeat closed when its pair disappears and returns", async () => {
+    const { narrative, portfolio, portfolioImport } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+    const conflicting = byClaim(portfolio, CONFLICTING.claim);
+    await client.post(`/api/flags/${repeatOf(restated)!.id}/check`);
+    const matched = byClaim(narrative, NARRATIVE_BATCH.claim);
+    await client.post(`/api/facts/${matched.id}/reject`);
+    await client.post(`/api/flags/${repeatOf(conflicting)!.id}/check`);
+    await client.post(`/api/facts/${matched.id}/undo`);
+
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(true);
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), CONFLICTING.claim))!.checked).toBe(true);
+    expect(await openRepeats()).toEqual([]);
+  });
+
   it("settles the flag when the fact is reworded so that nothing is alike", async () => {
     const { portfolio } = await bothAccepted(await employer());
     const restated = byClaim(portfolio, RESTATED.claim);
