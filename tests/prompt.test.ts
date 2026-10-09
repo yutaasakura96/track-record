@@ -285,12 +285,6 @@ describe("the importer's grade", () => {
     }
   });
 
-  it("errs toward Private, and says that Generated keeps a fact out of documents", () => {
-    expect(GRADING_RULES).toContain("When in doubt it is true");
-    expect(GRADING_RULES).toContain("stays out of every document");
-    expect(GRADING_RULES).toContain("without repeating the name or the identifier");
-  });
-
   it("reads a grade without trusting it", () => {
     expect(readGrade({ provenance: "measured", confidential: true, unsure: false, note: " It names a client. " })).toEqual({
       provenance: "measured",

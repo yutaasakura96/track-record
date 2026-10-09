@@ -82,6 +82,23 @@ const without = (blockId: string): RenderContent => ({
 });
 
 describe("an edit", () => {
+  it("shows a failed tailored document read with a retry", async () => {
+    const ref = "rnd-test-1";
+    const path = `/renders/${ref}/edit`;
+    const route = `GET /api/renders/${ref}/versions`;
+    let attempts = 0;
+    const { user } = mount(path, {
+      [route]: () => ++attempts <= 4
+        ? new Refusal(500, "internal", "Could not read versions.")
+        : { ...HISTORY, renderRef: ref, title: "Tailored résumé" },
+      [`GET /api/renders/${ref}/versions/${CURRENT}`]: STORED,
+    });
+    expect((await screen.findByRole("alert", {}, { timeout: 10000 })).textContent).toBe("Could not read versions.");
+    expect(screen.queryByText("That document was not found.")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText(QUILLSET)).toBeTruthy();
+  }, 15000);
+
   it("cannot be saved until something has changed", async () => {
     open();
 

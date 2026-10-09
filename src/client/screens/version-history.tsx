@@ -39,11 +39,12 @@ import { DiffPanes } from "../components/diff-view";
 import { Sidebar } from "../components/sidebar";
 import { absolute } from "../format";
 import { DownloadButton, WithheldFacts } from "../components/download-button";
+import { ReadFailure } from "../components/read-failure";
 
 export function VersionHistoryScreen() {
   const { ref } = useParams({ from: "/renders/$ref/history" });
   const profile = useProfile();
-  const { doc, missing } = useDoc(ref);
+  const { doc, missing, failure } = useDoc(ref);
 
   return (
     <div className="min-h-screen flex">
@@ -53,9 +54,11 @@ export function VersionHistoryScreen() {
           <History doc={doc} />
         ) : (
           <main className="flex-1 grid place-items-center px-20">
-            <p className="text-ui text-text-dim">
-              {missing ? "That document was not found." : "Opening the document…"}
-            </p>
+            {failure ? (
+              <ReadFailure query={failure} />
+            ) : (
+              <p className="text-ui text-text-dim">{missing ? "That document was not found." : "Opening the document…"}</p>
+            )}
           </main>
         )}
       </div>

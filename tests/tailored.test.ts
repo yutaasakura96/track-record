@@ -149,7 +149,7 @@ describe("creating a tailored résumé", () => {
     expect((await list()).items).toEqual([]);
   });
 
-  it("refuses a kind that cannot be tailored", async () => {
+  it("does not accept a kind in a tailored résumé request", async () => {
     const response = await client.post("/api/tailored-resumes", { label: "Kestrel", jobDescription: POSTING, kind: "rirekisho" });
     expect(response.status).toBe(422);
   });
@@ -231,7 +231,7 @@ describe("generating a tailored résumé", () => {
     const tailoredFile = await client.get(`/api/renders/${row.id}/download?format=md`);
     expect(await tailoredFile.text()).toContain("Tailored bullet about the batch platform.");
     expect(tailoredFile.headers.get("content-disposition")).toMatch(
-      /filename="resume-kestrel-platform-engineer-\d{4}-\d{2}-\d{2}\.md"/,
+      new RegExp(`filename="resume-kestrel-platform-engineer-${row.id}-\\d{4}-\\d{2}-\\d{2}\\.md"`),
     );
     const mainFile = await client.get("/api/renders/english_resume/download?format=md");
     expect(await mainFile.text()).toContain("Main bullet about the settlement run.");
@@ -244,6 +244,18 @@ describe("generating a tailored résumé", () => {
     expect(
       (await client.get(`/api/renders/english_resume/download?format=md&versionId=${tailoredVersion!.id}`)).status,
     ).toBe(404);
+  });
+
+  it("gives distinct filenames to Japanese labels and labels sharing a long prefix", async () => {
+    const date = new Date("2026-10-10T00:00:00.000Z");
+    const { downloadFilename } = await import("~/render/docx");
+    for (const labels of [["開発職", "技術職"], ["a".repeat(40) + "one", "a".repeat(40) + "two"]]) {
+      const first = downloadFilename("english_resume", "docx", date, { label: labels[0]!, id: "rnd_first" });
+      const second = downloadFilename("english_resume", "docx", date, { label: labels[1]!, id: "rnd_second" });
+      expect(first).not.toBe(second);
+      expect(first).toMatch(/rnd_first-2026-10-10\.docx$/);
+      expect(second).toMatch(/rnd_second-2026-10-10\.docx$/);
+    }
   });
 
   it("records the facts its version could use, and is out of date once one of them is withdrawn", async () => {

@@ -102,11 +102,10 @@ export async function toDocx(
 }
 
 /** `resume-2026-08-12.docx` — dated, so a downloaded file names its own vintage. */
-export function downloadFilename(kind: string, extension: string, date: Date, label: string | null = null): string {
+export function downloadFilename(kind: string, extension: string, date: Date, tailored: { label: string; id: string } | null = null): string {
   const stem = kind === "english_resume" ? "resume" : kind.replace(/_/g, "-");
-  // A tailored résumé carries its name, so two downloaded on one day are two
-  // files. ASCII only: the name goes in a `content-disposition` header.
-  const tail = label ? `-${slug(label)}`.replace(/-$/, "") : "";
+  // ASCII only: the name goes in a `content-disposition` header.
+  const tail = tailored ? `-${[slug(tailored.label), tailored.id].filter(Boolean).join("-")}` : "";
   return `${stem}${tail}-${date.toISOString().slice(0, 10)}.${extension}`;
 }
 

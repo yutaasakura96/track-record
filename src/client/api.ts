@@ -811,16 +811,24 @@ export interface Doc {
  * its screens wait for the history read; `missing` is that read answering that
  * there is no such document.
  */
-export function useDoc(ref: string): { doc: Doc | null; missing: boolean } {
+export function useDoc(ref: string): {
+  doc: Doc | null;
+  missing: boolean;
+  failure: { error: unknown; refetch: () => unknown } | null;
+} {
   const history = useVersionHistory(ref);
+  if (history.isError && !history.data) {
+    const missing = history.error instanceof ApiError && history.error.status === 404;
+    return { doc: null, missing, failure: missing ? null : history };
+  }
   if ((RENDER_KINDS as readonly string[]).includes(ref)) {
     const kind = ref as RenderKind;
-    return { doc: { ref, kind, title: RENDER_TITLE[kind] }, missing: false };
+    return { doc: { ref, kind, title: RENDER_TITLE[kind] }, missing: false, failure: null };
   }
   if (history.data) {
-    return { doc: { ref, kind: history.data.renderKind, title: history.data.title }, missing: false };
+    return { doc: { ref, kind: history.data.renderKind, title: history.data.title }, missing: false, failure: null };
   }
-  return { doc: null, missing: history.isError };
+  return { doc: null, missing: false, failure: null };
 }
 
 /** A version's stored structure, by id. `null` means there is nothing to edit. */

@@ -40,7 +40,6 @@ import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
   RENDER_TITLE,
-  TAILORABLE_KINDS,
   type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
@@ -50,7 +49,7 @@ import type { Db } from "../db/client";
 /** Long enough for any posting; short enough that a pasted file of something else is refused. */
 const JOB_DESCRIPTION_MAX = 20_000;
 
-const tailoredBody = z.object({
+const tailoredBody = z.strictObject({
   label: z
     .string()
     .trim()
@@ -61,7 +60,6 @@ const tailoredBody = z.object({
     .trim()
     .min(1, "Paste the job description this résumé is for.")
     .max(JOB_DESCRIPTION_MAX, `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`),
-  kind: z.enum(TAILORABLE_KINDS).default("english_resume"),
 });
 
 export function registerRenderRoutes(app: Hono<AppEnv>) {
@@ -103,7 +101,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     await db.insert(renders).values({
       id,
       userId: user.id,
-      kind: body.kind,
+      kind: "english_resume",
       label: body.label,
       jobDescription: body.jobDescription,
     });
@@ -834,7 +832,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const title = RENDER_TITLE[kind];
-    const filename = downloadFilename(kind, format, version.acceptedAt, render?.label ?? null);
+    const filename = downloadFilename(kind, format, version.acceptedAt, render?.label ? { label: render.label, id: render.id } : null);
 
     // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
     // derived from the record rather than read out of the version, its identity

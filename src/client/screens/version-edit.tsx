@@ -35,13 +35,14 @@ import {
 } from "../api";
 import { Button, Mono, MonoId, Notice, Panel } from "../components/ui";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
+import { ReadFailure } from "../components/read-failure";
 import { moved } from "../reorder";
 import { sameContent } from "~/render/edit";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export function VersionEditScreen() {
   const { ref } = useParams({ from: "/renders/$ref/edit" });
-  const { doc, missing } = useDoc(ref);
+  const { doc, missing, failure } = useDoc(ref);
 
   // No sidebar: this is a focused task. There is unsaved work on this screen,
   // and a nav row that discards it on a click is the failure mode.
@@ -49,9 +50,11 @@ export function VersionEditScreen() {
     <Editor doc={doc} />
   ) : (
     <main className="min-h-screen grid place-items-center px-20">
-      <p className="text-ui text-text-dim">
-        {missing ? "That document was not found." : "Opening the document…"}
-      </p>
+      {failure ? (
+        <ReadFailure query={failure} />
+      ) : (
+        <p className="text-ui text-text-dim">{missing ? "That document was not found." : "Opening the document…"}</p>
+      )}
     </main>
   );
 }

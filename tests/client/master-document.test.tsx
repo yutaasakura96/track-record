@@ -118,6 +118,22 @@ describe("the master document", () => {
     expect(await screen.findByText(/import a document\. Its facts appear here\./)).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Download .md" })).toBeNull();
   });
+
+  it("downloads roles, education and certifications even without an accepted fact", async () => {
+    const { api, user } = open(master({
+      counts: { facts: 0, usable: 0, private: 0, generated: 0, flagged: 0, waiting: 0 },
+      employers: [{ ...master().employers[0]!, projects: [], facts: [] }],
+      independent: { projects: [], facts: [] },
+    }), {
+      "GET /api/master-document/download": new Refusal(500, "internal", "The master document could not be built."),
+    });
+
+    expect(await screen.findByText("Backend Engineer")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Education" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Certifications" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Download .md" }));
+    expect(api.calls.filter((call) => `${call.method} ${call.path}` === "GET /api/master-document/download")).toHaveLength(1);
+  });
 });
 
 describe("downloading the master document", () => {

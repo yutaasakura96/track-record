@@ -29,6 +29,10 @@ export function MasterDocumentScreen() {
   const profile = useProfile();
   const master = useMasterDocument();
   const doc = master.data;
+  const hasContent = doc && (
+    doc.counts.facts > 0 || doc.employers.length > 0 || doc.independent.projects.length > 0 ||
+    doc.independent.facts.length > 0 || doc.educations.length > 0 || doc.certifications.length > 0
+  );
 
   return (
     <div className="min-h-screen flex">
@@ -37,7 +41,7 @@ export function MasterDocumentScreen() {
         <header className="h-header shrink-0 flex items-center gap-12 px-20 bg-surface border-b border-border">
           <h1 className="text-panel font-semibold tracking-snug text-text-strong">Master document</h1>
           <span className="text-smaller text-text-dimmer">Everything in your record, in one place</span>
-          <span className="ml-auto">{doc && doc.counts.facts > 0 ? <Download /> : null}</span>
+          <span className="ml-auto">{hasContent ? <Download /> : null}</span>
         </header>
 
         <div className="flex-1 overflow-y-auto px-20 py-26 grid gap-20 content-start">
@@ -45,7 +49,7 @@ export function MasterDocumentScreen() {
             next={
               !doc
                 ? undefined
-                : doc.counts.facts === 0
+                : !hasContent
                   ? "import a document. Its facts appear here."
                   : "nothing is waiting here. Read it, or download a copy to keep."
             }
