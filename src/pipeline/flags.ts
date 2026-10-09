@@ -39,7 +39,7 @@ export function sortFact(
   fact: { claim: string; quote: string | null; technologies: string[] },
   grade: FactGrade | null,
 ): Sorted {
-  const { shape } = scrub({ claim: fact.claim, quote: fact.quote ?? "" });
+  const { shape, flags: claimFlags } = classifyClaim(fact);
   const note = grade?.note.trim() ?? "";
   const flags: Flag[] = [];
 
@@ -49,7 +49,7 @@ export function sortFact(
     grade === null ? "generated" : grade.provenance === "measured" && fact.quote === null ? "attested" : grade.provenance;
 
   if (shape) {
-    flags.push({ kind: "confidential", reason: `It contains what looks like ${shape}. ${KEPT_PRIVATE}` });
+    flags.push(claimFlags.find((flag) => flag.kind === "confidential")!);
   } else if (grade?.confidential) {
     flags.push({
       kind: "confidential",
@@ -61,9 +61,7 @@ export function sortFact(
     });
   }
 
-  if (statesNumber(fact.claim, fact.technologies)) {
-    flags.push({ kind: "number", reason: "It states a number. Check the number against the passage it was read from." });
-  }
+  flags.push(...claimFlags.filter((flag) => flag.kind === "number"));
 
   if (grade === null) {
     flags.push({ kind: "unsure", reason: `The importer gave it no grade. ${KEPT_GENERATED}` });
@@ -82,6 +80,17 @@ export function sortFact(
     disclosure: confidential ? "private" : "restricted",
     isClientIdentifying: confidential,
     flags,
+  };
+}
+
+export function classifyClaim(fact: { claim: string; quote: string | null; technologies: string[] }): { shape: string | null; flags: Flag[] } {
+  const { shape } = scrub({ claim: fact.claim, quote: fact.quote ?? "" });
+  return {
+    shape,
+    flags: [
+      ...(shape ? [{ kind: "confidential" as const, reason: `It contains what looks like ${shape}. ${KEPT_PRIVATE}` }] : []),
+      ...(statesNumber(fact.claim, fact.technologies) ? [{ kind: "number" as const, reason: "It states a number. Check the number against the passage it was read from." }] : []),
+    ],
   };
 }
 

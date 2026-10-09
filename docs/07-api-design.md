@@ -384,7 +384,7 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. `employerId`, `null` included, is a hand set |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
 | `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
 | `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it |

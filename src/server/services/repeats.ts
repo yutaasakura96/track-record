@@ -10,7 +10,7 @@
  * Every query here filters by `user_id`, joins included. Nothing is logged:
  * the rows read are claims.
  */
-import { and, eq, inArray, isNotNull, isNull, or, type SQL } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
 import { factFlags, facts } from "../db/schema";
 import { newId } from "../http/ids";
 import { repeatFlag } from "~/pipeline/flags";
@@ -57,14 +57,13 @@ export async function flagRepeats(db: Db, userId: string, where: SQL | undefined
 
 export async function settleRepeats(db: Db, userId: string): Promise<void> {
   const tracked = await db
-    .select({ ...factWithEmployer, flagId: factFlags.id, checkedAt: factFlags.checkedAt, systemSettledAt: factFlags.systemSettledAt })
+    .select({ ...factWithEmployer, flagId: factFlags.id, checkedAt: factFlags.checkedAt, systemSettledAt: factFlags.systemSettledAt, reason: factFlags.reason })
     .from(factFlags)
     .innerJoin(facts, and(eq(facts.id, factFlags.factId), eq(facts.userId, factFlags.userId)))
     .where(
       and(
         eq(factFlags.userId, userId),
         eq(factFlags.kind, "repeat"),
-        or(isNull(factFlags.checkedAt), isNotNull(factFlags.systemSettledAt)),
         eq(facts.status, "accepted"),
       ),
     );
@@ -80,5 +79,15 @@ export async function settleRepeats(db: Db, userId: string): Promise<void> {
   if (restored.length > 0) updates.push(db.update(factFlags)
     .set({ checkedAt: null, systemSettledAt: null, updatedAt: now })
     .where(and(eq(factFlags.userId, userId), inArray(factFlags.id, restored), isNotNull(factFlags.systemSettledAt))));
+  for (const conflict of [false, true]) {
+    const reason = repeatFlag(conflict).reason;
+    const changed = tracked.filter((fact) => {
+      const found = matches.get(fact.id);
+      return found && found.some((match) => match.conflict) === conflict && fact.reason !== reason;
+    }).map((fact) => fact.flagId);
+    if (changed.length > 0) updates.push(db.update(factFlags)
+      .set({ reason, explanation: null, inputTokens: null, outputTokens: null, cacheCreationInputTokens: null, cacheReadInputTokens: null, updatedAt: now })
+      .where(and(eq(factFlags.userId, userId), inArray(factFlags.id, changed))));
+  }
   if (updates.length > 0) await db.batch(updates as any);
 }

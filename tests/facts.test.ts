@@ -20,6 +20,7 @@ interface Fact {
   disclosure: string;
   status: string;
   evidence: unknown | null;
+  flags: { kind: string; reason: string; checked: boolean }[];
 }
 
 let model: StubModel;
@@ -99,6 +100,42 @@ describe("provenance", () => {
 });
 
 describe("review moves at reading pace", () => {
+  it("makes an edited claim with an email and 90 minutes Private and flagged", async () => {
+    const { fact } = await importOne("Improved the batch workflow");
+    const edited = (await (await client.patch(`/api/facts/${fact.id}`, {
+      claim: "Sent the report to desk@example.invalid in 90 minutes",
+    })).json()) as Fact;
+    expect(edited.disclosure).toBe("private");
+    expect(edited.flags.filter((flag) => !flag.checked && ["confidential", "number"].includes(flag.kind)).map((flag) => flag.kind)).toEqual(["confidential", "number"]);
+    const confidential = edited.flags.find((flag) => flag.kind === "confidential")!;
+    expect(confidential.reason).toContain("an email address");
+    expect(confidential.reason).not.toContain("desk@example.invalid");
+  });
+
+  it("preserves a deliberate disclosure on a text-unchanged edit", async () => {
+    const { fact } = await importOne("Improved the batch workflow");
+    await client.patch(`/api/facts/${fact.id}`, { disclosure: "public" });
+    const edited = (await (await client.patch(`/api/facts/${fact.id}`, { claim: fact.claim, provenance: "attested" })).json()) as Fact;
+    expect(edited.disclosure).toBe("public");
+    expect(edited.flags).toEqual(fact.flags);
+  });
+
+  it("keeps a later deliberate disclosure choice until the claim changes again", async () => {
+    const { fact } = await importOne("Improved the batch workflow");
+    await client.patch(`/api/facts/${fact.id}`, { claim: "Sent the report to desk@example.invalid in 90 minutes" });
+    const publicFact = (await (await client.patch(`/api/facts/${fact.id}`, { disclosure: "public" })).json()) as Fact;
+    expect(publicFact.disclosure).toBe("public");
+    const changed = (await (await client.patch(`/api/facts/${fact.id}`, { claim: "Sent the report to team@example.invalid in 90 minutes" })).json()) as Fact;
+    expect(changed.disclosure).toBe("private");
+  });
+
+  it("settles a number flag when the edited claim no longer states one", async () => {
+    const { fact } = await importOne("Cut nightly batch runtime to 90 minutes");
+    expect(fact.flags.some((flag) => flag.kind === "number" && !flag.checked)).toBe(true);
+    const edited = (await (await client.patch(`/api/facts/${fact.id}`, { claim: "Improved the batch workflow" })).json()) as Fact;
+    expect(edited.flags.some((flag) => flag.kind === "number" && !flag.checked)).toBe(false);
+  });
+
   it("saves an edit as it is made", async () => {
     const { fact, importId } = await importOne();
     await client.patch(`/api/facts/${fact.id}`, { claim: "Cut nightly batch runtime to 90 minutes" });

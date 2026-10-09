@@ -444,6 +444,30 @@ describe("a fact accepted on arrival is flagged when it likely restates another"
     expect(await openRepeats()).toContain(RESTATED.claim);
   });
 
+  it("refreshes the reason and explanation when a restatement becomes a conflict", async () => {
+    const { portfolio, portfolioImport } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+    const flag = repeatOf(restated)!;
+    model.explanations = ["The two claims restate the same batch outcome."];
+    await client.post(`/api/flags/${flag.id}/explain`);
+
+    const revised = "Reduced nightly batch runtime from 6 hours to 80 minutes";
+    await client.patch(`/api/facts/${restated.id}`, { claim: revised });
+    const changed = byClaim(await factsOf(portfolioImport), revised);
+    expect(repeatOf(changed)!.reason).toContain("the number differs");
+    expect((await client.json<{ items: { id: string; explanation: string | null }[] }>("/api/flags")).items.find((item) => item.id === flag.id)!.explanation).toBeNull();
+  });
+
+  it("refreshes the reason when a system-settled repeat returns as a conflict", async () => {
+    const { portfolio, portfolioImport } = await bothAccepted(await employer());
+    const restated = byClaim(portfolio, RESTATED.claim);
+    await client.patch(`/api/facts/${restated.id}`, { claim: "Wrote the operations handover notes" });
+    await client.patch(`/api/facts/${restated.id}`, { claim: "Reduced nightly batch runtime from 6 hours to 80 minutes" });
+    const changed = byClaim(await factsOf(portfolioImport), "Reduced nightly batch runtime from 6 hours to 80 minutes");
+    expect(repeatOf(changed)!.checked).toBe(false);
+    expect(repeatOf(changed)!.reason).toContain("the number differs");
+  });
+
   it("reopens the unchanged partner's flag after an employer change is undone", async () => {
     const aozora = await employer();
     const other = await employer("株式会社ミドリ運輸");

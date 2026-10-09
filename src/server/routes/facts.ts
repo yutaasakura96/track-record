@@ -23,7 +23,7 @@ import { flagRepeats, settleRepeats } from "../services/repeats";
 import { employerSetByHand } from "../db/fact-employer";
 import { requireOwnedEmployer } from "./record";
 import { flagsOf, repeatFlagged, type FlagResponse } from "./flags";
-import { sortFact } from "~/pipeline/flags";
+import { classifyClaim, sortFact } from "~/pipeline/flags";
 import { ModelUnavailableError, type ModelUsage } from "~/model";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
@@ -120,16 +120,38 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
 
     const now = new Date();
-    await db
+    const claimChanged = body.claim !== undefined && body.claim !== fact.claim;
+    const classified = claimChanged ? classifyClaim({ ...fact, claim: body.claim! }) : null;
+    const writes: unknown[] = [db
       .update(facts)
       .set({
         ...(body.claim === undefined ? {} : { claim: body.claim }),
         ...(body.provenance === undefined ? {} : { provenance: body.provenance }),
-        ...(body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
+        ...(classified?.shape ? { disclosure: "private" as const, isClientIdentifying: true } : body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
         ...(body.employerId === undefined ? {} : { employerId: body.employerId, employerSetAt: now }),
         updatedAt: now,
       })
-      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))];
+    if (classified) {
+      const old = classifyClaim(fact);
+      const oldShapeReason = old.flags.find((flag) => flag.kind === "confidential")?.reason;
+      for (const kind of ["confidential", "number"] as const) {
+        const flag = classified.flags.find((item) => item.kind === kind);
+        if (flag) {
+          writes.push(db.insert(factFlags).values({ id: newId("factFlag"), userId: user.id, factId: fact.id, ...flag })
+            .onConflictDoUpdate({ target: [factFlags.factId, factFlags.kind], set: {
+              reason: flag.reason, checkedAt: null, systemSettledAt: null, explanation: null,
+              inputTokens: null, outputTokens: null, cacheCreationInputTokens: null, cacheReadInputTokens: null,
+              updatedAt: now,
+            } }));
+        } else if (kind === "number" || oldShapeReason) {
+          writes.push(db.update(factFlags).set({ checkedAt: now, updatedAt: now })
+            .where(and(eq(factFlags.userId, user.id), eq(factFlags.factId, fact.id), eq(factFlags.kind, kind), isNull(factFlags.checkedAt),
+              ...(kind === "confidential" ? [eq(factFlags.reason, oldShapeReason!)] : []))));
+        }
+      }
+    }
+    await db.batch(writes as any);
     // A new wording or a new employer can make a pair, and can unmake one.
     if (body.claim !== undefined || body.employerId !== undefined) {
       await flagRepeats(db, user.id, eq(facts.id, fact.id));
@@ -162,10 +184,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
    * (issue #57): grades up to `SORT_BATCH` of them in one model call, accepts
    * every one, and flags what is worth a look.
    *
-   * **Every fact it reads is accepted**, the graded and the ungraded alike. A
-   * fact the model returned no grade for is kept as Generated and flagged; it
-   * is not left waiting, and it is never rejected. So a call that returns
-   * always moves the count down, and the client's loop always ends.
+   * A fact the model returned no grade for is kept as Generated and flagged.
    *
    * A fact the author already made Private stays Private, and one they made
    * Public is made Private only if it reads as confidential. Nothing here
@@ -217,14 +236,18 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
         })
         // Still a candidate: a fact the author ruled on while the model was
         // answering keeps the author's ruling.
-        .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.status, "candidate")));
+        .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.status, "candidate"),
+          eq(facts.claim, fact.claim), eq(facts.disclosure, fact.disclosure), eq(facts.provenance, fact.provenance)))
+        .returning({ id: facts.id });
     });
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    await db.batch([...updates, ...(flags.length > 0 ? [db.insert(factFlags).values(flags).onConflictDoNothing()] : [])] as any);
+    const results = await db.batch(updates as any) as { id: string }[][];
+    const sortedIds = results.flat().map((row) => row.id);
+    const savedFlags = flags.filter((flag) => sortedIds.includes(flag.factId));
+    if (savedFlags.length > 0) await db.insert(factFlags).values(savedFlags).onConflictDoNothing();
 
     // The check a candidate's card made, now that there is no card to make it on.
-    const repeats = await flagRepeats(db, user.id, inArray(facts.id, batch.map((fact) => fact.id)));
-    const flagged = new Set([...flags.map((flag) => flag.factId), ...repeats]).size;
+    const repeats = sortedIds.length > 0 ? await flagRepeats(db, user.id, inArray(facts.id, sortedIds)) : [];
+    const flagged = new Set([...savedFlags.map((flag) => flag.factId), ...repeats]).size;
 
     const [{ remaining } = { remaining: 0 }] = await db
       .select({ remaining: sql<number>`count(*)::int` })
@@ -233,9 +256,9 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
 
     // Counts only. No claim, no quote, no note.
     console.log(
-      JSON.stringify({ event: "facts_sorted", sorted: batch.length, flagged, remaining, ...(usage ?? {}) }),
+      JSON.stringify({ event: "facts_sorted", sorted: sortedIds.length, flagged, remaining, ...(usage ?? {}) }),
     );
-    return c.json({ sorted: batch.length, flagged, remaining });
+    return c.json({ sorted: sortedIds.length, flagged, remaining });
   });
 
   /**

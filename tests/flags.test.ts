@@ -514,4 +514,37 @@ describe("sorting the facts that were waiting", () => {
     expect((await factsOf(theirs, other))[0]!.status).toBe("candidate");
     expect(model.gradeCalls.flat().map((fact) => fact.claim)).not.toContain(DOUBTED.claim);
   });
+
+  it("writes flags only for candidates whose guarded sort update won", async () => {
+    const importId = await waiting([PLAIN, NUMBERED, CLIENT, DOUBTED]);
+    const before = await factsOf(importId);
+    let releaseGrade!: () => void;
+    let gradingStarted!: () => void;
+    const started = new Promise<void>((resolve) => { gradingStarted = resolve; });
+    const released = new Promise<void>((resolve) => { releaseGrade = resolve; });
+    model.gradeFacts = async (facts) => {
+      gradingStarted();
+      await released;
+      return new Map(facts.map((fact) => [fact.id, {
+        provenance: "attested" as const, confidential: true, unsure: false, note: "It names a client.",
+      }]));
+    };
+
+    const sorting = client.post("/api/facts/sort", { importId });
+    await started;
+    await client.post(`/api/facts/${of(before, PLAIN).id}/reject`);
+    await client.post(`/api/facts/${of(before, NUMBERED).id}/accept`);
+    await client.patch(`/api/facts/${of(before, CLIENT).id}`, { claim: "Rewrote the team handover notes" });
+    releaseGrade();
+
+    expect(await sorting.then((response) => response.json())).toEqual({ sorted: 1, flagged: 1, remaining: 1 });
+    const after = await factsOf(importId);
+    expect(of(after, PLAIN).flags).toEqual([]);
+    expect(of(after, NUMBERED).flags).toEqual([]);
+    expect(of(after, CLIENT).flags).toEqual([]);
+    expect(of(after, DOUBTED)).toMatchObject({ status: "accepted", disclosure: "private" });
+    expect(kindsOf(of(after, DOUBTED))).toEqual(["confidential"]);
+    await client.post(`/api/facts/${of(before, PLAIN).id}/undo`);
+    expect(of(await factsOf(importId), PLAIN).flags).toEqual([]);
+  });
 });
