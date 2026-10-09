@@ -1264,6 +1264,30 @@ describe("facts still waiting from before automatic acceptance (issue #57)", () 
     expect(screen.getByRole("status").textContent).toContain("2 sorted");
   });
 
+  it("asks again when a batch sorts nothing with facts still waiting", async () => {
+    const steps = [
+      { sorted: 0, flagged: 0, remaining: 4 },
+      { sorted: 4, flagged: 1, remaining: 0 },
+    ];
+    const { api, user } = open(CANDIDATES, { routes: { [SORT]: () => steps.shift()! } });
+    await card("f-measured");
+    await user.click(screen.getByRole("button", { name: "Sort 4 facts" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([SORT, SORT]));
+    await waitFor(() => expect(screen.getByRole("status").textContent).toContain("4 sorted"));
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("stops and says so, rather than reading as finished, when nothing is sorted time after time", async () => {
+    const { api, user } = open(CANDIDATES, { routes: { [SORT]: () => ({ sorted: 0, flagged: 0, remaining: 4 }) } });
+    await card("f-measured");
+    await user.click(screen.getByRole("button", { name: "Sort 4 facts" }));
+
+    expect((await screen.findByText("Some facts could not be sorted just now. Nothing was lost; try again.")).getAttribute("role")).toBe("alert");
+    expect(api.writes()).toEqual([SORT, SORT, SORT]);
+    expect(screen.getByRole("button", { name: "Sort 4 facts" })).toBeTruthy();
+  });
+
   it("still lets each be reviewed on its own card", async () => {
     open(CANDIDATES);
     const waiting = await card("f-attested");

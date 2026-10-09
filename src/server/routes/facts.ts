@@ -216,11 +216,34 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     }
 
     const now = new Date();
-    const flags: (typeof factFlags.$inferInsert)[] = [];
+    const flagWrites: unknown[] = [];
+    const withFlags = new Set<string>();
     const updates = batch.map((fact) => {
       const sorted = sortFact(fact, grades.get(fact.id) ?? null);
       for (const flag of sorted.flags) {
-        flags.push({ id: newId("factFlag"), userId: user.id, factId: fact.id, kind: flag.kind, reason: flag.reason });
+        withFlags.add(fact.id);
+        flagWrites.push(db
+          .insert(factFlags)
+          .select(db
+            .select({
+              id: sql<string>`${newId("factFlag")}::text`.as("id"),
+              userId: facts.userId,
+              factId: facts.id,
+              kind: sql<typeof flag.kind>`${flag.kind}::fact_flag_kind`.as("kind"),
+              reason: sql<string>`${flag.reason}::text`.as("reason"),
+              explanation: sql<null>`null::text`.as("explanation"),
+              inputTokens: sql<null>`null::integer`.as("input_tokens"),
+              outputTokens: sql<null>`null::integer`.as("output_tokens"),
+              cacheCreationInputTokens: sql<null>`null::integer`.as("cache_creation_input_tokens"),
+              cacheReadInputTokens: sql<null>`null::integer`.as("cache_read_input_tokens"),
+              checkedAt: sql<null>`null::timestamptz`.as("checked_at"),
+              systemSettledAt: sql<null>`null::timestamptz`.as("system_settled_at"),
+              createdAt: sql<Date>`now()`.as("created_at"),
+              updatedAt: sql<Date>`now()`.as("updated_at"),
+            })
+            .from(facts)
+            .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.autoAcceptedAt, now))))
+          .onConflictDoNothing());
       }
       const confidential = sorted.disclosure === "private";
       return db
@@ -240,14 +263,13 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
           eq(facts.claim, fact.claim), eq(facts.disclosure, fact.disclosure), eq(facts.provenance, fact.provenance)))
         .returning({ id: facts.id });
     });
-    const results = await db.batch(updates as any) as { id: string }[][];
-    const sortedIds = results.flat().map((row) => row.id);
-    const savedFlags = flags.filter((flag) => sortedIds.includes(flag.factId));
-    if (savedFlags.length > 0) await db.insert(factFlags).values(savedFlags).onConflictDoNothing();
+    const results = await db.batch([...updates, ...flagWrites] as any) as { id: string }[][];
+    const sortedIds = results.slice(0, updates.length).flat().map((row) => row.id);
 
     // The check a candidate's card made, now that there is no card to make it on.
     const repeats = sortedIds.length > 0 ? await flagRepeats(db, user.id, inArray(facts.id, sortedIds)) : [];
-    const flagged = new Set([...savedFlags.map((flag) => flag.factId), ...repeats]).size;
+    if (sortedIds.length > 0) await settleRepeats(db, user.id);
+    const flagged = new Set([...sortedIds.filter((id) => withFlags.has(id)), ...repeats]).size;
 
     const [{ remaining } = { remaining: 0 }] = await db
       .select({ remaining: sql<number>`count(*)::int` })

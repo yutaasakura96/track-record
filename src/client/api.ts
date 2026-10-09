@@ -1210,6 +1210,9 @@ export interface SortProgress {
   failure: string | null;
 }
 
+const SORT_IDLE_LIMIT = 3;
+const SORT_STALLED = "Some facts could not be sorted just now. Nothing was lost; try again.";
+
 /**
  * Sorts the facts still waiting from before the importer accepted on its own.
  * The server sorts a batch per request, one model call each, and this asks
@@ -1230,6 +1233,7 @@ export function useSortFacts(importId?: string) {
     if (progress.running) return;
     let sorted = 0;
     let flagged = 0;
+    let idle = 0;
     setProgress({ running: true, sorted, flagged, remaining: null, failure: null });
     try {
       for (;;) {
@@ -1239,9 +1243,17 @@ export function useSortFacts(importId?: string) {
         });
         sorted += step.sorted;
         flagged += step.flagged;
-        const done = step.remaining === 0 || step.sorted === 0;
-        setProgress({ running: !done, sorted, flagged, remaining: step.remaining, failure: null });
-        if (done) break;
+        const done = step.remaining === 0;
+        idle = step.sorted === 0 ? idle + 1 : 0;
+        const stalled = !done && idle === SORT_IDLE_LIMIT;
+        setProgress({
+          running: !done && !stalled,
+          sorted,
+          flagged,
+          remaining: step.remaining,
+          failure: stalled ? SORT_STALLED : null,
+        });
+        if (done || stalled) break;
       }
     } catch (error) {
       setProgress((current) => ({ ...current, running: false, failure: failureText(error) }));

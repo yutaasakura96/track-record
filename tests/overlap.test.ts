@@ -458,6 +458,47 @@ describe("a fact accepted on arrival is flagged when it likely restates another"
     expect((await client.json<{ items: { id: string; explanation: string | null }[] }>("/api/flags")).items.find((item) => item.id === flag.id)!.explanation).toBeNull();
   });
 
+  const LATER = `# Settlement batch, a year on
+
+Nightly batch runtime fell from 6 hours to 70 minutes.
+`;
+  const LATER_BATCH: Extracted = {
+    claim: "Reduced nightly batch runtime from 6 hours to 70 minutes",
+    quote: "Nightly batch runtime fell from 6 hours to 70 minutes.",
+  };
+
+  /** The restatement's flag settled by the system: the fact it restated was rejected. */
+  async function settledRestatement(employerId: string) {
+    const { narrative, portfolioImport } = await bothAccepted(employerId);
+    await client.post(`/api/facts/${byClaim(narrative, NARRATIVE_BATCH.claim).id}/reject`);
+    expect(await openRepeats()).toEqual([]);
+    return portfolioImport;
+  }
+
+  it("reopens an older repeat, with the conflict's reason, when an import brings a new pair", async () => {
+    const employerId = await employer();
+    const portfolioImport = await settledRestatement(employerId);
+
+    await importAccepted(LATER, "later.md", [LATER_BATCH], { employerId });
+    const older = repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!;
+    expect(older.checked).toBe(false);
+    expect(older.reason).toContain("the number differs");
+    expect(await openRepeats()).toContain(RESTATED.claim);
+  });
+
+  it("reopens an older repeat when sorting brings a new pair", async () => {
+    const employerId = await employer();
+    const { narrative, portfolioImport } = await bothAccepted(employerId);
+    const laterImport = await importAccepted(LATER, "later.md", [LATER_BATCH], { employerId });
+    await asCandidates(laterImport);
+    await client.post(`/api/facts/${byClaim(narrative, NARRATIVE_BATCH.claim).id}/reject`);
+    expect(await openRepeats()).toEqual([]);
+
+    expect(await (await client.post("/api/facts/sort", { importId: laterImport })).json()).toMatchObject({ sorted: 1, remaining: 0 });
+    expect(repeatOf(byClaim(await factsOf(portfolioImport), RESTATED.claim))!.checked).toBe(false);
+    expect(await openRepeats()).toContain(RESTATED.claim);
+  });
+
   it("refreshes the reason when a system-settled repeat returns as a conflict", async () => {
     const { portfolio, portfolioImport } = await bothAccepted(await employer());
     const restated = byClaim(portfolio, RESTATED.claim);

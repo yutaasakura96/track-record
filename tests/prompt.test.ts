@@ -292,15 +292,22 @@ describe("the importer's grade", () => {
       unsure: false,
       note: "It names a client.",
     });
-    // Anything but `true` is not a yes, and a missing note is an empty one.
-    expect(readGrade({ provenance: "attested", confidential: "yes" })).toEqual({
-      provenance: "attested",
-      confidential: false,
-      unsure: false,
-      note: "",
-    });
     expect(readGrade({ provenance: "certain" })).toBeNull();
     expect(readGrade(null)).toBeNull();
+  });
+
+  it("reads a grade with a field missing or malformed as no grade at all", () => {
+    const whole = { provenance: "attested", confidential: false, unsure: false, note: "" };
+    expect(readGrade(whole)).toEqual(whole);
+    // Never as "not confidential": the fact is then kept Generated and flagged.
+    expect(readGrade({ provenance: "attested" })).toBeNull();
+    for (const field of ["confidential", "unsure", "note"] as const) {
+      const { [field]: _missing, ...rest } = whole;
+      expect(readGrade(rest)).toBeNull();
+    }
+    expect(readGrade({ ...whole, confidential: "yes" })).toBeNull();
+    expect(readGrade({ ...whole, unsure: null })).toBeNull();
+    expect(readGrade({ ...whole, note: 3 })).toBeNull();
   });
 });
 

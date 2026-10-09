@@ -8,7 +8,7 @@
  * without spending a token, and one press of `Explain this` is one model call.
  * Every document and claim here is invented.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { asCandidates, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
@@ -541,10 +541,39 @@ describe("sorting the facts that were waiting", () => {
     const after = await factsOf(importId);
     expect(of(after, PLAIN).flags).toEqual([]);
     expect(of(after, NUMBERED).flags).toEqual([]);
-    expect(of(after, CLIENT).flags).toEqual([]);
+    expect(after.find((fact) => fact.id === of(before, CLIENT).id)!.flags).toEqual([]);
     expect(of(after, DOUBTED)).toMatchObject({ status: "accepted", disclosure: "private" });
     expect(kindsOf(of(after, DOUBTED))).toEqual(["confidential"]);
     await client.post(`/api/facts/${of(before, PLAIN).id}/undo`);
     expect(of(await factsOf(importId), PLAIN).flags).toEqual([]);
+  });
+
+  it("leaves no flag of the old claim open when the fact is edited as its sort lands", async () => {
+    const importId = await waiting([NUMBERED]);
+    const [fact] = await factsOf(importId);
+    model.gradings = [graded({ [NUMBERED.claim]: { provenance: "measured" } })];
+    const revised = "Shortened the nightly settlement run";
+
+    // The edit arrives the moment the database has answered the write that sorts the fact.
+    const send = globalThis.fetch;
+    let edited = false;
+    const fetching = vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const response = await send(input, init);
+      const body = typeof init?.body === "string" ? init.body : "";
+      if (edited || !body.includes('update \\"facts\\"') || !body.includes("auto_accepted_at")) return response;
+      edited = true;
+      expect((await client.patch(`/api/facts/${fact!.id}`, { claim: revised })).status).toBe(200);
+      return response;
+    });
+    try {
+      expect(await (await client.post("/api/facts/sort", { importId })).json()).toMatchObject({ sorted: 1, remaining: 0 });
+    } finally {
+      fetching.mockRestore();
+    }
+
+    expect(edited).toBe(true);
+    const [after] = await factsOf(importId);
+    expect(after).toMatchObject({ claim: revised, status: "accepted" });
+    expect(after!.flags.filter((flag) => !flag.checked).map((flag) => flag.kind)).toEqual([]);
   });
 });

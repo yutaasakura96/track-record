@@ -20,7 +20,7 @@ import { planChunks } from "./chunk";
 import { anchorQuote } from "./quote";
 import { dedupeHash } from "./dedupe";
 import { sortFact, type Flag } from "./flags";
-import { flagRepeats } from "~/server/services/repeats";
+import { flagRepeats, settleRepeats } from "~/server/services/repeats";
 
 export interface StepRunner {
   do<T>(name: string, fn: () => Promise<T>): Promise<T>;
@@ -330,6 +330,7 @@ async function finishStep(deps: ImportDeps): Promise<void> {
   // Asked once, here, when every chunk is in. Idempotent, so a retried step
   // writes no second flag.
   const repeats = await flagRepeats(db, userId, eq(facts.sourceDocumentVersionId, versionId));
+  await settleRepeats(db, userId);
 
   await db
     .update(sourceDocumentVersions)

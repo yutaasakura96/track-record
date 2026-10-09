@@ -75,10 +75,6 @@ export function readGrade(input: unknown) {
   if (typeof input !== "object" || input === null) return null;
   const { provenance, confidential, unsure, note } = input as Record<string, unknown>;
   if (provenance !== "measured" && provenance !== "attested" && provenance !== "generated") return null;
-  return {
-    provenance,
-    confidential: confidential === true,
-    unsure: unsure === true,
-    note: typeof note === "string" ? note.trim() : "",
-  } as const;
+  if (typeof confidential !== "boolean" || typeof unsure !== "boolean" || typeof note !== "string") return null;
+  return { provenance, confidential, unsure, note: note.trim() } as const;
 }
