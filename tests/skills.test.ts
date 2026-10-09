@@ -13,6 +13,7 @@ import {
   CERTIFICATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  asCandidates,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -48,7 +49,10 @@ async function created(path: string, body: unknown) {
   return (await (await client.post(path, body)).json()) as { id: string };
 }
 
-/** Imports one document and returns its facts, resolving none of them. */
+/**
+ * Imports one document and returns its facts, resolving none of them: as
+ * candidates, the way an import left them before automatic acceptance.
+ */
 async function imported(candidates: { claim: string; quote: string; technologies: string[] }[]) {
   model.extractions = [candidates];
   const form = uploadForm(candidates.map((c) => c.quote).join("\n\n"), `${candidates[0]!.claim.slice(0, 8)}.md`);
@@ -56,6 +60,7 @@ async function imported(candidates: { claim: string; quote: string; technologies
     await client.request("/api/imports", { method: "POST", body: form })
   ).json()) as { importId: string };
   await settle();
+  await asCandidates(started.importId);
   const { items } = await client.json<{ items: { id: string; claim: string }[] }>(
     `/api/facts?importId=${started.importId}`,
   );

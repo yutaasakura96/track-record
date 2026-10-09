@@ -6,11 +6,12 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
   certifications,
   educations,
   employers,
+  factFlags,
   facts,
   profiles,
   projects,
@@ -25,6 +26,7 @@ import { routes } from "../http/registry";
 import { renderState, usableFacts } from "./renders";
 import { importStatus } from "./imports";
 import { provenanceCounts } from "./facts";
+import { factOfFlag, openFlags } from "./flags";
 import type { AppEnv } from "../env";
 
 export function registerOverviewRoutes(app: Hono<AppEnv>) {
@@ -68,6 +70,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         [usable],
         waiting,
         [unconfirmed],
+        [flagged],
       ],
       documents,
     ] = await Promise.all([
@@ -122,14 +125,22 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
             sourceDocuments.filename,
           )
           .orderBy(desc(sourceDocumentVersions.importedAt)),
+        // Accepted by the author on a card while still Generated. A fact the
+        // importer accepted as Generated is not counted: it is flagged, and a
+        // flag is advice rather than a step (issue #57).
         db
-          .select({ importId: sourceDocumentVersions.id, count })
+          .select({
+            importId: sourceDocumentVersions.id,
+            count,
+            total: sql<number>`(sum(count(*)) over ())::int`,
+          })
           .from(facts)
           .innerJoin(sourceDocumentVersions, versionOfFact)
-          .where(and(acceptedFacts, eq(facts.provenance, "generated")))
+          .where(and(acceptedFacts, eq(facts.provenance, "generated"), isNull(facts.autoAcceptedAt)))
           .groupBy(sourceDocumentVersions.id, sourceDocumentVersions.importedAt)
           .orderBy(desc(sourceDocumentVersions.importedAt))
           .limit(1),
+        db.select({ n: count }).from(factFlags).innerJoin(facts, factOfFlag(userId)).where(openFlags(userId)),
       ]),
       renderState(db, userId),
     ]);
@@ -166,7 +177,13 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         credentials: { count: (educationCount?.n ?? 0) + (certificationCount?.n ?? 0), note: null },
       },
       factsByProvenance: provenance,
-      /** Candidates waiting for a decision, and where reviewing them starts. `null` at none. */
+      /** Flags the author has not marked checked (issue #57). Advice, never a block. */
+      flagged: flagged?.n ?? 0,
+      /**
+       * Facts still waiting from before the importer accepted on its own, and
+       * where reading them starts. `null` at none, which is every record whose
+       * imports all ran after that.
+       */
       review: newestWaiting
         ? {
             openCandidates: waiting.reduce((sum, row) => sum + row.open, 0),
@@ -175,9 +192,15 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
             filename: newestWaiting.filename,
           }
         : null,
-      /** Where the accepted facts still Generated are confirmed. `null` when no version holds one. */
+      /**
+       * Where the facts the author accepted while still Generated are confirmed:
+       * the newest version holding any, how many it holds, and how many there
+       * are in all. `null` when no version holds one.
+       */
       unconfirmed: unconfirmed ?? null,
-      documents,
+      documents: documents.documents,
+      /** The tailored résumés, newest first (issue #57). */
+      tailored: documents.tailored,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */
       isEmpty: totalFacts === 0 && employerRows.length === 0 && latestImport === undefined,
@@ -212,6 +235,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       renderRows,
       versionOfRenders,
       proposalRows,
+      flagRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -237,6 +261,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(renders).where(eq(renders.userId, userId)),
       db.select().from(renderVersions).where(eq(renderVersions.userId, userId)),
       db.select().from(renderProposals).where(eq(renderProposals.userId, userId)),
+      db.select().from(factFlags).where(eq(factFlags.userId, userId)),
     ]);
 
     const body = {
@@ -251,6 +276,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       roles: only(roleRows),
       projects: only(projectRows),
       facts: only(factRows),
+      factFlags: only(flagRows),
       educations: only(educationRows),
       certifications: only(certificationRows),
       sourceDocuments: only(documentRows),

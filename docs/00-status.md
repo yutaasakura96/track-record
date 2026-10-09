@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-10-02
+**Updated:** 2026-10-08
 
 ## Done
 
@@ -35,6 +35,12 @@ are marked as the owner's in each issue.
   overlap flag and #37's re-grade; #38 the remaining portfolios; #39 all five renders regenerated.
   The author re-grades the 112 as they appear on the overlap card, and the rest from
   `To re-grade` on the 2026-09-04 import's Fact Review.
+
+- **#57, built 2026-10-08** (decision log, that date): facts are accepted and graded by the
+  importer and flagged instead of reviewed one by one, with `Explain this`, the master document and
+  tailored résumés. This changes the M3 steps above: a portfolio imported from now on needs no
+  review, and the candidates already waiting are sorted from Home in one press. The owner's part is
+  that press in production, and reading the Flagged list when they want to.
 
 ## Blocked
 

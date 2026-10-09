@@ -1,8 +1,11 @@
 /**
  * Screen 1 — Fact Review (`docs/10-screen-specifications.md`).
  *
- * Turn one imported document into accepted facts. The most-used screen in the
- * product and the one M1 is judged on.
+ * One imported document beside the facts read from it. Facts are accepted as
+ * they are found and the ones worth a look are flagged (issue #57), so nothing
+ * here waits on the author: this is where a fact is opened when they WANT to
+ * check it, change it or reject it. Facts imported before that still wait as
+ * candidates, and are sorted in one press or reviewed one by one as before.
  *
  * Three rules this screen exists to hold:
  *   - **A Generated fact CAN be accepted.** It is accepted, flagged, and
@@ -21,7 +24,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { KeyboardEvent, ReactNode, RefObject } from "react";
 import type { Root } from "mdast";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import {
   failureText,
   isImportRunning,
@@ -30,6 +33,7 @@ import {
   useFactAction,
   useFacts,
   useImportStatus,
+  useSortFacts,
   useSourceText,
   type Employer,
   type Fact,
@@ -39,6 +43,7 @@ import {
 } from "../api";
 import { Button, Chip, FilterPill, Mono, MonoId, Notice, ProgressBar, SegmentedControl } from "../components/ui";
 import { ExtractionProgress } from "../components/extraction-progress";
+import { FlagLine } from "../components/flags";
 import { NextStep } from "../components/screen-intro";
 import { MarkdownDocument, quoteExcerpt } from "../markdown/document";
 import { contents, isMarkdownFile, parseMarkdown, type ContentsEntry } from "../markdown/parse";
@@ -57,9 +62,22 @@ export function FactReview() {
   });
   const source = useSourceText(status.data?.sourceDocumentId ?? "", status.data?.versionNo ?? 1);
   const select = useReviewStore((s) => s.select);
+  const setFilter = useReviewStore((s) => s.setFilter);
   const finish = useFinish(importId);
+  const { fact: asked } = useSearch({ from: "/imports/$importId" });
+  const opened = useRef<string | null>(null);
 
   useEffect(() => () => select(null), [select]);
+
+  // `?fact=` is the Flagged list or the master document opening one fact. It is
+  // selected once, when its card exists, with no origin: both halves follow.
+  const present = facts.data?.items.some((f) => f.id === asked) ?? false;
+  useEffect(() => {
+    if (!asked || !present || opened.current === asked) return;
+    opened.current = asked;
+    setFilter("all");
+    select(asked);
+  }, [asked, present, select, setFilter]);
 
   // Parsed once, here, because both halves read it: the source pane renders it
   // and the selected card cuts its quoted passage out of it. `null` for a
@@ -83,6 +101,7 @@ export function FactReview() {
         finish={finish}
         resolvedCount={resolved.length}
         total={items.length}
+        sorted={isSorted(items)}
       />
       <div className="flex-1 min-h-0 flex">
         <SourcePane status={status.data} source={source.data} tree={tree} facts={items} />
@@ -107,6 +126,7 @@ function Header({
   finish,
   resolvedCount,
   total,
+  sorted,
 }: {
   filename: string;
   /** Left out of the breadcrumb, not labelled, when the document has no project. */
@@ -114,6 +134,8 @@ function Header({
   finish: Finish;
   resolvedCount: number;
   total: number;
+  /** Nothing here waits on the author: the importer accepted these facts. */
+  sorted: boolean;
 }) {
   const failure = finish.failureAt("header");
   const allResolved = total > 0 && resolvedCount === total;
@@ -138,18 +160,37 @@ function Header({
             {failure}
           </span>
         ) : null}
-        <span className="text-smaller text-text-dimmer">
-          {resolvedCount} of {total} reviewed
-        </span>
-        <ProgressBar className="w-progress" value={total === 0 ? 0 : resolvedCount / total} />
+        {sorted ? (
+          <span className="text-smaller text-text-dimmer">
+            {total} {total === 1 ? "fact" : "facts"}, already in your record
+          </span>
+        ) : (
+          <>
+            <span className="text-smaller text-text-dimmer">
+              {resolvedCount} of {total} reviewed
+            </span>
+            <ProgressBar className="w-progress" value={total === 0 ? 0 : resolvedCount / total} />
+          </>
+        )}
         {/* One action, two affordances — the footer button is the same call. */}
         <Button variant={allResolved ? "primary" : "secondary"} onClick={() => void finish.run("header")}>
-          Finish review
+          {sorted ? "Done" : "Finish review"}
         </Button>
       </div>
     </header>
   );
 }
+
+/**
+ * Whether this import was sorted by the importer: nothing is waiting, and at
+ * least one fact was accepted for the author. An import reviewed by hand keeps
+ * the words of a review.
+ */
+const isSorted = (facts: Fact[]) =>
+  facts.length > 0 && facts.every((f) => f.status !== "candidate") && facts.some((f) => f.autoAccepted);
+
+/** A fact's flags the author has not marked checked. */
+const openFlags = (fact: Fact) => (fact.status === "rejected" ? [] : fact.flags.filter((flag) => !flag.checked));
 
 type FinishButton = "header" | "rail";
 type Finish = ReturnType<typeof useFinish>;
@@ -497,17 +538,28 @@ function FactRail({
   const origin = useReviewStore((s) => s.selectionOrigin);
   const select = useReviewStore((s) => s.select);
   const { retry } = useFactAction(importId);
+  const sort = useSortFacts(importId);
   const failure = finish.failureAt("rail");
   const list = useRef<HTMLDivElement>(null);
   const running = isImportRunning(status.status);
+  const sorted = isSorted(facts);
 
   const open = facts.filter((f) => f.status === "candidate");
   const resolved = facts.filter((f) => f.status !== "candidate");
   const accepted = facts.filter((f) => f.status === "accepted");
   // The listing the facts no portfolio matched are graded from (issue #37).
   const ungraded = accepted.filter((f) => !f.graded);
+  const flagged = facts.filter((f) => openFlags(f).length > 0);
   const visible =
-    filter === "open" ? open : filter === "resolved" ? resolved : filter === "regrade" ? ungraded : facts;
+    filter === "open"
+      ? open
+      : filter === "resolved"
+        ? resolved
+        : filter === "regrade"
+          ? ungraded
+          : filter === "flagged"
+            ? flagged
+            : facts;
 
   const shareable = accepted.filter((f) => f.disclosure !== "private" && f.provenance !== "generated").length;
   const priv = accepted.filter((f) => f.disclosure === "private").length;
@@ -515,10 +567,19 @@ function FactRail({
 
   const filters: [FactFilter, string][] = [
     ["all", `All ${facts.length}`],
+    // Shown while there is something flagged, or while it is the filter in use.
+    ...(flagged.length > 0 || filter === "flagged"
+      ? ([["flagged", `Flagged ${flagged.length}`]] as [FactFilter, string][])
+      : []),
     // Plain words: a fact is waiting `to review` or it is `reviewed`. The filter
     // values keep the pipeline's names; the labels do not (`docs/10` Shared chrome).
-    ["open", `To review ${open.length}`],
-    ["resolved", `Reviewed ${resolved.length}`],
+    // A sorted import has nothing to review, and neither pill.
+    ...(sorted && filter !== "open" && filter !== "resolved"
+      ? []
+      : ([
+          ["open", `To review ${open.length}`],
+          ["resolved", `Reviewed ${resolved.length}`],
+        ] as [FactFilter, string][])),
     // Only while there is something to re-grade, or while it is the filter in
     // use, so the last grade does not pull the pill out from under the pointer.
     ...(ungraded.length > 0 || filter === "regrade"
@@ -572,22 +633,29 @@ function FactRail({
     <aside className="w-rail shrink-0 bg-surface border-l border-border flex flex-col">
       <div className="px-16 py-14 border-b border-border-subtle">
         <div className="flex items-center justify-between">
-          <h2 className="text-panel font-semibold tracking-snug text-text-strong">Candidate facts</h2>
+          <h2 className="text-panel font-semibold tracking-snug text-text-strong">
+            {open.length > 0 ? "Candidate facts" : "Facts"}
+          </h2>
           <Mono className="text-text-dimmer">{status.candidatesExtracted} extracted</Mono>
         </div>
         <NextStep className="mt-6">
           {running && facts.length === 0
             ? "wait for the first facts. They appear here as they are found."
             : running
-              ? "review the facts found so far while the rest of the document is read."
+              ? "the facts found so far are already in your record. The rest of the document is still being read."
               : status.status === "failed" && open.length === 0
                 ? "this import stopped before it finished. Press Retry to read the rest."
                 : facts.length === 0
                   ? "nothing was found to review."
-                  : open.length === 0
-                    ? "everything here is reviewed. Press Finish review."
-                    : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
+                  : sorted
+                    ? flagged.length > 0
+                      ? `nothing is waiting. ${flagged.length} of these ${flagged.length === 1 ? "is" : "are"} flagged; check ${flagged.length === 1 ? "it" : "them"} when you want.`
+                      : "nothing is waiting. Every fact here is in your record."
+                    : open.length === 0
+                      ? "everything here is reviewed. Press Finish review."
+                      : `${open.length} fact${open.length === 1 ? "" : "s"} left to review.`}
         </NextStep>
+        {open.length > 0 && !running ? <SortWaiting count={open.length} sort={sort} /> : null}
         {status.candidatesDiscarded > 0 ? (
           <p className="mt-8 text-smaller text-text-faint">
             {status.candidatesDiscarded} candidate{status.candidatesDiscarded === 1 ? "" : "s"} did
@@ -618,7 +686,7 @@ function FactRail({
             status={status.status}
             chunksDone={status.chunksDone}
             chunksTotal={status.chunksTotal}
-            meanwhile="You can review the facts already found."
+            meanwhile="The facts already found are in your record."
           />
         </div>
       ) : null}
@@ -676,7 +744,7 @@ function FactRail({
           disabledReason="Nothing accepted yet"
           onClick={() => void finish.run("rail")}
         >
-          {accepted.length === 0 ? "Nothing accepted yet" : `Add ${accepted.length} facts to record`}
+          {accepted.length === 0 ? "Nothing accepted yet" : sorted ? "Done" : `Add ${accepted.length} facts to record`}
         </Button>
       </div>
     </aside>
@@ -748,21 +816,25 @@ function FactCard({
   source: SourceText | undefined;
   tree: Root | null;
 }) {
-  const { patch, resolve } = useFactAction(importId);
+  const { patch, resolve, regrade } = useFactAction(importId);
   // One line of failure per card, for whichever write the author made last: a
   // refused decision is cleared by the edit that fixes it, and the reverse.
   const edit = (body: Parameters<typeof patch.mutate>[0]["body"]) => {
     resolve.reset();
+    regrade.reset();
     patch.mutate({ id: fact.id, body });
   };
   const decide = (action: "accept" | "reject" | "undo") => {
     patch.reset();
+    regrade.reset();
     resolve.mutate({ id: fact.id, action });
   };
-  const failure = patch.error ?? resolve.error;
+  const failure = patch.error ?? resolve.error ?? regrade.error;
+  // An accepted fact's controls, behind a press of its own. A card never
+  // changes height because it was selected (`docs/06`, 2026-10-05).
+  const [changing, setChanging] = useState(false);
   const selectedFactId = useReviewStore((s) => s.selectedFactId);
   const selected = fact.id === selectedFactId;
-  const claim = useRef<HTMLDivElement>(null);
 
   /**
    * What makes the card the focusable unit (issue #8). `onFocusCapture` rather
@@ -795,14 +867,60 @@ function FactCard({
           <Mono className="text-text-faint">
             {fact.status} · {fact.provenance} · {fact.disclosure}
           </Mono>
-          <button
-            type="button"
-            className="ml-auto text-smaller text-text-dim hover:text-text-secondary"
-            onClick={() => decide("undo")}
-          >
-            Undo
-          </button>
+          {fact.status === "accepted" ? (
+            <button
+              type="button"
+              aria-expanded={changing}
+              className="ml-auto text-smaller text-text-dim hover:text-text-secondary"
+              onClick={() => setChanging(!changing)}
+            >
+              {changing ? "Close" : "Change"}
+            </button>
+          ) : null}
+          {/* Nothing to undo on a fact the importer accepted and the author has
+              not ruled on. Rejecting it is under Change. */}
+          {fact.status === "accepted" && fact.autoAccepted ? null : (
+            <button
+              type="button"
+              className={`${fact.status === "accepted" ? "" : "ml-auto "}text-smaller text-text-dim hover:text-text-secondary`}
+              onClick={() => decide("undo")}
+            >
+              Undo
+            </button>
+          )}
         </div>
+        {openFlags(fact).length > 0 ? (
+          <section aria-label="Flagged" className="mt-8 grid gap-8">
+            {openFlags(fact).map((flag) => (
+              <FlagLine key={flag.id} flag={flag} />
+            ))}
+          </section>
+        ) : null}
+        {/* The pair a `Likely a repeat` flag is about. Sent only while that
+            flag is open, so it goes when the flag is marked checked. */}
+        {fact.likelyMatches.length > 0 ? <LikelyMatches importId={importId} matches={fact.likelyMatches} /> : null}
+        {changing && fact.status === "accepted" ? (
+          <section aria-label="Change this fact" className="mt-10 grid gap-8">
+            {source ? <QuotedPassage fact={fact} source={source} tree={tree} /> : null}
+            <ClaimEditor claim={fact.claim} onChange={(claim) => edit({ claim })} />
+            {/* Worth goes through the grade, so that it is recorded as the
+                author's choice and no longer the importer's (`docs/04` §3.7). */}
+            <WorthControl
+              value={fact.provenance}
+              onChange={(provenance) => {
+                patch.reset();
+                resolve.reset();
+                regrade.mutate({ id: fact.id, provenance });
+              }}
+            />
+            <WhoControl value={fact.disclosure} onChange={(disclosure) => edit({ disclosure })} />
+            <div>
+              <Button variant="ghost" onClick={() => decide("reject")}>
+                Reject
+              </Button>
+            </div>
+          </section>
+        ) : null}
         {/*
           An accepted fact can still be filed. This is the surface the 112 facts
           of the first real import are linked through: re-importing to gain the
@@ -857,23 +975,11 @@ function FactCard({
         {isPrivate ? <Mono className="text-private">Private · never shared</Mono> : null}
       </div>
 
-      {/* Inline editable, commits on blur — the record carries your phrasing. */}
-      <div
-        ref={claim}
-        contentEditable
-        suppressContentEditableWarning
-        role="textbox"
-        aria-label="Fact claim"
-        onBlur={(event) => {
-          const next = event.currentTarget.textContent?.trim() ?? "";
-          if (next && next !== fact.claim) edit({ claim: next });
-        }}
-        className={`mt-8 -ml-4 px-4 py-2 rounded-control text-claim cursor-text outline-none focus:bg-private-mark focus:shadow-ring ${
-          isGenerated ? "italic text-generated-claim" : "text-text-strong"
-        }`}
-      >
-        {fact.claim}
-      </div>
+      <ClaimEditor
+        claim={fact.claim}
+        onChange={(next) => edit({ claim: next })}
+        className={`mt-8 ${isGenerated ? "italic text-generated-claim" : "text-text-strong"}`}
+      />
 
       {source ? <QuotedPassage fact={fact} source={source} tree={tree} /> : null}
 
@@ -891,26 +997,8 @@ function FactCard({
       ) : null}
 
       <div className="mt-12 grid gap-8">
-        <SegmentedControl
-          label="Worth"
-          value={fact.provenance}
-          onChange={(provenance) => edit({ provenance })}
-          segments={[
-            { value: "measured", label: "Measured", tone: "measured", hint: WORTH.measured },
-            { value: "attested", label: "Attested", tone: "accent", hint: WORTH.attested },
-            { value: "generated", label: "Generated", tone: "generated", hint: WORTH.generated },
-          ]}
-        />
-        <SegmentedControl
-          label="Who"
-          value={fact.disclosure}
-          onChange={(disclosure) => edit({ disclosure })}
-          segments={[
-            { value: "public", label: "Public", tone: "measured", hint: WHO.public },
-            { value: "restricted", label: "Restricted", tone: "restricted", hint: WHO.restricted },
-            { value: "private", label: "Private", tone: "private", hint: WHO.private },
-          ]}
-        />
+        <WorthControl value={fact.provenance} onChange={(provenance) => edit({ provenance })} />
+        <WhoControl value={fact.disclosure} onChange={(disclosure) => edit({ disclosure })} />
         <EmployerPicker
           value={fact.employerId}
           onChange={(employerId) => edit({ employerId })}
@@ -948,6 +1036,101 @@ function FactCard({
   );
 }
 
+/** Inline editable, commits on blur — the record carries your phrasing. */
+function ClaimEditor({
+  claim,
+  onChange,
+  className = "text-text-strong",
+}: {
+  claim: string;
+  onChange: (claim: string) => void;
+  className?: string;
+}) {
+  return (
+    <div
+      contentEditable
+      suppressContentEditableWarning
+      role="textbox"
+      aria-label="Fact claim"
+      onBlur={(event) => {
+        const next = event.currentTarget.textContent?.trim() ?? "";
+        if (next && next !== claim) onChange(next);
+      }}
+      className={`-ml-4 px-4 py-2 rounded-control text-claim cursor-text outline-none focus:bg-private-mark focus:shadow-ring ${className}`}
+    >
+      {claim}
+    </div>
+  );
+}
+
+function WorthControl({ value, onChange }: { value: Fact["provenance"]; onChange: (value: Fact["provenance"]) => void }) {
+  return (
+    <SegmentedControl
+      label="Worth"
+      value={value}
+      onChange={onChange}
+      segments={[
+        { value: "measured", label: "Measured", tone: "measured", hint: WORTH.measured },
+        { value: "attested", label: "Attested", tone: "accent", hint: WORTH.attested },
+        { value: "generated", label: "Generated", tone: "generated", hint: WORTH.generated },
+      ]}
+    />
+  );
+}
+
+function WhoControl({ value, onChange }: { value: Fact["disclosure"]; onChange: (value: Fact["disclosure"]) => void }) {
+  return (
+    <SegmentedControl
+      label="Who"
+      value={value}
+      onChange={onChange}
+      segments={[
+        { value: "public", label: "Public", tone: "measured", hint: WHO.public },
+        { value: "restricted", label: "Restricted", tone: "restricted", hint: WHO.restricted },
+        { value: "private", label: "Private", tone: "private", hint: WHO.private },
+      ]}
+    />
+  );
+}
+
+/**
+ * The facts still waiting from before the importer accepted on its own, sorted
+ * in one press (issue #57): each is graded, accepted and, where it is worth a
+ * look, flagged. None is rejected. Reviewing them one by one on their cards
+ * still works, and is no longer the only way.
+ */
+function SortWaiting({ count, sort }: { count: number; sort: ReturnType<typeof useSortFacts> }) {
+  const { progress, run } = sort;
+  return (
+    <div className="mt-8 grid gap-6">
+      <p className="text-smaller text-text-dim">
+        These were found before facts were accepted for you. Sort them in one go: the AI grades
+        each, keeps every one, and flags the ones worth a look.
+      </p>
+      <div className="flex items-center gap-10">
+        <Button
+          variant="primary"
+          disabled={progress.running}
+          disabledReason={progress.running ? "Sorting…" : undefined}
+          onClick={() => void run()}
+        >
+          {progress.running ? "Sorting…" : `Sort ${count} ${count === 1 ? "fact" : "facts"}`}
+        </Button>
+        {progress.running || progress.sorted > 0 ? (
+          <span role="status" className="text-smaller text-text-dim">
+            {progress.sorted} sorted{progress.remaining ? `, ${progress.remaining} to go` : ""}
+          </span>
+        ) : null}
+      </div>
+      {progress.failure ? (
+        <p role="alert" className="text-smaller text-removed">
+          {progress.failure}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /**
  * What the three controls on a card ask, in the author's words rather than the
  * schema's (`docs/10` Screen 1, "How to review"; PRD §5). Said once in the guide
@@ -956,7 +1139,7 @@ function FactCard({
 const WORTH = {
   measured: "A number the passage states.",
   attested: "True and yours, but not a number.",
-  generated: "The importer's guess. It stays out of every document until you change it.",
+  generated: "Not stated in the passage. It stays out of every document until you change it.",
 } as const;
 
 const WHO = {
@@ -1010,9 +1193,12 @@ function HowToReview() {
       {hidden ? null : (
         <div className="mt-8 grid gap-10 text-small text-text-secondary">
           <ol className="grid gap-4 list-decimal pl-16">
-            <li>Read the highlighted passage on the left. It is the evidence.</li>
-            <li>Check that the claim on its card says what the passage says. Click the claim to reword it.</li>
-            <li>Accept it into your record, or reject it. Either can be undone.</li>
+            <li>Facts are accepted into your record as they are found. You do not have to open them.</li>
+            <li>A flagged fact says why. Press Explain this for more, in plain words.</li>
+            <li>
+              To check one, read the highlighted passage on the left, then press Change on its card
+              to reword it, set its worth, set who may read it, or reject it.
+            </li>
           </ol>
           <dl className="grid gap-6">
             <GuideTerm term="Worth" meaning="how you know it.">

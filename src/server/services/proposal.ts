@@ -12,6 +12,7 @@ import { facts, renderProposals, renderVersions, renders, sourceDocuments, sourc
 import type { Rationale } from "~/diff";
 import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
+import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
 
 export async function proposalResponse(
@@ -43,6 +44,9 @@ export async function proposalResponse(
   return {
     id: proposal.id,
     renderKind: kind,
+    /** What the render routes address this document by, and what it is called. */
+    renderRef: refOf(render),
+    title: titleOf(render),
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
     generationStatus: proposal.generationStatus,

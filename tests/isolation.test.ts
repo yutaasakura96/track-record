@@ -31,6 +31,8 @@ interface Populated {
   sourceDocumentId: string;
   proposalId: string;
   renderVersionId: string;
+  flagId: string;
+  tailoredId: string;
 }
 
 let model: StubModel;
@@ -87,6 +89,15 @@ async function populate(client: Client, marker: string): Promise<Populated> {
   )).items;
   const resume = renders.find((r) => r.kind === "english_resume")!;
 
+  // What issue #57 added: the flag the import left on the fact, with an
+  // explanation written for it, and a tailored résumé.
+  const [flag] = (await client.json<{ items: { id: string }[] }>("/api/flags")).items;
+  model.explanations = [`${marker} explanation`];
+  await client.post(`/api/flags/${flag!.id}/explain`);
+  const tailored = (await (
+    await client.post("/api/tailored-resumes", { label: `${marker} role`, jobDescription: `${marker} posting` })
+  ).json()) as { id: string };
+
   return {
     client,
     profileName: `${marker} Author`,
@@ -98,6 +109,8 @@ async function populate(client: Client, marker: string): Promise<Populated> {
     sourceDocumentId: imported.sourceDocumentId,
     proposalId: proposal.proposalId,
     renderVersionId: resume.currentVersionId!,
+    flagId: flag!.id,
+    tailoredId: tailored.id,
   };
 }
 
@@ -124,6 +137,11 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/renders",
       "/api/overview",
       "/api/export",
+      "/api/flags",
+      "/api/flags?state=checked",
+      "/api/master-document",
+      "/api/master-document/download",
+      "/api/tailored-resumes",
     ];
     for (const path of collections) {
       const body = await (await a.client.get(path)).text();
@@ -145,6 +163,13 @@ describe("one user's record is unreachable from another's session", () => {
       ["POST", `/api/imports/${b.importId}/retry`],
       ["POST", `/api/imports/${b.importId}/finish`],
       ["GET", `/api/renders/english_resume/download?versionId=${b.renderVersionId}`],
+      ["POST", `/api/flags/${b.flagId}/explain`],
+      ["POST", `/api/flags/${b.flagId}/check`],
+      ["POST", `/api/flags/${b.flagId}/uncheck`],
+      ["GET", `/api/tailored-resumes/${b.tailoredId}`],
+      ["POST", `/api/renders/${b.tailoredId}/generate`],
+      ["GET", `/api/renders/${b.tailoredId}/versions`],
+      ["GET", `/api/renders/${b.tailoredId}/download`],
     ];
 
     for (const [method, path] of byId) {

@@ -89,6 +89,10 @@ describe("sign-in through an accepted résumé version", () => {
           claim: "Cut the overnight settlement job from eight hours to fifty minutes",
           quote: QUOTE,
           technologies: ["PostgreSQL"],
+          provenance: "measured",
+          confidential: false,
+          unsure: false,
+          note: "",
         },
       ],
     ];
@@ -106,13 +110,13 @@ describe("sign-in through an accepted résumé version", () => {
     expect(status.status).toBe("ready");
     expect(status.candidatesExtracted).toBe(1);
 
-    // 7 · Review it: promote, disclose, accept.
-    const { items } = await client.json<{ items: { id: string }[] }>(
+    // 7 · Nothing to review: the fact arrived accepted, with the importer's
+    //     grade, and is usable as it stands (issue #57).
+    const { items } = await client.json<{ items: { id: string; status: string; provenance: string; disclosure: string }[] }>(
       `/api/facts?importId=${importId}`,
     );
     const fact = items[0]!;
-    await client.patch(`/api/facts/${fact.id}`, { provenance: "measured", disclosure: "public" });
-    expect((await client.post(`/api/facts/${fact.id}/accept`)).status).toBe(200);
+    expect(fact).toMatchObject({ status: "accepted", provenance: "measured", disclosure: "restricted" });
     expect(
       ((await (await client.post(`/api/imports/${importId}/finish`)).json()) as {
         acceptedFacts: number;

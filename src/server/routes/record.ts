@@ -19,6 +19,7 @@ import { conflict, notFound, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { clearInclusions } from "../services/inclusion";
+import { flagRepeats, settleRepeats } from "../services/repeats";
 import { parseBody } from "../services/validate";
 import { monthDate } from "./profile";
 import type { AppEnv } from "../env";
@@ -197,14 +198,19 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
 
   api.patch("/api/projects/:id", async (c) => {
     const body = await parseBody(c, projectBody.partial());
-    if (body.employerId) await requireOwnedEmployer(c.get("db"), c.get("user").id, body.employerId);
-    const [row] = await c
-      .get("db")
+    const user = c.get("user");
+    const db = c.get("db");
+    if (body.employerId) await requireOwnedEmployer(db, user.id, body.employerId);
+    const [row] = await db
       .update(projects)
       .set({ ...nullish(body), updatedAt: new Date() })
-      .where(and(eq(projects.userId, c.get("user").id), eq(projects.id, pathParam(c, "id"))))
+      .where(and(eq(projects.userId, user.id), eq(projects.id, pathParam(c, "id"))))
       .returning();
     if (!row) throw notFound("That project");
+    if (body.employerId !== undefined) {
+      await flagRepeats(db, user.id, eq(facts.projectId, row.id));
+      await settleRepeats(db, user.id);
+    }
     return c.json(stripInternals(row));
   });
 

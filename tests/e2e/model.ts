@@ -15,7 +15,15 @@ import { CLAIM, CLAIM_SENTENCE } from "./fixture";
 export const e2eModel: ModelSeam = {
   async extractFacts(sourceText, ctx) {
     if (!sourceText.includes(CLAIM_SENTENCE)) return [];
-    const candidate = { claim: CLAIM, quote: CLAIM_SENTENCE, technologies: ["PostgreSQL"] };
+    const candidate = {
+      claim: CLAIM,
+      quote: CLAIM_SENTENCE,
+      technologies: ["PostgreSQL"],
+      provenance: "measured" as const,
+      confidential: false,
+      unsure: false,
+      note: "",
+    };
     ctx.onCandidate?.(candidate);
     return [candidate];
   },
@@ -35,5 +43,15 @@ export const e2eModel: ModelSeam = {
         },
       ],
     };
+  },
+
+  async gradeFacts(facts) {
+    return new Map(
+      facts.map((fact) => [fact.id, { provenance: "attested" as const, confidential: false, unsure: false, note: "" }]),
+    );
+  },
+
+  async explainFlag(flag) {
+    return `It was flagged because: ${flag.reason}`;
   },
 };

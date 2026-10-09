@@ -13,13 +13,14 @@
  */
 import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
-import { facts, importChunks, sourceDocumentVersions } from "~/server/db/schema";
+import { factFlags, facts, importChunks, sourceDocumentVersions } from "~/server/db/schema";
 import { newId } from "~/server/http/ids";
 import { ModelUnavailableError, type ModelSeam, type ModelUsage } from "~/model/types";
 import { planChunks } from "./chunk";
 import { anchorQuote } from "./quote";
-import { scrub } from "./scrub";
 import { dedupeHash } from "./dedupe";
+import { sortFact, type Flag } from "./flags";
+import { flagRepeats, settleRepeats } from "~/server/services/repeats";
 
 export interface StepRunner {
   do<T>(name: string, fn: () => Promise<T>): Promise<T>;
@@ -121,7 +122,10 @@ async function planChunksStep(deps: ImportDeps): Promise<string[] | "gone"> {
 /* ------------------------------------------------------------------ step 2 */
 
 /**
- * Extract one chunk, verify every quote, scrub, deduplicate, persist.
+ * Extract one chunk, verify every quote, sort, deduplicate, persist.
+ *
+ * Every fact that survives is ACCEPTED here, with the importer's grade, and
+ * anything worth a look is flagged with the reason (`flags.ts`, issue #57).
  *
  * The whole chunk lands in one batched write, so a chunk is either fully
  * recorded and marked done or it is not marked done at all.
@@ -174,11 +178,14 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
   let discarded = 0;
   const seenInChunk = new Set<string>();
   const rows: (typeof facts.$inferInsert)[] = [];
+  const flagsOf = new Map<string, Flag[]>();
+  const now = new Date();
 
   for (const candidate of candidates) {
     // Quote anchoring. Offsets are derived from OUR text, never taken from the
     // model. A quote that is not verbatim is discarded here, before it reaches
-    // the database and before the author ever sees it.
+    // the database and before the author ever sees it. It is the one thing the
+    // import drops: a claim with no passage behind it has no evidence to keep.
     const anchor = anchorQuote(text, candidate.quote);
     if (!anchor || candidate.claim.trim() === "") {
       discarded++;
@@ -188,17 +195,32 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
     if (seenInChunk.has(hash)) continue;
     seenInChunk.add(hash);
 
-    const { disclosure, isClientIdentifying } = scrub(candidate);
+    const claim = candidate.claim.trim();
+    const sorted = sortFact(
+      { claim, quote: anchor.quote, technologies: candidate.technologies },
+      candidate.provenance === undefined
+        ? null
+        : {
+            provenance: candidate.provenance,
+            confidential: candidate.confidential === true,
+            unsure: candidate.unsure === true,
+            note: candidate.note ?? "",
+          },
+    );
+    const id = newId("fact");
+    flagsOf.set(id, sorted.flags);
     rows.push({
-      id: newId("fact"),
+      id,
       userId,
       projectId: version.projectId,
-      claim: candidate.claim.trim(),
-      // Everything the model produces starts Generated. Promotion is always a
-      // deliberate act by the author.
-      provenance: "generated",
-      disclosure,
-      status: "candidate",
+      claim,
+      // The importer's grade, and the fact is accepted with it. `graded_at`
+      // stays null: that column is the AUTHOR's grade, and they have made none.
+      provenance: sorted.provenance,
+      disclosure: sorted.disclosure,
+      status: "accepted",
+      autoAcceptedAt: now,
+      resolvedAt: now,
       sourceDocumentVersionId: versionId,
       quote: anchor.quote,
       quoteStart: anchor.quoteStart,
@@ -206,16 +228,26 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
       lineNumber: anchor.lineNumber,
       dedupeHash: hash,
       technologies: candidate.technologies,
-      isClientIdentifying,
+      isClientIdentifying: sorted.isClientIdentifying,
     });
   }
 
   // Suppress candidates the author has already judged — accepted or rejected —
   // in one lookup against the partial unique index.
   const fresh = rows.length === 0 ? [] : await withoutAlreadyJudged(db, userId, rows);
+  const flags = fresh.flatMap((row) =>
+    (flagsOf.get(row.id) ?? []).map((flag) => ({
+      id: newId("factFlag"),
+      userId,
+      factId: row.id,
+      kind: flag.kind,
+      reason: flag.reason,
+    })),
+  );
 
   await batch(db, [
     ...(fresh.length > 0 ? [db.insert(facts).values(fresh)] : []),
+    ...(flags.length > 0 ? [db.insert(factFlags).values(flags)] : []),
     db
       .update(importChunks)
       // `ModelUsage`'s four keys are deliberately the four column names, so the
@@ -241,6 +273,7 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
     versionId,
     chunkIndex: chunk.chunkIndex,
     kept: fresh.length,
+    flagged: flags.length,
     discarded,
     suppressed: rows.length - fresh.length,
     ...(usage ?? {}),
@@ -293,6 +326,12 @@ async function finishStep(deps: ImportDeps): Promise<void> {
   const onlyRepeats = (version?.candidatesSuppressed ?? 0) > 0;
   const failed = total === 0 && !nothingToExtract && !onlyRepeats;
 
+  // Which of this version's facts likely restate one already in the record.
+  // Asked once, here, when every chunk is in. Idempotent, so a retried step
+  // writes no second flag.
+  const repeats = await flagRepeats(db, userId, eq(facts.sourceDocumentVersionId, versionId));
+  await settleRepeats(db, userId);
+
   await db
     .update(sourceDocumentVersions)
     .set({
@@ -302,7 +341,7 @@ async function finishStep(deps: ImportDeps): Promise<void> {
     })
     .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)));
 
-  log({ event: "import_finished", versionId, candidates: total, failed });
+  log({ event: "import_finished", versionId, candidates: total, repeats: repeats.length, failed });
 }
 
 /* ------------------------------------------------------------------ shared */

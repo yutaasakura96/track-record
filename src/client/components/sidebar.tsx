@@ -22,23 +22,35 @@ import { Mono, SegmentedControl } from "./ui";
  * A row earns its place when its route exists. `to` is what makes it navigable
  * and what makes exactly one row active, so the two cannot drift apart.
  */
-const NAV: { label: string; to: string; counts?: "openCandidates" }[] = [
+const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" }[] = [
   { label: "Home", to: "/" },
   { label: "Record", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
+  // Issue #57: what the importer flagged, everything it accepted, and the
+  // résumés written from that for one job each.
+  { label: "Flagged", to: "/flagged", counts: "openFlags" },
+  { label: "Master document", to: "/master" },
+  { label: "Tailored résumés", to: "/tailored" },
 ];
 
-/** `1,085 facts to review`: the count with its unit, so it cannot be read as documents. */
-const toReview = (openCandidates: number) =>
-  `${openCandidates.toLocaleString("en-US")} ${openCandidates === 1 ? "fact" : "facts"} to review`;
+/**
+ * `1,085 facts to sort`: the count with its unit, so it cannot be read as
+ * documents. These are the facts from before the importer accepted on its own;
+ * a record imported since has none.
+ */
+const COUNT_LABEL = {
+  openCandidates: (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "fact" : "facts"} to sort`,
+  openFlags: (n: number) => `${n.toLocaleString("en-US")} to check`,
+} as const;
 
 export function Sidebar({ name }: { name: string }) {
   const path = useRouterState({ select: (state) => state.location.pathname });
-  // Open candidates across every version of every document, shown only above zero.
-  // Read from the summary, not the listing: the badge is one number and this is
-  // the only query the chrome makes on Home, Record and Skills.
-  const openCandidates = useImportSummary().data?.openCandidates ?? 0;
+  // Waiting facts across every version of every document, and flags not yet
+  // checked; each shown only above zero. Read from the summary, not the
+  // listing: the badges are two numbers and this is the only query the chrome
+  // makes on Home, Record and Skills.
+  const summary = useImportSummary().data;
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
 
@@ -63,9 +75,14 @@ export function Sidebar({ name }: { name: string }) {
                 {item.label}
                 {/* On a line of its own and in words: a bare number beside
                     `Documents` read as a number of documents (issue #58). */}
-                {item.counts && openCandidates > 0 ? (
-                  <span className="block text-small font-normal text-generated-text">
-                    {toReview(openCandidates)}
+                {item.counts && (summary?.[item.counts] ?? 0) > 0 ? (
+                  <span
+                    className={`block text-small font-normal ${
+                      // Amber is for what is held back. A flag is advice.
+                      item.counts === "openCandidates" ? "text-generated-text" : "text-text-muted"
+                    }`}
+                  >
+                    {COUNT_LABEL[item.counts](summary![item.counts])}
                   </span>
                 ) : null}
               </Link>

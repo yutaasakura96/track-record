@@ -5,8 +5,11 @@
  */
 import { create } from "zustand";
 
-/** `regrade`: accepted facts whose provenance is not yet the author's (issue #37). */
-export type FactFilter = "all" | "open" | "resolved" | "regrade";
+/**
+ * `regrade`: accepted facts whose provenance nobody chose (issue #37).
+ * `flagged`: facts with a flag not yet marked checked (issue #57).
+ */
+export type FactFilter = "all" | "open" | "resolved" | "regrade" | "flagged";
 
 /**
  * Which half a selection came from. Part of the selection, not a detail of it

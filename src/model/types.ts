@@ -1,5 +1,7 @@
 /**
- * THE SEAM. Two functions, and nothing else.
+ * THE SEAM. Four functions, and nothing else: read a passage into facts, write
+ * a document from facts, grade facts extracted before grading existed, and
+ * explain one flag (`docs/06`, 2026-10-08).
  *
  * Nothing outside `src/model/` imports an SDK or knows a provider name
  * (`docs/03-technical-design.md` §4). Swapping providers is a configuration
@@ -17,6 +19,45 @@ export interface CandidateFact {
   /** The VERBATIM span from the source that supports the claim. */
   quote: string;
   technologies: string[];
+  /**
+   * The importer's grade (issue #57). Judged against the quote alone, and it is
+   * the grade the fact is accepted with. Absent means the provider returned
+   * none: the fact is then kept Generated and flagged, never dropped.
+   */
+  provenance?: FactGrade["provenance"];
+  /** Names a client, a person or an internal system. Stored Private, and flagged. */
+  confidential?: boolean;
+  /** The importer is not confident in the claim or its grade. Kept, and flagged. */
+  unsure?: boolean;
+  /** Why it is confidential or unsure, in one plain sentence. Empty when neither. */
+  note?: string;
+}
+
+/** What the importer decides about one fact. The author can change every part of it. */
+export interface FactGrade {
+  provenance: "measured" | "attested" | "generated";
+  confidential: boolean;
+  unsure: boolean;
+  note: string;
+}
+
+/** A fact as grading is given it: the claim, and the passage it was read from. */
+export interface GradableFact {
+  id: string;
+  claim: string;
+  /** `null` on a fact with no passage behind it, which cannot be Measured. */
+  quote: string | null;
+}
+
+/** What `Explain this` is asked about: one flag, and the fact it is on. */
+export interface FlagToExplain {
+  kind: "confidential" | "number" | "unsure" | "repeat";
+  /** The short reason the flag already shows. */
+  reason: string;
+  claim: string;
+  quote: string | null;
+  provenance: FactGrade["provenance"];
+  disclosure: "public" | "restricted" | "private";
 }
 
 /**
@@ -191,12 +232,21 @@ export interface RenderSpec {
    * chosen (`docs/06`, 2026-09-13).
    */
   curatedSkills: { name: string; skills: string[] }[] | null;
+  /**
+   * The job a tailored résumé is written toward (issue #57), as the author
+   * pasted it. `null` for a main document, which is tailored to nothing.
+   *
+   * It decides what the document leads with and what it leaves out. It is
+   * never a source of facts: a skill the posting asks for and no fact states is
+   * not written, exactly as a skill no fact states is not written anywhere.
+   */
+  jobDescription: string | null;
 }
 
 /**
- * Generation's counterpart to `ExtractionContext`. It carries one field and is
- * optional, so the seam is still two functions — this is a reporting channel,
- * not a third capability.
+ * Generation's counterpart to `ExtractionContext`, and what grading and
+ * explaining report through too. It carries one field and is optional — this
+ * is a reporting channel, not a capability of its own.
  */
 export interface GenerationContext {
   onUsage?: (usage: ModelUsage) => void;
@@ -209,6 +259,17 @@ export interface ModelSeam {
     spec: RenderSpec,
     ctx?: GenerationContext,
   ): Promise<RenderContent>;
+  /**
+   * Grades facts that were extracted before the importer graded them. One
+   * grade per fact it was given, keyed by id; a fact it returns nothing for is
+   * the caller's to keep and flag.
+   */
+  gradeFacts(facts: GradableFact[], ctx?: GenerationContext): Promise<Map<string, FactGrade>>;
+  /**
+   * Why a fact is flagged, in plain words. Called only when the author presses
+   * `Explain this`, never on a list read.
+   */
+  explainFlag(flag: FlagToExplain, ctx?: GenerationContext): Promise<string>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

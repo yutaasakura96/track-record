@@ -14,6 +14,7 @@ import {
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
   ROLE_FIXTURE,
+  asCandidates,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -620,8 +621,9 @@ describe("the overview", () => {
   }
   type Waiting = {
     review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
-    unconfirmed: { importId: string; count: number } | null;
+    unconfirmed: { importId: string; count: number; total: number } | null;
     factsByProvenance: { generated: number };
+    flagged: number;
   };
 
   it("says how many candidates wait, in how many documents, and where reviewing starts", async () => {
@@ -635,6 +637,11 @@ describe("the overview", () => {
       "Added partition pruning on the ledger table",
       "A second pass added partition pruning on the ledger table.",
     );
+    // An import now leaves nothing waiting (issue #57). What waits is what was
+    // imported before that, so the two are put back as they would have arrived.
+    expect((await client.json<Waiting>("/api/overview")).review).toBeNull();
+    await asCandidates(first.importId);
+    await asCandidates(second.importId);
 
     const waiting = await client.json<Waiting>("/api/overview");
     // The newest version holding any is where the review opens.
@@ -664,17 +671,18 @@ describe("the overview", () => {
     const before = await client.json<Waiting>("/api/overview");
     expect(before.unconfirmed).toBeNull();
 
-    // Accepted as extracted: anything a model produces starts Generated.
+    // Accepted on its card as extracted, before the importer graded anything.
     const imported = await importOne(
       "aozora-batch.md",
       "Reduced nightly batch runtime",
       "Nightly batch runtime fell from 6 hours to 90 minutes.",
     );
+    await asCandidates(imported.importId);
     await client.post(`/api/facts/${imported.factId}/accept`);
 
     const overview = await client.json<Waiting>("/api/overview");
     expect(overview.factsByProvenance.generated).toBe(1);
-    expect(overview.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
+    expect(overview.unconfirmed).toEqual({ importId: imported.importId, count: 1, total: 1 });
     // An accepted fact is not waiting for review.
     expect(overview.review).toBeNull();
 
@@ -683,14 +691,32 @@ describe("the overview", () => {
       "Added partition pruning on the ledger table",
       "A second pass added partition pruning on the ledger table.",
     );
+    await asCandidates(newer.importId);
     await client.post(`/api/facts/${newer.factId}/accept`);
     const acrossVersions = await client.json<Waiting>("/api/overview");
     expect(acrossVersions.factsByProvenance.generated).toBe(2);
-    expect(acrossVersions.unconfirmed).toEqual({ importId: newer.importId, count: 1 });
+    // The newest version holding any, how many it holds, and how many in all.
+    expect(acrossVersions.unconfirmed).toEqual({ importId: newer.importId, count: 1, total: 2 });
 
     await client.post(`/api/facts/${newer.factId}/regrade`, { provenance: "attested" });
     const remaining = await client.json<Waiting>("/api/overview");
     expect(remaining.factsByProvenance.generated).toBe(1);
-    expect(remaining.unconfirmed).toEqual({ importId: imported.importId, count: 1 });
+    expect(remaining.unconfirmed).toEqual({ importId: imported.importId, count: 1, total: 1 });
+  });
+
+  it("flags a Generated fact the importer accepted rather than asking for it to be confirmed", async () => {
+    // No grade came back with it, so it is kept as Generated (issue #57).
+    await importOne(
+      "aozora-batch.md",
+      "Reduced nightly batch runtime",
+      "Nightly batch runtime fell from 6 hours to 90 minutes.",
+    );
+
+    const overview = await client.json<Waiting>("/api/overview");
+    expect(overview.factsByProvenance.generated).toBe(1);
+    // A flag is advice. It is on the list, and it is not a step.
+    expect(overview.flagged).toBe(1);
+    expect(overview.unconfirmed).toBeNull();
+    expect(overview.review).toBeNull();
   });
 });

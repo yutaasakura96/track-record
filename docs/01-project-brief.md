@@ -47,7 +47,7 @@ There is no deadline. Success is defined by milestones, in order, and by one beh
 1. **Reading work repositories, ticket systems, or git history directly.** The repositories are client-owned and private; the strongest career material left almost no commits anyway. Documents are imported, not harvested.
 2. **LinkedIn.** `LATER`, and cheap when it comes — a copy-paste text render off the same facts.
 3. **The portfolio site.** A publishing surface with its own design, hosting and audience. Shares the record and nothing else.
-4. **The legacy master document.** Retired rather than supported. Maintaining the old system alongside the new one is how migrations die.
+4. **The legacy master document.** Retired rather than supported. Maintaining the old system alongside the new one is how migrations die. (The Master document added on 2026-10-08, #57, is a read-only view generated from the record, not that hand-maintained file; the retirement stands.)
 5. **Multi-user anything** — accounts, sharing, roles, permissions surfaces.
 6. **Consistency checking as a goal.** Drift across documents was deprioritised in session. If the design produces it as a side effect, good; it is not a target.
 

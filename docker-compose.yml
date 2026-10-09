@@ -56,6 +56,16 @@ services:
     # The image's start script with the per-endpoint rate limit raised; the
     # script says why.
     volumes: ["./scripts/neon-proxy-start.sh:/app/start.sh:ro"]
+    # The proxy opens a new connection to Postgres for every query's
+    # authentication and closes it itself, so each one leaves a local port in
+    # TIME_WAIT for 60 seconds. A whole suite run left 22,811 there at its peak
+    # against the 28,232 ports the default range gives, and a faster run went
+    # over: 47 tests failed in one second with "Cannot assign requested address"
+    # (decision log 2026-10-09). Reuse lets a new connection take a port that
+    # has waited a second; the wider range is headroom. Both are per-container.
+    sysctls:
+      net.ipv4.tcp_tw_reuse: 1
+      net.ipv4.ip_local_port_range: "1024 65535"
     ports: ["4444:4444"]
     depends_on:
       postgres: { condition: service_healthy }
