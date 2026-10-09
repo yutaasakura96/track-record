@@ -582,8 +582,9 @@ full order above, the document included.
 
 ### 3.13 `fact_flags` · migrations 0015–0016, 2026-10-08 (#57)
 
-Why a fact is worth a look. Written when the fact is accepted by the importer, and for `repeat`
-also when a later edit makes a pair (`03` §5). **A flag gates nothing**: what keeps a fact out of a
+Why a fact is worth a look. Written when the fact is accepted by the importer, for `repeat`
+also when a later write makes a pair (`03` §5), and for `confidential` and `number` also when the
+author's edit of a claim gives it a confidential shape or a number (`07` §6). **A flag gates nothing**: what keeps a fact out of a
 document is its own `disclosure` and `provenance`, which a flag only explains.
 
 | Column | Type | Null | Notes |
@@ -593,9 +594,9 @@ document is its own `disclosure` and `provenance`, which a flag only explains.
 | `fact_id` | text | no | FK → `facts.id` **cascade** |
 | `kind` | fact_flag_kind | no | `confidential`: stored Private. `number`: the claim states one. `unsure`: the importer doubted it, graded it Generated, or gave no grade. `repeat`: it likely restates another fact at the same employer |
 | `reason` | text | no | **Always present.** One or two plain sentences. Names the kind of identifier found, never the identifier |
-| `explanation` | text | yes | What `Explain this` wrote. Null until it is pressed; never regenerated |
+| `explanation` | text | yes | What `Explain this` wrote. Null until it is pressed. Kept as written while the reason stands; cleared, with the token columns, when the reason is rewritten or a claim edit raises the flag again |
 | `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What that one call cost. Null until then |
-| `checked_at` | timestamptz | yes | When the author marked it checked, or when a `repeat` flag's pair went away. Null while it is on the list |
+| `checked_at` | timestamptz | yes | When the author marked it checked, when a `repeat` flag's pair went away, or when a claim edit removed the number or the confidential shape the flag was raised for. Null while it is on the list |
 | `system_settled_at` | timestamptz | yes | Migration 0016. Set with `checked_at` when the system closes a `repeat` flag because its pair disappeared. Cleared when the pair returns or the author changes the check state. Null for deliberate author dismissal |
 
 **Unique:** `(fact_id, kind)`, so a fact carries at most one flag of a kind and a retried import

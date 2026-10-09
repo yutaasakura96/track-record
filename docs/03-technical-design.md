@@ -254,9 +254,10 @@ flag is a row with a reason (`04` §3.13); it gates nothing.
 `S3` and `Java 17` flag nothing, or a kanji figure with its counter (三割, 五名).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through
-`gradeFacts`, twenty-five to a call, accepts every one and writes the same flags; the client asks
-again until none are left. A fact the model returns no grade for is accepted as Generated and
-flagged, so each call moves the count down. It never loosens a disclosure the author already set.
+`gradeFacts`, twenty-five to a call, accepts them and writes the same flags; the client asks
+again until none are left. A fact the model returns no grade for, or a grade missing a field, is
+accepted as Generated and flagged. A fact the author ruled on or edited during the call is left
+alone (`07` §6). It never loosens a disclosure the author already set.
 
 > ### Two verified platform constraints that shape this pipeline
 >
@@ -308,8 +309,12 @@ by #36 and the first by #35:
   The flag stores that a pair exists; which facts make the pair is still computed on the read, for a
   candidate and for an accepted fact whose `repeat` flag is open. A fact is not matched against
   facts read from the same version of the same document. The check runs again for a fact whose claim
-  or employer is edited and for a document that is refiled, and a flag whose pair is gone (the other
-  fact rejected, reworded or filed elsewhere) is marked checked by those same writes
+  or employer is edited, for a document that is refiled and for a project moved to another employer.
+  Every write that changes which accepted facts stand beside each other (those, the end of an
+  import, a sort, a reject and an undo) then settles the flags: one whose pair is gone (the other
+  fact rejected, returned to candidate, reworded or filed elsewhere) is marked checked, one the
+  system closed that way is reopened when its pair returns, and a reason that no longer says
+  whether the numbers differ is rewritten. A flag the author marked checked is never reopened
   (`src/server/services/repeats.ts`).
 - **Overlap with facts already in the record is flagged, not deduplicated · built (#36).** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A

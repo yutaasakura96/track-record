@@ -246,8 +246,8 @@ Then the model is given every usable fact, the number-flagged ones included,
   and no Private and no Generated fact
 ```
 
-The sort of the facts that were waiting is held to the same: every fact in a batch is accepted,
-twenty-five a call, a disclosure the author set is never loosened, an unavailable model changes
+The sort of the facts that were waiting is held to the same: every fact in a batch is accepted
+unless the author ruled on it or edited it during the call, twenty-five a call, a disclosure the author set is never loosened, an unavailable model changes
 nothing, and only the reader's own facts are sorted.
 
 ### 2.6f A flag is advice, and `Explain this` is the only model call

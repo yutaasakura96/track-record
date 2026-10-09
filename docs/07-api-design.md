@@ -517,10 +517,13 @@ as `PATCH` answers, and `404` for another user's fact.
 ```
 
 One call takes up to **twenty-five** waiting facts, oldest first, and makes **one** model call to
-grade them (`03` §4). Every fact in the batch is then accepted with that grade and flagged by the
-rules an import applies; one the model returned no grade for is accepted as Generated and flagged.
-None is rejected and none is left waiting, so `remaining` falls on every call and the client asks
-again until it is `0`. `flagged` counts facts, not flags. A disclosure the author already set is
+grade them (`03` §4). Each fact in the batch is then accepted with that grade and flagged by the
+rules an import applies; one the model returned no grade for, or an incomplete one, is accepted as
+Generated and flagged. None is rejected. A fact the author accepted, rejected or edited while the
+model was answering is left as the author put it, with no flag written, and an edited one still
+waits: `sorted` counts only the facts this call accepted, so it can be `0` with `remaining` above
+it. The client asks again until `remaining` is `0`, and stops with a failure line after three calls
+in a row that sorted nothing. `flagged` counts facts, not flags. A disclosure the author already set is
 kept, except that a fact read as confidential becomes Private. `503 upstream_unavailable` when the
 model does not answer, with nothing changed; facts sorted by earlier calls stay sorted. Only the
 session's own candidates are read, and another user's `importId` sorts nothing.

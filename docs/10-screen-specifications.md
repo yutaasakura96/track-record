@@ -1158,7 +1158,7 @@ nowhere (`07` §9). It cannot be edited here, and there is no second copy to fal
 is changed on its own card.
 
 Sidebar chrome, at `/master`. Header title `Master document`, note `Everything in your record, in
-one place`, and on the right, once the record holds an accepted fact, the note `The file includes
+one place`, and on the right, once the record holds anything the page lists, the note `The file includes
 Private facts. It is your copy.` and **`Download .md`**.
 
 ### Layout
@@ -1199,7 +1199,7 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 | State | Behaviour |
 |---|---|
 | **Loading** | `Building the master document…` |
-| **No accepted fact** | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
+| **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
 | **An employer or project with no fact** | Listed, with `No facts filed here yet.` |
 | **Download failed** | The reason replaces the note beside the button; the button stays |
 

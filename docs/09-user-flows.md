@@ -269,7 +269,7 @@ read, still works.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 1 | The record holds no accepted fact | The intro says to import a document, and there is no Download. Not an error |
+| 1 | The record holds nothing the page lists | The intro says to import a document, and there is no Download. Not an error |
 | 1 | Facts are still waiting to be sorted | A line saying how many are not listed yet, and to sort them from Home |
 | 2 | A fact is wrong | It is not edited here. Its source link opens the fact (Flow 9, step 5) |
 | 3 | The file holds Private facts | **It does, by decision.** The page says so beside the button, and the file's first lines say not to send it to an employer |
