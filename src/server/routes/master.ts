@@ -1,5 +1,5 @@
 /**
- * The master document (`docs/07-api-design.md` §8, issue #57): everything in
+ * The master document (`docs/07-api-design.md` §9, issue #57): everything in
  * the record in one readable piece, built on the read.
  *
  * No model call and nothing stored: the record is the one source of truth, and
