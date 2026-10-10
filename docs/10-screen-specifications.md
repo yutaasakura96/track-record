@@ -1399,8 +1399,9 @@ right **`Add a job`** (primary), to Screen 13.
 
 - Left: the company at the row-title size; the position under it in `text-muted`; then one line of
   small items: **the résumé** and the two figures.
-  - The résumé reads `<title> v<N>` for each sent copy, joined with ` + ` (`履歴書 v4 + 職務経歴書
-    v6`); with documents chosen and nothing sent, the same followed by `, not sent`; with none,
+  - The résumé reads `<title> v<N>` for the latest sent copy of each document, joined with ` + `
+    (`履歴書 v4 + 職務経歴書 v6`); earlier copies of the same document are on the application page
+    only. With documents chosen and nothing sent, the same followed by `, not sent`; with none,
     `No résumé yet`.
   - `N days since the résumé passed` and `N days since the first interview`, each only when that
     step has a date and the application is not closed.
@@ -1561,19 +1562,21 @@ says `Reopened at <step>.`
 **With documents**, a row each:
 
 - The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
-  this job`, or `Version N · the same document as on Home`, and ` · newer than the vN you sent`
-  when the document has moved on since its latest frozen copy.
+  this job`, or `Version N · the same document as on Home`, and ` · changed since the vN you sent`
+  when its current file, the one `Download` returns today, differs from its latest frozen copy.
 - `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
   tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
   already have`, which after Applied reads **`Record another document you sent`**. Either opens
-  the tick card in place, with `Cancel`. After Applied the card also offers a document already on
-  the application when its current version differs from its latest frozen copy.
+  the tick card in place, with `Cancel`. After Applied the card also offers each document already
+  sent, the application's tailored résumé included as a fourth tick, whose current file differs
+  from its latest frozen copy. One whose file is identical is not offered.
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
-was on the day. It does not change when the résumé or your record changes later.` A row each: the
-title, the chip `vN · frozen`, `Sent <date>`, and the links `Read it` (Screen 15) and `Download`.
+was on the day. It does not change when the résumé or your record changes later.` A row for every
+copy, earlier copies of the same document included: the title, the chip `vN · frozen`,
+`Sent <date>`, and the links `Read it` (Screen 15) and `Download`.
 
 **Rules**
 
@@ -1584,11 +1587,12 @@ title, the chip `vN · frozen`, `Sent <date>`, and the links `Read it` (Screen 1
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   A sent copy has no edit, no regenerate and no remove.
-- **After Applied, ticking a further document or one already sent with a newer current version
-  freezes that version at once**, dated today, and says `<title> v<N> frozen as sent today.` Each
-  copy remains in `What you sent` with its own date, including earlier copies of the same
-  document. Ticking a document whose current version is identical to its latest frozen copy adds
-  nothing and does not change last activity.
+- **After Applied, ticking a document in the card freezes its current file at once**, dated today,
+  and says `<title> v<N> frozen as sent today.` Each copy remains in `What you sent` with its own
+  date, including earlier copies of the same document.
+- **Whether an already-sent document is offered again is decided by the file, not the version
+  number.** A 履歴書 whose tables changed with the record is offered at the same version; a
+  document whose current file is identical to its latest frozen copy is not, and nothing is added.
 - **`Download` on a sent copy returns the stored file**, never a fresh one.
 
 **States**
