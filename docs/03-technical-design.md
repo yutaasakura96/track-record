@@ -628,8 +628,10 @@ résumé** → diff → accept. One document, one employer, `.docx` out.
 **Not built for M1:** 履歴書 and its template, 職務経歴書, both career stories, skills curation,
 quick capture, version history UI, conflict detection, per-render inclusion rules.
 
-**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site, application tracking,
-mobile layouts.
+**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site, mobile layouts.
+Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
+log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
+layout exists for its screens only.
 
 **Desktop only**, minimum 1280px — but built **fluid** (no fixed page widths, panes flex), so the
 M3 quick-capture screen can ship narrow without re-laying-out the app.

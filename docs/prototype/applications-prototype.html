@@ -1,0 +1,1160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Track Record · Applications prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Noto+Sans+JP:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+/* Tokens copied from src/client/theme.css (generated from docs/05-design-system.md). */
+:root {
+  --bg:#ffffff; --surface:#f7f8fa; --surface-raised:#f3f4f7; --card:#ffffff; --card-selected:#f4f5fe;
+  --card-recessed:#eef0f3; --chip:#eceef2; --hover:#e8eaee; --disabled-bg:#eef0f3; --progress-track:#dfe2e7;
+  --border:#dcdfe5; --border-subtle:#e9ebef; --border-inner:#e4e6eb; --border-control:#c9ced6;
+  --border-strong:#b9bfc9; --border-active:#9aa1ad; --border-dashed:#b3b9c4;
+  --text-bright:#0d0e12; --text:#1a1c21; --text-strong:#22252b; --text-secondary:#383c45; --text-body:#2e3138;
+  --text-muted:#4a4f59; --text-dim:#525762; --text-dimmer:#595e69; --text-faint:#5f6470; --text-ghost:#8a909b;
+  --on-accent:#ffffff; --accent:#5e6ad2; --accent-hover:#4f5bc4; --accent-text:#3f4bb3;
+  --accent-link:#4450bd; --accent-link-hover:#323c9c;
+  --measured:#1f8a55; --measured-text:#146c43; --removed:#b3363c;
+  --mark-idle:rgba(94,106,210,.1); --mark-selected:rgba(94,106,210,.24);
+  --add-idle:rgba(31,138,85,.13); --add-row:rgba(31,138,85,.06);
+  --remove-idle:rgba(179,54,60,.11); --remove-row:rgba(179,54,60,.05);
+  --shadow-ring:inset 0 0 0 1px rgba(13,14,18,.12);
+  --font-mixed:"Geist","Noto Sans JP","Hiragino Kaku Gothic ProN","Hiragino Sans","Yu Gothic Medium","Yu Gothic","Meiryo",system-ui,sans-serif;
+  --font-mono:"Geist Mono",ui-monospace,monospace;
+}
+.frame[data-theme="dark"] {
+  color-scheme:dark;
+  --bg:#08090a; --surface:#0a0b0c; --surface-raised:#0d0e10; --card:#101113; --card-selected:#13141a;
+  --card-recessed:#0b0c0d; --chip:#131416; --hover:#17181b; --disabled-bg:#141518; --progress-track:#1c1d20;
+  --border:#1a1b1e; --border-subtle:#141517; --border-inner:#17181b; --border-control:#1f2023;
+  --border-strong:#232427; --border-active:#2c2e33; --border-dashed:#26282c;
+  --text-bright:#f2f3f5; --text:#e8e8ea; --text-strong:#e2e4e7; --text-secondary:#c9ccd1; --text-body:#c4c8ce;
+  --text-muted:#a6abb4; --text-dim:#9da2ab; --text-dimmer:#9398a2; --text-faint:#8a8f99; --text-ghost:#5d6169;
+  --accent-text:#a3abf0; --accent-link:#8b93e8; --accent-link-hover:#a8afef;
+  --measured:#4cb782; --measured-text:#5ec99a; --removed:#e07a7f;
+  --mark-idle:rgba(94,106,210,.07); --mark-selected:rgba(94,106,210,.26);
+  --add-idle:rgba(76,183,130,.11); --add-row:rgba(76,183,130,.05);
+  --remove-idle:rgba(194,90,95,.11); --remove-row:rgba(194,90,95,.05);
+  --shadow-ring:inset 0 0 0 1px rgba(255,255,255,.06);
+}
+*,*::before,*::after { box-sizing:border-box; }
+html { background:var(--surface-raised); }
+body { margin:0; font-family:var(--font-mixed); font-size:13px; line-height:1.4; color:var(--text);
+  -webkit-font-smoothing:antialiased; }
+p, li { text-wrap:pretty; word-break:normal; line-break:strict; overflow-wrap:break-word; margin:0; }
+h1,h2,h3,h4 { margin:0; font-weight:600; }
+ul,ol { margin:0; padding:0; list-style:none; }
+button { font:inherit; cursor:pointer; color:inherit; background:none; border:0; padding:0; text-align:left; }
+button:disabled { cursor:not-allowed; }
+input,textarea,select { font:inherit; color:inherit; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:1px; }
+
+/* ---------------------------------------------------------- review chrome */
+.review { background:var(--bg); border-bottom:1px solid var(--border); padding:12px 20px; display:grid; gap:10px; }
+.review-top { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.review h1 { font-size:13px; line-height:1.3; color:var(--text-bright); }
+.review .note { font-size:11.5px; color:var(--text-muted); }
+.review-controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px; }
+.review-controls .lab { font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-faint); }
+.jump { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.stage { padding:20px; display:flex; justify-content:center; }
+.frame { container-type:inline-size; container-name:app; width:100%; max-width:1440px; height:860px;
+  background:var(--bg); color:var(--text); border:1px solid var(--border-strong); border-radius:10px; overflow:hidden; position:relative; }
+.frame.phone { width:390px; height:780px; }
+
+/* ------------------------------------------------------------- app chrome */
+.app { display:flex; height:100%; min-width:0; }
+.sidebar { width:212px; flex:none; background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; }
+.brand { height:46px; display:flex; align-items:center; gap:8px; padding:0 10px; border-bottom:1px solid var(--border); flex:none; }
+.app-mark { width:16px; height:16px; border-radius:4px; background:linear-gradient(160deg,#5e6ad2,#3d4699); flex:none; }
+.wordmark { font-size:12.5px; font-weight:600; letter-spacing:-.01em; }
+.nav { padding:10px; display:grid; gap:2px; }
+.nav button { display:block; width:100%; padding:6px 10px; border-radius:6px; font-size:13px; line-height:1.3; color:var(--text-muted); }
+.nav button:hover { background:var(--hover); }
+.nav button.active { background:var(--hover); color:var(--text); font-weight:500; }
+.nav .count { display:block; font-size:11.5px; font-weight:400; color:var(--text-muted); }
+.side-foot { margin-top:auto; padding:10px; border-top:1px solid var(--border); display:grid; gap:10px; justify-items:start; }
+.who { display:flex; align-items:center; gap:8px; min-width:0; }
+.avatar { width:22px; height:22px; border-radius:50%; background:var(--chip); flex:none; }
+.main { flex:1; min-width:0; display:flex; flex-direction:column; }
+.header { height:46px; flex:none; display:flex; align-items:center; gap:12px; padding:0 20px; background:var(--surface); border-bottom:1px solid var(--border); min-width:0; }
+.header h2 { font-size:12.5px; line-height:1.3; letter-spacing:-.01em; color:var(--text-strong); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.header .hnote { font-size:11px; color:var(--text-dimmer); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.header .right { margin-left:auto; display:flex; gap:8px; flex:none; }
+.btn.menu-btn { display:none; }
+.content { flex:1; overflow-y:auto; padding:26px 20px; min-width:0; }
+.col { max-width:940px; margin:0 auto; display:grid; gap:20px; min-width:0; }
+.col > * { min-width:0; }
+.measure { max-width:740px; margin:0 auto; }
+
+/* ------------------------------------------------------------------ type */
+.t-page { font-size:19px; line-height:1.3; font-weight:600; letter-spacing:-.02em; color:var(--text-bright); }
+.t-panel { font-size:12.5px; line-height:1.3; font-weight:600; letter-spacing:-.01em; color:var(--text-strong); }
+.t-row { font-size:13px; line-height:1.3; font-weight:500; color:var(--text-strong); }
+.t-ui { font-size:13px; line-height:1.4; }
+.t-small { font-size:11.5px; line-height:1.5; }
+.t-smaller { font-size:11px; line-height:1.55; }
+.mono { font-family:var(--font-mono); font-size:11px; line-height:1.4; text-transform:uppercase; letter-spacing:.05em; }
+.c-secondary { color:var(--text-secondary); } .c-muted { color:var(--text-muted); } .c-dim { color:var(--text-dim); }
+.c-strong { color:var(--text-strong); } .c-accent { color:var(--accent-text); } .c-removed { color:var(--removed); }
+.next b { font-weight:600; }
+
+/* -------------------------------------------------------------- controls */
+.btn { display:inline-flex; align-items:center; justify-content:center; white-space:nowrap; border-radius:6px; font-weight:500;
+  transition:background .15s ease,color .15s ease; }
+.btn-primary { background:var(--accent); color:var(--on-accent); padding:6px 12px; font-size:12px; }
+.btn-primary:hover { background:var(--accent-hover); }
+.btn-secondary { border:1px solid var(--border-strong); color:var(--text-secondary); padding:8px 14px; font-size:12px; }
+.btn-secondary:hover, .btn-ghost:hover { background:var(--hover); }
+.btn-ghost { border:1px solid var(--border-strong); color:var(--text-muted); padding:6px 10px; font-size:11.5px; }
+.btn-ghost:hover { color:var(--text-secondary); }
+.btn-bare { color:var(--text-dim); padding:4px 6px; border-radius:4px; font-size:11px; font-weight:400; }
+.btn-bare:hover { background:var(--border); color:var(--text-secondary); }
+.btn:disabled { background:var(--disabled-bg); color:var(--text-faint); border:1px solid var(--border-control); }
+.link { font-size:11.5px; color:var(--accent-link); white-space:nowrap; }
+.link:hover { color:var(--accent-link-hover); }
+.seg { display:inline-flex; gap:2px; padding:2px; background:var(--surface-raised); border:1px solid var(--border-control); border-radius:6px; }
+.seg button { padding:4px 8px; border-radius:4px; font-size:11px; font-weight:500; color:var(--text-dim); }
+.seg button:hover { color:var(--text-secondary); }
+.seg button[aria-checked="true"] { background:var(--hover); color:var(--text-strong); box-shadow:var(--shadow-ring); }
+.pill { padding:4px 8px; border-radius:6px; font-size:11px; border:1px solid transparent; color:var(--text-dim); white-space:nowrap; }
+.pill:hover { color:var(--text-secondary); }
+.pill.on { background:var(--hover); border-color:var(--border-active); color:var(--text-secondary); }
+.chip { display:inline-flex; align-items:center; background:var(--chip); border:1px solid var(--border-control); border-radius:4px;
+  padding:2px 6px; font-family:var(--font-mono); font-size:11px; color:var(--text-dim); white-space:nowrap; }
+.chip.quiet { border-color:var(--border-active); color:var(--text-strong); font-weight:500; }
+.field { display:grid; gap:4px; min-width:0; }
+.field > span { font-size:11.5px; color:var(--text-secondary); }
+.input { min-height:36px; width:100%; background:var(--surface-raised); border:1px solid var(--border-control); border-radius:6px; padding:8px 10px; font-size:13px; line-height:1.4; color:var(--text-strong); outline:none; }
+.input:focus { box-shadow:var(--shadow-ring); border-color:var(--border-active); }
+textarea.input { resize:vertical; }
+.dot { display:inline-block; width:6px; height:6px; border-radius:50%; flex:none; }
+.dot.accent { background:var(--accent); } .dot.muted { background:var(--text-ghost); }
+.working { animation:working 1.4s ease-in-out infinite; }
+@keyframes working { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+@media (prefers-reduced-motion: reduce) { .working { animation:none; } }
+
+/* ---------------------------------------------------------------- panels */
+.panel { background:var(--surface-raised); border:1px solid var(--border); border-radius:10px; padding:14px 16px; min-width:0; }
+.panel > header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; flex-wrap:wrap; }
+.panel .sub { font-size:13px; color:var(--text-body); margin:-6px 0 12px; }
+.rows > li { display:flex; align-items:center; gap:12px; padding:12px 10px; border-bottom:1px solid var(--border-inner); min-width:0; }
+.rows > li:last-child { border-bottom:0; }
+.rows .grow { min-width:0; flex:1; }
+.rows .side { margin-left:auto; display:flex; align-items:center; gap:16px; flex-wrap:wrap; justify-content:flex-end; }
+.status { display:inline-flex; align-items:center; gap:6px; font-size:11.5px; white-space:nowrap; }
+.empty { border:1px dashed var(--border-dashed); border-radius:10px; padding:40px 20px; text-align:center; display:grid; gap:12px; justify-items:center; }
+.notice { border:1px solid var(--border-control); background:var(--surface-raised); border-radius:6px; padding:8px 10px; font-size:11.5px; color:var(--text-secondary); display:flex; gap:8px 12px; align-items:center; flex-wrap:wrap; }
+.card { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; min-width:0; }
+.card.recessed { background:var(--card-recessed); }
+
+/* ---------------------------------------------------------- applications */
+.filters { display:flex; flex-wrap:wrap; gap:4px; align-items:center; }
+.filters .sep { width:1px; height:16px; background:var(--border); margin:0 6px; }
+.app-row { width:100%; display:flex; align-items:center; gap:12px; padding:12px 10px; border-radius:6px; min-width:0; }
+.app-row:hover { background:var(--hover); }
+.app-list > li { border-bottom:1px solid var(--border-inner); }
+.app-list > li:last-child { border-bottom:0; }
+.app-row .grow { min-width:0; flex:1; display:grid; gap:2px; }
+.app-row .meta { display:flex; flex-wrap:wrap; gap:4px 12px; align-items:center; }
+.app-row .side { margin-left:auto; display:grid; gap:4px; justify-items:end; flex:none; }
+.closed .t-row, .closed .c-muted { color:var(--text-muted); }
+
+.steps { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:0; }
+.step { display:grid; gap:4px; padding-right:8px; min-width:0; align-content:start; }
+.step .rail { display:flex; align-items:center; gap:0; height:14px; }
+.step .node { width:10px; height:10px; border-radius:50%; border:2px solid var(--border-active); background:var(--bg); flex:none; }
+.step .line { flex:1; height:2px; background:var(--border-control); }
+.step:last-child .line { display:none; }
+.step.done .node { background:var(--accent); border-color:var(--accent); }
+.step.done .line { background:var(--accent); }
+.step.now .node { border-color:var(--accent); background:var(--bg); box-shadow:0 0 0 1px rgba(94,106,210,.5); }
+.step .name { font-size:11.5px; line-height:1.3; color:var(--text-dim); }
+.step.done .name { color:var(--text-secondary); }
+.step.now .name { color:var(--text-bright); font-weight:600; }
+.step .when { font-size:11px; color:var(--text-muted); }
+.datebtn { font-family:var(--font-mono); font-size:11px; color:var(--text-muted); border-bottom:1px dotted var(--border-active); }
+.datebtn:hover { color:var(--accent-link); }
+.dateedit { display:flex; gap:4px; align-items:center; flex-wrap:wrap; }
+.dateedit .input { min-height:28px; padding:2px 6px; width:auto; font-size:11.5px; }
+.stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+.stat { background:var(--card); border:1px solid var(--border); border-radius:8px; padding:12px 14px; display:grid; gap:4px; min-width:0; }
+.stat .v { font-size:23px; line-height:1.1; font-weight:500; letter-spacing:-.02em; color:var(--text-bright); font-variant-numeric:tabular-nums; }
+.stat .v small { font-size:13px; font-weight:400; letter-spacing:0; color:var(--text-muted); }
+.stat.off .v { color:var(--text-ghost); }
+.actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+.two { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.reqs { display:grid; gap:4px; padding-left:20px; list-style:disc; font-size:13px; color:var(--text-body); }
+.kv { display:grid; grid-template-columns:80px minmax(0,1fr); gap:6px 12px; font-size:13px; }
+.kv dt { color:var(--text-muted); font-size:11.5px; padding-top:2px; } .kv dd { margin:0; color:var(--text-strong); min-width:0; overflow-wrap:anywhere; }
+.jd { font-size:13.5px; line-height:1.72; color:var(--text-body); white-space:pre-wrap; margin-top:10px; padding-top:10px; border-top:1px solid var(--border-inner); }
+details > summary { cursor:pointer; font-size:11.5px; color:var(--accent-link); }
+.req-edit { display:flex; gap:6px; align-items:center; }
+.check { display:flex; gap:8px; align-items:flex-start; padding:8px 10px; border:1px solid var(--border-control); border-radius:6px; background:var(--card); }
+.check input { margin-top:2px; accent-color:var(--accent); }
+.qs { display:grid; gap:4px; padding-left:20px; list-style:decimal; font-size:13px; line-height:1.55; color:var(--text-body); }
+.rec { display:flex; align-items:center; gap:10px; padding:8px 10px; border:1px solid var(--border-control); border-radius:6px; background:var(--surface-raised); flex-wrap:wrap; min-width:0; }
+.rec .grow { min-width:0; flex:1; }
+.bar { height:8px; background:var(--progress-track); border-radius:2px; overflow:hidden; }
+.bar > i { display:block; height:100%; background:var(--accent); transition:width .25s ease; }
+.bar.thin { height:4px; }
+.iv { display:grid; gap:10px; }
+.iv-head { display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline; }
+.flash { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); max-width:calc(100% - 28px); background:var(--text-bright); color:var(--bg);
+  border-radius:6px; padding:8px 12px; font-size:11.5px; z-index:5; }
+.sheet { position:absolute; inset:46px 0 0 0; background:var(--surface); z-index:4; display:flex; flex-direction:column; }
+
+/* diff stand-in and frozen copy */
+.diffcols { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+.diffcols > div { padding:14px 16px; min-width:0; } .diffcols > div + div { border-left:1px solid var(--border); }
+.strip { font-family:var(--font-mono); font-size:11px; text-transform:uppercase; letter-spacing:.05em; color:var(--text-dim); margin-bottom:10px; }
+.rb { font-size:13.5px; line-height:1.68; color:var(--text-body); display:grid; gap:6px; padding-left:20px; list-style:disc; }
+.rh { font-size:11px; line-height:1; font-weight:600; text-transform:uppercase; letter-spacing:.08em; color:var(--text-dim); margin:20px 0 8px; }
+.add { background:var(--add-idle); border-radius:2px; } .del { background:var(--remove-idle); text-decoration:line-through; border-radius:2px; }
+li.addrow { background:var(--add-row); } li.delrow { background:var(--remove-row); }
+.doc { padding:40px 20px; }
+.doc h3 { font-size:22px; line-height:1.25; letter-spacing:-.02em; color:var(--text-bright); }
+
+/* ------------------------------------------------------------- questions */
+.qwrap { max-width:1440px; margin:0 auto; padding:6px 20px 60px; display:grid; gap:14px; }
+.qgrid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,440px),1fr)); gap:12px; }
+.q { background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:14px 16px; display:grid; gap:10px; align-content:start; min-width:0; }
+.q h3 { font-size:14.5px; line-height:1.4; color:var(--text-bright); }
+.q .id { font-family:var(--font-mono); font-size:11px; color:var(--text-dim); letter-spacing:.05em; }
+.q p { font-size:13px; color:var(--text-body); }
+.q .applied { border-left:2px solid var(--accent); padding-left:10px; }
+.q label { display:flex; gap:8px; align-items:flex-start; font-size:13px; color:var(--text-strong); }
+.q label input { margin-top:2px; accent-color:var(--accent); }
+.q .qfoot { display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; }
+.q .queued { font-size:11.5px; color:var(--accent-text); }
+
+/* ---------------------------------------------------------- phone width */
+@container app (max-width: 720px) {
+  .sidebar { display:none; }
+  .btn.menu-btn { display:inline-flex; }
+  .header { padding:0 12px; gap:8px; }
+  .header .hnote { display:none; }
+  .content { padding:16px 12px; }
+  .col { gap:16px; }
+  .app-row { flex-direction:column; align-items:stretch; gap:6px; }
+  .app-row .side { margin-left:0; justify-items:start; }
+  .steps { grid-template-columns:minmax(0,1fr); gap:0; }
+  .step { grid-template-columns:14px minmax(0,1fr) auto; align-items:start; gap:0 10px; padding:0 0 12px; }
+  .step .rail { flex-direction:column; height:100%; grid-row:1 / span 2; align-self:stretch; padding-top:3px; }
+  .step .line { width:2px; height:auto; min-height:12px; }
+  .step:last-child { padding-bottom:0; }
+  .step .when { grid-column:2 / span 2; }
+  .stats, .two, .diffcols { grid-template-columns:minmax(0,1fr); }
+  .diffcols > div + div { border-left:0; border-top:1px solid var(--border); }
+  .rows > li { flex-direction:column; align-items:stretch; gap:6px; }
+  .rows .side { margin-left:0; justify-content:flex-start; gap:12px; }
+  .kv { grid-template-columns:minmax(0,1fr); gap:2px; } .kv dd { margin-bottom:6px; }
+  .doc { padding:20px 0; }
+  .btn-primary, .btn-ghost, .btn-secondary { min-height:36px; }
+}
+</style>
+</head>
+<body>
+
+<section class="review" aria-label="About this prototype">
+  <div class="review-top">
+    <h1>Prototype · Applications (issue #60)</h1>
+    <span class="note">Click through it like the real app. Nothing is saved, every company, person and résumé line is invented, and today is fixed at 2026-10-10 so the day counts stay put.</span>
+  </div>
+  <div class="review-controls">
+    <span class="lab">Width</span>
+    <span class="seg" role="radiogroup" aria-label="Width">
+      <button type="button" role="radio" data-act="device" data-v="desktop" aria-checked="true">Desktop</button>
+      <button type="button" role="radio" data-act="device" data-v="phone" aria-checked="false">Phone</button>
+    </span>
+    <span class="lab">Start from</span>
+    <span class="seg" role="radiogroup" aria-label="Start from">
+      <button type="button" role="radio" data-act="seed" data-v="sample" aria-checked="true">Eight sample applications</button>
+      <button type="button" role="radio" data-act="seed" data-v="empty" aria-checked="false">First use, nothing yet</button>
+    </span>
+    <span class="lab">Jump to</span>
+    <span class="jump">
+      <button type="button" class="pill" data-act="jump" data-v="list">List</button>
+      <button type="button" class="pill" data-act="jump" data-v="new">Add a job</button>
+      <button type="button" class="pill" data-act="jump" data-v="app">An application in interviews</button>
+      <button type="button" class="pill" data-act="jump" data-v="resume">Choosing a résumé</button>
+      <button type="button" class="pill" data-act="jump" data-v="copy">A frozen sent copy</button>
+      <button type="button" class="pill" data-act="jump" data-v="interview">Adding an interview</button>
+      <button type="button" class="pill" data-act="jump" data-v="quiet">A gone-quiet one</button>
+      <button type="button" class="pill" data-act="jump" data-v="questions">Open questions (12)</button>
+    </span>
+  </div>
+</section>
+
+<div class="stage"><div class="frame" id="frame"></div></div>
+
+<section class="qwrap" id="questions" aria-label="Open questions">
+  <div>
+    <h2 class="t-page">Open questions the prototype raised</h2>
+    <p class="t-ui c-secondary" style="margin-top:6px;max-width:740px">Each one is already answered one way in the prototype above, so you can see it rather than imagine it. Leave an answer as it is to keep what is shown, or pick another and press <b>Queue this answer</b>. Queued answers go out when you press <b>Send to Agent</b> on the right.</p>
+  </div>
+  <div class="qgrid" id="qgrid"></div>
+</section>
+
+<script>
+/* ======================================================================
+ * Applications prototype. One file, no build, no network beyond the fonts.
+ * Everything below is throwaway: it exists to be clicked, not kept.
+ * ==================================================================== */
+const TODAY = "2026-10-10";
+const STEPS = [
+  { id: "not_applied", label: "Not applied" },
+  { id: "applied", label: "Applied" },
+  { id: "resume_passed", label: "Résumé passed" },
+  { id: "interview_1", label: "First interview" },
+  { id: "interview_2", label: "Second interview" },
+  { id: "interview_final", label: "Final interview" },
+  { id: "offer", label: "Offer" },
+];
+const CLOSED = { rejected: "Rejected", withdrawn: "Withdrawn" };
+const QUIET_DAYS = 14;
+const stepIndex = (id) => STEPS.findIndex((s) => s.id === id);
+const stepLabel = (id) => STEPS[stepIndex(id)]?.label ?? CLOSED[id];
+const WAITING = ["applied", "resume_passed", "interview_1", "interview_2", "interview_final"];
+
+/* The documents the record already has (docs/10 Screen 3). Versions invented. */
+const EXISTING = [
+  { key: "main", title: "Main résumé", lang: "English", version: 7 },
+  { key: "rirekisho", title: "履歴書", lang: "日本語", version: 4 },
+  { key: "shokumu", title: "職務経歴書", lang: "日本語", version: 6 },
+];
+
+const SAMPLE_EN = `Lumen Health Cooperative — Staff Software Engineer, Scheduling Platform
+
+Lumen Health Cooperative runs appointment scheduling for 140 community clinics. We are hiring a Staff Software Engineer to lead the rebuild of our scheduling platform.
+
+What you will do
+- Own the design of the new booking service and its migration off the 2014 monolith.
+- Mentor four engineers and set the technical direction with the product lead.
+
+What we are looking for
+- Seven or more years building backend services, in TypeScript or Kotlin.
+- PostgreSQL run in production, including a migration with no downtime.
+- Has led a move off a legacy system from first plan to last cutover.
+- Comfortable carrying a pager one week in six.
+
+Nice to have
+- Healthcare data standards (HL7 FHIR).
+- Event-driven design.
+
+Hybrid in Osaka, or remote within Japan.`;
+
+const SAMPLE_JA = `株式会社ひなた物流システム　バックエンドエンジニア（基幹システム刷新）
+
+当社は中小の倉庫事業者向けに在庫管理システムを提供しています。稼働15年目の基幹システムを刷新するプロジェクトで、バックエンドエンジニアを募集します。
+
+【業務内容】
+・新しい入出庫サービスの設計と開発
+・旧システムからのデータ移行の計画と実行
+
+【必須】
+・Kotlin または Go での開発経験 5年以上
+・PostgreSQL の設計・運用経験
+・要件定義から参画した経験
+
+【歓迎】
+・クラウド移行の経験
+・物流・在庫管理の業務知識
+
+勤務地：東京都内（週2日リモート可）`;
+
+function seed() {
+  return [
+    { id: "lumen", company: "Lumen Health Cooperative", position: "Staff Software Engineer", link: "https://jobs.example.com/lumen-health/staff-software-engineer",
+      requirements: ["7+ years building backend services, in TypeScript or Kotlin", "PostgreSQL in production, including a no-downtime migration", "Has led a move off a legacy system end to end", "On call one week in six"],
+      jd: SAMPLE_EN, status: "not_applied", closed: null, created: "2026-10-09", dates: {}, docs: [], tailoredVersion: 0, sent: [], interviews: [] },
+    { id: "osprey", company: "Osprey Grid", position: "Backend Engineer, Metering", link: "",
+      requirements: ["Go or Rust in production", "Time-series data at scale", "Worked with a hardware team"],
+      jd: "Osprey Grid — Backend Engineer, Metering\n\n(An invented posting. The full text of the job description is kept here.)", status: "offer", closed: null, created: "2026-08-20",
+      dates: { applied: "2026-08-22", resume_passed: "2026-08-29", interview_1: "2026-09-08", interview_final: "2026-09-25", offer: "2026-10-07" },
+      docs: [{ key: "tailored", title: "Tailored résumé for Osprey Grid", version: 1 }], tailoredVersion: 1,
+      sent: [{ title: "Tailored résumé for Osprey Grid", version: 1, date: "2026-08-22" }],
+      interviews: [
+        { id: "o1", date: "2026-09-08", round: "interview_1", who: "Hiring manager", how: "Friendly and fast. Mostly about the metering pipeline.", questions: ["What would you measure first on a pipeline you inherit?"], recordings: [] },
+        { id: "o2", date: "2026-09-25", round: "interview_final", who: "CTO and the hiring manager", how: "A design exercise on a whiteboard, then questions about notice period.", questions: ["Design ingestion for two million meters reporting every fifteen minutes.", "When could you start?"], recordings: [] },
+      ] },
+    { id: "quillon", company: "Quillon Analytics", position: "Data Platform Engineer", link: "https://jobs.example.com/quillon/data-platform-engineer",
+      requirements: ["Batch and streaming pipelines", "SQL performance work", "Python"],
+      jd: "Quillon Analytics — Data Platform Engineer\n\n(An invented posting. The full text of the job description is kept here.)", status: "applied", closed: null, created: "2026-10-04",
+      dates: { applied: "2026-10-06" }, docs: [{ key: "tailored", title: "Tailored résumé for Quillon Analytics", version: 1 }], tailoredVersion: 1,
+      sent: [{ title: "Tailored résumé for Quillon Analytics", version: 1, date: "2026-10-06" }], interviews: [] },
+    { id: "fernhill", company: "Fernhill Robotics", position: "Senior Backend Engineer", link: "https://jobs.example.com/fernhill/senior-backend-engineer",
+      requirements: ["Order and fleet services at warehouse scale", "Idempotent APIs and event streams", "Has run a migration off a batch system", "Mentors other engineers"],
+      jd: "Fernhill Robotics — Senior Backend Engineer\n\nFernhill builds picking robots for mid-sized warehouses. The fleet service decides which robot takes which order.\n\n(An invented posting. The full text of the job description is kept here.)",
+      status: "interview_2", closed: null, created: "2026-09-01",
+      dates: { applied: "2026-09-03", resume_passed: "2026-09-12", interview_1: "2026-09-24", interview_2: "2026-10-02" },
+      docs: [{ key: "tailored", title: "Tailored résumé for Fernhill Robotics", version: 3 }], tailoredVersion: 3,
+      sent: [{ title: "Tailored résumé for Fernhill Robotics", version: 2, date: "2026-09-03" }],
+      interviews: [
+        { id: "f1", date: "2026-09-24", round: "interview_1", who: "Engineering manager and one senior engineer",
+          how: "Fifty minutes on video. They cared most about the batch-to-stream move and what broke during it. I ran long on the first answer and had to rush the last one.",
+          questions: ["Tell us about a migration that went wrong, and what you changed afterwards.", "How do you make order intake safe to retry?", "What would you want to know in your first two weeks?"],
+          recordings: [{ type: "file", name: "fernhill-first-interview.m4a", size: 46, minutes: 52, date: "2026-09-24" }] },
+        { id: "f2", date: "2026-10-02", round: "interview_2", who: "R. Halloran, VP Engineering",
+          how: "A system design hour. I drew the fleet service; the hard part was two robots claiming one order. They said to expect word within two weeks.",
+          questions: ["Design the service that assigns orders to robots.", "Two robots claim the same order. What happens?", "Where would you not use an event stream?", "What do you want from a manager?"],
+          recordings: [{ type: "link", url: "https://meet.example.com/rec/fernhill-second", label: "Their recording of the call" }] },
+      ] },
+    { id: "hinata", company: "株式会社ひなた物流システム", position: "バックエンドエンジニア（基幹システム刷新）", link: "https://jobs.example.com/hinata-logi/backend",
+      requirements: ["Kotlin または Go での開発経験 5年以上", "PostgreSQL の設計・運用経験", "要件定義から参画した経験"],
+      jd: SAMPLE_JA, status: "resume_passed", closed: null, created: "2026-09-10",
+      dates: { applied: "2026-09-12", resume_passed: "2026-09-22" },
+      docs: [{ key: "rirekisho", title: "履歴書", version: 4 }, { key: "shokumu", title: "職務経歴書", version: 6 }], tailoredVersion: 0,
+      sent: [{ title: "履歴書", version: 4, date: "2026-09-12" }, { title: "職務経歴書", version: 6, date: "2026-09-12" }], interviews: [] },
+    { id: "bracken", company: "Brackenridge Mobility", position: "Platform Engineer", link: "",
+      requirements: ["Kubernetes in production", "Infrastructure as code"],
+      jd: "Brackenridge Mobility — Platform Engineer\n\n(An invented posting. The full text of the job description is kept here.)", status: "applied", closed: null, created: "2026-09-18",
+      dates: { applied: "2026-09-20" }, docs: [{ key: "main", title: "Main résumé", version: 7 }], tailoredVersion: 0,
+      sent: [{ title: "Main résumé", version: 7, date: "2026-09-20" }], interviews: [] },
+    { id: "marlowe", company: "Marlowe & Finch Insurance", position: "Platform Engineer", link: "",
+      requirements: ["JVM services", "Regulated environments"],
+      jd: "Marlowe & Finch Insurance — Platform Engineer\n\n(An invented posting. The full text of the job description is kept here.)", status: "applied", closed: { kind: "rejected", date: "2026-09-18" }, created: "2026-08-27",
+      dates: { applied: "2026-08-28" }, docs: [{ key: "main", title: "Main résumé", version: 7 }], tailoredVersion: 0,
+      sent: [{ title: "Main résumé", version: 7, date: "2026-08-28" }], interviews: [] },
+    { id: "tallow", company: "Tallow Street Games", position: "Server Engineer", link: "",
+      requirements: ["Realtime multiplayer back ends", "C# or Go"],
+      jd: "Tallow Street Games — Server Engineer\n\n(An invented posting. The full text of the job description is kept here.)", status: "resume_passed", closed: { kind: "withdrawn", date: "2026-09-15" }, created: "2026-08-30",
+      dates: { applied: "2026-09-01", resume_passed: "2026-09-09" }, docs: [{ key: "main", title: "Main résumé", version: 6 }], tailoredVersion: 0,
+      sent: [{ title: "Main résumé", version: 6, date: "2026-09-01" }], interviews: [] },
+  ];
+}
+
+const S = {
+  theme: "light", device: "desktop", seed: "sample",
+  apps: seed(), view: "list", appId: null, filter: "all", quietOnly: false,
+  menu: false, flash: null, flashTimer: null,
+  job: { step: "paste", text: "", link: "", company: "", position: "", requirements: [], found: true },
+  moved: null,          // the last status change, for the "Saved today's date" line and Undo
+  editDate: null,       // which date is open for correction
+  pick: false,          // the "use a document you already have" picker
+  iv: null,             // the interview form draft
+  attach: null,         // { ivId, mode: 'menu'|'link'|'uploading', pct, name, size }
+  copy: null,           // index of the frozen copy being read
+  removing: null,       // the recording being asked about, as "interviewId:index"
+  showJd: false,
+};
+
+/* ------------------------------------------------------------- helpers */
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const daysBetween = (a, b) => Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
+const ago = (d) => { const n = daysBetween(d, TODAY); return n <= 0 ? "today" : n === 1 ? "1 day ago" : `${n} days ago`; };
+const days = (n) => (n === 1 ? "1 day" : `${n} days`);
+const app = () => S.apps.find((a) => a.id === S.appId);
+function lastChange(a) {
+  const all = [a.created, ...Object.values(a.dates), ...(a.closed ? [a.closed.date] : []), ...a.interviews.map((i) => i.date), ...a.sent.map((s) => s.date)];
+  return all.sort().at(-1);
+}
+const quietFor = (a) => (!a.closed && WAITING.includes(a.status) ? daysBetween(lastChange(a), TODAY) : 0);
+const isQuiet = (a) => quietFor(a) >= QUIET_DAYS;
+const bucket = (a) => (a.closed ? a.closed.kind : a.status.startsWith("interview") ? "interviews" : a.status);
+const statusText = (a) => (a.closed ? CLOSED[a.closed.kind] : stepLabel(a.status));
+const sorted = () => [...S.apps].sort((x, y) => (lastChange(x) < lastChange(y) ? 1 : -1));
+const button = (variant, act, label, attrs = "") => `<button type="button" class="btn btn-${variant}" data-act="${act}" ${attrs}>${label}</button>`;
+function flash(text) {
+  S.flash = text; clearTimeout(S.flashTimer);
+  S.flashTimer = setTimeout(() => { S.flash = null; const f = document.getElementById("flash"); if (f) f.remove(); }, 4200);
+}
+
+/* --------------------------------------------------------------- chrome */
+function sidebar() {
+  const quiet = S.apps.filter(isQuiet).length;
+  const rows = ["Home", "Record", "Skills", "Documents", "Flagged", "Master document"];
+  return `<nav class="sidebar" aria-label="Main">
+    <div class="brand"><span class="app-mark" aria-hidden="true"></span><span class="wordmark">Track Record</span></div>
+    <ul class="nav">
+      ${rows.map((r) => `<li><button type="button" data-act="elsewhere" data-v="${r}">${r}</button></li>`).join("")}
+      <li><button type="button" class="active" data-act="go-list" aria-current="page">Applications${quiet ? `<span class="count">${quiet} gone quiet</span>` : ""}</button></li>
+    </ul>
+    <div class="side-foot">
+      <div class="who"><span class="avatar" aria-hidden="true"></span><span style="min-width:0">
+        <span class="t-smaller c-secondary" style="display:block">Sample Author</span><span class="mono c-muted" style="display:block">Personal record</span></span></div>
+      ${themeControl()}
+    </div>
+  </nav>`;
+}
+function themeControl() {
+  return `<span class="seg" role="radiogroup" aria-label="Theme">
+    <button type="button" role="radio" data-act="theme" data-v="light" aria-checked="${S.theme === "light"}">Light</button>
+    <button type="button" role="radio" data-act="theme" data-v="dark" aria-checked="${S.theme === "dark"}">Dark</button></span>`;
+}
+function shell({ title, note = "", right = "", body, crumb = false }) {
+  const head = crumb
+    ? `<h2><button type="button" class="link" style="font-size:12.5px" data-act="go-list">Applications</button> <span class="c-dim" style="font-weight:400">/</span> ${esc(title)}</h2>`
+    : `<h2>${esc(title)}</h2>`;
+  return `<div class="app">${sidebar()}
+    <div class="main">
+      <header class="header">
+        <button type="button" class="btn btn-ghost menu-btn" data-act="menu" aria-expanded="${S.menu}">Menu</button>
+        ${head}<span class="hnote">${esc(note)}</span><span class="right">${right}</span>
+      </header>
+      ${S.menu ? menuSheet() : ""}
+      <div class="content" id="content"><div class="col">${body}</div></div>
+    </div>
+    ${S.flash ? `<div class="flash" id="flash" role="status">${esc(S.flash)}</div>` : ""}
+  </div>`;
+}
+function menuSheet() {
+  const rows = ["Home", "Record", "Skills", "Documents", "Flagged", "Master document"];
+  return `<div class="sheet"><ul class="nav">
+    <li><button type="button" class="active" data-act="go-list">Applications</button></li>
+    ${rows.map((r) => `<li><button type="button" data-act="elsewhere" data-v="${r}">${r}</button></li>`).join("")}
+    </ul>
+    <p class="t-small c-muted" style="padding:0 20px">On a phone, Applications is the part that works. The other screens still ask for a wider window.</p>
+    <div class="side-foot">${themeControl()}</div></div>`;
+}
+const intro = (what, next) => `<section aria-label="About this screen" style="display:grid;gap:6px">
+  <p class="t-ui c-secondary">${what}</p>${next ? `<p class="t-ui c-strong next"><b>Next:</b> ${next}</p>` : ""}</section>`;
+
+/* ----------------------------------------------------------------- list */
+function listScreen() {
+  const all = sorted();
+  const add = button("primary", "go-new", "Add a job");
+  const what = "Every job you are looking at or have applied for. Each one keeps its job description, the résumé you sent, where it stands and how the interviews went.";
+  if (all.length === 0) {
+    return shell({ title: "Applications", note: "Jobs, the résumé sent for each, and how it went", right: add, body: `
+      ${intro(what, "add the first job you are looking at.")}
+      <div class="empty">
+        <h3 class="t-page">No applications yet</h3>
+        <p class="t-ui c-secondary" style="max-width:520px">Paste a job description to start. The company, the position and the key requirements are read out of it for you to check. After that the application holds the résumé you send, each step and its date, and a note of every interview.</p>
+        ${button("primary", "go-new", "Add a job")}
+        <p class="t-small c-muted" style="max-width:520px">A job description is kept with its application. It is never a source of facts about you.</p>
+      </div>` });
+  }
+  const quiet = all.filter(isQuiet);
+  const counts = {}; all.forEach((a) => { counts[bucket(a)] = (counts[bucket(a)] ?? 0) + 1; });
+  const pills = [["all", "All", all.length], ["not_applied", "Not applied"], ["applied", "Applied"], ["resume_passed", "Résumé passed"],
+    ["interviews", "Interviews"], ["offer", "Offer"], ["rejected", "Rejected"], ["withdrawn", "Withdrawn"]];
+  let shown = all.filter((a) => S.filter === "all" || bucket(a) === S.filter);
+  if (S.quietOnly) shown = shown.filter(isQuiet);
+  const next = quiet.length
+    ? `${quiet.length === 1 ? "1 application has" : `${quiet.length} applications have`} gone quiet. Follow up, or close them as rejected or withdrawn.`
+    : "nothing is waiting here. Add a job, or open one to note how an interview went.";
+  return shell({ title: "Applications", note: "Jobs, the résumé sent for each, and how it went", right: add, body: `
+    ${intro(what, next)}
+    <div class="filters" role="group" aria-label="Show">
+      ${pills.map(([id, label, n]) => `<button type="button" class="pill ${S.filter === id ? "on" : ""}" aria-pressed="${S.filter === id}" data-act="filter" data-v="${id}">${label} ${n ?? counts[id] ?? 0}</button>`).join("")}
+      <span class="sep" aria-hidden="true"></span>
+      <button type="button" class="pill ${S.quietOnly ? "on" : ""}" aria-pressed="${S.quietOnly}" data-act="quiet-only">Gone quiet ${quiet.length}</button>
+    </div>
+    <section class="panel" style="padding:6px">
+      ${shown.length === 0 ? `<p class="t-small c-muted" style="padding:12px 10px">No application matches. <button type="button" class="link" data-act="filter" data-v="all">Show all</button></p>` : `
+      <ul class="app-list">${shown.map(rowOf).join("")}</ul>`}
+    </section>
+    <p class="t-smaller c-muted">Newest activity first. Gone quiet means nothing has changed for ${QUIET_DAYS} days while you are waiting to hear back. Nothing is emailed and nothing is sent to anyone.</p>` });
+}
+function rowOf(a) {
+  const q = isQuiet(a);
+  const since = [];
+  if (!a.closed && a.dates.resume_passed) since.push(`${days(daysBetween(a.dates.resume_passed, TODAY))} since the résumé passed`);
+  if (!a.closed && a.dates.interview_1) since.push(`${days(daysBetween(a.dates.interview_1, TODAY))} since the first interview`);
+  const resume = a.sent.length ? a.sent.map((s) => `${s.title} v${s.version}`).join(" + ") : a.docs.length ? `${a.docs.map((d) => `${d.title} v${d.version}`).join(" + ")}, not sent` : "No résumé yet";
+  return `<li class="${a.closed ? "closed" : ""}"><button type="button" class="app-row" data-act="open" data-v="${a.id}" aria-label="Open ${esc(a.company)}">
+    <span class="grow">
+      <span class="t-row">${esc(a.company)}</span>
+      <span class="t-small c-muted">${esc(a.position)}</span>
+      <span class="meta t-small c-muted"><span>${esc(resume)}</span>${since.map((s) => `<span>${s}</span>`).join("")}</span>
+    </span>
+    <span class="side">
+      <span class="status ${a.closed || a.status === "not_applied" ? "c-muted" : "c-accent"}"><span class="dot ${a.closed || a.status === "not_applied" ? "muted" : "accent"}"></span>${statusText(a)}</span>
+      ${q ? `<span class="chip quiet">Gone quiet · ${days(quietFor(a))}</span>` : `<span class="t-smaller c-muted">Last change ${ago(lastChange(a))}</span>`}
+    </span></button></li>`;
+}
+
+/* -------------------------------------------------------------- add job */
+function newScreen() {
+  const j = S.job;
+  let body;
+  if (j.step === "paste" || j.step === "reading") {
+    const reading = j.step === "reading";
+    body = `${intro("Paste the job description. The company, the position and the key requirements are read out of it, and you check them before anything is saved.", "paste the text of the posting below.")}
+    <section class="panel"><header><h3 class="t-panel">New application</h3>
+      <span class="actions"><span class="t-smaller c-muted">Prototype only:</span>
+        <button type="button" class="btn btn-bare" data-act="sample-jd" data-v="en">fill with a sample posting</button>
+        <button type="button" class="btn btn-bare" data-act="sample-jd" data-v="ja">日本語の例</button></span></header>
+      <div style="display:grid;gap:12px">
+        <label class="field"><span>Job description</span>
+          <textarea class="input" id="jd" rows="12" placeholder="Paste the posting here." ${reading ? "readonly" : ""}>${esc(j.text)}</textarea></label>
+        <label class="field"><span>Link to the posting, if you have one</span>
+          <input class="input" id="jdlink" type="url" inputmode="url" placeholder="https://" value="${esc(j.link)}" ${reading ? "readonly" : ""} /></label>
+        ${reading ? `<div class="notice" role="status"><span class="dot accent working"></span>Reading the job description. This takes a few seconds.</div>` : `
+        <div class="actions">
+          <span class="t-smaller c-muted" style="flex:1;min-width:200px">It is kept with this application and is never a source of facts about you.</span>
+          ${button("bare", "go-list", "Cancel")}${button("primary", "read-jd", "Read it")}
+        </div>`}
+        ${j.error ? `<p role="alert" class="t-smaller c-removed">${esc(j.error)}</p>` : ""}
+      </div></section>`;
+  } else {
+    body = `${intro("This is what was read from the job description. Correct anything that is wrong, then save.", j.found ? "check the three fields, then save the application." : "the company and the position could not be found in the text. Type them in, then save.")}
+    <section class="panel"><header><h3 class="t-panel">Check what was read</h3>${button("bare", "back-to-text", "Back to the text")}</header>
+      <div style="display:grid;gap:12px">
+        <div class="two">
+          <label class="field"><span>Company</span><input class="input" id="f-company" value="${esc(j.company)}" placeholder="Not found in the text. Type it in." /></label>
+          <label class="field"><span>Position</span><input class="input" id="f-position" value="${esc(j.position)}" placeholder="Not found in the text. Type it in." /></label>
+        </div>
+        <div class="field"><span>Key requirements</span>
+          <div style="display:grid;gap:6px" id="reqs">
+            ${j.requirements.map((r, i) => `<div class="req-edit"><input class="input" data-req="${i}" value="${esc(r)}" aria-label="Requirement ${i + 1}" />${button("bare", "req-del", "Remove", `data-v="${i}"`)}</div>`).join("")}
+            ${j.requirements.length === 0 ? `<p class="t-small c-muted">None found. Add the ones that matter to you, or leave this empty.</p>` : ""}
+          </div>
+          <div>${button("ghost", "req-add", "Add a requirement")}</div>
+        </div>
+        ${j.link ? `<p class="t-small c-muted">Link: ${esc(j.link)}</p>` : ""}
+        <div class="actions"><span class="t-smaller c-muted" style="flex:1;min-width:200px">Saved as Not applied. You choose its résumé next.</span>
+          ${button("bare", "go-list", "Cancel")}${button("primary", "save-job", "Save application")}</div>
+        ${j.error ? `<p role="alert" class="t-smaller c-removed">${esc(j.error)}</p>` : ""}
+      </div></section>`;
+  }
+  return shell({ title: "Add a job", crumb: true, body });
+}
+/* A stand-in for the model call: the two sample postings read cleanly, anything else shows the not-found state. */
+function readJob(text) {
+  if (text.includes("Lumen Health Cooperative")) return { found: true, company: "Lumen Health Cooperative", position: "Staff Software Engineer",
+    requirements: ["7+ years building backend services, in TypeScript or Kotlin", "PostgreSQL in production, including a no-downtime migration", "Has led a move off a legacy system end to end", "On call one week in six"] };
+  if (text.includes("ひなた物流システム")) return { found: true, company: "株式会社ひなた物流システム", position: "バックエンドエンジニア（基幹システム刷新）",
+    requirements: ["Kotlin または Go での開発経験 5年以上", "PostgreSQL の設計・運用経験", "要件定義から参画した経験"] };
+  const first = text.trim().split("\n")[0].slice(0, 80);
+  const parts = first.split(/\s[—–-]\s/);
+  if (parts.length >= 2) return { found: true, company: parts[0].trim(), position: parts.slice(1).join(" - ").trim(), requirements: [] };
+  return { found: false, company: "", position: "", requirements: [] };
+}
+
+/* ---------------------------------------------------------- application */
+function nextLine(a) {
+  if (a.closed) return "this application is closed. Reopen it if that changes.";
+  if (isQuiet(a)) return `nothing has changed for ${days(quietFor(a))}. Follow up, or close it as rejected or withdrawn.`;
+  if (a.status === "not_applied") return a.docs.length ? "when you have sent it, move this to Applied. The résumé is frozen as sent at that moment." : "choose the résumé for this job: make a tailored one, or use a document you already have.";
+  if (a.status === "offer") return "nothing is waiting here.";
+  if (a.status.startsWith("interview")) return "after the next interview, add how it went while you still remember it.";
+  return "wait to hear back. When you do, move it to the next step.";
+}
+function appScreen() {
+  const a = app();
+  const head = `<div style="display:grid;gap:4px">
+      <h3 class="t-page">${esc(a.company)}</h3>
+      <p class="t-ui c-secondary">${esc(a.position)}</p>
+      <div class="actions" style="margin-top:4px">
+        <span class="status ${a.closed || a.status === "not_applied" ? "c-muted" : "c-accent"}"><span class="dot ${a.closed || a.status === "not_applied" ? "muted" : "accent"}"></span>${statusText(a)}</span>
+        ${isQuiet(a) ? `<span class="chip quiet">Gone quiet · ${days(quietFor(a))}</span>` : ""}
+        ${a.link ? `<button type="button" class="link" data-act="unwired" data-v="Opens the posting in a new tab: ${esc(a.link)}">Open the posting</button>` : ""}
+      </div></div>`;
+  return shell({ title: a.company, crumb: true, body: `
+    ${head}
+    <p class="t-ui c-strong next"><b>Next:</b> ${nextLine(a)}</p>
+    ${standing(a)}${resumePanel(a)}${interviewsPanel(a)}${jobPanel(a)}${practicePanel(a)}` });
+}
+
+function standing(a) {
+  const cur = stepIndex(a.status);
+  const stepsHtml = STEPS.map((s, i) => {
+    const reached = i < cur || (i === cur);
+    const cls = i === cur && !a.closed ? "now" : i <= cur ? "done" : "";
+    const date = s.id === "not_applied" ? a.created : a.dates[s.id];
+    let when;
+    if (S.editDate === s.id) when = dateEditor(s.id, date ?? TODAY);
+    else if (date && reached) when = `${s.id === "not_applied" ? "added " : ""}<button type="button" class="datebtn" data-act="edit-date" data-v="${s.id}" title="Correct this date">${date}</button>`;
+    else if (reached) when = `<span class="c-muted">skipped</span> <button type="button" class="btn btn-bare" data-act="edit-date" data-v="${s.id}">add a date</button>`;
+    else when = "";
+    return `<li class="step ${cls}"><div class="rail"><span class="node"></span><span class="line"></span></div>
+      <div class="name">${s.label}</div><div class="when">${when}</div></li>`;
+  }).join("");
+  const rp = a.dates.resume_passed, i1 = a.dates.interview_1, lc = lastChange(a);
+  const stat = (v, label, off) => `<div class="stat ${off ? "off" : ""}"><div class="v">${v}</div><div class="t-small c-muted">${label}</div></div>`;
+  const stats = `<div class="stats">
+    ${stat(rp ? `${daysBetween(rp, TODAY)} <small>days</small>` : "–", rp ? "since the résumé passed" : "since the résumé passed: not reached, or no date", !rp)}
+    ${stat(i1 ? `${daysBetween(i1, TODAY)} <small>days</small>` : "–", i1 ? "since the first interview" : "since the first interview: not reached, or no date", !i1)}
+    ${stat(`${daysBetween(lc, TODAY)} <small>days</small>`, a.closed ? "since it was closed" : `since the last change${WAITING.includes(a.status) ? `. Gone quiet at ${QUIET_DAYS}` : ""}`, false)}
+  </div>`;
+  let controls;
+  if (a.closed) {
+    const editing = S.editDate === "closed";
+    controls = `<div class="notice"><span>${CLOSED[a.closed.kind]} on ${editing ? dateEditor("closed", a.closed.date) : `<button type="button" class="datebtn" data-act="edit-date" data-v="closed" title="Correct this date">${a.closed.date}</button>`}, after ${stepLabel(a.status)}.</span>
+      <span style="margin-left:auto">${button("ghost", "reopen", "Reopen")}</span></div>`;
+  } else {
+    const nxt = STEPS[cur + 1];
+    const freeze = a.status === "not_applied" && a.docs.length ? ` It also freezes ${a.docs.map((d) => `${esc(d.title)} v${d.version}`).join(" and ")} as sent.` : "";
+    controls = `<div class="actions">
+      ${nxt ? button("primary", "move", `Move to ${nxt.label}`, `data-v="${nxt.id}"`) : ""}
+      <label class="t-small c-muted" style="display:inline-flex;gap:6px;align-items:center">or set
+        <select class="input" id="set-step" style="min-height:28px;padding:2px 6px;width:auto" aria-label="Set another step">
+          <option value="">another step…</option>
+          ${STEPS.filter((s, i) => i !== cur && i !== cur + 1).map((s) => `<option value="${s.id}">${s.label}</option>`).join("")}
+        </select></label>
+      <span style="margin-left:auto;display:flex;gap:8px">${button("ghost", "close", "Mark as rejected", `data-v="rejected"`)}${button("ghost", "close", "Withdraw", `data-v="withdrawn"`)}</span>
+    </div>
+    <p class="t-smaller c-muted">A step saves today's date when you set it, and you can correct the date afterwards. A step you never went through can be skipped.${freeze}</p>`;
+  }
+  const moved = S.moved && S.moved.appId === a.id ? `<div class="notice" role="status"><span>${esc(S.moved.text)}</span>
+      <span style="margin-left:auto;display:flex;gap:8px">${S.moved.dateKey ? button("bare", "edit-date", "Change the date", `data-v="${S.moved.dateKey}"`) : ""}${button("bare", "undo", "Undo")}</span></div>` : "";
+  return `<section class="panel"><header><h3 class="t-panel">Where it stands</h3></header>
+    <div style="display:grid;gap:14px"><ol class="steps">${stepsHtml}</ol>${moved}${stats}${controls}</div></section>`;
+}
+function dateEditor(key, value) {
+  return `<span class="dateedit"><input type="date" class="input" id="date-in" value="${value}" max="${TODAY}" aria-label="Date" />
+    ${button("ghost", "save-date", "Save", `data-v="${key}"`)}${button("bare", "cancel-date", "Cancel")}</span>`;
+}
+
+function resumePanel(a) {
+  const applied = a.status !== "not_applied";
+  const picker = `<div class="card" style="display:grid;gap:8px">
+      <h4 class="t-row">Use a document you already have</h4>
+      <p class="t-small c-muted">Tick the ones you are sending. A Japanese application usually sends 履歴書 and 職務経歴書 together.</p>
+      ${EXISTING.map((d) => `<label class="check"><input type="checkbox" name="pick" value="${d.key}" ${a.docs.some((x) => x.key === d.key) ? "checked" : ""} />
+        <span><span class="t-row">${d.title}</span><span class="t-small c-muted" style="display:block">${d.lang} · version ${d.version}, the one current today</span></span></label>`).join("")}
+      <div class="actions">${button("secondary", "use-picked", "Use the ticked documents")}${S.pick ? button("bare", "pick-close", "Cancel") : ""}</div></div>`;
+  let body;
+  if (a.docs.length === 0 && !applied) {
+    body = `<div class="two">
+      <div class="card" style="display:grid;gap:8px;align-content:start">
+        <h4 class="t-row">Make a tailored résumé</h4>
+        <p class="t-small c-muted">Written for this job from the same facts as your main résumé. The job description decides what leads and what is left out; it never adds a claim that is not in your record. You read it as a set of changes before it becomes a version. English only for now.</p>
+        <div>${button("primary", "tailor", "Make a tailored résumé")}</div></div>
+      ${picker}</div>`;
+  } else {
+    const rows = a.docs.map((d, i) => {
+      const sentV = a.sent.filter((s) => s.title === d.title).map((s) => s.version).sort().at(-1);
+      const ahead = sentV && d.version > sentV;
+      return `<li><div class="grow"><div class="t-row">${esc(d.title)}</div>
+          <div class="t-small c-muted">Version ${d.version}${d.key === "tailored" ? " · written for this job" : " · the same document as on Home"}${ahead ? ` · newer than the v${sentV} you sent` : ""}</div></div>
+        <div class="side">
+          <button type="button" class="link" data-act="unwired" data-v="Opens the existing Version history screen for this document.">History</button>
+          <button type="button" class="link" data-act="unwired" data-v="Downloads the current version as a Word file, as on Home.">Download</button>
+          ${d.key === "tailored" ? button("ghost", "tailor", "Regenerate") : ""}
+          ${!applied ? button("bare", "doc-remove", "Take off", `data-v="${i}"`) : ""}
+        </div></li>`;
+    }).join("");
+    body = `${a.docs.length ? `<ul class="rows">${rows}</ul>` : `<p class="t-small c-muted">No résumé is recorded for this application.</p>`}
+      <div class="actions" style="margin-top:10px">
+        ${!a.docs.some((d) => d.key === "tailored") ? button("ghost", "tailor", "Make a tailored résumé") : ""}
+        ${S.pick ? "" : button("ghost", "pick-open", applied ? "Record another document you sent" : "Add a document you already have")}
+      </div>
+      ${S.pick ? `<div style="margin-top:10px">${picker}</div>` : ""}`;
+  }
+  const sent = a.sent.length ? `<div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border-inner)">
+      <h4 class="t-panel" style="margin-bottom:4px">What you sent</h4>
+      <p class="t-small c-muted" style="margin-bottom:6px">A frozen copy is the file exactly as it was on the day. It does not change when the résumé or your record changes later.</p>
+      <ul class="rows">${a.sent.map((s, i) => `<li><div class="grow"><div class="t-row">${esc(s.title)} <span class="chip" style="margin-left:6px">v${s.version} · frozen</span></div>
+        <div class="t-small c-muted">Sent ${s.date}</div></div>
+        <div class="side"><button type="button" class="link" data-act="read-copy" data-v="${i}">Read it</button>
+          <button type="button" class="link" data-act="unwired" data-v="Downloads the Word file exactly as it was sent.">Download</button></div></li>`).join("")}</ul></div>`
+    : applied ? `<p class="t-small c-muted" style="margin-top:10px">No sent copy is recorded. Use “Record another document you sent” to add one.</p>` : "";
+  return `<section class="panel" id="resume"><header><h3 class="t-panel">Résumé for this job</h3></header>${body}${sent}</section>`;
+}
+
+function interviewsPanel(a) {
+  const rounds = { interview_1: "First interview", interview_2: "Second interview", interview_final: "Final interview", other: "Other conversation" };
+  const list = [...a.interviews].sort((x, y) => (x.date < y.date ? 1 : -1)).map((iv) => `<li class="card iv">
+      <div class="iv-head"><span class="t-row">${rounds[iv.round]}</span><span class="mono c-muted">${iv.date}</span>
+        ${iv.who ? `<span class="t-small c-muted">with ${esc(iv.who)}</span>` : ""}</div>
+      ${iv.how ? `<p class="t-ui" style="color:var(--text-body);line-height:1.55">${esc(iv.how)}</p>` : ""}
+      ${iv.questions.length ? `<div><div class="t-small c-muted" style="margin-bottom:4px">Questions asked</div><ol class="qs">${iv.questions.map((q) => `<li>${esc(q)}</li>`).join("")}</ol></div>` : ""}
+      ${iv.recordings.map((r, i) => recRow(r, i, iv)).join("")}
+      ${S.attach && S.attach.ivId === iv.id ? attachBox() : `<div class="actions">${button("ghost", "attach-open", "Attach a recording", `data-v="${iv.id}"`)}</div>`}
+    </li>`).join("");
+  const form = S.iv ? interviewForm(rounds) : "";
+  return `<section class="panel" id="interviews"><header><h3 class="t-panel">Interviews</h3>${S.iv ? "" : button("ghost", "iv-new", "Add an interview")}</header>
+    ${form}
+    ${a.interviews.length === 0 && !S.iv ? `<p class="t-small c-muted">None yet. After each one, note the date, who you spoke with, how it went and the questions they asked.</p>` : `<ul style="display:grid;gap:8px;${S.iv ? "margin-top:10px" : ""}">${list}</ul>`}
+  </section>`;
+}
+function recRow(r, i, iv) {
+  const key = `${iv.id}:${i}`;
+  if (r.type === "removed") return `<p class="t-small c-muted">A recording was removed on ${r.date}.</p>`;
+  if (S.removing === key) return `<div class="rec" role="alertdialog" aria-label="Remove this recording"><span class="grow t-small c-secondary">Remove ${esc(r.name || r.label || "this link")} for good? ${r.type === "file" ? "The file is deleted from storage and cannot be brought back." : "Only the link is removed; the recording stays where it lives."} The interview keeps a line saying one was removed.</span>
+      ${button("secondary", "rec-remove-yes", "Remove it", `data-v="${key}"`)}${button("bare", "rec-remove-no", "Keep it")}</div>`;
+  const remove = `<button type="button" class="link" data-act="rec-remove" data-v="${key}">Remove</button>`;
+  if (r.type === "link") return `<div class="rec"><span class="chip">Link</span><span class="grow"><span class="t-row">${esc(r.label || "Recording kept elsewhere")}</span>
+      <span class="t-small c-muted" style="display:block;overflow-wrap:anywhere">${esc(r.url)}</span></span>
+      <button type="button" class="link" data-act="unwired" data-v="Opens the link in a new tab. The recording stays where it is; only the link is kept here.">Open</button>${remove}</div>`;
+  return `<div class="rec"><span class="chip">${/\.(mp4|mov|webm)$/i.test(r.name) ? "Video" : "Audio"}</span><span class="grow"><span class="t-row">${esc(r.name)}</span>
+      <span class="t-small c-muted" style="display:block">${r.size} MB${r.minutes ? ` · ${r.minutes} min` : ""} · uploaded ${r.date} · only you can play it</span></span>
+      ${button("ghost", "unwired", "Play", `data-v="Plays the recording here, in the page. Playback is not wired in the prototype."`)}
+      <button type="button" class="link" data-act="unwired" data-v="Downloads the original file.">Download</button>${remove}</div>`;
+}
+function attachBox() {
+  const t = S.attach;
+  if (t.mode === "uploading") return `<div class="rec" role="status"><span class="dot accent working"></span><span class="grow">
+      <span class="t-row">Uploading ${esc(t.name)}</span>
+      <span class="bar" style="display:block;margin:6px 0"><i id="up-bar" style="width:${t.pct}%"></i></span>
+      <span class="t-small c-muted" id="up-text">${Math.round(t.size * t.pct / 100)} of ${t.size} MB. Keep this page open.</span></span></div>`;
+  if (t.mode === "link") return `<div class="card" style="display:grid;gap:8px">
+      <label class="field"><span>Link to the recording</span><input class="input" id="rec-url" type="url" placeholder="https://" /></label>
+      <label class="field"><span>What it is, in a few words</span><input class="input" id="rec-label" placeholder="Their recording of the call" /></label>
+      <p class="t-small c-muted">Only the link is kept. If the recording is taken down where it lives, it is gone here too.</p>
+      <div class="actions">${button("secondary", "attach-link-save", "Add the link")}${button("bare", "attach-close", "Cancel")}</div>
+      ${t.error ? `<p role="alert" class="t-smaller c-removed">${esc(t.error)}</p>` : ""}</div>`;
+  return `<div class="card" style="display:grid;gap:8px">
+      <div class="actions">
+        <input type="file" id="rec-file" accept="audio/*,video/*" hidden />
+        ${button("secondary", "attach-choose", "Upload audio or video")}
+        ${button("ghost", "attach-link", "Add a link instead")}
+        ${button("bare", "attach-sample", "Prototype only: use a sample file")}
+        ${button("bare", "attach-close", "Cancel")}
+      </div>
+      <p class="t-small c-muted">Audio or video, up to 2 GB a file. It is stored privately and only you, signed in, can play it. Other people's voices are on it, so nothing here shares it or sends it anywhere.</p>
+      ${t.error ? `<p role="alert" class="t-smaller c-removed">${esc(t.error)}</p>` : ""}</div>`;
+}
+function interviewForm(rounds) {
+  const d = S.iv;
+  return `<div class="card" style="display:grid;gap:12px">
+    <h4 class="t-row">New interview</h4>
+    <div class="two">
+      <label class="field"><span>Date</span><input class="input" type="date" id="iv-date" value="${d.date}" max="${TODAY}" /></label>
+      <label class="field"><span>Round</span><select class="input" id="iv-round">${Object.entries(rounds).map(([k, v]) => `<option value="${k}" ${d.round === k ? "selected" : ""}>${v}</option>`).join("")}</select></label>
+    </div>
+    <label class="field"><span>Who you spoke with</span><input class="input" id="iv-who" value="${esc(d.who)}" placeholder="Names or roles. Kept only here." /></label>
+    <label class="field"><span>How it went</span><textarea class="input" id="iv-how" rows="4" placeholder="What it was like, what landed, what you would answer differently.">${esc(d.how)}</textarea></label>
+    <div class="field"><span>Questions asked</span>
+      ${d.questions.length ? `<ol class="qs">${d.questions.map((q, i) => `<li>${esc(q)} ${button("bare", "ivq-del", "Remove", `data-v="${i}"`)}</li>`).join("")}</ol>` : ""}
+      <div class="req-edit"><input class="input" id="iv-q" placeholder="One question, then Enter" aria-label="A question they asked" />${button("ghost", "ivq-add", "Add")}</div>
+      <span class="t-small c-muted" style="font-size:11.5px">Pasting several lines adds them all at once.</span>
+    </div>
+    <p class="t-small c-muted">A recording is attached after you save, from the interview's own card.</p>
+    <div class="actions">${button("primary", "iv-save", "Save interview")}${button("bare", "iv-cancel", "Cancel")}</div>
+    ${d.error ? `<p role="alert" class="t-smaller c-removed">${esc(d.error)}</p>` : ""}
+  </div>`;
+}
+
+function jobPanel(a) {
+  return `<section class="panel"><header><h3 class="t-panel">The job</h3>${button("ghost", "unwired", "Edit", `data-v="Opens the same three fields as when you added the job, to correct them."`)}</header>
+    <dl class="kv">
+      <dt>Company</dt><dd>${esc(a.company)}</dd>
+      <dt>Position</dt><dd>${esc(a.position)}</dd>
+      ${a.link ? `<dt>Posting</dt><dd>${esc(a.link)}</dd>` : ""}
+      <dt>Key requirements</dt><dd>${a.requirements.length ? `<ul class="reqs">${a.requirements.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>` : `<span class="c-muted">None noted</span>`}</dd>
+    </dl>
+    <details ${S.showJd ? "open" : ""} style="margin-top:10px"><summary>The full job description, as you pasted it</summary><div class="jd">${esc(a.jd)}</div></details>
+  </section>`;
+}
+function practicePanel(a) {
+  const n = a.interviews.reduce((sum, iv) => sum + iv.questions.length, 0);
+  return `<section class="panel"><header><h3 class="t-panel">Practise for this job</h3></header>
+    <p class="sub">Suburi, your interview practice app, can take a job description as the role for a practice round. Nothing is sent to it from here: you carry the file or the text across yourself.</p>
+    <div class="actions">
+      ${button("ghost", "unwired", "Download the job description (.txt)", `data-v="Saves the job description as a text file. Suburi already accepts a posting as a file."`)}
+      ${n ? button("ghost", "unwired", `Copy the ${n} questions asked`, `data-v="Copies the questions as plain text, one per line."`) : `<span class="t-small c-muted">Questions asked show up here once an interview has some.</span>`}
+    </div></section>`;
+}
+
+/* ------------------------------------------- tailored résumé (stand-in) */
+function diffScreen() {
+  const a = app();
+  if (S.generating) return shell({ title: `${a.company} / Tailored résumé`, crumb: true, body: `
+    <div class="notice" role="status" style="padding:12px 14px"><span class="dot accent working"></span><span class="t-row">Writing a résumé for this job</span>
+      <span class="t-small c-muted" style="flex-basis:100%">Still working, please wait. This page moves on by itself.</span></div>` });
+  return shell({ title: `${a.company} / Review changes`, crumb: true, body: `
+    <div class="notice"><span><b style="font-weight:600">A stand-in for the existing Review changes screen.</b> The real one is already built and is used unchanged: current version on the left, proposed on the right, accepted or rejected whole.</span></div>
+    <div class="card"><div class="t-small c-muted" style="margin-bottom:4px">Why it changed</div>
+      <p class="t-ui" style="color:var(--text-body)">Leads with the migration work, because the posting asks for someone who has led a move off a legacy system. Leaves out two points about mobile apps. Nothing was added that is not in your record.</p></div>
+    <div class="diffcols">
+      <div><div class="strip">Main résumé · current</div>
+        <div class="rh" style="margin-top:0">Experience</div>
+        <ul class="rb"><li>Built the customer mobile app's offline mode, used by 1,200 drivers.</li>
+          <li class="delrow"><span class="del">Ran the weekly mobile release train for two years.</span></li>
+          <li>Led the move of order intake from a nightly batch to an event stream.</li>
+          <li>Cut order-to-dispatch delay from six hours to four minutes.</li></ul></div>
+      <div><div class="strip">Tailored for ${esc(a.company)} · proposed</div>
+        <div class="rh" style="margin-top:0">Experience</div>
+        <ul class="rb"><li class="addrow"><span class="add">Led the move of order intake from a nightly batch to an event stream, from first plan to last cutover.</span></li>
+          <li>Cut order-to-dispatch delay from six hours to four minutes.</li>
+          <li class="addrow"><span class="add">Migrated 40 million order rows to PostgreSQL with no downtime.</span></li>
+          <li>Built the customer mobile app's offline mode, used by 1,200 drivers.</li></ul></div>
+    </div>
+    <div class="actions" style="justify-content:flex-end">${button("ghost", "diff-reject", "Reject")}${button("primary", "diff-accept", "Accept as a new version")}</div>` });
+}
+function copyScreen() {
+  const a = app(); const s = a.sent[S.copy];
+  const ja = /履歴書|職務経歴書/.test(s.title);
+  const text = ja ? `<h3>${esc(s.title)}</h3>
+      <p class="t-small c-muted" style="margin-top:6px">見本 太郎（サンプル）</p>
+      <div class="rh">職務要約</div>
+      <p class="rb" style="padding-left:0;list-style:none">倉庫向け受注システムの開発に9年間従事。夜間バッチからイベント駆動への移行を計画から切替まで主導し、受注から出荷指示までの時間を6時間から4分に短縮。</p>
+      <div class="rh">職務経歴</div>
+      <ul class="rb"><li>受注サービスの再設計と段階的な移行（4,000万件のデータを無停止で移行）</li><li>若手エンジニア4名の育成と設計レビュー</li></ul>`
+    : `<h3>Sample Author</h3>
+      <p class="t-small c-muted" style="margin-top:6px">sample.author@example.com</p>
+      <div class="rh">Summary</div>
+      <p class="rb" style="padding-left:0;list-style:none">Backend engineer with nine years building order and dispatch systems for warehouses. Led a batch-to-stream migration from first plan to last cutover.</p>
+      <div class="rh">Experience</div>
+      <ul class="rb"><li>Led the move of order intake from a nightly batch to an event stream, from first plan to last cutover.</li>
+        <li>Cut order-to-dispatch delay from six hours to four minutes.</li>
+        <li>Migrated 40 million order rows to PostgreSQL with no downtime.</li>
+        <li>Mentored four engineers through their first on-call rotations.</li></ul>`;
+  return shell({ title: `${a.company} / ${s.title} as sent`, crumb: true, body: `
+    <div class="notice"><span class="chip">v${s.version} · frozen</span><span>Sent to ${esc(a.company)} on ${s.date}. This is the file as it was that day. It cannot be edited, and later changes to the résumé or to your record do not reach it.</span>
+      <span style="margin-left:auto;display:flex;gap:8px">${button("ghost", "unwired", "Download", `data-v="Downloads the Word file exactly as it was sent."`)}${button("bare", "open", "Back to the application", `data-v="${a.id}"`)}</span></div>
+    <article class="measure doc" style="width:100%">${text}</article>` });
+}
+
+/* ---------------------------------------------------------------- render */
+function render(keepScroll = false) {
+  const frame = document.getElementById("frame");
+  const top = document.getElementById("content")?.scrollTop ?? 0;
+  frame.dataset.theme = S.theme;
+  frame.classList.toggle("phone", S.device === "phone");
+  frame.innerHTML = { list: listScreen, new: newScreen, app: appScreen, diff: diffScreen, copy: copyScreen }[S.view]();
+  if (keepScroll) document.getElementById("content").scrollTop = top;
+  document.querySelectorAll('[data-act="device"]').forEach((b) => b.setAttribute("aria-checked", b.dataset.v === S.device));
+  document.querySelectorAll('[data-act="seed"]').forEach((b) => b.setAttribute("aria-checked", b.dataset.v === S.seed));
+}
+function go(view, patch = {}) {
+  Object.assign(S, { menu: false, editDate: null, pick: false, iv: null, attach: null, moved: view === "app" ? S.moved : null }, patch, { view });
+  render();
+}
+function scrollInFrame(id) {
+  requestAnimationFrame(() => { const c = document.getElementById("content"), el = document.getElementById(id); if (!c || !el) return;
+    c.scrollTop += el.getBoundingClientRect().top - c.getBoundingClientRect().top - 12; });
+}
+function setStatus(a, to, date = TODAY) {
+  const before = JSON.parse(JSON.stringify({ status: a.status, dates: a.dates, closed: a.closed, sent: a.sent }));
+  let frozen = "";
+  if (a.status === "not_applied" && to !== "not_applied" && a.sent.length === 0 && a.docs.length) {
+    a.sent = a.docs.map((d) => ({ title: d.title, version: d.version, date }));
+    frozen = ` ${a.docs.map((d) => `${d.title} v${d.version}`).join(" and ")} ${a.docs.length === 1 ? "was" : "were"} frozen as sent.`;
+  }
+  const from = stepIndex(a.status), target = stepIndex(to);
+  if (target < from) STEPS.slice(target + 1).forEach((s) => delete a.dates[s.id]);
+  a.status = to;
+  if (to !== "not_applied") a.dates[to] = date;
+  S.moved = { appId: a.id, before, dateKey: to === "not_applied" ? null : to, text: `Moved to ${stepLabel(to)}. Date saved as ${date}.${frozen}` };
+}
+
+const ACT = {
+  theme: (d) => { S.theme = d.v; render(true); },
+  device: (d) => { S.device = d.v; render(true); },
+  seed: (d) => { S.seed = d.v; S.apps = d.v === "empty" ? [] : seed(); S.filter = "all"; S.quietOnly = false; go("list", { appId: null, moved: null }); },
+  jump: (d) => {
+    if (d.v === "questions") return document.getElementById("questions").scrollIntoView({ behavior: "smooth" });
+    if (S.apps.length === 0 && d.v !== "list" && d.v !== "new") { S.seed = "sample"; S.apps = seed(); }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    if (d.v === "list") return go("list");
+    if (d.v === "new") { S.job = { step: "paste", text: "", link: "", company: "", position: "", requirements: [], found: true }; return go("new"); }
+    if (d.v === "app") return go("app", { appId: "fernhill", moved: null });
+    if (d.v === "quiet") return go("app", { appId: "hinata", moved: null });
+    if (d.v === "resume") { go("app", { appId: "lumen", moved: null }); return scrollInFrame("resume"); }
+    if (d.v === "copy") return go("copy", { appId: "fernhill", copy: 0 });
+    if (d.v === "interview") { go("app", { appId: "fernhill", moved: null, iv: { date: TODAY, round: "interview_final", who: "", how: "", questions: [] } }); return scrollInFrame("interviews"); }
+  },
+  menu: () => { S.menu = !S.menu; render(true); },
+  elsewhere: (d) => { S.menu = false; flash(`${d.v} is an existing screen and is not part of this prototype.`); render(true); },
+  unwired: (d) => { flash(d.v); render(true); },
+  "go-list": () => go("list", { appId: null, moved: null }),
+  "go-new": () => { S.job = { step: "paste", text: "", link: "", company: "", position: "", requirements: [], found: true }; go("new"); },
+  filter: (d) => { S.filter = d.v; if (d.v === "all") S.quietOnly = false; render(true); },
+  "quiet-only": () => { S.quietOnly = !S.quietOnly; render(true); },
+  open: (d) => go("app", { appId: d.v, moved: S.moved && S.moved.appId === d.v ? S.moved : null }),
+
+  "sample-jd": (d) => { S.job.text = d.v === "ja" ? SAMPLE_JA : SAMPLE_EN; S.job.link = d.v === "ja" ? "https://jobs.example.com/hinata-logi/backend" : "https://jobs.example.com/lumen-health/staff-software-engineer"; S.job.error = null; render(true); },
+  "read-jd": () => {
+    const text = document.getElementById("jd").value, link = document.getElementById("jdlink").value.trim();
+    S.job.text = text; S.job.link = link;
+    if (text.trim().length < 40) { S.job.error = "Paste the job description first. A few lines is enough."; return render(true); }
+    S.job.error = null; S.job.step = "reading"; render(true);
+    setTimeout(() => { if (S.view !== "new" || S.job.step !== "reading") return; Object.assign(S.job, readJob(text), { step: "confirm" }); render(); }, 1400);
+  },
+  "back-to-text": () => { collectJob(); S.job.step = "paste"; render(); },
+  "req-add": () => { collectJob(); S.job.requirements.push(""); render(true); const el = document.querySelector(`[data-req="${S.job.requirements.length - 1}"]`); el?.focus(); },
+  "req-del": (d) => { collectJob(); S.job.requirements.splice(Number(d.v), 1); render(true); },
+  "save-job": () => {
+    collectJob(); const j = S.job;
+    if (!j.company.trim() || !j.position.trim()) { j.error = "Give it a company and a position first."; return render(true); }
+    const id = "new" + Date.now();
+    S.apps.push({ id, company: j.company.trim(), position: j.position.trim(), link: j.link, requirements: j.requirements.filter((r) => r.trim()), jd: j.text,
+      status: "not_applied", closed: null, created: TODAY, dates: {}, docs: [], tailoredVersion: 0, sent: [], interviews: [] });
+    flash("Saved as Not applied."); go("app", { appId: id, moved: null });
+  },
+
+  move: (d) => { setStatus(app(), d.v); S.editDate = null; render(true); },
+  close: (d) => { const a = app(); const before = JSON.parse(JSON.stringify({ status: a.status, dates: a.dates, closed: a.closed, sent: a.sent }));
+    a.closed = { kind: d.v, date: TODAY }; S.moved = { appId: a.id, before, dateKey: "closed", text: `Marked as ${CLOSED[d.v].toLowerCase()}. Date saved as ${TODAY}.` }; render(true); },
+  reopen: () => { const a = app(); a.closed = null; S.moved = null; flash(`Reopened at ${stepLabel(a.status)}.`); render(true); },
+  undo: () => { const a = app(); Object.assign(a, S.moved.before); S.moved = null; S.editDate = null; flash("Undone."); render(true); },
+  "edit-date": (d) => { S.editDate = d.v; render(true); document.getElementById("date-in")?.focus(); },
+  "cancel-date": () => { S.editDate = null; render(true); },
+  "save-date": (d) => { const a = app(); const v = document.getElementById("date-in").value; if (!v) return;
+    if (d.v === "closed") a.closed.date = v; else if (d.v === "not_applied") a.created = v;
+    else { if (d.v === "applied") a.sent.forEach((s) => { if (s.date === a.dates.applied) s.date = v; }); a.dates[d.v] = v; }
+    S.editDate = null; if (S.moved) S.moved.text = S.moved.text.replace(/Date saved as [\d-]+\./, `Date saved as ${v}.`); flash("Date corrected. The day counts follow it."); render(true); },
+
+  tailor: () => { S.generating = true; go("diff"); setTimeout(() => { if (S.view !== "diff") return; S.generating = false; render(); }, 1500); },
+  "diff-accept": () => { const a = app(); a.tailoredVersion += 1; const title = `Tailored résumé for ${a.company}`;
+    const d = a.docs.find((x) => x.key === "tailored"); if (d) d.version = a.tailoredVersion; else a.docs.unshift({ key: "tailored", title, version: a.tailoredVersion });
+    flash(`Accepted as version ${a.tailoredVersion}.`); go("app", { appId: a.id }); scrollInFrame("resume"); },
+  "diff-reject": () => { flash("Rejected. The résumé is as it was."); go("app", { appId: S.appId }); scrollInFrame("resume"); },
+  "pick-open": () => { S.pick = true; render(true); },
+  "pick-close": () => { S.pick = false; render(true); },
+  "use-picked": () => { const a = app(); const keys = [...document.querySelectorAll('input[name="pick"]:checked')].map((i) => i.value);
+    const applied = a.status !== "not_applied"; const keep = a.docs.filter((d) => d.key === "tailored" || (applied && !keys.includes(d.key)));
+    const picked = EXISTING.filter((e) => keys.includes(e.key)).map((e) => ({ key: e.key, title: e.title, version: e.version }));
+    const added = picked.filter((p) => !a.docs.some((d) => d.key === p.key));
+    a.docs = [...keep.filter((d) => !picked.some((p) => p.key === d.key)), ...picked];
+    if (applied && added.length) { added.forEach((p) => a.sent.push({ title: p.title, version: p.version, date: TODAY })); flash(`${added.map((p) => `${p.title} v${p.version}`).join(" and ")} frozen as sent today.`); }
+    S.pick = false; render(true); },
+  "doc-remove": (d) => { app().docs.splice(Number(d.v), 1); render(true); },
+  "read-copy": (d) => go("copy", { copy: Number(d.v) }),
+
+  "iv-new": () => { const a = app(); const round = ["interview_1", "interview_2", "interview_final"].find((r) => stepIndex(r) >= stepIndex(a.status) && !a.interviews.some((i) => i.round === r)) ?? "other";
+    S.iv = { date: TODAY, round, who: "", how: "", questions: [] }; render(true); scrollInFrame("interviews"); },
+  "iv-cancel": () => { S.iv = null; render(true); },
+  "ivq-add": () => { collectIv(); addQuestions(document.getElementById("iv-q").value); render(true); document.getElementById("iv-q")?.focus(); },
+  "ivq-del": (d) => { collectIv(); S.iv.questions.splice(Number(d.v), 1); render(true); },
+  "iv-save": () => { collectIv(); addQuestions(document.getElementById("iv-q").value); const a = app(); const d = S.iv;
+    if (!d.how.trim() && d.questions.length === 0) { d.error = "Write how it went, or add at least one question."; return render(true); }
+    a.interviews.push({ id: "iv" + Date.now(), date: d.date || TODAY, round: d.round, who: d.who.trim(), how: d.how.trim(), questions: d.questions, recordings: [] });
+    S.iv = null;
+    if (!a.closed && d.round !== "other" && stepIndex(d.round) > stepIndex(a.status)) { setStatus(a, d.round, d.date || TODAY); S.moved.text = `Interview saved, and the status moved to ${stepLabel(d.round)} to match. Date saved as ${d.date || TODAY}.`; }
+    else flash("Interview saved.");
+    render(true); },
+  "attach-open": (d) => { S.attach = { ivId: d.v, mode: "menu" }; render(true); },
+  "attach-close": () => { S.attach = null; render(true); },
+  "attach-link": () => { S.attach.mode = "link"; S.attach.error = null; render(true); document.getElementById("rec-url")?.focus(); },
+  "attach-link-save": () => { const url = document.getElementById("rec-url").value.trim(), label = document.getElementById("rec-label").value.trim();
+    if (!/^https?:\/\/\S+$/.test(url)) { S.attach.error = "That does not look like a link. It should start with https://"; return render(true); }
+    app().interviews.find((i) => i.id === S.attach.ivId).recordings.push({ type: "link", url, label }); S.attach = null; flash("Link added."); render(true); },
+  "rec-remove": (d) => { S.removing = d.v; render(true); },
+  "rec-remove-no": () => { S.removing = null; render(true); },
+  "rec-remove-yes": (d) => { const [ivId, i] = d.v.split(":"); const iv = app().interviews.find((x) => x.id === ivId);
+    iv.recordings[Number(i)] = { type: "removed", date: TODAY }; S.removing = null; flash("Recording removed."); render(true); },
+  "attach-choose": () => document.getElementById("rec-file").click(),
+  "attach-sample": () => startUpload("final-interview-call.mp4", 318),
+};
+function collectJob() {
+  const c = document.getElementById("f-company"); if (!c) return;
+  S.job.company = c.value; S.job.position = document.getElementById("f-position").value;
+  S.job.requirements = [...document.querySelectorAll("[data-req]")].map((i) => i.value); S.job.error = null;
+}
+function collectIv() {
+  if (!S.iv || !document.getElementById("iv-date")) return;
+  Object.assign(S.iv, { date: document.getElementById("iv-date").value, round: document.getElementById("iv-round").value,
+    who: document.getElementById("iv-who").value, how: document.getElementById("iv-how").value, error: null });
+}
+function addQuestions(raw) { raw.split("\n").map((q) => q.replace(/^\s*(?:[-•・]|\d+[.)])\s*/, "").trim()).filter(Boolean).forEach((q) => S.iv.questions.push(q)); }
+function startUpload(name, sizeMb) {
+  if (sizeMb > 2048) { S.attach.error = `${name} is ${(sizeMb / 1024).toFixed(1)} GB. A recording can be at most 2 GB.`; S.attach.mode = "menu"; return render(true); }
+  const ivId = S.attach.ivId; S.attach = { ivId, mode: "uploading", pct: 0, name, size: Math.max(1, Math.round(sizeMb)) }; render(true);
+  const tick = setInterval(() => {
+    if (!S.attach || S.attach.mode !== "uploading") return clearInterval(tick);
+    S.attach.pct = Math.min(100, S.attach.pct + 9);
+    const bar = document.getElementById("up-bar"), text = document.getElementById("up-text");
+    if (bar) bar.style.width = S.attach.pct + "%";
+    if (text) text.textContent = `${Math.round(S.attach.size * S.attach.pct / 100)} of ${S.attach.size} MB. Keep this page open.`;
+    if (S.attach.pct >= 100) { clearInterval(tick);
+      const iv = S.apps.flatMap((a) => a.interviews).find((i) => i.id === ivId);
+      iv?.recordings.push({ type: "file", name, size: S.attach.size, minutes: null, date: TODAY }); S.attach = null; flash("Recording uploaded."); render(true); }
+  }, 260);
+}
+
+document.addEventListener("click", (e) => {
+  const b = e.target.closest("[data-act]"); if (!b || b.disabled) return;
+  const fn = ACT[b.dataset.act]; if (fn) fn(b.dataset);
+});
+document.addEventListener("change", (e) => {
+  if (e.target.id === "set-step" && e.target.value) { setStatus(app(), e.target.value); render(true); }
+  if (e.target.id === "rec-file" && e.target.files[0]) { const f = e.target.files[0]; startUpload(f.name, f.size / 1048576); }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.id === "iv-q") { e.preventDefault(); ACT["ivq-add"](); }
+});
+document.addEventListener("paste", (e) => {
+  if (e.target.id !== "iv-q") return;
+  const text = e.clipboardData.getData("text"); if (!text.includes("\n")) return;
+  e.preventDefault(); collectIv(); addQuestions(text); render(true); document.getElementById("iv-q")?.focus();
+});
+
+/* ============================================================ questions */
+const QUESTIONS = [
+  { id: "Q1", key: "phone", show: "list", title: "Should Applications work on a phone?",
+    why: "Today the whole app refuses any window narrower than a laptop and says so. Applications is the one place a phone is useful: you come out of an interview and want to note the questions before you forget them.",
+    applied: "Applications works at phone width. The other screens keep asking for a wider window.",
+    options: ["Keep as shown: Applications works on a phone, the rest does not", "Keep the whole app desktop only, Applications included", "Make every screen work on a phone (a much larger job)"] },
+  { id: "Q2", key: "tailored-screen", show: "list", title: "What happens to the Tailored résumés screen you already have?",
+    why: "A Tailored résumés screen was built on 2026-10-08, with its own row in the sidebar and a section on Home. With Applications, a tailored résumé lives inside its job, so there would be two places for the same thing.",
+    applied: "Applications takes the place of the Tailored résumés row. Each tailored résumé you already made becomes an application at Not applied, carrying its job description, and you confirm the company and position once.",
+    options: ["Keep as shown: Applications replaces it, existing ones are carried over", "Keep both screens side by side"] },
+  { id: "Q3", key: "several-documents", show: "quiet", title: "Can one application hold more than one document?",
+    why: "The decision says an application's résumé is a tailored one or an existing document. A Japanese application normally sends 履歴書 and 職務経歴書 together, which is two.",
+    applied: "An application can hold several. The sample Japanese application shows 履歴書 and 職務経歴書 sent together, each with its own frozen copy.",
+    options: ["Keep as shown: several documents allowed", "Exactly one document per application"] },
+  { id: "Q4", key: "freeze-moment", show: "resume", title: "When is the sent copy frozen?",
+    why: "The copy has to be taken at some moment. It also has to be the real file: today a download fills in your name, contact details and the 履歴書 tables from the record as it is at that minute, so pointing at a version would not stay frozen.",
+    applied: "Moving an application to Applied freezes whatever résumé is attached, as the actual file of that day. You can record another sent document later, for when a company asks for an updated one.",
+    options: ["Keep as shown: frozen automatically on moving to Applied", "Only when I press a separate Mark as sent button"] },
+  { id: "Q5", key: "skipped-steps", show: "app", title: "What if a company skips a step?",
+    why: "Not every company says the résumé passed, and few have exactly three interviews. The list of steps is fixed, so some will be jumped over.",
+    applied: "Any step can be skipped. A skipped step shows no date, and you can add one by hand. “Since the résumé passed” appears only when that step has a date. The sample Osprey Grid application skips the second interview.",
+    options: ["Keep as shown: skipped steps have no date unless I add one", "Fill a skipped step with the date of the step after it"] },
+  { id: "Q6", key: "gone-quiet-scope", show: "quiet", title: "Which applications can be marked gone quiet?",
+    why: "“No change for 14 days” could apply to everything, including a job you saved and never applied to, or one already rejected.",
+    applied: "Only while you are waiting to hear back: Applied through Final interview. A status change, a new interview note or a newly recorded sent document counts as a change. Not applied, Offer, Rejected and Withdrawn are never marked.",
+    options: ["Keep as shown: only while waiting to hear back", "Also mark Not applied (jobs I saved and did not act on)", "Mark everything that is not closed, Offer included"] },
+  { id: "Q7", key: "interview-moves-status", show: "interview", title: "Should saving an interview move the status?",
+    why: "The status steps and the interview notes say overlapping things. If you note a second interview while the status still says first interview, one of them is behind.",
+    applied: "Saving an interview for a later round moves the status to that round, says so, and offers Undo. Try it: add a Final interview on the sample application.",
+    options: ["Keep as shown: it moves the status and says so", "Ask me each time", "Never. Status and interview notes stay separate"] },
+  { id: "Q8", key: "status-colours", show: "list", title: "Statuses carry no green or red. Is that right?",
+    why: "In this app green already means a measured fact, amber means not usable yet, and red means removed. The design rules forbid using them for anything else, so a green Offer or a red Rejected would break that.",
+    applied: "The current step is marked in the app's blue. Rejected and Withdrawn are plain grey text on a quieter row. No green, no red.",
+    options: ["Keep as shown: no status colours", "Colour them anyway, and change the design rule"] },
+  { id: "Q9", key: "japanese-tailoring", show: "resume", title: "Tailored documents in Japanese?",
+    why: "A tailored résumé is English only today. For a Japanese posting, the prototype offers 履歴書 and 職務経歴書 as they are, not rewritten for the job.",
+    applied: "Tailoring stays English only in the first build. A tailored 職務経歴書 would be its own later piece of work.",
+    options: ["Keep as shown: English tailoring only for now", "Include a tailored 職務経歴書 in the first build"] },
+  { id: "Q10", key: "recordings", show: "interview", title: "How big can a recording be, and is it transcribed?",
+    why: "An hour of audio is about 30 to 60 MB; an hour of video can be several hundred. Suburi already turns speech into text for practice answers, and this app has no speech-to-text at all.",
+    applied: "Audio or video, up to 2 GB a file, stored privately, played only when you are signed in. No automatic transcript here: what was said goes in the notes you type.",
+    options: ["Keep as shown: audio and video up to 2 GB, no transcript", "Audio only (smaller and cheaper)", "Add transcription here as well"] },
+  { id: "Q11", key: "suburi-handoff", show: "app", title: "How should this connect to Suburi?",
+    why: "Both apps would otherwise hold job descriptions and interview questions. Suburi is for practice; this is for the real applications. The two are deliberately not wired together.",
+    applied: "Two small buttons on an application: download the job description as a text file, which Suburi already accepts, and copy the questions you were asked. Nothing is sent between the apps.",
+    options: ["Keep as shown: two hand-carried exports", "No connection at all", "Plan a real link later (needs changes in Suburi too)"] },
+  { id: "Q12", key: "removing", show: "app", title: "Can an application or a recording be removed?",
+    why: "Nothing in this app is ever deleted, by design. But a recording is large and has other people's voices on it, and you may be asked to delete one.",
+    applied: "An application is never deleted; one added by mistake is marked Withdrawn. A recording is the one thing you can remove: each has a Remove link, it asks once, and the interview keeps a line saying one was removed.",
+    options: ["Keep as shown: applications stay, a recording can be removed", "Nothing can be removed, recordings included", "Applications that were never applied to can be deleted as well"] },
+];
+const queued = {};
+function renderQuestions() {
+  document.getElementById("qgrid").innerHTML = QUESTIONS.map((q) => `
+    <form class="q" data-lavish-question="${q.key}" data-q="${q.id}">
+      <div><span class="id">${q.id}</span><h3>${esc(q.title)}</h3></div>
+      <p>${esc(q.why)}</p>
+      <p class="applied"><b style="font-weight:600">In the prototype:</b> ${esc(q.applied)}</p>
+      <div style="display:grid;gap:6px" role="radiogroup" aria-label="${esc(q.title)}">
+        ${q.options.map((o, i) => `<label><input type="radio" name="${q.key}" value="${esc(o)}" ${i === 0 ? "checked" : ""} /><span>${esc(o)}${i === 0 ? ` <span class="c-muted">(recommended)</span>` : ""}</span></label>`).join("")}
+      </div>
+      <textarea class="input" name="note" rows="2" placeholder="Anything to add, in your own words (optional)" aria-label="Note for ${q.id}"></textarea>
+      <div class="qfoot">
+        <button type="button" class="btn btn-ghost" data-act="jump" data-v="${q.show}">Show me in the prototype</button>
+        <button type="submit" class="btn btn-secondary">Queue this answer</button>
+        <span class="queued" role="status">${queued[q.id] ? `Queued: ${esc(queued[q.id])}` : ""}</span>
+      </div>
+    </form>`).join("");
+}
+document.addEventListener("submit", (e) => {
+  const form = e.target.closest("form[data-q]"); if (!form) return;
+  e.preventDefault();
+  const q = QUESTIONS.find((x) => x.id === form.dataset.q);
+  const data = new FormData(form); const choice = data.get(q.key); const note = (data.get("note") || "").trim();
+  const status = form.querySelector(".queued");
+  const text = `${q.id} ${q.title} -> ${choice}${note ? ` | Note: ${note}` : ""}`;
+  if (window.lavish?.queuePrompt) {
+    window.lavish.queuePrompt(text, { tag: "choice", text: `${q.id}: ${choice}`, element: form, queueKey: q.key, data: { question: q.key, id: q.id, answer: choice, note } });
+    queued[q.id] = choice; status.textContent = `Queued: ${choice}${note ? " (with your note)" : ""}. Press Send to Agent when you are done.`;
+  } else {
+    status.textContent = "This page is open on its own, so there is nowhere to send the answer. Open it through the review board.";
+  }
+});
+
+render(); renderQuestions();
+</script>
+</body>
+</html>
