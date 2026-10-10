@@ -5811,8 +5811,10 @@ details, is assembled at download and is not in the version, and a 履歴書 ver
 prose blocks while its three tables are filled from the record at download (`10`, Screen 5). A copy
 "sent on 3 September" and downloaded in December from a pointer would carry December's tables and
 December's address. The sent copy therefore keeps the `.docx` as it was, and what the page needs to
-show it, taken at the same moment. It is insert only: nothing edits it, and later changes to the
-document or to the record do not reach it.
+show it, taken at the same moment. The stored file is never changed: nothing edits it, and later
+changes to the document or to the record do not reach it. Only two things touch the copy's record,
+both the owner's own corrections of the move that froze it: its sent date follows a correction of
+the Applied date, and Undo of that move removes the copies it froze.
 
 The files are small; a résumé `.docx` was measured at 13,574 bytes (2026-09-04 entry). Where the bytes
 are kept is for the issue that builds this (#71).
@@ -5900,12 +5902,16 @@ the résumé-passed and first-interview figures use their step dates, and `since
 uses the close date even after later activity. This supersedes any event-date calculation of
 last change in the reviewed prototype; the prototype stays as reviewed.
 
-After Applied, a document already sent is offered again, and choosing it records another immutable
-sent copy with its own date, whenever its current rendered file differs from its latest frozen
-copy. **The comparison is of what would be sent, not the version number**: a 履歴書 version holds
-only its prose blocks, so a changed address or a new certification changes the file at the same
-version. When the file is identical nothing is offered and nothing is added. The application's
-tailored résumé is offered in the same card under the same rule. The list row shows only the latest
-sent copy of each document; the application page lists every copy with its date. This completes
-the later-copy path in the sent-copy decision above; the prototype's picker remains a visual
-reference where it differs.
+**Sent copies are recorded at two moments, and nothing is ever compared.** On moving to Applied,
+every document attached to the application is frozen as a sent copy. From Applied onward the
+application offers one explicit action, `Record another sent copy`: the owner picks any document,
+an existing one, the same one again, or a tailored résumé made after Applied, and it is frozen as a
+further sent copy with its date, always. The list row shows only the latest sent copy of each
+document; the application page lists every copy with its date. This completes the later-copy path
+in the sent-copy decision above, whose rejected `Mark as sent` button was about the move to
+Applied; the prototype's picker remains a visual reference where it differs.
+
+Rejected: **working out whether a document has changed since it was sent**, by version number or
+by comparing files. A 履歴書 changes with the record at the same version, and a download stamps
+the day's date into the file, so neither comparison says what the owner sent. The owner knows, and
+says so.

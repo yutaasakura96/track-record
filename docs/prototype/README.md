@@ -28,7 +28,7 @@ fixed at 2026-10-10 so that the day counts stay put. Nothing is saved and nothin
 | `Queue this answer`, which reports to a review board | The board is gone. Opened on its own, the page says there is nowhere to send an answer |
 | List order, gone quiet and last-change counts derived from event dates | `docs/10` uses the application's last-activity timestamp, updated when the owner changes its record; résumé-passed and first-interview counts still use event dates |
 | A closed application's `since it was closed` count derived from the latest event date | `docs/10` counts from the close date, even after later edits |
-| `Record another document you sent` ignores a document already attached | `docs/10` offers a document already sent again, the tailored résumé included, whenever its current file differs from its latest frozen copy, and records another copy with its own sent date; when the file is identical it is not offered |
+| `Record another document you sent` ignores a document already attached | `docs/10` names it `Record another sent copy` and lets the owner pick any document, the same one again or a tailored résumé made after Applied included; each is frozen as a further sent copy with its own date, always, with no comparison |
 
 The prototypes in `design/prototype/` are the earlier visual references for Fact Review, Diff
 Review and Home.

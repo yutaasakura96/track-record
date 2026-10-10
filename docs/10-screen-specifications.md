@@ -1562,16 +1562,15 @@ says `Reopened at <step>.`
 **With documents**, a row each:
 
 - The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
-  this job`, or `Version N · the same document as on Home`, and ` · changed since the vN you sent`
-  when its current file, the one `Download` returns today, differs from its latest frozen copy.
+  this job`, or `Version N · the same document as on Home`.
 - `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
   tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
-  already have`, which after Applied reads **`Record another document you sent`**. Either opens
-  the tick card in place, with `Cancel`. After Applied the card also offers each document already
-  sent, the application's tailored résumé included as a fourth tick, whose current file differs
-  from its latest frozen copy. One whose file is identical is not offered.
+  already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
+  opens the tick card in place, with `Cancel`. From Applied onward the card lists every document
+  the owner could have sent: the three, whether or not they are on the application or were sent
+  before, and the application's tailored résumé when it has one, as a fourth tick.
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row for every
@@ -1586,13 +1585,18 @@ copy, earlier copies of the same document included: the title, the chip `vN · f
   11's Rules hold word for word.
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
-  A sent copy has no edit, no regenerate and no remove.
-- **After Applied, ticking a document in the card freezes its current file at once**, dated today,
-  and says `<title> v<N> frozen as sent today.` Each copy remains in `What you sent` with its own
+  The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
+  own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
+  that move removes the copies it froze (Status).
+- **Copies are frozen at two moments and no other.** Moving to Applied freezes every document on
+  the application. From Applied onward, **`Record another sent copy`** freezes each ticked
+  document as a further sent copy, dated today, and says `<title> v<N> frozen as sent today.` It
+  takes any document: one not yet on the application, which is added to it; one already sent, the
+  same one again; or a tailored résumé made after Applied.
+- **Recording a copy never compares anything.** The application does not work out whether a
+  document has changed since it was sent, and says nothing about it; a ticked document is always
+  frozen, and the owner decides what was sent. Each copy remains in `What you sent` with its own
   date, including earlier copies of the same document.
-- **Whether an already-sent document is offered again is decided by the file, not the version
-  number.** A 履歴書 whose tables changed with the record is offered at the same version; a
-  document whose current file is identical to its latest frozen copy is not, and nothing is added.
 - **`Download` on a sent copy returns the stored file**, never a fresh one.
 
 **States**
@@ -1600,7 +1604,7 @@ copy, earlier copies of the same document included: the title, the chip `vN · f
 | State | Behaviour |
 |---|---|
 | **A document with no version yet** | Listed in the tick card, cannot be ticked, noted `No version yet. Generate it from Home first.` |
-| **Applied or later, nothing frozen** | `No sent copy is recorded. Use “Record another document you sent” to add one.` |
+| **Applied or later, nothing frozen** | `No sent copy is recorded. Use “Record another sent copy” to add one.` |
 | **Applied or later, no document at all** | `No résumé is recorded for this application.` above the same two buttons |
 | **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
 | **Freezing failed** | The move to Applied is not made, and the reason is said in the panel. A status that says Applied with nothing kept would be the wrong half to save |
