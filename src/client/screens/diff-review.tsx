@@ -24,7 +24,6 @@ import {
 } from "../api";
 import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
-import { RENDER_TITLE } from "~/shared/render-content";
 import { DownloadButton } from "../components/download-button";
 
 export function DiffReview() {
@@ -64,7 +63,7 @@ function Header({ proposal }: { proposal: Proposal }) {
       {/* The proposal's own kind. This said "Résumé (English)" while only one
           render could generate, and would have put that title over a 履歴書. */}
       <span className="text-panel font-semibold tracking-snug text-text-strong">
-        {RENDER_TITLE[proposal.renderKind]}
+        {proposal.title}
       </span>
       <Chip className="ml-4">proposed v{proposal.proposedVersionNo}</Chip>
       <div className="ml-auto flex items-center gap-10">
@@ -74,8 +73,8 @@ function Header({ proposal }: { proposal: Proposal }) {
         {/* Specced in this header since `docs/10` Screen 2 and only now
             navigable: the screen it points at exists (Screen 5). */}
         <Link
-          to="/renders/$kind/history"
-          params={{ kind: proposal.renderKind }}
+          to="/renders/$ref/history"
+          params={{ ref: proposal.renderRef }}
           className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
         >
           Version history
@@ -145,6 +144,7 @@ function Failed({ proposal }: { proposal: Proposal }) {
           {first ? null : (
             <DownloadButton
               kind={proposal.renderKind}
+              docRef={proposal.renderRef}
               label="Download the current version"
               className="border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover"
             />
@@ -167,7 +167,7 @@ function Failed({ proposal }: { proposal: Proposal }) {
               setFailure(null);
               let created: { proposalId: string };
               try {
-                created = await generate.mutateAsync(proposal.renderKind);
+                created = await generate.mutateAsync(proposal.renderRef);
               } catch (error) {
                 setFailure(error instanceof ApiError ? error.message : "Generation could not be started.");
                 return;
@@ -305,7 +305,7 @@ function Review({
             </p>
           ) : null}
           <p className="text-smaller text-text-secondary">
-            Accepting replaces your {RENDER_TITLE[proposal.renderKind]} with v{proposal.proposedVersionNo}.
+            Accepting replaces your {proposal.title} with v{proposal.proposedVersionNo}.
           </p>
           {/* Advisory findings about the record — an unexplained gap in the
               学歴・職歴 table, or the half of a cell the register refuses to

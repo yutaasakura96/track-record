@@ -357,8 +357,11 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 **`GET /api/imports/summary` → 200** — the sidebar's badge, and nothing else.
 
 ```json
-{ "openCandidates": 2, "running": false }
+{ "openCandidates": 2, "openFlags": 14, "running": false }
 ```
+
+- **`openFlags`** (#57) is the count beside `Flagged`: flags not marked checked, on facts that are
+  not rejected. It is the `counts.open` of `GET /api/flags` (§6).
 
 - The sidebar is on screen on **every** sidebar screen, so reading its one number from the listing
   meant fetching every document, every version and every fact count on Home, Record and Skills, and
@@ -381,11 +384,15 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 | Method | Path | Purpose |
 |---|---|---|
 | `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. `employerId`, `null` included, is a hand set |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
 | `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
-| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade |
+| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it |
 | `POST` | `/api/facts/:id/regrade` | `{ provenance }` on an accepted fact. M3, #37 |
+| `POST` | `/api/facts/sort` | Grades, accepts and flags the facts still waiting, a batch a call. #57, below |
+| `GET` | `/api/flags` | The Flagged list. `?state=checked` for the ones already marked. #57, below |
+| `POST` | `/api/flags/:id/explain` | `Explain this`. **The one route here that calls the model for a flag, and only when pressed** |
+| `POST` | `/api/flags/:id/check` · `/uncheck` | Takes a flag off the list, or puts it back. Idempotent |
 
 **`GET /api/facts?importId=imp_4Tz8` → 200**
 
@@ -410,6 +417,9 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "technologies": ["PostgreSQL", "Airflow", "Python"],
       "isClientIdentifying": false,
       "graded": false,
+      "autoAccepted": false,
+      "gradedBy": null,
+      "flags": [],
       "likelyMatches": [
         {
           "id": "fct_R2k7",
@@ -470,6 +480,21 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
   `quote` text, and **no score**: how alike two claims are is not in the contract, for the reason no
   confidence is.
 
+- **Since 2026-10-08 an import's facts arrive `accepted`** (#57). `candidate`, as in the example
+  above, is the state of a fact imported before that. A new fact carries the importer's
+  `provenance`, a `disclosure` of `restricted` or `private` and never `public`, `autoAccepted: true`
+  and its `flags`.
+- **`autoAccepted`** is true when the importer accepted the fact, at import or by the sort.
+  **`gradedBy`** is `author` once the author has accepted or re-graded it, `importer` for a fact the
+  importer accepted that the author has not graded, and `null` otherwise. **`graded`** is true for
+  either, so `graded=false` still lists only the agent-default facts of the 2026-09-04 import.
+- **`flags`** is every flag on the fact, checked ones included: `{ id, kind, reason, explanation,
+  checked }`. `kind` ∈ `confidential` · `number` · `unsure` · `repeat`. `reason` is always present.
+  `explanation` is `null` until `Explain this` has been pressed for that flag.
+- **`likelyMatches` on an accepted fact.** It is no longer empty on everything but a candidate: an
+  accepted fact whose `repeat` flag is open carries the pair too, compared against facts from other
+  versions and documents. Marking the flag checked empties it.
+
 - **`graded` · M3, #37, 2026-09-30.** True once the author has set the grade of an accepted fact:
   `accept` and `regrade` set it, `undo` clears it, `reject` leaves it (`04` §3.7). False on an
   accepted fact means its provenance is not the author's, which is the state of the 112 facts of the
@@ -484,6 +509,69 @@ the status, the claim, the disclosure, the employer or `resolved_at`. The proven
 the fact already has; confirming the default is a re-grade. `409 conflict` on a candidate or a
 rejected fact (a candidate is graded on its card and accepted), `422` for Measured without evidence
 as `PATCH` answers, and `404` for another user's fact.
+
+**`POST /api/facts/sort` → 200** with `{ "importId": "sdv_…" }` or `{}` for every document (#57):
+
+```json
+{ "sorted": 25, "flagged": 9, "remaining": 1060 }
+```
+
+One call takes up to **twenty-five** waiting facts, oldest first, and makes **one** model call to
+grade them (`03` §4). Each fact in the batch is then accepted with that grade and flagged by the
+rules an import applies; one the model returned no grade for, or an incomplete one, is accepted as
+Generated and flagged. None is rejected. A fact the author accepted, rejected or edited while the
+model was answering is left as the author put it, with no flag written, and an edited one still
+waits: `sorted` counts only the facts this call accepted, so it can be `0` with `remaining` above
+it. The client asks again until `remaining` is `0`, and stops with a failure line after three calls
+in a row that sorted nothing. `flagged` counts facts, not flags. A disclosure the author already set is
+kept, except that a fact read as confidential becomes Private. `503 upstream_unavailable` when the
+model does not answer, with nothing changed; facts sorted by earlier calls stay sorted. Only the
+session's own candidates are read, and another user's `importId` sorts nothing.
+
+**`GET /api/flags` → 200**
+
+```json
+{
+  "counts": { "open": 14, "checked": 3 },
+  "items": [
+    {
+      "id": "flg_8Hq2",
+      "kind": "number",
+      "reason": "It states a number. Check the number against the passage it was read from.",
+      "explanation": null,
+      "checked": false,
+      "fact": {
+        "id": "fct_M4x8",
+        "claim": "Reduced nightly batch runtime from 6 hours to 90 minutes",
+        "provenance": "measured",
+        "disclosure": "restricted",
+        "lineNumber": 79,
+        "importId": "sdv_7Yh1",
+        "filename": "portfolio.md"
+      }
+    }
+  ]
+}
+```
+
+- The open flags, or with `?state=checked` the checked ones; `counts` is both either way. Ordered
+  `confidential`, `unsure`, `repeat`, `number`, newest first within a kind.
+- **Reading it calls no model.** Two queries in one batch.
+- `fact.importId` and `fact.filename` are where the fact is opened (`/imports/:importId?fact=:id`),
+  `null` for a fact with no source document. No `quote` text, as everywhere else.
+- A rejected fact's flags are left off the list and out of the counts; undoing the rejection brings
+  them back.
+
+**`POST /api/flags/:id/explain` → 200** with the flag, its `explanation` filled. **One model call,
+made because the author pressed the button.** The call is given the flag's kind and reason and the
+fact's claim, quote, provenance and disclosure. The answer and its token counts are stored on the
+flag, so a second press, a reload and the fact's own card all read the stored text and call nothing.
+`503 upstream_unavailable` when the model does not answer or returns nothing usable; nothing is
+stored, and the next press tries again. `404` for a flag that is not the session's.
+
+**`POST /api/flags/:id/check`** and **`/uncheck` → 200** with the flag. They stamp or clear
+`checked_at` and change nothing about the fact: a checked `confidential` flag leaves the fact
+Private. Repeating either is the same answer.
 
 **`PATCH /api/facts/:id` → 404** when `employerId` names an employer the session does not own — the
 same answer a missing employer gets, because a `403` would confirm it exists.
@@ -506,8 +594,18 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 
 ## 7. Renders · M1 for the English résumé
 
+**Every `:kind` in a path below is a `:ref` since 2026-10-08** (#57): a kind names the main document
+of that kind, and a tailored résumé's id names that résumé. One segment carries either, so a
+tailored résumé has every route a main document has, and nothing is written twice. A ref that is
+neither a kind nor one of the session's tailored résumés is `404`. A version belongs to one
+document: asked for under another's ref it is `404`. A response that carried `renderKind` carries
+`renderRef` and `title` beside it.
+
 | Method | Path | M | Notes |
 |---|---|---|---|
+| `GET` | `/api/tailored-resumes` | M3 | `{ items, canGenerate }`: the tailored résumés, newest first, each in the shape of a `GET /api/renders` item. No job description in the listing |
+| `POST` | `/api/tailored-resumes` | M3 | Body `{ label, jobDescription }` → `201` + the row. **Generates nothing**: the client then calls `generate` with the row's `ref`, so a refusal there is said as it is everywhere. `422` for an empty name, an empty job description, one over 20,000 characters, or an extra field (including `kind`). The created row's kind is always `english_resume` |
+| `GET` | `/api/tailored-resumes/:id` | M3 | One row, with its `jobDescription` |
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
@@ -525,6 +623,13 @@ same answer a missing employer gets, because a `403` would confirm it exists.
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.
 
+Each item also carries `id` (`null` for a main document never generated), `ref` (its kind, or a
+tailored résumé's id) and `tailored` (`null`, or `{ label, createdAt }`).
+
+**A tailored résumé is generated from exactly the facts the main résumé is given**, and its job
+description reaches the model as text to read (`03` §6). Its download is named after it:
+`resume-<label>-<date>.docx`.
+
 **`GET /api/renders` → 200**
 
 ```json
@@ -532,18 +637,25 @@ same answer a missing employer gets, because a `403` would confirm it exists.
   "items": [
     { "kind": "english_resume", "language": "en", "currentVersionNo": 4,
       "generatedAt": "2026-08-09T02:11:00Z", "status": "stale", "newFactsSince": 3,
+      "withdrawnFactsSince": 1,
       "pendingProposalId": null },
     { "kind": "rirekisho", "language": "ja", "currentVersionNo": null,
       "generatedAt": null, "status": "never_generated", "newFactsSince": null,
+      "withdrawnFactsSince": null,
       "pendingProposalId": null }
   ]
 }
 ```
 
 `status` ∈ `never_generated` · `up_to_date` · `stale` · `proposal_pending` · `proposal_generating`.
-`newFactsSince` counts only facts a document may use: accepted, and neither Private nor Generated,
-the rule `canGenerate` applies (§8). Accepting a fact that is still Generated makes nothing `stale`;
-confirming it does.
+For a version with a recorded fact set, `newFactsSince` counts facts usable now but absent when
+generation read the record; `withdrawnFactsSince` counts facts usable then but no longer usable.
+The version's set is copied from its proposal when accepted and carried forward by an edit or
+restore. Usable means accepted, neither Private nor Generated (§8). Either difference makes the
+version `stale`, even if the usable count has not changed. Accepting a fact that is still Generated
+makes nothing `stale`; confirming it does. For a version made before the set was recorded, or an
+edit or restore carrying its content, `newFactsSince` keeps the usable-count fallback and
+`withdrawnFactsSince` is `0`. Both fields are `null` if there is no current version.
 **`never_generated` is distinct from `up_to_date`** (PRD §7).
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
 a first generation awaiting review is not `never_generated`. While that proposal is still being
@@ -662,6 +774,7 @@ Accepting an already-decided proposal → `409 conflict`.
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
 `Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
+For a tailored résumé, the filename also includes an ASCII label slug when nonempty and its render ID before the date; the ID keeps Japanese labels and shared slug prefixes distinct.
 Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
@@ -735,8 +848,10 @@ and the home screen waited for all of them.
   },
   "factsByProvenance": { "measured": 41, "attested": 66, "generated": 7 },
   "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
-  "unconfirmed": { "importId": "sdv_…", "count": 3 },
+  "unconfirmed": { "importId": "sdv_…", "count": 3, "total": 16 },
+  "flagged": 14,
   "documents": [],
+  "tailored": [],
   "canGenerate": true,
   "isEmpty": false
 }
@@ -753,15 +868,69 @@ screen's Not confirmed row amber.
 `GET /api/imports/summary` gives the sidebar, `documents` is how many source documents they sit in,
 and `importId` and `filename` are the most recently imported version that holds any, which is where
 the Next step opens Fact Review (#58).
-`unconfirmed` is the most recently imported version holding an accepted fact that is still
-Generated, or `null`. Its `count` covers only that version. It is where the Not confirmed row and
-its step open Fact Review.
+`unconfirmed` is the most recently imported version holding a fact **the author accepted on its
+card** while it was still Generated, or `null`. Its `count` covers only that version and `total`
+every version. It is where the Not confirmed row and its step open Fact Review. A Generated fact
+the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
+a step.
+`flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
+`tailored` is the `items` of `GET /api/tailored-resumes`.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
 
 ---
 
-## 9. Later milestones
+## 9. The master document · M3 (#57)
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `master-document-<language>-<date>.md`, `cache-control: no-store` |
+
+Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
+value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
+`GET /api/facts`.
+
+```json
+{
+  "language": "en",
+  "builtAt": "2026-10-08T03:00:00Z",
+  "subjectName": "Yosuke Aoki",
+  "counts": { "facts": 214, "usable": 180, "private": 22, "generated": 12, "flagged": 14, "waiting": 0 },
+  "employers": [
+    {
+      "id": "emp_2Kd9", "name": "Aozora Logistics K.K.", "alternateName": "株式会社アオゾラ物流",
+      "industry": "運輸業", "startedOn": "2022-04-01", "endedOn": "2024-09-01",
+      "roles": [{ "title": "Backend Engineer", "startedOn": "2022-04-01", "endedOn": "2023-09-01" }],
+      "projects": [{ "id": "prj_9f2", "name": "Settlement batch", "summary": null, "facts": [] }],
+      "facts": []
+    }
+  ],
+  "independent": { "projects": [], "facts": [] },
+  "educations": [],
+  "certifications": []
+}
+```
+
+- A fact is `{ id, claim, provenance, disclosure, technologies, flags, source }`. `flags` is the
+  kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null`.
+- **Every accepted fact is in it, Private and Generated included.** A rejected fact is not, and a
+  fact still waiting to be sorted is not; `counts.waiting` says how many those are.
+- A fact sits under the employer it resolves to (`04` §3.12), then under its project. A project is
+  listed where it belongs whether or not it has facts.
+- **No source text**, in either route: a fact names its document and line, never the passage.
+- **The download holds Private facts**, by the owner's decision (`docs/06`, 2026-10-08). Its first
+  lines say so and say not to send it to an employer.
+- **`language` decides names, never claims** (`docs/06`, 2026-10-10). `subjectName`, an employer's
+  `name`, a role's `title`, a project's `name`, an education's `institution` and a certification's
+  `name` are each the one a document of that language uses, falling back to the other where the
+  record holds only one. `alternateName` is the employer's name in the other language, or `null`
+  when the record holds one. Every fact, every count and the grouping are the same in both. The
+  file's headings, dates and opening lines are in that language too.
+
+---
+
+## 10. Later milestones
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -772,10 +941,14 @@ fact is both not Private and not Generated, and the home screen then offers no G
 
 ---
 
-## 10. What has no endpoint, deliberately
+## 11. What has no endpoint, deliberately
 
 | Not built | Why |
 |---|---|
+| A write on the master document | It is a view of the record. A fact is changed on its own card, and there is nothing else to keep in step |
+| An explanation on any read | `Explain this` is a `POST` the author makes. No list, poll or page load reaches the model for a flag |
+| Bulk "mark every flag checked", or bulk un-Private | A flag is looked at or left; clearing a list unread is not checking it |
+| The app rejecting a fact | Reject is the author's action. The importer accepts and flags, and discards only a quote that is not in the document |
 | Per-change accept on a proposal | Accepting 9 of 11 changes leaves the document not matching the record — the exact drift this project exists to remove |
 | Bulk promotion out of Private | PRD §5: promotion is never bulk and never silent |
 | Any endpoint returning a source document as a file | Source documents never render, export, or appear in any output (PRD §6.1) |

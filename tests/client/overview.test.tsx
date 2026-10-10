@@ -25,6 +25,9 @@ const NOT_READ = "The server could not be reached.";
 
 const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   id: null,
+  // A main document is addressed by its kind.
+  ref: over.kind ?? "english_resume",
+  tailored: null,
   kind: "english_resume",
   language: "en",
   title: "English résumé",
@@ -34,6 +37,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   generatedAt: null,
   status: "never_generated",
   newFactsSince: null,
+  withdrawnFactsSince: null,
   pendingProposalId: null,
   ...over,
 });
@@ -48,9 +52,11 @@ const overview = (documents: RenderRow[], canGenerate = true): Overview => ({
     credentials: { count: 0, note: null },
   },
   factsByProvenance: { measured: 3, attested: 1, generated: 0 },
+  flagged: 0,
   review: null,
   unconfirmed: null,
   documents,
+  tailored: [],
   canGenerate,
   isEmpty: false,
 });
@@ -170,30 +176,71 @@ describe("the next step", () => {
   });
   const REVIEW = { openCandidates: 1085, documents: 1, importId: "imp-test-vorbit", filename: "vorbit-rollout.md" };
 
-  it("leads with the candidates waiting, and opens the review that holds them", async () => {
-    const { api, user, pathname } = open([], waiting({ review: REVIEW }));
+  /**
+   * Facts from before the importer accepted on its own (issue #57). They are
+   * sorted where they stand, in as many requests as it takes, and never by
+   * sending the author to review them one at a time.
+   */
+  it("leads with the facts still waiting, and sorts them in one press", async () => {
+    let left = 1085;
+    const { api, user, pathname } = open(
+      [],
+      {
+        ...waiting({ review: REVIEW }),
+        "POST /api/facts/sort": () => {
+          const sorted = Math.min(600, left);
+          left -= sorted;
+          return { sorted, flagged: 40, remaining: left };
+        },
+      },
+    );
     const step = await nextStep();
 
-    expect(within(step).getByRole("heading", { name: "Review 1,085 facts" })).toBeTruthy();
+    expect(within(step).getByRole("heading", { name: "Sort 1,085 waiting facts" })).toBeTruthy();
     expect(
       within(step).getByText(
-        "Found in vorbit-rollout.md. A fact is used in your documents only after you accept it.",
+        "Found in vorbit-rollout.md before facts were accepted for you. One press grades each, keeps every one, and flags the ones worth a look.",
       ),
     ).toBeTruthy();
-    await user.click(within(step).getByRole("link", { name: "Review facts" }));
+    expect(within(step).queryByRole("link")).toBeNull();
+    await user.click(within(step).getByRole("button", { name: "Sort them" }));
 
-    await waitFor(() => expect(pathname()).toBe("/imports/imp-test-vorbit"));
-    expect(api.writes()).toEqual([]);
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/facts/sort", "POST /api/facts/sort"]));
+    // Every import's facts, so no `importId` narrows it.
+    expect(api.calls.filter((c) => c.method === "POST").map((c) => c.body)).toEqual([{}, {}]);
+    expect(pathname()).toBe("/");
   });
 
-  it("says how many documents the candidates sit in when it is more than one", async () => {
+  it("says where the sort stopped, and keeps what it had sorted", async () => {
+    let calls = 0;
+    const { user } = open(
+      [],
+      {
+        ...waiting({ review: REVIEW }),
+        "POST /api/facts/sort": () =>
+          ++calls === 1
+            ? { sorted: 25, flagged: 3, remaining: 1060 }
+            : new Refusal(503, "upstream_unavailable", "The facts could not be sorted just now. Nothing was changed; try again."),
+      },
+    );
+    const step = await nextStep();
+    await user.click(within(step).getByRole("button", { name: "Sort them" }));
+
+    // The overview is read again after the sort, so the step is found afresh.
+    expect(
+      await screen.findByText("The facts could not be sorted just now. Nothing was changed; try again."),
+    ).toBeTruthy();
+    expect(within(await nextStep()).getByText("25 sorted, 3 flagged.")).toBeTruthy();
+  });
+
+  it("says how many documents the waiting facts sit in when it is more than one", async () => {
     open([], waiting({ review: { ...REVIEW, openCandidates: 1, documents: 3 } }));
     const step = await nextStep();
 
-    expect(within(step).getByRole("heading", { name: "Review 1 fact" })).toBeTruthy();
+    expect(within(step).getByRole("heading", { name: "Sort 1 waiting fact" })).toBeTruthy();
     expect(
       within(step).getByText(
-        "Found in 3 documents, newest first. A fact is used in your documents only after you accept it.",
+        "Found in 3 documents before facts were accepted for you. One press grades each, keeps every one, and flags the ones worth a look.",
       ),
     ).toBeTruthy();
   });
@@ -205,7 +252,7 @@ describe("the next step", () => {
         {
           review: REVIEW,
           factsByProvenance: { measured: 0, attested: 96, generated: 16 },
-          unconfirmed: { importId: "imp-test-quillset", count: 3 },
+          unconfirmed: { importId: "imp-test-quillset", count: 3, total: 3 },
         },
         [
           row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
@@ -235,8 +282,10 @@ describe("the next step", () => {
     open(
       [],
       waiting({
-        factsByProvenance: { measured: 0, attested: 96, generated: 16 },
-        unconfirmed: { importId: "imp-test-quillset", count: 3 },
+        factsByProvenance: { measured: 0, attested: 96, generated: 20 },
+        // Sixteen the author accepted while still Generated, three of them in
+        // the newest import. The other four the importer accepted, and flagged.
+        unconfirmed: { importId: "imp-test-quillset", count: 3, total: 16 },
       }),
     );
     const step = await nextStep();
@@ -280,6 +329,25 @@ describe("the next step", () => {
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-plinth"));
     expect(api.writes()).toEqual([POST]);
+  });
+
+  // Issue #62: a document is out of date by a fact it can no longer use, too.
+  it("says a document lost a fact it was generated from", async () => {
+    open([row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 0, withdrawnFactsSince: 1 })]);
+    const step = await nextStep();
+    expect(within(step).getByRole("heading", { name: "Update your English résumé" })).toBeTruthy();
+    expect(within(step).getByText("1 fact it was generated from can no longer be used.")).toBeTruthy();
+    expect(screen.getByText("1 fact no longer usable")).toBeTruthy();
+  });
+
+  it("says both when facts arrived and one it was generated from left", async () => {
+    open([row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 2, withdrawnFactsSince: 1 })]);
+    expect(
+      within(await nextStep()).getByText(
+        "2 new facts since it was generated, and 1 it was generated from can no longer be used.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("2 new facts, 1 no longer usable")).toBeTruthy();
   });
 
   it("offers the import when no fact can be used and nothing is waiting", async () => {
@@ -334,7 +402,7 @@ describe("the facts, in plain words", () => {
       [],
       facts(
         { measured: 0, attested: 96, generated: 16 },
-        { unconfirmed: { importId: "imp-test-quillset", count: 3 } },
+        { unconfirmed: { importId: "imp-test-quillset", count: 3, total: 3 } },
       ),
     );
     const item = await factRow("Not confirmed");
@@ -349,7 +417,7 @@ describe("the facts, in plain words", () => {
     open([], facts({ measured: 0, attested: 0, generated: 0 }));
 
     expect(
-      await screen.findByText("No accepted facts yet. They arrive when you review a document you imported."),
+      await screen.findByText("No accepted facts yet. They are accepted for you as a document you import is read."),
     ).toBeTruthy();
     expect(screen.queryByText("Backed by a number")).toBeNull();
   });
@@ -365,12 +433,16 @@ describe("the facts, in plain words", () => {
 
 describe("which document to act on", () => {
   const JA = { kind: "rirekisho", language: "ja", title: "Qorvane 履歴書" } as const;
-  const line = async () => (await documentRow()).closest("section")!.querySelector("p + p, header + div > p")!;
+  const STORY = { kind: "career_story_en", title: "Career story" } as const;
+  // The line speaks for the rows of the tab that is open (issue #59).
+  const line = async (title?: string) => (await documentRow(title)).closest('[role="tabpanel"]')!.querySelector("p")!;
 
   it("says how many are out of date and that the rest can wait", async () => {
     open([
       row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
-      row({ ...JA, status: "stale", currentVersionId: "ver-test-2", newFactsSince: 12 }),
+      row({ ...STORY, status: "stale", currentVersionId: "ver-test-2", newFactsSince: 12 }),
+      // Out of date too, and under the other tab: it is not this line's to count.
+      row({ ...JA, status: "stale", currentVersionId: "ver-test-3", newFactsSince: 12 }),
     ]);
 
     expect((await line()).textContent).toBe(
@@ -433,10 +505,23 @@ describe("which document to act on", () => {
   it("points at the document with a version waiting", async () => {
     open([
       row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
+      row({ ...STORY, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+    ]);
+
+    expect((await line()).textContent).toBe("Career story has a new version waiting for you. Check it first.");
+  });
+
+  it("points at a version waiting in the other language once that tab is open", async () => {
+    const { user } = open([
+      row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
       row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
     ]);
 
-    expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
+    // The English tab speaks for the English rows only.
+    expect((await line()).textContent).toBe("English résumé is out of date. Update it when you next need it.");
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    expect((await line(JA.title)).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
   });
 
   it("points at a waiting version when no fact remains usable", async () => {
@@ -456,10 +541,10 @@ describe("which document to act on", () => {
   it("points at the version that is ready when another is still being written", async () => {
     open([
       row({ status: "proposal_generating", pendingProposalId: "prop-test-vorbit" }),
-      row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+      row({ ...STORY, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
     ]);
 
-    expect((await line()).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
+    expect((await line()).textContent).toBe("Career story has a new version waiting for you. Check it first.");
   });
 
   it("says none is generated yet", async () => {
@@ -478,13 +563,227 @@ describe("which document to act on", () => {
   });
 });
 
+/**
+ * Issue #59. One mixed list of five became two tabs, English and 日本語, each
+ * led by the master document every document on it is written from.
+ */
+describe("the English documents and the Japanese ones, apart", () => {
+  const ROWS = [
+    row(),
+    row({ kind: "rirekisho", language: "ja", title: "履歴書" }),
+    row({ kind: "shokumu_keirekisho", language: "ja", title: "職務経歴書" }),
+    row({ kind: "career_story_en", title: "Career story" }),
+    row({ kind: "career_story_ja", language: "ja", title: "職務経歴ストーリー" }),
+  ];
+  // `Master document` is a sidebar row too; this is the one that leads a tab.
+  const masterRow = async (title: string) => {
+    return (await within(await screen.findByRole("tabpanel")).findByText(title)).closest("li")!;
+  };
+  const titles = () =>
+    within(screen.getByRole("tabpanel"))
+      .getAllByRole("listitem")
+      .map((item) => item.querySelector("div > div")!.textContent);
+
+  it("shows the English documents first, under the English master document", async () => {
+    open(ROWS);
+    await documentRow();
+
+    expect(screen.getAllByRole("tab").map((tab) => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([
+      ["English", "true"],
+      ["日本語", "false"],
+    ]);
+    expect(titles()).toEqual(["Master document", "English résumé", "Career story"]);
+    expect(screen.queryByText("履歴書")).toBeNull();
+    // The panel is named by the tab that is open.
+    expect(screen.getByRole("tabpanel", { name: "English" })).toBeTruthy();
+  });
+
+  it("shows the Japanese documents under 日本語, led by the Japanese master document", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    expect(titles()).toEqual(["マスタードキュメント", "履歴書", "職務経歴書", "職務経歴ストーリー"]);
+    expect(screen.queryByText("English résumé")).toBeNull();
+    expect(screen.getByRole("tabpanel", { name: "日本語" })).toBeTruthy();
+    expect(within(await documentRow("履歴書")).getByRole("button", { name: "Generate" })).toBeTruthy();
+  });
+
+  it("moves between the tabs with the arrow keys, from one tab stop", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    const [english, japanese] = screen.getAllByRole("tab");
+    expect([english!.tabIndex, japanese!.tabIndex]).toEqual([0, -1]);
+
+    english!.focus();
+    await user.keyboard("{ArrowRight}");
+    expect(japanese!.getAttribute("aria-selected")).toBe("true");
+    expect(document.activeElement).toBe(japanese);
+    expect(titles()[0]).toBe("マスタードキュメント");
+
+    await user.keyboard("{ArrowRight}");
+    expect(english!.getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("keeps the chosen language for the next visit", async () => {
+    const { user } = open(ROWS);
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    expect(localStorage.getItem("track-record:document-language")).toBe("ja");
+  });
+
+  it("leads each tab with a master document row: how many facts it lists, and one way in", async () => {
+    const { user } = open(ROWS);
+    const english = await masterRow("Master document");
+
+    expect(within(english).getByText("4 facts")).toBeTruthy();
+    expect(within(english).getByText(/^English · everything in your record/)).toBeTruthy();
+    expect(within(english).getByRole("link", { name: "Open the English master document" }).getAttribute("href")).toBe("/master");
+    // Not a generated document: nothing to generate, no history, and no download from here.
+    expect(within(english).queryAllByRole("button")).toEqual([]);
+
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+    const japanese = await masterRow("マスタードキュメント");
+    expect(within(japanese).getByRole("link", { name: "Open the Japanese master document" }).getAttribute("href")).toBe("/master");
+  });
+
+  it("opens the master document of the tab it was opened from", async () => {
+    const { api, user, pathname } = open(ROWS, {
+      "GET /api/master-document?language=ja": {
+        language: "ja",
+        builtAt: "2026-10-10T03:00:00.000Z",
+        subjectName: null,
+        counts: { facts: 0, usable: 0, private: 0, generated: 0, flagged: 0, waiting: 0 },
+        employers: [],
+        independent: { projects: [], facts: [] },
+        educations: [],
+        certifications: [],
+      },
+    });
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+    await user.click(screen.getByRole("link", { name: "Open the Japanese master document" }));
+
+    await waitFor(() => expect(pathname()).toBe("/master"));
+    await waitFor(() => expect(api.calls.map((call) => call.path)).toContain("/api/master-document?language=ja"));
+    expect(api.calls.map((call) => call.path)).not.toContain("/api/master-document");
+    expect((await screen.findByRole("tab", { name: "日本語" })).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("says the master document has no facts yet rather than a zero", async () => {
+    open([], { "GET /api/overview": { ...overview(ROWS), factsByProvenance: { measured: 0, attested: 0, generated: 0 } } });
+
+    expect(within(await masterRow("Master document")).getByText("No facts yet")).toBeTruthy();
+  });
+});
+
+/**
+ * Issue #57. A flag is advice, so it is a line under the facts and never the
+ * Next step; the master document is one link from the facts it lists; and a
+ * tailored résumé is a row of its own, addressed by its id.
+ */
+describe("what automatic acceptance adds to Home", () => {
+  const with57 = (over: Partial<Overview>, documents: RenderRow[] = [row()]): Routes => ({
+    "GET /api/overview": { ...overview(documents), ...over },
+  });
+  const tailored = (n: number, over: Partial<RenderRow> = {}): RenderRow =>
+    row({
+      id: `rnd-test-${n}`,
+      ref: `rnd-test-${n}`,
+      title: `Résumé for Quillset ${n}`,
+      tailored: { label: `Quillset role ${n}`, createdAt: "2026-10-07T03:00:00.000Z" },
+      ...over,
+    });
+
+  it("says how many facts are flagged and where the list is, and makes no step of them", async () => {
+    open(
+      [],
+      with57(
+        { factsByProvenance: { measured: 3, attested: 20, generated: 5 }, flagged: 9 },
+        [row({ status: "up_to_date", currentVersionId: "ver-test-1", currentVersionNo: 1, newFactsSince: 0 })],
+      ),
+    );
+    // Found by its own words: the frame shown before the read answers has the
+    // section's heading and none of its content.
+    const line = await screen.findByText("9 are flagged for you to check when you want. Each says why.");
+    expect(within(line.closest("p")!).getByRole("link", { name: "Open the list" }).getAttribute("href")).toBe("/flagged");
+    // Five Generated facts the importer accepted: counted, flagged, and not a
+    // thing the author is told to do next.
+    const generated = (await screen.findByText("Not confirmed")).closest("li")!;
+    expect(within(generated).getByText("5")).toBeTruthy();
+    expect(within(generated).queryByRole("link")).toBeNull();
+    const step = await nextStep();
+    expect(within(step).queryByText(/Confirm/)).toBeNull();
+    expect(within(step).queryByText(/flagged/)).toBeNull();
+  });
+
+  it("says nothing about flags when there are none", async () => {
+    open([], with57({ flagged: 0 }));
+    await screen.findByText("Not confirmed");
+    expect(screen.queryByRole("link", { name: "Open the list" })).toBeNull();
+  });
+
+  it("opens the master document from the facts it lists", async () => {
+    open([], with57({}));
+    expect((await screen.findByRole("link", { name: "Open master document" })).getAttribute("href")).toBe("/master");
+  });
+
+  it("names the main résumé as the one tailored to no job", async () => {
+    open([row()]);
+    expect(within(await documentRow()).getByText("English · your main résumé, tailored to no job")).toBeTruthy();
+  });
+
+  it("lists the newest tailored résumés by name, and says how many more there are", async () => {
+    open([], with57({ tailored: [1, 2, 3, 4, 5].map((n) => tailored(n)) }));
+    const section = (await screen.findByText("Quillset role 1")).closest("section")!;
+
+    expect(within(section).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      expect.stringContaining("Quillset role 1"),
+      expect.stringContaining("Quillset role 2"),
+      expect.stringContaining("Quillset role 3"),
+    ]);
+    expect(within(section).getByText("And 2 more on the Tailored résumés screen.")).toBeTruthy();
+    expect(within(section).getByRole("link", { name: "Open tailored résumés" }).getAttribute("href")).toBe("/tailored");
+  });
+
+  it("generates the tailored résumé whose row was pressed, by its own id", async () => {
+    const POST = "POST /api/renders/rnd-test-2/generate";
+    const { api, user, pathname } = open([], {
+      ...with57({ tailored: [tailored(1), tailored(2)] }),
+      [POST]: { proposalId: "prop-test-orrery" },
+    });
+    const item = (await screen.findByText("Quillset role 2")).closest("li")!;
+    await user.click(within(item).getByRole("button", { name: "Generate" }));
+
+    await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-orrery"));
+    expect(api.writes()).toEqual([POST]);
+  });
+
+  it("offers to make the first tailored résumé when there are none", async () => {
+    open([], with57({ tailored: [] }));
+    const link = await screen.findByRole("link", { name: "Make one" });
+
+    expect(link.getAttribute("href")).toBe("/tailored");
+    expect(within(link.closest("section")!).queryAllByRole("listitem")).toEqual([]);
+  });
+});
+
 describe("the sidebar", () => {
   it("says what its count counts", async () => {
     open([row()], { "GET /api/imports/summary": { openCandidates: 1085, running: false } });
 
     // jsdom joins the two lines of the row without the space a browser reads between them.
-    const link = await screen.findByRole("link", { name: /^Documents\s*1,085 facts to review$/ });
+    const link = await screen.findByRole("link", { name: /^Documents\s*1,085 facts to sort$/ });
     expect(link.getAttribute("href")).toBe("/documents");
+  });
+
+  it("counts the flags still to check beside Flagged, and none once all are checked", async () => {
+    open([row()], { "GET /api/imports/summary": { openCandidates: 0, running: false, openFlags: 212 } });
+
+    const link = await screen.findByRole("link", { name: /^Flagged\s*212 to check$/ });
+    expect(link.getAttribute("href")).toBe("/flagged");
+    expect(screen.getByRole("link", { name: "Documents" })).toBeTruthy();
   });
 
   it("shows no count at zero, and no row for a screen that is not built", async () => {
@@ -497,6 +796,9 @@ describe("the sidebar", () => {
       "Record",
       "Skills",
       "Documents",
+      "Flagged",
+      "Master document",
+      "Tailored résumés",
     ]);
     expect(within(nav).queryByText("Facts")).toBeNull();
   });
@@ -588,7 +890,7 @@ describe("an overview that could not be read", () => {
     await screen.findByRole("status");
     await user.click(screen.getByRole("button", { name: "Retry" }));
 
-    await screen.findByText("Qorvane 履歴書");
+    await screen.findByText("English résumé");
     expect(screen.queryByRole("status")).toBeNull();
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull();
     expect(api.writes()).toEqual([]);
@@ -677,6 +979,9 @@ describe("an overview a write has made untrue", () => {
             technologies: [],
             isClientIdentifying: false,
             graded: true,
+            autoAccepted: false,
+            gradedBy: "author",
+            flags: [],
             likelyMatches: [],
           },
         ],
@@ -917,7 +1222,7 @@ describe("an empty record", () => {
     const steps = within(screen.getByRole("main")).getAllByRole("listitem");
     expect(steps.map((step) => step.querySelector("strong")!.textContent)).toEqual([
       "Import",
-      "Review",
+      "Check",
       "Generate",
     ]);
   });

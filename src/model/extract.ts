@@ -7,6 +7,7 @@
  * (`docs/03` §11, item 3b).
  */
 import type Anthropic from "@anthropic-ai/sdk";
+import { GRADE_PROPERTIES, GRADE_REQUIRED, GRADING_RULES } from "./grade";
 
 export const EXTRACT_FACT_TOOL = {
   name: "extract_fact",
@@ -31,8 +32,9 @@ export const EXTRACT_FACT_TOOL = {
         items: { type: "string" },
         description: "Named technologies the claim involves. Empty array when none are named.",
       },
+      ...GRADE_PROPERTIES,
     },
-    required: ["claim", "quote", "technologies"],
+    required: ["claim", "quote", "technologies", ...GRADE_REQUIRED],
     additionalProperties: false,
   },
 } satisfies Anthropic.Tool;
@@ -48,4 +50,7 @@ Rules:
 - Record what the passage says. Do not infer a number the passage does not state, and do not combine two figures into a third.
 - One claim per call. A sentence carrying two distinct outcomes is two calls.
 - Prefer claims about what the author did and what resulted. Skip background about the employer, the industry, or the technology in general.
-- If the passage supports no claim about the author's work, make no tool calls.`;
+- If the passage supports no claim about the author's work, make no tool calls.
+
+Every claim is also graded. Nobody reviews the facts one by one before they are used, so the grade is what decides where a fact may go:
+${GRADING_RULES}`;

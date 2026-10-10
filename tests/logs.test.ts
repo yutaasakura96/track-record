@@ -6,7 +6,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
-import { PROFILE_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { asCandidates, PROFILE_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { ModelUnavailableError } from "~/model/types";
 
 /** Invented, and each string distinctive enough to find in a log line. */
@@ -139,5 +139,73 @@ describe("a run that imports, generates and fails a model call", () => {
     expect(log).toMatch(/"versionId":"sdv_/);
     expect(log).toMatch(/"kept":\d+/);
     expect(log).toMatch(/"discarded":\d+/);
+  });
+});
+
+/**
+ * Issue #57 added four things that hold content a log must not: the importer's
+ * note on a fact, an explanation (which restates the fact), a job description
+ * (which names a company) and the master document (which is the whole record).
+ */
+describe("a run that flags, explains, sorts, tailors and downloads the master document", () => {
+  it("writes none of it to the log, and still logs each event with its ids and counts", async () => {
+    await client.put("/api/profile", PROFILE_FIXTURE);
+    const candidate = {
+      claim: CLAIM,
+      quote: "The overnight reconciliation job at Meridian Freight took eight hours.",
+      technologies: [],
+      provenance: "attested" as const,
+      confidential: true,
+      // A note that does what the prompt forbids: it repeats the name.
+      note: "It names Meridian Freight, a client",
+    };
+    model.extractions = [[candidate]];
+    const imported = (await (
+      await client.request("/api/imports", { method: "POST", body: uploadForm(SOURCE) })
+    ).json()) as { importId: string };
+    await settle();
+
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/flags");
+    model.explanations = ["It was kept Private because it names Meridian Freight in the passage."];
+    await client.post(`/api/flags/${items[0]!.id}/explain`);
+    model.explanations = [new ModelUnavailableError("The model service returned 529.")];
+    await client.post(`/api/flags/${items[0]!.id}/check`);
+
+    await asCandidates(imported.importId);
+    model.gradings = [(asked) => Object.fromEntries(asked.map((fact) => [fact.id, { ...candidate, unsure: false }]))];
+    await client.post("/api/facts/sort", {});
+    await asCandidates(imported.importId);
+    model.gradings = [new ModelUnavailableError("The model service returned 529.")];
+    await client.post("/api/facts/sort", {});
+
+    await client.post("/api/tailored-resumes", {
+      label: "Harrowgate Shipping, platform lead",
+      jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
+    });
+    await client.get("/api/master-document");
+    await client.get("/api/master-document/download");
+    await client.get("/api/master-document?language=ja");
+    await client.get("/api/master-document/download?language=ja");
+
+    const log = captured.join("\n");
+    for (const needle of [
+      "Meridian Freight",
+      "overnight reconciliation",
+      "eight hours",
+      "kept Private because",
+      "Harrowgate",
+      "quayside",
+      "platform lead",
+      "Yosuke Aoki",
+    ]) {
+      expect(log, `a log line contained "${needle}"`).not.toContain(needle);
+    }
+
+    expect(log).toMatch(/"event":"import_finished".*"repeats":0/);
+    expect(log).toMatch(/"event":"flag_explained","flagId":"flg_/);
+    expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
+    expect(log).toMatch(/"event":"tailored_resume_created","renderId":"[a-z]+_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
+    expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });
 });

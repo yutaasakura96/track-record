@@ -8,13 +8,15 @@
  */
 import type { Hono } from "hono";
 import { and, asc, desc, eq, inArray, isNotNull, sql } from "drizzle-orm";
-import { employers, facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
+import { employers, factFlags, facts, importChunks, projects, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import { ApiError, conflict, notFound, validationFailed, pathParam, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { requireOwnedEmployer } from "./record";
+import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
+import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
 import { runImport } from "~/pipeline/import";
 import type { AppEnv, Bindings } from "../env";
@@ -297,7 +299,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
 
-    const [[candidates], running] = await db.batch([
+    const [[candidates], running, [flagged]] = await db.batch([
       db
         .select({ open: sql<number>`count(*)::int` })
         .from(facts)
@@ -319,9 +321,19 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
           ),
         )
         .limit(1),
+      db
+        .select({ open: sql<number>`count(*)::int` })
+        .from(factFlags)
+        .innerJoin(facts, factOfFlag(user.id))
+        .where(openFlags(user.id)),
     ]);
 
-    return c.json({ openCandidates: candidates?.open ?? 0, running: running.length > 0 });
+    return c.json({
+      openCandidates: candidates?.open ?? 0,
+      running: running.length > 0,
+      /** Flags not yet marked checked: the number beside `Flagged` (issue #57). */
+      openFlags: flagged?.open ?? 0,
+    });
   });
 
   api.get("/api/imports/:id", async (c) => {
@@ -501,6 +513,10 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
               filed,
             ])
             .then(([, , n, f]) => [n, f] as const);
+
+    // A document filed elsewhere changes which facts its own stand beside.
+    await flagRepeats(db, user.id, ofThisDocument);
+    await settleRepeats(db, user.id);
 
     const [row] = where;
     // Counts, never a claim.

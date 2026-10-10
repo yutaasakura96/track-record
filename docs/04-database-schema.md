@@ -50,7 +50,8 @@ users (Better Auth)
  │    └── source_document_versions 1:N
  │         └── facts             1:N   (evidence pointer)
  ├── facts                       1:N
- ├── renders                     1:5   (one row per render type)
+ │    └── fact_flags             0:4   (one per kind: why a fact is worth a look)
+ ├── renders                     1:N   (one main row per render type, and any number tailored)
  │    ├── render_versions        1:N   (accepted, dated, never deleted)
  │    └── render_proposals       1:N   (pending or dismissed — NOT versions)
  ├── skill_curations             1:N   [M2]
@@ -87,6 +88,7 @@ create type proposal_status as enum ('pending', 'accepted', 'dismissed');
 create type import_status as enum ('queued', 'extracting', 'ready', 'failed');
 create type generation_status as enum ('generating', 'ready', 'failed');
 create type chunk_status  as enum ('pending', 'done', 'failed');
+create type fact_flag_kind as enum ('confidential', 'number', 'unsure', 'repeat');
 ```
 
 ---
@@ -305,6 +307,10 @@ step ever carries text across a workflow step boundary — steps pass IDs, never
 **One table holds candidates, accepted facts and rejected facts.** `status` distinguishes them.
 Rejected rows are retained forever, because that is what stops a re-import re-offering them.
 
+**Since migration 0015 an import writes its facts as `accepted`** (#57, `03` §5). `candidate` is the
+state of the facts imported before that, until they are sorted or reviewed, and of nothing new. The
+column defaults below are unchanged and are no longer what an import writes.
+
 | Column | Type | Null | Default | Notes |
 |---|---|---|---|---|
 | `id` | text | no | `nanoid()` | PK |
@@ -313,8 +319,8 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Holds only an employer set on the fact by hand, through its card. Null on every extracted fact: extraction never writes one, and the fact reads its document's employer, then its project's (§3.12) |
 | `employer_set_at` | timestamptz | yes | — | When the author last set the fact's employer by hand (`PATCH /api/facts/:id` with `employerId`, `null` included). A fact's employer is **hand set** when this is stamped **or** `employer_id` is not null; a hand set with `employer_id` null is a hand-set `No employer`. Every non-null `employer_id` was set on a card, since extraction never writes one, so the facts filed before this column existed need no backfill (§3.12, #35) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
-| `provenance` | provenance | no | `'generated'` | **Anything a model produces starts Generated** |
-| `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy** |
+| `provenance` | provenance | no | `'generated'` | The importer's grade, judged against the quote (`03` §4.1). `generated` when it gave none. Until 2026-10-08 every extracted fact started Generated |
+| `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy.** An import writes `private` for a confidential fact and `restricted` for every other, never `public` |
 | `status` | fact_status | no | `'candidate'` | |
 | `source_document_version_id` | text | yes | — | FK **restrict**. Null only for manual capture (M3) |
 | `quote` | text | yes | — | The **verbatim** supporting span. Null only for manual capture |
@@ -323,9 +329,10 @@ Rejected rows are retained forever, because that is what stops a re-import re-of
 | `line_number` | integer | yes | — | Derived. Rendered as the `L79` chip |
 | `dedupe_hash` | text | yes | — | `sha256(normalise(quote) + '\x00' + normalise(claim))` |
 | `technologies` | text[] | no | `'{}'` | Source of derived skill candidates |
-| `is_client_identifying` | boolean | no | `false` | Set by the scrub |
+| `is_client_identifying` | boolean | no | `false` | Set by the scrub, and since 0015 by the importer reading the fact as confidential |
 | `resolved_at` | timestamptz | yes | — | When accepted or rejected |
-| `graded_at` | timestamptz | yes | — | When the author last set the provenance of an accepted fact: stamped by accept and by re-grade, cleared by undo, left alone by reject. Null on an accepted fact means the grade is not the author's, which is the state of the 2026-09-04 import's facts (ADR-0002, `06` 2026-09-30) |
+| `auto_accepted_at` | timestamptz | yes | — | When the importer accepted the fact, at import or by the sort (migration 0015, #57). Null on a fact the author accepted on its card. With `graded_at` null it means the grade is the importer's; it is what Undo returns a rejected fact to, and it is never cleared |
+| `graded_at` | timestamptz | yes | — | When the author last set the provenance of an accepted fact: stamped by accept and by re-grade, cleared by undo, left alone by reject. Null on an accepted fact means the grade is not the author's: the importer's when `auto_accepted_at` is set, and otherwise the agent default of the 2026-09-04 import's facts, which is what `To re-grade` lists (ADR-0002, `06` 2026-09-30) |
 
 **Indexes**
 
@@ -442,14 +449,18 @@ résumé reads the same index backwards, for the same reason employers do.
 
 ### 3.10 `renders`, `render_versions`, `render_proposals`
 
-**`renders`** — exactly one row per `render_kind` per user, created on first generation.
+**`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
+number of **tailored** rows (migration 0015, #57). A tailored row is created when the author names
+it and pastes the job description, before anything is generated.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` / `user_id` | text | no | |
-| `kind` | render_kind | no | **Unique** with `user_id` |
+| `kind` | render_kind | no | **Unique** with `user_id` among main rows: the index is partial, `where job_description is null` |
+| `job_description` | text | yes | The posting a tailored résumé is written toward, as pasted, up to 20,000 characters. **Null is what makes a row the main document.** Given to generation as text to read, never as a source of facts (`03` §6) |
+| `label` | text | yes | The author's name for a tailored résumé. Null on a main row |
 | `current_version_id` | text | yes | `null` = never generated. Distinct from generated-and-unchanged (PRD §7) |
-| `stale_since_fact_count` | integer | yes | Drives `N new facts since it was generated`. Counts the facts a document may use: accepted, and neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately |
+| `stale_since_fact_count` | integer | yes | Fallback for a current version with no recorded set (`render_versions.usable_fact_ids` null): its saved usable count. Usable means accepted, neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately. Versions with a recorded set use set differences instead (decision log, 2026-10-08). Accept and restore still write this count; edit leaves it unchanged |
 
 **`render_versions`** — accepted versions. **Never deleted.**
 
@@ -462,7 +473,8 @@ résumé reads the same index backwards, for the same reason employers do.
 | `accepted_at` | timestamptz | no | |
 | `source_version_id` | text | yes | The version this one was made from. Null only for a version accepted from a proposal, which is made from a record rather than from a version |
 | `origin` | enum | no | `accepted` · `restored` · `edited`. Default `accepted`. Three writers, one column — without it a history where every row looks alike cannot say which rows the author typed (S14, S16) |
-| `fact_count_at` | integer | no | The count of facts a document may use (accepted, neither Private nor Generated; restated by migration 0013, decision log 2026-10-05) for the era the row's CONTENT belongs to. Accept and edit write the count at creation, which for them is the same thing; a **restore inherits the count of the version it restores**, because it copies content forward unchanged and the era comes with it (decision log, 2026-09-12, superseding the entry before it). A render's `stale_since_fact_count` is therefore its current version's own `fact_count_at` in every case, so a document moved back to an August version reports as stale in September; nothing else stored that number. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
+| `fact_count_at` | integer | no | The count of facts a document may use (accepted, neither Private nor Generated; restated by migration 0013, decision log 2026-10-05) for the era the row's CONTENT belongs to. Accept writes the count at creation. An edit of a version with no recorded set inherits its source's count; an edit of a version with a set writes today's count (decision log, 2026-10-08). A **restore inherits the count of the version it restores**, because it copies content forward unchanged and the era comes with it (decision log, 2026-09-12, superseding the entry before it). Accept and restore also write this value to `renders.stale_since_fact_count`; edit leaves that render count unchanged. For a version with a recorded set, neither count determines staleness. Rows predating migration 0008 carry a one-time backfill derived from `facts.resolved_at`, which is approximate and says so (decision log, 2026-09-12) |
+| `usable_fact_ids` | text[] | yes | The ids of the facts a document could use (accepted, neither Private nor Generated) **when this content was generated**. Home compares it with the same set now: a document is out of date exactly when the two differ, by facts that arrived, by facts that left, or both (decision log, 2026-10-08, issue #62). An accepted version takes its proposal's; an edit and a restore carry their source version's forward, as `fact_count_at` carries the era. Ids only, of facts that were usable. **Null on every version made before migration 0014**, and on a version carrying such a version's content: the set was never recorded and cannot be rebuilt, so those keep the count rule |
 
 **Unique:** `(render_id, version_no)`.
 
@@ -477,7 +489,8 @@ résumé reads the same index backwards, for the same reason employers do.
 | `generation_status` | generation_status | no | Default `'generating'`. The row exists from the moment generation starts, because `POST /api/renders/:kind/generate` returns `202` with a resource to poll. **This is what the poll reads** |
 | `generation_error` | text | yes | A stated reason, populated when `failed`. A failure never mutates a stored version |
 | `based_on_version_id` | text | yes | What it was diffed against |
-| `reason` | text | yes | `Regenerated after 3 new facts entered your record` |
+| `reason` | text | yes | `Regenerated after 3 new facts entered your record`, `… after 1 fact could no longer be used`, or both joined by `and` |
+| `usable_fact_ids` | text[] | yes | The same set, taken from the read generation was given, which is before the author accepts. Copied to the version on accept. Null before migration 0014 |
 | `generated_at` / `decided_at` | timestamptz | | |
 
 **Indexes:** `(render_id, status)`; **partial unique** `(render_id) WHERE status = 'pending' AND
@@ -546,6 +559,10 @@ used `coalesce(facts.employer_id, projects.employer_id)` (`06`, 2026-09-28).
 projects, because the foreign key restricts that too (`07` §4). A fact that reads its employer
 through a document holds no reference of its own and does not block the delete; the document does.
 
+**Since 2026-10-08 the pair is also shown on an accepted fact whose `repeat` flag is open** (§3.13),
+and for such a fact the comparison leaves out facts read from the same version of the same document.
+The paragraphs below describe the candidate's card, which the backlog still reads.
+
 **The overlap flag · built by #36, 2026-09-28.** A candidate is shown the existing facts at the same employer
 that likely say the same thing, and a likely match with a different number is marked as a conflict
 (PRD §8). **It is computed on read and stored nowhere: no table and no column.** "Likely the same"
@@ -562,6 +579,32 @@ not in the comparison.
 It was built before the document employer above (`06`, 2026-09-28), when "the same employer" was
 the fact's own, then its project's. It reads `effectiveEmployerId`, so since #35 it resolves the
 full order above, the document included.
+
+### 3.13 `fact_flags` · migrations 0015–0016, 2026-10-08 (#57)
+
+Why a fact is worth a look. Written when the fact is accepted by the importer, for `repeat`
+also when a later write makes a pair (`03` §5), and for `confidential` and `number` also when the
+author's edit of a claim gives it a confidential shape or a number (`07` §6). **A flag gates nothing**: what keeps a fact out of a
+document is its own `disclosure` and `provenance`, which a flag only explains.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `flg_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `fact_id` | text | no | FK → `facts.id` **cascade** |
+| `kind` | fact_flag_kind | no | `confidential`: stored Private. `number`: the claim states one. `unsure`: the importer doubted it, graded it Generated, or gave no grade. `repeat`: it likely restates another fact at the same employer |
+| `reason` | text | no | **Always present.** One or two plain sentences. Names the kind of identifier found, never the identifier |
+| `explanation` | text | yes | What `Explain this` wrote. Null until it is pressed. Kept as written while the reason stands; cleared, with the token columns, when the reason is rewritten or a claim edit raises the flag again |
+| `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What that one call cost. Null until then |
+| `checked_at` | timestamptz | yes | When the author marked it checked, when a `repeat` flag's pair went away, or when a claim edit removed the number or the confidential shape the flag was raised for. Null while it is on the list |
+| `system_settled_at` | timestamptz | yes | Migration 0016. Set with `checked_at` when the system closes a `repeat` flag because its pair disappeared. Cleared when the pair returns or the author changes the check state. Null for deliberate author dismissal |
+
+**Unique:** `(fact_id, kind)`, so a fact carries at most one flag of a kind and a retried import
+step writes no second. **Index:** `(user_id, checked_at)`, the list and its counts.
+
+The `repeat` flag stores that a pair exists and not which facts make it: the pair is computed on the
+read (§3.12), so the stored row cannot name a fact that has since been rejected. Flags are in the
+export (S15). A rejected fact's flags are kept and left off the list.
 
 ---
 
@@ -775,6 +818,8 @@ technologies: {AWS, VPC, IAM}
 | `render_proposals` (dismissed) | Retained. Generation is non-deterministic, so a dismissed draft may hold phrasing worth recovering. Age out only if they become noise |
 | `source_document_versions` | **Never deleted.** They are the evidence every Measured fact points at |
 | `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-offering them |
+| `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
+| `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left; removing one is #60's question |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
 | Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |

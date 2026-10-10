@@ -152,7 +152,7 @@ describe("quote verification", () => {
 });
 
 describe("what a candidate arrives as", () => {
-  it("arrives Generated, so promotion is always a deliberate act", async () => {
+  it("arrives accepted, and Generated when the importer gave it no grade", async () => {
     model.extractions = [
       [
         {
@@ -164,8 +164,10 @@ describe("what a candidate arrives as", () => {
     ];
     const created = (await (await importDocument()).json()) as { importId: string };
     const { items } = await factsOf(created.importId);
+    // Kept, never left waiting and never dropped; Generated keeps it out of
+    // every document until the author says otherwise.
     expect(items[0]!.provenance).toBe("generated");
-    expect(items[0]!.status).toBe("candidate");
+    expect(items[0]!.status).toBe("accepted");
   });
 
   it("marks a candidate carrying an identifier Private, without asking", async () => {

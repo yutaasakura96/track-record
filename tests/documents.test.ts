@@ -8,7 +8,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
-import { CASE_STUDY, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { asCandidates, CASE_STUDY, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { ModelUnavailableError } from "~/model/types";
 
 interface Version {
@@ -43,6 +43,7 @@ interface Listing {
 
 interface Summary {
   openCandidates: number;
+  openFlags: number;
   running: boolean;
 }
 
@@ -101,6 +102,11 @@ describe("the documents listing", () => {
       ],
     ];
     const created = await importDocument(CASE_STUDY, "harbor-notes.md");
+    // Accepted on arrival, so nothing is open (issue #57).
+    expect((await listing()).documents[0]!.versions[0]!.facts).toEqual({ accepted: 3, rejected: 0, open: 0 });
+
+    // The counts of a document imported before that, reviewed one at a time.
+    await asCandidates(created.importId);
     const { items } = await client.json<{ items: { id: string }[] }>(
       `/api/facts?importId=${created.importId}`,
     );
@@ -364,7 +370,10 @@ describe("the sidebar summary", () => {
       ],
     ];
     const created = await importDocument(CASE_STUDY, "harbor-notes.md");
-    expect(await summary()).toEqual({ openCandidates: 2, running: false });
+    // Nothing waits after an import; what the importer was unsure of is flagged.
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 2, running: false });
+    await asCandidates(created.importId);
+    expect(await summary()).toEqual({ openCandidates: 2, openFlags: 0, running: false });
 
     // The cheap count and the expensive one are never allowed to disagree,
     // through every transition that moves a fact out of `candidate`.
@@ -400,18 +409,18 @@ describe("the sidebar summary", () => {
 
     release();
     await settle();
-    expect(await summary()).toEqual({ openCandidates: 1, running: false });
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 1, running: false });
   });
 
   it("reports nothing running once an import has failed", async () => {
     // A failed version is settled. Reporting it as running would poll forever.
     model.extractions = [[]];
     await importDocument(CASE_STUDY, "harbor-notes.md");
-    expect(await summary()).toEqual({ openCandidates: 0, running: false });
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
   });
 
   it("counts nothing for a user with no documents", async () => {
-    expect(await summary()).toEqual({ openCandidates: 0, running: false });
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
   });
 
   it("answers the summary rather than reading `summary` as an import id", async () => {
@@ -420,10 +429,10 @@ describe("the sidebar summary", () => {
     // the other way round, this path is an import id and the sidebar gets a 404.
     const response = await client.get("/api/imports/summary");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ openCandidates: 0, running: false });
+    expect(await response.json()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
   });
 
-  it("counts only the reader's own candidates, and only their own imports", async () => {
+  it("counts only the reader's own candidates and flags, and only their own imports", async () => {
     // The every-query-filters-by-user_id rule. The summary returns numbers and
     // no names, so the isolation suite's "does the body mention the other user"
     // check cannot see a leak here — this is where it has to be caught.
@@ -445,14 +454,25 @@ describe("the sidebar summary", () => {
       ],
     ];
 
-    await other.request("/api/imports", { method: "POST", body: uploadForm(CASE_STUDY, "orchard-log.md") });
-    expect(await summary()).toEqual({ openCandidates: 0, running: false });
+    const theirs = (await (
+      await other.request("/api/imports", { method: "POST", body: uploadForm(CASE_STUDY, "orchard-log.md") })
+    ).json()) as { importId: string };
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
 
     release();
     await settle();
-    expect(await summary()).toEqual({ openCandidates: 0, running: false });
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
+    expect(await other.json<Summary>("/api/imports/summary")).toEqual({
+      openCandidates: 0,
+      openFlags: 2,
+      running: false,
+    });
+
+    await asCandidates(theirs.importId);
+    expect(await summary()).toEqual({ openCandidates: 0, openFlags: 0, running: false });
     expect(await other.json<Summary>("/api/imports/summary")).toEqual({
       openCandidates: 2,
+      openFlags: 0,
       running: false,
     });
   });

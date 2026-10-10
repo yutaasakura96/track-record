@@ -187,6 +187,12 @@ And an exact repeat is still suppressed by dedupe before it becomes a candidate
 And Accept and Reject behave as they do without a flag, and a rejected match drops off the card
 ```
 
+**Since 2026-10-08 (#57)** the same holds for a fact accepted on arrival: one that likely restates
+another is given a `repeat` flag, and carries the pair while that flag is open. Covered in the same
+file: within a version it is not flagged against its own neighbours, a dismissed flag is not raised
+again, the flag is settled when the other fact is rejected or the claim or employer changes, and it
+is raised late when a document is refiled under the employer that makes the pair.
+
 ### 2.6c An accepted fact is re-graded, and only that is written
 
 `tests/regrade.test.ts` over HTTP, `tests/client/fact-review.test.tsx` on the card (#37).
@@ -220,6 +226,106 @@ And the fact list, the render, Version Edit and the attribution check name the s
 And a document with no employer behaves as it did before #35
 ```
 
+### 2.6e Automation never drops a fact, and never loosens who may read one
+
+`tests/flags.test.ts` over HTTP, `tests/flag-rules.test.ts` on the rules alone, and
+`tests/client/fact-review.test.tsx` on the card (#57). **This is the test of point 7 of the issue**,
+and the first place to look when an import seems to have lost something.
+
+```
+Given a document whose candidates the importer grades plainly, reads as confidential, is unsure of,
+  gives no grade at all, and one whose quote is not in the document
+When the import finishes
+Then every candidate but the last is an accepted fact, with the importer's grade, and none is waiting
+And none is Public, and the confidential ones are Private, by the importer's reading or by shape
+And the ungraded one is kept as Generated and flagged, not dropped
+And the one with no verbatim quote is discarded and counted, as before
+And every flag has a reason, and a confidential reason names the kind of identifier, never the identifier
+When the next résumé is generated without any fact having been opened
+Then the model is given every usable fact, the number-flagged ones included,
+  and no Private and no Generated fact
+```
+
+The sort of the facts that were waiting is held to the same: every fact in a batch is accepted
+unless the author ruled on it or edited it during the call, twenty-five a call, a disclosure the author set is never loosened, an unavailable model changes
+nothing, and only the reader's own facts are sorted.
+
+### 2.6f A flag is advice, and `Explain this` is the only model call
+
+`tests/flags.test.ts`, `tests/client/flagged.test.tsx` (#57).
+
+```
+Given a record with open flags
+When the list is read, any number of times
+Then no model call is made, and no item carries a passage from a source document
+When a flag is marked checked
+Then it leaves the list and nothing about its fact changes: a Private fact is still Private
+When Explain this is pressed
+Then exactly one model call is made, about that flag and its fact, and the answer is stored
+And a second press reads the stored answer and makes no call
+And a model failure answers 503, stores nothing, and the next press tries again
+And another user's flag is a 404 on every route
+```
+
+### 2.6g The master document holds everything, and is stored nowhere
+
+`tests/master-document.test.ts`, `tests/client/master-document.test.tsx` (#57).
+
+```
+Given accepted facts that are usable, Private and Generated, a rejected fact and a waiting one
+When the master document is read
+Then it holds every accepted fact with its labels, under the employer it resolves to and its project
+And it leaves out the rejected and the waiting, and counts the waiting
+And it carries no passage from any source document, and no model call was made
+When it is downloaded
+Then the file is Markdown, in full, Private facts included, and says so in its first lines
+And another user's record is never in either
+```
+
+**One per language** (#59), in the same two files:
+
+```
+Given a record whose employer, role, project, school and certification each have two names
+When the master document is read with language=ja
+Then each is called by its Japanese name, and by its only name where the record holds one
+And it holds the same facts, claims and counts as the English one, and no model call was made
+When it is downloaded
+Then the file is named for its language, headed and dated in Japanese, and says nothing is translated
+And an unknown language is the English one
+```
+
+### 2.6g-2 Home separates the two languages
+
+`tests/client/overview.test.tsx`, `tests/client/master-document.test.tsx` (#59).
+
+```
+Given the five documents
+When Home is opened
+Then the English tab is open, and lists the English master document, the résumé and the career story
+When 日本語 is chosen, by a press or by the arrow keys
+Then it lists the 日本語 master document, 履歴書, 職務経歴書 and 職務経歴ストーリー, and the choice is kept
+And the line above the rows speaks for the rows of the tab that is open
+When the master document is opened from a tab
+Then it is the one of that language, and its download is that language's file
+```
+
+### 2.6h A tailored résumé is the main résumé's rules with a job description
+
+`tests/tailored.test.ts`, `tests/client/tailored.test.tsx`, and the prompt in `tests/prompt.test.ts`
+(#57).
+
+```
+Given a named job description
+When a tailored résumé is created
+Then nothing is generated, and the five main documents are as they were
+When it is generated
+Then the model is given the job description and exactly the facts the main résumé is given
+And the result is a proposal, read as a diff and accepted, with versions apart from the main résumé's
+And a version asked for under another document's ref is not found
+And its file is withheld once a fact it cites is made Private, as the main résumé's is
+And another user's tailored résumé is not listed, and is a 404 on every route addressed by its id
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```
@@ -245,6 +351,10 @@ Then it contains no source text, no fact claim, no quote, and no render content
 
 Otherwise the logs become a second, un-governed copy of NDA-bound material.
 
+**Extended 2026-10-08 (#57)** to the four new sources of a log line: grading and flagging an import,
+the sort, `Explain this`, and creating and generating a tailored résumé. The search also covers flag
+reasons, explanations and the job description, which names a company.
+
 ### 2.9 One end-to-end smoke test — the critical path
 
 **Playwright. One test, one happy path, in CI.** It exists to catch **wiring breakage**, which every
@@ -256,7 +366,8 @@ tests and fail the instant the app is opened.
 Sign in (stubbed OIDC)
   → import a fixture document
   → wait for extraction to finish (stubbed model)
-  → accept one fact
+  → accept one fact          (until 2026-10-08. Since #57 the fact arrives accepted with the
+                              importer's grade: the walk reads its card and presses Done)
   → generate the English résumé
   → accept the proposal
   → download the .docx

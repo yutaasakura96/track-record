@@ -12,7 +12,9 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import type { RenderContent, RenderKind } from "~/shared/render-content";
+import { useState } from "react";
+import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
+import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
@@ -130,15 +132,51 @@ export interface Fact {
   technologies: string[];
   isClientIdentifying: boolean;
   /**
-   * False on an accepted fact whose provenance is not the author's — the 112 of
-   * the 2026-09-04 import until each is re-graded (`docs/07` §6).
+   * False on an accepted fact whose provenance nobody chose, neither the author
+   * nor the importer: the 112 of the 2026-09-04 import until each is re-graded
+   * (`docs/07` §6).
    */
   graded: boolean;
+  /** True on a fact the importer accepted on its own, whatever the author did next. */
+  autoAccepted: boolean;
+  /** Whose grade the provenance is. `null` is the agent's default nobody chose. */
+  gradedBy: "author" | "importer" | null;
+  /** Why the fact is worth a look. Empty on most facts. */
+  flags: Flag[];
   /**
-   * Accepted facts at the same employer this candidate likely restates, best
-   * first. Empty on anything but a candidate. No score, by design.
+   * Accepted facts at the same employer this one likely restates, best first.
+   * Empty once the author has ruled on the fact. No score, by design.
    */
   likelyMatches: LikelyMatch[];
+}
+
+/** One reason a fact is on the list to check (issue #57). Advice; it never removes the fact. */
+export interface Flag {
+  id: string;
+  kind: "confidential" | "number" | "unsure" | "repeat";
+  /** Short, and always there. */
+  reason: string;
+  /** The longer account, written when `Explain this` is pressed. `null` until then. */
+  explanation: string | null;
+  checked: boolean;
+}
+
+/** A flag on the Flagged list, with the fact it is on and where that fact is opened. */
+export interface FlaggedItem extends Flag {
+  fact: {
+    id: string;
+    claim: string;
+    provenance: Fact["provenance"];
+    disclosure: Fact["disclosure"];
+    lineNumber: number | null;
+    importId: string | null;
+    filename: string | null;
+  };
+}
+
+export interface FlagsListing {
+  counts: { open: number; checked: number };
+  items: FlaggedItem[];
 }
 
 /** An existing fact a candidate likely restates (`docs/07` §6). */
@@ -286,10 +324,16 @@ export interface DocumentsListing {
 export interface ImportSummary {
   openCandidates: number;
   running: boolean;
+  /** Flags not yet marked checked. */
+  openFlags: number;
 }
 
 export interface RenderRow {
   id: string | null;
+  /** What the render routes address it by: its kind, or a tailored résumé's id. */
+  ref: string;
+  /** A tailored résumé's name and when it was made. `null` on a main document. */
+  tailored: { label: string; createdAt: string } | null;
   kind: RenderKind;
   language: "en" | "ja";
   title: string;
@@ -299,6 +343,8 @@ export interface RenderRow {
   generatedAt: string | null;
   status: "never_generated" | "up_to_date" | "stale" | "proposal_pending" | "proposal_generating";
   newFactsSince: number | null;
+  /** Facts the current version was generated from that a document may no longer use. */
+  withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
 }
 
@@ -308,15 +354,19 @@ export interface Overview {
   activeImport: (ImportStatus & { filename: string }) | null;
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
+  /** Flags not yet marked checked. Advice, never a block. */
+  flagged: number;
   /**
-   * Candidates waiting across every version of every document, how many
-   * documents they sit in, and the newest version holding any, which is where
-   * reviewing them starts. `null` when nothing waits.
+   * Facts still waiting from before the importer accepted on its own, across
+   * every version of every document, how many documents they sit in, and the
+   * newest version holding any. `null` when nothing waits.
    */
   review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
   /** The newest version holding an accepted fact that is still Generated. */
-  unconfirmed: { importId: string; count: number } | null;
+  unconfirmed: { importId: string; count: number; total: number } | null;
   documents: RenderRow[];
+  /** The tailored résumés, newest first. */
+  tailored: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
   isEmpty: boolean;
@@ -325,6 +375,9 @@ export interface Overview {
 export interface Proposal {
   id: string;
   renderKind: RenderKind;
+  /** What the render routes address this document by, and what it is called. */
+  renderRef: string;
+  title: string;
   status: "generating" | "failed" | "pending" | "accepted" | "dismissed";
   generationStatus: "generating" | "ready" | "failed";
   error: { code: string; message: string } | null;
@@ -380,6 +433,11 @@ export interface EditResult {
 
 export interface VersionHistory {
   renderKind: RenderKind;
+  renderRef: string;
+  /** The document's name: a main document's title, or `Résumé for …`. */
+  title: string;
+  tailored: boolean;
+  buildable: boolean;
   currentVersionId: string | null;
   currentVersionNo: number | null;
   items: RenderVersion[];
@@ -433,17 +491,24 @@ export const keys = {
   // come from other imports, so a decision on one screen changes another's.
   allFacts: ["facts"] as const,
   facts: (importId: string) => ["facts", importId] as const,
+  // Under `allFacts`: a ruling on a fact changes what the list holds.
+  flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
+  masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
   sourceText: (documentId: string, versionNo: number) =>
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
   diff: (id: string) => ["proposal", id, "diff"] as const,
-  versions: (kind: RenderKind) => ["renders", kind, "versions"] as const,
+  // `ref` is what the render routes take: a kind, or a tailored résumé's id.
+  versions: (ref: string) => ["renders", ref, "versions"] as const,
   // Deliberately NOT under `versions`: invalidating the list on a save would
   // otherwise invalidate the immutable version the editor is holding.
-  version: (kind: RenderKind, id: string) => ["renders", kind, "version", id] as const,
-  proposals: (kind: RenderKind) => ["renders", kind, "proposals"] as const,
-  versionDiff: (kind: RenderKind, from: string, to: string) =>
-    ["renders", kind, "diff", from, to] as const,
+  version: (ref: string, id: string) => ["renders", ref, "version", id] as const,
+  proposals: (ref: string) => ["renders", ref, "proposals"] as const,
+  versionDiff: (ref: string, from: string, to: string) =>
+    ["renders", ref, "diff", from, to] as const,
+  // Under `renders`, so whatever refreshes the documents refreshes these.
+  tailored: ["renders", "tailored"] as const,
+  tailoredResume: (id: string) => ["renders", "tailored", id] as const,
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
@@ -631,7 +696,9 @@ export const useOverview = () =>
     queryFn: () => api<Overview>("/api/overview"),
     refetchInterval: (query) =>
       isImportRunning(query.state.data?.activeImport?.status) ||
-      query.state.data?.documents.some((row) => row.status === "proposal_generating")
+      [...(query.state.data?.documents ?? []), ...(query.state.data?.tailored ?? [])].some(
+        (row) => row.status === "proposal_generating",
+      )
         ? POLL_MS
         : false,
   });
@@ -722,17 +789,53 @@ export function useProposal(proposalId: string) {
  * The two halves of the history, read separately and merged in the one place
  * that needs them merged (`docs/06`, 2026-09-12).
  */
-export const useVersionHistory = (kind: RenderKind) =>
+export const useVersionHistory = (ref: string) =>
   useQuery({
-    queryKey: keys.versions(kind),
-    queryFn: () => api<VersionHistory>(`/api/renders/${kind}/versions`),
+    queryKey: keys.versions(ref),
+    queryFn: () => api<VersionHistory>(`/api/renders/${ref}/versions`),
+    // A `404` is the answer "there is no such document", not a blip to retry.
+    retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
   });
 
+/** A document as the render routes address it and the screens name it. */
+export interface Doc {
+  /** A kind for a main document, or a tailored résumé's id. */
+  ref: string;
+  kind: RenderKind;
+  title: string;
+}
+
+/**
+ * The document a `/renders/$ref/…` screen is about. A main document is known
+ * from its kind alone, at once. A tailored résumé is named by the server, so
+ * its screens wait for the history read; `missing` is that read answering that
+ * there is no such document.
+ */
+export function useDoc(ref: string): {
+  doc: Doc | null;
+  missing: boolean;
+  failure: { error: unknown; refetch: () => unknown } | null;
+} {
+  const history = useVersionHistory(ref);
+  if (history.isError && !history.data) {
+    const missing = history.error instanceof ApiError && history.error.status === 404;
+    return { doc: null, missing, failure: missing ? null : history };
+  }
+  if ((RENDER_KINDS as readonly string[]).includes(ref)) {
+    const kind = ref as RenderKind;
+    return { doc: { ref, kind, title: RENDER_TITLE[kind] }, missing: false, failure: null };
+  }
+  if (history.data) {
+    return { doc: { ref, kind: history.data.renderKind, title: history.data.title }, missing: false, failure: null };
+  }
+  return { doc: null, missing: false, failure: null };
+}
+
 /** A version's stored structure, by id. `null` means there is nothing to edit. */
-export const useStoredVersion = (kind: RenderKind, versionId: string | null) =>
+export const useStoredVersion = (ref: string, versionId: string | null) =>
   useQuery({
-    queryKey: keys.version(kind, versionId ?? ""),
-    queryFn: () => api<StoredVersion>(`/api/renders/${kind}/versions/${versionId}`),
+    queryKey: keys.version(ref, versionId ?? ""),
+    queryFn: () => api<StoredVersion>(`/api/renders/${ref}/versions/${versionId}`),
     enabled: versionId !== null,
     // A stored version is immutable; re-reading it would only risk replacing
     // the document under an editor that has unsaved work in it.
@@ -740,20 +843,50 @@ export const useStoredVersion = (kind: RenderKind, versionId: string | null) =>
     refetchOnWindowFocus: false,
   });
 
-export const useRenderProposals = (kind: RenderKind) =>
+export const useRenderProposals = (ref: string) =>
   useQuery({
-    queryKey: keys.proposals(kind),
-    queryFn: () => api<{ items: ProposalRow[] }>(`/api/proposals?kind=${kind}`),
+    queryKey: keys.proposals(ref),
+    queryFn: () => api<{ items: ProposalRow[] }>(`/api/proposals?kind=${ref}`),
   });
+
+/** The tailored résumés, newest first (issue #57). */
+export const useTailoredResumes = () =>
+  useQuery({
+    queryKey: keys.tailored,
+    queryFn: () => api<{ items: RenderRow[]; canGenerate: boolean }>("/api/tailored-resumes"),
+    refetchInterval: (query) =>
+      query.state.data?.items.some((row) => row.status === "proposal_generating") ? POLL_MS : false,
+  });
+
+/** One tailored résumé with the job description it is written toward. */
+export const useTailoredResume = (id: string | null) =>
+  useQuery({
+    queryKey: keys.tailoredResume(id ?? ""),
+    queryFn: () => api<RenderRow & { jobDescription: string }>(`/api/tailored-resumes/${id}`),
+    enabled: id !== null,
+  });
+
+/** Names a tailored résumé and stores its job description. Generating it is a second call. */
+export function useCreateTailoredResume() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { label: string; jobDescription: string }) =>
+      api<RenderRow>("/api/tailored-resumes", { method: "POST", ...json(body) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
+  });
+}
 
 /**
  * The restore preview's diff. `from` is the current version, so the split view
  * reports what committing the restore will CHANGE rather than what it undoes.
  */
-export const useVersionDiff = (kind: RenderKind, from: string | null, to: string | null) =>
+export const useVersionDiff = (ref: string, from: string | null, to: string | null) =>
   useQuery({
-    queryKey: keys.versionDiff(kind, from ?? "", to ?? ""),
-    queryFn: () => api<RenderDiff>(`/api/renders/${kind}/diff?from=${from}&to=${to}`),
+    queryKey: keys.versionDiff(ref, from ?? "", to ?? ""),
+    queryFn: () => api<RenderDiff>(`/api/renders/${ref}/diff?from=${from}&to=${to}`),
     enabled: from !== null && to !== null,
   });
 
@@ -916,8 +1049,9 @@ export function useFactAction(importId: string) {
 export function useGenerate() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (kind: RenderKind) =>
-      api<{ proposalId: string }>(`/api/renders/${kind}/generate`, { method: "POST" }),
+    /** `ref` is a kind for a main document, or a tailored résumé's id. */
+    mutationFn: (ref: string) =>
+      api<{ proposalId: string }>(`/api/renders/${ref}/generate`, { method: "POST" }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.renders });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
@@ -950,16 +1084,16 @@ export function useDecideProposal(proposalId: string) {
  * Restore (S14). It APPENDS a version rather than erasing the ones after it,
  * so everything that reads a version list or a render's status is refreshed.
  */
-export function useRestoreVersion(kind: RenderKind) {
+export function useRestoreVersion(ref: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (versionId: string) =>
       api<{ newVersionNo: number; sourceVersionNo: number }>(
-        `/api/renders/${kind}/versions/${versionId}/restore`,
+        `/api/renders/${ref}/versions/${versionId}/restore`,
         { method: "POST" },
       ),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.versions(kind) });
+      void queryClient.invalidateQueries({ queryKey: keys.versions(ref) });
       void queryClient.invalidateQueries({ queryKey: keys.renders });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
     },
@@ -971,13 +1105,13 @@ export function useRestoreVersion(kind: RenderKind) {
  * version list or a render's status is refreshed — but the version it was made
  * from is deliberately NOT invalidated: it is immutable and still readable.
  */
-export function useEditVersion(kind: RenderKind) {
+export function useEditVersion(ref: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: { basedOnVersionId: string; content: RenderContent }) =>
-      api<EditResult>(`/api/renders/${kind}/versions`, { method: "POST", ...json(body) }),
+      api<EditResult>(`/api/renders/${ref}/versions`, { method: "POST", ...json(body) }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.versions(kind) });
+      void queryClient.invalidateQueries({ queryKey: keys.versions(ref) });
       void queryClient.invalidateQueries({ queryKey: keys.renders });
       void queryClient.invalidateQueries({ queryKey: keys.overview });
     },
@@ -985,8 +1119,8 @@ export function useEditVersion(kind: RenderKind) {
 }
 
 /** `versionId` omitted means the current version — the server's own default. */
-const downloadUrl = (kind: RenderKind, format: "docx" | "md", versionId?: string) =>
-  `/api/renders/${kind}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
+const downloadUrl = (ref: string, format: "docx" | "md", versionId?: string) =>
+  `/api/renders/${ref}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
 
 /**
  * A download is FETCHED rather than navigated to, which is the whole reason
@@ -999,38 +1133,156 @@ const downloadUrl = (kind: RenderKind, format: "docx" | "md", versionId?: string
  * document and there is no second request to spend on it. The URL is revoked
  * immediately; the click has already handed the bytes to the browser.
  */
-export async function downloadRender(
-  kind: RenderKind,
-  format: "docx" | "md",
-  versionId?: string,
-): Promise<void> {
-  const response = await fetch(downloadUrl(kind, format, versionId));
+export const downloadRender = (ref: string, format: "docx" | "md", versionId?: string): Promise<void> =>
+  saveResponse(downloadUrl(ref, format, versionId), `${ref}.${format}`, "That document could not be downloaded.");
+
+/** Fetches a file the server names and hands it to the browser to save. */
+async function saveResponse(url: string, fallbackName: string, failure: string): Promise<void> {
+  const response = await fetch(url);
   if (!response.ok) {
     const isJson = response.headers.get("content-type")?.includes("application/json");
     const body = isJson ? ((await response.json()) as ApiErrorBody) : null;
     throw new ApiError(
       response.status,
       body?.error.code ?? "internal",
-      body?.error.message ?? "That document could not be downloaded.",
+      body?.error.message ?? failure,
       body?.error.details?.fields ?? [],
       body?.error.details ?? {},
     );
   }
 
-  const url = URL.createObjectURL(await response.blob());
+  const objectUrl = URL.createObjectURL(await response.blob());
   const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filenameFrom(response.headers.get("content-disposition"), kind, format);
+  anchor.href = objectUrl;
+  anchor.download = filenameFrom(response.headers.get("content-disposition"), fallbackName);
   document.body.appendChild(anchor);
   anchor.click();
   anchor.remove();
-  URL.revokeObjectURL(url);
+  URL.revokeObjectURL(objectUrl);
 }
 
 /** The server names the file; this is the fallback when the header is absent. */
-function filenameFrom(disposition: string | null, kind: RenderKind, format: string): string {
+function filenameFrom(disposition: string | null, fallback: string): string {
   const match = disposition?.match(/filename="([^"]+)"/);
-  return match?.[1] ?? `${kind}.${format}`;
+  return match?.[1] ?? fallback;
 }
+
+/* -------------------------------------------------- flags, sorting, master */
+
+/** The Flagged list. No model call is made to read it. */
+export const useFlags = (state: "open" | "checked") =>
+  useQuery({
+    queryKey: keys.flags(state),
+    queryFn: () => api<FlagsListing>(`/api/flags${state === "checked" ? "?state=checked" : ""}`),
+  });
+
+/**
+ * What can be done to a flag. `explain` is the one action that spends tokens,
+ * and it is a mutation so that nothing but a press can start it.
+ */
+export function useFlagAction() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    void queryClient.invalidateQueries({ queryKey: keys.importSummary });
+    return queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  };
+  const explain = useMutation({
+    mutationFn: (id: string) => api<Flag>(`/api/flags/${id}/explain`, { method: "POST" }),
+    onSuccess: () => void refresh(),
+  });
+  const setChecked = useMutation({
+    mutationFn: (input: { id: string; checked: boolean }) =>
+      api<Flag>(`/api/flags/${input.id}/${input.checked ? "check" : "uncheck"}`, { method: "POST" }),
+    onSuccess: () => void refresh(),
+  });
+  return { explain, setChecked };
+}
+
+export interface SortProgress {
+  running: boolean;
+  /** Facts sorted so far by this run. */
+  sorted: number;
+  /** Facts flagged so far by this run. */
+  flagged: number;
+  /** `null` until the first answer says how many are left. */
+  remaining: number | null;
+  failure: string | null;
+}
+
+const SORT_IDLE_LIMIT = 3;
+const SORT_STALLED = "Some facts could not be sorted just now. Nothing was lost; try again.";
+
+/**
+ * Sorts the facts still waiting from before the importer accepted on its own.
+ * The server sorts a batch per request, one model call each, and this asks
+ * again until none are left. A failure stops it where it is: everything
+ * already sorted stays sorted, and pressing again resumes.
+ */
+export function useSortFacts(importId?: string) {
+  const queryClient = useQueryClient();
+  const [progress, setProgress] = useState<SortProgress>({
+    running: false,
+    sorted: 0,
+    flagged: 0,
+    remaining: null,
+    failure: null,
+  });
+
+  const run = async () => {
+    if (progress.running) return;
+    let sorted = 0;
+    let flagged = 0;
+    let idle = 0;
+    setProgress({ running: true, sorted, flagged, remaining: null, failure: null });
+    try {
+      for (;;) {
+        const step = await api<{ sorted: number; flagged: number; remaining: number }>("/api/facts/sort", {
+          method: "POST",
+          ...json(importId ? { importId } : {}),
+        });
+        sorted += step.sorted;
+        flagged += step.flagged;
+        const done = step.remaining === 0;
+        idle = step.sorted === 0 ? idle + 1 : 0;
+        const stalled = !done && idle === SORT_IDLE_LIMIT;
+        setProgress({
+          running: !done && !stalled,
+          sorted,
+          flagged,
+          remaining: step.remaining,
+          failure: stalled ? SORT_STALLED : null,
+        });
+        if (done || stalled) break;
+      }
+    } catch (error) {
+      setProgress((current) => ({ ...current, running: false, failure: failureText(error) }));
+    }
+    void queryClient.invalidateQueries({ queryKey: keys.overview });
+    void queryClient.invalidateQueries({ queryKey: keys.documents });
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
+    void queryClient.invalidateQueries({ queryKey: keys.allFacts });
+  };
+
+  return { progress, run };
+}
+
+/** English is the route with nothing asked of it; 日本語 is asked for (`docs/07` §9). */
+const masterQuery = (language: MasterLanguage) => (language === "ja" ? "?language=ja" : "");
+
+/** One language's master document: built from the record on each read, by no model. */
+export const useMasterDocument = (language: MasterLanguage) =>
+  useQuery({
+    queryKey: keys.masterDocument(language),
+    queryFn: () => api<MasterDocument>(`/api/master-document${masterQuery(language)}`),
+  });
+
+/** The master document as a file. It contains Private facts; the screen says so beside the button. */
+export const downloadMasterDocument = (language: MasterLanguage) =>
+  saveResponse(
+    `/api/master-document/download${masterQuery(language)}`,
+    `master-document-${language}.md`,
+    "The master document could not be downloaded.",
+  );
 
 export type { RenderContent };

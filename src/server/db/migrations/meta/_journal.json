@@ -99,6 +99,27 @@
       "when": 1791200334131,
       "tag": "0013_usable_fact_count",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1791409528562,
+      "tag": "0014_usable_fact_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1791497570413,
+      "tag": "0015_flags_and_tailored_resumes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1791585175907,
+      "tag": "0016_repeat_system_settlement",
+      "breakpoints": true
     }
   ]
 }

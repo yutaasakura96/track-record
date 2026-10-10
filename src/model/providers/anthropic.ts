@@ -9,7 +9,10 @@ import {
   ModelUnavailableError,
   type CandidateFact,
   type ExtractionContext,
+  type FactGrade,
+  type FlagToExplain,
   type GenerationContext,
+  type GradableFact,
   type ModelSeam,
   type ModelUsage,
   type RenderFact,
@@ -18,6 +21,8 @@ import {
 import type { RenderContent } from "~/shared/render-content";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
 import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent } from "../generate";
+import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
+import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
 
 /**
  * Thinking and effort are stated rather than inherited.
@@ -34,6 +39,12 @@ import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent
  */
 const THINKING = { type: "adaptive" } as const;
 const OUTPUT_CONFIG = { effort: "high" } as const;
+/**
+ * `Explain this` restates in plain words what the flag and the fact already
+ * say. It decides nothing, so it does not run at the effort the calls that
+ * decide a fact's grade run at.
+ */
+const EXPLAIN_OUTPUT_CONFIG = { effort: "low" } as const;
 
 export interface AnthropicSeamConfig {
   apiKey: string;
@@ -147,6 +158,65 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         throw asModelError(err);
       }
     },
+
+    async gradeFacts(facts: GradableFact[], ctx?: GenerationContext): Promise<Map<string, FactGrade>> {
+      const grades = new Map<string, FactGrade>();
+      if (facts.length === 0) return grades;
+      try {
+        // The tool is asked for by the prompt, not forced: one call per fact
+        // is many calls, and a forced `tool_choice` names one.
+        const stream = client.messages.stream({
+          model: config.model,
+          max_tokens: 32000,
+          thinking: THINKING,
+          output_config: OUTPUT_CONFIG,
+          system: [{ type: "text", text: GRADING_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          tools: [GRADE_FACT_TOOL],
+          messages: [{ role: "user", content: JSON.stringify({ facts }) }],
+        });
+        const message = await stream.finalMessage();
+        ctx?.onUsage?.(readUsage(message.usage));
+        const asked = new Set(facts.map((fact) => fact.id));
+        for (const block of message.content) {
+          if (block.type !== "tool_use" || block.name !== GRADE_FACT_TOOL.name) continue;
+          const id = (block.input as { id?: unknown } | null)?.id;
+          const grade = readGrade(block.input);
+          // An id it was not given is not a grade of anything.
+          if (typeof id !== "string" || !asked.has(id) || !grade) continue;
+          grades.set(id, grade);
+        }
+      } catch (err) {
+        throw asModelError(err);
+      }
+      return grades;
+    },
+
+    async explainFlag(flag: FlagToExplain, ctx?: GenerationContext): Promise<string> {
+      try {
+        const stream = client.messages.stream({
+          model: config.model,
+          max_tokens: 4000,
+          thinking: THINKING,
+          output_config: EXPLAIN_OUTPUT_CONFIG,
+          system: [{ type: "text", text: EXPLAIN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          messages: [{ role: "user", content: explainRequest(flag) }],
+        });
+        const message = await stream.finalMessage();
+        ctx?.onUsage?.(readUsage(message.usage));
+        const text = message.content
+          .map((block) => (block.type === "text" ? block.text : ""))
+          .join("")
+          .trim();
+        // A refusal and a response cut short both arrive as a message, not as
+        // an error, and neither is an explanation.
+        if (text === "" || message.stop_reason === "refusal" || message.stop_reason === "max_tokens") {
+          throw new ModelUnavailableError("The model did not return an explanation.");
+        }
+        return text;
+      } catch (err) {
+        throw asModelError(err);
+      }
+    },
   };
 }
 
@@ -170,12 +240,15 @@ function readCandidate(json: string): CandidateFact | null {
     claim,
     quote,
     technologies: Array.isArray(technologies) ? technologies.filter((t): t is string => typeof t === "string") : [],
+    // A candidate whose grade does not read is still a candidate: it is kept
+    // ungraded, and the pipeline flags it rather than dropping it.
+    ...(readGrade(parsed) ?? {}),
   };
 }
 
 /**
  * The SDK leaves the two cache fields nullable — they are absent, not zero,
- * when a request carries no `cache_control`. Both of this file's calls do carry
+ * when a request carries no `cache_control`. Every call in this file does carry
  * one, so a null here is worth reading as "no cache activity" rather than
  * "unknown", and 0 is the honest projection of that onto an integer column.
  */

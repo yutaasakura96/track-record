@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a two-function seam |
+| Model | **Anthropic `claude-opus-5`** | Behind a four-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -88,7 +88,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   └── rirekisho.blank.docx    # 履歴書 grid, every value stripped (built by scripts/)
 ├── src/
 │   ├── client/                 # React SPA
-│   │   ├── screens/            # fact-review, diff-review, overview
+│   │   ├── screens/            # fact-review, diff-review, overview, flagged, master-document, tailored
 │   │   ├── components/
 │   │   ├── components/ui/      # shadcn — owned, restyled to doc 05
 │   │   ├── stores/             # Zustand — UI state only
@@ -102,6 +102,8 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   ├── model/                  # THE SEAM — the only code that knows a model exists
 │   │   ├── extract.ts
 │   │   ├── generate.ts
+│   │   ├── grade.ts            # the grading rules, stated once for extraction and the sort
+│   │   ├── explain.ts
 │   │   └── providers/anthropic.ts
 │   ├── pipeline/               # Workflow definitions
 │   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
@@ -116,13 +118,21 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly two places**. Nothing outside `src/model/` imports an
+The application touches a model in **exactly four places**. Nothing outside `src/model/` imports an
 SDK or knows a provider name.
 
 ```ts
 extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>
 generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
+gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
+explainFlag(flag: FlagToExplain): Promise<string>
 ```
+
+It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
+them, by the same rules (§4.1), and is called only by `POST /api/facts/sort`. `explainFlag` writes
+the plain-words account of one flag and is called only when the author presses `Explain this`; no
+read, list or poll reaches it, and its answer is stored so a second press reads it back. It runs at
+low effort: the answer is three short paragraphs about one fact.
 
 Swapping providers is a config value plus one adapter file. The M2 bake-off this was built for was
 dropped on 2026-09-21 (`docs/06`); the seam stays, so a model upgrade or a later swap stays cheap.
@@ -162,8 +172,18 @@ than merely contained by the Generated default.
 > provides — and it is provider-portable. Citations remains available as an optional redundant check
 > (`docs/specs/technical-verification.md`, item D).
 
-Every candidate arrives with provenance **Generated** and disclosure set by the scrub rules (§7).
-Promotion is always a deliberate act by the author.
+**Each candidate carries the importer's grade** (decided 2026-10-08, #57): `provenance`, judged
+against the quote alone, and `confidential`, `unsure` and a one-sentence `note`. They are required
+fields of the same strict tool call, and the rules are one constant (`src/model/grade.ts`) that the
+extraction prompt and the `gradeFacts` prompt both print, so a fact imported in September and one
+imported today are judged alike. `src/pipeline/flags.ts` turns the grade into what is stored: the
+provenance as given, except that a missing grade is Generated and Measured without a quote is
+Attested; disclosure Private when a scrub shape matched (§7) **or** the importer read it as
+confidential, and Restricted otherwise, never Public; and the flags (§5).
+
+Until then every candidate arrived Generated and was promoted only by the author. Generated still
+never reaches a render (§7), which is what keeps an ungrounded claim out of a document now that
+nobody rules on each fact.
 
 ### 4.2 Generation contract
 
@@ -216,10 +236,28 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 4. Chunk changed regions   → chunks sized for progress reporting, not for context limits
 5. For each chunk          → extractFacts()  ── retried independently
 6. Verify quotes           → exact string match into stored text; unmatched candidates discarded
-7. Scrub                   → shape-based Private defaults (§7)
+7. Scrub and sort          → shape-based Private defaults (§7), then the importer's grade becomes
+                             the stored provenance, disclosure and flags
 8. Deduplicate             → drop candidates whose (quote, claim) hash matches an already-judged fact
-9. Persist candidates      → progress becomes visible in the fact rail as each chunk lands
+9. Persist as ACCEPTED     → with their flags, in one batch; progress is visible as each chunk lands
+10. Flag likely repeats    → once, when every chunk is in (below)
 ```
+
+**Step 9 accepts every fact that reaches it** (decided 2026-10-08, #57). Nothing waits as a
+candidate and nothing is rejected by the pipeline. Step 6 is the one place a candidate is not kept,
+and it is not a judgement about the claim: a quote that is not in the document is the invented fact
+§4.1 exists to keep out. A fact is flagged when it is confidential, when its claim states a number,
+when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
+flag is a row with a reason (`04` §3.13); it gates nothing.
+
+**A number** is any digit in the claim once the technologies the fact names are taken out, so that
+`S3` and `Java 17` flag nothing, or a kanji figure with its counter (三割, 五名).
+
+**Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through
+`gradeFacts`, twenty-five to a call, accepts them and writes the same flags; the client asks
+again until none are left. A fact the model returns no grade for, or a grade missing a field, is
+accepted as Generated and flagged. A fact the author ruled on or edited during the call is left
+alone (`07` §6). It never loosens a disclosure the author already set.
 
 > ### Two verified platform constraints that shape this pipeline
 >
@@ -265,6 +303,19 @@ by #36 and the first by #35:
   matcher) reads the same order: the fact's hand-set employer, then its document's, then its
   project's (decision log, 2026-09-28). The order is one SQL definition, shared by the Worker and
   the attribution script (`04` §3.12).
+- **Since 2026-10-08 the overlap check below also writes a flag.** A fact accepted on arrival has no
+  open card to compute a match on, so step 10 runs the same matcher over the version's new facts and
+  stores a `repeat` flag on each that has a match, with a reason that says when the number differs.
+  The flag stores that a pair exists; which facts make the pair is still computed on the read, for a
+  candidate and for an accepted fact whose `repeat` flag is open. A fact is not matched against
+  facts read from the same version of the same document. The check runs again for a fact whose claim
+  or employer is edited, for a document that is refiled and for a project moved to another employer.
+  Every write that changes which accepted facts stand beside each other (those, the end of an
+  import, a sort, a reject and an undo) then settles the flags: one whose pair is gone (the other
+  fact rejected, returned to candidate, reworded or filed elsewhere) is marked checked, one the
+  system closed that way is reopened when its pair returns, and a reason that no longer says
+  whether the numbers differ is rewritten. A flag the author marked checked is never reopened
+  (`src/server/services/repeats.ts`).
 - **Overlap with facts already in the record is flagged, not deduplicated · built (#36).** Step 8 only catches
   exact repeats. The same claim in other words, from a different document, has a different hash. A
   candidate is shown the existing facts at the same employer that likely say the same thing, and a
@@ -326,6 +377,21 @@ Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled fr
 `RenderContent` **on download**, never stored. Markdown is generated from the same structure for
 on-screen reading.
 
+**A tailored résumé runs through this pipeline unchanged** (2026-10-08, #57). It is a `renders` row
+of kind `english_resume` carrying a job description, addressed by its own id where a main document
+is addressed by its kind (`src/server/services/render-ref.ts`), so generate, diff, accept, history,
+edit, restore and download are the routes every document has. It is given exactly the facts the
+main résumé is given. The job description is printed in the prompt between tags, named as text to
+read and not a source of facts, with the rule that a skill the job asks for and no fact states is
+not written.
+
+**The master document is not in this pipeline.** `GET /api/master-document` reads the record in one
+batch and groups it (employer, then project, then fact); no model is called, nothing is stored and
+there is no version. It lists every accepted fact, Private and Generated included, and no source
+text. `src/render/master-document.ts` writes the same structure as Markdown for the download.
+`?language=ja` names the record as a Japanese document does, by the renders' `nameInLanguage`, and
+changes no claim (#59).
+
 ### 6.1 The diff engine
 
 Two passes, because one pass is unreadable:
@@ -382,13 +448,23 @@ Confidentiality is enforced in **four** places, deliberately redundantly.
 
 | # | Point | Rule |
 |---|---|---|
-| 1 | **Ingestion scrub** | GUIDs, IP addresses, email addresses, employee numbers and personal names other than the author's are marked **Private** by default, without asking |
+| 1 | **Ingestion scrub** | GUIDs, IP addresses, email addresses, employee numbers and personal names other than the author's are marked **Private** by default, without asking. Since 2026-10-08 the importer's reading (`confidential`) marks a fact Private too. The shape match is a floor: the importer can add to it and cannot take from it |
 | 2 | **Generation input** | Private facts are filtered out **before the request is built**. They never leave the database |
 | 3 | **Render output** | Generated-provenance facts are excluded at render time. A Generated fact may be *accepted* into the record; the block lives here |
 | 4 | **Logs** | **Server logs never contain source text, fact claims, or render content.** Log IDs and counts only |
 
 Point 4 exists because logs are otherwise a second, un-governed copy of NDA-bound client material
-sitting in Cloudflare's log retention.
+sitting in Cloudflare's log retention. It covers what #57 added: the importer's note on a fact, an
+explanation, and a job description are logged as an id and a count, never as text.
+
+**Automatic acceptance (#57) removed the review that used to stand before points 2 and 3, and
+loosened neither.** A fact reaches a document only if it is accepted, not Private and not Generated,
+exactly as before; what changed is who sets those values first. Making a Private fact usable is
+still one fact at a time, by the author's hand, with no bulk action and no default.
+
+**The master document is the one output that holds Private facts**, by the owner's decision
+(`docs/06`, 2026-10-08). It is the author's own copy of their record, as the JSON export is, it says
+so in its first lines and beside the download button, and it is never an input to a render.
 
 **Source documents never render, export, or appear in any output** (PRD §6.1). They exist to prove
 facts.

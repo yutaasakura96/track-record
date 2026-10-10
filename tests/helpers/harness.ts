@@ -13,7 +13,16 @@ import { env } from "cloudflare:test";
 import { createApp } from "~/server/app";
 import { createDb } from "~/server/db/client";
 import type { Bindings, SessionUser } from "~/server/env";
-import type { CandidateFact, ModelSeam, ModelUsage, RenderFact, RenderSpec } from "~/model/types";
+import type {
+  CandidateFact,
+  FactGrade,
+  FlagToExplain,
+  GradableFact,
+  ModelSeam,
+  ModelUsage,
+  RenderFact,
+  RenderSpec,
+} from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
 import type { FixtureIssuer, OidcIdentity } from "./oidc";
 import { CookieJar, walkSignIn, type SignInResult } from "./sign-in";
@@ -37,6 +46,13 @@ export interface StubModel extends ModelSeam {
   /** Every set of facts generation was actually given. */
   generationInputs: { facts: RenderFact[]; spec: RenderSpec }[];
   extractCalls: string[];
+  /** Queued responses, one per `gradeFacts` call, as grades by fact id. Unqueued, it grades nothing. */
+  gradings: (Record<string, FactGrade> | ((facts: GradableFact[]) => Record<string, FactGrade>) | Error)[];
+  /** Every set of facts grading was actually given. */
+  gradeCalls: GradableFact[][];
+  /** Queued responses, one per `explainFlag` call. */
+  explanations: (string | Error)[];
+  explainCalls: FlagToExplain[];
   /**
    * Reported through `onUsage` on every call, extraction and generation alike.
    * Left unset to model a provider that reports nothing, which is what the
@@ -51,6 +67,10 @@ export function stubModel(): StubModel {
     generations: [],
     generationInputs: [],
     extractCalls: [],
+    gradings: [],
+    gradeCalls: [],
+    explanations: [],
+    explainCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
       const next = stub.extractions.shift() ?? [];
@@ -67,6 +87,20 @@ export function stubModel(): StubModel {
       if (next instanceof Error) throw next;
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next ?? { sections: [] };
+    },
+    async gradeFacts(facts, ctx) {
+      stub.gradeCalls.push(facts);
+      const next = stub.gradings.shift() ?? {};
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return new Map(Object.entries(typeof next === "function" ? next(facts) : next));
+    },
+    async explainFlag(flag, ctx) {
+      stub.explainCalls.push(flag);
+      const next = stub.explanations.shift() ?? "It was flagged so that you can check it.";
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return next;
     },
   };
   return stub;

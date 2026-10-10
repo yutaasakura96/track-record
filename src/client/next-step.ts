@@ -12,6 +12,22 @@
  */
 import type { Overview, RenderRow } from "./api";
 
+/**
+ * Why a document is out of date. It is out of date by facts that arrived, by
+ * facts it was generated from that it may no longer use, or by both; a row
+ * that is out of date always has one of the two (`docs/06`, 2026-10-08).
+ */
+function outOfDateBy(row: RenderRow): string {
+  const added = row.newFactsSince ?? 0;
+  const withdrawn = row.withdrawnFactsSince ?? 0;
+  const arrived = `${count(added, "new fact", "new facts")} since it was generated`;
+  if (withdrawn === 0) return `${arrived}.`;
+  if (added === 0) {
+    return `${count(withdrawn, "fact", "facts")} it was generated from can no longer be used.`;
+  }
+  return `${arrived}, and ${withdrawn.toLocaleString("en-US")} it was generated from can no longer be used.`;
+}
+
 const count = (n: number, one: string, many: string) =>
   `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
 
@@ -20,6 +36,8 @@ export type StepAction =
   | { kind: "review"; label: string; importId: string }
   /** Into Diff Review on that proposal. */
   | { kind: "proposal"; label: string; proposalId: string }
+  /** Sorts every waiting fact where it stands; the step goes when none are left. */
+  | { kind: "sort"; label: string }
   /** Asks for a proposal, then opens it. */
   | { kind: "generate"; label: string; render: RenderRow["kind"] }
   /** The header's own control. */
@@ -35,18 +53,20 @@ export interface Step {
 export function nextSteps(data: Overview): Step[] {
   const steps: Step[] = [];
   const { review, activeImport, unconfirmed, documents, canGenerate } = data;
-  const generated = data.factsByProvenance.generated;
 
   if (review) {
+    // Facts from before the importer accepted on its own (issue #57). They are
+    // sorted in one press, not reviewed one by one; nothing imported since
+    // then ever waits here.
     steps.push({
       key: "review",
-      title: `Review ${count(review.openCandidates, "fact", "facts")}`,
+      title: `Sort ${count(review.openCandidates, "waiting fact", "waiting facts")}`,
       why: `${
         review.documents > 1
-          ? `Found in ${review.documents} documents, newest first.`
-          : `Found in ${review.filename}.`
-      } A fact is used in your documents only after you accept it.`,
-      action: { kind: "review", label: "Review facts", importId: review.importId },
+          ? `Found in ${review.documents} documents`
+          : `Found in ${review.filename}`
+      } before facts were accepted for you. One press grades each, keeps every one, and flags the ones worth a look.`,
+      action: { kind: "sort", label: "Sort them" },
     });
   } else if (activeImport) {
     steps.push({
@@ -77,7 +97,7 @@ export function nextSteps(data: Overview): Step[] {
 
   if (unconfirmed) {
     const n = unconfirmed.count;
-    const older = generated - n;
+    const older = unconfirmed.total - n;
     steps.push({
       key: "confirm",
       title: `Confirm ${count(n, "fact", "facts")}`,
@@ -120,7 +140,7 @@ export function nextSteps(data: Overview): Step[] {
     steps.push({
       key: "update",
       title: `Update your ${stale.title}`,
-      why: `${count(stale.newFactsSince ?? 0, "new fact", "new facts")} since it was generated.`,
+      why: outOfDateBy(stale),
       action: { kind: "generate", label: "Update", render: stale.kind },
     });
   }

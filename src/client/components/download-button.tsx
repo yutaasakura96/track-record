@@ -64,11 +64,15 @@ export function WithheldFacts({
 
 export function DownloadButton({
   kind,
+  docRef = kind,
   versionId,
   label,
   className = "border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary",
 }: {
+  /** Decides the file type. */
   kind: RenderKind;
+  /** Which document: a tailored résumé's id. A main document is its kind. */
+  docRef?: string;
   versionId?: string;
   label?: string;
   className?: string;
@@ -91,7 +95,7 @@ export function DownloadButton({
           setRefusal(null);
           setBusy(true);
           try {
-            await downloadRender(kind, format, versionId);
+            await downloadRender(docRef, format, versionId);
           } catch (error) {
             setRefusal(error);
           } finally {

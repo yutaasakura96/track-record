@@ -12,6 +12,7 @@ import { facts, renderProposals, renderVersions, renders, sourceDocuments, sourc
 import type { Rationale } from "~/diff";
 import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
+import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
 
 export async function proposalResponse(
@@ -43,6 +44,9 @@ export async function proposalResponse(
   return {
     id: proposal.id,
     renderKind: kind,
+    /** What the render routes address this document by, and what it is called. */
+    renderRef: refOf(render),
+    title: titleOf(render),
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
     generationStatus: proposal.generationStatus,
@@ -186,9 +190,17 @@ function cite(supporting: ({ filename: string | null; lineNumber: number | null 
   return `${file}, ${joined}`;
 }
 
-export function regenerationReason(newFactsSince: number | null, hasVersion: boolean): string {
+export function regenerationReason(
+  newFactsSince: number | null,
+  withdrawnFactsSince: number | null,
+  hasVersion: boolean,
+): string {
   if (!hasVersion) return "Generated for the first time";
-  if (!newFactsSince) return "Regenerated on request";
-  return `Regenerated after ${count(newFactsSince, "new fact")} entered your record`;
+  const entered = newFactsSince ? `${count(newFactsSince, "new fact")} entered your record` : null;
+  const withdrawn = withdrawnFactsSince
+    ? `${count(withdrawnFactsSince, "fact")} could no longer be used`
+    : null;
+  if (!entered && !withdrawn) return "Regenerated on request";
+  return `Regenerated after ${[entered, withdrawn].filter(Boolean).join(" and ")}`;
 }
 

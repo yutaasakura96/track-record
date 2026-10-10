@@ -18,6 +18,8 @@ function proposal(overrides: Partial<Proposal> = {}): Proposal {
   return {
     id: PROPOSAL,
     renderKind: "english_resume",
+    renderRef: "english_resume",
+    title: "Résumé (English)",
     status: "pending",
     generationStatus: "ready",
     error: null,
@@ -231,8 +233,8 @@ describe("the other states", () => {
     expect(api.writes()).toEqual([]);
   });
 
-  it("titles the header with the proposal's own render kind", async () => {
-    open(proposal({ renderKind: "rirekisho" }));
+  it("titles the header with the proposal's own title", async () => {
+    open(proposal({ renderKind: "rirekisho", renderRef: "rirekisho", title: "履歴書" }));
 
     expect(await screen.findByText("履歴書")).toBeTruthy();
     expect(screen.queryByText("Résumé (English)")).toBeNull();

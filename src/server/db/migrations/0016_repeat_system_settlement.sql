@@ -1,0 +1,1 @@
+ALTER TABLE "fact_flags" ADD COLUMN "system_settled_at" timestamp with time zone;
