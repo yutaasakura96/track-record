@@ -5681,3 +5681,211 @@ hidden. The line above the rows still speaks for the rows of the open tab.
 
 **Revisit if:** the Next step stops naming a waiting proposal, or a waiting version in the other
 language is missed in use.
+
+### [2026-10-11] Applications are in scope: one area, a fixed list of steps, and a tailored résumé lives inside its application
+
+Issue #60, by the owner's decisions of 2026-10-05 and 2026-10-10 and the prototype review of
+2026-10-10. Supersedes the second half of the 2026-08-11 entry "Renders are dated versions;
+applicant tracking is LATER". Its first half stands: a render is still a dated version. Its revisit
+condition was a real job search with applications tracked somewhere else, and that is what
+happened. Non-goal 5 in `02` §9 and "not built at all in v1" in `03` §13 are rewritten to match.
+
+**One area, `Applications`.** Each job is one **application**, and it holds the job description as
+posted, the résumé for that job, where it stands, and how each interview went. A tailored résumé
+exists only for a job, so it lives inside its application, and making one is an action on the
+application. **Applications replaces the Tailored résumés screen** of 2026-10-08: the sidebar row
+and Home's section go, and every tailored résumé already made is carried over as an application at
+Not applied with its job description, with the company and the position left for the owner to
+confirm. The row stays a `renders` row addressed by its id, as the 2026-10-08 entry made it, and the
+main résumé's index keeps its meaning.
+
+**A job is added by pasting its description**, with an optional link to the posting. The company,
+the position and the key requirements are read out of the text and the owner confirms or corrects
+them before anything is saved (the entry below on the fifth model function).
+
+**The status is a fixed list of seven steps**: Not applied, Applied, Résumé passed, First interview,
+Second interview, Final interview, Offer. **Rejected and Withdrawn close an application at the step
+it had reached**, and a closed one can be reopened there. Any step can be skipped: a company that
+never says the résumé passed is not made to. A step saves its date when it is set and the date can
+be corrected. A skipped step has no date unless one is added, and "since the résumé passed" and
+"since the first interview" are shown only when those steps carry a date.
+
+**Gone quiet is derived, never stored.** An application is gone quiet when nothing about it has
+changed for 14 days while the owner is waiting to hear back: Applied through Final interview, and
+not closed. A step set, an interview entry added and a sent copy recorded each count as a change.
+Not applied, Offer, Rejected and Withdrawn are never marked. Nothing is emailed and there is no
+notification: the mark is on the list, on the application and in the sidebar's count.
+
+**An application can hold several documents.** A tailored résumé, or documents the record already
+has (the main résumé, 履歴書, 職務経歴書), or both. A Japanese application sends 履歴書 and 職務経歴書
+together. **Tailoring stays English only.** A tailored 職務経歴書 is its own later piece.
+
+**Saving an interview entry for a later round moves the status to that round**, says so, and offers
+Undo. The steps and the interview entries say overlapping things, and one being behind the other is
+the failure to prevent.
+
+**A status has no colour of its own.** Green, amber and red mean measured, not usable yet and
+removed (`05` §9, rule 9). The current step is the accent; Not applied and a closed application are
+muted. A green Offer or a red Rejected would spend those meanings on something else.
+
+**An application is never deleted.** One added by mistake is marked Withdrawn. This is the standing
+rule, restated because the entry below on recordings makes the first exception to it.
+
+**Suburi is reached by two hand-carried exports and nothing wired**: the job description downloaded
+as a text file, which Suburi already imports, and the questions asked copied as plain text, one a
+line. Both apps would otherwise hold postings and questions with no line between them. The line is
+that this one keeps what really happened and Suburi keeps practice. No API, no shared database, no
+shared bucket; whether Suburi takes the questions in is Suburi's to decide.
+
+**The reviewed prototype is committed** as `docs/prototype/applications-prototype.html` and is the
+reference for how each screen looks, reads and behaves. `02` and `10` are the contract; where the
+prototype and they disagree, they win, and `docs/prototype/README.md` lists where they already do.
+The schema (`04`), the API (`07`) and the flows (`09`) are written by the issue that builds each
+part (#70 to #77), not here.
+
+Rejected: **keeping the Tailored résumés screen beside Applications**, which is two places for one
+thing. **A free-text status**, which cannot be filtered or counted and makes "since the résumé
+passed" a guess. **Marking everything open as gone quiet**, which flags a job saved and never
+applied to. **Exactly one document an application**, which a Japanese application breaks on the
+first try. **A wired link to Suburi**, which both repos rule out.
+
+**Revisit if:** the fixed steps turn out not to fit the applications actually made, for instance a
+company with five rounds, or the owner wants reminders that leave the application.
+
+### [2026-10-11] Applications works at phone width, and the rest of the app stays desktop only
+
+Issue #60, prototype question 1. Supersedes the desktop half of the 2026-08-12 entry "Dark theme
+only; desktop only" for the Applications screens and nothing else. That entry's revisit condition
+named one narrow surface the author would want on a phone. It expected quick capture; it turned out
+to be this.
+
+**Noting an interview is a phone job.** The owner walks out of one and wants the questions written
+down before they are forgotten, and the laptop is not open. So the Applications routes are exempt
+from the wider-window message, and are laid out for a phone as the prototype shows at 390px: no
+sidebar, a `Menu` button in the header, rows and panels in one column, the steps as a vertical list.
+
+**Every other screen keeps the message under 1024px.** Fact Review and Diff Review are two panes and
+do not survive a phone, and the reason given on 2026-08-12 still holds for them. The menu says so in
+a sentence, so the other rows are not read as broken.
+
+Rejected: **the whole app on a phone**, a much larger job for screens nobody opens there. **Keeping
+Applications desktop only**, which sends the interview note to a notes app and loses the reason to
+track it here.
+
+**Revisit if:** another screen turns out to be wanted on a phone. Each is its own exception, argued
+on its own.
+
+### [2026-10-11] A status step's date is a real day
+
+Issue #60. **The rule that calendar columns are month precision is a rule about the career
+record**, where a period is `2022-04 to 2024-09` and a day is never known or rendered (`04`,
+`AGENTS.md`). An application's dates are a different kind of thing: the day it was added, the day
+each step was reached, the day it was closed, the day of an interview, the day a copy was sent, the
+day a recording was uploaded or removed. "16 days since the first interview" and "gone quiet at 14
+days" cannot be counted from a month.
+
+**So these dates are stored and shown to the day**, and a count of days is the number of calendar
+days between two of them. The date is saved as today when the step is set, and the owner can
+correct it to any day up to today; the figures follow the corrected date.
+
+**The carve-out is this list and no wider.** A period on an employer, a role, a project, an
+education or a certification stays month precision with the day pinned to `01`. Nobody "fixes" an
+application date to the first of the month, and nobody widens a record date to a day because
+applications have them. `AGENTS.md` states the month rule without this exception today; the issue
+that adds the first day-precision column (#70) corrects it there.
+
+Rejected: **month precision with a day count from the first of the month**, which is wrong by up to
+thirty days on a figure whose threshold is fourteen. **A timestamp of when the row was written
+instead of a date the owner can correct**, which makes a step noted two days late two days wrong
+for good.
+
+### [2026-10-11] A sent copy is the file of the day, not a pointer to a version
+
+Issue #60, prototype question 4. **When an application moves to Applied, every document attached to
+it is frozen as sent**, automatically, with that day's date. A document recorded as sent later, for
+a company that asks for an updated one, is frozen the day it is recorded.
+
+**The copy is the file as generated at that moment, stored.** Render versions are permanent, so a
+pointer to the version looks like enough. It is not. A document's header, the name and the contact
+details, is assembled at download and is not in the version, and a 履歴書 version holds only its two
+prose blocks while its three tables are filled from the record at download (`10`, Screen 5). A copy
+"sent on 3 September" and downloaded in December from a pointer would carry December's tables and
+December's address. The sent copy therefore keeps the `.docx` as it was, and what the page needs to
+show it, taken at the same moment. It is insert only: nothing edits it, and later changes to the
+document or to the record do not reach it.
+
+The files are small; a résumé `.docx` was measured at 13,574 bytes (2026-09-04 entry). Where the bytes
+are kept is for the issue that builds this (#71).
+
+Rejected: **a pointer to the render version**, above. **A separate `Mark as sent` button**, which is
+a second thing to remember at the moment the owner has just applied. **Freezing on every status
+change**, which keeps copies nobody sent.
+
+### [2026-10-11] A recording can be removed, and it is the only thing that can; recordings are audio only
+
+Issue #60, prototype questions 10 and 12. An interview entry can carry recordings: an uploaded file,
+or a link to a recording kept somewhere else.
+
+**A recording can be removed for good.** It is the first real delete in the product. Everything
+else stays, as it has since the start: an application, a status step, an interview entry, a sent
+copy, a render version, a source document, a rejected fact. A recording is different in two ways.
+It carries other people's voices, and the owner may be asked to delete one; and it is the only
+large object the product holds. Removing an upload deletes the file from storage and it cannot be
+brought back. Removing a link removes only the link. **The interview entry keeps a line saying a
+recording was removed and when**, so the record shows that something was there. Remove asks once.
+
+**Audio only, not video.** The prototype offered both, up to 2 GB a file, and the review changed
+it. An hour of audio is tens of megabytes and an hour of video is several hundred, and what the
+owner needs afterwards is what was said. The 2 GB figure was sized for video and does not carry
+over; the limit on an audio file is set by the issue that builds upload (#76), with the type limit,
+and both are explained in the interface.
+
+**No transcript.** What was said goes in the notes the owner types. Suburi already has a
+speech-to-text path and a correction step that is its core; a second one here would be the
+duplication the two repos exist to avoid. **A recording is never sent to a model**, is private to
+its owner, and is not in the JSON backup, which the Backup panel will say.
+
+**A link comes first and needs no storage** (#74); upload waits for object storage, which only the
+owner can set up (#76).
+
+`AGENTS.md` says nothing is ever deleted, and that stays true of the code until removal is built;
+the issue that builds it corrects the line.
+
+Rejected: **nothing removable, recordings included**, which leaves the owner unable to honour a
+request to delete someone else's voice. **Deleting an application that was never applied to**,
+which the owner declined: Withdrawn says the same thing and keeps the history. **Removing the
+recording's row with the file**, which leaves an interview that silently used to have one.
+
+**Revisit if:** the owner wants video after all, or a transcript, each of which is a storage and a
+privacy decision of its own.
+
+### [2026-10-11] Reading a pasted posting is a fifth model function, and what it returns is never a fact
+
+Issue #60. Supersedes the count in the 2026-10-08 entry "The model seam grows from two functions to
+four": it will be five. The seam itself is unchanged, one module that nothing outside `src/model/`
+reaches around.
+
+**The function takes the pasted job description and returns three things: the company, the
+position, and the key requirements as a short list.** They are proposed on a confirmation screen
+where every field can be corrected, and nothing is saved until the owner saves. A call that fails,
+or finds nothing, leaves the same screen with the fields empty to type in, so adding a job never
+depends on the model.
+
+**A posting is somebody else's text.** What is read from it describes a job, not the author. It
+never becomes a Fact, never reaches a render as a claim, and is not stored anywhere a fact is. This
+is the 2026-10-08 rule that a job description is never a source of facts, applied to the reading
+as well as to the writing. The company is not an Employer and the position is not a Role (`CONTEXT.md`).
+
+**The existing rules for the text carry over**: 20,000 characters at most, kept out of listings,
+and never logged. A company's name, a position, a requirement, an interviewer's name, the notes on
+how an interview went and the questions asked join the list of things a log never contains; a log
+line carries ids and counts.
+
+It follows the rules every model function follows (the pinned model, a prompt of its own, tests
+against invented fixtures) and is built by #73. `03` §1 and §4 and `AGENTS.md` say four functions
+until then, and #73 corrects them.
+
+Rejected: **parsing the text without a model**, which reads the first line of a tidy English
+posting and nothing else. **Extending `extract`**, whose output is facts with quotes and Provenance,
+the opposite of what this must return. **Saving what was read without a confirmation**, which puts
+a model's guess at a company name on the list as if the owner had typed it.

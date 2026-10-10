@@ -1,6 +1,6 @@
 # 02 — Product Requirements
 
-**Status:** Phase 1 · written 2026-08-11 · no technology decisions in this document
+**Status:** Phase 1 · written 2026-08-11 · no technology decisions in this document · Applications (S20 to S24, §3a) added 2026-10-11 (#60, #69)
 
 ---
 
@@ -33,6 +33,7 @@ Seven entity types. Only **Project** uses the expensive import path; the rest ar
 Five kinds. Since 2026-10-08 the English résumé can also be **tailored**: any number of résumés of
 that kind, each written toward one job description (S19). The untailored one is the main résumé.
 The master document (S18) is not a render: no model writes it, and it has no versions.
+Since 2026-10-11 a tailored résumé belongs to one application (§3a, S21).
 
 | Render | Language | Nature |
 |---|---|---|
@@ -43,6 +44,28 @@ The master document (S18) is not a render: no model writes it, and it has no ver
 | キャリアストーリー (JA) | JA | Chapter-parallel with the English story — same structure, not a translation |
 
 Every render is a **dated version**. Regenerating produces a new version; nothing is overwritten.
+
+## 3a. Applications
+
+Added 2026-10-11 (#60; decision log, that date). A résumé is written to apply for a job, and the
+record of applying was being kept outside the app. **An application is one job the author is
+looking at or has applied for**, and it is not part of the record of §2: nothing in it is a fact
+about the author, and nothing in it is a source of one.
+
+| An application holds | What it is |
+|---|---|
+| **The job** | The job description as pasted, an optional link to the posting, and the company, the position and the key requirements read from the text and confirmed by the author |
+| **The résumé for the job** | A tailored résumé made from the job description, or documents the record already has (main résumé, 履歴書, 職務経歴書), or several together |
+| **Where it stands** | One of seven steps in order: Not applied, Applied, Résumé passed, First interview, Second interview, Final interview, Offer. Rejected and Withdrawn close it at the step it had reached |
+| **What was sent** | A sent copy of each document: the file exactly as it was on the day, which later changes never reach |
+| **How the interviews went** | One entry an interview: the day, the round, who it was with, how it went, the questions asked |
+| **Recordings** | On an interview entry: an audio file, or a link to a recording kept elsewhere |
+
+**Dates here are days**, not months: the figures an application shows are counts of days. The
+record's periods stay months (§2).
+
+**Applications is the one area that works on a phone** (S20). Every other screen stays desktop
+only.
 
 ## 4. User stories
 
@@ -182,6 +205,53 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 
 **S17 to S19 added 2026-10-08 (#57).**
 
+**Changed 2026-10-11 (#60).** A tailored résumé is made from an application and lives inside it
+(S21), from that application's job description; the separate Tailored résumés screen goes, and each
+résumé already made is carried over as an application. What a tailored résumé is and what it may
+use are unchanged. Still English only: the language split of #59 did not add a tailored 職務経歴書,
+and neither does #60.
+
+---
+
+**S20 · Keep track of each job I apply for** — `MUST` · #60
+> As the Author, I want each job I am looking at kept as one entry with where it stands, so that I know what I applied for, when, and what I am still waiting on, without a spreadsheet beside the app.
+
+**Acceptance:** A job is added by pasting its job description, with an optional link to the posting. The job is saved as **Not applied**. Its status is one of seven steps, in order: Not applied, Applied, Résumé passed, First interview, Second interview, Final interview, Offer. **Rejected** and **Withdrawn** close an application at the step it had reached, and a closed one can be reopened. Setting a step **saves that day's date**, the date can be corrected to any day up to today, and the last change can be undone. A step a company never went through is skipped and has no date unless one is added. The application shows **how many days since the résumé passed and since the first interview**, each only when that step has a date, and how many since the last change. The list shows every application, **newest activity first**, with a filter by status. An application on which nothing has changed for **14 days while the author is waiting to hear back** (Applied through Final interview, not closed) is marked **gone quiet**; nothing is emailed and nothing is sent to anyone. A status has no colour of its own. **An application is never deleted**; one added by mistake is marked Withdrawn. One user can never read or change another's applications. **The Applications screens work at phone width**; no other screen does.
+
+---
+
+**S21 · Send the right résumé for a job, and keep what I sent** — `MUST` · #60
+> As the Author, I want to choose the résumé for each job and have the copy I sent kept exactly as it was, so that months later I can read what that company has in front of them.
+
+**Acceptance:** From an application the author makes a **tailored résumé** from its job description (S19, unchanged: the same facts, the same rules, read as a diff before it becomes a version), or picks documents the record already has: the main résumé, 履歴書, 職務経歴書. **An application can hold several**; a Japanese application sends 履歴書 and 職務経歴書 together. Tailoring is English only. When the application moves to **Applied**, every document on it is **frozen as sent**, automatically, with that day's date, and the application says which were frozen. A document sent later can be recorded and is frozen then. **A sent copy is the file as it was that day**: it can be read and downloaded, it cannot be edited, and a later version of the document, or a later change to the record, the name or the address, does not change it. The application says when a document has a newer version than the one sent.
+
+---
+
+**S22 · Note how each interview went** — `MUST` · #60
+> As the Author, I want to write down each interview while I remember it, so that the questions I was really asked and how I answered are there the next time.
+
+**Acceptance:** One entry an interview: the date, the round (first, second, final, or another conversation), who it was with, how it went, and **the questions asked as a list**, each question its own item, in order. Several pasted lines become several questions. An entry needs how it went or at least one question. **Saving an entry for a later round than the application's status moves the status to that round**, with the interview's date, says so, and offers Undo. It can be written on a phone (S20). No AI reads or writes an interview entry.
+
+---
+
+**S23 · Have the posting read for me** — `MUST` · #60
+> As the Author, I want the company, the position and the key requirements filled in from the job description I paste, so that adding a job is a paste and a check, not retyping.
+
+**Acceptance:** The pasted text is read and **the company, the position and the key requirements are proposed** on a confirmation step. Every field can be corrected, a requirement added or removed, and **nothing is saved until the author saves**. When the reading fails, or the company and position cannot be found, the same step opens with the fields empty to type in and says so: **adding a job never depends on the AI**. The link is only stored. What is read describes the job. It is never a fact about the author, and a job description is never a source of facts (S19).
+
+---
+
+**S24 · Keep a recording with its interview** — `MUST` · #60
+> As the Author, I want to keep the audio of an interview with my notes on it, whatever I have, so that I can hear what was actually said.
+
+**Acceptance:** On an interview entry the author adds **a link** to a recording kept elsewhere (http or https only; only the link is kept), or **uploads an audio file**. Audio only: no video, and **no transcript**. An uploaded recording is private: only its owner, signed in, can play or download it, and it plays with seeking. Size and type limits are enforced and explained. **A recording can be removed for good**, the one thing in the app that can be; removing asks once, and the interview keeps a line saying a recording was removed and when. A recording is never sent to an AI. Recordings are not in the exported record (S15), and the Backup panel says so. A link is available first; upload waits on file storage only the owner can set up.
+
+---
+
+**Suburi hand-off (part of S20, #77).** Two buttons at the foot of an application, and nothing wired between the apps: **download the job description** as a text file holding that text only, and **copy the questions asked**, every question from every interview entry of that application, one a line.
+
+**S20 to S24 added 2026-10-11 (#60).** They sit outside M1 to M3, which are about the record and its documents; the build order is #70 to #77.
+
 ---
 
 **S15 · Export the record** — `MUST` · M1
@@ -241,6 +311,10 @@ Empty states are requirements, not afterthoughts.
 | **Import produced zero facts** | Reported as a failure of extraction with the document retained, not as an empty success. The author can retry or capture manually |
 | **No credentials** | The section is omitted from renders entirely rather than rendered empty |
 | **Render never generated** | Shown as never-generated, distinct from generated-and-unchanged |
+| **No applications** | The list says what an application will hold, with adding a job as the only action |
+| **Application with no résumé** | Its next step is choosing one. Moving to Applied without one is allowed and freezes nothing; a sent document can be recorded afterwards |
+| **Application with no interview** | The interviews section says what to note after each one |
+| **Document never generated** | It cannot be picked for an application, and the reason is stated beside it |
 
 ## 8. Edge cases
 
@@ -263,6 +337,15 @@ The ugliest case per feature, and what happens.
 | Generation | `.docx` output fails to open in Word | Treated as a defect of the same severity as data loss — an unopenable render is a failed feature |
 | Stories | The record changes after a story was accepted | The story is not regenerated automatically. The app reports that it is out of date against the record |
 | Facts | An employer is deleted while facts reference it | Blocked, or explicitly reassigned. Facts are never silently orphaned |
+| Applications | A company **skips a step**, or never says the résumé passed | Any step can be set from any other. A skipped step has no date, and a figure counted from it is not shown rather than guessed |
+| Applications | A step was noted **days after it happened** | The date is corrected, and every figure and the gone-quiet mark follow the corrected date |
+| Applications | The status is **moved back** to an earlier step | Allowed. The later steps no longer show as reached; nothing is deleted, and sent copies stay |
+| Applications | The document is **regenerated or edited after it was sent** | The sent copy does not change. The application shows that a newer version exists than the one sent |
+| Applications | The posting cannot be read, or the text is not a job description | The fields open empty to type in. Nothing is saved from a failed reading |
+| Applications | An interview is noted for a round **earlier than or equal to** the status, or on a closed application | The entry is saved and the status is left alone |
+| Applications | A **job description over 20,000 characters** | Refused with the limit named, as a tailored résumé's is today |
+| Recordings | An upload is **interrupted** | No half-file is listed as a recording. The author is told and can try again |
+| Recordings | A linked recording is **taken down** where it lives | It is gone here too; the app keeps only the link, and says so when the link is added |
 
 ## 9. Deliberately not in v1
 
@@ -270,8 +353,8 @@ The ugliest case per feature, and what happens.
 2. **LinkedIn.** `LATER` — a copy-paste text render off the same facts, cheap once the five renders are right.
 3. **The portfolio site.** Its own design, hosting and audience.
 4. **The legacy master document.** Retired, not supported. The master document of S18 is not that file: it is a view generated from the record, with nothing to maintain beside it.
-5. **Application tracking** — target company and status. A résumé tailored to one job description is S19; tracking the application it was sent for is #60.
+5. **Application tracking beyond S20 to S24.** Tracking itself came into scope on 2026-10-11 (#60, decision log). Still not built: **emails, reminders or notifications** about an application; **reading job boards** or a posting from its link (the link is only stored); **video** recordings; **transcripts** of a recording; **a tailored 職務経歴書**; and **any connection to Suburi in code**.
 6. **Multi-user anything** — accounts, sharing, roles, permission surfaces.
 7. **Consistency checking as a goal.** Welcome as a side effect of provenance; not a target.
 8. **A hand-maintained skills taxonomy.** Skills are derived and curated, never authored from scratch.
-9. **Mobile-first design.** Capture is the only plausibly mobile activity, and it is not the bottleneck.
+9. **Mobile-first design.** Capture is the only plausibly mobile activity, and it is not the bottleneck. **One exception since 2026-10-11:** the Applications screens work at phone width, because noting an interview straight after it is a phone job (S20). Nothing else does.

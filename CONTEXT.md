@@ -123,8 +123,57 @@ The English résumé tailored to no job. One per user.
 **Tailored résumé**:
 A résumé written toward one job description, from exactly the facts the Main résumé may use. Any
 number per user; each has its own versions and proposals. The job description is never a source of
-facts.
-_Avoid_: custom résumé, targeted résumé, application (that is #60's word).
+facts. Since #60 it belongs to one Application and is made from there, from that Application's job
+description.
+_Avoid_: custom résumé, targeted résumé; Application for the résumé itself (an Application holds
+it and is not it).
+
+## Applications
+
+**Application**:
+One job the author is looking at or has applied for. It holds the job description as posted, the
+company and the position read from it, the documents for that job, its Status steps, its Sent
+copies and its Interview entries. Never deleted: one added by mistake is closed as Withdrawn.
+**Its company is not an Employer and its position is not a Role.** Those are the record, what the
+author has done; an Application names somewhere the author has not worked, in the posting's words.
+Nothing in an Application is a Fact, and none of it is a source of facts.
+_Avoid_: job (the posting is a job; the Application is the author's dealings with it), lead,
+opportunity; tracker or pipeline for the list.
+
+**Status step**:
+One of the seven places an Application can stand, in order: Not applied, Applied, Résumé passed,
+First interview, Second interview, Final interview, Offer. Each step reached carries the day it was
+reached, which the author can correct; a step can be skipped and then carries no day. **Rejected
+and Withdrawn are not steps**: they **close** an Application at the step it had reached, with their
+own day, and a closed Application can be reopened there.
+_Avoid_: stage, phase, state; status for one step (the status is where the Application stands, the
+step is the place).
+
+**Sent copy**:
+A document exactly as it was sent for an Application: the file of that day, kept whole, with the day
+it was sent. Frozen when the Application moves to Applied, or when a further document is recorded as
+sent. It is not a version and does not point at one: later changes to the document or to the record
+never reach it.
+_Avoid_: snapshot, attachment, submitted version (a version is a render's, and can be edited from).
+
+**Gone quiet**:
+Said of an Application on which nothing has changed for 14 days while the author is waiting to hear
+back, Applied through Final interview and not closed. Worked out each time it is read, never
+stored, and never sent anywhere: there is no email and no notification.
+_Avoid_: stale (that is a skill's or a document's word), overdue, ghosted, inactive.
+
+**Interview entry**:
+The author's note of one real interview: the day, the round, who it was with, how it went, and the
+questions asked, each question its own item in order. Written by hand afterwards; no model writes
+or reads it.
+_Avoid_: interview story (a career story is a render), session, round for the entry (the round is
+one of its fields).
+
+**Recording**:
+The audio of a real interview, on its Interview entry: an uploaded file, or a link to one kept
+elsewhere. Private to the author, never sent to a model, never transcribed here. **The one thing
+the author can remove**; its Interview entry keeps a line saying one was removed.
+_Avoid_: take (that is Suburi's, a practice answer), transcript, attachment, video (audio only).
 
 ## Downstream
 
@@ -135,4 +184,6 @@ English CV back in as the document an interview answer is scored against, extrac
 this repo's Fact: a Fact carries Provenance, Disclosure and Evidence and can be changed or rejected one at a time;
 a claim is derived, never curated, and never deleted. The two are not synchronised and are not meant
 to be. `AGENTS.md` names the machinery both repos ended up building.
+Suburi is for practice and an Application is for what really happened. An Application's job
+description and its questions asked can be carried across by hand; nothing sends them.
 _Avoid_: treating a Suburi claim as a Fact, or the reverse.

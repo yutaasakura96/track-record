@@ -1,9 +1,12 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59)
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
+For Screens 12 to 15 the reference is `docs/prototype/applications-prototype.html`, the clickable
+prototype the owner reviewed on 2026-10-10, under the same rule. `docs/prototype/README.md` lists
+where this document already differs from it.
 
 Three screens carry v1. All values referenced here are defined in `05-design-system.md`.
 
@@ -27,6 +30,10 @@ the interface.
   every version of every document, shown only above zero, and it is written out on a second line of
   the row: `1,085 facts to review`, at `text-small` in `generated-text`, amber because a candidate
   is not usable yet. A bare `1085` beside the word `Documents` read as a number of documents
+- **`Applications` takes the `Tailored résumés` row** (specified 2026-10-11, #60; built by #70), last
+  in the list. It carries a second line, `N gone quiet`, the applications marked gone quiet (Screen
+  12), shown only above zero and set in `text-muted` as Flagged's line is: it is advice, and
+  nothing is held back by it. Until #70 the row is still `Tailored résumés`
 - **Since 2026-10-08 that line reads `N facts to sort`** (#57). A fact imported since then never
   waits, so the count is only the facts found before, and what they wait for is one press, not a
   review each (Screen 3). **The Flagged row carries its own line, `N to check`**, the flags not
@@ -1269,6 +1276,11 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 
 ## Screen 11 — Tailored résumés
 
+**Replaced by Screens 12 to 14** (decided 2026-10-10, #60). This section describes what is built
+until #70 retires the screen, its sidebar row and Home's `Tailored résumés` section, and carries
+each tailored résumé over as an application. Its Rules outlive it: they are the rules of the
+tailored résumé made from an application (Screen 14).
+
 Added 2026-10-08 (issue #57). One résumé per job. The author gives a job description and gets a
 résumé written toward it from the same record and by the same rules as the main résumé: only facts
 a document may use, read as a diff before it becomes a version, with its own history, edits and
@@ -1326,6 +1338,394 @@ from the same record`.
 
 ---
 
+## Screens 12 to 15 — Applications
+
+Specified 2026-10-11 (issues #60 and #69; decision log, that date). Not built yet: each part names
+the issue that builds it. Every job the author is looking at or has applied for, each with its job
+description, the résumé sent, where it stands and how the interviews went (`02` §3a, S20 to S24).
+
+**What all four share:**
+
+- **Sidebar chrome, under `/applications`**: the list at `/applications`, adding a job at
+  `/applications/new`, one application at `/applications/<id>`, a sent copy under its application.
+  Everything under that prefix, and nothing else, works at phone width (Responsive behaviour).
+- **Screens 13 to 15 keep the sidebar and put a breadcrumb in the header**, `Applications / <title>`,
+  with `Applications` linking to Screen 12. They are not the focused two-pane screens, which drop
+  the sidebar.
+- **A status has no colour of its own** (`05` §9, rule 9). An open application past Not applied
+  shows its status with the `accent` dot and text. Not applied, Rejected and Withdrawn are
+  `text-muted` with a muted dot. No green, no amber, no red, anywhere on these screens.
+- **Dates are days**, written `2026-10-02`, in mono where they stand alone. A count is `1 day` or
+  `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
+- **What a change is.** An application's last change is the latest of: the day it was added, the
+  date of each step it has reached, the day it was closed, the date of each interview entry, the
+  date of each sent copy. **Gone quiet** is 14 days or more since the last change, while its status
+  is Applied, Résumé passed or one of the three interviews and it is not closed. It is worked out
+  on each read and stored nowhere.
+- **A short confirmation after an action is one line with `role="status"`**, at the foot of the
+  content column, which leaves by itself: `Saved as Not applied.`, `Date corrected. The day counts
+  follow it.`, `Undone.` A status change is said in the panel instead, where its Undo is.
+- **No text of a job description, a company, a position, an interviewer or a question is logged**
+  (`AGENTS.md`), and the list is served without job description text, as the tailored listing is.
+
+### Screen 12 — Applications · built by #70
+
+Header title `Applications`, note `Jobs, the résumé sent for each, and how it went`, and on the
+right **`Add a job`** (primary), to Screen 13.
+
+**Layout**
+
+1. **The screen intro.** Body: `Every job you are looking at or have applied for. Each one keeps
+   its job description, the résumé you sent, where it stands and how the interviews went.` `Next:`
+   is `add the first job you are looking at.` with none; `N applications have gone quiet. Follow
+   up, or close them as rejected or withdrawn.` (`1 application has`) when any is gone quiet;
+   otherwise `nothing is waiting here. Add a job, or open one to note how an interview went.`
+2. **The filter**, a group labelled `Show`: pressed-state pills, each with its count: `All`, `Not
+   applied`, `Applied`, `Résumé passed`, `Interviews` (the three interview steps together),
+   `Offer`, `Rejected`, `Withdrawn`. A closed application counts under Rejected or Withdrawn and
+   not under the step it had reached. Then a rule, and **`Gone quiet N`**, a toggle that narrows
+   whichever status is chosen; choosing `All` clears it.
+3. **One panel, one row an application, newest last change first.** The whole row is one button
+   that opens Screen 14.
+4. **One line under the panel**, `text-muted`: `Newest activity first. Gone quiet means nothing has
+   changed for 14 days while you are waiting to hear back. Nothing is emailed and nothing is sent
+   to anyone.`
+
+**The row**
+
+- Left: the company at the row-title size; the position under it in `text-muted`; then one line of
+  small items: **the résumé** and the two figures.
+  - The résumé reads `<title> v<N>` for each sent copy, joined with ` + ` (`履歴書 v4 + 職務経歴書
+    v6`); with documents chosen and nothing sent, the same followed by `, not sent`; with none,
+    `No résumé yet`.
+  - `N days since the résumé passed` and `N days since the first interview`, each only when that
+    step has a date and the application is not closed.
+- Right: the status, then **either** the chip `Gone quiet · N days` (chip surface, `border-active`,
+  `text-strong`, weight 500) **or** `Last change N days ago` (`today`, `1 day ago`) in
+  `text-muted`.
+- A closed application's row is set wholly in `text-muted`.
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **Loading** | The header and intro at once; `Loading your applications…` in the panel |
+| **None yet** | In place of the filter and panel, a dashed block: heading `No applications yet`; `Paste a job description to start. The company, the position and the key requirements are read out of it for you to check. After that the application holds the résumé you send, each step and its date, and a note of every interview.`; **`Add a job`** (primary); and `A job description is kept with its application. It is never a source of facts about you.` Until #73 the second sentence reads `Type in the company and the position.` |
+| **The filter matches none** | `No application matches.` and the link `Show all` |
+| **Could not load** | The reason in the panel, with `Try again` |
+
+### Screen 13 — Add a job · built by #70 by hand, #73 adds the reading
+
+Header `Applications / Add a job`. Two steps on one screen. **Nothing is saved until `Save
+application`.**
+
+**Step 1, the text.** Intro: `Paste the job description. The company, the position and the key
+requirements are read out of it, and you check them before anything is saved.` `Next:` `paste the
+text of the posting below.` Panel `New application`:
+
+- `Job description`, a twelve-row text area, placeholder `Paste the posting here.` At most 20,000
+  characters.
+- `Link to the posting, if you have one`, a URL field, placeholder `https://`. It is only stored;
+  nothing is fetched from it.
+- `It is kept with this application and is never a source of facts about you.`, then `Cancel` (bare,
+  to Screen 12) and **`Read it`** (primary).
+- While it is read, the two fields are read-only and the actions give way to a `role="status"`
+  line with the working dot: `Reading the job description. This takes a few seconds.`
+
+**Step 2, the check.** Intro: `This is what was read from the job description. Correct anything
+that is wrong, then save.` `Next:` `check the three fields, then save the application.` Panel
+`Check what was read`, with `Back to the text` (bare) in its header, which keeps what was typed:
+
+- `Company` and `Position`, side by side, each a text field.
+- `Key requirements`: one text field a requirement with `Remove` (bare) beside it, and **`Add a
+  requirement`** (ghost) under them. With none: `None found. Add the ones that matter to you, or
+  leave this empty.` An empty requirement is dropped on save.
+- `Link: <the link>` when one was given.
+- `Saved as Not applied. You choose its résumé next.`, then `Cancel` and **`Save application`**
+  (primary). Saving opens Screen 14 and says `Saved as Not applied.`
+
+**Rules**
+
+- **What was read is a proposal.** Every field is editable, and the model's output goes nowhere
+  but these fields (decision log, 2026-10-11).
+- **Until #73 there is no reading.** #70 builds one step: the job description and the link, then
+  Company, Position and Key requirements to type, then `Save application`. The intro's first
+  sentence reads `Paste the job description and type in the company and the position.` #73 splits
+  it into the two steps above and changes nothing about what is saved.
+- **A failed or empty reading is the hand-typed path**, not a dead end: Step 2 opens with the
+  fields empty.
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **Text missing or under 40 characters** | `Paste the job description first. A few lines is enough.` under the actions, `role="alert"`, in the `removed` tone |
+| **Text over 20,000 characters** | `Read it` is refused with the limit and the length named |
+| **Company and position not found** | Step 2 with both fields empty, placeholder `Not found in the text. Type it in.`, and `Next:` `the company and the position could not be found in the text. Type them in, then save.` |
+| **The reading failed** | Step 2 as above, with one line above the fields: `The job description could not be read just now. Type the fields in; your text is kept.` |
+| **Saving without a company or a position** | `Give it a company and a position first.` |
+| **Save failed** | The reason under the actions; nothing typed is lost |
+
+### Screen 14 — One application · built by #70, with #71, #72, #74, #76 and #77
+
+Header `Applications / <company>`. The content column, top to bottom:
+
+1. **The head.** The company as a Page heading, the position under it, then one line: the
+   status, the chip `Gone quiet · N days` when it applies, and `Open the posting` when a link was
+   given, which opens it in a new tab.
+2. **`Next:`**, one line, the first that applies:
+
+   | When | It reads |
+   |---|---|
+   | Closed | `this application is closed. Reopen it if that changes.` |
+   | Gone quiet | `nothing has changed for N days. Follow up, or close it as rejected or withdrawn.` |
+   | Not applied, no document | `choose the résumé for this job: make a tailored one, or use a document you already have.` |
+   | Not applied, with a document | `when you have sent it, move this to Applied. The résumé is frozen as sent at that moment.` |
+   | Offer | `nothing is waiting here.` |
+   | An interview step | `after the next interview, add how it went while you still remember it.` |
+   | Applied, Résumé passed | `wait to hear back. When you do, move it to the next step.` |
+
+3. Five panels: `Where it stands`, `Résumé for this job`, `Interviews`, `The job`, `Practise for
+   this job`.
+
+#### Where it stands · #70
+
+**The seven steps as an ordered list**, left to right, joined by a line: a 10px node, the step's
+name, and its date under it. Steps before the current one have a filled `accent` node and line. The
+current one has a ringed node and its name in `text-bright` at weight 600, unless the application
+is closed, when it is drawn as one already passed. Steps not reached are plain.
+
+Under each step reached:
+
+- **Its date, as a button** titled `Correct this date`. Not applied reads `added <date>`, the day
+  the application was added.
+- **`skipped`** in `text-muted` and `add a date` (bare) for a step that was passed over.
+- Pressing either opens, in place, a date field (no later than today), `Save` (ghost) and `Cancel`
+  (bare). Saving says `Date corrected. The day counts follow it.` A sent copy frozen on the Applied
+  date follows a correction of that date.
+
+**Three figures**, as tiles, the number in the Stat value role (`05` §2) with `days` small beside it:
+
+| Tile | Label | When it has no number |
+|---|---|---|
+| Since the résumé passed | `since the résumé passed` | `–` in `text-ghost`, labelled `since the résumé passed: not reached, or no date` |
+| Since the first interview | `since the first interview` | `–`, labelled `since the first interview: not reached, or no date` |
+| Since the last change | `since the last change`, and while waiting to hear back `since the last change. Gone quiet at 14` | Always has one. Closed, it is labelled `since it was closed` |
+
+**The controls, open:**
+
+- **`Move to <the next step>`** (primary). Absent at Offer.
+- `or set`, and a select `another step…` listing every other step, earlier ones included.
+- Right: **`Mark as rejected`** and **`Withdraw`** (both ghost).
+- Under them: `A step saves today's date when you set it, and you can correct the date afterwards.
+  A step you never went through can be skipped.` At Not applied with documents chosen it adds `It
+  also freezes <title> v<N> and <title> v<N> as sent.`
+
+**After a change**, a notice inside the panel, `role="status"`: `Moved to <step>. Date saved as
+<date>.`, with `<title> v<N> was frozen as sent.` (`were`, for several) when the move froze
+documents, or `Marked as rejected. Date saved as <date>.` On its right `Change the date` and
+**`Undo`** (both bare). Undo puts back the status, the dates and, if the move froze them, the sent
+copies, and says `Undone.` It is offered for the last change only, until the application is left.
+
+**The controls, closed:** one notice, `Rejected on <date>, after <step>.` (`Withdrawn on`), the date
+a button to correct it, and **`Reopen`** (ghost), which returns the application to that step and
+says `Reopened at <step>.`
+
+**Rules**
+
+- **Any step can be set from any other.** Setting an earlier step leaves the later ones not
+  reached and without a date on the screen; sent copies stay.
+- **A step set saves today's date**, a step skipped over saves none.
+- **Moving from Not applied to any later step freezes every document chosen**, once (#71).
+- **Closing is not a step.** It keeps the step reached, and the list counts the application under
+  Rejected or Withdrawn.
+
+#### Résumé for this job · #71
+
+**With no document, at Not applied**, two cards side by side:
+
+- **`Make a tailored résumé`**: `Written for this job from the same facts as your main résumé. The
+  job description decides what leads and what is left out; it never adds a claim that is not in
+  your record. You read it as a set of changes before it becomes a version. English only for now.`
+  and the button of that name (primary).
+- **`Use a document you already have`**: `Tick the ones you are sending. A Japanese application
+  usually sends 履歴書 and 職務経歴書 together.` Three ticks, `Main résumé`, `履歴書`, `職務経歴書`,
+  each noted `<English|日本語> · version N, the one current today`, and **`Use the ticked
+  documents`** (secondary).
+
+**With documents**, a row each:
+
+- The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
+  this job`, or `Version N · the same document as on Home`, and ` · newer than the vN you sent`
+  when the document has moved on since.
+- `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
+  tailored one; and before Applied, `Take off` (bare), which removes the document from the
+  application and deletes nothing.
+- Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
+  already have`, which after Applied reads **`Record another document you sent`**. Either opens
+  the tick card in place, with `Cancel`.
+
+**`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
+was on the day. It does not change when the résumé or your record changes later.` A row each: the
+title, the chip `vN · frozen`, `Sent <date>`, and the links `Read it` (Screen 15) and `Download`.
+
+**Rules**
+
+- **Making a tailored résumé is the 2026-10-08 flow, started here.** It stores the résumé from this
+  application's job description, generates, and opens Diff Review (Screen 2, unchanged, titled with
+  the résumé's name). Accept or Reject returns here. Screens 5 and 6 serve it as they did. Screen
+  11's Rules hold word for word.
+- **An application holds at most one tailored résumé**, and any of the three documents beside it.
+- **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
+  A sent copy has no edit, no regenerate and no remove.
+- **After Applied, ticking a further document freezes it at once**, dated today, and says `<title>
+  v<N> frozen as sent today.`
+- **`Download` on a sent copy returns the stored file**, never a fresh one.
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **A document with no version yet** | Listed in the tick card, cannot be ticked, noted `No version yet. Generate it from Home first.` |
+| **Applied or later, nothing frozen** | `No sent copy is recorded. Use “Record another document you sent” to add one.` |
+| **Applied or later, no document at all** | `No résumé is recorded for this application.` above the same two buttons |
+| **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
+| **Freezing failed** | The move to Applied is not made, and the reason is said in the panel. A status that says Applied with nothing kept would be the wrong half to save |
+
+#### Interviews · #72, recordings #74 and #76
+
+Panel header **`Add an interview`** (ghost). One card an interview entry, newest date first:
+
+- One line: the round at the row-title size, the date in mono, and `with <who>` when given.
+- How it went, as a paragraph in `text-body`.
+- `Questions asked`, then the questions as a numbered list.
+- Its recordings, a row each, then **`Attach a recording`** (ghost).
+
+**The form**, a card titled `New interview`, opened at the top of the panel:
+
+- `Date`, no later than today, today by default. `Round`: `First interview`, `Second interview`,
+  `Final interview`, `Other conversation`, set by default to the earliest round at or after the
+  status that has no entry yet, or `Other conversation`.
+- `Who you spoke with`, placeholder `Names or roles. Kept only here.`
+- `How it went`, four rows, placeholder `What it was like, what landed, what you would answer
+  differently.`
+- `Questions asked`: the list so far, each with `Remove` (bare), then a field, placeholder `One
+  question, then Enter`, and `Add` (ghost). `Pasting several lines adds them all at once.` A
+  leading bullet or number on a pasted line is dropped.
+- `A recording is attached after you save, from the interview's own card.`
+- **`Save interview`** (primary) and `Cancel`. What is in the question field is added on save.
+
+**Rules**
+
+- **An entry needs how it went or at least one question**: `Write how it went, or add at least one
+  question.`
+- **Saving an entry for a later round moves the status** to that round with the entry's date, when
+  the application is open and the round is not `Other conversation`. It is said where a status
+  change is said: `Interview saved, and the status moved to <step> to match. Date saved as <date>.`
+  with `Change the date` and `Undo`. Undo puts the status back and keeps the entry. Otherwise it
+  says `Interview saved.`
+- **Each question is its own item, in the order given.**
+- **No model reads an entry or writes one.**
+
+**A recording row**
+
+| Kind | Reads | Actions |
+|---|---|---|
+| Uploaded audio | chip `Audio`, the file's name, `46 MB · 52 min · uploaded <date> · only you can play it` | `Play` (ghost; plays in the page, with seeking), `Download`, `Remove` |
+| Link | chip `Link`, its label or `Recording kept elsewhere`, the address under it, wrapping anywhere | `Open` (a new tab), `Remove` |
+| Removed | `A recording was removed on <date>.` in `text-muted` | None |
+
+**`Attach a recording`** opens a card in place:
+
+- **`Upload audio`** (secondary; #76), **`Add a link instead`** (ghost; #74) and `Cancel`. Under
+  them: `Audio, up to <the limit> a file. It is stored privately and only you, signed in, can play
+  it. Other people's voices are on it, so nothing here shares it or sends it anywhere.` **Until #76
+  the card is the link form alone.**
+- **The link form:** `Link to the recording` (placeholder `https://`), `What it is, in a few words`
+  (placeholder `Their recording of the call`), `Only the link is kept. If the recording is taken
+  down where it lives, it is gone here too.`, **`Add the link`** (secondary) and `Cancel`. Saved,
+  it says `Link added.`
+- **Uploading**, a `role="status"` row: `Uploading <name>`, the progress bar of `05` §7, and `N of
+  M MB. Keep this page open.` Done, it says `Recording uploaded.`
+
+**`Remove` asks once, in place of the row**, as an alert dialog: `Remove <name> for good?`, then
+for a file `The file is deleted from storage and cannot be brought back.` and for a link `Only the
+link is removed; the recording stays where it lives.`, then `The interview keeps a line saying one
+was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says `Recording removed.`
+
+**Recording rules**
+
+- **Audio only.** No video, and no transcript (decision log, 2026-10-11). The prototype's `Upload
+  audio or video`, its `Video` chip and its `2 GB` are not the spec; #76 sets the size and type
+  limits and writes them into the sentence above.
+- **A link is `http` or `https`**, or it is refused: `That does not look like a link. It should
+  start with https://`
+- **Only the owner, signed in, can play or download an upload.** Nothing here shares one.
+- **A recording is the only thing on these screens that can be removed.** An entry cannot, and an
+  application cannot.
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **No entries** | `None yet. After each one, note the date, who you spoke with, how it went and the questions they asked.` |
+| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit |
+| **Upload interrupted** | The row says so with `Try again`; nothing is listed as a recording |
+
+#### The job · #70
+
+Header **`Edit`** (ghost), which opens the Company, Position and Key requirements fields of Screen
+13 in place. A definition list: `Company`, `Position`, `Posting` (the link, when given), `Key
+requirements` as a list or `None noted`. Under it a disclosure, closed by default: `The full job
+description, as you pasted it`, the text as compact Document body in `text-body` with its line
+breaks kept.
+
+**The job description is not edited after saving.** A tailored résumé may have been written from
+it, and it is what the application was for.
+
+#### Practise for this job · #77
+
+`Suburi, your interview practice app, can take a job description as the role for a practice round.
+Nothing is sent to it from here: you carry the file or the text across yourself.` Then:
+
+- **`Download the job description (.txt)`** (ghost): a text file holding the job description and
+  nothing else.
+- **`Copy the N questions asked`** (ghost): every question from every interview entry of this
+  application, one a line, oldest interview first. With none: `Questions asked show up here once an
+  interview has some.`
+
+**Nothing connects the two apps** (`AGENTS.md`). These are two pieces of text in the author's
+hands.
+
+### Screen 15 — A sent copy · built by #71
+
+Header `Applications / <company> / <title> as sent`. Read-only.
+
+1. **One notice:** the chip `vN · frozen`, then `Sent to <company> on <date>. This is the file as
+   it was that day. It cannot be edited, and later changes to the résumé or to your record do not
+   reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
+   (bare).
+2. **The document**, as it was sent, at the reading measure: the name and contact line it carried
+   that day, then its sections. A 履歴書 or 職務経歴書 is set with the Japanese stack.
+
+There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
+another application, is a 404.
+
+### What the prototype leaves open
+
+Named so that nobody reads an unwired button as a decision.
+
+- **`Play`, every `Download`, `History`, `Open` and `Edit` are stand-ins** in the prototype. Their
+  behaviour is what this document says.
+- **Its tailored-résumé screen is a stand-in for Screen 2**, and stacks the two columns at phone
+  width. That is not a decision about Screen 2 (Responsive behaviour).
+- **Correcting an interview entry after saving** is not shown. #72 settles it; until it is
+  specified here, an entry is saved once.
+- **`Prototype only:` controls** (the sample postings, the sample file) and the bar above the frame
+  are not part of any screen.
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -1352,3 +1752,31 @@ is worse than none: it invites use on a device where the next click fails.
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
 surface without re-laying-out the application.
+
+### Applications at phone width · specified 2026-10-11, built by #75
+
+**The one exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
+`/applications`, are not behind the wider-window message. Every other route keeps it under 1024px.
+Designed at **390px**; the prototype's `Phone` width is the reference.
+
+Under **720px** of width these screens change as follows, and above it they are the desktop layout:
+
+| Part | At phone width |
+|---|---|
+| Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
+| Menu | A sheet under the header: `Applications` first and active, then the other rows; the sentence `On a phone, Applications is the part that works. The other screens still ask for a wider window.`; then the Theme control |
+| Header | 12px side padding; the contextual note is not shown |
+| Content column | `16px 12px` padding, 16px between blocks |
+| List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
+| Steps | A vertical list: the node and line down the left, the name, the date on the line under it |
+| Figures, side-by-side cards, paired fields | One column |
+| Document and sent-copy rows | Their links move under the text, left-aligned |
+| The job's definition list | One column, the term above its value |
+| Buttons | Primary, secondary and ghost are at least 36px tall |
+
+**Nothing scrolls sideways** at 390px, in either theme, with Japanese company and position names.
+
+**Screens 2, 5 and 6 are not Applications screens and keep the message.** So on a phone `Make a
+tailored résumé`, `Regenerate` and `History` lead to a screen that asks for a wider window. #75
+settles what those three controls do at phone width (say so beside them, or hold them back with the
+reason); it does not make Diff Review a phone screen.
