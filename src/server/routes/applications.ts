@@ -23,7 +23,7 @@ import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from 
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
-import { titleOf } from "../services/render-ref";
+import { tailoredTitle } from "../services/render-ref";
 import { renderState } from "./renders";
 import { tokyoToday } from "~/render/rirekisho";
 import {
@@ -119,8 +119,6 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
       db
         .select({
           applicationId: renders.applicationId,
-          kind: renders.kind,
-          jobDescription: renders.jobDescription,
           label: renders.label,
           versionNo: renderVersions.versionNo,
         })
@@ -140,7 +138,7 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
         const resume = resumeOf.get(row.id);
         return {
           ...summaryOf(row, standing, today),
-          resume: resume ? { title: titleOf(resume), versionNo: resume.versionNo } : null,
+          resume: resume ? { title: tailoredTitle(resume.label), versionNo: resume.versionNo } : null,
         };
       })
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
@@ -333,7 +331,11 @@ async function detail(db: Db, userId: string, id: string) {
 
 /* ----------------------------------------------------------------- writes */
 
-/** Reads where an application stands, applies one change to it, saves it and answers with the result. */
+/**
+ * Reads where an application stands, applies one change to it, saves it and
+ * answers with the result. A change that leaves it standing as it was is not
+ * activity: nothing is written and nothing logged.
+ */
 async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standing) {
   const user = c.get("user");
   const db = c.get("db");
@@ -347,6 +349,12 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
     if (error instanceof StandingRefused) throw new ApiError("conflict", error.message);
     throw error;
   }
+  const same =
+    next.step === standing.step &&
+    next.closedAs === standing.closedAs &&
+    APPLICATION_STATUSES.every((status) => next.dates[status] === standing.dates[status]);
+  if (same) return c.json(await detail(db, user.id, id));
+
   await saveStanding(db, user.id, id, steps, next);
   console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs }));
   return c.json(await detail(db, user.id, id));

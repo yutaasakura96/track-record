@@ -130,6 +130,7 @@ function Body({ application }: { application: Application }) {
   };
 
   const saveDate = async (status: ApplicationStatus, date: string) => {
+    if (date === application.dates[status]) return setDating(null);
     if (!(await change({ change: "date", status, date }))) return;
     setDating(null);
     // Undo takes back the last move, not a date corrected since: the correction goes into what Undo restores.

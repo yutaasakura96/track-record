@@ -421,6 +421,36 @@ describe("gone quiet", () => {
     await client.patch(`/api/applications/${id}`, { position: "Staff Backend Engineer" });
     expect(await read(id)).toMatchObject({ quietDays: 20, lastActivityAt: before.lastActivityAt });
   });
+
+  it("is not reset, and the list not reordered, by a save that changes nothing", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    vi.setSystemTime(dayAfter(1));
+    const newer = (await add({ ...JOB, company: "Larkspur Freight" })).id;
+    vi.setSystemTime(dayAfter(20));
+    const before = await read(id);
+    expect(before.quietDays).toBe(20);
+    const standing = { step: before.step, closedAs: before.closedAs, dates: before.dates };
+
+    for (const response of [
+      await correct(id, "applied", dateAfter(0)),
+      await set(id, "applied"),
+      await client.put(`/api/applications/${id}/standing`, standing),
+    ]) {
+      expect(response.status).toBe(200);
+      expect(await response.json()).toMatchObject({ ...standing, quietDays: 20, lastActivityAt: before.lastActivityAt });
+      expect((await list()).items.map((row) => row.id)).toEqual([newer, id]);
+    }
+    expect(await read(id)).toEqual(before);
+
+    const backup = await client.json<{ applicationSteps: { applicationId: string }[] }>("/api/export");
+    expect(backup.applicationSteps.filter((row) => row.applicationId === id)).toHaveLength(2);
+
+    // The same routes with something to change still count.
+    await correct(id, "applied", dateAfter(5));
+    expect(await read(id)).toMatchObject({ quietDays: null, daysSinceLastActivity: 0 });
+    expect((await list()).items.map((row) => row.id)).toEqual([id, newer]);
+  });
 });
 
 describe("the list", () => {

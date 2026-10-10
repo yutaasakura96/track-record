@@ -272,6 +272,17 @@ describe("where an application stands", () => {
     expect(figure("since the first interview")).toBe("20 dayssince the first interview");
   });
 
+  it("closes the date it was shown without a write when Save is pressed on the same day", async () => {
+    const { api, user } = openOne();
+    await user.click(await screen.findByRole("button", { name: "First interview, 2026-09-24. Correct this date" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("button", { name: "First interview, 2026-09-24. Correct this date" })).toBeTruthy();
+    expect(screen.queryByLabelText("Date")).toBeNull();
+    expect(screen.queryByText(/Date corrected/)).toBeNull();
+    expect(api.writes()).toEqual([]);
+  });
+
   it("keeps a date corrected after a move when the move is undone", async () => {
     const { api, user } = openOne();
     await user.click(await screen.findByRole("button", { name: "Move to Final interview" }));

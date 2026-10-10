@@ -972,8 +972,10 @@ reaches a model. The rules are `src/shared/application.ts`, which the screens re
   `null` where the step has none. `daysSinceLastActivity` counts from `lastActivityAt`.
   **`quietDays` is that same count once it reaches 14 while the step is Applied, Résumé passed or
   an interview and the application is open, and `null` otherwise.**
-- **`lastActivityAt` moves on every write here except `PATCH /api/applications/:id`.** The list is
-  ordered by it.
+- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date**, so not
+  on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
+  day saved again, the step it is already at, the standing it already has. That one answers with
+  the application, writes nothing and logs nothing. The list is ordered by it.
 - Every write answers with the application as it is afterwards. Another user's application is
   `404` on every route.
 - Logged: `application_created` with the id and the job description's length, and
