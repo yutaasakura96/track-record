@@ -62,7 +62,7 @@ const postingUrl = z
   .trim()
   .max(2000, "That link is too long.")
   .refine((value) => value === "" || /^https?:\/\/\S+$/i.test(value), "A link to the posting starts with https://")
-  .nullish()
+  .nullable()
   .transform((value) => (value ? value : null));
 const requirements = z
   .array(z.string().trim().max(REQUIREMENT_MAX, `Keep each requirement under ${REQUIREMENT_MAX} characters.`))
@@ -99,6 +99,7 @@ const standingBody = z.strictObject({
 });
 
 type ApplicationRow = typeof applications.$inferSelect;
+type SummaryRow = Pick<ApplicationRow, keyof typeof SUMMARY>;
 type StepRow = Pick<typeof applicationSteps.$inferSelect, "id" | "applicationId" | "status" | "happenedOn">;
 
 export function registerApplicationRoutes(app: Hono<AppEnv>) {
@@ -113,7 +114,7 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const today = tokyoToday();
     const [rows, steps, resumes] = await db.batch([
-      db.select().from(applications).where(eq(applications.userId, user.id)),
+      db.select(SUMMARY).from(applications).where(eq(applications.userId, user.id)),
       db.select(LIVE_STEP).from(applicationSteps).where(liveSteps(user.id)),
       db
         .select({
@@ -243,6 +244,17 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
 
 /* ------------------------------------------------------------------ reads */
 
+/** The columns the list reads. The job description and the requirements are not among them. */
+const SUMMARY = {
+  id: applications.id,
+  company: applications.company,
+  position: applications.position,
+  postingUrl: applications.postingUrl,
+  currentStep: applications.currentStep,
+  closedAs: applications.closedAs,
+  lastActivityAt: applications.lastActivityAt,
+};
+
 const LIVE_STEP = {
   id: applicationSteps.id,
   applicationId: applicationSteps.applicationId,
@@ -263,14 +275,14 @@ function groupBy<T>(items: T[], key: (item: T) => string): Map<string, T[]> {
   return groups;
 }
 
-const standingOf = (row: ApplicationRow, steps: StepRow[]): Standing => ({
+const standingOf = (row: SummaryRow, steps: StepRow[]): Standing => ({
   step: row.currentStep as ApplicationStep,
   closedAs: row.closedAs as ClosedKind | null,
   dates: Object.fromEntries(steps.map((step) => [step.status, step.happenedOn])),
 });
 
 /** What the list shows of an application, which is also the top of its page. */
-const summaryOf = (row: ApplicationRow, standing: Standing, today: string) => ({
+const summaryOf = (row: SummaryRow, standing: Standing, today: string) => ({
   id: row.id,
   company: row.company,
   position: row.position,

@@ -146,6 +146,29 @@ describe("adding a job by hand", () => {
     expect((await client.patch(`/api/applications/${made.id}`, { company: "" })).status).toBe(422);
     expect((await read(made.id)).jobDescription).toBe(POSTING);
   });
+
+  it("keeps the link when a correction leaves it out, and clears it only when asked to", async () => {
+    const link = "https://jobs.example.invalid/vellum/backend";
+    const made = await add({ ...JOB, postingUrl: link, requirements: ["Tide tables"] });
+    const edit = (body: Record<string, unknown>) => client.patch(`/api/applications/${made.id}`, body);
+
+    expect((await edit({ position: "Staff Backend Engineer" })).status).toBe(200);
+    expect(await read(made.id)).toMatchObject({
+      company: "Vellum Tideworks",
+      position: "Staff Backend Engineer",
+      postingUrl: link,
+      requirements: ["Tide tables"],
+    });
+    expect((await list()).items[0]!.postingUrl).toBe(link);
+
+    expect((await edit({ postingUrl: null })).status).toBe(200);
+    expect((await read(made.id)).postingUrl).toBeNull();
+
+    expect((await edit({ postingUrl: link })).status).toBe(200);
+    expect((await read(made.id)).postingUrl).toBe(link);
+    expect((await edit({ postingUrl: "" })).status).toBe(200);
+    expect(await read(made.id)).toMatchObject({ postingUrl: null, position: "Staff Backend Engineer" });
+  });
 });
 
 describe("status steps and their dates", () => {
