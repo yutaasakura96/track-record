@@ -100,6 +100,7 @@ async function seedRecord() {
 }
 
 const master = (as: Client = client) => as.json<MasterDocument>("/api/master-document");
+const masterJa = (as: Client = client) => as.json<MasterDocument>("/api/master-document?language=ja");
 const everyFact = (doc: MasterDocument): MasterFact[] => [
   ...doc.employers.flatMap((e) => [...e.facts, ...e.projects.flatMap((p) => p.facts)]),
   ...doc.independent.facts,
@@ -139,7 +140,7 @@ describe("the master document", () => {
     expect(employer).toMatchObject({
       id: employerId,
       name: EMPLOYER_FIXTURE.nameLatin,
-      nameJa: EMPLOYER_FIXTURE.nameJa,
+      alternateName: EMPLOYER_FIXTURE.nameJa,
       startedOn: EMPLOYER_FIXTURE.startedOn,
       roles: [{ title: ROLE_FIXTURE.titleLatin, startedOn: ROLE_FIXTURE.startedOn, endedOn: ROLE_FIXTURE.endedOn }],
     });
@@ -204,6 +205,77 @@ describe("the master document", () => {
   });
 });
 
+/**
+ * Issue #59: each language has its own. It is the same view, with the record
+ * named as a document of that language names it, and nothing translated.
+ */
+describe("the master document of each language", () => {
+  it("is English unless 日本語 is asked for, and says which it is", async () => {
+    await seedRecord();
+
+    expect((await master()).language).toBe("en");
+    expect((await masterJa()).language).toBe("ja");
+    // An unknown language is ignored, as an unknown filter is.
+    expect((await client.json<MasterDocument>("/api/master-document?language=fr")).language).toBe("en");
+  });
+
+  it("names the record as a Japanese document names it", async () => {
+    const { employerId } = await seedRecord();
+    await created("/api/projects", { name: "Harbour lantern", nameJa: "港の灯台", employerId });
+    const doc = await masterJa();
+
+    expect(doc.subjectName).toBe(`${PROFILE_FIXTURE.familyNameKanji}　${PROFILE_FIXTURE.givenNameKanji}`);
+    expect(doc.employers[0]).toMatchObject({
+      name: EMPLOYER_FIXTURE.nameJa,
+      alternateName: EMPLOYER_FIXTURE.nameLatin,
+      roles: [{ title: ROLE_FIXTURE.titleJa }],
+    });
+    // A project with a Japanese name is called by it; one without keeps the name it has.
+    expect(doc.employers[0]!.projects.map((project) => project.name).sort()).toEqual(["Settlement batch", "港の灯台"].sort());
+    expect(doc.educations).toMatchObject([{ institution: EDUCATION_FIXTURE.institutionJa }]);
+    expect(doc.certifications).toMatchObject([{ name: CERTIFICATION_FIXTURE.nameJa }]);
+  });
+
+  it("holds the same facts in both, each claim as it was written", async () => {
+    await seedRecord();
+    const [english, japanese] = [await master(), await masterJa()];
+    const claims = (doc: MasterDocument) => everyFact(doc).map((fact) => [fact.id, fact.claim, fact.provenance, fact.disclosure]);
+
+    expect(claims(japanese)).toEqual(claims(english));
+    expect(japanese.counts).toEqual(english.counts);
+  });
+
+  it("falls back to the only name the record holds, and then lists no second name", async () => {
+    await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: null });
+
+    for (const doc of [await master(), await masterJa()]) {
+      expect(doc.employers[0]).toMatchObject({ name: EMPLOYER_FIXTURE.nameJa, alternateName: null });
+    }
+  });
+
+  it("is built without a model call in Japanese too", async () => {
+    await seedRecord();
+    const calls = { extract: model.extractCalls.length, generate: model.generationInputs.length };
+    await masterJa();
+    await client.get("/api/master-document/download?language=ja");
+
+    expect(model.extractCalls).toHaveLength(calls.extract);
+    expect(model.generationInputs).toHaveLength(calls.generate);
+    expect(model.gradeCalls).toEqual([]);
+    expect(model.explainCalls).toEqual([]);
+  });
+
+  it("never holds another user's record in Japanese either", async () => {
+    await seedRecord();
+    const other = app.as(await seedAllowedUser(SECOND_EMAIL));
+
+    expect(await masterJa(other)).toMatchObject({ language: "ja", subjectName: null, employers: [], educations: [], certifications: [] });
+    const file = await (await other.get("/api/master-document/download?language=ja")).text();
+    expect(file).not.toContain(USABLE.claim);
+    expect(file).not.toContain(EMPLOYER_FIXTURE.nameJa);
+  });
+});
+
 describe("the master document as a file", () => {
   it("downloads as Markdown, in full, Private facts included, and says so in its first lines", async () => {
     await seedRecord();
@@ -211,7 +283,7 @@ describe("the master document as a file", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="master-document-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="master-document-en-\d{4}-\d{2}-\d{2}\.md"$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const file = await response.text();
@@ -230,6 +302,46 @@ describe("the master document as a file", () => {
     expect(file).toContain("## Education");
     expect(file).toContain("## Certifications");
     expect(file).not.toContain(REJECTED.claim);
+  });
+
+  it("downloads the Japanese one as a file of its own, headed and dated in Japanese", async () => {
+    await seedRecord();
+    const response = await client.get("/api/master-document/download?language=ja");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="master-document-ja-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+
+    const file = await response.text();
+    const [title, , notice, , counts] = file.split("\n");
+    expect(title).toBe(`# マスタードキュメント：${PROFILE_FIXTURE.familyNameKanji}　${PROFILE_FIXTURE.givenNameKanji}`);
+    // The same two warnings the English file opens with, and that nothing was translated.
+    expect(notice).toContain("Private（非公開）の事実");
+    expect(notice).toContain("企業や採用担当者には送らないでください。");
+    expect(notice).toContain("翻訳していません。");
+    expect(counts).toBe("事実 4 件：書類に使用可 2 件、Private 1 件、Generated 1 件。");
+
+    expect(file).toContain(`## ${EMPLOYER_FIXTURE.nameJa} (${EMPLOYER_FIXTURE.nameLatin})`);
+    expect(file).toContain("2022年4月〜2024年9月 · 運輸業");
+    expect(file).toContain(`- ${ROLE_FIXTURE.titleJa} (2022年4月〜2023年9月)`);
+    expect(file).toContain("## 雇用外の活動");
+    expect(file).toContain("## 学歴");
+    expect(file).toContain(`- ${EDUCATION_FIXTURE.institutionJa}、`);
+    expect(file).toContain("2013年4月〜2017年3月、卒業)");
+    expect(file).toContain("## 資格");
+    expect(file).toContain(`- ${CERTIFICATION_FIXTURE.nameJa}、${CERTIFICATION_FIXTURE.issuingOrganization} (2019年6月取得)`);
+    // The claims are the ones that were read, under the product's own labels.
+    expect(file).toContain(`- ${PRIVATE.claim} [Attested · Private · flagged] kestrel-notes.md L`);
+    expect(file).not.toContain("## Education");
+    expect(file).not.toContain(REJECTED.claim);
+    for (const candidate of [USABLE, PRIVATE, GENERATED, REJECTED, SIDE]) expect(file).not.toContain(candidate.quote);
+  });
+
+  it("says in Japanese how many facts are waiting and not listed", async () => {
+    const { importId } = await seedRecord();
+    await asCandidates(importId);
+    const file = await (await client.get("/api/master-document/download?language=ja")).text();
+    expect(file).toContain("事実 1 件：書類に使用可 1 件、Private 0 件、Generated 0 件。ほかに 4 件が仕分け待ちで、掲載されていません。");
   });
 
   it("says how many facts are waiting and not listed", async () => {

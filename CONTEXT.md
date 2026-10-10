@@ -112,6 +112,8 @@ and Reject, never last-write-wins and never merged.
 **Master document**:
 Every accepted fact in the record as one readable page, Private and Generated ones included, grouped
 by Employer and Project. **A view, not a file**: built on each read, stored nowhere, edited nowhere.
+**One per language**, English and 日本語: the same facts, with the record named as a document of
+that language names it. No claim is translated.
 It is not the legacy master document the project retired, which was hand-maintained.
 _Avoid_: master résumé, master copy, source of truth (the record is that).
 

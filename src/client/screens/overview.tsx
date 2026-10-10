@@ -35,7 +35,10 @@ import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
 import { DocumentRow, QUIET, SECONDARY } from "../components/document-row";
+import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
+import { useDocumentLanguageStore, type DocumentLanguage } from "../stores/document-language";
 import { nextSteps, type Step, type StepAction } from "../next-step";
+import { MASTER_WORDS } from "~/shared/master-document";
 
 const number = (n: number) => n.toLocaleString("en-US");
 
@@ -167,7 +170,7 @@ function LoadingRecord() {
             <div className="grid gap-8">{[0, 1, 2].map((n) => blank("h-40", n))}</div>
           </Section>
           <Section heading={DOCUMENTS.heading} about={DOCUMENTS.about}>
-            <div className="grid gap-8">{[0, 1, 2, 3, 4].map((n) => blank("h-40", n))}</div>
+            <div className="grid gap-8">{[0, 1, 2, 3].map((n) => blank("h-40", n))}</div>
           </Section>
         </div>
       </div>
@@ -195,7 +198,7 @@ const FACTS = {
 };
 const DOCUMENTS = {
   heading: "Your career documents",
-  about: "Generated from your accepted facts. Each one is a file you can download.",
+  about: "Generated from your accepted facts, in English and in Japanese. Each one is a file you can download.",
 };
 
 /* --------------------------------------------------------------- populated */
@@ -268,6 +271,7 @@ function PopulatedRecord({
           <Facts counts={data.factsByProvenance} unconfirmed={data.unconfirmed} flagged={data.flagged} />
           <CareerDocuments
             rows={data.documents}
+            facts={data.factsByProvenance.measured + data.factsByProvenance.attested + data.factsByProvenance.generated}
             canGenerate={data.canGenerate}
             busy={generate.isPending}
             failure={failed("documents")}
@@ -669,7 +673,8 @@ function Facts({
 /**
  * Which document to act on, said once above the rows. Five rows each reading
  * `N new facts since it was generated` beside the same three buttons said
- * nothing about where to start (issue #58).
+ * nothing about where to start (issue #58). It speaks for the rows under it,
+ * so for one language's documents (issue #59).
  */
 function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   const built = rows.filter((row) => row.buildable);
@@ -691,41 +696,94 @@ function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   return "Every document you have generated is up to date with your record.";
 }
 
+/** The master document's row: said in the words of the tab it leads. */
+const MASTER_ROW: Record<DocumentLanguage, { note: string; open: string }> = {
+  en: {
+    note: "English · everything in your record, and what every English document is written from",
+    open: "Open the English master document",
+  },
+  ja: {
+    note: "Japanese · everything in your record, and what every Japanese document is written from",
+    open: "Open the Japanese master document",
+  },
+};
+
+/**
+ * The English documents and the 日本語 ones, apart (issue #59). One list of
+ * five mixed two readers' documents; each tab is now one language, led by the
+ * master document every document on it is written from.
+ */
 function CareerDocuments({
   rows,
+  facts,
   canGenerate,
   busy,
   failure,
   onGenerate,
 }: {
   rows: RenderRow[];
+  /** Accepted facts, which is what the master document lists. */
+  facts: number;
   canGenerate: boolean;
   busy: boolean;
   failure: string | null;
   onGenerate: (ref: string) => void;
 }) {
+  const language = useDocumentLanguageStore((state) => state.language);
+  const shown = rows.filter((row) => row.language === language);
+
   return (
     <Section heading={DOCUMENTS.heading} about={DOCUMENTS.about}>
-      <p className="mb-6 text-ui text-text-secondary">{whichDocument(rows, canGenerate)}</p>
-      {failure ? (
-        <p role="alert" className="mb-6 text-small text-text-secondary">
-          {failure}
-        </p>
-      ) : null}
-      <ul>
-        {rows.map((row) => (
-          <DocumentRow
-            key={row.ref}
-            row={row}
-            // The one a tailored résumé is a variant of (issue #57).
-            note={row.kind === "english_resume" ? "English · your main résumé, tailored to no job" : undefined}
-            canGenerate={canGenerate}
-            busy={busy}
-            onGenerate={() => onGenerate(row.ref)}
-          />
-        ))}
-      </ul>
+      <LanguageTabs name="career-documents" label="Document language" />
+      <LanguagePanel name="career-documents" className="mt-12">
+        <p className="mb-6 text-ui text-text-secondary">{whichDocument(shown, canGenerate)}</p>
+        {failure ? (
+          <p role="alert" className="mb-6 text-small text-text-secondary">
+            {failure}
+          </p>
+        ) : null}
+        <ul>
+          <MasterDocumentRow language={language} facts={facts} />
+          {shown.map((row) => (
+            <DocumentRow
+              key={row.ref}
+              row={row}
+              // The one a tailored résumé is a variant of (issue #57).
+              note={row.kind === "english_resume" ? "English · your main résumé, tailored to no job" : undefined}
+              canGenerate={canGenerate}
+              busy={busy}
+              onGenerate={() => onGenerate(row.ref)}
+            />
+          ))}
+        </ul>
+      </LanguagePanel>
     </Section>
+  );
+}
+
+/**
+ * The first row of each tab. It is not generated and has no versions, so it
+ * has no status dot, no History and no Generate: it is opened, and the screen
+ * it opens is where it is downloaded, beside the note that the file holds
+ * Private facts.
+ */
+function MasterDocumentRow({ language, facts }: { language: DocumentLanguage; facts: number }) {
+  const words = MASTER_ROW[language];
+  return (
+    <li className="flex items-center gap-12 px-10 py-12 border-b border-border-inner last:border-b-0">
+      <div className="min-w-0">
+        <div className="text-row font-medium text-text-strong">{MASTER_WORDS[language].title}</div>
+        <div className="text-small text-text-muted">{words.note}</div>
+      </div>
+      <div className="ml-auto flex items-center gap-16">
+        <span className="text-small text-text-muted whitespace-nowrap">
+          {facts === 0 ? "No facts yet" : `${number(facts)} ${facts === 1 ? "fact" : "facts"}`}
+        </span>
+        <Link to="/master" aria-label={words.open} className={SECONDARY}>
+          Open
+        </Link>
+      </div>
+    </li>
   );
 }
 
@@ -752,7 +810,7 @@ function TailoredResumes({
   return (
     <Section
       heading="Tailored résumés"
-      about="Your résumé, rewritten for one job from the same facts. Paste a job description to make one."
+      about="Your English résumé, rewritten for one job from the same facts. Paste a job description to make one."
       action={
         <Link to="/tailored" className={`shrink-0 ${QUIET}`}>
           {rows.length === 0 ? "Make one" : "Open tailored résumés"}

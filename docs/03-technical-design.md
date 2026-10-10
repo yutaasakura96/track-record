@@ -389,6 +389,8 @@ not written.
 batch and groups it (employer, then project, then fact); no model is called, nothing is stored and
 there is no version. It lists every accepted fact, Private and Generated included, and no source
 text. `src/render/master-document.ts` writes the same structure as Markdown for the download.
+`?language=ja` names the record as a Japanese document does, by the renders' `nameInLanguage`, and
+changes no claim (#59).
 
 ### 6.1 The diff engine
 

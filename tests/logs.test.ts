@@ -184,6 +184,8 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     });
     await client.get("/api/master-document");
     await client.get("/api/master-document/download");
+    await client.get("/api/master-document?language=ja");
+    await client.get("/api/master-document/download?language=ja");
 
     const log = captured.join("\n");
     for (const needle of [
@@ -203,6 +205,7 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"flag_explained","flagId":"flg_/);
     expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
     expect(log).toMatch(/"event":"tailored_resume_created","renderId":"[a-z]+_[^"]+","characters":\d+/);
-    expect(log).toMatch(/"event":"master_document_downloaded".*"facts":\d+/);
+    expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
+    expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });
 });

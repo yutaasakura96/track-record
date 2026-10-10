@@ -261,16 +261,20 @@ read, still works.
 
 ## Flow 10 · Read the master document · M3 (#57)
 
-1. Sidebar → **Master document**. → `GET /api/master-document`.
+1. Sidebar → **Master document**, or **Open** on the first row of a tab of Home's documents.
+   → `GET /api/master-document`, with `?language=ja` when the 日本語 tab is the one open (#59).
+   The tabs at the top of the page change it, and the choice is the one Home keeps.
 2. One long page: each employer with its roles, its projects, and every accepted fact under them,
    then work under no employer, education and certifications. Each fact carries its Worth, its Who
    and any open flag, and names the document and line it came from.
-3. **Download .md** → `GET /api/master-document/download` → a Markdown file of the same content.
+3. **Download .md** → `GET /api/master-document/download` → a Markdown file of the same content, in
+   the language of the tab that is open.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 1 | The record holds nothing the page lists | The intro says to import a document, and there is no Download. Not an error |
 | 1 | Facts are still waiting to be sorted | A line saying how many are not listed yet, and to sort them from Home |
+| 2 | A fact is in English on the 日本語 tab, or the reverse | **It is, by decision.** A claim reads as it was written; the intro says none is translated |
 | 2 | A fact is wrong | It is not edited here. Its source link opens the fact (Flow 9, step 5) |
 | 3 | The file holds Private facts | **It does, by decision.** The page says so beside the button, and the file's first lines say not to send it to an employer |
 

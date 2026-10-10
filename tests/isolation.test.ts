@@ -141,6 +141,8 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/flags?state=checked",
       "/api/master-document",
       "/api/master-document/download",
+      "/api/master-document?language=ja",
+      "/api/master-document/download?language=ja",
       "/api/tailored-resumes",
     ];
     for (const path of collections) {
