@@ -819,7 +819,7 @@ technologies: {AWS, VPC, IAM}
 | `source_document_versions` | **Never deleted.** They are the evidence every Measured fact points at |
 | `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-offering them |
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
-| `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left; removing one is #60's question |
+| `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
 | Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |
