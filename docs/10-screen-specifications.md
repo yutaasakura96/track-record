@@ -493,9 +493,6 @@ language, and one panel under it:
   `localStorage` key `track-record:document-language`, as the theme is. It is not a column: it says
   which tab is open, and nothing about the record. **Screen 10 reads the same choice**, so the
   language open here is the language of the master document that opens.
-- **A tab says when a new version is waiting under it**: the note `new version waiting` beside its
-  name, in the accent text. A document that wants checking is then never hidden by the other tab.
-  The Next step still names it, whichever tab is open.
 - **The first row of each tab is that language's master document** (Screen 10). Title
   `Master document` or `マスタードキュメント`, note `English · everything in your record, and what
   every English document is written from` (or `Japanese · … every Japanese document …`), the count

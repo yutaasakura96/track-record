@@ -696,13 +696,6 @@ function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   return "Every document you have generated is up to date with your record.";
 }
 
-/** What a tab says beside its name, so a version waiting under the other tab is not hidden by this one. */
-function waitingNote(rows: RenderRow[]): string | null {
-  const built = rows.filter((row) => row.buildable);
-  if (built.some((row) => row.status === "proposal_pending")) return "new version waiting";
-  return null;
-}
-
 /** The master document's row: said in the words of the tab it leads. */
 const MASTER_ROW: Record<DocumentLanguage, { note: string; open: string }> = {
   en: {
@@ -737,16 +730,11 @@ function CareerDocuments({
   onGenerate: (ref: string) => void;
 }) {
   const language = useDocumentLanguageStore((state) => state.language);
-  const inLanguage = (which: DocumentLanguage) => rows.filter((row) => row.language === which);
-  const shown = inLanguage(language);
+  const shown = rows.filter((row) => row.language === language);
 
   return (
     <Section heading={DOCUMENTS.heading} about={DOCUMENTS.about}>
-      <LanguageTabs
-        name="career-documents"
-        label="Document language"
-        notes={{ en: waitingNote(inLanguage("en")), ja: waitingNote(inLanguage("ja")) }}
-      />
+      <LanguageTabs name="career-documents" label="Document language" />
       <LanguagePanel name="career-documents" className="mt-12">
         <p className="mb-6 text-ui text-text-secondary">{whichDocument(shown, canGenerate)}</p>
         {failure ? (

@@ -26,14 +26,11 @@ const panelId = (name: string) => `${name}-panel`;
 export function LanguageTabs({
   name,
   label,
-  notes = {},
 }: {
   /** Unique on the screen: it ties the tabs to their panel. */
   name: string;
   /** What the tabs choose between, for a reader who cannot see them. */
   label: string;
-  /** Said beside a tab, so what is waiting under the other one is not hidden by it. */
-  notes?: Partial<Record<DocumentLanguage, string | null>>;
 }) {
   const language = useDocumentLanguageStore((state) => state.language);
   const setLanguage = useDocumentLanguageStore((state) => state.setLanguage);
@@ -63,7 +60,6 @@ export function LanguageTabs({
     >
       {TABS.map((tab) => {
         const active = tab.value === language;
-        const note = notes[tab.value];
         return (
           <button
             key={tab.value}
@@ -79,13 +75,6 @@ export function LanguageTabs({
             }`}
           >
             {tab.label}
-            {/* A real space, so the tab is read out as two phrases and not as one word. */}
-            {note ? (
-              <>
-                {" "}
-                <span className="ml-4 text-small font-normal text-accent-text">{note}</span>
-              </>
-            ) : null}
           </button>
         );
       })}

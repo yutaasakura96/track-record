@@ -5668,3 +5668,16 @@ for an author working in Japanese; the stored choice follows them instead.
 
 **Revisit if:** the author wants the claims themselves in Japanese. That is a translated render with
 versions and a diff to read, not a view, and would be a new document kind.
+
+### [2026-10-10] A tab carries its name and nothing else
+
+Supersedes one paragraph of the entry above, "A tab says when a new version is waiting under it".
+The rest of that entry stands, the remembered tab included.
+
+**The note `new version waiting` beside a tab's name is removed.** Issue #59 asks for two tabs, each
+led by its master document, and not for a status on the tab. Home's Next step already names a
+document with a version waiting, whichever tab is open, so a proposal in the other language is not
+hidden. The line above the rows still speaks for the rows of the open tab.
+
+**Revisit if:** the Next step stops naming a waiting proposal, or a waiting version in the other
+language is missed in use.

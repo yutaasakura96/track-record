@@ -511,7 +511,7 @@ describe("which document to act on", () => {
     expect((await line()).textContent).toBe("Career story has a new version waiting for you. Check it first.");
   });
 
-  it("says on the other tab that a version is waiting under it, and points at it once that tab is open", async () => {
+  it("points at a version waiting in the other language once that tab is open", async () => {
     const { user } = open([
       row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 12 }),
       row({ ...JA, status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
@@ -519,8 +519,7 @@ describe("which document to act on", () => {
 
     // The English tab speaks for the English rows only.
     expect((await line()).textContent).toBe("English résumé is out of date. Update it when you next need it.");
-    expect(screen.getByRole("tab", { name: "English" })).toBeTruthy();
-    await user.click(screen.getByRole("tab", { name: "日本語 new version waiting" }));
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
 
     expect((await line(JA.title)).textContent).toBe("Qorvane 履歴書 has a new version waiting for you. Check it first.");
   });

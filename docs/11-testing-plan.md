@@ -304,7 +304,6 @@ When Home is opened
 Then the English tab is open, and lists the English master document, the résumé and the career story
 When 日本語 is chosen, by a press or by the arrow keys
 Then it lists the 日本語 master document, 履歴書, 職務経歴書 and 職務経歴ストーリー, and the choice is kept
-And a tab says when a new version is waiting under it
 And the line above the rows speaks for the rows of the tab that is open
 When the master document is opened from a tab
 Then it is the one of that language, and its download is that language's file
