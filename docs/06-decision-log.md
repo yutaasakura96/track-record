@@ -5902,12 +5902,15 @@ the résumé-passed and first-interview figures use their step dates, and `since
 uses the close date even after later activity. This supersedes any event-date calculation of
 last change in the reviewed prototype; the prototype stays as reviewed.
 
-**Sent copies are recorded at two moments, and nothing is ever compared.** On moving to Applied,
-every document attached to the application is frozen as a sent copy. From Applied onward the
+**Sent copies are recorded at two moments, and nothing is ever compared.** On moving from Not
+applied to a later step, every document attached to the application that has no sent copy yet is
+frozen as one; after a move back, a document that already has a copy is not frozen again by the
+move. From Applied onward the
 application offers one explicit action, `Record another sent copy`: the owner picks any document,
 an existing one, the same one again, or a tailored résumé made after Applied, and it is frozen as a
-further sent copy with its date, always. The list row shows only the latest sent copy of each
-document; the application page lists every copy with its date. This completes the later-copy path
+further sent copy with its date, always. Each copy carries the time it was recorded, and the
+latest is the most recently recorded, independent of the correctable sent date. The list row shows
+only the latest sent copy of each document; the application page lists every copy with its date. This completes the later-copy path
 in the sent-copy decision above, whose rejected `Mark as sent` button was about the move to
 Applied; the prototype's picker remains a visual reference where it differs.
 

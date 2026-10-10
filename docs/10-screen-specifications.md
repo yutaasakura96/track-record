@@ -1524,8 +1524,8 @@ Under each step reached:
 - `or set`, and a select `another step…` listing every other step, earlier ones included.
 - Right: **`Mark as rejected`** and **`Withdraw`** (both ghost).
 - Under them: `A step saves today's date when you set it, and you can correct the date afterwards.
-  A step you never went through can be skipped.` At Not applied with documents chosen it adds `It
-  also freezes <title> v<N> and <title> v<N> as sent.`
+  A step you never went through can be skipped.` At Not applied with documents that have no sent
+  copy yet it adds `It also freezes <title> v<N> and <title> v<N> as sent.`, naming those.
 
 **After a change**, a notice inside the panel, `role="status"`: `Moved to <step>. Date saved as
 <date>.`, with `<title> v<N> was frozen as sent.` (`were`, for several) when the move froze
@@ -1542,7 +1542,9 @@ says `Reopened at <step>.`
 - **Any step can be set from any other.** Setting an earlier step leaves the later ones not
   reached and without a date on the screen; sent copies stay.
 - **A step set saves today's date**, a step skipped over saves none.
-- **Moving from Not applied to any later step freezes every document chosen**, once (#71).
+- **Moving from Not applied to any later step freezes every document on the application that has
+  no sent copy yet** (#71). One that already has a copy, after a move back, is not frozen again by
+  the move; `Record another sent copy` is for that.
 - **Closing is not a step.** It keeps the step reached, and the list counts the application under
   Rejected or Withdrawn.
 
@@ -1574,7 +1576,7 @@ says `Reopened at <step>.`
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row for every
-copy, earlier copies of the same document included: the title, the chip `vN · frozen`,
+copy, earlier copies of the same document included, most recently recorded first: the title, the chip `vN · frozen`,
 `Sent <date>`, and the links `Read it` (Screen 15) and `Download`.
 
 **Rules**
@@ -1588,8 +1590,8 @@ copy, earlier copies of the same document included: the title, the chip `vN · f
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
   own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
   that move removes the copies it froze (Status).
-- **Copies are frozen at two moments and no other.** Moving to Applied freezes every document on
-  the application. From Applied onward, **`Record another sent copy`** freezes each ticked
+- **Copies are frozen at two moments and no other.** The move out of Not applied freezes the
+  documents that have no sent copy yet (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
   document as a further sent copy, dated today, and says `<title> v<N> frozen as sent today.` It
   takes any document: one not yet on the application, which is added to it; one already sent, the
   same one again; or a tailored résumé made after Applied.
@@ -1597,6 +1599,9 @@ copy, earlier copies of the same document included: the title, the chip `vN · f
   document has changed since it was sent, and says nothing about it; a ticked document is always
   frozen, and the owner decides what was sent. Each copy remains in `What you sent` with its own
   date, including earlier copies of the same document.
+- **Each copy carries the time it was recorded, and `latest` means most recently recorded.** The
+  sent date can be corrected and does not order copies; the list row and `What you sent` both go
+  by the recorded time.
 - **`Download` on a sent copy returns the stored file**, never a fresh one.
 
 **States**
