@@ -8,6 +8,8 @@
 import type { Hono } from "hono";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
+  applicationSteps,
+  applications,
   certifications,
   educations,
   employers,
@@ -199,8 +201,6 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
        */
       unconfirmed: unconfirmed ?? null,
       documents: documents.documents,
-      /** The tailored résumés, newest first (issue #57). */
-      tailored: documents.tailored,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */
       isEmpty: totalFacts === 0 && employerRows.length === 0 && latestImport === undefined,
@@ -236,6 +236,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       versionOfRenders,
       proposalRows,
       flagRows,
+      applicationRows,
+      applicationStepRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -262,6 +264,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(renderVersions).where(eq(renderVersions.userId, userId)),
       db.select().from(renderProposals).where(eq(renderProposals.userId, userId)),
       db.select().from(factFlags).where(eq(factFlags.userId, userId)),
+      db.select().from(applications).where(eq(applications.userId, userId)),
+      // Superseded rows too: a backup holds what the database holds.
+      db.select().from(applicationSteps).where(eq(applicationSteps.userId, userId)),
     ]);
 
     const body = {
@@ -284,6 +289,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       renders: only(renderRows),
       renderVersions: only(versionOfRenders),
       renderProposals: only(proposalRows),
+      applications: only(applicationRows),
+      applicationSteps: only(applicationStepRows),
     };
 
     return new Response(JSON.stringify(body, null, 2), {

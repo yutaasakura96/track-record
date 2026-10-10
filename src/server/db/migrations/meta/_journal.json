@@ -120,6 +120,13 @@
       "when": 1791585175907,
       "tag": "0016_repeat_system_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791669635471,
+      "tag": "0017_applications",
+      "breakpoints": true
     }
   ]
 }

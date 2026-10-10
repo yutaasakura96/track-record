@@ -266,6 +266,7 @@ export function FilterPill({
   return (
     <button
       type="button"
+      aria-pressed={active}
       onClick={onClick}
       className={`px-8 py-4 rounded-control text-smaller motion-tone border ${
         active

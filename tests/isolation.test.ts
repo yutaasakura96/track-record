@@ -8,7 +8,7 @@
  * run the query proves nothing about the query.
  */
 import { beforeAll, describe, expect, it } from "vitest";
-import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
+import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
 import {
   AUTHOR_EMAIL,
   CASE_STUDY,
@@ -17,6 +17,7 @@ import {
   ROLE_FIXTURE,
   SECOND_EMAIL,
   seedAllowedUser,
+  seedTailoredResume,
   uploadForm,
 } from "./helpers/seed";
 
@@ -33,6 +34,8 @@ interface Populated {
   renderVersionId: string;
   flagId: string;
   tailoredId: string;
+  applicationId: string;
+  carriedApplicationId: string;
 }
 
 let model: StubModel;
@@ -41,7 +44,8 @@ let b: Populated;
 
 const QUOTE = "Nightly batch runtime fell from 6 hours to 90 minutes.";
 
-async function populate(client: Client, marker: string): Promise<Populated> {
+async function populate(app: ReturnType<typeof harness>, user: SeededUser, marker: string): Promise<Populated> {
+  const client = app.as(user);
   await client.put("/api/profile", { ...PROFILE_FIXTURE, nameLatin: `${marker} Author` });
   const employer = (await (
     await client.post("/api/employers", { ...EMPLOYER_FIXTURE, nameJa: `${marker}社` })
@@ -90,13 +94,22 @@ async function populate(client: Client, marker: string): Promise<Populated> {
   const resume = renders.find((r) => r.kind === "english_resume")!;
 
   // What issue #57 added: the flag the import left on the fact, with an
-  // explanation written for it, and a tailored résumé.
+  // explanation written for it, and a tailored résumé. Since issue #70 that
+  // résumé sits inside an application, and a job is added by hand.
   const [flag] = (await client.json<{ items: { id: string }[] }>("/api/flags")).items;
   model.explanations = [`${marker} explanation`];
   await client.post(`/api/flags/${flag!.id}/explain`);
-  const tailored = (await (
-    await client.post("/api/tailored-resumes", { label: `${marker} role`, jobDescription: `${marker} posting` })
+  const tailored = await seedTailoredResume(user, `${marker} role`, `${marker} posting`);
+  const application = (await (
+    await client.post("/api/applications", {
+      company: `${marker} Shipping`,
+      position: `${marker} engineer`,
+      jobDescription: `${marker} job description`,
+      postingUrl: `https://jobs.example.invalid/${marker}`,
+      requirements: [`${marker} requirement`],
+    })
   ).json()) as { id: string };
+  await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
 
   return {
     client,
@@ -111,14 +124,16 @@ async function populate(client: Client, marker: string): Promise<Populated> {
     renderVersionId: resume.currentVersionId!,
     flagId: flag!.id,
     tailoredId: tailored.id,
+    applicationId: application.id,
+    carriedApplicationId: tailored.applicationId,
   };
 }
 
 beforeAll(async () => {
   model = stubModel();
   const app = harness(model);
-  a = await populate(app.as(await seedAllowedUser(AUTHOR_EMAIL)), "Alpha");
-  b = await populate(app.as(await seedAllowedUser(SECOND_EMAIL)), "Bravo");
+  a = await populate(app, await seedAllowedUser(AUTHOR_EMAIL), "Alpha");
+  b = await populate(app, await seedAllowedUser(SECOND_EMAIL), "Bravo");
 }, 120_000);
 
 describe("one user's record is unreachable from another's session", () => {
@@ -143,7 +158,7 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/master-document/download",
       "/api/master-document?language=ja",
       "/api/master-document/download?language=ja",
-      "/api/tailored-resumes",
+      "/api/applications",
     ];
     for (const path of collections) {
       const body = await (await a.client.get(path)).text();
@@ -168,7 +183,9 @@ describe("one user's record is unreachable from another's session", () => {
       ["POST", `/api/flags/${b.flagId}/explain`],
       ["POST", `/api/flags/${b.flagId}/check`],
       ["POST", `/api/flags/${b.flagId}/uncheck`],
-      ["GET", `/api/tailored-resumes/${b.tailoredId}`],
+      ["GET", `/api/applications/${b.applicationId}`],
+      ["GET", `/api/applications/${b.carriedApplicationId}`],
+      ["POST", `/api/applications/${b.applicationId}/reopen`],
       ["POST", `/api/renders/${b.tailoredId}/generate`],
       ["GET", `/api/renders/${b.tailoredId}/versions`],
       ["GET", `/api/renders/${b.tailoredId}/download`],
@@ -188,6 +205,8 @@ describe("one user's record is unreachable from another's session", () => {
       [`/api/projects/${b.projectId}`, { name: "taken" }],
       [`/api/roles/${b.roleId}`, { titleLatin: "taken" }],
       [`/api/facts/${b.factId}`, { claim: "taken" }],
+      [`/api/applications/${b.applicationId}`, { company: "taken" }],
+      [`/api/applications/${b.applicationId}/steps/applied`, { date: "2026-01-01" }],
     ] as [string, unknown][]) {
       const response = await a.client.patch(path, body);
       expect(response.status, path).toBe(404);
@@ -197,7 +216,21 @@ describe("one user's record is unreachable from another's session", () => {
     const regraded = await a.client.post(`/api/facts/${b.factId}/regrade`, { provenance: "generated" });
     expect(regraded.status, "regrade").toBe(404);
 
+    // Setting a status takes a body too, and so does putting a standing back.
+    const moved = await a.client.post(`/api/applications/${b.applicationId}/steps`, { status: "withdrawn" });
+    expect(moved.status, "set a status").toBe(404);
+    const restored = await a.client.put(`/api/applications/${b.applicationId}/standing`, {
+      step: "not_applied",
+      closedAs: null,
+      dates: { not_applied: "2026-01-01" },
+    });
+    expect(restored.status, "restore a standing").toBe(404);
+
     // And the other user's records are unchanged.
+    const theirs = await b.client.json<{ company: string; step: string; closedAs: string | null }>(
+      `/api/applications/${b.applicationId}`,
+    );
+    expect(theirs).toMatchObject({ company: "Bravo Shipping", step: "applied", closedAs: null });
     const employers = await b.client.json<{ items: { id: string; nameJa: string }[] }>(
       "/api/employers",
     );

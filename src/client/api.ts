@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
+import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
@@ -365,8 +366,6 @@ export interface Overview {
   /** The newest version holding an accepted fact that is still Generated. */
   unconfirmed: { importId: string; count: number; total: number } | null;
   documents: RenderRow[];
-  /** The tailored résumés, newest first. */
-  tailored: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
   isEmpty: boolean;
@@ -506,9 +505,10 @@ export const keys = {
   proposals: (ref: string) => ["renders", ref, "proposals"] as const,
   versionDiff: (ref: string, from: string, to: string) =>
     ["renders", ref, "diff", from, to] as const,
-  // Under `renders`, so whatever refreshes the documents refreshes these.
-  tailored: ["renders", "tailored"] as const,
-  tailoredResume: (id: string) => ["renders", "tailored", id] as const,
+  // Under `renders`: an application shows its résumé's version and status, so
+  // whatever refreshes the documents refreshes these.
+  applications: ["renders", "applications"] as const,
+  application: (id: string) => ["renders", "applications", id] as const,
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
@@ -696,9 +696,7 @@ export const useOverview = () =>
     queryFn: () => api<Overview>("/api/overview"),
     refetchInterval: (query) =>
       isImportRunning(query.state.data?.activeImport?.status) ||
-      [...(query.state.data?.documents ?? []), ...(query.state.data?.tailored ?? [])].some(
-        (row) => row.status === "proposal_generating",
-      )
+      (query.state.data?.documents ?? []).some((row) => row.status === "proposal_generating")
         ? POLL_MS
         : false,
   });
@@ -849,34 +847,100 @@ export const useRenderProposals = (ref: string) =>
     queryFn: () => api<{ items: ProposalRow[] }>(`/api/proposals?kind=${ref}`),
   });
 
-/** The tailored résumés, newest first (issue #57). */
-export const useTailoredResumes = () =>
+/* ------------------------------------------------------------ applications */
+
+/** What the list shows of one application (issue #70). Every figure is worked out on read. */
+export interface ApplicationSummary extends Standing, Figures {
+  id: string;
+  company: string;
+  /** Empty on an application carried over from a tailored résumé, until it is filled in. */
+  position: string;
+  postingUrl: string | null;
+  /** When the author last changed it. The list is ordered by this. */
+  lastActivityAt: string;
+}
+
+export interface ApplicationRow extends ApplicationSummary {
+  /** Its tailored résumé, and the version current now. `null` when it has none. */
+  resume: { title: string; versionNo: number | null } | null;
+}
+
+export interface Application extends ApplicationSummary {
+  requirements: string[];
+  jobDescription: string;
+  /** Its tailored résumé as a document row. `null` when it has none. */
+  resume: RenderRow | null;
+  canGenerate: boolean;
+  /** Today in Japan, which every figure is counted to. */
+  today: string;
+}
+
+export interface ApplicationFields {
+  company: string;
+  position: string;
+  postingUrl: string | null;
+  requirements: string[];
+}
+
+/** Every application, newest activity first. */
+export const useApplications = () =>
   useQuery({
-    queryKey: keys.tailored,
-    queryFn: () => api<{ items: RenderRow[]; canGenerate: boolean }>("/api/tailored-resumes"),
-    refetchInterval: (query) =>
-      query.state.data?.items.some((row) => row.status === "proposal_generating") ? POLL_MS : false,
+    queryKey: keys.applications,
+    queryFn: () => api<{ items: ApplicationRow[]; today: string }>("/api/applications"),
   });
 
-/** One tailored résumé with the job description it is written toward. */
-export const useTailoredResume = (id: string | null) =>
+export const useApplication = (id: string) =>
   useQuery({
-    queryKey: keys.tailoredResume(id ?? ""),
-    queryFn: () => api<RenderRow & { jobDescription: string }>(`/api/tailored-resumes/${id}`),
-    enabled: id !== null,
+    queryKey: keys.application(id),
+    queryFn: () => api<Application>(`/api/applications/${id}`),
+    // A `404` is the answer "there is no such application", not a blip to retry.
+    retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
+    refetchInterval: (query) => (query.state.data?.resume?.status === "proposal_generating" ? POLL_MS : false),
   });
 
-/** Names a tailored résumé and stores its job description. Generating it is a second call. */
-export function useCreateTailoredResume() {
+export function useCreateApplication() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { label: string; jobDescription: string }) =>
-      api<RenderRow>("/api/tailored-resumes", { method: "POST", ...json(body) }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: keys.renders });
-      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    mutationFn: (body: ApplicationFields & { jobDescription: string }) =>
+      api<Application>("/api/applications", { method: "POST", ...json(body) }),
+    onSuccess: (made) => {
+      queryClient.setQueryData(keys.application(made.id), made);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
     },
   });
+}
+
+/** One change to where an application stands. Each answers with the application as it is afterwards. */
+export type StandingChange =
+  | { change: "set"; status: ApplicationStatus }
+  | { change: "date"; status: ApplicationStatus; date: string }
+  | { change: "reopen" }
+  /** Undo: the standing from before a change, put back whole. */
+  | { change: "restore"; standing: Standing };
+
+export function useApplicationActions(id: string) {
+  const queryClient = useQueryClient();
+  const base = `/api/applications/${id}`;
+  const settled = (next: Application) => {
+    queryClient.setQueryData(keys.application(id), next);
+    void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+  };
+  const edit = useMutation({
+    mutationFn: (body: ApplicationFields) => api<Application>(base, { method: "PATCH", ...json(body) }),
+    onSuccess: settled,
+  });
+  const stand = useMutation({
+    mutationFn: (action: StandingChange) =>
+      action.change === "set"
+        ? api<Application>(`${base}/steps`, { method: "POST", ...json({ status: action.status }) })
+        : action.change === "date"
+          ? api<Application>(`${base}/steps/${action.status}`, { method: "PATCH", ...json({ date: action.date }) })
+          : action.change === "reopen"
+            ? api<Application>(`${base}/reopen`, { method: "POST" })
+            : api<Application>(`${base}/standing`, { method: "PUT", ...json(action.standing) }),
+    onSuccess: settled,
+  });
+  return { edit, stand };
 }
 
 /**

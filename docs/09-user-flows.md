@@ -285,6 +285,11 @@ it is never out of date and there is no second copy to keep in step.
 
 ## Flow 11 · Generate a résumé tailored to a job · M3 (#57)
 
+> **Steps 1 and 2 are not built since 2026-10-11 (#70).** Applications replaced the Tailored
+> résumés screen, and `POST /api/tailored-resumes` went with it. Each tailored résumé made before
+> then is on its application's page, under **Résumé for this job**, where steps 3 to 5 still hold.
+> Making a new one from an application is #71.
+
 1. Sidebar → **Tailored résumés**. The **New tailored résumé** form is at the top of the screen.
 2. Author names it (the company and role) and pastes the job description, or presses **Read it from
    a text file** and chooses a `.txt` or `.md` file whose content fills the box. **Generate résumé**
