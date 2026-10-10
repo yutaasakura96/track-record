@@ -1357,11 +1357,15 @@ description, the résumé sent, where it stands and how the interviews went (`02
   `text-muted` with a muted dot. No green, no amber, no red, anywhere on these screens.
 - **Dates are days**, written `2026-10-02`, in mono where they stand alone. A count is `1 day` or
   `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
-- **What a change is.** An application's last change is the latest of: the day it was added, the
-  date of each step it has reached, the day it was closed, the date of each interview entry, the
-  date of each sent copy. **Gone quiet** is 14 days or more since the last change, while its status
-  is Applied, Résumé passed or one of the three interviews and it is not closed. It is worked out
-  on each read and stored nowhere.
+- **What a change is.** Each application keeps one last-activity timestamp, set when it is added
+  and when the owner changes its record: setting, closing, reopening or undoing a status; adding
+  or correcting a step or close date; adding or editing an interview entry; choosing a document
+  or recording a sent copy; editing the job fields; attaching or removing a recording. Event dates
+  do not stand in for this timestamp. The list order, last-change count and **gone quiet** use it.
+  Gone quiet is 14 days or more since that activity while the status is Applied, Résumé passed or
+  one of the three interviews and it is not closed. The mark is worked out on each read and stored
+  nowhere. The résumé-passed and first-interview counts use their event dates. This specification
+  governs where the prototype derives last change from event dates.
 - **A short confirmation after an action is one line with `role="status"`**, at the foot of the
   content column, which leaves by itself: `Saved as Not applied.`, `Date corrected. The day counts
   follow it.`, `Undone.` A status change is said in the panel instead, where its Undo is.
@@ -1403,7 +1407,8 @@ right **`Add a job`** (primary), to Screen 13.
 - Right: the status, then **either** the chip `Gone quiet · N days` (chip surface, `border-active`,
   `text-strong`, weight 500) **or** `Last change N days ago` (`today`, `1 day ago`) in
   `text-muted`.
-- A closed application's row is set wholly in `text-muted`.
+- A closed application's row is set wholly in `text-muted`; its list position still follows last
+  activity, including later edits to its record.
 
 **States**
 
@@ -1510,7 +1515,7 @@ Under each step reached:
 |---|---|---|
 | Since the résumé passed | `since the résumé passed` | `–` in `text-ghost`, labelled `since the résumé passed: not reached, or no date` |
 | Since the first interview | `since the first interview` | `–`, labelled `since the first interview: not reached, or no date` |
-| Since the last change | `since the last change`, and while waiting to hear back `since the last change. Gone quiet at 14` | Always has one. Closed, it is labelled `since it was closed` |
+| Since the last change | `since the last change`, and while waiting to hear back `since the last change. Gone quiet at 14` | Always has one, counted from last activity. Closed, it is labelled `since it was closed` and counted from the close date, even if its record changed later |
 
 **The controls, open:**
 
@@ -1557,13 +1562,14 @@ says `Reopened at <step>.`
 
 - The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
   this job`, or `Version N · the same document as on Home`, and ` · newer than the vN you sent`
-  when the document has moved on since.
+  when the document has moved on since its latest frozen copy.
 - `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
   tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
   already have`, which after Applied reads **`Record another document you sent`**. Either opens
-  the tick card in place, with `Cancel`.
+  the tick card in place, with `Cancel`. After Applied the card also offers a document already on
+  the application when its current version differs from its latest frozen copy.
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row each: the
@@ -1578,8 +1584,11 @@ title, the chip `vN · frozen`, `Sent <date>`, and the links `Read it` (Screen 1
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   A sent copy has no edit, no regenerate and no remove.
-- **After Applied, ticking a further document freezes it at once**, dated today, and says `<title>
-  v<N> frozen as sent today.`
+- **After Applied, ticking a further document or one already sent with a newer current version
+  freezes that version at once**, dated today, and says `<title> v<N> frozen as sent today.` Each
+  copy remains in `What you sent` with its own date, including earlier copies of the same
+  document. Ticking a document whose current version is identical to its latest frozen copy adds
+  nothing and does not change last activity.
 - **`Download` on a sent copy returns the stored file**, never a fresh one.
 
 **States**

@@ -5889,3 +5889,18 @@ Rejected: **parsing the text without a model**, which reads the first line of a 
 posting and nothing else. **Extending `extract`**, whose output is facts with quotes and Provenance,
 the opposite of what this must return. **Saving what was read without a confirmation**, which puts
 a model's guess at a company name on the list as if the owner had typed it.
+
+### [2026-10-11] Application activity, closed-day counts and later sent versions
+
+Issue #69, review of #60. An application keeps one last-activity timestamp: the time the owner
+last changed its record. Status changes and date corrections, interview additions or edits,
+document choices and sent copies all update it, as do other owner edits to the application.
+List order and the derived gone-quiet mark use that timestamp. The event dates remain separate:
+the résumé-passed and first-interview figures use their step dates, and `since it was closed`
+uses the close date even after later activity. This supersedes any event-date calculation of
+last change in the reviewed prototype; the prototype stays as reviewed.
+
+After Applied, choosing an already sent document whose current version differs from its latest
+frozen copy records another immutable sent copy with its own date. Choosing the identical
+version adds nothing. This completes the later-copy path in the sent-copy decision above; the
+prototype's picker remains a visual reference where it differs.

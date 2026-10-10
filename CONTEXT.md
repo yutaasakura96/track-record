@@ -134,6 +134,8 @@ it and is not it).
 One job the author is looking at or has applied for. It holds the job description as posted, the
 company and the position read from it, the documents for that job, its Status steps, its Sent
 copies and its Interview entries. Never deleted: one added by mistake is closed as Withdrawn.
+Its last activity is the time the owner last changed the application record, kept on the
+Application; step and interview dates describe when events happened, not when the record changed.
 **Its company is not an Employer and its position is not a Role.** Those are the record, what the
 author has done; an Application names somewhere the author has not worked, in the posting's words.
 Nothing in an Application is a Fact, and none of it is a source of facts.
@@ -151,15 +153,15 @@ step is the place).
 
 **Sent copy**:
 A document exactly as it was sent for an Application: the file of that day, kept whole, with the day
-it was sent. Frozen when the Application moves to Applied, or when a further document is recorded as
-sent. It is not a version and does not point at one: later changes to the document or to the record
-never reach it.
+it was sent. Frozen when the Application moves to Applied, or when a further document or a newer
+version of one already sent is recorded as sent. It is not a version and does not point at one:
+later changes to the document or to the record never reach it.
 _Avoid_: snapshot, attachment, submitted version (a version is a render's, and can be edited from).
 
 **Gone quiet**:
-Said of an Application on which nothing has changed for 14 days while the author is waiting to hear
-back, Applied through Final interview and not closed. Worked out each time it is read, never
-stored, and never sent anywhere: there is no email and no notification.
+Said of an Application whose last activity timestamp is at least 14 days old while the author is
+waiting to hear back, Applied through Final interview and not closed. The mark is worked out each
+time it is read, never stored, and never sent anywhere: there is no email and no notification.
 _Avoid_: stale (that is a skill's or a document's word), overdue, ghosted, inactive.
 
 **Interview entry**:
