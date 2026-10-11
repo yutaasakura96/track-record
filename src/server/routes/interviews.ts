@@ -68,13 +68,13 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
       throw validationFailed(EMPTY_ENTRY, ["howItWent", "questions"]);
     }
 
-    const { steps, standing } = await readStanding(db, user.id, id);
+    const { row, steps, standing } = await readStanding(db, user.id, id);
     const step = stepFor(standing, body.round);
     const interviewId = newId("interview");
 
     // An entry is a change to the application whether or not it moves the
     // status, so the same write marks it as changed now.
-    await saveStanding(db, user.id, id, steps, step ? moveTo(standing, step, body.date) : standing, [
+    await saveStanding(db, user.id, id, row, steps, step ? moveTo(standing, step, body.date) : standing, [
       db.insert(interviews).values({
         id: interviewId,
         userId: user.id,

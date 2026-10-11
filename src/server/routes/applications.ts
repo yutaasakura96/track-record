@@ -16,7 +16,7 @@
  * No log line here carries any of them: an id, a status, a length.
  */
 import type { Context, Hono } from "hono";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { applicationSteps, applications, renderVersions, renders } from "../db/schema";
@@ -343,7 +343,7 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
   const user = c.get("user");
   const db = c.get("db");
   const id = pathParam(c, "id");
-  const { steps, standing } = await readStanding(db, user.id, id);
+  const { row, steps, standing } = await readStanding(db, user.id, id);
 
   let next: Standing;
   try {
@@ -358,7 +358,7 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
     APPLICATION_STATUSES.every((status) => next.dates[status] === standing.dates[status]);
   if (same) return c.json(await detail(db, user.id, id));
 
-  await saveStanding(db, user.id, id, steps, next);
+  await saveStanding(db, user.id, id, row, steps, next);
   console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs }));
   return c.json(await detail(db, user.id, id));
 }
@@ -376,6 +376,7 @@ export async function saveStanding(
   db: Db,
   userId: string,
   applicationId: string,
+  previous: ApplicationRow,
   live: StepRow[],
   next: Standing,
   alongside: BatchItem<"pg">[] = [],
@@ -393,10 +394,21 @@ export async function saveStanding(
   const now = new Date();
   try {
     await db.batch([
-      db
-        .update(applications)
-        .set({ currentStep: next.step, closedAs: next.closedAs, lastActivityAt: now, updatedAt: now })
-        .where(and(eq(applications.userId, userId), eq(applications.id, applicationId))),
+      db.execute(sql`
+        with changed as (
+          update ${applications}
+          set ${sql.identifier("current_step")} = ${next.step},
+              ${sql.identifier("closed_as")} = ${next.closedAs},
+              ${sql.identifier("last_activity_at")} = ${now.toISOString()}::timestamptz,
+              ${sql.identifier("updated_at")} = ${now.toISOString()}::timestamptz
+          where ${applications.userId} = ${userId}
+            and ${applications.id} = ${applicationId}
+            and ${applications.currentStep} = ${previous.currentStep}
+            and ${applications.closedAs} is not distinct from ${previous.closedAs}
+          returning 1
+        )
+        select 1 / count(*)::integer from changed
+      `),
       ...superseded.map((id) =>
         db
           .update(applicationSteps)
@@ -409,8 +421,11 @@ export async function saveStanding(
       ...alongside,
     ]);
   } catch (error) {
-    // Two changes read the same standing and both wrote. The index let one in.
-    if (!violatesUnique(error, "application_steps_live_uq")) throw error;
+    let stale = false;
+    for (let cause = error; cause instanceof Error; cause = cause.cause) {
+      if ((cause as Error & { code?: string }).code === "22012") stale = true;
+    }
+    if (!stale && !violatesUnique(error, "application_steps_live_uq")) throw error;
     throw new ApiError("conflict", "This application was changed somewhere else. Reload it and try again.");
   }
 }

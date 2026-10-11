@@ -13,6 +13,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { harness, stubModel, type Client, type Harness } from "./helpers/harness";
 import { SECOND_EMAIL, seedAllowedUser } from "./helpers/seed";
+import { readStanding, saveStanding } from "~/server/routes/applications";
+import { interviews } from "~/server/db/schema";
+import { moveTo } from "~/shared/application";
 
 interface Entry {
   id: string;
@@ -47,13 +50,16 @@ const dateAfter = (days: number) => dayAfter(days).toISOString().slice(0, 10);
 
 let app: Harness;
 let client: Client;
+let userId: string;
 
 beforeEach(async () => {
   // Only `Date`: the database is real and its requests keep their real timers.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(DAY_ONE);
   app = harness(stubModel());
-  client = app.as(await seedAllowedUser());
+  const user = await seedAllowedUser();
+  userId = user.id;
+  client = app.as(user);
 });
 
 afterEach(() => {
@@ -175,6 +181,30 @@ describe("adding an interview entry", () => {
 });
 
 describe("an entry for a later round", () => {
+  it("refuses an entry based on a standing another save already moved", async () => {
+    const { id } = await add();
+    const { row, steps, standing } = await readStanding(app.db, userId, id);
+    await saveStanding(app.db, userId, id, row, steps, moveTo(standing, "interview_1", dateAfter(0)));
+
+    await expect(
+      saveStanding(app.db, userId, id, row, steps, moveTo(standing, "interview_final", dateAfter(0)), [
+        app.db.insert(interviews).values({
+          id: `stale_${crypto.randomUUID()}`,
+          userId,
+          applicationId: id,
+          happenedOn: dateAfter(0),
+          round: "interview_final",
+          howItWent: "A later conversation.",
+        }),
+      ]),
+    ).rejects.toMatchObject({ code: "conflict", message: "This application was changed somewhere else. Reload it and try again." });
+
+    const after = await read(id);
+    expect(after.step).toBe("interview_1");
+    expect(after.dates.interview_final).toBeUndefined();
+    expect(after.interviews).toEqual([]);
+  });
+
   it("moves the status to that round, with the entry's day as its date, and the first-interview figure follows", async () => {
     const { id } = await add();
     await set(id, "applied");
