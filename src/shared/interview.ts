@@ -1,0 +1,73 @@
+/**
+ * Interview entries (issue #72).
+ *
+ * One entry is the author's note of one real interview: the day, the round,
+ * who it was with, how it went and the questions asked, each its own item in
+ * the order given. These rules are read by the route that saves an entry and
+ * by the form that writes one, like the rules in `./application`.
+ *
+ * An entry and the status say overlapping things, and one being behind the
+ * other is a small lie the page tells. So saving an entry for a LATER round
+ * moves the status to that round, with the entry's day as the step's date.
+ */
+import { stepIndex, type ApplicationStep, type Standing } from "./application";
+
+/** The three interview steps, under their step names, and a conversation that is not a round. */
+export const INTERVIEW_ROUNDS = ["interview_1", "interview_2", "interview_final", "other"] as const;
+export type InterviewRound = (typeof INTERVIEW_ROUNDS)[number];
+
+export const ROUND_LABEL: Record<InterviewRound, string> = {
+  interview_1: "First interview",
+  interview_2: "Second interview",
+  interview_final: "Final interview",
+  other: "Other conversation",
+};
+
+export const WHO_MAX = 200;
+export const HOW_IT_WENT_MAX = 10_000;
+export const QUESTION_MAX = 1_000;
+export const QUESTIONS_MAX = 100;
+
+/** What an entry must hold to be worth saving. */
+export const EMPTY_ENTRY = "Write how it went, or add at least one question.";
+
+/** An entry as it is read back. */
+export interface Interview {
+  id: string;
+  /** `YYYY-MM-DD`, a real day. */
+  date: string;
+  round: InterviewRound;
+  who: string;
+  howItWent: string;
+  questions: { id: string; text: string }[];
+}
+
+/**
+ * The step an entry for this round moves the application to, or null when it
+ * leaves the status alone: a round at or before the step it is at, a
+ * conversation that is not a round, or a closed application.
+ */
+export function stepFor(standing: Pick<Standing, "step" | "closedAs">, round: InterviewRound): ApplicationStep | null {
+  if (standing.closedAs || round === "other") return null;
+  return stepIndex(round) > stepIndex(standing.step) ? round : null;
+}
+
+/** The round a new entry starts on: the earliest at or after the status with no entry yet. */
+export function defaultRound(step: ApplicationStep, noted: readonly InterviewRound[]): InterviewRound {
+  const rounds = INTERVIEW_ROUNDS.filter((round): round is Exclude<InterviewRound, "other"> => round !== "other");
+  return rounds.find((round) => stepIndex(round) >= stepIndex(step) && !noted.includes(round)) ?? "other";
+}
+
+/**
+ * The questions in a piece of typed or pasted text: one a line, with a leading
+ * bullet or number dropped, and empty lines left out.
+ */
+export const questionsIn = (text: string): string[] =>
+  text
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*•・]|\d+[.)])\s*/, "").trim())
+    .filter((line) => line !== "");
+
+/** Newest day first, and of two on one day the one noted later first. */
+export const newestFirst = <T extends { date: string; createdAt: string }>(entries: readonly T[]): T[] =>
+  [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));

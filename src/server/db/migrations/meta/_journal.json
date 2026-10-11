@@ -127,6 +127,13 @@
       "when": 1791669635471,
       "tag": "0017_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791755434500,
+      "tag": "0018_interviews",
+      "breakpoints": true
     }
   ]
 }

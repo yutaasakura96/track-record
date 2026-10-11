@@ -356,6 +356,34 @@ And running it again adds nothing, and the down script removes only what it adde
 And another user's application is not listed, and is a 404 on every route addressed by its id
 ```
 
+### 2.6j An interview entry keeps its questions apart, and moves the status only forward
+
+`tests/interviews.test.ts`, `tests/interview-rules.test.ts` and `tests/client/interviews.test.tsx`
+(#72). The clock is set, so every day count is exact.
+
+```
+Given an application
+When an interview entry is added
+Then it holds the day, the round, who it was with and how it went
+And each question is a row of its own, numbered in the order given, the blank ones dropped
+And an entry with neither how it went nor a question is refused, and so is a future day
+
+When the entry is for a round later than the status
+Then the status moves to that round with the entry's day, and the first-interview figure follows
+And the rounds passed over have no date
+And undoing the move puts the standing back and keeps the entry
+
+When the entry is for a round at or before the status, is not a round, or the application is closed
+Then the status and its dates are left alone, and it still counts as a change
+
+On the screen
+Then several pasted lines become several questions, with a leading bullet or number dropped
+And the question still in the field is saved with the rest, in one write
+And a move is said where a status change is said, with its Undo
+
+And another user cannot add an entry to an application, and reads none of its entries
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

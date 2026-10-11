@@ -16,6 +16,7 @@ import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
+import type { Interview, InterviewRound } from "~/shared/interview";
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
@@ -871,6 +872,8 @@ export interface Application extends ApplicationSummary {
   /** Its tailored résumé as a document row. `null` when it has none. */
   resume: RenderRow | null;
   canGenerate: boolean;
+  /** Its interview entries, newest day first (issue #72). */
+  interviews: Interview[];
   /** Today in Japan, which every figure is counted to. */
   today: string;
 }
@@ -941,6 +944,31 @@ export function useApplicationActions(id: string) {
     onSuccess: settled,
   });
   return { edit, stand };
+}
+
+/** An interview entry as the form sends it. Each question is its own item, in order. */
+export interface InterviewFields {
+  date: string;
+  round: InterviewRound;
+  who: string;
+  howItWent: string;
+  questions: string[];
+}
+
+/**
+ * Adds an interview entry. The answer is the application afterwards, which has
+ * moved to the entry's round when that round was a later step.
+ */
+export function useAddInterview(applicationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: InterviewFields) =>
+      api<Application>(`/api/applications/${applicationId}/interviews`, { method: "POST", ...json(body) }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.application(applicationId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    },
+  });
 }
 
 /**

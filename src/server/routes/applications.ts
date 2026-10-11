@@ -17,6 +17,7 @@
  */
 import type { Context, Hono } from "hono";
 import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { applicationSteps, applications, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
@@ -24,6 +25,7 @@ import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { tailoredTitle } from "../services/render-ref";
+import { interviewsOf } from "../services/interviews";
 import { renderState } from "./renders";
 import { tokyoToday } from "~/render/rirekisho";
 import {
@@ -301,14 +303,14 @@ async function requireApplication(db: Db, userId: string, id: string) {
   return row;
 }
 
-async function readStanding(db: Db, userId: string, id: string) {
+export async function readStanding(db: Db, userId: string, id: string) {
   const row = await requireApplication(db, userId, id);
   const steps = await db.select(LIVE_STEP).from(applicationSteps).where(liveSteps(userId, id));
   return { row, steps, standing: standingOf(row, steps) };
 }
 
-/** One application in full: the posting, where it stands, and its résumé if it has one. */
-async function detail(db: Db, userId: string, id: string) {
+/** One application in full: the posting, where it stands, its résumé if it has one, and its interview entries. */
+export async function detail(db: Db, userId: string, id: string) {
   const { row, standing } = await readStanding(db, userId, id);
   const [resume] = await db
     .select({ id: renders.id })
@@ -325,6 +327,7 @@ async function detail(db: Db, userId: string, id: string) {
     /** The tailored résumé written for this job, as every document list shows one. */
     resume: documents?.tailored.find((document) => document.id === resume!.id) ?? null,
     canGenerate: (documents?.usableFacts ?? 0) > 0,
+    interviews: await interviewsOf(db, userId, id),
     today,
   };
 }
@@ -365,8 +368,18 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
  * application as changed now. A date that differs from the live row's
  * supersedes that row and writes a new one; a date that is gone supersedes its
  * row; saved dates are not overwritten or deleted.
+ *
+ * `alongside` is what else the same change writes, an interview entry and its
+ * questions, so that it and the status it moved are saved or refused together.
  */
-async function saveStanding(db: Db, userId: string, applicationId: string, live: StepRow[], next: Standing) {
+export async function saveStanding(
+  db: Db,
+  userId: string,
+  applicationId: string,
+  live: StepRow[],
+  next: Standing,
+  alongside: BatchItem<"pg">[] = [],
+) {
   const liveBy = new Map(live.map((row) => [row.status as ApplicationStatus, row]));
   const changed = APPLICATION_STATUSES.filter((status) => liveBy.get(status)?.happenedOn !== next.dates[status]);
   const superseded = changed.flatMap((status) => liveBy.get(status)?.id ?? []);
@@ -393,6 +406,7 @@ async function saveStanding(db: Db, userId: string, applicationId: string, live:
           ),
       ),
       ...written.map((row) => db.insert(applicationSteps).values(row)),
+      ...alongside,
     ]);
   } catch (error) {
     // Two changes read the same standing and both wrote. The index let one in.

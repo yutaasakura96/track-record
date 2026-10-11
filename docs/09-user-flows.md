@@ -297,6 +297,32 @@ entry point and `07-api-design.md` §7 for the document routes.
 
 ---
 
+## Flow 12 · Note how an interview went · M3 (#60, #72)
+
+1. Sidebar → **Applications** → the application → **Interviews** → `Add an interview`. The form
+   opens on today and on the earliest round at or after the status that has no entry yet.
+2. The author sets the date and round, types who it was with and how it went, and adds the
+   questions asked: one at a time with Enter, or several pasted lines at once. Nothing is written
+   yet.
+3. **Save interview** → `POST /api/applications/:id/interviews`, one write. The entry and its
+   questions, each its own row in order, are saved together.
+4. If the round is later than the status, the same write moves the application to that round with
+   the entry's date, and **Where it stands** says so, with `Change the date` and `Undo`. Otherwise
+   one line says `Interview saved.`
+
+| Step | What can go wrong | What the author sees |
+|---|---|---|
+| 2 | A pasted list carries bullets or numbers | They are dropped, and each line is one question |
+| 3 | Neither how it went nor a question was given | `Write how it went, or add at least one question.` Nothing is written |
+| 3 | The save is refused or fails | The form stays open with everything typed in it, and says why |
+| 4 | The status should not have moved | `Undo` puts the status and its dates back. The entry stays |
+| 4 | The round was at or before the status, or the application is closed | The entry is saved and the status is left alone |
+
+**If abandoned:** `Cancel`, or leaving the page, discards what was typed. Nothing is saved until
+**Save interview**, and an entry once saved is not edited (`06`, 2026-10-12).
+
+---
+
 ## Not a flow · Adopting an existing document as version 1
 
 **Rejected.** The author has a hand-tuned résumé, and adopting it as `v1` so the first diff compares
