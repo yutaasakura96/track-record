@@ -1597,9 +1597,9 @@ questions they asked.`
   differently.`
 - `Questions asked`: the list so far, each with `Remove` (bare), then a field, placeholder `One
   question, then Enter`, and `Add` (ghost). `Pasting several lines adds them all at once.` A
-  leading bullet or number followed by whitespace on a line is dropped, and an empty line is no
-  question. When a multi-line list is pasted into a draft, the draft is added first, then the
-  pasted questions, and the field is cleared.
+  leading number, `-` or `*` is dropped only when followed by whitespace; `•` and `・` are dropped
+  with or without whitespace. An empty line is no question. When a multi-line list is pasted into
+  a draft, the draft is added first, then the pasted questions, and the field is cleared.
 - `A recording is attached after you save, from the interview's own card.`
 - **`Save interview`** (primary) and `Cancel`. What is in the question field is added on save.
   A save the server refuses keeps the form and everything typed in it, and says why under the

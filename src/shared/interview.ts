@@ -62,7 +62,7 @@ export function defaultRound(step: ApplicationStep, noted: readonly InterviewRou
 export const questionsIn = (text: string): string[] =>
   text
     .split(/\r?\n/)
-    .map((line) => line.replace(/^\s*(?:[-*•・]\s*|\d+[.)]\s+)/, "").trim())
+    .map((line) => line.replace(/^\s*(?:(?:[-*]|\d+[.)])\s+|[•・]\s*)/, "").trim())
     .filter((line) => line !== "");
 
 /** Newest day first, and of two on one day the one noted later first. */

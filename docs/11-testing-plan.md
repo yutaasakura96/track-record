@@ -381,7 +381,7 @@ When the round already has a date, is not a round, or the application is closed
 Then the status and its dates are left alone, and the entry still counts as a change
 
 On the screen
-Then several pasted lines become several questions, with a leading bullet or numbered marker dropped only when separated by whitespace
+Then several pasted lines become several questions; a leading number, `-` or `*` is dropped only with following whitespace, while `•` and `・` are dropped with or without it
 And a draft typed before the paste is saved before the pasted questions
 And the question still in the field is saved with the rest, in one write
 And clearing the date prevents the save and shows a message

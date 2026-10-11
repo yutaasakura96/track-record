@@ -76,6 +76,11 @@ describe("the questions in typed or pasted text", () => {
     expect(questionsIn("3 years from now, where are you?")).toEqual(["3 years from now, where are you?"]);
     expect(questionsIn("What is 2.5 times your load today?")).toEqual(["What is 2.5 times your load today?"]);
     expect(questionsIn("3.5 years from now?\n3)years from now?")).toEqual(["3.5 years from now?", "3)years from now?"]);
+    expect(questionsIn("-What does this flag do?\n*When should we retry?")).toEqual([
+      "-What does this flag do?",
+      "*When should we retry?",
+    ]);
+    expect(questionsIn("•And then?\n・志望動機は何ですか")).toEqual(["And then?", "志望動機は何ですか"]);
   });
 });
 
