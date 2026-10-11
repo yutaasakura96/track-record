@@ -106,6 +106,10 @@ interface Moved {
   frozen: string;
 }
 
+/** What a change froze, as the sentence that follows its confirmation. Empty when it froze nothing. */
+const frozenText = (frozen: Application["frozen"] = []) =>
+  frozen.length > 0 ? ` ${nameVersions(frozen)} ${frozen.length === 1 ? "was" : "were"} frozen as sent.` : "";
+
 function Body({ application }: { application: Application }) {
   const { edit, stand } = useApplicationActions(application.id);
   const flash = useFlashStore((state) => state.show);
@@ -139,12 +143,11 @@ function Body({ application }: { application: Application }) {
     const next = await change({ change: "set", status });
     if (!next) return;
     setDating(null);
-    const frozen = next.frozen ?? [];
     setMoved({
       before: standing,
       text: isStep(status) ? `Moved to ${STATUS_LABEL[status]}.` : `Marked as ${STATUS_LABEL[status].toLowerCase()}.`,
       dated: status === "not_applied" ? null : status,
-      frozen: frozen.length > 0 ? ` ${nameVersions(frozen)} ${frozen.length === 1 ? "was" : "were"} frozen as sent.` : "",
+      frozen: frozenText(next.frozen),
     });
   };
 
@@ -158,10 +161,12 @@ function Body({ application }: { application: Application }) {
   };
 
   const undo = async () => {
-    if (!moved || !(await change({ change: "restore", standing: moved.before }))) return;
+    if (!moved) return;
+    const next = await change({ change: "restore", standing: moved.before });
+    if (!next) return;
     setMoved(null);
     setDating(null);
-    flash("Undone.");
+    flash(`Undone.${frozenText(next.frozen)}`);
   };
 
   const standingChangedByInterview = (before: Standing, step: ApplicationStep, moved: boolean) => {

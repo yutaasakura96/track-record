@@ -264,6 +264,26 @@ describe("where an application stands", () => {
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
   });
 
+  it("says what an Undo froze, after its confirmation, and only then", async () => {
+    const applied = at("applied", { not_applied: "2026-09-18", applied: "2026-09-20" });
+    const { user } = openOne(applied, "2026-09-20", {
+      [`PUT ${AT}/standing`]: ({ body }: Call) =>
+        application(body as Standing, TODAY, { frozen: [{ title: "職務経歴書", versionNo: 3 }] }),
+    });
+    await user.selectOptions(await screen.findByLabelText("Set another step"), "not_applied");
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByText("Undone. 職務経歴書 v3 was frozen as sent.")).toBeTruthy();
+  });
+
+  it("says only that it was undone when the Undo froze nothing", async () => {
+    const { user } = openOne();
+    await user.click(await screen.findByRole("button", { name: "Move to Final interview" }));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByText("Undone.")).toBeTruthy();
+  });
+
   it("corrects a date with one write naming that step, and the figure follows", async () => {
     const { api, user } = openOne();
     await user.click(await screen.findByRole("button", { name: "First interview, 2026-09-24. Correct this date" }));

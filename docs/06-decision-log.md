@@ -6165,3 +6165,31 @@ written in the same transaction as anything. **Copying the documents onto the ap
 they are chosen**, which would freeze what nobody has sent yet. **Deleting undone copies**, which
 would be the second thing in the product that can be deleted. **Rebuilding the page from the
 version**, which is the pointer the 2026-10-11 entry rejected, by another route.
+
+### [2026-10-12] Leaving Not applied freezes the unsent documents, by a move or by Undo
+
+Issue #71, review of the change. Extends the 2026-10-11 entry "Application activity, closed-day
+counts and later sent copies", which said the freeze happens "on moving from Not applied to a
+later step" and did not say what Undo does.
+
+**One rule, whatever made the change.** Whenever an application leaves Not applied for Applied or
+any later step, by a move or by Undo, each attached document that has no sent copy yet is frozen.
+Any arrival at Applied does the same. A document that already has a copy is left alone, and
+nothing is compared. Further copies stay the explicit `Record another sent copy`.
+
+The case that forced it: an application is moved back to Not applied, a document is attached
+there, and Undo puts the earlier standing back. The application then stood at Applied, or at
+Résumé passed, with a document on it and no copy of it. The freeze is decided in the one place
+every change to the standing goes through, so no route can leave Not applied without it.
+
+**Undo still takes back the copies the undone move froze** when it returns to Not applied
+(entry "Sent copies are kept in Postgres"). The two do not meet: one Undo either leaves Not
+applied or returns to it.
+
+**Undo says what it froze.** Its confirmation is `Undone.`, followed by the sentence a move uses,
+`<title> v<N> was frozen as sent.`, when it froze anything (`10`, Screen 13).
+
+Rejected: **freezing on Undo only when it lands on Applied**, which leaves the same hole one step
+further on. **Leaving Undo out of the freeze** because it restores a past standing: the documents
+on the application are today's, and a standing at Applied with an unsent document is what the
+freeze exists to prevent.

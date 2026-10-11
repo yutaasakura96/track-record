@@ -319,7 +319,9 @@ the entry point and `07-api-design.md` §7 for the document routes.
    copies.
 
 Correcting the Applied date moves the sent date of the copies that move froze. Undo of the move
-takes those copies back, and the next move freezes the documents again.
+takes those copies back, and the next move freezes the documents again. An Undo that puts the
+application back at Applied or a later step freezes any attached document with no sent copy, as a
+move does, and says which.
 
 ---
 

@@ -6,8 +6,9 @@
  * are in `~/shared/application`, and every route that changes where an
  * application stands goes through {@link saveStanding}, so a date is never
  * overwritten: the row holding it is superseded and a new one written.
- * It is also where a move out of Not applied freezes the documents, whichever
- * step it lands on and whichever route made it, an interview entry's included.
+ * It is also where the documents are frozen: whenever an application leaves
+ * Not applied for any step or arrives at Applied, by a move, by Undo or by an
+ * interview entry's move.
  *
  * Gone quiet and the "how long since" figures are worked out on every read,
  * against today's date in Japan. None is stored. The figures count from the
@@ -395,12 +396,15 @@ export const markActivity = (db: Db, userId: string, applicationId: string, now:
 
 /**
  * What a change to the standing is, which decides what it does to sent copies
- * (`docs/10` Screen 14, issue #71). Each touches copies at one moment only.
+ * (`docs/10` Screen 14, issue #71).
  *
- * - `move`: a step set, a close, a reopen. Out of Not applied, it freezes the
- *   documents on the application that have no sent copy yet.
- * - `correct`: one date put right. A copy frozen by the move that saved that
- *   date follows it.
+ * Whatever the kind, a change that leaves Not applied for any step, or that
+ * arrives at Applied, freezes the documents on the application that have no
+ * sent copy yet. One that already has a copy is left alone.
+ *
+ * - `move`: a step set, a close, a reopen. It does nothing more to copies.
+ * - `correct`: one date put right. A copy frozen by the change that saved
+ *   that date follows it.
  * - `restore`: Undo. Back at Not applied, it takes back the copies the undone
  *   move froze. A plain move back to Not applied keeps them.
  */
@@ -480,7 +484,7 @@ export async function saveStanding(
 
   let frozen: NamedVersion[] = [];
   const copies: BatchItem<"pg">[] = [];
-  if ((kind === "move" && leaving) || (previous.currentStep !== "applied" && next.step === "applied")) {
+  if (leaving || (previous.currentStep !== "applied" && next.step === "applied")) {
     // Built before anything is saved: a file that cannot be made refuses the
     // move, so Applied is never saved with nothing kept.
     const made = await freezeDocuments(db, userId, previous, await unsentDocuments(db, userId, applicationId), {

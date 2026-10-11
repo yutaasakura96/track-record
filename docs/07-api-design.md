@@ -946,10 +946,10 @@ screens read too.
 | `POST` | `/api/applications/read-posting` | Body `{ jobDescription }` → `200` + `{ company, position, requirements }`, read from the text by the model. **A proposal: nothing is stored**, and the application is made by `POST /api/applications` when the author saves. `422` for text under 40 characters, over 20,000, or an extra field, with no model call. `503` when the reading fails |
 | `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements`, and its `documents`, `choices` and `sentCopies` (§9c) |
 | `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`. **The job description is not editable.** Does not count as activity |
-| `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either. **A move out of Not applied freezes its documents** (§9c) |
+| `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either. **Leaving Not applied freezes its documents** (§9c) |
 | `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
-| `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date |
+| `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date. It freezes as a move does (§9c) |
 | `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **On an open application, a later round moves the step and saves its date; an earlier skipped round fills only its missing date.** The entry and standing are saved in the same transaction. `422` for a missing date, a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
 | `POST` | `/api/applications/:id/interviews/:interviewId/recordings` | Body `{ url, label? }` → `201` + the application. Attaches a link to a recording kept elsewhere to that entry. **Only the link is kept, and only `http` or `https`.** `422` for anything else in `url`, a link over 2,000 characters, a `label` over 200, or an extra field. `404` for an entry that is not on that application. `409` when the application changed after it was read |
 | `DELETE` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId` | → `200` + the application. **Removes the recording for good**: its link and label are emptied, and the entry keeps a line with the day. `404` for a recording not on that entry, or already removed. `409` when the application changed after it was read |
@@ -1073,9 +1073,9 @@ other document.
   the copy.
 - **`page`** is `{ stamp, name, contact, sections: [{ heading, blocks: [{ kind, text }] }] }`: what
   the file said, stored with it. It is never rebuilt from the record.
-- **The freeze.** A move out of Not applied to any step, or any arrival at Applied including
-  `PUT …/standing` Undo, freezes every attached document with a version and no copy yet, dated with the day
-  that step saved. Documents with a copy are left alone. The files are built first, and one that cannot be built (a citation withheld
+- **The freeze.** Whenever an application leaves Not applied for any step, or arrives at Applied,
+  by a move or by `PUT …/standing` Undo, every attached document with a version and no copy yet is
+  frozen, dated with the day that step saved. Documents with a copy are left alone. The files are built first, and one that cannot be built (a citation withheld
   since, `409`) refuses the move with nothing saved.
 - **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that

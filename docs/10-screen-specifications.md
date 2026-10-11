@@ -1326,7 +1326,7 @@ description, the résumé sent, where it stands and how the interviews went (`02
   governs where the prototype derives last change from event dates.
 - **A short confirmation after an action is one line with `role="status"`**, at the foot of the
   content column, which leaves by itself: `Saved as Not applied.`, `Date corrected. The day counts
-  follow it.`, `Undone.` A status change is said in the panel instead, where its Undo is.
+  follow it.`, `Undone.` (with what the Undo froze, Screen 13). A status change is said in the panel instead, where its Undo is.
 - **No text of a job description, a company, a position, an interviewer or a question is logged**
   (`AGENTS.md`), and the list is served without job description text, as the tailored listing is.
 
@@ -1496,7 +1496,8 @@ Under each step reached:
 <date>.`, with `<title> v<N> was frozen as sent.` (`were`, for several) when the move froze
 documents, or `Marked as rejected. Date saved as <date>.` On its right `Change the date` and
 **`Undo`** (both bare). Undo puts back the status, the dates and, if the move froze them, the sent
-copies, and says `Undone.` It is offered for the last change only, until the application is left.
+copies, and says `Undone.`, followed by the same `<title> v<N> was frozen as sent.` when putting
+the standing back froze documents. It is offered for the last change only, until the application is left.
 
 **The controls, closed:** one notice, `Rejected on <date>, after <step>.` (`Withdrawn on`), the date
 a button to correct it, and **`Reopen`** (ghost), which returns the application to that step and
@@ -1507,9 +1508,9 @@ says `Reopened at <step>.`
 - **Any step can be set from any other.** Setting an earlier step leaves the later ones not
   reached and without a date on the screen; sent copies stay.
 - **A step set saves today's date**, a step skipped over saves none.
-- **Moving from Not applied to any later step, or arriving at Applied through a move or Undo, freezes every attached document that has
-  no sent copy yet** (#71). One that already has a copy, after a move back, is not frozen again by
-  the move; `Record another sent copy` is for that.
+- **Leaving Not applied for any later step, or arriving at Applied, by a move or by Undo, freezes
+  every attached document that has no sent copy yet** (#71). One that already has a copy, after a
+  move back, is not frozen again; `Record another sent copy` is for that.
 - **Closing is not a step.** It keeps the step reached, and the list counts the application under
   Rejected or Withdrawn.
 
@@ -1560,8 +1561,9 @@ copy, earlier copies of the same document included, most recently recorded first
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
   own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
   that move removes the copies it froze (Status).
-- **Copies are frozen at two moments and no other.** A move out of Not applied or any arrival at Applied, including Undo, freezes the
-  attached documents that have no sent copy yet (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
+- **Copies are frozen at two moments and no other.** Leaving Not applied for any step, or arriving
+  at Applied, by a move or by Undo, freezes the attached documents that have no sent copy yet
+  (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
   document as a further sent copy, dated today, and says `<title> v<N> frozen as sent today.` It
   takes any document: one not yet on the application, which is added to it; one already sent, the
   same one again; or a tailored résumé made after Applied.
