@@ -458,8 +458,8 @@ résumé reads the same index backwards, for the same reason employers do.
 ### 3.10 `renders`, `render_versions`, `render_proposals`
 
 **`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
-number of **tailored** rows (migration 0015, #57). A tailored row is created when the author names
-it and pastes the job description, before anything is generated.
+number of **tailored** rows (migration 0015, #57). Since #70, existing tailored rows are linked to
+applications (§3.14); making a new tailored résumé from an application is planned for #71.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -639,7 +639,7 @@ the screens.
 
 **Index:** `user_id`.
 
-**`application_steps`** — one row per status an application has a date for.
+**`application_steps`** — one live row per dated status, with earlier dates kept as superseded rows.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|

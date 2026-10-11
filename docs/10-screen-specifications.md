@@ -15,8 +15,8 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Record, Skills, Documents, Flagged, Master document, Tailored résumés (the last three
-added 2026-10-08, #57). There is no separate Imports row: imports are versions of a
+rows: Home, Record, Skills, Documents, Flagged, Master document, Applications. Applications
+replaced Tailored résumés in #70. There is no separate Imports row: imports are versions of a
 document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
 circular avatar, name, and the literal label `Personal record` — the single-user posture stated in
@@ -1276,43 +1276,11 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 
 ## Screen 11 — Tailored résumés
 
-**Replaced by Screens 12 to 14** (decided 2026-10-10, #60). This section describes what is built
-until #70 retires the screen, its sidebar row and Home's `Tailored résumés` section, and carries
-each tailored résumé over as an application. Its Rules outlive it: they are the rules of the
-tailored résumé made from an application (Screen 14).
-
-Added 2026-10-08 (issue #57). One résumé per job. The author gives a job description and gets a
-résumé written toward it from the same record and by the same rules as the main résumé: only facts
-a document may use, read as a diff before it becomes a version, with its own history, edits and
-download. Any number can be made. **English only**: it is a variant of the English résumé, and
-Home's `Tailored résumés` section says so in its sentence. A tailored 職務経歴書 is not built.
-
-Sidebar chrome, at `/tailored`. Header title `Tailored résumés`, note `One résumé per job, written
-from the same record`.
-
-### Layout
-
-1. **The screen intro.** Body: `Paste a job description and get a résumé written for that job. It is
-   written from the same facts as your main résumé, and you read it as a set of changes before it
-   becomes a version. The job description decides what leads and what is left out; it never adds a
-   skill or a claim that is not in your record.` `Next:` is `paste a job description below to make
-   the first one.`, `nothing is waiting here. Make another, or update one below.`, or with no usable
-   fact `your record holds no fact a document may use yet. Import a document first.`
-2. **Panel `New tailored résumé`**, a form:
-   - `Name, for you to tell it apart`, a text field, placeholder `The company and the role`, at most
-     120 characters.
-   - `Job description`, a ten-row text area, placeholder `Paste the posting here.`
-   - **`Read it from a text file`** (ghost), which fills the text area from a `.txt` or `.md` file
-     and, when the name is empty, the name from the file's name. Beside it: `A .txt or .md file. It
-     is kept with this résumé and is not imported as a source of facts.`
-   - **`Generate résumé`** (primary, right). Disabled with its reason until both fields are filled,
-     and when the job description is over 20,000 characters. It stores the résumé, then generates,
-     then opens Diff Review; the label reads `Saving…` then `Generating…`. With no usable fact it
-     reads `Save` and only stores.
-3. **Panel `Your tailored résumés`**, newest first. Each row is the row of Screen 3's documents
-   section, titled with the résumé's name and noted `Made <relative time>`: status, `History` and
-   `Download` once it has a version, and the one button (`Generate`, `Update`, `Regenerate`,
-   `Review changes`).
+**Replaced by Screens 12 to 14** (decided 2026-10-10, #60; retired by #70). The screen, its sidebar
+row and Home's `Tailored résumés` section are gone. Existing tailored résumés appear on their
+application pages, under **Résumé for this job**; their generation, review, history and download
+still use Screens 2, 5 and 6. Making a new tailored résumé from an application belongs to #71. Its
+Rules outlive it: they are the rules of the tailored résumé made from an application (Screen 14).
 
 ### Rules
 
@@ -1320,21 +1288,9 @@ from the same record`.
   résumé is written from the facts alone. A requirement the record does not meet is not written in.
 - **It is given exactly the facts the main résumé is given.** No Private fact, no Generated fact.
   Tailoring chooses and orders; it does not widen what may be used.
-- **A refusal to generate leaves the résumé stored**, on the list, to generate later.
+- **A refusal to generate leaves the résumé stored**, on its application, to generate later.
 - **Screens 2, 5 and 6 serve a tailored résumé unchanged**, addressed by its id where a main
   document is addressed by its kind. Their titles carry the résumé's name.
-- **Home lists the newest three** in a `Tailored résumés` section under the documents, with `Open
-  tailored résumés` (or `Make one`) to this screen, and `And N more on the Tailored résumés screen.`
-  The main résumé's row on Home is noted `English · your main résumé, tailored to no job`.
-
-### States
-
-| State | Behaviour |
-|---|---|
-| **Loading** | `Loading your tailored résumés…` under the form, which is usable at once |
-| **None yet** | `None yet. Your main résumé is on Home; a tailored one is a variant of it for one job.` |
-| **Create or generate failed** | The reason under the form, or above the list when it came from a row |
-| **File could not be read** | `That file could not be read. Paste the text instead.` |
 
 ---
 
@@ -1507,7 +1463,8 @@ Under each step reached:
   the application was added.
 - **`skipped`** in `text-muted` and `add a date` (bare) for a step that was passed over.
 - Pressing either opens, in place, a date field (no later than today), `Save` (ghost) and `Cancel`
-  (bare). Saving says `Date corrected. The day counts follow it.` A sent copy frozen on the Applied
+  (bare). Saving says `Date corrected. The day counts follow it.`; saving a date that
+  was not changed closes the field and says nothing. A sent copy frozen on the Applied
   date follows a correction of that date.
 
 **Three figures**, as tiles, the number in the Stat value role (`05` §2) with `days` small beside it:
