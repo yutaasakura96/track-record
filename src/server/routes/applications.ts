@@ -1,5 +1,5 @@
 /**
- * Applications (`docs/07-api-design.md` §7b, issue #70).
+ * Applications (`docs/07-api-design.md` §9b, issue #70).
  *
  * One job the author is looking at or has applied for: the posting, where it
  * stands, and the date of each step. The rules for moving through the steps

@@ -1,5 +1,5 @@
 /**
- * Applications, through the API (`docs/07` §7b, issue #70).
+ * Applications, through the API (`docs/07` §9b, issue #70).
  *
  * What is pinned here: a job is added by hand at Not applied; setting a status
  * saves its date and the date can be corrected; a step passed over has no date

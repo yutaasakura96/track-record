@@ -5918,3 +5918,22 @@ Rejected: **working out whether a document has changed since it was sent**, by v
 by comparing files. A 履歴書 changes with the record at the same version, and a download stamps
 the day's date into the file, so neither comparison says what the owner sent. The owner knows, and
 says so.
+
+### [2026-10-11] Editing the job fields is not activity, and neither is a save that changes nothing
+
+Issue #70, review of the change. Supersedes one clause of the entry above, "Application activity,
+closed-day counts and later sent copies": `as do other owner edits to the application`. The
+last-activity timestamp moves only when a counted field actually changes value: a status set,
+closed, reopened or undone; a step or close date added or corrected; and later an interview entry
+and a document added or recorded as sent. Editing the company, position, link or requirements does
+not move it. A save that leaves the status and every date as they were does not move it either:
+the same day saved again, the step it is already at, the standing it already has. Such a save
+writes nothing. Everything else in that entry stands.
+
+Gone quiet is about hearing back. Correcting a typo in a company name says nothing about whether
+the company has answered, and it must not clear the mark or move the application to the top of
+the list. The same holds for pressing Save on a date that was not changed.
+
+Rejected: **every owner edit counts**, which lets a spelling correction hide an application that
+has been waiting three weeks. **Counting a write whether or not it changed anything**, which makes
+the mark depend on which button was pressed, not on what the record says.
