@@ -994,6 +994,11 @@ A job the author is looking at or has applied for (`04` §3.14), and the intervi
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
   day saved again, the step it is already at, the standing it already has. That one answers with
   the application, writes nothing and logs nothing. The list is ordered by it.
+- **A write to where an application stands is refused when the application changed after the write
+  read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
+  That covers the step, close, date, reopen and standing routes and an interview entry, and a
+  change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
+  included. The check is on `lastActivityAt`, inside the same batch as the write.
 - Every write answers with the application as it is afterwards. Another user's application is
   `404` on every route.
 - Logged: `application_created` with the id and the job description's length,

@@ -6,7 +6,8 @@
  * given. No route here reaches a model, and no model reads an entry.
  *
  * Saving an entry for a round later than the step the application is at moves
- * it to that round, with the entry's day as the step's date. The entry, its
+ * it to that round, with the entry's day as the step's date; one for an earlier
+ * round that was skipped fills that step's missing date only. The entry, its
  * questions and the move are one transaction, through the same
  * `saveStanding` every other change to where an application stands uses, so
  * the dates it replaces are superseded and Undo can put them back.

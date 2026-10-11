@@ -380,6 +380,9 @@ And a second entry for that round does not replace the date; Undo removes the fi
 When the round already has a date, is not a round, or the application is closed
 Then the status and its dates are left alone, and the entry still counts as a change
 
+When the application was changed after a save read it, by a move or by a date alone
+Then the save is refused as changed somewhere else, and nothing of it is written
+
 On the screen
 Then several pasted lines become several questions; a leading number, `-` or `*` is dropped only with following whitespace, while `•` and `・` are dropped with or without it
 And a draft typed before the paste is saved before the pasted questions

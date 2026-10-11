@@ -1315,7 +1315,7 @@ description, the résumé sent, where it stands and how the interviews went (`02
   `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
 - **What a change is.** Each application keeps one last-activity timestamp, set when it is added
   and when the owner changes its record: setting, closing, reopening or undoing a status; adding
-  or correcting a step or close date; adding or editing an interview entry; choosing a document
+  or correcting a step or close date; adding an interview entry; choosing a document
   or recording a sent copy; attaching or removing a recording. Editing the company, position,
   link or requirements does not set it, and neither does a save that changes nothing. Event dates
   do not stand in for this timestamp. The list order, last-change count and **gone quiet** use it.

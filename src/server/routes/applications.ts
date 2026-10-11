@@ -369,6 +369,12 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
  * supersedes that row and writes a new one; a date that is gone supersedes its
  * row; saved dates are not overwritten or deleted.
  *
+ * `previous` is the application as it was read. The write is refused as a
+ * conflict when `last_activity_at` has moved since, which every write here
+ * does, a date-only one included: the update then matches no row, and the
+ * division by its count of zero fails the whole batch. The new value is always
+ * at least a millisecond later, so two writes in one millisecond still differ.
+ *
  * `alongside` is what else the same change writes, an interview entry and its
  * questions, so that it and the status it moved are saved or refused together.
  */
@@ -423,6 +429,7 @@ export async function saveStanding(
       ...alongside,
     ]);
   } catch (error) {
+    // 22012 is division by zero: the guard above found the application changed since it was read.
     let stale = false;
     for (let cause = error; cause instanceof Error; cause = cause.cause) {
       if ((cause as Error & { code?: string }).code === "22012") stale = true;

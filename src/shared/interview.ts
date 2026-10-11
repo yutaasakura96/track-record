@@ -8,7 +8,9 @@
  *
  * An entry and the status say overlapping things, and one being behind the
  * other is a small lie the page tells. So saving an entry for a LATER round
- * moves the status to that round, with the entry's day as the step's date.
+ * moves the status to that round, with the entry's day as the step's date. One
+ * for an EARLIER round that was skipped gives that step the entry's day and
+ * leaves the status where it is.
  */
 import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
 
@@ -42,6 +44,11 @@ export interface Interview {
   questions: { id: string; text: string }[];
 }
 
+/**
+ * Where an application stands once an entry is saved. A closed application and
+ * a conversation that is not a round are left as they were, and so is a round
+ * at or before the status that already has a date.
+ */
 export function standingAfterInterview(standing: Standing, round: InterviewRound, date: string): Standing {
   if (standing.closedAs || round === "other") return standing;
   if (stepIndex(round) > stepIndex(standing.step)) return moveTo(standing, round, date);
@@ -57,7 +64,9 @@ export function defaultRound(step: ApplicationStep, noted: readonly InterviewRou
 
 /**
  * The questions in a piece of typed or pasted text: one a line, with a leading
- * bullet or number dropped, and empty lines left out.
+ * bullet or number dropped, and empty lines left out. A number, `-` or `*` is a
+ * marker only with whitespace after it, since each can begin a real question
+ * ("3.5 years…", "-v does what?"); `•` and `・` are dropped either way.
  */
 export const questionsIn = (text: string): string[] =>
   text
