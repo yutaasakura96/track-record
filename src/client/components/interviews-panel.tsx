@@ -6,9 +6,8 @@
  * questions asked are separate items in the order given: typed one at a time,
  * or pasted as several lines and split.
  *
- * Saving an entry for a later round moves the status to that round. That is
- * said where every status change is said, in Where it stands, with its Undo,
- * so this panel hands the move up rather than confirming it here.
+ * A changed standing is said in Where it stands, with its Undo, so this panel
+ * hands the change up rather than confirming it here.
  */
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
 import { failureText, useAddInterview, type Application } from "../api";
@@ -30,20 +29,26 @@ import { Button, Mono, Panel } from "./ui";
 
 export function InterviewsPanel({
   application,
-  onMoved,
+  onStandingChanged,
 }: {
   application: Application;
-  /** The entry just saved moved the status: where it stood before, and the step it moved to. */
-  onMoved: (before: Standing, step: ApplicationStep) => void;
+  onStandingChanged: (before: Standing, step: ApplicationStep, moved: boolean) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const flash = useFlashStore((state) => state.show);
   const entries = application.interviews;
 
-  const saved = (next: Application) => {
+  const saved = (next: Application, round: InterviewRound) => {
     setAdding(false);
-    if (next.step === application.step) return flash("Interview saved.");
-    onMoved({ step: application.step, closedAs: application.closedAs, dates: application.dates }, next.step);
+    if (round === "other") return flash("Interview saved.");
+    const moved = next.step !== application.step;
+    const dated = next.dates[round] !== application.dates[round];
+    if (!moved && !dated) return flash("Interview saved.");
+    onStandingChanged(
+      { step: application.step, closedAs: application.closedAs, dates: application.dates },
+      moved ? next.step : round,
+      moved,
+    );
   };
 
   return (
@@ -108,7 +113,7 @@ function NewInterview({
   onCancel,
 }: {
   application: Application;
-  onSaved: (next: Application) => void;
+  onSaved: (next: Application, round: InterviewRound) => void;
   onCancel: () => void;
 }) {
   const add = useAddInterview(application.id);
@@ -145,22 +150,24 @@ function NewInterview({
 
   /**
    * A single-line field drops the line breaks of a pasted list, so several
-   * lines are split here instead. What was already typed in the field stays.
+   * lines are split here instead.
    */
   const onPaste = (event: ClipboardEvent<HTMLInputElement>) => {
     const text = event.clipboardData.getData("text");
     if (!/[\r\n]/.test(text)) return;
     event.preventDefault();
-    addQuestions(text);
+    addQuestions(`${draft}\n${text}`);
+    setDraft("");
   };
 
   const save = async () => {
     // What is still in the field is a question too.
     const all = [...questions, ...questionsIn(draft)];
+    if (!date) return setFailure("Give the interview a date.");
     if (howItWent.trim() === "" && all.length === 0) return setFailure(EMPTY_ENTRY);
     setFailure(null);
     try {
-      onSaved(await add.mutateAsync({ date: date || application.today, round, who, howItWent, questions: all }));
+      onSaved(await add.mutateAsync({ date, round, who, howItWent, questions: all }), round);
     } catch (error) {
       setFailure(failureText(error));
     }

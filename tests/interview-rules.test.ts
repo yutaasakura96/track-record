@@ -4,22 +4,37 @@
  * new entry starts on, and how typed or pasted text becomes separate questions.
  */
 import { describe, expect, it } from "vitest";
-import { defaultRound, newestFirst, questionsIn, stepFor } from "~/shared/interview";
+import { defaultRound, newestFirst, questionsIn, standingAfterInterview } from "~/shared/interview";
+import type { Standing } from "~/shared/application";
 
-describe("the step an entry moves the application to", () => {
-  it("is its round, when that round is later than the step it is at", () => {
-    expect(stepFor({ step: "applied", closedAs: null }, "interview_1")).toBe("interview_1");
-    expect(stepFor({ step: "not_applied", closedAs: null }, "interview_final")).toBe("interview_final");
-    expect(stepFor({ step: "interview_1", closedAs: null }, "interview_2")).toBe("interview_2");
+describe("the standing after an interview entry", () => {
+  const standing = (step: Standing["step"], closedAs: Standing["closedAs"] = null): Standing => ({
+    step,
+    closedAs,
+    dates: { not_applied: "2026-02-01", [step]: "2026-02-02" },
   });
 
-  it("is none for a round at or before the step, a conversation that is not a round, or a closed application", () => {
-    expect(stepFor({ step: "interview_2", closedAs: null }, "interview_2")).toBeNull();
-    expect(stepFor({ step: "interview_final", closedAs: null }, "interview_1")).toBeNull();
-    expect(stepFor({ step: "offer", closedAs: null }, "interview_final")).toBeNull();
-    expect(stepFor({ step: "applied", closedAs: null }, "other")).toBeNull();
-    expect(stepFor({ step: "applied", closedAs: "rejected" }, "interview_1")).toBeNull();
-    expect(stepFor({ step: "applied", closedAs: "withdrawn" }, "interview_final")).toBeNull();
+  it("is its round, when that round is later than the step it is at", () => {
+    expect(standingAfterInterview(standing("applied"), "interview_1", "2026-02-10")).toMatchObject({
+      step: "interview_1", dates: { interview_1: "2026-02-10" },
+    });
+    expect(standingAfterInterview(standing("not_applied"), "interview_final", "2026-02-10").step).toBe("interview_final");
+    expect(standingAfterInterview(standing("interview_1"), "interview_2", "2026-02-10").step).toBe("interview_2");
+  });
+
+  it("fills an earlier skipped round once without moving the status", () => {
+    const before = standing("interview_2");
+    const filled = standingAfterInterview(before, "interview_1", "2026-02-10");
+    expect(filled).toEqual({ ...before, dates: { ...before.dates, interview_1: "2026-02-10" } });
+    expect(standingAfterInterview(filled, "interview_1", "2026-02-11")).toEqual(filled);
+  });
+
+  it("keeps dated rounds, Other conversation, and closed applications as they were", () => {
+    const dated = standing("interview_2");
+    expect(standingAfterInterview(dated, "interview_2", "2026-02-10")).toEqual(dated);
+    expect(standingAfterInterview(standing("applied"), "other", "2026-02-10")).toEqual(standing("applied"));
+    expect(standingAfterInterview(standing("applied", "rejected"), "interview_1", "2026-02-10")).toEqual(standing("applied", "rejected"));
+    expect(standingAfterInterview(standing("interview_2", "withdrawn"), "interview_1", "2026-02-10")).toEqual(standing("interview_2", "withdrawn"));
   });
 });
 

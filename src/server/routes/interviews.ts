@@ -23,7 +23,7 @@ import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { detail, readStanding, saveStanding } from "./applications";
 import { tokyoToday } from "~/render/rirekisho";
-import { isDay, moveTo } from "~/shared/application";
+import { isDay } from "~/shared/application";
 import {
   EMPTY_ENTRY,
   HOW_IT_WENT_MAX,
@@ -31,7 +31,7 @@ import {
   QUESTIONS_MAX,
   QUESTION_MAX,
   WHO_MAX,
-  stepFor,
+  standingAfterInterview,
 } from "~/shared/interview";
 import type { AppEnv } from "../env";
 
@@ -69,12 +69,13 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
     }
 
     const { row, steps, standing } = await readStanding(db, user.id, id);
-    const step = stepFor(standing, body.round);
+    const next = standingAfterInterview(standing, body.round, body.date);
+    const step = next.step !== standing.step ? next.step : null;
     const interviewId = newId("interview");
 
     // An entry is a change to the application whether or not it moves the
     // status, so the same write marks it as changed now.
-    await saveStanding(db, user.id, id, row, steps, step ? moveTo(standing, step, body.date) : standing, [
+    await saveStanding(db, user.id, id, row, steps, next, [
       db.insert(interviews).values({
         id: interviewId,
         userId: user.id,

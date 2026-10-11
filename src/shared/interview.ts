@@ -10,7 +10,7 @@
  * other is a small lie the page tells. So saving an entry for a LATER round
  * moves the status to that round, with the entry's day as the step's date.
  */
-import { stepIndex, type ApplicationStep, type Standing } from "./application";
+import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
 
 /** The three interview steps, under their step names, and a conversation that is not a round. */
 export const INTERVIEW_ROUNDS = ["interview_1", "interview_2", "interview_final", "other"] as const;
@@ -42,14 +42,11 @@ export interface Interview {
   questions: { id: string; text: string }[];
 }
 
-/**
- * The step an entry for this round moves the application to, or null when it
- * leaves the status alone: a round at or before the step it is at, a
- * conversation that is not a round, or a closed application.
- */
-export function stepFor(standing: Pick<Standing, "step" | "closedAs">, round: InterviewRound): ApplicationStep | null {
-  if (standing.closedAs || round === "other") return null;
-  return stepIndex(round) > stepIndex(standing.step) ? round : null;
+export function standingAfterInterview(standing: Standing, round: InterviewRound, date: string): Standing {
+  if (standing.closedAs || round === "other") return standing;
+  if (stepIndex(round) > stepIndex(standing.step)) return moveTo(standing, round, date);
+  if (standing.dates[round]) return standing;
+  return { ...standing, dates: { ...standing.dates, [round]: date } };
 }
 
 /** The round a new entry starts on: the earliest at or after the status with no entry yet. */

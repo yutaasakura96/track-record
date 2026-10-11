@@ -157,13 +157,14 @@ function Body({ application }: { application: Application }) {
     flash("Undone.");
   };
 
-  /** An interview entry saved for a later round moved the status with it. Undo keeps the entry. */
-  const movedByInterview = (before: Standing, step: ApplicationStep) => {
+  const standingChangedByInterview = (before: Standing, step: ApplicationStep, moved: boolean) => {
     setFailure(null);
     setDating(null);
     setMoved({
       before,
-      text: `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`,
+      text: moved
+        ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
+        : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
       dated: step,
       elsewhere: true,
     });
@@ -361,7 +362,7 @@ function Body({ application }: { application: Application }) {
 
       {application.resume ? <Resume application={application} /> : null}
 
-      <InterviewsPanel application={application} onMoved={movedByInterview} />
+      <InterviewsPanel application={application} onStandingChanged={standingChangedByInterview} />
 
       <Panel
         heading="The job"

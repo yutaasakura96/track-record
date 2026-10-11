@@ -945,7 +945,7 @@ A job the author is looking at or has applied for (`04` §3.14), and the intervi
 | `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
 | `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date |
-| `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **For a round later than `step` on an open application it also moves the application to that round, with `date` saved under it**, in the same transaction. `422` for a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
+| `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **On an open application, a later round moves the step and saves its date; an earlier skipped round fills only its missing date.** The entry and standing are saved in the same transaction. `422` for a missing date, a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
 
 ```json
 {
@@ -983,10 +983,12 @@ A job the author is looking at or has applied for (`04` §3.14), and the intervi
 - **`interviews` is every entry of the application, newest `date` first**, and of two on one day
   the one added later first. Each carries its `questions` in the order they were given. There is no
   route that edits or removes an entry: it is saved once.
-- **An interview entry moves the status only forward.** For a round at or before `step`, for
-  `other`, and on a closed application, the entry is saved and `step`, `closedAs` and `dates` are
-  left as they were. When it does move, the steps it passes over get no date, as on any move, and
-  Undo is the same `PUT …/standing`, which leaves the entry in place.
+- **An interview entry moves the status only forward.** On an open application, an entry for an
+  earlier interview step that was skipped fills that step's missing date with the interview's day;
+  the current step does not move back. An existing step date stays as it is. For `other` and on a
+  closed application, the standing is unchanged. When the entry moves the step, steps it passes
+  over get no date, as on any move. Undo is the same `PUT …/standing` for either kind of standing
+  change, and leaves the entry in place.
 - **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date, and on
   every interview entry added, whether or not it moved the status**, so not
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same

@@ -356,7 +356,7 @@ And running it again adds nothing, and the down script removes only what it adde
 And another user's application is not listed, and is a 404 on every route addressed by its id
 ```
 
-### 2.6j An interview entry keeps its questions apart, and moves the status only forward
+### 2.6j An interview entry keeps its questions apart, and dates skipped earlier rounds
 
 `tests/interviews.test.ts`, `tests/interview-rules.test.ts` and `tests/client/interviews.test.tsx`
 (#72). The clock is set, so every day count is exact.
@@ -373,12 +373,18 @@ Then the status moves to that round with the entry's day, and the first-intervie
 And the rounds passed over have no date
 And undoing the move puts the standing back and keeps the entry
 
-When the entry is for a round at or before the status, is not a round, or the application is closed
-Then the status and its dates are left alone, and it still counts as a change
+When the entry is for an earlier interview round whose date was skipped on an open application
+Then that date is filled with the entry's day, the current status stays put, and the figure follows
+And a second entry for that round does not replace the date; Undo removes the filled date, not the entry
+
+When the round already has a date, is not a round, or the application is closed
+Then the status and its dates are left alone, and the entry still counts as a change
 
 On the screen
-Then several pasted lines become several questions, with a leading bullet or number dropped
+Then several pasted lines become several questions, with a leading bullet or numbered marker dropped only when separated by whitespace
+And a draft typed before the paste is saved before the pasted questions
 And the question still in the field is saved with the rest, in one write
+And clearing the date prevents the save and shows a message
 And a move is said where a status change is said, with its Undo
 
 And another user cannot add an entry to an application, and reads none of its entries

@@ -14,8 +14,8 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { Application, InterviewFields } from "~/client/api";
-import { figures, moveTo, type Standing } from "~/shared/application";
-import { stepFor, type Interview } from "~/shared/interview";
+import { figures, type Standing } from "~/shared/application";
+import { standingAfterInterview, type Interview } from "~/shared/interview";
 import { mount, Refusal, type Call, type Routes } from "./harness";
 
 const TODAY = "2026-10-10";
@@ -85,8 +85,7 @@ function open(start: Standing = FERNHILL, entries: Interview[] = [SECOND, FIRST]
     [`GET ${AT}`]: () => application(standing, changedOn, interviews),
     [`POST ${AT}/interviews`]: ({ body }: Call) => {
       const entry = body as InterviewFields;
-      const step = stepFor(standing, entry.round);
-      if (step) standing = moveTo(standing, step, entry.date);
+      standing = standingAfterInterview(standing, entry.round, entry.date);
       changedOn = TODAY;
       interviews = [
         {
@@ -196,13 +195,26 @@ describe("the form for a new interview", () => {
     await user.click(within(form).getByRole("button", { name: "Remove question 2" }));
     expect(typed()).toHaveLength(4);
 
-    // A pasted list does not take what was being typed with it.
+    // A pasted list follows what was being typed.
     await user.type(field, "Half a question");
     await user.paste("Why now?\nWhy us?");
-    expect(typed().slice(4)).toEqual(["Why now?", "Why us?"]);
-    expect(field.value).toBe("Half a question");
+    expect(typed().slice(4)).toEqual(["Half a question", "Why now?", "Why us?"]);
+    expect(field.value).toBe("");
     // Nothing is written until it is saved.
     expect(api.writes()).toEqual([]);
+    await user.type(within(form).getByLabelText("How it went"), "A useful discussion.");
+    await user.click(within(form).getByRole("button", { name: "Save interview" }));
+    expect(api.bodyOf("POST", `${AT}/interviews`)).toMatchObject({
+      questions: [
+        "How do you roll back a bad release?",
+        "Design a job queue for 2,000 robots",
+        "Where does it fall over first?",
+        "Who would you page?",
+        "Half a question",
+        "Why now?",
+        "Why us?",
+      ],
+    });
   });
 
   it("saves the entry with one write, its questions as separate items in order, the one still in the field among them", async () => {
@@ -241,6 +253,17 @@ describe("the form for a new interview", () => {
     await user.click(within(form).getByRole("button", { name: "Save interview" }));
 
     expect(within(form).getByRole("alert").textContent).toBe("Write how it went, or add at least one question.");
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("refuses an empty date instead of replacing it with today", async () => {
+    const { api, user } = open();
+    const form = await openForm(user);
+    fireEvent.change(within(form).getByLabelText("Date"), { target: { value: "" } });
+    await user.type(within(form).getByLabelText("How it went"), "A useful discussion.");
+    await user.click(within(form).getByRole("button", { name: "Save interview" }));
+
+    expect(within(form).getByRole("alert").textContent).toBe("Give the interview a date.");
     expect(api.writes()).toEqual([]);
   });
 
@@ -298,5 +321,27 @@ describe("an entry saved for a later round", () => {
     expect(api.writes()).toEqual([`POST ${AT}/interviews`, `PUT ${AT}/standing`]);
     expect(api.bodyOf("PUT", `${AT}/standing`)).toEqual(FERNHILL);
     expect(within(await panel()).getByText("A design exercise, then questions.")).toBeTruthy();
+  });
+});
+
+describe("an entry for an earlier skipped round", () => {
+  it("adds its date, updates the figure, and offers Undo without moving the status", async () => {
+    const dates = { ...FERNHILL.dates };
+    delete dates.interview_1;
+    const before: Standing = { ...FERNHILL, dates };
+    const { api, user } = open(before, []);
+    const form = await openForm(user);
+    await user.selectOptions(within(form).getByLabelText("Round"), "First interview");
+    fireEvent.change(within(form).getByLabelText("Date"), { target: { value: "2026-09-24" } });
+    await user.type(within(form).getByLabelText("How it went"), "A useful discussion.");
+    await user.click(within(form).getByRole("button", { name: "Save interview" }));
+
+    const said = await screen.findByText(/^Interview saved, and the First interview date was added/);
+    expect(said.textContent).toBe("Interview saved, and the First interview date was added. Date saved as 2026-09-24.");
+    expect(screen.getByRole("button", { name: "Change the date" })).toBeTruthy();
+    expect(screen.getByText("since the first interview").parentElement!.textContent).toContain("16 days");
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(api.bodyOf("PUT", `${AT}/standing`)).toEqual(before);
+    expect(within(await panel()).getByText("A useful discussion.")).toBeTruthy();
   });
 });

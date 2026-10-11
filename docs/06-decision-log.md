@@ -5978,3 +5978,17 @@ decide those three questions then.
 **Not built here, by the split of #60:** the recording rows and `Attach a recording` on a card,
 and the form's line `A recording is attached after you save`, belong to #74 and #76. The form does
 not promise an action the card does not yet offer.
+
+### [2026-10-12] An interview entry dates an earlier skipped interview step
+
+Issue #72, owner decision during review. When an open application has passed over an interview
+step without a date, saving an entry for that earlier round fills the missing step date with the
+interview's day. The current status does not move back. A step that already has a date keeps it;
+its date remains correctable through the ordinary step-date action. An entry for Other conversation
+or on a closed application changes no step date. This supersedes the no-date-for-earlier-round
+clause in the issue #72 API and screen specifications. The entry, its questions and any step date
+are saved in the same batch. Undo restores the standing from before the entry and keeps the entry.
+
+The first-interview figure is counted from the first interview step's date. A real first interview
+recorded after the application had already reached Second interview should make that figure
+available without claiming the application moved backwards.

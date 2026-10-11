@@ -660,6 +660,9 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
 
 - **A step passed over has no row.** Moving from Applied to First interview leaves Résumé passed
   without a date until the author adds one, and the figure that counts from it reads as a dash.
+- **An interview entry can date an earlier interview step that was passed over.** Only an open
+  application's missing date is filled, using the interview's day; its current step stays where it
+  is. A date already saved for that step remains correctable through the step-date action.
 - **A saved date is never overwritten or deleted.** A corrected date marks the old row superseded
   and inserts a new one, in one `db.batch` with the update of `applications`, so the earlier date is
   kept. Superseded rows are in the export.
@@ -710,7 +713,7 @@ route and by the form.
 - **A question is a row, not an item in an array column**, so it has an id of its own. The
   hand-off of the questions asked (#77) and anything later that points at one question need it.
 - **An entry and its questions are written in one `db.batch`** with the application's
-  `last_activity_at`, and with the step rows when the entry moves the status (`07` §9b). Either all
+  `last_activity_at`, and with any step row added by the entry (`07` §9b). Either all
   of it is saved or none is.
 - **The status an entry moved is not stored on the entry.** The move is an ordinary change to
   `application_steps`, so Undo puts the standing back and leaves the entry where it is.

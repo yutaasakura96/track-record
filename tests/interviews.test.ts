@@ -257,7 +257,7 @@ describe("an entry for a later round", () => {
 });
 
 describe("an entry that leaves the status alone", () => {
-  it("is one for a round at or before the step it is at", async () => {
+  it("keeps a dated round and fills an earlier skipped round without moving the status", async () => {
     const { id } = await add();
     await set(id, "interview_2");
     await client.patch(`/api/applications/${id}/steps/interview_2`, { date: "2026-02-25" });
@@ -269,9 +269,33 @@ describe("an entry that leaves the status alone", () => {
 
     const earlier = (await (await note(id, { ...FIRST, date: "2026-02-10" })).json()) as Detail;
     expect(earlier.step).toBe("interview_2");
-    // And a step passed over is not given the entry's date either.
-    expect(earlier.dates.interview_1).toBeUndefined();
+    expect(earlier.dates.interview_1).toBe("2026-02-10");
+    expect(earlier.daysSinceFirstInterview).toBe(20);
+    const repeated = (await (await note(id, { ...FIRST, date: "2026-02-12" })).json()) as Detail;
+    expect(repeated.dates.interview_1).toBe("2026-02-10");
     expect(earlier.interviews).toHaveLength(2);
+  });
+
+  it("undoes a filled skipped date while keeping the entry", async () => {
+    const { id } = await add();
+    await set(id, "interview_2");
+    const before = await read(id);
+    expect(before.dates.interview_1).toBeUndefined();
+
+    const saved = (await (await note(id, { ...FIRST, date: "2026-02-20" })).json()) as Detail;
+    expect(saved.step).toBe("interview_2");
+    expect(saved.dates.interview_1).toBe("2026-02-20");
+
+    const undone = await client.put(`/api/applications/${id}/standing`, {
+      step: before.step,
+      closedAs: before.closedAs,
+      dates: before.dates,
+    });
+    expect(undone.status).toBe(200);
+    const after = await read(id);
+    expect(after.dates.interview_1).toBeUndefined();
+    expect(after.daysSinceFirstInterview).toBeNull();
+    expect(after.interviews).toHaveLength(1);
   });
 
   it("is a conversation that is not a round", async () => {

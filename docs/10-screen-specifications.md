@@ -1588,7 +1588,8 @@ questions they asked.`
 
 **The form**, a card titled `New interview`, opened at the top of the panel:
 
-- `Date`, no later than today, today by default. `Round`: `First interview`, `Second interview`,
+- `Date`, required and no later than today, today by default. A cleared date blocks Save with
+  `Give the interview a date.` `Round`: `First interview`, `Second interview`,
   `Final interview`, `Other conversation`, set by default to the earliest round at or after the
   status that has no entry yet, or `Other conversation`.
 - `Who you spoke with`, placeholder `Names or roles. Kept only here.`
@@ -1596,8 +1597,9 @@ questions they asked.`
   differently.`
 - `Questions asked`: the list so far, each with `Remove` (bare), then a field, placeholder `One
   question, then Enter`, and `Add` (ghost). `Pasting several lines adds them all at once.` A
-  leading bullet or number on a line is dropped, and an empty line is no question. A pasted list
-  leaves alone what was already typed in the field.
+  leading bullet or number followed by whitespace on a line is dropped, and an empty line is no
+  question. When a multi-line list is pasted into a draft, the draft is added first, then the
+  pasted questions, and the field is cleared.
 - `A recording is attached after you save, from the interview's own card.`
 - **`Save interview`** (primary) and `Cancel`. What is in the question field is added on save.
   A save the server refuses keeps the form and everything typed in it, and says why under the
@@ -1612,9 +1614,12 @@ questions they asked.`
   change is said: `Interview saved, and the status moved to <step> to match. Date saved as <date>.`
   with `Change the date` and `Undo`, and that notice is brought into view, since the form is
   further down the page. The steps it passes over are skipped, as on any move. Undo puts the status
-  back and keeps the entry. Otherwise it says `Interview saved.`
-- **An entry for a round at or before the status, for `Other conversation`, or on a closed
-  application leaves the status alone**, and still counts as a change (What a change is).
+  back and keeps the entry.
+- **An entry for an earlier skipped interview round fills that step's missing date** with the
+  entry's day on an open application, without moving the current status. It is said in Where it
+  stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.
+  A step that already has a date keeps it. `Other conversation` and entries on a closed application
+  leave the standing alone and say `Interview saved.` Every entry still counts as activity (What a change is).
 - **An entry is saved once.** There is no edit and no removal of an entry (`06`, 2026-10-12).
 - **Each question is its own item, in the order given.**
 - **No model reads an entry or writes one.**
