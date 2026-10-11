@@ -8,6 +8,8 @@
 import type { Hono } from "hono";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import {
+  applicationDocuments,
+  applicationSentCopies,
   applicationSteps,
   applications,
   certifications,
@@ -245,6 +247,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       applicationStepRows,
       interviewRows,
       interviewQuestionRows,
+      applicationDocumentRows,
+      sentCopyRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -276,6 +280,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(applicationSteps).where(eq(applicationSteps.userId, userId)),
       db.select().from(interviews).where(eq(interviews.userId, userId)),
       db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId)),
+      // Taken-off documents and undone copies too, for the same reason.
+      db.select().from(applicationDocuments).where(eq(applicationDocuments.userId, userId)),
+      db.select().from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
     ]);
 
     const body = {
@@ -302,6 +309,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       applicationSteps: only(applicationStepRows),
       interviews: only(interviewRows),
       interviewQuestions: only(interviewQuestionRows),
+      applicationDocuments: only(applicationDocumentRows),
+      // A sent copy's file is bytes too. Its page, what the file says, is here.
+      applicationSentCopies: sentCopyRows.map(({ userId: _u, file: _file, ...rest }) => rest),
     };
 
     return new Response(JSON.stringify(body, null, 2), {

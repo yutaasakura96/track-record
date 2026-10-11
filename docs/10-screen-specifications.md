@@ -1280,7 +1280,7 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 **Replaced by Screens 12 to 14** (decided 2026-10-10, #60; retired by #70). The screen, its sidebar
 row and Home's `Tailored résumés` section are gone. Existing tailored résumés appear on their
 application pages, under **Résumé for this job**; their generation, review, history and download
-still use Screens 2, 5 and 6. Making a new tailored résumé from an application belongs to #71. Its
+still use Screens 2, 5 and 6. A new tailored résumé is made from its application (Screen 14, #71). Its
 Rules outlive it: they are the rules of the tailored résumé made from an application (Screen 14).
 
 ### Rules
@@ -1297,8 +1297,8 @@ Rules outlive it: they are the rules of the tailored résumé made from an appli
 
 ## Screens 12 to 15 — Applications
 
-Specified 2026-10-11 (issues #60 and #69; decision log, that date). Not built yet: each part names
-the issue that builds it. Every job the author is looking at or has applied for, each with its job
+Specified 2026-10-11 (issues #60 and #69; decision log, that date). Each part names the issue that
+builds it; #70 and #71 are built. Every job the author is looking at or has applied for, each with its job
 description, the résumé sent, where it stands and how the interviews went (`02` §3a, S20 to S24).
 
 **What all four share:**
@@ -1535,7 +1535,11 @@ says `Reopened at <step>.`
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
   already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
-  opens the tick card in place, with `Cancel`. From Applied onward the card lists every document
+  opens the tick card in place, with `Cancel`. Before Applied the card is the one above, ticked
+  with what is on the application, and saving it takes off what was unticked. From Applied onward
+  it is headed `Record another sent copy`, reads `Tick what you sent. Each one is frozen as it is
+  today, as a further copy, whether or not it was sent before.`, starts with nothing ticked, and
+  its button is **`Record the ticked documents`**. From Applied onward the card lists every document
   the owner could have sent: the three, whether or not they are on the application or were sent
   before, and the application's tailored résumé when it has one, as a fourth tick.
 
@@ -1548,7 +1552,8 @@ copy, earlier copies of the same document included, most recently recorded first
 
 - **Making a tailored résumé is the 2026-10-08 flow, started here.** It stores the résumé from this
   application's job description, generates, and opens Diff Review (Screen 2, unchanged, titled with
-  the résumé's name). Accept or Reject returns here. Screens 5 and 6 serve it as they did. Screen
+  the résumé's name). Accept or Reject returns here. A tailored résumé with no version yet has
+  `Generate` where `Regenerate` would be, and one with a proposal waiting has `Review changes`. Screens 5 and 6 serve it as they did. Screen
   11's Rules hold word for word.
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).

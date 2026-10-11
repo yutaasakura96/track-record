@@ -12,18 +12,21 @@
  *
  * Under it, the interview entries (issue #72). Saving one for a later round is
  * a change to where it stands too, and is said and undone here like the rest.
+ *
+ * Moving out of Not applied also freezes the documents on the application as
+ * sent (issue #71). The panel that chooses them is `../components/application-resume`.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link, useNavigate, useParams } from "@tanstack/react-router";
+import { useParams } from "@tanstack/react-router";
 import {
   ApiError,
   failureText,
   useApplication,
   useApplicationActions,
-  useGenerate,
   type Application,
   type ApplicationFields,
 } from "../api";
+import { ResumePanel } from "../components/application-resume";
 import {
   ApplicationsFrame,
   CONTROL_INLINE,
@@ -32,12 +35,11 @@ import {
   StatusLine,
   days,
 } from "../components/application-chrome";
-import { DocumentRow, QUIET } from "../components/document-row";
+import { QUIET } from "../components/document-row";
 import { InterviewsPanel } from "../components/interviews-panel";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { NextStep } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
-import { relative } from "../format";
 import { useFlashStore } from "../stores/flash";
 import {
   APPLICATION_STEPS,
@@ -51,6 +53,7 @@ import {
   type ApplicationStep,
   type Standing,
 } from "~/shared/application";
+import { nameVersions } from "~/shared/application-documents";
 
 export function ApplicationScreen() {
   const { applicationId } = useParams({ from: "/applications/$applicationId" });
@@ -99,6 +102,8 @@ interface Moved {
   dated: ApplicationStatus | null;
   /** Made from another panel, so the line that says it may be off the screen. */
   elsewhere?: boolean;
+  /** ` 履歴書 v4 was frozen as sent.` when the move froze documents, said after the date. */
+  frozen: string;
 }
 
 function Body({ application }: { application: Application }) {
@@ -119,25 +124,27 @@ function Body({ application }: { application: Application }) {
   const standing: Standing = { step: application.step, closedAs: application.closedAs, dates: application.dates };
   const busy = stand.isPending;
 
-  /** One change to where it stands. `false` when it was refused, which is said under the controls. */
+  /** One change to where it stands. Null when it was refused, which is said under the controls. */
   const change = async (action: Parameters<typeof stand.mutateAsync>[0]) => {
     setFailure(null);
     try {
-      await stand.mutateAsync(action);
-      return true;
+      return await stand.mutateAsync(action);
     } catch (error) {
       setFailure(failureText(error));
-      return false;
+      return null;
     }
   };
 
   const set = async (status: ApplicationStatus) => {
-    if (!(await change({ change: "set", status }))) return;
+    const next = await change({ change: "set", status });
+    if (!next) return;
     setDating(null);
+    const frozen = next.frozen ?? [];
     setMoved({
       before: standing,
       text: isStep(status) ? `Moved to ${STATUS_LABEL[status]}.` : `Marked as ${STATUS_LABEL[status].toLowerCase()}.`,
       dated: status === "not_applied" ? null : status,
+      frozen: frozen.length > 0 ? ` ${nameVersions(frozen)} ${frozen.length === 1 ? "was" : "were"} frozen as sent.` : "",
     });
   };
 
@@ -167,6 +174,7 @@ function Body({ application }: { application: Application }) {
         : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
       dated: step,
       elsewhere: true,
+      frozen: "",
     });
   };
 
@@ -217,6 +225,14 @@ function Body({ application }: { application: Application }) {
 
   const current = stepIndex(application.step);
   const next = APPLICATION_STEPS[current + 1];
+  /** What a move out of Not applied would freeze: on the application, with a version, never sent. */
+  const unsent =
+    application.step === "not_applied"
+      ? application.documents.filter(
+          (document) =>
+            document.currentVersionNo !== null && !application.sentCopies.some((copy) => copy.ref === document.ref),
+        ).map((document) => ({ title: document.title, versionNo: document.currentVersionNo }))
+      : [];
 
   return (
     <>
@@ -262,6 +278,7 @@ function Body({ application }: { application: Application }) {
                 {moved.dated && application.dates[moved.dated]
                   ? ` Date saved as ${application.dates[moved.dated]}.`
                   : ""}
+                {moved.frozen}
               </span>
               <span className="ml-auto flex gap-8">
                 {moved.dated ? (
@@ -348,6 +365,7 @@ function Body({ application }: { application: Application }) {
               <p className="text-smaller text-text-muted">
                 A step saves today's date when you set it, and you can correct the date afterwards. A step you
                 never went through can be skipped.
+                {unsent.length > 0 ? ` It also freezes ${nameVersions(unsent)} as sent.` : ""}
               </p>
             </>
           )}
@@ -360,7 +378,7 @@ function Body({ application }: { application: Application }) {
         </div>
       </Panel>
 
-      {application.resume ? <Resume application={application} /> : null}
+      <ResumePanel application={application} onChanged={() => setMoved(null)} />
 
       <InterviewsPanel application={application} onStandingChanged={standingChangedByInterview} />
 
@@ -421,7 +439,11 @@ function nextLine(application: Application): string {
   if (application.quietDays !== null) {
     return `nothing has changed for ${days(application.quietDays)}. Follow up, or close it as rejected or withdrawn.`;
   }
-  if (application.step === "not_applied") return "when you have sent your résumé, move this to Applied.";
+  if (application.step === "not_applied") {
+    return application.documents.length === 0
+      ? "choose the résumé for this job: make a tailored one, or use a document you already have."
+      : "when you have sent it, move this to Applied. The résumé is frozen as sent at that moment.";
+  }
   if (application.step === "offer") return "nothing is waiting here.";
   if (application.step.startsWith("interview")) {
     return "after the next interview, add how it went while you still remember it.";
@@ -527,59 +549,6 @@ function Pair({ term, children }: { term: string; children: ReactNode }) {
       <dt className="w-label shrink-0 pt-2 text-small text-text-muted">{term}</dt>
       <dd className="min-w-0 flex-1 text-text-strong break-words">{children}</dd>
     </div>
-  );
-}
-
-/**
- * The tailored résumé written for this job. It is the document it always was:
- * the same status, history, download and one action as on Home.
- */
-function Resume({ application }: { application: Application }) {
-  const generate = useGenerate();
-  const navigate = useNavigate();
-  const [failure, setFailure] = useState<string | null>(null);
-  const row = application.resume!;
-
-  const open = async () => {
-    setFailure(null);
-    try {
-      const made = await generate.mutateAsync(row.ref);
-      await navigate({ to: "/proposals/$proposalId", params: { proposalId: made.proposalId } });
-    } catch (error) {
-      setFailure(failureText(error));
-    }
-  };
-
-  return (
-    <Panel heading="Résumé for this job">
-      <p className="-mt-6 mb-12 text-ui text-text-body">
-        Written for this job from the same facts as your main résumé. The job description decides what leads
-        and what is left out; it never adds a claim that is not in your record.
-      </p>
-      {failure ? (
-        <p role="alert" className="mb-6 text-small text-text-secondary">
-          {failure}
-        </p>
-      ) : null}
-      {!application.canGenerate && !row.currentVersionId ? (
-        <p className="mb-6 text-small text-text-muted">
-          Your record holds no fact a document may use yet, so there is nothing to write it from.{" "}
-          <Link to="/documents" className={QUIET}>
-            Import a document
-          </Link>
-        </p>
-      ) : null}
-      <ul>
-        <DocumentRow
-          row={row}
-          title={row.tailored?.label || row.title}
-          note={row.tailored ? `Made ${relative(row.tailored.createdAt)}` : undefined}
-          canGenerate={application.canGenerate}
-          busy={generate.isPending}
-          onGenerate={() => void open()}
-        />
-      </ul>
-    </Panel>
   );
 }
 

@@ -6112,3 +6112,56 @@ two rules.
 
 **Revisit if:** the owner wants links in the backup after all, which is one more read in
 `GET /api/export` and a change to that sentence.
+
+### [2026-10-12] Sent copies are kept in Postgres, and an application's documents are pointer rows
+
+Issue #71. Settles what the 2026-10-11 entry "A sent copy is the file of the day" left open: where
+the bytes are kept.
+
+**The `.docx` is a `bytea` column on the copy's own row, with the page beside it as `jsonb`**
+(`04` §3.17). The move to Applied and the copies it freezes are one `db.batch`, so Applied is never
+saved with nothing kept and a copy is never kept for a move that did not happen. A file in object
+storage could not be written in that transaction, and a failed second write would leave exactly
+the half-saved state the Screen 14 spec rules out. The files are tens of kilobytes and there is one
+user. The page is stored, never rebuilt: rebuilding it would read today's profile and today's
+record.
+
+**What an application is sending is a separate table of pointer rows**, `application_documents`.
+A document on an application before Applied is the live document, read at its current version
+every time; it becomes a file only when it is sent. Taking one off stamps `removed_at` and deletes
+nothing. The tailored résumé is a row there too, so "written for this application"
+(`renders.application_id`) and "being sent with it" are two facts, and taking it off loses neither
+the résumé nor its versions.
+
+**A copy knows which move froze it by the step row that move wrote**, `frozen_step_id`. A date
+correction supersedes that row and writes another, and the copy is pointed at the new one, so its
+sent date follows. Undo of the move finds the copies naming a live step row and stamps
+`undone_at`; no route reads a copy so stamped. A plain move back to Not applied supersedes the row,
+which is what makes those copies stay: the row they name is no longer live. A copy recorded by
+hand names no row and is reached by neither.
+
+**"Removes the copies it froze" is a stamp, not a delete.** The 2026-10-11 entry on recordings says
+a recording is the only thing that can be removed, and that stands: an undone copy leaves every
+screen and every route and stays in the table and in the export.
+
+**An application has at most one tailored résumé, by a unique index** on `renders.application_id`.
+Two requests at once cannot make two; the second is answered with the first.
+
+**The export carries a sent copy's record and its page, not its file**, as it carries a profile
+without its photo.
+
+**On an application the untailored English résumé is called `Main résumé`** and the tailored one
+`Tailored résumé for <company>`, as the reviewed prototype has them. A copy keeps the title it was
+sent under. Screens 2, 5 and 6 keep the names they had.
+
+**Two places follow `10` where the reviewed prototype differs.** The button from Applied onward is
+`Record another sent copy`, and a document's row says nothing about being newer than what was
+sent: nothing is compared (entry "Application activity, closed-day counts and later sent copies").
+Screen 15's notice puts `Download` and `Back to the application` on its right, as `10` says, where
+the prototype stacks them under the sentence.
+
+Rejected: **R2 for the files**, above; it arrives with #76 for audio, which is large and is not
+written in the same transaction as anything. **Copying the documents onto the application when
+they are chosen**, which would freeze what nobody has sent yet. **Deleting undone copies**, which
+would be the second thing in the product that can be deleted. **Rebuilding the page from the
+version**, which is the pointer the 2026-10-11 entry rejected, by another route.

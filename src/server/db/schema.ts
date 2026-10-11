@@ -531,7 +531,9 @@ export const renders = pgTable("renders", {
   // One main document per kind. A tailored résumé is outside it: there may be
   // any number of those.
   uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind).where(sql`${t.jobDescription} is null`),
-  index("renders_application_idx").on(t.applicationId).where(sql`${t.applicationId} is not null`),
+  // An application holds at most one tailored résumé (issue #71). Two requests
+  // making one at once would both insert; this lets one through.
+  uniqueIndex("renders_application_uq").on(t.applicationId).where(sql`${t.applicationId} is not null`),
 ]);
 
 /** Accepted versions. NEVER deleted. */
@@ -776,6 +778,70 @@ export const interviewRecordings = pgTable("interview_recordings", {
   index("interview_recordings_interview_idx").on(t.userId, t.interviewId),
   check("interview_recordings_link_ck", sql`${t.kind} <> 'link' or (${t.url} is null) = (${t.removedAt} is not null)`),
   check("interview_recordings_removed_ck", sql`${t.removedAt} is null or ${t.label} = ''`),
+]);
+
+/**
+ * The documents an application is using (issue #71): its tailored résumé, and
+ * any of the main résumé, 履歴書 and 職務経歴書 beside it.
+ *
+ * A row is a pointer to a document, never a copy of one: what was sent is in
+ * `application_sent_copies`. Taking a document off sets `removed_at` and
+ * deletes nothing, so the same document can be put back.
+ */
+export const applicationDocuments = pgTable("application_documents", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  renderId: text("render_id").notNull().references(() => renders.id, { onDelete: "cascade" }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("application_documents_live_uq").on(t.applicationId, t.renderId).where(sql`${t.removedAt} is null`),
+  index("application_documents_user_idx").on(t.userId).where(sql`${t.removedAt} is null`),
+]);
+
+/**
+ * A document as it was sent (issue #71; decision log, 2026-10-11).
+ *
+ * THE FILE, not a pointer to a version. A document's name and contact lines
+ * are put on at download, and a 履歴書's three tables are filled from the record
+ * at download, so a version read back months later would carry that day's
+ * address and that day's tables. `file` is the `.docx` as it was generated the
+ * day it was sent, and `page` is what the screen shows of it, taken at the same
+ * moment. Neither is ever written again.
+ *
+ * Two things do touch a row, both the owner correcting the move that froze it.
+ * `sent_on` follows a correction of the date that move saved, for as long as
+ * `frozen_step_id` names the live row holding that date. Undo of the move sets
+ * `undone_at`, and a copy with it set is read by nothing.
+ *
+ * `title` and `version_no` are kept as they were: the company may be renamed
+ * and the document will move on.
+ */
+export const applicationSentCopies = pgTable("application_sent_copies", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  /** Which document this is a copy of. `latest` is per document. */
+  renderId: text("render_id").notNull().references(() => renders.id, { onDelete: "cascade" }),
+  renderVersionId: text("render_version_id").notNull().references(() => renderVersions.id, { onDelete: "cascade" }),
+  kind: renderKind("kind").notNull(),
+  title: text("title").notNull(),
+  versionNo: integer("version_no").notNull(),
+  filename: text("filename").notNull(),
+  file: bytea("file").notNull(),
+  page: jsonb("page").notNull(),
+  /** DAY PRECISION, as an application step's date is, and for the same reason. */
+  sentOn: date("sent_on", { mode: "string" }).notNull(),
+  /** Orders copies. The sent date can be corrected and does not. */
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The step row whose date the freezing move saved. Null on a copy recorded by hand. */
+  frozenStepId: text("frozen_step_id").references(() => applicationSteps.id, { onDelete: "set null" }),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  index("application_sent_copies_application_idx").on(t.applicationId).where(sql`${t.undoneAt} is null`),
+  index("application_sent_copies_user_idx").on(t.userId).where(sql`${t.undoneAt} is null`),
 ]);
 
 /* ------------------------------------------------------------- M2 tables */

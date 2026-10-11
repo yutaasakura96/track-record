@@ -20,6 +20,7 @@ function proposal(overrides: Partial<Proposal> = {}): Proposal {
     renderKind: "english_resume",
     renderRef: "english_resume",
     title: "Résumé (English)",
+    applicationId: null,
     status: "pending",
     generationStatus: "ready",
     error: null,

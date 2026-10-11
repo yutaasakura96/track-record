@@ -30,6 +30,8 @@ export const ID_PREFIXES = {
   interview: "int",
   interviewQuestion: "ivq",
   interviewRecording: "rec",
+  applicationDocument: "apd",
+  applicationSentCopy: "asc",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

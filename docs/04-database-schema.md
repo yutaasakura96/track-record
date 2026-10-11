@@ -62,7 +62,9 @@ users (Better Auth)
  │    ├── interviews             1:N   (the author's note of one real interview)
  │    │    ├── interview_questions 1:N  (the questions asked, each a row, in order)
  │    │    └── interview_recordings 1:N (a link to a recording kept elsewhere; the one removable row)
- │    └── renders                0:1   (the tailored résumé written for it)
+ │    ├── renders                0:1   (the tailored résumé written for it)
+ │    ├── application_documents  0:N   (the documents chosen for it; taken off, never deleted)
+ │    └── application_sent_copies 0:N  (each document as it was sent: the file, kept whole)
  ├── skill_curations             1:N   [M2]
  └── render_inclusions           1:N   [M2]
 ```
@@ -465,7 +467,8 @@ résumé reads the same index backwards, for the same reason employers do.
 
 **`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
 number of **tailored** rows (migration 0015, #57). Since #70, existing tailored rows are linked to
-applications (§3.14); making a new tailored résumé from an application is planned for #71.
+applications (§3.14), and since #71 an application makes its own (§3.17): at most one each, by the
+unique index on `application_id`.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -473,7 +476,7 @@ applications (§3.14); making a new tailored résumé from an application is pla
 | `kind` | render_kind | no | **Unique** with `user_id` among main rows: the index is partial, `where job_description is null` |
 | `job_description` | text | yes | The posting a tailored résumé is written toward, as pasted, up to 20,000 characters. **Null is what makes a row the main document.** Given to generation as text to read, never as a source of facts (`03` §6) |
 | `label` | text | yes | The author's name for a tailored résumé. Null on a main row |
-| `application_id` | text | yes | Migration 0017 (#70). FK → `applications.id` **set null**. The application a tailored résumé was written for; null on a main row. Indexed where it is set |
+| `application_id` | text | yes | Migration 0017 (#70). FK → `applications.id` **set null**. The application a tailored résumé was written for; null on a main row. **Unique** where it is set since migration 0020 (#71): one tailored résumé per application |
 | `current_version_id` | text | yes | `null` = never generated. Distinct from generated-and-unchanged (PRD §7) |
 | `stale_since_fact_count` | integer | yes | Fallback for a current version with no recorded set (`render_versions.usable_fact_ids` null): its saved usable count. Usable means accepted, neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately. Versions with a recorded set use set differences instead (decision log, 2026-10-08). Accept and restore still write this count; edit leaves it unchanged |
 
@@ -753,6 +756,76 @@ null; a removed row has an empty `label`.
   with `applications.last_activity_at` and under its conflict guard (`07` §9b).
 - **Not in the export** (S24). The entry it hangs from is.
 
+### 3.17 `application_documents` and `application_sent_copies` · migration 0020, 2026-10-12 (#71)
+
+What an application is sending, and what it sent. The two are separate tables because they answer
+different questions: the first points at a document that goes on changing, the second holds a file
+that never does.
+
+**`application_documents`** — one live row per document chosen for an application.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `apd_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `application_id` | text | no | FK → `applications.id` **cascade** |
+| `render_id` | text | no | FK → `renders.id` **cascade**. A main document (main résumé, 履歴書, 職務経歴書) or the application's own tailored résumé |
+| `removed_at` | timestamptz | yes | Null while the document is on the application. Set when it is taken off; the row stays |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Unique:** `(application_id, render_id) where removed_at is null`. **Index:** `user_id`, over the
+live rows.
+
+- **A pointer, not a copy.** The row names the document; the version read is the document's current
+  one, every time. Nothing is kept until the application is sent.
+- **The tailored résumé is a row here too.** `renders.application_id` says which application it was
+  written for; this row says it is being sent. Taking it off and putting it back leaves the résumé
+  and its versions as they were.
+- **The set can only be changed before Applied.** Afterwards a document is sent by recording a copy
+  of it, and nothing is taken off.
+
+**`application_sent_copies`** — one row per document per time it was sent.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `asc_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `application_id` | text | no | FK → `applications.id` **cascade** |
+| `render_id` | text | no | FK → `renders.id` **cascade**. Which document this is a copy of; "the latest copy" is per document |
+| `render_version_id` | text | no | FK → `render_versions.id` **cascade**. The version the file was built from. Kept for the record; **nothing is read through it** |
+| `kind` | render_kind | no | As sent |
+| `title` | text | no | As sent: `Main résumé`, `履歴書`, `職務経歴書`, or `Tailored résumé for <company>` with the company's name of that day |
+| `version_no` | integer | no | As sent |
+| `filename` | text | no | The download's name, as sent |
+| `file` | bytea | no | **The `.docx` as generated the day it was sent.** Never written again |
+| `page` | jsonb | no | What the screen shows of it (`SentPage`, `src/render/sent-page.ts`), taken at the same moment from the same inputs as the file. Never written again |
+| `sent_on` | date | no | **A real day** (§0), as a step's `happened_on` is. The date of the step the freezing move reached, or today in Japan for a copy recorded by hand |
+| `recorded_at` | timestamptz | no | Orders copies. The latest copy of a document is the one most recently recorded, never the one with the latest `sent_on` |
+| `frozen_step_id` | text | yes | FK → `application_steps.id` **set null**. The step row whose date the freezing move saved. Null on a copy recorded by hand |
+| `undone_at` | timestamptz | yes | Set when the move that froze the copy is undone. A copy with it set is read by no route |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Index:** `application_id` and `user_id`, each over the rows with `undone_at` null.
+
+- **The file, not a pointer to a version.** A document's name and contact lines are put on at
+  download and a 履歴書's tables are filled from the record at download, so a version read back
+  later would carry that day's address and that day's tables. The bytes and the page are stored
+  instead, in Postgres: one user, files of tens of kilobytes, and one `db.batch` that saves the move
+  and the copies together or neither (decision log, 2026-10-12).
+- **Two columns can change, both by the owner correcting the move that froze the copy.** `sent_on`
+  follows a correction of that step's date: the correction supersedes the step row, and the copy is
+  pointed at the new one. `undone_at` is set by Undo of that move, found by `frozen_step_id` naming
+  a live step row. A move back to Not applied that is not an Undo supersedes the row, so the copy
+  stops following and stays.
+- **Written at two moments.** A move out of Not applied, whichever step it lands on, freezes every
+  document on the application that has a version and no live copy. `Record another sent copy`
+  freezes the documents picked, always, with no comparison against earlier copies.
+- **A file that cannot be built refuses the move.** The files are built before anything is saved,
+  so Applied is never saved with nothing kept.
+- **Carry-over.** Migration 0020 lists each tailored résumé that 0017 linked as a document of its
+  application. `down/0020_application_documents.sql` reverses it, and
+  `tests/applications-migration.test.ts` runs both directions.
+
 ---
 
 ## 4. The 履歴書 field contract
@@ -970,13 +1043,17 @@ technologies: {AWS, VPC, IAM}
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
 | `interviews`, `interview_questions` | **Never deleted.** An entry is saved once |
 | `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). The link and its label are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
+| `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
+| `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
-| Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |
+| Anything | **No general soft-delete column.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight. The stamps that exist each record one named act: `superseded_at`, `removed_at`, `undone_at` |
 
 **Export (S15)** reads every table above except `sessions`, `accounts` and `interview_recordings`
 (S24: a recording is not in the exported record, a link to one included), and emits JSON:
 every entity, every provenance and disclosure value, and every evidence pointer.
+A sent copy is exported as its record and its `page`, without `file`: bytes are not inlined into a JSON backup, as
+the profile photo is not. Rows stamped `removed_at` or `undone_at` are exported too.
 
 > **Known tension, recorded rather than resolved.** "Never deleted" is correct for a single-user
 > system of record and **wrong the moment the data belongs to someone else** — a right-of-erasure
@@ -990,7 +1067,7 @@ every entity, every provenance and disclosure value, and every evidence pointer.
 
 **Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
 `last_activity_at` and the changes counted as activity, §3.15 the interview entries and their
-questions (#72), and §3.16 a recording kept as a link (#74). Screen 12 in `10` specifies the later document and upload changes. Step, close, interview and
+questions (#72), and §3.16 a recording kept as a link (#74), and §3.17 the documents and sent copies (#71). Screen 12 in `10` specifies the later upload changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent
@@ -1000,7 +1077,7 @@ out of Not applied freezes every document on the application that has no sent co
 copy` freezes any document the owner picks, always, with no comparison against earlier copies, so
 one document can have several copies and two of them may carry the same version. The list row
 reads the latest copy per document, which is the most recently recorded, never the one with the
-latest sent date. The issues that build these tables define
+latest sent date. The issues that build the remaining tables define
 their final columns and migrations.
 
 - Migrations are generated by `drizzle-kit` and committed as **plain SQL**, reviewed before applying.

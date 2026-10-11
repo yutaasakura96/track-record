@@ -47,6 +47,8 @@ export async function proposalResponse(
     /** What the render routes address this document by, and what it is called. */
     renderRef: refOf(render),
     title: titleOf(render),
+    /** The application a tailored résumé belongs to, which is where its review returns to. */
+    applicationId: render.applicationId,
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
     generationStatus: proposal.generationStatus,

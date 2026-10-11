@@ -30,10 +30,9 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { DOCX_MIME, downloadFilename, toDocx } from "~/render/docx";
-import { buildRirekisho, rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
-import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
-import type { RenderIdentity } from "~/render/identity";
+import { DOCX_MIME } from "~/render/docx";
+import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
+import { buildDocumentFile, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -734,90 +733,30 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // not served under the main résumé's address, nor the reverse.
     const version = await requireVersion(db, user.id, target, versionId);
 
-    const content = version.content as RenderContent;
-
-    /**
-     * **Enforcement point 4 at the last render time there is** (issue #17). A
-     * version is a snapshot of what could be rendered in August, not a standing
-     * permission to keep rendering it. A fact set Private in September is
-     * withheld from the file that leaves the tool in September, whatever the
-     * stored content says.
-     *
-     * `409` rather than the restore route's `422`: restore submits content to
-     * be made current and the content is what fails validation, while a
-     * download asks for a file the record's CURRENT state will not allow. The
-     * ids are named because a refusal the author cannot act on is a dead end —
-     * the way out is the hand-edit route, which lifts the block and produces a
-     * version that downloads (`docs/06`, 2026-09-12 third entry).
-     */
-    const record = await collectEditableRecord(db, user.id);
-    const withheld = badCitations(citedFactIds(content), record);
-    if (withheld.length > 0) {
-      throw new ApiError("conflict", citationMessage(withheld), {
-        facts: withheld.map((b) => ({ factId: b.factId, problem: b.problem })),
-      });
-    }
-
-    const title = RENDER_TITLE[kind];
-    const filename = downloadFilename(kind, format, version.acceptedAt, render?.label ? { label: render.label, id: render.id } : null);
-
-    // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
-    // derived from the record rather than read out of the version, its identity
-    // block comes from the profile row, and the only generated text in it is
-    // the two prose blocks. The submission date is stamped now, in Tokyo, and
-    // the age is computed against it (`docs/04` §4).
-    if (kind === "rirekisho") {
-      if (format === "md") {
+    if (format === "md") {
+      const content = version.content as RenderContent;
+      // Withheld before the file is assembled, as the `.docx` is (`../services/document-file`).
+      await refuseWithheldCitations(db, user.id, content);
+      if (kind === "rirekisho") {
         throw new ApiError("conflict", "A 履歴書 is a form and is produced as .docx only.");
       }
-      const profile = await collectRirekishoProfile(db, user.id);
-      const record = await collectRirekishoRecord(db, user.id);
-      let filled: Uint8Array;
-      try {
-        filled = buildRirekisho({ profile, record, submittedOn: tokyoToday(), content });
-      } catch {
-        console.error(JSON.stringify({ event: "docx_build_failed", versionId }));
-        throw new ApiError(
-          "internal",
-          "That document could not be assembled. Your saved version is unchanged.",
-        );
-      }
-      return new Response(filled as BodyInit, {
-        headers: {
-          "content-type": DOCX_MIME,
-          "content-disposition": `attachment; filename="${filename}"`,
-        },
-      });
-    }
-
-    // Read at download rather than stored with the version: the identity block
-    // is not a claim about a career, and an accepted version must not go stale
-    // because a phone number changed (`src/render/identity.ts`).
-    const identity = await renderIdentity(db, user.id);
-
-    if (format === "md") {
-      return new Response(toMarkdown(content, title, kind, identity, tokyoToday()), {
+      // Read at download rather than stored with the version: the identity block
+      // is not a claim about a career, and an accepted version must not go stale
+      // because a phone number changed (`src/render/identity.ts`).
+      const identity = await renderIdentity(db, user.id);
+      return new Response(toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday()), {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filename}"`,
+          "content-disposition": `attachment; filename="${filenameFor(render, kind, format, version)}"`,
         },
       });
     }
 
-    let bytes: Uint8Array;
-    try {
-      bytes = await toDocx(content, title, kind, identity, tokyoToday());
-    } catch {
-      // The download fails; the stored content is untouched and the next
-      // download can succeed.
-      console.error(JSON.stringify({ event: "docx_build_failed", versionId }));
-      throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
-    }
-
-    return new Response(bytes as BodyInit, {
+    const file = await buildDocumentFile(db, user.id, kind, render, version);
+    return new Response(file.bytes as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-disposition": `attachment; filename="${file.filename}"`,
       },
     });
   });
@@ -863,41 +802,6 @@ const proposalWaiting = (target: RenderRef, proposalId: string | null) =>
     `${target.title} has a proposal waiting. Accept or dismiss it before generating again.`,
     proposalId ? { proposalId } : undefined,
   );
-
-/**
- * The identity block's source, narrowed to the three fields a header may read.
- * The restricted PII columns are never selected, so they cannot reach a render
- * by accident — `src/render/identity.ts` and `docs/04` §3.2.
- *
- * A missing profile is a precondition failure, not a nameless document: nothing
- * can be generated without one (`requiredProfileFields`), so its absence at
- * download time means the row went away underneath an existing version.
- */
-async function renderIdentity(db: Db, userId: string): Promise<RenderIdentity> {
-  const [profile] = await db
-    .select({
-      nameLatin: profiles.nameLatin,
-      familyNameKanji: profiles.familyNameKanji,
-      givenNameKanji: profiles.givenNameKanji,
-      email: profiles.email,
-    })
-    .from(profiles)
-    .where(eq(profiles.userId, userId))
-    .limit(1);
-
-  if (!profile) {
-    throw preconditionFailed(
-      "That document cannot be assembled without your name. Add it to your profile and download again.",
-      ["nameLatin"],
-    );
-  }
-
-  return {
-    nameLatin: profile.nameLatin,
-    nameKanji: `${profile.familyNameKanji} ${profile.givenNameKanji}`.trim(),
-    email: profile.email,
-  };
-}
 
 /**
  * A main document's `renders` row is created on first generation, not on

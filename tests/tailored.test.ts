@@ -8,8 +8,9 @@
  * own id so that it and the main résumé never serve each other's versions.
  *
  * Since issue #70 it lives inside an application, which is where its status is
- * read from here. The ones in these tests are seeded as migration 0017 leaves
- * one, because no route makes one yet. Every entry here is INVENTED.
+ * read from here. The ones in these tests are seeded as migrations 0017 and
+ * 0018 leave one; making one from an application is pinned in
+ * `application-documents.test.ts`. Every entry here is INVENTED.
  */
 import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
@@ -23,12 +24,12 @@ import type { CandidateFact } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
 
 interface Tailored {
-  id: string;
   ref: string;
   kind: string;
+  title: string;
   status: string;
   currentVersionNo: number | null;
-  tailored: { label: string; createdAt: string } | null;
+  tailored: boolean;
 }
 /** A seeded résumé: its own id, which every render route takes, and its application's. */
 interface Seeded {
@@ -86,8 +87,8 @@ const createdRow = (label = "Kestrel, platform engineer", jobDescription = POSTI
   seedTailoredResume(as, label, jobDescription);
 /** The résumé as its application shows it, and whether anything can be generated. */
 const shown = async (row: Seeded, as: Client = client) => {
-  const application = await as.json<{ resume: Tailored; canGenerate: boolean }>(`/api/applications/${row.applicationId}`);
-  return { ...application.resume, canGenerate: application.canGenerate };
+  const application = await as.json<{ documents: Tailored[]; canGenerate: boolean }>(`/api/applications/${row.applicationId}`);
+  return { ...application.documents.find((document) => document.tailored)!, canGenerate: application.canGenerate };
 };
 
 function resumeFrom(text: string, factIds: string[]): RenderContent {
@@ -111,13 +112,13 @@ describe("a tailored résumé inside its application", () => {
     const row = await createdRow();
 
     expect(await shown(row)).toMatchObject({
-      id: row.id,
       // Addressed by its own id, never by its kind.
       ref: row.id,
       kind: "english_resume",
       status: "never_generated",
       currentVersionNo: null,
-      tailored: { label: "Kestrel, platform engineer" },
+      tailored: true,
+      title: "Tailored résumé for Kestrel, platform engineer",
       canGenerate: true,
     });
     expect(model.generationInputs).toEqual([]);
@@ -294,6 +295,6 @@ describe("another user's tailored résumé", () => {
     }
     // Nothing was generated for the stranger, and nothing of mine was touched.
     expect(model.generationInputs).toEqual([]);
-    expect(await shown(mine)).toMatchObject({ id: mine.id, status: "never_generated" });
+    expect(await shown(mine)).toMatchObject({ ref: mine.id, status: "never_generated" });
   });
 });

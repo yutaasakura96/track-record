@@ -30,6 +30,7 @@ import { VersionEditScreen } from "./screens/version-edit";
 import { FlaggedScreen } from "./screens/flagged";
 import { MasterDocumentScreen } from "./screens/master-document";
 import { ApplicationsScreen } from "./screens/applications";
+import { SentCopyScreen } from "./screens/sent-copy";
 import { NewApplicationScreen } from "./screens/application-new";
 import { ApplicationScreen } from "./screens/application";
 import { TooNarrow } from "./components/too-narrow";
@@ -143,6 +144,12 @@ const applicationRoute = createRoute({
   component: ApplicationScreen,
 });
 
+const sentCopyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/applications/$applicationId/sent/$copyId",
+  component: SentCopyScreen,
+});
+
 /**
  * Where the Tailored résumés screen was (issue #70). Each of those résumés is
  * an application now, so a bookmark to the old screen lands on the list that
@@ -195,6 +202,7 @@ const routeTree = rootRoute.addChildren([
   applicationsRoute,
   newApplicationRoute,
   applicationRoute,
+  sentCopyRoute,
   tailoredRoute,
   factReviewRoute,
   diffReviewRoute,

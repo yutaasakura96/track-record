@@ -16,6 +16,7 @@ import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { ScreenIntro } from "../components/screen-intro";
 import { FilterPill } from "../components/ui";
 import { QUIET_DAYS, bucketOf, type StatusBucket } from "~/shared/application";
+import { nameVersion } from "~/shared/application-documents";
 
 /** `Button`'s primary, for a control that is a link and so cannot be a `Button`. */
 const PRIMARY =
@@ -188,10 +189,10 @@ function Row({ row }: { row: ApplicationRow }) {
   );
 }
 
-/** The résumé written for the job, and whether it has gone anywhere yet. */
+/** The latest sent copy of each document, or what is chosen and not sent yet. */
 function resumeLine(row: ApplicationRow): string {
-  if (!row.resume) return "No résumé yet";
-  if (row.resume.versionNo === null) return `${row.resume.title}, not generated yet`;
-  const named = `${row.resume.title} v${row.resume.versionNo}`;
-  return row.step === "not_applied" ? `${named}, not sent` : named;
+  const { documents, sent } = row.resume;
+  if (documents.length === 0) return "No résumé yet";
+  const named = documents.map(nameVersion).join(" + ");
+  return sent ? named : `${named}, not sent`;
 }

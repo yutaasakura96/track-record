@@ -291,9 +291,35 @@ it is never out of date and there is no second copy to keep in step.
    Diff Review opens as in Flow 3; accepting, dismissing, editing, restoring and downloading use
    the same document routes. A refusal or an abandoned proposal leaves the existing résumé intact.
 
-The former Tailored résumés screen and `POST /api/tailored-resumes` are gone. Making a new tailored
-résumé from an application is #71. See Screen 14 in `10-screen-specifications.md` for the current
-entry point and `07-api-design.md` §7 for the document routes.
+The former Tailored résumés screen and `POST /api/tailored-resumes` are gone. A new tailored
+résumé is made from its application (Flow 12). See Screen 14 in `10-screen-specifications.md` for
+the entry point and `07-api-design.md` §7 for the document routes.
+
+---
+
+## Flow 12 · Choose what to send, and keep what was sent · #71
+
+1. **Applications** → an application at Not applied. Under **Résumé for this job**, either
+   **Make a tailored résumé** or tick documents under **Use a document you already have** and press
+   **Use the ticked documents**. Both can be done, and several documents can be on one application.
+2. **Make a tailored résumé** stores the résumé from the application's job description
+   (`POST /api/applications/:id/tailored-resume`), generates it and opens Diff Review as in Flow 3.
+   Accepting or keeping the current version returns to the application. A refusal to generate is
+   said on the application, and the résumé stays on it to generate later.
+3. Before Applied, a document can be taken off (`Take off`) and others added. Nothing is kept yet:
+   each row is the live document at its current version.
+4. **Move to Applied.** Every document on the application that has a version is frozen as sent,
+   with that day's date, and the panel says which. If a file cannot be built the move is not made
+   and the reason is said.
+5. **What you sent** lists every copy. **Read it** opens the copy as it was sent (Screen 15);
+   **Download** returns the stored file. Editing or regenerating the document afterwards, or
+   changing the profile or the record, changes neither.
+6. Later, **Record another sent copy**: tick any of the three documents or the tailored résumé and
+   press **Record the ticked documents**. Each is frozen again, dated today, beside the earlier
+   copies.
+
+Correcting the Applied date moves the sent date of the copies that move froze. Undo of the move
+takes those copies back, and the next move freezes the documents again.
 
 ---
 

@@ -45,7 +45,9 @@ const application = (standing: Standing, lastActivityOn: string, over: Partial<A
   ...figures(standing, lastActivityOn, TODAY),
   requirements: ["Idempotent APIs and event streams"],
   jobDescription: POSTING,
-  resume: null,
+  documents: [],
+  choices: [],
+  sentCopies: [],
   canGenerate: true,
   interviews: [],
   today: TODAY,
@@ -66,7 +68,7 @@ const row = (
   lastActivityAt: `${lastActivityOn}T03:00:00.000Z`,
   ...standing,
   ...figures(standing, lastActivityOn, TODAY),
-  resume: null,
+  resume: { documents: [], sent: false },
   ...over,
 });
 
@@ -200,12 +202,12 @@ describe("the list of applications", () => {
     openList([
       row("app-test-kestrel", "Kestrel, platform engineer", at("not_applied", { not_applied: "2026-10-07" }), "2026-10-07", {
         position: "",
-        resume: { title: "Résumé for Kestrel, platform engineer", versionNo: 2 },
+        resume: { documents: [{ title: "Tailored résumé for Kestrel, platform engineer", versionNo: 2 }], sent: false },
       }),
     ]);
     const kestrel = within(await screen.findByRole("link", { name: "Open Kestrel, platform engineer" }));
     expect(kestrel.getByText("Position not filled in")).toBeTruthy();
-    expect(kestrel.getByText("Résumé for Kestrel, platform engineer v2, not sent")).toBeTruthy();
+    expect(kestrel.getByText("Tailored résumé for Kestrel, platform engineer v2, not sent")).toBeTruthy();
   });
 
   it("opens an application from its row", async () => {

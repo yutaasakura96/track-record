@@ -443,6 +443,44 @@ Then a link is drawn with its label or `Recording kept elsewhere`, its address, 
 And an address that is not http or https is never drawn as something to open
 And a link that is not one is refused without a request, with what was typed kept
 And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
+### 2.6l A sent copy is the file of the day, and nothing later reaches it
+
+`tests/application-documents.test.ts`, `tests/applications-migration.test.ts` (0020) and
+`tests/client/application-resume.test.tsx` (#71). The clock is set.
+
+```
+Given an application at Not applied
+Then the main résumé, 履歴書 and 職務経歴書 are offered, and one with no version cannot be ticked
+And several can be on it at once, beside a tailored résumé made from its job description
+And an application has one tailored résumé: asked again, it is the same one
+
+When it moves out of Not applied, to Applied or straight to a later step
+Then every document on it with a version is frozen as sent, with that day's date
+And a document that cannot be frozen refuses the move, and nothing is saved
+
+Given a sent copy
+When the document gets a later version, the author's name and address change, or the record changes
+Then the copy's file and its page are byte for byte what they were
+And the company renamed later does not rename the copy
+And no route changes a copy
+
+When the Applied date is corrected
+Then the copies that move froze follow it, and a copy from an earlier move does not
+When the move is undone
+Then the copies it froze are gone from every read, and a copy recorded by hand stays
+When the status is moved back and forward again
+Then the copies stay and the same document is not frozen twice
+
+When another sent copy is recorded, from Applied onward
+Then each ticked document is frozen again, always, and the latest is the one most recently recorded
+And it takes a document not on the application, and a tailored résumé made after Applied
+And before Applied it is refused
+
+Given tailored résumés linked by migration 0017
+When migration 0020 runs
+Then each is listed as a document of its application, and the down script removes only what it added
+
+And another user's application, document or sent copy is a 404 on every route here
 ```
 
 ### 2.7 Failure never destroys a stored version
