@@ -143,7 +143,8 @@ function NewInterview({
 
   const onKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
     // Not while an input method is composing: that Enter confirms a conversion, not the question.
-    if (event.key !== "Enter" || event.nativeEvent.isComposing) return;
+    // Safari sends it after composition ends, `isComposing` false, with keyCode 229.
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
     event.preventDefault();
     addDraft();
   };
