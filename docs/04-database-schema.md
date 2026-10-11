@@ -656,9 +656,9 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
 
 - **A step passed over has no row.** Moving from Applied to First interview leaves Résumé passed
   without a date until the author adds one, and the figure that counts from it reads as a dash.
-- **A row is never updated or deleted.** A corrected date supersedes the old row and inserts a new
-  one, in one `db.batch` with the update of `applications`, so the earlier date is kept. Superseded
-  rows are in the export.
+- **A saved date is never overwritten or deleted.** A corrected date marks the old row superseded
+  and inserts a new one, in one `db.batch` with the update of `applications`, so the earlier date is
+  kept. Superseded rows are in the export.
 - **Nothing is stored that can be counted.** "How long since" the résumé passed and the first
   interview are counted on read from `happened_on` to today; gone quiet is `last_activity_at` 14 or
   more days ago while `current_step` is Applied, Résumé passed or an interview and `closed_as` is
@@ -901,10 +901,9 @@ every entity, every provenance and disclosure value, and every evidence pointer.
 
 ## 7. Migration and environment notes
 
-**Planned Applications schema (#70–#76):** an application owns one `last_activity_at` timestamp,
-set on creation and on every owner change to its record, including status and date corrections,
-interview changes, document choices and sent copies, job-field edits, and recording changes.
-List ordering and the derived gone-quiet mark use this timestamp. Step, close, interview and
+**Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
+`last_activity_at` and the changes counted as activity. Screen 12 in `10` specifies the later
+interview, document and recording changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent

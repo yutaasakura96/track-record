@@ -88,7 +88,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   └── rirekisho.blank.docx    # 履歴書 grid, every value stripped (built by scripts/)
 ├── src/
 │   ├── client/                 # React SPA
-│   │   ├── screens/            # fact-review, diff-review, overview, flagged, master-document, tailored
+│   │   ├── screens/            # fact-review, diff-review, overview, flagged, master-document, applications
 │   │   ├── components/
 │   │   ├── components/ui/      # shadcn — owned, restyled to doc 05
 │   │   ├── stores/             # Zustand — UI state only

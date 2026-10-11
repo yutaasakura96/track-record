@@ -33,7 +33,7 @@ the interface.
 - **`Applications` takes the `Tailored résumés` row** (specified 2026-10-11, #60; built by #70), last
   in the list. It carries a second line, `N gone quiet`, the applications marked gone quiet (Screen
   12), shown only above zero and set in `text-muted` as Flagged's line is: it is advice, and
-  nothing is held back by it. Until #70 the row is still `Tailored résumés`
+  nothing is held back by it
 - **Since 2026-10-08 that line reads `N facts to sort`** (#57). A fact imported since then never
   waits, so the count is only the facts found before, and what they wait for is one press, not a
   review each (Screen 3). **The Flagged row carries its own line, `N to check`**, the flags not

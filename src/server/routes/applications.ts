@@ -364,7 +364,7 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
  * Makes the stored dates match a standing, in one transaction, and marks the
  * application as changed now. A date that differs from the live row's
  * supersedes that row and writes a new one; a date that is gone supersedes its
- * row; nothing is updated in place or deleted.
+ * row; saved dates are not overwritten or deleted.
  */
 async function saveStanding(db: Db, userId: string, applicationId: string, live: StepRow[], next: Standing) {
   const liveBy = new Map(live.map((row) => [row.status as ApplicationStatus, row]));
