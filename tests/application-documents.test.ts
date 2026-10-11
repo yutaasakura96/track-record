@@ -507,6 +507,29 @@ describe("moving back, and undoing", () => {
     expect(corrected.sentCopies.map((copy) => copy.sentOn)).toEqual([dateAfter(0)]);
   });
 
+  it("freezes a newly attached document when Undo restores Applied", async () => {
+    const { made, after } = await applied();
+    await move(made.id, "not_applied");
+    await accept("shokumu_keirekisho", content("夜間バッチを短縮。"));
+    await choose(made.id, ["english_resume", "shokumu_keirekisho"]);
+
+    vi.setSystemTime(dayAfter(2));
+    const response = await client.put(`/api/applications/${made.id}/standing`, {
+      step: after.step,
+      closedAs: null,
+      dates: after.dates,
+    });
+    expect(response.status).toBe(200);
+    const restored = (await response.json()) as Detail;
+    expect(restored.step).toBe("applied");
+    expect(restored.frozen).toEqual([{ title: "職務経歴書", versionNo: 1 }]);
+    expect(restored.sentCopies.map((copy) => [copy.title, copy.sentOn])).toEqual([
+      ["職務経歴書", after.dates.applied],
+      ["Main résumé", after.dates.applied],
+    ]);
+    expect(restored.sentCopies.find((copy) => copy.title === "Main résumé")?.id).toBe(after.sentCopies[0]!.id);
+  });
+
   it("takes back the copies a move froze when that move is undone, and freezes them again on the next move", async () => {
     const { made, before, after } = await applied();
     expect(after.sentCopies).toHaveLength(1);

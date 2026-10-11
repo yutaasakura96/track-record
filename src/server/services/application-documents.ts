@@ -231,7 +231,7 @@ export async function readResumeLines(
   return lines;
 }
 
-/** The documents on an application that a move out of Not applied freezes: on it, with a version, never sent. */
+/** The documents on an application that a standing transition freezes: on it, with a version, never sent. */
 export async function unsentDocuments(db: Db, userId: string, applicationId: string): Promise<RenderRow[]> {
   const [on, sent] = await db.batch([
     db

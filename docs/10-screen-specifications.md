@@ -1507,7 +1507,7 @@ says `Reopened at <step>.`
 - **Any step can be set from any other.** Setting an earlier step leaves the later ones not
   reached and without a date on the screen; sent copies stay.
 - **A step set saves today's date**, a step skipped over saves none.
-- **Moving from Not applied to any later step freezes every document on the application that has
+- **Moving from Not applied to any later step, or arriving at Applied through a move or Undo, freezes every attached document that has
   no sent copy yet** (#71). One that already has a copy, after a move back, is not frozen again by
   the move; `Record another sent copy` is for that.
 - **Closing is not a step.** It keeps the step reached, and the list counts the application under
@@ -1560,8 +1560,8 @@ copy, earlier copies of the same document included, most recently recorded first
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
   own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
   that move removes the copies it froze (Status).
-- **Copies are frozen at two moments and no other.** The move out of Not applied freezes the
-  documents that have no sent copy yet (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
+- **Copies are frozen at two moments and no other.** A move out of Not applied or any arrival at Applied, including Undo, freezes the
+  attached documents that have no sent copy yet (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
   document as a further sent copy, dated today, and says `<title> v<N> frozen as sent today.` It
   takes any document: one not yet on the application, which is added to it; one already sent, the
   same one again; or a tailored résumé made after Applied.

@@ -1073,9 +1073,9 @@ other document.
   the copy.
 - **`page`** is `{ stamp, name, contact, sections: [{ heading, blocks: [{ kind, text }] }] }`: what
   the file said, stored with it. It is never rebuilt from the record.
-- **The freeze.** `POST …/steps` and `PUT …/standing` that take an application out of Not applied,
-  to any step, freeze every document on it that has a version and no copy yet, dated with the day
-  the move saved. The files are built first, and one that cannot be built (a citation withheld
+- **The freeze.** A move out of Not applied to any step, or any arrival at Applied including
+  `PUT …/standing` Undo, freezes every attached document with a version and no copy yet, dated with the day
+  that step saved. Documents with a copy are left alone. The files are built first, and one that cannot be built (a citation withheld
   since, `409`) refuses the move with nothing saved.
 - **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that

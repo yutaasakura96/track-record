@@ -817,8 +817,8 @@ live rows.
   pointed at the new one. `undone_at` is set by Undo of that move, found by `frozen_step_id` naming
   a live step row. A move back to Not applied that is not an Undo supersedes the row, so the copy
   stops following and stays.
-- **Written at two moments.** A move out of Not applied, whichever step it lands on, freezes every
-  document on the application that has a version and no live copy. `Record another sent copy`
+- **Written at two moments.** A move out of Not applied, whichever step it lands on, and every
+  arrival at Applied, including Undo, freeze each attached document that has a version and no live copy. `Record another sent copy`
   freezes the documents picked, always, with no comparison against earlier copies.
 - **A file that cannot be built refuses the move.** The files are built before anything is saved,
   so Applied is never saved with nothing kept.
@@ -1073,7 +1073,7 @@ date. Each sent copy is its own record with the document identity, version, froz
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent
 date follows a correction of the Applied date when that move froze it, and Undo of the move that
 froze copies removes those copies (`10`, Screen 13). Copies are written at two moments: the move
-out of Not applied freezes every document on the application that has no sent copy yet, and from Applied onward `Record another sent
+out of Not applied or an arrival at Applied, including Undo, freezes every attached document that has no sent copy yet, and from Applied onward `Record another sent
 copy` freezes any document the owner picks, always, with no comparison against earlier copies, so
 one document can have several copies and two of them may carry the same version. The list row
 reads the latest copy per document, which is the most recently recorded, never the one with the

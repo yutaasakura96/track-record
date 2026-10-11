@@ -480,13 +480,13 @@ export async function saveStanding(
 
   let frozen: NamedVersion[] = [];
   const copies: BatchItem<"pg">[] = [];
-  if (kind === "move" && leaving) {
+  if ((kind === "move" && leaving) || (previous.currentStep !== "applied" && next.step === "applied")) {
     // Built before anything is saved: a file that cannot be made refuses the
     // move, so Applied is never saved with nothing kept.
     const made = await freezeDocuments(db, userId, previous, await unsentDocuments(db, userId, applicationId), {
       sentOn: next.dates[next.step]!,
       recordedAt: now,
-      frozenStepId: written.find((row) => row.status === next.step)!.id,
+      frozenStepId: (written.find((row) => row.status === next.step) ?? live.find((step) => step.status === next.step))!.id,
     });
     frozen = made.named;
     copies.push(...made.rows.map((copy) => db.insert(applicationSentCopies).values(copy)));
