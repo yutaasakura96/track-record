@@ -64,7 +64,3 @@ export const questionsIn = (text: string): string[] =>
     .split(/\r?\n/)
     .map((line) => line.replace(/^\s*(?:(?:[-*]|\d+[.)])\s+|[•・]\s*)/, "").trim())
     .filter((line) => line !== "");
-
-/** Newest day first, and of two on one day the one noted later first. */
-export const newestFirst = <T extends { date: string; createdAt: string }>(entries: readonly T[]): T[] =>
-  [...entries].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));

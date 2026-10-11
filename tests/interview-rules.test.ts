@@ -4,7 +4,7 @@
  * new entry starts on, and how typed or pasted text becomes separate questions.
  */
 import { describe, expect, it } from "vitest";
-import { defaultRound, newestFirst, questionsIn, standingAfterInterview } from "~/shared/interview";
+import { defaultRound, questionsIn, standingAfterInterview } from "~/shared/interview";
 import type { Standing } from "~/shared/application";
 
 describe("the standing after an interview entry", () => {
@@ -81,16 +81,5 @@ describe("the questions in typed or pasted text", () => {
       "*When should we retry?",
     ]);
     expect(questionsIn("•And then?\n・志望動機は何ですか")).toEqual(["And then?", "志望動機は何ですか"]);
-  });
-});
-
-describe("the order entries are shown in", () => {
-  it("is newest day first, and of two on one day the one noted later first", () => {
-    const entries = [
-      { id: "a", date: "2026-02-20", createdAt: "2026-02-20T03:00:00.000Z" },
-      { id: "b", date: "2026-02-27", createdAt: "2026-02-27T03:00:00.000Z" },
-      { id: "c", date: "2026-02-20", createdAt: "2026-03-01T03:00:00.000Z" },
-    ];
-    expect(newestFirst(entries).map((entry) => entry.id)).toEqual(["b", "c", "a"]);
   });
 });

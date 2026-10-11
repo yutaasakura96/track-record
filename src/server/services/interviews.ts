@@ -6,10 +6,10 @@
  * `routes/interviews.ts` writes through that file's standing, and neither
  * imports the other's half.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { interviewQuestions, interviews } from "../db/schema";
-import { newestFirst, type Interview } from "~/shared/interview";
+import type { Interview } from "~/shared/interview";
 
 /**
  * An application's entries, newest day first, each with its questions in the
@@ -24,10 +24,10 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         round: interviews.round,
         who: interviews.who,
         howItWent: interviews.howItWent,
-        createdAt: interviews.createdAt,
       })
       .from(interviews)
-      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId))),
+      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId)))
+      .orderBy(desc(interviews.happenedOn), desc(interviews.createdAt), desc(interviews.id)),
     db
       .select({ id: interviewQuestions.id, interviewId: interviewQuestions.interviewId, text: interviewQuestions.text })
       .from(interviewQuestions)
@@ -39,12 +39,10 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
       .orderBy(asc(interviewQuestions.position)),
   ]);
 
-  return newestFirst(entries.map((entry) => ({ ...entry, createdAt: entry.createdAt.toISOString() }))).map(
-    ({ createdAt: _createdAt, ...entry }) => ({
-      ...entry,
-      questions: questions
-        .filter((question) => question.interviewId === entry.id)
-        .map(({ id, text }) => ({ id, text })),
-    }),
-  );
+  return entries.map((entry) => ({
+    ...entry,
+    questions: questions
+      .filter((question) => question.interviewId === entry.id)
+      .map(({ id, text }) => ({ id, text })),
+  }));
 }
