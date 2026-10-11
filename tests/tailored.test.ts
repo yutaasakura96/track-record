@@ -6,13 +6,16 @@
  * pinned here: it is given no fact the main résumé is not given, it is a
  * proposal read as a diff like every other document, and it is addressed by its
  * own id so that it and the main résumé never serve each other's versions.
- * Every entry here is INVENTED.
+ *
+ * Since issue #70 it lives inside an application, which is where its status is
+ * read from here. The ones in these tests are seeded as migration 0017 leaves
+ * one, because no route makes one yet. Every entry here is INVENTED.
  */
 import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
+import { harness, settle, stubModel, type Client, type Harness, type SeededUser, type StubModel } from "./helpers/harness";
+import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, seedTailoredResume, uploadForm } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
 import { renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
@@ -26,6 +29,11 @@ interface Tailored {
   status: string;
   currentVersionNo: number | null;
   tailored: { label: string; createdAt: string } | null;
+}
+/** A seeded résumé: its own id, which every render route takes, and its application's. */
+interface Seeded {
+  id: string;
+  applicationId: string;
 }
 
 const POSTING = "Platform engineer. You will run the batch platform for a logistics marketplace.";
@@ -52,12 +60,14 @@ const GENERATED: CandidateFact = {
 
 let model: StubModel;
 let app: Harness;
+let user: SeededUser;
 let client: Client;
 
 beforeEach(async () => {
   model = stubModel();
   app = harness(model);
-  client = app.as(await seedAllowedUser());
+  user = await seedAllowedUser();
+  client = app.as(user);
 });
 
 /** A profile, an employer and three facts, of which one may be used. */
@@ -72,11 +82,13 @@ async function seedRecord(as: Client = client) {
   return { usable: items.find((f) => f.claim === USABLE.claim)! };
 }
 
-const create = async (label = "Kestrel, platform engineer", jobDescription = POSTING, as: Client = client) =>
-  as.post("/api/tailored-resumes", { label, jobDescription });
-const createdRow = async (label?: string, jobDescription?: string, as: Client = client) =>
-  (await (await create(label, jobDescription, as)).json()) as Tailored;
-const list = (as: Client = client) => as.json<{ items: Tailored[]; canGenerate: boolean }>("/api/tailored-resumes");
+const createdRow = (label = "Kestrel, platform engineer", jobDescription = POSTING, as: SeededUser = user): Promise<Seeded> =>
+  seedTailoredResume(as, label, jobDescription);
+/** The résumé as its application shows it, and whether anything can be generated. */
+const shown = async (row: Seeded, as: Client = client) => {
+  const application = await as.json<{ resume: Tailored; canGenerate: boolean }>(`/api/applications/${row.applicationId}`);
+  return { ...application.resume, canGenerate: application.canGenerate };
+};
 
 function resumeFrom(text: string, factIds: string[]): RenderContent {
   return {
@@ -93,37 +105,22 @@ async function generate(ref: string, content: RenderContent = { sections: [] }, 
   return response;
 }
 
-describe("creating a tailored résumé", () => {
-  it("stores the name and the job description, and generates nothing", async () => {
+describe("a tailored résumé inside its application", () => {
+  it("is a document of its own, addressed by its id, with nothing generated yet", async () => {
     await seedRecord();
-    const response = await create();
-    expect(response.status).toBe(201);
-    const row = (await response.json()) as Tailored;
+    const row = await createdRow();
 
-    expect(row).toMatchObject({
+    expect(await shown(row)).toMatchObject({
+      id: row.id,
+      // Addressed by its own id, never by its kind.
+      ref: row.id,
       kind: "english_resume",
       status: "never_generated",
       currentVersionNo: null,
       tailored: { label: "Kestrel, platform engineer" },
+      canGenerate: true,
     });
-    // Addressed by its own id, never by its kind.
-    expect(row.ref).toBe(row.id);
     expect(model.generationInputs).toEqual([]);
-
-    const one = await client.json<Tailored & { jobDescription: string }>(`/api/tailored-resumes/${row.id}`);
-    expect(one.jobDescription).toBe(POSTING);
-  });
-
-  it("allows any number of them, newest first, with the job description out of the listing", async () => {
-    await seedRecord();
-    const first = await createdRow("Kestrel, platform engineer");
-    const second = await createdRow("Plinth, backend engineer", "Backend engineer for a tide-table service.");
-    const third = await createdRow("Kestrel, platform engineer");
-
-    const body = await list();
-    expect(body.items.map((row) => row.id).sort()).toEqual([first.id, second.id, third.id].sort());
-    expect(body.canGenerate).toBe(true);
-    expect(JSON.stringify(body)).not.toContain("logistics marketplace");
   });
 
   it("leaves the five main documents as they were", async () => {
@@ -135,29 +132,10 @@ describe("creating a tailored résumé", () => {
     expect(items.every((row) => row.tailored === null && row.status === "never_generated")).toBe(true);
   });
 
-  it("refuses one with no name or no job description, and says which", async () => {
-    const unnamed = await client.post("/api/tailored-resumes", { label: "  ", jobDescription: POSTING });
-    expect(unnamed.status).toBe(422);
-    expect(JSON.stringify(await unnamed.json())).toContain("Name this résumé");
-
-    const empty = await client.post("/api/tailored-resumes", { label: "Kestrel", jobDescription: "" });
-    expect(empty.status).toBe(422);
-    expect(JSON.stringify(await empty.json())).toContain("Paste the job description");
-
-    const tooLong = await client.post("/api/tailored-resumes", { label: "Kestrel", jobDescription: "a".repeat(20_001) });
-    expect(tooLong.status).toBe(422);
-    expect((await list()).items).toEqual([]);
-  });
-
-  it("does not accept a kind in a tailored résumé request", async () => {
-    const response = await client.post("/api/tailored-resumes", { label: "Kestrel", jobDescription: POSTING, kind: "rirekisho" });
-    expect(response.status).toBe(422);
-  });
-
   it("says there is nothing to generate from while no fact is usable", async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
     const row = await createdRow();
-    expect((await list()).canGenerate).toBe(false);
+    expect((await shown(row)).canGenerate).toBe(false);
     expect((await generate(row.id)).status).toBe(428);
   });
 });
@@ -189,13 +167,13 @@ describe("generating a tailored résumé", () => {
       await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
     ).json()) as { proposalId: string };
 
-    expect((await list()).items[0]).toMatchObject({ status: "proposal_pending", currentVersionNo: null });
+    expect(await shown(row)).toMatchObject({ status: "proposal_pending", currentVersionNo: null });
     const proposal = await client.json<{ title: string; renderRef: string }>(`/api/proposals/${proposalId}`);
     expect(proposal).toMatchObject({ title: "Résumé for Kestrel, platform engineer", renderRef: row.id });
     expect((await client.get(`/api/proposals/${proposalId}/diff`)).status).toBe(200);
 
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
-    expect((await list()).items[0]).toMatchObject({ status: "up_to_date", currentVersionNo: 1 });
+    expect(await shown(row)).toMatchObject({ status: "up_to_date", currentVersionNo: 1 });
   });
 
   it("refuses a second proposal while one waits, and holds only its own document", async () => {
@@ -272,10 +250,10 @@ describe("generating a tailored résumé", () => {
       .from(renderVersions)
       .where(eq(renderVersions.renderId, row.id));
     expect(version!.usableFactIds).toEqual([usable.id]);
-    expect((await list()).items[0]).toMatchObject({ status: "up_to_date", newFactsSince: 0, withdrawnFactsSince: 0 });
+    expect(await shown(row)).toMatchObject({ status: "up_to_date", newFactsSince: 0, withdrawnFactsSince: 0 });
 
     await client.patch(`/api/facts/${usable.id}`, { disclosure: "private" });
-    expect((await list()).items[0]).toMatchObject({ status: "stale", newFactsSince: 0, withdrawnFactsSince: 1 });
+    expect(await shown(row)).toMatchObject({ status: "stale", newFactsSince: 0, withdrawnFactsSince: 1 });
   });
 
   it("withholds the file once a fact it cites is made Private, as the main résumé's is", async () => {
@@ -299,8 +277,8 @@ describe("another user's tailored résumé", () => {
     const other = app.as(await seedAllowedUser(SECOND_EMAIL));
     await seedRecord(other);
 
-    expect((await list(other)).items).toEqual([]);
-    expect((await other.get(`/api/tailored-resumes/${mine.id}`)).status).toBe(404);
+    expect((await other.json<{ items: unknown[] }>("/api/applications")).items).toEqual([]);
+    expect((await other.get(`/api/applications/${mine.applicationId}`)).status).toBe(404);
     for (const [method, path] of [
       ["POST", `/api/renders/${mine.id}/generate`],
       ["GET", `/api/renders/${mine.id}/versions`],
@@ -316,6 +294,6 @@ describe("another user's tailored résumé", () => {
     }
     // Nothing was generated for the stranger, and nothing of mine was touched.
     expect(model.generationInputs).toEqual([]);
-    expect((await list()).items[0]).toMatchObject({ id: mine.id, status: "never_generated" });
+    expect(await shown(mine)).toMatchObject({ id: mine.id, status: "never_generated" });
   });
 });

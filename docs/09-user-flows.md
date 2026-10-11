@@ -283,30 +283,17 @@ it is never out of date and there is no second copy to keep in step.
 
 ---
 
-## Flow 11 · Generate a résumé tailored to a job · M3 (#57)
+## Flow 11 · Open a carried-over tailored résumé · M3 (#57, #70)
 
-1. Sidebar → **Tailored résumés**. The **New tailored résumé** form is at the top of the screen.
-2. Author names it (the company and role) and pastes the job description, or presses **Read it from
-   a text file** and chooses a `.txt` or `.md` file whose content fills the box. **Generate résumé**
-   → `POST /api/tailored-resumes` → `201`.
-3. The client asks for its first version → `POST /api/renders/:ref/generate`, with the new résumé's
-   id as the ref. The model is given the same facts the main résumé is given, and the job
-   description as text to read.
-4. **Diff Review opens**, exactly as in Flow 3: the proposal is read and accepted or rejected.
-5. The résumé is listed with its name, version and status. It is regenerated, edited, restored and
-   downloaded like any document, under its own id. **Any number can be made.**
+1. Sidebar → **Applications** → the application made from the tailored résumé. Its page shows the
+   résumé under **Résumé for this job**.
+2. Generate or update it with `POST /api/renders/:ref/generate`, using its résumé id as the ref.
+   Diff Review opens as in Flow 3; accepting, dismissing, editing, restoring and downloading use
+   the same document routes. A refusal or an abandoned proposal leaves the existing résumé intact.
 
-| Step | What can go wrong | What the author sees |
-|---|---|---|
-| 2 | No name, no job description, or one over 20,000 characters | The button is disabled and says why. The server refuses the same with `422`. Nothing created |
-| 2 | The record holds no fact a document may use | The button reads **Save**: the résumé is named and kept, and nothing is generated |
-| 3 | A profile field the résumé needs is missing | The same refusal Flow 3 gives, in the same words. **The tailored résumé is kept**, so Generate is offered on its row once the cause is fixed |
-| 3 | Anthropic unavailable | As Flow 3: nothing is applied, the résumé stays listed as never generated |
-| 3 | The job description asks for something the record does not hold | It is not invented. A tailored résumé is written only from facts, and every block still cites the facts it rests on |
-| 3 | The job description contains instructions to the model | It is passed as text to read, marked as a job description, and the rules it is read under are the system prompt's |
-
-**If abandoned:** at step 2, nothing exists. After step 2, the named résumé exists with no version.
-After step 3, the proposal waits, as every proposal does.
+The former Tailored résumés screen and `POST /api/tailored-resumes` are gone. Making a new tailored
+résumé from an application is #71. See Screen 14 in `10-screen-specifications.md` for the current
+entry point and `07-api-design.md` §7 for the document routes.
 
 ---
 

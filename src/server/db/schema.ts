@@ -9,12 +9,13 @@
  *   - text primary keys generated with nanoid(), matching Better Auth
  *   - created_at / updated_at on every table
  *   - user_id on every record-bearing table; EVERY query filters by it
- *   - MONTH PRECISION on all calendar columns: `date` with the day pinned to
- *     `01`, never rendered. Forms collect month and year only.
+ *   - MONTH PRECISION on the record's calendar columns: `date` with the day
+ *     pinned to `01`, never rendered. Forms collect month and year only.
+ *     `application_steps.happened_on` is the one day-precision date, and says why.
  */
 import {
   pgTable, pgEnum, text, integer, bigint, boolean, timestamp, date, jsonb, doublePrecision,
-  index, uniqueIndex, customType, primaryKey,
+  index, uniqueIndex, customType, primaryKey, check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -73,6 +74,15 @@ export const chunkStatus = pgEnum("chunk_status", ["pending", "done", "failed"])
  * it likely restates a fact already in the record, and may disagree with it.
  */
 export const factFlagKind = pgEnum("fact_flag_kind", ["confidential", "number", "unsure", "repeat"]);
+/**
+ * The fixed list an application's status is taken from (issue #70): seven
+ * steps in order, then the two ways of closing. `src/shared/application.ts`
+ * holds the same list and the rules for moving through it.
+ */
+export const applicationStatus = pgEnum("application_status", [
+  "not_applied", "applied", "resume_passed", "interview_1", "interview_2", "interview_final", "offer",
+  "rejected", "withdrawn",
+]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -495,6 +505,12 @@ export const renders = pgTable("renders", {
   jobDescription: text("job_description"),
   /** The author's name for a tailored résumé. Null on a main document. */
   label: text("label"),
+  /**
+   * The application a tailored résumé belongs to (issue #70). Null on a main
+   * document. `job_description` stays written beside it, because that column
+   * is what keeps a tailored résumé out of the one-per-kind index below.
+   */
+  applicationId: text("application_id").references(() => applications.id, { onDelete: "set null" }),
   /** null = NEVER GENERATED, which is distinct from generated-and-unchanged. */
   currentVersionId: text("current_version_id"),
   staleSinceFactCount: integer("stale_since_fact_count"),
@@ -503,6 +519,7 @@ export const renders = pgTable("renders", {
   // One main document per kind. A tailored résumé is outside it: there may be
   // any number of those.
   uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind).where(sql`${t.jobDescription} is null`),
+  index("renders_application_idx").on(t.applicationId).where(sql`${t.applicationId} is not null`),
 ]);
 
 /** Accepted versions. NEVER deleted. */
@@ -605,6 +622,80 @@ export const renderProposals = pgTable("render_proposals", {
   uniqueIndex("render_proposals_one_waiting_uq")
     .on(t.renderId)
     .where(sql`${t.status} = 'pending' and ${t.generationStatus} <> 'failed'`),
+]);
+
+/* ----------------------------------------------------------- applications */
+
+/**
+ * One job the author is looking at or has applied for (issue #70). NEVER
+ * deleted: one added by mistake is withdrawn.
+ *
+ * Where it stands is two columns: the step it is at, and how it closed if it
+ * did. A closed application keeps its step, so reopening it returns it there.
+ * Gone quiet and the "how long since" figures are worked out on read and are
+ * stored nowhere: the figures from the dates in `application_steps`, and gone
+ * quiet from `last_activity_at`.
+ */
+export const applications = pgTable("applications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  company: text("company").notNull(),
+  /** Empty only on an application carried over from a tailored résumé, until the author fills it in. */
+  position: text("position").notNull(),
+  postingUrl: text("posting_url"),
+  /**
+   * The posting as the author pasted it. Somebody else's text: never a source
+   * of facts, never logged, and absent from the listing.
+   */
+  jobDescription: text("job_description").notNull(),
+  requirements: text("requirements").array().notNull().default(sql`'{}'`),
+  currentStep: applicationStatus("current_step").notNull().default("not_applied"),
+  closedAs: applicationStatus("closed_as"),
+  /**
+   * When the author last changed what this application records: a status set,
+   * a date corrected, and later an interview noted or a document added or
+   * sent. The list is ordered by it and gone quiet is counted from it, so a
+   * step entered late with an old date does not read as weeks of silence
+   * (decided in the review of issue #69). Correcting the company or the
+   * position is not activity and leaves it alone, which is why this is not
+   * `updated_at`.
+   */
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps,
+}, (t) => [
+  index("applications_user_idx").on(t.userId),
+  check("applications_current_step_ck", sql`${t.currentStep} not in ('rejected', 'withdrawn')`),
+  check("applications_closed_as_ck", sql`${t.closedAs} in ('rejected', 'withdrawn')`),
+]);
+
+/**
+ * The date of each status an application has reached (issue #70).
+ *
+ * One live row per status that has a date: the day the job was added under
+ * `not_applied`, a row per step reached, and the day it closed. A step passed
+ * over has no row. A change never updates or deletes a row: it sets
+ * `superseded_at` on the row it replaces and inserts the new one, so a
+ * corrected date, a step moved back from and an undone change all stay on
+ * record.
+ */
+export const applicationSteps = pgTable("application_steps", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  status: applicationStatus("status").notNull(),
+  /**
+   * DAY PRECISION, the one calendar column that is. "16 days since the first
+   * interview" needs days. The month rule is about the career record, and this
+   * is not part of it; nothing here reaches a render.
+   */
+  happenedOn: date("happened_on", { mode: "string" }).notNull(),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  // Two requests changing one application at once would both insert. This lets
+  // one through, and the other is told to reload.
+  uniqueIndex("application_steps_live_uq").on(t.applicationId, t.status).where(sql`${t.supersededAt} is null`),
+  index("application_steps_user_idx").on(t.userId).where(sql`${t.supersededAt} is null`),
 ]);
 
 /* ------------------------------------------------------------- M2 tables */

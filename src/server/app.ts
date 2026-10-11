@@ -27,6 +27,7 @@ import { registerFactRoutes } from "./routes/facts";
 import { registerFlagRoutes } from "./routes/flags";
 import { registerMasterRoutes } from "./routes/master";
 import { registerRenderRoutes } from "./routes/renders";
+import { registerApplicationRoutes } from "./routes/applications";
 import { registerOverviewRoutes } from "./routes/overview";
 
 export interface AppOptions {
@@ -65,6 +66,7 @@ export function createApp(options: AppOptions = {}) {
   registerFlagRoutes(app);
   registerMasterRoutes(app);
   registerRenderRoutes(app);
+  registerApplicationRoutes(app);
   registerOverviewRoutes(app);
 
   return app;

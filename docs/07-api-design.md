@@ -601,11 +601,12 @@ neither a kind nor one of the session's tailored résumés is `404`. A version b
 document: asked for under another's ref it is `404`. A response that carried `renderKind` carries
 `renderRef` and `title` beside it.
 
+The three `/api/tailored-resumes` routes were removed on 2026-10-11 (#70): a tailored résumé is
+read with its application (§9b), and every `:ref` route below still serves it. Until #71 no route
+makes a new one.
+
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `GET` | `/api/tailored-resumes` | M3 | `{ items, canGenerate }`: the tailored résumés, newest first, each in the shape of a `GET /api/renders` item. No job description in the listing |
-| `POST` | `/api/tailored-resumes` | M3 | Body `{ label, jobDescription }` → `201` + the row. **Generates nothing**: the client then calls `generate` with the row's `ref`, so a refusal there is said as it is everywhere. `422` for an empty name, an empty job description, one over 20,000 characters, or an extra field (including `kind`). The created row's kind is always `english_resume` |
-| `GET` | `/api/tailored-resumes/:id` | M3 | One row, with its `jobDescription` |
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
@@ -851,7 +852,6 @@ and the home screen waited for all of them.
   "unconfirmed": { "importId": "sdv_…", "count": 3, "total": 16 },
   "flagged": 14,
   "documents": [],
-  "tailored": [],
   "canGenerate": true,
   "isEmpty": false
 }
@@ -874,7 +874,6 @@ every version. It is where the Not confirmed row and its step open Fact Review. 
 the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
 a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
-`tailored` is the `items` of `GET /api/tailored-resumes`.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
 
@@ -927,6 +926,61 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
   record holds only one. `alternateName` is the employer's name in the other language, or `null`
   when the record holds one. Every fact, every count and the grouping are the same in both. The
   file's headings, dates and opening lines are in that language too.
+
+---
+
+## 9b. Applications · #70
+
+A job the author is looking at or has applied for (`04` §3.14). Entered by hand: no route here
+reaches a model. The rules are `src/shared/application.ts`, which the screens read too.
+
+| Method | Path | Notes |
+|---|---|---|
+| `GET` | `/api/applications` | `{ items, today }`, newest activity first. No job description in the listing |
+| `POST` | `/api/applications` | Body `{ company, position, jobDescription, postingUrl?, requirements? }` → `201` + the application, at Not applied with today as the day it was added. `422` for an empty company, position or job description, a job description over 20,000 characters, a link that is not `http(s)`, or an extra field |
+| `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements` and `resume` |
+| `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`. **The job description is not editable.** Does not count as activity |
+| `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either |
+| `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
+| `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
+| `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date |
+
+```json
+{
+  "id": "app_4Hq2", "company": "Fernhill Robotics", "position": "Senior Backend Engineer",
+  "postingUrl": "https://jobs.example.com/fernhill", "lastActivityAt": "2026-10-02T03:10:00Z",
+  "step": "interview_2", "closedAs": null,
+  "dates": { "not_applied": "2026-09-01", "applied": "2026-09-03", "resume_passed": "2026-09-12",
+             "interview_1": "2026-09-24", "interview_2": "2026-10-02" },
+  "daysSinceResumePassed": 28, "daysSinceFirstInterview": 16, "daysSinceClosed": null,
+  "daysSinceLastActivity": 8, "quietDays": null,
+  "requirements": [], "jobDescription": "…", "resume": null, "canGenerate": true, "today": "2026-10-10"
+}
+```
+
+- **A listing item is the same without `requirements`, `jobDescription`, `canGenerate` and
+  `today`**, and its `resume` is `{ title, versionNo }` or `null`. In the single read `resume` is
+  the tailored résumé as a `GET /api/renders` item (§7), or `null` when the application has none.
+- **`step` is one of the seven steps and `closedAs` is `rejected`, `withdrawn` or `null`.** A closed
+  application keeps the step it was closed at.
+- **`dates` holds a day for each status that has one.** `not_applied` is the day the job was added.
+  A step passed over is absent.
+- **Moving back drops the dates of the steps after the one moved to**, and saves today under that
+  one. The rows are superseded, not deleted, and Undo puts them back.
+- **Every figure is counted on the read**, to `today`, which is the day in Japan.
+  `daysSinceResumePassed` and `daysSinceFirstInterview` count from those steps' dates and are
+  `null` where the step has none. `daysSinceLastActivity` counts from `lastActivityAt`.
+  **`quietDays` is that same count once it reaches 14 while the step is Applied, Résumé passed or
+  an interview and the application is open, and `null` otherwise.**
+- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date**, so not
+  on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
+  day saved again, the step it is already at, the standing it already has. That one answers with
+  the application, writes nothing and logs nothing. The list is ordered by it.
+- Every write answers with the application as it is afterwards. Another user's application is
+  `404` on every route.
+- Logged: `application_created` with the id and the job description's length, and
+  `application_standing_set` with the id, `step` and `closedAs`. Never the company, the position
+  or any of the text.
 
 ---
 

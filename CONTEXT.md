@@ -134,8 +134,8 @@ it and is not it).
 One job the author is looking at or has applied for. It holds the job description as posted, the
 company and the position read from it, the documents for that job, its Status steps, its Sent
 copies and its Interview entries. Never deleted: one added by mistake is closed as Withdrawn.
-Its last activity is the time the owner last changed the application record, kept on the
-Application; step and interview dates describe when events happened, not when the record changed.
+Its last activity is the time the owner last changed how it is going, not its job fields, kept on
+the Application; step and interview dates describe when events happened, not when the record changed.
 **Its company is not an Employer and its position is not a Role.** Those are the record, what the
 author has done; an Application names somewhere the author has not worked, in the posting's words.
 Nothing in an Application is a Fact, and none of it is a source of facts.

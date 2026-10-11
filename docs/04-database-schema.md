@@ -29,6 +29,8 @@ is a bug in one of them, not a matter of interpretation.
   **never rendered**. `date` is kept rather than a year/month integer pair because it sorts, compares
   and subtracts with ordinary Postgres date functions. Forms collect month and year only — the
   author should never have to invent the day they started a job in 2016.
+  **One exception:** `application_steps.happened_on` (§3.14) is a real day. It is not a date in
+  the career record and reaches no document; "16 days since the first interview" needs days.
 - **Money and headcount** (`資本金`, `従業員数`) are `bigint` and `integer`. 資本金 is stored in **yen**,
   not 万円, and formatted at render time.
 
@@ -54,6 +56,9 @@ users (Better Auth)
  ├── renders                     1:N   (one main row per render type, and any number tailored)
  │    ├── render_versions        1:N   (accepted, dated, never deleted)
  │    └── render_proposals       1:N   (pending or dismissed — NOT versions)
+ ├── applications                1:N   (a job being looked at or applied for)
+ │    ├── application_steps      1:N   (the date of each status reached; superseded, never deleted)
+ │    └── renders                0:1   (the tailored résumé written for it)
  ├── skill_curations             1:N   [M2]
  └── render_inclusions           1:N   [M2]
 ```
@@ -89,6 +94,9 @@ create type import_status as enum ('queued', 'extracting', 'ready', 'failed');
 create type generation_status as enum ('generating', 'ready', 'failed');
 create type chunk_status  as enum ('pending', 'done', 'failed');
 create type fact_flag_kind as enum ('confidential', 'number', 'unsure', 'repeat');
+create type application_status as enum ('not_applied', 'applied', 'resume_passed', 'interview_1',
+                                         'interview_2', 'interview_final', 'offer',
+                                         'rejected', 'withdrawn');
 ```
 
 ---
@@ -450,8 +458,8 @@ résumé reads the same index backwards, for the same reason employers do.
 ### 3.10 `renders`, `render_versions`, `render_proposals`
 
 **`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
-number of **tailored** rows (migration 0015, #57). A tailored row is created when the author names
-it and pastes the job description, before anything is generated.
+number of **tailored** rows (migration 0015, #57). Since #70, existing tailored rows are linked to
+applications (§3.14); making a new tailored résumé from an application is planned for #71.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
@@ -459,6 +467,7 @@ it and pastes the job description, before anything is generated.
 | `kind` | render_kind | no | **Unique** with `user_id` among main rows: the index is partial, `where job_description is null` |
 | `job_description` | text | yes | The posting a tailored résumé is written toward, as pasted, up to 20,000 characters. **Null is what makes a row the main document.** Given to generation as text to read, never as a source of facts (`03` §6) |
 | `label` | text | yes | The author's name for a tailored résumé. Null on a main row |
+| `application_id` | text | yes | Migration 0017 (#70). FK → `applications.id` **set null**. The application a tailored résumé was written for; null on a main row. Indexed where it is set |
 | `current_version_id` | text | yes | `null` = never generated. Distinct from generated-and-unchanged (PRD §7) |
 | `stale_since_fact_count` | integer | yes | Fallback for a current version with no recorded set (`render_versions.usable_fact_ids` null): its saved usable count. Usable means accepted, neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately. Versions with a recorded set use set differences instead (decision log, 2026-10-08). Accept and restore still write this count; edit leaves it unchanged |
 
@@ -605,6 +614,60 @@ step writes no second. **Index:** `(user_id, checked_at)`, the list and its coun
 The `repeat` flag stores that a pair exists and not which facts make it: the pair is computed on the
 read (§3.12), so the stored row cannot name a fact that has since been rejected. Flags are in the
 export (S15). A rejected fact's flags are kept and left off the list.
+
+### 3.14 `applications` and `application_steps` · migration 0017, 2026-10-11 (#70)
+
+A job the author is looking at or has applied for, and the date of each status it has reached.
+Entered by hand. Its rules are one module, `src/shared/application.ts`, read by the routes and by
+the screens.
+
+**`applications`**
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `app_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `company` | text | no | |
+| `position` | text | no | Empty on a row carried over from a tailored résumé, until the author fills it in |
+| `posting_url` | text | yes | An `http(s)` link to the posting. Never fetched |
+| `job_description` | text | no | As pasted, up to 20,000 characters. **Not changed after the row is made.** Somebody else's text: never a source of facts, never logged |
+| `requirements` | text[] | no | Default `{}`. The key requirements, typed by the author |
+| `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
+| `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
+| `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone. **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Index:** `user_id`.
+
+**`application_steps`** — one live row per dated status, with earlier dates kept as superseded rows.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `aps_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `application_id` | text | no | FK → `applications.id` **cascade** |
+| `status` | application_status | no | A step, or `rejected` / `withdrawn` for the day it was closed. `not_applied` holds the day the job was added |
+| `happened_on` | date | no | **A real day** (§0). Saved as today, in Japan time, when the status is set; correctable; never in the future |
+| `superseded_at` | timestamptz | yes | Null on the live row. Set when the date is corrected, the step is moved back past, or the application is reopened |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Unique:** `(application_id, status) where superseded_at is null`, so a status has at most one live
+date. **Index:** `user_id`, over the live rows, which is the read behind the list.
+
+- **A step passed over has no row.** Moving from Applied to First interview leaves Résumé passed
+  without a date until the author adds one, and the figure that counts from it reads as a dash.
+- **A saved date is never overwritten or deleted.** A corrected date marks the old row superseded
+  and inserts a new one, in one `db.batch` with the update of `applications`, so the earlier date is
+  kept. Superseded rows are in the export.
+- **Nothing is stored that can be counted.** "How long since" the résumé passed and the first
+  interview are counted on read from `happened_on` to today; gone quiet is `last_activity_at` 14 or
+  more days ago while `current_step` is Applied, Résumé passed or an interview and `closed_as` is
+  null.
+- **Carry-over.** Migration 0017 makes one application per tailored résumé (`renders` with a
+  `job_description`): its label as the company, an empty position, its job description, Not applied
+  on the day it was made, and `renders.application_id` pointing back. No row of `renders` loses
+  anything. `src/server/db/migrations/down/0017_applications.sql` reverses the migration; it is run
+  by hand and `tests/applications-migration.test.ts` runs both directions.
 
 ---
 
@@ -820,6 +883,7 @@ technologies: {AWS, VPC, IAM}
 | `facts` with `status = 'rejected'` | **Never deleted.** Retaining them is what stops a re-import re-offering them |
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
+| `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
 | Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |
@@ -837,10 +901,9 @@ every entity, every provenance and disclosure value, and every evidence pointer.
 
 ## 7. Migration and environment notes
 
-**Planned Applications schema (#70–#76):** an application owns one `last_activity_at` timestamp,
-set on creation and on every owner change to its record, including status and date corrections,
-interview changes, document choices and sent copies, job-field edits, and recording changes.
-List ordering and the derived gone-quiet mark use this timestamp. Step, close, interview and
+**Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
+`last_activity_at` and the changes counted as activity. Screen 12 in `10` specifies the later
+interview, document and recording changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent

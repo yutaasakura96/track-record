@@ -204,7 +204,7 @@ const DOCUMENTS = {
 /* --------------------------------------------------------------- populated */
 
 /** Where a failed Generate is said: beside the button that was pressed. */
-type GenerateFrom = "next" | "documents" | "tailored";
+type GenerateFrom = "next" | "documents";
 
 function PopulatedRecord({
   data,
@@ -276,13 +276,6 @@ function PopulatedRecord({
             busy={generate.isPending}
             failure={failed("documents")}
             onGenerate={(ref) => void onGenerate(ref, "documents")}
-          />
-          <TailoredResumes
-            rows={data.tailored}
-            canGenerate={data.canGenerate}
-            busy={generate.isPending}
-            failure={failed("tailored")}
-            onGenerate={(ref) => void onGenerate(ref, "tailored")}
           />
           <Backup />
         </div>
@@ -784,67 +777,6 @@ function MasterDocumentRow({ language, facts }: { language: DocumentLanguage; fa
         </Link>
       </div>
     </li>
-  );
-}
-
-/** How many tailored résumés Home lists before it points at the screen that lists them all. */
-const TAILORED_ON_HOME = 3;
-
-/**
- * The newest tailored résumés, and the way to the rest (issue #57). A row here
- * is the row on the Tailored résumés screen: same status, same one action.
- */
-function TailoredResumes({
-  rows,
-  canGenerate,
-  busy,
-  failure,
-  onGenerate,
-}: {
-  rows: RenderRow[];
-  canGenerate: boolean;
-  busy: boolean;
-  failure: string | null;
-  onGenerate: (ref: string) => void;
-}) {
-  return (
-    <Section
-      heading="Tailored résumés"
-      about="Your English résumé, rewritten for one job from the same facts. Paste a job description to make one."
-      action={
-        <Link to="/tailored" className={`shrink-0 ${QUIET}`}>
-          {rows.length === 0 ? "Make one" : "Open tailored résumés"}
-        </Link>
-      }
-    >
-      {failure === null && rows.length === 0 ? null : (
-        <>
-          {failure ? (
-            <p role="alert" className="mb-6 text-small text-text-secondary">
-              {failure}
-            </p>
-          ) : null}
-          <ul>
-            {rows.slice(0, TAILORED_ON_HOME).map((row) => (
-              <DocumentRow
-                key={row.ref}
-                row={row}
-                title={row.tailored?.label ?? row.title}
-                note={row.tailored ? `Made ${relative(row.tailored.createdAt)}` : undefined}
-                canGenerate={canGenerate}
-                busy={busy}
-                onGenerate={() => onGenerate(row.ref)}
-              />
-            ))}
-          </ul>
-          {rows.length > TAILORED_ON_HOME ? (
-            <p className="mt-6 text-small text-text-muted">
-              And {number(rows.length - TAILORED_ON_HOME)} more on the Tailored résumés screen.
-            </p>
-          ) : null}
-        </>
-      )}
-    </Section>
   );
 }
 

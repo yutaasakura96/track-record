@@ -7,14 +7,12 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { collectRenderInputs, generateIntoProposal } from "../services/render";
-import { parseBody } from "../services/validate";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
@@ -46,22 +44,6 @@ import {
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
-/** Long enough for any posting; short enough that a pasted file of something else is refused. */
-const JOB_DESCRIPTION_MAX = 20_000;
-
-const tailoredBody = z.strictObject({
-  label: z
-    .string()
-    .trim()
-    .min(1, "Name this résumé, for example the company and the role.")
-    .max(120, "Keep the name under 120 characters."),
-  jobDescription: z
-    .string()
-    .trim()
-    .min(1, "Paste the job description this résumé is for.")
-    .max(JOB_DESCRIPTION_MAX, `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`),
-});
-
 export function registerRenderRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
 
@@ -71,61 +53,6 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const state = await renderState(db, user.id);
     return c.json({ items: state.documents });
-  });
-
-  /**
-   * The tailored résumés (issue #57), newest first. Each is a document of its
-   * own, addressed by `ref` on every `/api/renders/:ref/…` route. The job
-   * description is not in the listing: it is long, and one résumé's is read
-   * from its own route.
-   */
-  api.get("/api/tailored-resumes", async (c) => {
-    const state = await renderState(c.get("db"), c.get("user").id);
-    // `canGenerate` with the list, so the screen offers no Generate into a 428.
-    return c.json({ items: state.tailored, canGenerate: state.usableFacts > 0 });
-  });
-
-  /**
-   * Names a tailored résumé and stores the job description it is written
-   * toward. It generates nothing: the client asks for the first version with
-   * the same Generate every document has, so a refusal there (no usable fact,
-   * a missing profile field) is said the way it is said everywhere else, and
-   * the résumé is still there to generate later.
-   */
-  api.post("/api/tailored-resumes", async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const body = await parseBody(c, tailoredBody);
-
-    const id = newId("render");
-    await db.insert(renders).values({
-      id,
-      userId: user.id,
-      kind: "english_resume",
-      label: body.label,
-      jobDescription: body.jobDescription,
-    });
-    // An id and a length. Never the text: a job description names a company.
-    console.log(JSON.stringify({ event: "tailored_resume_created", renderId: id, characters: body.jobDescription.length }));
-
-    const state = await renderState(db, user.id);
-    return c.json(state.tailored.find((row) => row.id === id), 201);
-  });
-
-  /** One tailored résumé, with the job description it was written toward. */
-  api.get("/api/tailored-resumes/:id", async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const id = pathParam(c, "id");
-    const [row] = await db
-      .select({ jobDescription: renders.jobDescription })
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.id, id), isNotNull(renders.jobDescription)))
-      .limit(1);
-    if (!row) throw notFound("That résumé");
-
-    const state = await renderState(db, user.id);
-    return c.json({ ...state.tailored.find((r) => r.id === id), jobDescription: row.jobDescription });
   });
 
   api.post("/api/renders/:ref/generate", async (c) => {
@@ -974,7 +901,7 @@ async function renderIdentity(db: Db, userId: string): Promise<RenderIdentity> {
 
 /**
  * A main document's `renders` row is created on first generation, not on
- * sign-up. A tailored résumé's row exists from the moment it is named.
+ * sign-up. A tailored résumé's row exists already: it is how it is addressed.
  */
 async function ensureRender(db: Db, userId: string, target: RenderRef) {
   const read = async () => {
@@ -1016,9 +943,9 @@ interface RenderState {
 }
 
 /**
- * One query set backs `GET /api/renders`, the tailored résumés and the
- * overview's Documents section. All five kinds are always reported, whether or
- * not a row exists; a tailored résumé is reported once it has been named.
+ * One query set backs `GET /api/renders`, the overview's Documents section and
+ * the résumé an application shows. All five kinds are always reported, whether
+ * or not a row exists; a tailored résumé is reported because its row does.
  */
 export async function renderState(
   db: Db,

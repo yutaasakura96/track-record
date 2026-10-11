@@ -311,8 +311,8 @@ Then it is the one of that language, and its download is that language's file
 
 ### 2.6h A tailored résumé is the main résumé's rules with a job description
 
-`tests/tailored.test.ts`, `tests/client/tailored.test.tsx`, and the prompt in `tests/prompt.test.ts`
-(#57).
+`tests/tailored.test.ts` and the prompt in `tests/prompt.test.ts` (#57). The résumé under test is
+seeded with its application, as migration 0017 leaves one: since #70 no route creates one.
 
 ```
 Given a named job description
@@ -324,6 +324,36 @@ And the result is a proposal, read as a diff and accepted, with versions apart f
 And a version asked for under another document's ref is not found
 And its file is withheld once a fact it cites is made Private, as the main résumé's is
 And another user's tailored résumé is not listed, and is a 404 on every route addressed by its id
+```
+
+### 2.6i An application's dates are saved, corrected and counted from
+
+`tests/applications.test.ts`, `tests/applications-migration.test.ts` and
+`tests/client/applications.test.tsx` (#70). The clock is set, so every day count is exact.
+
+```
+Given a job added by hand
+Then it is at Not applied, with today as the day it was added
+
+When a step is set
+Then today is saved under it, and a step passed over has no date until one is added
+When a date is corrected
+Then the figures that count from it follow, and the date it replaced is kept, superseded
+
+When nothing has changed for 14 days and it is waiting to hear back
+Then it has gone quiet, and at 13 days it has not
+And a step entered late, or one not waiting to hear back, is not quiet
+And correcting the company or the position does not count as a change
+
+When a move is undone
+Then the standing from before it is put back whole
+
+Given a tailored résumé made before migration 0017
+When the migration runs
+Then it is an application at Not applied holding its job description, and the résumé row is unchanged
+And running it again adds nothing, and the down script removes only what it added
+
+And another user's application is not listed, and is a 404 on every route addressed by its id
 ```
 
 ### 2.7 Failure never destroys a stored version

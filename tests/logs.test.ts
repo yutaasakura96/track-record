@@ -178,10 +178,19 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     model.gradings = [new ModelUnavailableError("The model service returned 529.")];
     await client.post("/api/facts/sort", {});
 
-    await client.post("/api/tailored-resumes", {
-      label: "Harrowgate Shipping, platform lead",
-      jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
-    });
+    const application = (await (
+      await client.post("/api/applications", {
+        company: "Harrowgate Shipping",
+        position: "platform lead",
+        jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
+        postingUrl: "https://jobs.example.invalid/harrowgate/platform-lead",
+        requirements: ["Has run a quayside cutover"],
+      })
+    ).json()) as { id: string };
+    await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
+    await client.patch(`/api/applications/${application.id}`, { position: "platform lead, quayside" });
+    await client.get(`/api/applications/${application.id}`);
+    await client.get("/api/applications");
     await client.get("/api/master-document");
     await client.get("/api/master-document/download");
     await client.get("/api/master-document?language=ja");
@@ -194,8 +203,10 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       "eight hours",
       "kept Private because",
       "Harrowgate",
+      "harrowgate",
       "quayside",
       "platform lead",
+      "cutover",
       "Yosuke Aoki",
     ]) {
       expect(log, `a log line contained "${needle}"`).not.toContain(needle);
@@ -204,7 +215,8 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"import_finished".*"repeats":0/);
     expect(log).toMatch(/"event":"flag_explained","flagId":"flg_/);
     expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
-    expect(log).toMatch(/"event":"tailored_resume_created","renderId":"[a-z]+_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"application_created","applicationId":"app_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"application_standing_set","applicationId":"app_[^"]+","step":"applied","closedAs":null/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });

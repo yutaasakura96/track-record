@@ -45,9 +45,10 @@ are marked as the owner's in each issue.
   日本語, each led by that language's master document. Nothing is owed by the owner.
 - **#60, Applications, specified 2026-10-11** (#69; decision log, that date): job applications
   come into scope. `CONTEXT.md`, `02` §3a and S20 to S24, and `10` Screens 12 to 15 are written, and
-  the reviewed prototype is `docs/prototype/applications-prototype.html`. Nothing is built. The
-  build is #70 to #77, in the order their `Depends on` lines give; each writes its own part of
-  `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding, before #76.
+  the reviewed prototype is `docs/prototype/applications-prototype.html`. #70 builds the list,
+  application page and status steps. #71 to #77 follow in the order their `Depends on` lines give;
+  each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
+  before #76.
 
 ## Blocked
 

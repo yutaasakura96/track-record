@@ -11,6 +11,7 @@ import { cleanup } from "@testing-library/react";
 import { useDiffStore, useReviewStore } from "~/client/stores/review";
 import { useThemeStore } from "~/client/stores/theme";
 import { useDocumentLanguageStore } from "~/client/stores/document-language";
+import { useFlashStore } from "~/client/stores/flash";
 
 if (!Element.prototype.scrollTo) {
   Element.prototype.scrollTo = function scrollTo() {};
@@ -58,4 +59,5 @@ afterEach(() => {
   useDocumentLanguageStore.getState().setLanguage("en");
   localStorage.clear();
   useDiffStore.setState({ selectedChangeId: null });
+  useFlashStore.setState({ text: null });
 });
