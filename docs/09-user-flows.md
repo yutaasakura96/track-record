@@ -307,16 +307,18 @@ entry point and `07-api-design.md` §7 for the document routes.
 3. **Save interview** → `POST /api/applications/:id/interviews`, one write. The entry and its
    questions, each its own row in order, are saved together.
 4. If the round is later than the status, the same write moves the application to that round with
-   the entry's date, and **Where it stands** says so, with `Change the date` and `Undo`. Otherwise
-   one line says `Interview saved.`
+   the entry's date. If an earlier interview round was skipped, the write fills its missing date
+   without moving the status back. **Where it stands** says which change was made, with
+   `Change the date` and `Undo`. When standing does not change, one line says `Interview saved.`
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 2 | A pasted list carries bullets or numbers | They are dropped, and each line is one question |
 | 3 | Neither how it went nor a question was given | `Write how it went, or add at least one question.` Nothing is written |
 | 3 | The save is refused or fails | The form stays open with everything typed in it, and says why |
-| 4 | The status should not have moved | `Undo` puts the status and its dates back. The entry stays |
-| 4 | The round was at or before the status, or the application is closed | The entry is saved and the status is left alone |
+| 4 | The move or filled date should be taken back | `Undo` puts the standing back. The entry stays |
+| 4 | An earlier interview round was skipped | Its missing date is filled; the status stays put and the first-interview figure follows that date |
+| 4 | The round already has a date, is Other conversation, or the application is closed | The entry is saved and the standing is left alone |
 
 **If abandoned:** `Cancel`, or leaving the page, discards what was typed. Nothing is saved until
 **Save interview**, and an entry once saved is not edited (`06`, 2026-10-12).

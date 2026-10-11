@@ -399,12 +399,14 @@ export async function saveStanding(
           update ${applications}
           set ${sql.identifier("current_step")} = ${next.step},
               ${sql.identifier("closed_as")} = ${next.closedAs},
-              ${sql.identifier("last_activity_at")} = ${now.toISOString()}::timestamptz,
+              ${sql.identifier("last_activity_at")} = greatest(
+                date_trunc('milliseconds', ${applications.lastActivityAt}) + interval '1 millisecond',
+                ${now.toISOString()}::timestamptz
+              ),
               ${sql.identifier("updated_at")} = ${now.toISOString()}::timestamptz
           where ${applications.userId} = ${userId}
             and ${applications.id} = ${applicationId}
-            and ${applications.currentStep} = ${previous.currentStep}
-            and ${applications.closedAs} is not distinct from ${previous.closedAs}
+            and date_trunc('milliseconds', ${applications.lastActivityAt}) = ${previous.lastActivityAt.toISOString()}::timestamptz
           returning 1
         )
         select 1 / count(*)::integer from changed

@@ -16,6 +16,7 @@ import { SECOND_EMAIL, seedAllowedUser } from "./helpers/seed";
 import { readStanding, saveStanding } from "~/server/routes/applications";
 import { interviews } from "~/server/db/schema";
 import { moveTo } from "~/shared/application";
+import { standingAfterInterview } from "~/shared/interview";
 
 interface Entry {
   id: string;
@@ -253,6 +254,25 @@ describe("an entry for a later round", () => {
     expect(after.daysSinceFirstInterview).toBeNull();
     expect(after.interviews).toHaveLength(1);
     expect(after.interviews[0]!.questions).toHaveLength(3);
+  });
+});
+
+describe("a standing read before a date-only change", () => {
+  it("refuses a stale move back and keeps the newly dated skipped step", async () => {
+    const { id } = await add();
+    await set(id, "interview_final");
+    const { row, steps, standing } = await readStanding(app.db, userId, id);
+    expect(standing.dates.interview_2).toBeUndefined();
+
+    await saveStanding(app.db, userId, id, row, steps, standingAfterInterview(standing, "interview_2", dateAfter(0)));
+    await expect(
+      saveStanding(app.db, userId, id, row, steps, moveTo(standing, "interview_1", dateAfter(0))),
+    ).rejects.toMatchObject({ code: "conflict", message: "This application was changed somewhere else. Reload it and try again." });
+
+    const after = await read(id);
+    expect(after.step).toBe("interview_final");
+    expect(after.dates.interview_2).toBe(dateAfter(0));
+    expect(after.dates.interview_1).toBeUndefined();
   });
 });
 
