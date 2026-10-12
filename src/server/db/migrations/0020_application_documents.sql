@@ -41,7 +41,7 @@ CREATE UNIQUE INDEX "application_documents_live_uq" ON "application_documents" U
 CREATE INDEX "application_documents_user_idx" ON "application_documents" USING btree ("user_id") WHERE "application_documents"."removed_at" is null;--> statement-breakpoint
 CREATE INDEX "application_sent_copies_application_idx" ON "application_sent_copies" USING btree ("application_id") WHERE "application_sent_copies"."undone_at" is null;--> statement-breakpoint
 CREATE INDEX "application_sent_copies_user_idx" ON "application_sent_copies" USING btree ("user_id") WHERE "application_sent_copies"."undone_at" is null;--> statement-breakpoint
-CREATE UNIQUE INDEX "renders_application_uq" ON "renders" USING btree ("application_id") WHERE "renders"."application_id" is not null;
+CREATE UNIQUE INDEX "renders_application_uq" ON "renders" USING btree ("application_id") WHERE "renders"."application_id" is not null;--> statement-breakpoint
 -- A tailored résumé is on its application from the start (issue #71). Each one
 -- that 0017 carried over is listed as a document of the application it points
 -- at. The id is the résumé's own with the prefix changed, as 0017 made its
