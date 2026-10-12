@@ -15,6 +15,8 @@ import {
   employers,
   factFlags,
   facts,
+  interviewQuestions,
+  interviews,
   profiles,
   projects,
   renderProposals,
@@ -238,6 +240,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       flagRows,
       applicationRows,
       applicationStepRows,
+      interviewRows,
+      interviewQuestionRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -267,6 +271,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(applications).where(eq(applications.userId, userId)),
       // Superseded rows too: a backup holds what the database holds.
       db.select().from(applicationSteps).where(eq(applicationSteps.userId, userId)),
+      db.select().from(interviews).where(eq(interviews.userId, userId)),
+      db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId)),
     ]);
 
     const body = {
@@ -291,6 +297,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       renderProposals: only(proposalRows),
       applications: only(applicationRows),
       applicationSteps: only(applicationStepRows),
+      interviews: only(interviewRows),
+      interviewQuestions: only(interviewQuestionRows),
     };
 
     return new Response(JSON.stringify(body, null, 2), {

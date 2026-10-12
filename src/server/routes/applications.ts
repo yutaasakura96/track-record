@@ -16,7 +16,8 @@
  * No log line here carries any of them: an id, a status, a length.
  */
 import type { Context, Hono } from "hono";
-import { and, eq, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { applicationSteps, applications, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
@@ -24,6 +25,7 @@ import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { tailoredTitle } from "../services/render-ref";
+import { interviewsOf } from "../services/interviews";
 import { renderState } from "./renders";
 import { tokyoToday } from "~/render/rirekisho";
 import {
@@ -301,14 +303,14 @@ async function requireApplication(db: Db, userId: string, id: string) {
   return row;
 }
 
-async function readStanding(db: Db, userId: string, id: string) {
+export async function readStanding(db: Db, userId: string, id: string) {
   const row = await requireApplication(db, userId, id);
   const steps = await db.select(LIVE_STEP).from(applicationSteps).where(liveSteps(userId, id));
   return { row, steps, standing: standingOf(row, steps) };
 }
 
-/** One application in full: the posting, where it stands, and its résumé if it has one. */
-async function detail(db: Db, userId: string, id: string) {
+/** One application in full: the posting, where it stands, its résumé if it has one, and its interview entries. */
+export async function detail(db: Db, userId: string, id: string) {
   const { row, standing } = await readStanding(db, userId, id);
   const [resume] = await db
     .select({ id: renders.id })
@@ -325,6 +327,7 @@ async function detail(db: Db, userId: string, id: string) {
     /** The tailored résumé written for this job, as every document list shows one. */
     resume: documents?.tailored.find((document) => document.id === resume!.id) ?? null,
     canGenerate: (documents?.usableFacts ?? 0) > 0,
+    interviews: await interviewsOf(db, userId, id),
     today,
   };
 }
@@ -340,7 +343,7 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
   const user = c.get("user");
   const db = c.get("db");
   const id = pathParam(c, "id");
-  const { steps, standing } = await readStanding(db, user.id, id);
+  const { row, steps, standing } = await readStanding(db, user.id, id);
 
   let next: Standing;
   try {
@@ -355,7 +358,7 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
     APPLICATION_STATUSES.every((status) => next.dates[status] === standing.dates[status]);
   if (same) return c.json(await detail(db, user.id, id));
 
-  await saveStanding(db, user.id, id, steps, next);
+  await saveStanding(db, user.id, id, row, steps, next);
   console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs }));
   return c.json(await detail(db, user.id, id));
 }
@@ -365,8 +368,25 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
  * application as changed now. A date that differs from the live row's
  * supersedes that row and writes a new one; a date that is gone supersedes its
  * row; saved dates are not overwritten or deleted.
+ *
+ * `previous` is the application as it was read. The write is refused as a
+ * conflict when `last_activity_at` has moved since, which every write here
+ * does, a date-only one included: the update then matches no row, and the
+ * division by its count of zero fails the whole batch. The new value is always
+ * at least a millisecond later, so two writes in one millisecond still differ.
+ *
+ * `alongside` is what else the same change writes, an interview entry and its
+ * questions, so that it and the status it moved are saved or refused together.
  */
-async function saveStanding(db: Db, userId: string, applicationId: string, live: StepRow[], next: Standing) {
+export async function saveStanding(
+  db: Db,
+  userId: string,
+  applicationId: string,
+  previous: ApplicationRow,
+  live: StepRow[],
+  next: Standing,
+  alongside: BatchItem<"pg">[] = [],
+) {
   const liveBy = new Map(live.map((row) => [row.status as ApplicationStatus, row]));
   const changed = APPLICATION_STATUSES.filter((status) => liveBy.get(status)?.happenedOn !== next.dates[status]);
   const superseded = changed.flatMap((status) => liveBy.get(status)?.id ?? []);
@@ -380,10 +400,23 @@ async function saveStanding(db: Db, userId: string, applicationId: string, live:
   const now = new Date();
   try {
     await db.batch([
-      db
-        .update(applications)
-        .set({ currentStep: next.step, closedAs: next.closedAs, lastActivityAt: now, updatedAt: now })
-        .where(and(eq(applications.userId, userId), eq(applications.id, applicationId))),
+      db.execute(sql`
+        with changed as (
+          update ${applications}
+          set ${sql.identifier("current_step")} = ${next.step},
+              ${sql.identifier("closed_as")} = ${next.closedAs},
+              ${sql.identifier("last_activity_at")} = greatest(
+                date_trunc('milliseconds', ${applications.lastActivityAt}) + interval '1 millisecond',
+                ${now.toISOString()}::timestamptz
+              ),
+              ${sql.identifier("updated_at")} = ${now.toISOString()}::timestamptz
+          where ${applications.userId} = ${userId}
+            and ${applications.id} = ${applicationId}
+            and date_trunc('milliseconds', ${applications.lastActivityAt}) = ${previous.lastActivityAt.toISOString()}::timestamptz
+          returning 1
+        )
+        select 1 / count(*)::integer from changed
+      `),
       ...superseded.map((id) =>
         db
           .update(applicationSteps)
@@ -393,10 +426,15 @@ async function saveStanding(db: Db, userId: string, applicationId: string, live:
           ),
       ),
       ...written.map((row) => db.insert(applicationSteps).values(row)),
+      ...alongside,
     ]);
   } catch (error) {
-    // Two changes read the same standing and both wrote. The index let one in.
-    if (!violatesUnique(error, "application_steps_live_uq")) throw error;
+    // 22012 is division by zero: the guard above found the application changed since it was read.
+    let stale = false;
+    for (let cause = error; cause instanceof Error; cause = cause.cause) {
+      if ((cause as Error & { code?: string }).code === "22012") stale = true;
+    }
+    if (!stale && !violatesUnique(error, "application_steps_live_uq")) throw error;
     throw new ApiError("conflict", "This application was changed somewhere else. Reload it and try again.");
   }
 }

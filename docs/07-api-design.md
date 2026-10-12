@@ -929,10 +929,11 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 
 ---
 
-## 9b. Applications · #70
+## 9b. Applications · #70, interview entries #72
 
-A job the author is looking at or has applied for (`04` §3.14). Entered by hand: no route here
-reaches a model. The rules are `src/shared/application.ts`, which the screens read too.
+A job the author is looking at or has applied for (`04` §3.14), and the interview entries on it
+(`04` §3.15). Entered by hand: no route here reaches a model. The rules are
+`src/shared/application.ts` and `src/shared/interview.ts`, which the screens read too.
 
 | Method | Path | Notes |
 |---|---|---|
@@ -944,6 +945,7 @@ reaches a model. The rules are `src/shared/application.ts`, which the screens re
 | `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
 | `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date |
+| `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **On an open application, a later round moves the step and saves its date; an earlier skipped round fills only its missing date.** The entry and standing are saved in the same transaction. `422` for a missing date, a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
 
 ```json
 {
@@ -954,12 +956,18 @@ reaches a model. The rules are `src/shared/application.ts`, which the screens re
              "interview_1": "2026-09-24", "interview_2": "2026-10-02" },
   "daysSinceResumePassed": 28, "daysSinceFirstInterview": 16, "daysSinceClosed": null,
   "daysSinceLastActivity": 8, "quietDays": null,
-  "requirements": [], "jobDescription": "…", "resume": null, "canGenerate": true, "today": "2026-10-10"
+  "requirements": [], "jobDescription": "…", "resume": null, "canGenerate": true,
+  "interviews": [
+    { "id": "int_7Rk1", "date": "2026-10-02", "round": "interview_2", "who": "R. Halloran, VP Engineering",
+      "howItWent": "A system design hour.",
+      "questions": [{ "id": "ivq_2Bc8", "text": "Design the service that assigns orders to robots." }] }
+  ],
+  "today": "2026-10-10"
 }
 ```
 
-- **A listing item is the same without `requirements`, `jobDescription`, `canGenerate` and
-  `today`**, and its `resume` is `{ title, versionNo }` or `null`. In the single read `resume` is
+- **A listing item is the same without `requirements`, `jobDescription`, `canGenerate`,
+  `interviews` and `today`**, and its `resume` is `{ title, versionNo }` or `null`. In the single read `resume` is
   the tailored résumé as a `GET /api/renders` item (§7), or `null` when the application has none.
 - **`step` is one of the seven steps and `closedAs` is `rejected`, `withdrawn` or `null`.** A closed
   application keeps the step it was closed at.
@@ -972,15 +980,32 @@ reaches a model. The rules are `src/shared/application.ts`, which the screens re
   `null` where the step has none. `daysSinceLastActivity` counts from `lastActivityAt`.
   **`quietDays` is that same count once it reaches 14 while the step is Applied, Résumé passed or
   an interview and the application is open, and `null` otherwise.**
-- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date**, so not
+- **`interviews` is every entry of the application, newest `date` first**, and of two on one day
+  the one added later first. Each carries its `questions` in the order they were given. There is no
+  route that edits or removes an entry: it is saved once.
+- **An interview entry moves the status only forward.** On an open application, an entry for an
+  earlier interview step that was skipped fills that step's missing date with the interview's day;
+  the current step does not move back. An existing step date stays as it is. For `other` and on a
+  closed application, the standing is unchanged. When the entry moves the step, steps it passes
+  over get no date, as on any move. Undo is the same `PUT …/standing` for either kind of standing
+  change, and leaves the entry in place.
+- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date, and on
+  every interview entry added, whether or not it moved the status**, so not
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
   day saved again, the step it is already at, the standing it already has. That one answers with
   the application, writes nothing and logs nothing. The list is ordered by it.
+- **A write to where an application stands is refused when the application changed after the write
+  read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
+  That covers the step, close, date, reopen and standing routes and an interview entry, and a
+  change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
+  included. The check is on `lastActivityAt`, inside the same batch as the write.
 - Every write answers with the application as it is afterwards. Another user's application is
   `404` on every route.
-- Logged: `application_created` with the id and the job description's length, and
-  `application_standing_set` with the id, `step` and `closedAs`. Never the company, the position
-  or any of the text.
+- Logged: `application_created` with the id and the job description's length,
+  `application_standing_set` with the id, `step` and `closedAs`, and `interview_added` with the two
+  ids, the round, the number of questions and `movedTo`, the step it moved the application to or
+  `null`. Never the company, the position, who an interview was with, how it went, a question or
+  any other text.
 
 ---
 

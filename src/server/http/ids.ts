@@ -27,6 +27,8 @@ export const ID_PREFIXES = {
   factFlag: "flg",
   application: "app",
   applicationStep: "aps",
+  interview: "int",
+  interviewQuestion: "ivq",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

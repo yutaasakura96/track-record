@@ -46,6 +46,7 @@ const application = (standing: Standing, lastActivityOn: string, over: Partial<A
   jobDescription: "Senior backend engineer for the fernhill warehouse fleet.",
   resume: null,
   canGenerate: true,
+  interviews: [],
   today: TODAY,
   ...over,
 });

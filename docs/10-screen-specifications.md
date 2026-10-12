@@ -1315,7 +1315,7 @@ description, the résumé sent, where it stands and how the interviews went (`02
   `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
 - **What a change is.** Each application keeps one last-activity timestamp, set when it is added
   and when the owner changes its record: setting, closing, reopening or undoing a status; adding
-  or correcting a step or close date; adding or editing an interview entry; choosing a document
+  or correcting a step or close date; adding an interview entry; choosing a document
   or recording a sent copy; attaching or removing a recording. Editing the company, position,
   link or requirements does not set it, and neither does a save that changes nothing. Event dates
   do not stand in for this timestamp. The list order, last-change count and **gone quiet** use it.
@@ -1574,16 +1574,22 @@ copy, earlier copies of the same document included, most recently recorded first
 
 #### Interviews · #72, recordings #74 and #76
 
-Panel header **`Add an interview`** (ghost). One card an interview entry, newest date first:
+Panel header **`Add an interview`** (ghost), absent while the form is open. One card an interview
+entry, newest date first, and of two on one day the one added later first. With no entry and the
+form closed: `None yet. After each one, note the date, who you spoke with, how it went and the
+questions they asked.`
 
 - One line: the round at the row-title size, the date in mono, and `with <who>` when given.
-- How it went, as a paragraph in `text-body`.
-- `Questions asked`, then the questions as a numbered list.
-- Its recordings, a row each, then **`Attach a recording`** (ghost).
+- How it went, as a paragraph in `text-body`, with the line breaks it was typed with. Left out when
+  empty.
+- `Questions asked`, then the questions as a numbered list. Left out when there are none.
+- Its recordings, a row each, then **`Attach a recording`** (ghost). Built by #74 and #76, with
+  the form's line about recordings; until then a card ends at its questions.
 
 **The form**, a card titled `New interview`, opened at the top of the panel:
 
-- `Date`, no later than today, today by default. `Round`: `First interview`, `Second interview`,
+- `Date`, required and no later than today, today by default. A cleared date blocks Save with
+  `Give the interview a date.` `Round`: `First interview`, `Second interview`,
   `Final interview`, `Other conversation`, set by default to the earliest round at or after the
   status that has no entry yet, or `Other conversation`.
 - `Who you spoke with`, placeholder `Names or roles. Kept only here.`
@@ -1591,9 +1597,13 @@ Panel header **`Add an interview`** (ghost). One card an interview entry, newest
   differently.`
 - `Questions asked`: the list so far, each with `Remove` (bare), then a field, placeholder `One
   question, then Enter`, and `Add` (ghost). `Pasting several lines adds them all at once.` A
-  leading bullet or number on a pasted line is dropped.
+  leading number, `-` or `*` is dropped only when followed by whitespace; `•` and `・` are dropped
+  with or without whitespace. An empty line is no question. When a multi-line list is pasted into
+  a draft, the draft is added first, then the pasted questions, and the field is cleared.
 - `A recording is attached after you save, from the interview's own card.`
 - **`Save interview`** (primary) and `Cancel`. What is in the question field is added on save.
+  A save the server refuses keeps the form and everything typed in it, and says why under the
+  buttons.
 
 **Rules**
 
@@ -1602,8 +1612,15 @@ Panel header **`Add an interview`** (ghost). One card an interview entry, newest
 - **Saving an entry for a later round moves the status** to that round with the entry's date, when
   the application is open and the round is not `Other conversation`. It is said where a status
   change is said: `Interview saved, and the status moved to <step> to match. Date saved as <date>.`
-  with `Change the date` and `Undo`. Undo puts the status back and keeps the entry. Otherwise it
-  says `Interview saved.`
+  with `Change the date` and `Undo`, and that notice is brought into view, since the form is
+  further down the page. The steps it passes over are skipped, as on any move. Undo puts the status
+  back and keeps the entry.
+- **An entry for an earlier skipped interview round fills that step's missing date** with the
+  entry's day on an open application, without moving the current status. It is said in Where it
+  stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.
+  A step that already has a date keeps it. `Other conversation` and entries on a closed application
+  leave the standing alone and say `Interview saved.` Every entry still counts as activity (What a change is).
+- **An entry is saved once.** There is no edit and no removal of an entry (`06`, 2026-10-12).
 - **Each question is its own item, in the order given.**
 - **No model reads an entry or writes one.**
 
@@ -1699,8 +1716,8 @@ Named so that nobody reads an unwired button as a decision.
   behaviour is what this document says.
 - **Its tailored-résumé screen is a stand-in for Screen 2**, and stacks the two columns at phone
   width. That is not a decision about Screen 2 (Responsive behaviour).
-- **Correcting an interview entry after saving** is not shown. #72 settles it; until it is
-  specified here, an entry is saved once.
+- **Correcting an interview entry after saving** is not shown, and #72 built none: an entry is
+  saved once (`06`, 2026-10-12). Editing one is a decision still to make, not an oversight.
 - **`Prototype only:` controls** (the sample postings, the sample file) and the bar above the frame
   are not part of any screen.
 

@@ -356,6 +356,43 @@ And running it again adds nothing, and the down script removes only what it adde
 And another user's application is not listed, and is a 404 on every route addressed by its id
 ```
 
+### 2.6j An interview entry keeps its questions apart, and dates skipped earlier rounds
+
+`tests/interviews.test.ts`, `tests/interview-rules.test.ts` and `tests/client/interviews.test.tsx`
+(#72). The clock is set, so every day count is exact.
+
+```
+Given an application
+When an interview entry is added
+Then it holds the day, the round, who it was with and how it went
+And each question is a row of its own, numbered in the order given, the blank ones dropped
+And an entry with neither how it went nor a question is refused, and so is a future day
+
+When the entry is for a round later than the status
+Then the status moves to that round with the entry's day, and the first-interview figure follows
+And the rounds passed over have no date
+And undoing the move puts the standing back and keeps the entry
+
+When the entry is for an earlier interview round whose date was skipped on an open application
+Then that date is filled with the entry's day, the current status stays put, and the figure follows
+And a second entry for that round does not replace the date; Undo removes the filled date, not the entry
+
+When the round already has a date, is not a round, or the application is closed
+Then the status and its dates are left alone, and the entry still counts as a change
+
+When the application was changed after a save read it, by a move or by a date alone
+Then the save is refused as changed somewhere else, and nothing of it is written
+
+On the screen
+Then several pasted lines become several questions; a leading number, `-` or `*` is dropped only with following whitespace, while `•` and `・` are dropped with or without it
+And a draft typed before the paste is saved before the pasted questions
+And the question still in the field is saved with the rest, in one write
+And clearing the date prevents the save and shows a message
+And a move is said where a status change is said, with its Undo
+
+And another user cannot add an entry to an application, and reads none of its entries
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

@@ -5937,3 +5937,58 @@ the list. The same holds for pressing Save on a date that was not changed.
 Rejected: **every owner edit counts**, which lets a spelling correction hide an application that
 has been waiting three weeks. **Counting a write whether or not it changed anything**, which makes
 the mark depend on which button was pressed, not on what the record says.
+
+### [2026-10-12] An interview entry: questions are rows, the move is part of the save, and an entry is saved once
+
+Issue #72, the build of S22. Three things the specification left to the build.
+
+**Each question is a row of `interview_questions`, with a position, and not an item in an array
+column.** The acceptance says the questions are stored as separate items in order, and an array
+would satisfy the words. A row gives a question an id. The hand-off that copies the questions asked
+(#77) reads them one by one, and anything later that points at a single question, a note on it or a
+practice round made from it, has something to point at without a migration that splits arrays.
+`requirements` on an application stays an array: nothing addresses one requirement.
+
+**The entry, its questions and the status move are one write.** `POST
+/api/applications/:id/interviews` saves all of it in one `db.batch`, through the same
+`saveStanding` every other change to where an application stands goes through, so the dates a move
+replaces are superseded and Undo is the existing `PUT …/standing`. The step's date is the entry's
+date, not today: an interview noted three days late happened three days ago, and "since the first
+interview" counts from when it happened. The round's values are the three interview steps' own
+names plus `other`, so the entry's round and the step it moves to are one word and no mapping can
+drift.
+
+Rejected: **two requests from the screen**, the entry and then the step, which can save an entry
+and fail the move, leaving exactly the disagreement the rule exists to remove. **Storing on the
+entry that it moved the status**, which would have to be kept true through every later Undo and
+date correction and is asked by nothing. **Ask each time** and **never move it** were the
+prototype's other answers to question 7 and were not chosen at the review.
+
+**An entry is saved once: no edit and no removal.** `10` left correcting an entry to this issue.
+The reviewed prototype shows none, the issue's acceptance asks for none, and nothing in this
+product is deleted. An edit raises questions the review did not see: whether the old text is kept
+as an earlier version, as a corrected step date is; whether changing an entry's round or date moves
+the status again or moves it back; and what happens to a recording attached to it. Building an
+answer to those unasked would be deciding them. Until it is decided, a mistake in an entry is
+lived with, or put right in a further entry.
+
+Revisit when the owner first wants to correct an entry, which will be soon after real use, and
+decide those three questions then.
+
+**Not built here, by the split of #60:** the recording rows and `Attach a recording` on a card,
+and the form's line `A recording is attached after you save`, belong to #74 and #76. The form does
+not promise an action the card does not yet offer.
+
+### [2026-10-12] An interview entry dates an earlier skipped interview step
+
+Issue #72, owner decision during review. When an open application has passed over an interview
+step without a date, saving an entry for that earlier round fills the missing step date with the
+interview's day. The current status does not move back. A step that already has a date keeps it;
+its date remains correctable through the ordinary step-date action. An entry for Other conversation
+or on a closed application changes no step date. This supersedes the no-date-for-earlier-round
+clause in the issue #72 API and screen specifications. The entry, its questions and any step date
+are saved in the same batch. Undo restores the standing from before the entry and keeps the entry.
+
+The first-interview figure is counted from the first interview step's date. A real first interview
+recorded after the application had already reached Second interview should make that figure
+available without claiming the application moved backwards.

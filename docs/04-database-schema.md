@@ -31,6 +31,7 @@ is a bug in one of them, not a matter of interpretation.
   author should never have to invent the day they started a job in 2016.
   **One exception:** `application_steps.happened_on` (§3.14) is a real day. It is not a date in
   the career record and reaches no document; "16 days since the first interview" needs days.
+  `interviews.happened_on` (§3.15) is a real day for the same reason: it becomes a step's date.
 - **Money and headcount** (`資本金`, `従業員数`) are `bigint` and `integer`. 資本金 is stored in **yen**,
   not 万円, and formatted at render time.
 
@@ -58,6 +59,8 @@ users (Better Auth)
  │    └── render_proposals       1:N   (pending or dismissed — NOT versions)
  ├── applications                1:N   (a job being looked at or applied for)
  │    ├── application_steps      1:N   (the date of each status reached; superseded, never deleted)
+ │    ├── interviews             1:N   (the author's note of one real interview)
+ │    │    └── interview_questions 1:N  (the questions asked, each a row, in order)
  │    └── renders                0:1   (the tailored résumé written for it)
  ├── skill_curations             1:N   [M2]
  └── render_inclusions           1:N   [M2]
@@ -97,6 +100,7 @@ create type fact_flag_kind as enum ('confidential', 'number', 'unsure', 'repeat'
 create type application_status as enum ('not_applied', 'applied', 'resume_passed', 'interview_1',
                                          'interview_2', 'interview_final', 'offer',
                                          'rejected', 'withdrawn');
+create type interview_round as enum ('interview_1', 'interview_2', 'interview_final', 'other');
 ```
 
 ---
@@ -634,7 +638,7 @@ the screens.
 | `requirements` | text[] | no | Default `{}`. The key requirements, typed by the author |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
-| `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone. **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |
+| `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone, and an interview entry added (§3.15). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `user_id`.
@@ -656,6 +660,9 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
 
 - **A step passed over has no row.** Moving from Applied to First interview leaves Résumé passed
   without a date until the author adds one, and the figure that counts from it reads as a dash.
+- **An interview entry can date an earlier interview step that was passed over.** Only an open
+  application's missing date is filled, using the interview's day; its current step stays where it
+  is. A date already saved for that step remains correctable through the step-date action.
 - **A saved date is never overwritten or deleted.** A corrected date marks the old row superseded
   and inserts a new one, in one `db.batch` with the update of `applications`, so the earlier date is
   kept. Superseded rows are in the export.
@@ -668,6 +675,50 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
   on the day it was made, and `renders.application_id` pointing back. No row of `renders` loses
   anything. `src/server/db/migrations/down/0017_applications.sql` reverses the migration; it is run
   by hand and `tests/applications-migration.test.ts` runs both directions.
+
+### 3.15 `interviews` and `interview_questions` · migration 0018, 2026-10-12 (#72)
+
+The author's note of one real interview, and the questions asked at it. Written by hand; no model
+reads or writes either table. Their rules are one module, `src/shared/interview.ts`, read by the
+route and by the form.
+
+**`interviews`**
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `int_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `application_id` | text | no | FK → `applications.id` **cascade** |
+| `happened_on` | date | no | **A real day** (§0), never in the future. When the entry moves the status, this is the date saved under the step |
+| `round` | interview_round | no | `interview_1`, `interview_2`, `interview_final`, under the names `application_status` gives those steps, or `other` for a conversation that is not a round |
+| `who` | text | no | Default `''`. Names or roles as typed, up to 200 characters. Other people's names: never logged |
+| `how_it_went` | text | no | Default `''`, up to 10,000 characters. Empty only when the entry has a question. Never logged |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Index:** `(user_id, application_id)`, the read behind an application's page.
+
+**`interview_questions`** — one row a question.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `ivq_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `interview_id` | text | no | FK → `interviews.id` **cascade** |
+| `position` | integer | no | From 0 with no gap: the place of the question in its interview |
+| `text` | text | no | Up to 1,000 characters, at most 100 an interview. Never logged |
+| `created_at`, `updated_at` | timestamptz | no | |
+
+**Unique:** `(interview_id, position)`. **Index:** `user_id`.
+
+- **A question is a row, not an item in an array column**, so it has an id of its own. The
+  hand-off of the questions asked (#77) and anything later that points at one question need it.
+- **An entry and its questions are written in one `db.batch`** with the application's
+  `last_activity_at`, and with any step row added by the entry (`07` §9b). Either all
+  of it is saved or none is.
+- **The status an entry moved is not stored on the entry.** The move is an ordinary change to
+  `application_steps`, so Undo puts the standing back and leaves the entry where it is.
+- **An entry is saved once.** No route edits or removes one (`06`, 2026-10-12). Both tables are in
+  the export.
 
 ---
 
@@ -902,8 +953,8 @@ every entity, every provenance and disclosure value, and every evidence pointer.
 ## 7. Migration and environment notes
 
 **Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
-`last_activity_at` and the changes counted as activity. Screen 12 in `10` specifies the later
-interview, document and recording changes. Step, close, interview and
+`last_activity_at` and the changes counted as activity, and §3.15 the interview entries and their
+questions (#72). Screen 12 in `10` specifies the later document and recording changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent

@@ -9,8 +9,11 @@
  *
  * Every change is one write, and the screen draws what the server answers
  * with. Undo sends back the standing from before the last change.
+ *
+ * Under it, the interview entries (issue #72). Saving one for a later round is
+ * a change to where it stands too, and is said and undone here like the rest.
  */
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
@@ -30,6 +33,7 @@ import {
   days,
 } from "../components/application-chrome";
 import { DocumentRow, QUIET } from "../components/document-row";
+import { InterviewsPanel } from "../components/interviews-panel";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { NextStep } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
@@ -93,6 +97,8 @@ interface Moved {
   text: string;
   /** The status whose date the change saved. Null when it saved none. */
   dated: ApplicationStatus | null;
+  /** Made from another panel, so the line that says it may be off the screen. */
+  elsewhere?: boolean;
 }
 
 function Body({ application }: { application: Application }) {
@@ -103,6 +109,12 @@ function Body({ application }: { application: Application }) {
   const [dating, setDating] = useState<ApplicationStatus | null>(null);
   const [editing, setEditing] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
+
+  const notice = useRef<HTMLDivElement>(null);
+  // A move made by saving an interview is said up here, where its Undo is, and the author is looking further down.
+  useEffect(() => {
+    if (moved?.elsewhere) notice.current?.scrollIntoView?.({ block: "nearest" });
+  }, [moved]);
 
   const standing: Standing = { step: application.step, closedAs: application.closedAs, dates: application.dates };
   const busy = stand.isPending;
@@ -134,7 +146,7 @@ function Body({ application }: { application: Application }) {
     if (!(await change({ change: "date", status, date }))) return;
     setDating(null);
     // Undo takes back the last move, not a date corrected since: the correction goes into what Undo restores.
-    if (moved && status !== moved.dated) setMoved({ ...moved, before: withDate(moved.before, status, date) });
+    if (moved && status !== moved.dated) setMoved({ ...moved, elsewhere: false, before: withDate(moved.before, status, date) });
     flash("Date corrected. The day counts follow it.");
   };
 
@@ -143,6 +155,19 @@ function Body({ application }: { application: Application }) {
     setMoved(null);
     setDating(null);
     flash("Undone.");
+  };
+
+  const standingChangedByInterview = (before: Standing, step: ApplicationStep, moved: boolean) => {
+    setFailure(null);
+    setDating(null);
+    setMoved({
+      before,
+      text: moved
+        ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
+        : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
+      dated: step,
+      elsewhere: true,
+    });
   };
 
   const reopen = async () => {
@@ -228,6 +253,7 @@ function Body({ application }: { application: Application }) {
 
           {moved ? (
             <div
+              ref={notice}
               role="status"
               className="flex flex-wrap items-center gap-x-12 gap-y-8 border border-border-control bg-surface-raised rounded-control px-10 py-8 text-small text-text-secondary"
             >
@@ -336,6 +362,8 @@ function Body({ application }: { application: Application }) {
 
       {application.resume ? <Resume application={application} /> : null}
 
+      <InterviewsPanel application={application} onStandingChanged={standingChangedByInterview} />
+
       <Panel
         heading="The job"
         action={
@@ -395,6 +423,9 @@ function nextLine(application: Application): string {
   }
   if (application.step === "not_applied") return "when you have sent your résumé, move this to Applied.";
   if (application.step === "offer") return "nothing is waiting here.";
+  if (application.step.startsWith("interview")) {
+    return "after the next interview, add how it went while you still remember it.";
+  }
   return "wait to hear back. When you do, move it to the next step.";
 }
 

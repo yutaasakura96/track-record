@@ -225,6 +225,13 @@ describe("one user's record is unreachable from another's session", () => {
       dates: { not_applied: "2026-01-01" },
     });
     expect(restored.status, "restore a standing").toBe(404);
+    const noted = await a.client.post(`/api/applications/${b.applicationId}/interviews`, {
+      date: "2026-01-01",
+      round: "interview_final",
+      howItWent: "taken",
+      questions: ["taken"],
+    });
+    expect(noted.status, "add an interview").toBe(404);
 
     // And the other user's records are unchanged.
     const theirs = await b.client.json<{ company: string; step: string; closedAs: string | null }>(

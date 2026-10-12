@@ -115,7 +115,8 @@ four-function seam · BudouX for Japanese segmentation · jsdiff for diffing · 
 - **Logs never contain source text, fact claims, or render content.**
 - **No secret and no database dump is ever committed.** This repo is public.
 - **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
-  The one exception is an application step's `happened_on`, a real day (`docs/04` §3.14).
+  The exceptions are an application step's and an interview entry's `happened_on`, real days
+  (`docs/04` §3.14, §3.15).
 - **Every design value comes from `@theme`, generated from `docs/05-design-system.md`.** Arbitrary
   Tailwind values (`p-[13px]`, `text-[#fff]`) and raw colour literals are banned by
   `scripts/check-design-tokens.mjs`, which `npm run lint` runs — they are how the forbidden list dies.

@@ -11,7 +11,8 @@
  *   - user_id on every record-bearing table; EVERY query filters by it
  *   - MONTH PRECISION on the record's calendar columns: `date` with the day
  *     pinned to `01`, never rendered. Forms collect month and year only.
- *     `application_steps.happened_on` is the one day-precision date, and says why.
+ *     `happened_on` on `application_steps` and `interviews` are the day-precision
+ *     dates, and the first says why.
  */
 import {
   pgTable, pgEnum, text, integer, bigint, boolean, timestamp, date, jsonb, doublePrecision,
@@ -83,6 +84,12 @@ export const applicationStatus = pgEnum("application_status", [
   "not_applied", "applied", "resume_passed", "interview_1", "interview_2", "interview_final", "offer",
   "rejected", "withdrawn",
 ]);
+/**
+ * Which interview an entry is a note of (issue #72): one of the three
+ * interview steps, under the names `application_status` gives them, or `other`
+ * for a conversation that is not a round and never moves the status.
+ */
+export const interviewRound = pgEnum("interview_round", ["interview_1", "interview_2", "interview_final", "other"]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -684,9 +691,9 @@ export const applicationSteps = pgTable("application_steps", {
   applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
   status: applicationStatus("status").notNull(),
   /**
-   * DAY PRECISION, the one calendar column that is. "16 days since the first
-   * interview" needs days. The month rule is about the career record, and this
-   * is not part of it; nothing here reaches a render.
+   * DAY PRECISION, which only this column and `interviews.happened_on` are.
+   * "16 days since the first interview" needs days. The month rule is about
+   * the career record, and this is not part of it; nothing here reaches a render.
    */
   happenedOn: date("happened_on", { mode: "string" }).notNull(),
   supersededAt: timestamp("superseded_at", { withTimezone: true }),
@@ -696,6 +703,45 @@ export const applicationSteps = pgTable("application_steps", {
   // one through, and the other is told to reload.
   uniqueIndex("application_steps_live_uq").on(t.applicationId, t.status).where(sql`${t.supersededAt} is null`),
   index("application_steps_user_idx").on(t.userId).where(sql`${t.supersededAt} is null`),
+]);
+
+/**
+ * The author's note of one real interview (issue #72): the day, the round, who
+ * it was with and how it went. Its questions are rows of their own.
+ *
+ * Written by hand and read by no model. `who` and `how_it_went` name other
+ * people and what they said: never logged, like the job description.
+ */
+export const interviews = pgTable("interviews", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  /** DAY PRECISION, like `application_steps.happened_on`, and for the same reason. */
+  happenedOn: date("happened_on", { mode: "string" }).notNull(),
+  round: interviewRound("round").notNull(),
+  /** Names or roles, as the author typed them. Empty when not given. */
+  who: text("who").notNull().default(""),
+  /** Empty only when the entry has at least one question. */
+  howItWent: text("how_it_went").notNull().default(""),
+  ...timestamps,
+}, (t) => [index("interviews_application_idx").on(t.userId, t.applicationId)]);
+
+/**
+ * One question asked at an interview, in the order the author gave them
+ * (issue #72). A row and not a list in a column, so a question has an id of
+ * its own if a hand-off ever needs one.
+ */
+export const interviewQuestions = pgTable("interview_questions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  interviewId: text("interview_id").notNull().references(() => interviews.id, { onDelete: "cascade" }),
+  /** From 0, with no gaps: the place of the question in its interview. */
+  position: integer("position").notNull(),
+  text: text("text").notNull(),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position),
+  index("interview_questions_user_idx").on(t.userId),
 ]);
 
 /* ------------------------------------------------------------- M2 tables */

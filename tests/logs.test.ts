@@ -189,6 +189,13 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     ).json()) as { id: string };
     await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
     await client.patch(`/api/applications/${application.id}`, { position: "platform lead, quayside" });
+    await client.post(`/api/applications/${application.id}/interviews`, {
+      date: "2026-01-05",
+      round: "interview_1",
+      who: "Ottoline Varga, head of berths",
+      howItWent: "She walked through the gantry backlog.",
+      questions: ["How would you sequence a berth swap?"],
+    });
     await client.get(`/api/applications/${application.id}`);
     await client.get("/api/applications");
     await client.get("/api/master-document");
@@ -207,6 +214,10 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       "quayside",
       "platform lead",
       "cutover",
+      "Ottoline",
+      "berths",
+      "gantry",
+      "berth swap",
       "Yosuke Aoki",
     ]) {
       expect(log, `a log line contained "${needle}"`).not.toContain(needle);
@@ -217,6 +228,9 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
     expect(log).toMatch(/"event":"application_created","applicationId":"app_[^"]+","characters":\d+/);
     expect(log).toMatch(/"event":"application_standing_set","applicationId":"app_[^"]+","step":"applied","closedAs":null/);
+    expect(log).toMatch(
+      /"event":"interview_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","round":"interview_1","questions":1,"movedTo":"interview_1"/,
+    );
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });
