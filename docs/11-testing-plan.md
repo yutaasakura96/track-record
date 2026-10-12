@@ -377,7 +377,8 @@ Then both fields are empty and the screen says they were not found
 When the text is missing, under 40 characters or over 20,000
 Then nothing is read, on the screen or by the route, and the model is not called
 And what was read is held to the limits a saved application has
-And going back to the text and on again does not read the same text twice
+And going back to the text and on again reads it again, and what is read replaces the fields
+And a reading that fails after one that succeeded leaves the fields empty, not the earlier reading
 ```
 
 ### 2.6j An interview entry keeps its questions apart, and dates skipped earlier rounds

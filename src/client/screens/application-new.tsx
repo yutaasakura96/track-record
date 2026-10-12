@@ -51,8 +51,6 @@ export function NewApplicationScreen() {
     requirements: [],
   });
   const [jobDescription, setJobDescription] = useState("");
-  /** The text the fields were last read from, so the same text is not read twice. */
-  const [readText, setReadText] = useState<string | null>(null);
   const [reading, setReading] = useState<Reading | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -88,21 +86,15 @@ export function NewApplicationScreen() {
     }
     setFailure(null);
 
-    // Back to the text and on again with nothing changed: what was read, and
-    // whatever was corrected since, is still there.
-    if (text !== readText) {
-      try {
-        const proposal = await read.mutateAsync(text);
-        const nothing = proposal.company === "" && proposal.position === "" && proposal.requirements.length === 0;
-        // Fields typed in after a failed reading are not emptied by a second
-        // reading that found nothing either.
-        if (!(reading?.failed && nothing)) setFields((current) => ({ ...current, ...proposal }));
-        setReadText(text);
-        setReading({ failed: false, company: proposal.company !== "", position: proposal.position !== "" });
-      } catch {
-        // Whatever went wrong, the fields are there to type in.
-        setReading({ failed: true });
-      }
+    // Every reading replaces the fields, and one that fails empties them: what
+    // is checked is never an earlier text's reading.
+    try {
+      const proposal = await read.mutateAsync(text);
+      setFields((current) => ({ ...current, ...proposal }));
+      setReading({ failed: false, company: proposal.company !== "", position: proposal.position !== "" });
+    } catch {
+      setFields((current) => ({ ...current, company: "", position: "", requirements: [] }));
+      setReading({ failed: true });
     }
     setStep("check");
   };

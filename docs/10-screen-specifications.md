@@ -1413,9 +1413,10 @@ that is wrong, then save.` `Next:` `check the three fields, then save the applic
   but these fields (decision log, 2026-10-11).
 - **#70 built one step, typed by hand; #73 split it into the two above** and changed nothing about
   what is saved.
-- **The same text is not read twice.** `Back to the text` and `Read it` again with the text
-  unchanged opens Step 2 as it was left, corrections included. Changed text is read again and what
-  is read replaces the fields.
+- **`Read it` always reads, and what is read replaces the fields**, as the prototype does.
+  `Back to the text` keeps the text and the link; pressing `Read it` again reads the text as it
+  now stands, changed or not, and corrections made in Step 2 are not carried over. A reading that
+  fails empties the fields (decision log, 2026-10-12).
 - **The link is checked in Step 1**: one that does not start with `http://` or `https://` is
   refused there with `A link to the posting starts with https://`, before anything is read.
 - **Each step opens with the keyboard in it**: the first field of Step 2, the text on the way back.
@@ -1430,7 +1431,7 @@ that is wrong, then save.` `Next:` `check the three fields, then save the applic
 | **Text over 20,000 characters** | `Read it` is refused with the limit and the length named: `A job description can be at most 20,000 characters. This one is 20,412.` |
 | **Company and position not found** | Step 2 with both fields empty, placeholder `Not found in the text. Type it in.`, and `Next:` `the company and the position could not be found in the text. Type them in, then save.` |
 | **Only one of the two not found** | Step 2 with what was found, the other empty with the same placeholder, and `Next:` naming it: `the position could not be found in the text. Type it in, then save.` |
-| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` Fields typed in after a failure are kept if a second reading finds nothing |
+| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` That holds after an earlier reading that succeeded: its fields are not left under the failure |
 | **Saving without a company or a position** | `Give it a company and a position first.` |
 | **Save failed** | The reason under the actions; nothing typed is lost |
 

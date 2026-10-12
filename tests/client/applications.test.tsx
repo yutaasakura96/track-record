@@ -563,7 +563,7 @@ describe("adding a job", () => {
     expect(api.writes()).toEqual([]);
   });
 
-  it("goes back to the text with everything kept, and does not read the same text twice", async () => {
+  it("goes back to the text with it kept, and reads it again over what was corrected", async () => {
     const { api, user } = open({ [READ]: READING });
     await readIt(user);
     const company = await screen.findByLabelText("Company");
@@ -574,8 +574,27 @@ describe("adding a job", () => {
     expect(((await screen.findByLabelText("Job description")) as HTMLTextAreaElement).value).toBe(POSTING);
     await user.click(screen.getByRole("button", { name: "Read it" }));
 
-    expect(((await screen.findByLabelText("Company")) as HTMLInputElement).value).toBe("Fernhill Robotics K.K.");
-    expect(api.writes()).toEqual([READ]);
+    expect(((await screen.findByLabelText("Company")) as HTMLInputElement).value).toBe("Fernhill Robotics");
+    expect(api.writes()).toEqual([READ, READ]);
+  });
+
+  it("empties the fields of an earlier reading when a later one fails", async () => {
+    const answers: unknown[] = [
+      READING,
+      new Refusal(503, "upstream_unavailable", "The job description could not be read just now."),
+    ];
+    const { user } = open({ [READ]: () => answers.shift() });
+    await readIt(user);
+    expect(((await screen.findByLabelText("Company")) as HTMLInputElement).value).toBe("Fernhill Robotics");
+
+    await user.click(screen.getByRole("button", { name: "Back to the text" }));
+    await readIt(user, " It is based in Osaka.");
+
+    expect(await screen.findByText(/could not be read just now\. Type the fields in; your text is kept/)).toBeTruthy();
+    expect(value("Company")).toBe("");
+    expect(value("Position")).toBe("");
+    expect(screen.getByText(/None found\. Add the ones that matter to you/)).toBeTruthy();
+    expect(screen.getByText(/type in the company and the position, then save/)).toBeTruthy();
   });
 
   it("reads again when the text was changed, and shows the new reading", async () => {

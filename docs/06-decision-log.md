@@ -6035,3 +6035,32 @@ which would make a stored field a fetched one. **Structured output without a too
 seam has no other use of; one more shape of call to keep in step with model changes buys nothing
 over a strict tool.
 
+### [2026-10-12] Read it always reads: the read-once rule is withdrawn
+
+Supersedes the paragraph **The same text is not read twice** in the entry above, *How a posting is
+read*. The rest of that entry stands.
+
+**`Read it` reads every time it is pressed, and what is read replaces the company, the position
+and the requirements.** A reading that fails empties those three. The text and the link are kept
+either way. This is what the reviewed prototype does, and "matches the prototype's add a job flow"
+is the first acceptance criterion of #73.
+
+The read-once rule kept a record of the text the fields were last read from, and skipped the call
+when the text had not changed. Review of the build found what that cost. Read posting A, go back,
+paste posting B, and have the reading fail: the fields still held A's company, position and
+requirements, under the line saying the description could not be read, and saving paired them with
+B's text. Going back to A's text then skipped the read and left the failure line over a good
+reading. The exception for fields typed after a failure was partial as well: a second reading that
+found only requirements emptied a hand-typed company.
+
+Every one of those came from the screen holding two things that could disagree, the fields and
+which text they belonged to. With no record of the text there is nothing to disagree: the fields
+are always the last reading, or empty.
+
+**What is given up:** corrections made in Step 2 are lost by going back and pressing `Read it`
+again, and an unchanged text costs a second model call. Both were what the prototype did when the
+owner reviewed it.
+
+Rejected: **keeping the rule and emptying the fields only when changed text fails to read**, which
+keeps the record of the text and the second state it makes possible, to protect corrections the
+owner can retype in three fields.
