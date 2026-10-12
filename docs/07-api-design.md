@@ -929,16 +929,18 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 
 ---
 
-## 9b. Applications · #70, interview entries #72
+## 9b. Applications · #70, interview entries #72, reading a posting #73
 
 A job the author is looking at or has applied for (`04` §3.14), and the interview entries on it
-(`04` §3.15). Entered by hand: no route here reaches a model. The rules are
+(`04` §3.15). **One route here reaches a model**, `POST /api/applications/read-posting`, and it
+stores nothing; every other route is the author's own entry. The rules are
 `src/shared/application.ts` and `src/shared/interview.ts`, which the screens read too.
 
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/applications` | `{ items, today }`, newest activity first. No job description in the listing |
 | `POST` | `/api/applications` | Body `{ company, position, jobDescription, postingUrl?, requirements? }` → `201` + the application, at Not applied with today as the day it was added. `422` for an empty company, position or job description, a job description over 20,000 characters, a link that is not `http(s)`, or an extra field |
+| `POST` | `/api/applications/read-posting` | Body `{ jobDescription }` → `200` + `{ company, position, requirements }`, read from the text by the model. **A proposal: nothing is stored**, and the application is made by `POST /api/applications` when the author saves. `422` for text under 40 characters, over 20,000, or an extra field, with no model call. `503` when the reading fails |
 | `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements` and `resume` |
 | `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`. **The job description is not editable.** Does not count as activity |
 | `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either |
@@ -999,9 +1001,18 @@ A job the author is looking at or has applied for (`04` §3.14), and the intervi
   That covers the step, close, date, reopen and standing routes and an interview entry, and a
   change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
   included. The check is on `lastActivityAt`, inside the same batch as the write.
+- **`read-posting` answers with what the text states and nothing it does not**: `company` and
+  `position` are an empty string, and `requirements` an empty list, where the text names none.
+  That is a `200`, not a failure. What was read is held to the limits a saved application has (200
+  characters for the company and the position; 30 requirements of 300 characters), so a proposal is
+  always one `POST /api/applications` accepts. It takes the text only: the link is never sent to
+  it, and nothing is fetched. A failed reading is `503 upstream_unavailable`, `The job description
+  could not be read just now. Type the fields in; your text is kept.`
 - Every write answers with the application as it is afterwards. Another user's application is
   `404` on every route.
-- Logged: `application_created` with the id and the job description's length,
+- Logged: `posting_read` with the text's length, whether a company and a position were found, the
+  number of requirements and the token counts, `posting_read_failed` with the length,
+  `application_created` with the id and the job description's length,
   `application_standing_set` with the id, `step` and `closedAs`, and `interview_added` with the two
   ids, the round, the number of questions and `movedTo`, the step it moved the application to or
   `null`. Never the company, the position, who an interview was with, how it went, a question or

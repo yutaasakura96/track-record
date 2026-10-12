@@ -11,6 +11,7 @@
  */
 import type { ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
+import { READING_EN, READING_JA } from "../fixtures/postings";
 
 export const e2eModel: ModelSeam = {
   async extractFacts(sourceText, ctx) {
@@ -53,5 +54,11 @@ export const e2eModel: ModelSeam = {
 
   async explainFlag(flag) {
     return `It was flagged because: ${flag.reason}`;
+  },
+
+  /** The two fixture postings read cleanly; any other text states nothing. */
+  async readPosting(jobDescription) {
+    const read = [READING_EN, READING_JA].find((reading) => jobDescription.includes(reading.company));
+    return read ?? { company: "", position: "", requirements: [] };
   },
 };

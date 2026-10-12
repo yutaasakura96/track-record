@@ -356,6 +356,30 @@ And running it again adds nothing, and the down script removes only what it adde
 And another user's application is not listed, and is a 404 on every route addressed by its id
 ```
 
+### 2.6i-2 A posting is read into a proposal, and adding a job never depends on it
+
+`tests/applications.test.ts`, `tests/client/applications.test.tsx` and the prompt in
+`tests/prompt.test.ts` (#73). The model is stubbed; the postings and the readings it answers with
+are invented, in English and in 日本語 (`tests/fixtures/postings.ts`).
+
+```
+Given a job description pasted into Add a job
+When Read it is pressed
+Then the model is given that text and nothing else, and its company, position and requirements fill the check step
+And no application exists until Save application is pressed
+And what is saved is the fields as the author left them, not what was read
+
+When the reading fails, or the server cannot be reached
+Then the check step opens with the fields empty and says so, and what is typed there is saved
+When the text states no company and no position
+Then both fields are empty and the screen says they were not found
+
+When the text is missing, under 40 characters or over 20,000
+Then nothing is read, on the screen or by the route, and the model is not called
+And what was read is held to the limits a saved application has
+And going back to the text and on again does not read the same text twice
+```
+
 ### 2.6j An interview entry keeps its questions apart, and dates skipped earlier rounds
 
 `tests/interviews.test.ts`, `tests/interview-rules.test.ts` and `tests/client/interviews.test.tsx`
@@ -417,6 +441,9 @@ Then it contains no source text, no fact claim, no quote, and no render content
 ```
 
 Otherwise the logs become a second, un-governed copy of NDA-bound material.
+
+**Extended 2026-10-12 (#73)** to a posting read and a reading that fails: the log carries the
+text's length and counts, never the company, the position or a requirement.
 
 **Extended 2026-10-08 (#57)** to the four new sources of a log line: grading and flagging an import,
 the sort, `Explain this`, and creating and generating a tailored résumé. The search also covers flag

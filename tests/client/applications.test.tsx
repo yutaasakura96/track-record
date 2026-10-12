@@ -1,6 +1,6 @@
 /**
  * Applications: the list, one application, and Add a job
- * (`docs/10-screen-specifications.md`, issue #70).
+ * (`docs/10-screen-specifications.md`, issues #70 and #73).
  *
  * What a screen here can get wrong without looking wrong: a step set on the
  * wrong application, a date sent for the wrong status, an Undo that puts back
@@ -15,9 +15,10 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Application, ApplicationRow } from "~/client/api";
 import { close, figures, moveTo, reopen, setDate, type Standing } from "~/shared/application";
-import { mount, Refusal, type Call, type Routes } from "./harness";
+import { mount, Refusal, toneOf, type Call, type Routes } from "./harness";
 
 const TODAY = "2026-10-10";
+const POSTING = "Senior backend engineer for the fernhill warehouse fleet.";
 const ID = "app-test-fernhill";
 const AT = `/api/applications/${ID}`;
 
@@ -43,7 +44,7 @@ const application = (standing: Standing, lastActivityOn: string, over: Partial<A
   ...standing,
   ...figures(standing, lastActivityOn, TODAY),
   requirements: ["Idempotent APIs and event streams"],
-  jobDescription: "Senior backend engineer for the fernhill warehouse fleet.",
+  jobDescription: POSTING,
   resume: null,
   canGenerate: true,
   interviews: [],
@@ -392,52 +393,212 @@ describe("the job an application is for", () => {
 
 describe("adding a job", () => {
   const CREATE = "POST /api/applications";
+  const READ = "POST /api/applications/read-posting";
+  const LINK = "Link to the posting, if you have one";
+  const READING = {
+    company: "Fernhill Robotics",
+    position: "Senior Backend Engineer",
+    requirements: ["Idempotent APIs and event streams", "Has run a warehouse cutover"],
+  };
+  const NOTHING = { company: "", position: "", requirements: [] };
   const open = (routes: Routes = {}) =>
     mount("/applications/new", { "GET /api/applications": { items: [], today: TODAY }, ...SUMMARY, ...routes });
 
-  async function fill(user: ReturnType<typeof mount>["user"]) {
-    await user.type(await screen.findByLabelText("Company"), "Fernhill Robotics");
-    await user.type(screen.getByLabelText("Position"), "Senior Backend Engineer");
-    await user.type(screen.getByLabelText("Job description"), "Senior backend engineer for the fernhill warehouse fleet.");
+  const value = (label: string) => (screen.getByLabelText(label) as HTMLInputElement).value;
+
+  /** Pastes the posting and presses `Read it`. */
+  async function readIt(user: ReturnType<typeof mount>["user"], text = POSTING) {
+    await user.click(await screen.findByLabelText("Job description"));
+    await user.paste(text);
+    await user.click(screen.getByRole("button", { name: "Read it" }));
   }
 
-  it("saves what was typed and opens the application it made", async () => {
+  it("reads the pasted text and shows what was read to check, having saved nothing", async () => {
+    const { api, user } = open({ [READ]: READING });
+    expect(await screen.findByText(/you check them before anything is saved/)).toBeTruthy();
+    await user.type(await screen.findByLabelText(LINK), "https://jobs.example.invalid/fernhill");
+    await readIt(user);
+
+    expect(await screen.findByRole("heading", { name: "Check what was read" })).toBeTruthy();
+    expect(value("Company")).toBe("Fernhill Robotics");
+    expect(value("Position")).toBe("Senior Backend Engineer");
+    expect(value("Requirement 1")).toBe("Idempotent APIs and event streams");
+    expect(value("Requirement 2")).toBe("Has run a warehouse cutover");
+    expect(screen.getByText("Link: https://jobs.example.invalid/fernhill")).toBeTruthy();
+    expect(screen.getByText(/check the three fields, then save the application/)).toBeTruthy();
+    // The text and nothing else is sent to be read: the link is only stored.
+    expect(api.writes()).toEqual([READ]);
+    expect(api.bodyOf("POST", "/api/applications/read-posting")).toEqual({ jobDescription: POSTING });
+  });
+
+  it("saves what the author corrected, not what was read, and opens the application it made", async () => {
     const made = application(at("not_applied", { not_applied: TODAY }), TODAY);
-    const { api, user, pathname } = open({ [CREATE]: made, [`GET ${AT}`]: made });
-    await fill(user);
-    await user.type(screen.getByLabelText("Link to the posting, if you have one"), "https://jobs.example.invalid/fernhill");
+    const { api, user, pathname } = open({ [READ]: READING, [CREATE]: made, [`GET ${AT}`]: made });
+    await user.type(await screen.findByLabelText(LINK), "https://jobs.example.invalid/fernhill");
+    await readIt(user);
+
+    const position = await screen.findByLabelText("Position");
+    await user.clear(position);
+    await user.type(position, "Staff Backend Engineer");
+    await user.click(screen.getAllByRole("button", { name: "Remove" })[0]!);
+    await user.click(screen.getByRole("button", { name: "Add a requirement" }));
+    await user.type(screen.getByLabelText("Requirement 2"), "On call one week in six");
+    await user.click(screen.getByRole("button", { name: "Add a requirement" }));
     await user.click(screen.getByRole("button", { name: "Save application" }));
 
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
-    expect(api.writes()).toEqual([CREATE]);
+    expect(api.writes()).toEqual([READ, CREATE]);
     expect(api.bodyOf("POST", "/api/applications")).toEqual({
       company: "Fernhill Robotics",
-      position: "Senior Backend Engineer",
+      position: "Staff Backend Engineer",
       postingUrl: "https://jobs.example.invalid/fernhill",
-      requirements: [],
-      jobDescription: "Senior backend engineer for the fernhill warehouse fleet.",
+      // The last one was added and left empty; the server drops it.
+      requirements: ["Has run a warehouse cutover", "On call one week in six", ""],
+      jobDescription: POSTING,
     });
     expect(await screen.findByRole("button", { name: "Move to Applied" })).toBeTruthy();
   });
 
-  it("writes nothing until it has a company, a position and a job description", async () => {
-    const { api, user } = open();
-    await user.type(await screen.findByLabelText("Company"), "Fernhill Robotics");
+  it("says it is reading, and holds the text still while it does", async () => {
+    let answer: (value: unknown) => void = () => {};
+    const { user } = open({ [READ]: () => new Promise((resolve) => (answer = resolve)) });
+    await readIt(user);
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "Reading the job description. This takes a few seconds.",
+    );
+    expect((screen.getByLabelText("Job description") as HTMLTextAreaElement).readOnly).toBe(true);
+    expect((screen.getByLabelText(LINK) as HTMLInputElement).readOnly).toBe(true);
+    expect(screen.queryByRole("button", { name: "Read it" })).toBeNull();
+
+    answer(READING);
+    expect(await screen.findByRole("heading", { name: "Check what was read" })).toBeTruthy();
+  });
+
+  it("opens the fields empty to type in when the reading fails, and saves what is typed", async () => {
+    const made = application(at("not_applied", { not_applied: TODAY }), TODAY);
+    const { api, user, pathname } = open({
+      [READ]: new Refusal(503, "upstream_unavailable", "The job description could not be read just now."),
+      [CREATE]: made,
+      [`GET ${AT}`]: made,
+    });
+    await readIt(user);
+
+    expect((await screen.findByRole("status")).textContent).toBe(
+      "The job description could not be read just now. Type the fields in; your text is kept.",
+    );
+    expect(value("Company")).toBe("");
+    expect(screen.getByText(/None found\. Add the ones that matter to you/)).toBeTruthy();
+    await user.type(screen.getByLabelText("Company"), "Fernhill Robotics");
+    await user.type(screen.getByLabelText("Position"), "Senior Backend Engineer");
     await user.click(screen.getByRole("button", { name: "Save application" }));
+
+    await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
+    expect(api.bodyOf("POST", "/api/applications")).toEqual({
+      company: "Fernhill Robotics",
+      position: "Senior Backend Engineer",
+      postingUrl: "",
+      requirements: [],
+      jobDescription: POSTING,
+    });
+  });
+
+  it("opens the fields empty when the server cannot be reached at all", async () => {
+    const { user } = open({
+      [READ]: () => {
+        throw new TypeError("Failed to fetch");
+      },
+    });
+    await readIt(user);
+    expect(await screen.findByText(/could not be read just now\. Type the fields in; your text is kept/)).toBeTruthy();
+    expect(value("Position")).toBe("");
+  });
+
+  it("says so when the company and the position were not found, and asks for them before saving", async () => {
+    const { api, user } = open({ [READ]: NOTHING });
+    await readIt(user);
+
+    expect(await screen.findByText(/the company and the position could not be found in the text/)).toBeTruthy();
+    expect((screen.getByLabelText("Company") as HTMLInputElement).placeholder).toBe("Not found in the text. Type it in.");
+    expect(screen.queryByText(/could not be read just now/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save application" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Give it a company and a position first.");
+    expect(toneOf(alert)).toBe("removed");
+    expect(api.writes()).toEqual([READ]);
+  });
+
+  it("names the one that was not found when the other was", async () => {
+    const { user } = open({ [READ]: { ...READING, position: "" } });
+    await readIt(user);
+    expect(await screen.findByText(/the position could not be found in the text\. Type it in, then save/)).toBeTruthy();
+  });
+
+  it("reads nothing from text that is missing, too short or too long, and says which", async () => {
+    const { api, user } = open({ [READ]: READING });
+    await user.click(await screen.findByRole("button", { name: "Read it" }));
+    expect((await screen.findByRole("alert")).textContent).toBe("Paste the job description first. A few lines is enough.");
+
+    // The refusal is about the text as it was: typing takes it down.
+    await user.type(screen.getByLabelText("Job description"), "B");
+    expect(screen.queryByRole("alert")).toBeNull();
+    await readIt(user, "ackend engineer.");
+    expect(screen.getByRole("alert").textContent).toBe("Paste the job description first. A few lines is enough.");
+
+    await user.click(screen.getByLabelText("Job description"));
+    await user.paste("x".repeat(20_010));
+    await user.click(screen.getByRole("button", { name: "Read it" }));
+    expect(screen.getByRole("alert").textContent).toBe(
+      "A job description can be at most 20,000 characters. This one is 20,027.",
+    );
     expect(api.writes()).toEqual([]);
   });
 
-  it("keeps what was typed and shows the server's words when it is refused", async () => {
-    const { user, pathname } = open({
-      [CREATE]: new Refusal(422, "validation_failed", "A link to the posting must start with http:// or https://."),
-    });
-    await fill(user);
-    await user.click(screen.getByRole("button", { name: "Save application" }));
+  it("refuses a link that is not a web address before anything is read", async () => {
+    const { api, user } = open({ [READ]: READING });
+    await user.type(await screen.findByLabelText(LINK), "jobs.example.invalid/fernhill");
+    await readIt(user);
+    expect((await screen.findByRole("alert")).textContent).toBe("A link to the posting starts with https://");
+    expect(api.writes()).toEqual([]);
+  });
 
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "A link to the posting must start with http:// or https://.",
-    );
+  it("goes back to the text with everything kept, and does not read the same text twice", async () => {
+    const { api, user } = open({ [READ]: READING });
+    await readIt(user);
+    const company = await screen.findByLabelText("Company");
+    await user.clear(company);
+    await user.type(company, "Fernhill Robotics K.K.");
+
+    await user.click(screen.getByRole("button", { name: "Back to the text" }));
+    expect(((await screen.findByLabelText("Job description")) as HTMLTextAreaElement).value).toBe(POSTING);
+    await user.click(screen.getByRole("button", { name: "Read it" }));
+
+    expect(((await screen.findByLabelText("Company")) as HTMLInputElement).value).toBe("Fernhill Robotics K.K.");
+    expect(api.writes()).toEqual([READ]);
+  });
+
+  it("reads again when the text was changed, and shows the new reading", async () => {
+    const readings = [READING, { ...READING, company: "Fernhill Robotics K.K." }];
+    const { api, user } = open({ [READ]: () => readings.shift() });
+    await readIt(user);
+    await user.click(await screen.findByRole("button", { name: "Back to the text" }));
+    await readIt(user, " It is based in Osaka.");
+
+    expect(((await screen.findByLabelText("Company")) as HTMLInputElement).value).toBe("Fernhill Robotics K.K.");
+    expect(api.writes()).toEqual([READ, READ]);
+  });
+
+  it("keeps what was typed and shows the server's words when saving is refused", async () => {
+    const { user, pathname } = open({
+      [READ]: READING,
+      [CREATE]: new Refusal(422, "validation_failed", "Keep the company under 200 characters."),
+    });
+    await readIt(user);
+    await user.click(await screen.findByRole("button", { name: "Save application" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("Keep the company under 200 characters.");
     expect(pathname()).toBe("/applications/new");
-    expect((screen.getByLabelText("Company") as HTMLInputElement).value).toBe("Fernhill Robotics");
+    expect(value("Company")).toBe("Fernhill Robotics");
   });
 });

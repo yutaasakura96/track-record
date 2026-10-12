@@ -17,6 +17,11 @@
  * rule in `./calendar.ts` is about the record and does not apply here.
  */
 
+/** The limit a tailored résumé's job description has always had (`docs/06`, 2026-10-08). */
+export const JOB_DESCRIPTION_MAX = 20_000;
+/** Below this there is nothing to read: a title on its own, or a stray paste. */
+export const JOB_DESCRIPTION_READ_MIN = 40;
+
 /** The steps an application moves through, in order. */
 export const APPLICATION_STEPS = [
   "not_applied",

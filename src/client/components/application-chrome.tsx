@@ -21,6 +21,8 @@ export const CONTROL =
 export const CONTROL_INLINE =
   "min-h-control-inline bg-surface-raised border border-border-control rounded-control px-6 py-2 text-small text-text-strong outline-none focus:shadow-ring focus:border-border-active";
 
+export const POSTING_LINK_LABEL = "Link to the posting, if you have one";
+
 export const days = (n: number) => (n === 1 ? "1 day" : `${n.toLocaleString("en-US")} days`);
 
 export function ApplicationsFrame({
@@ -98,14 +100,23 @@ export function QuietChip({ quietDays }: { quietDays: number }) {
   );
 }
 
-/** The fields of a job that stay correctable after it is added. */
+/**
+ * The fields of a job that stay correctable after it is added.
+ *
+ * `read` is Add a job's check step: the fields hold what was read from the
+ * posting, an empty one says it was not found, and the link is not asked for
+ * again because it was given with the text.
+ */
 export function JobFields({
   value,
   onChange,
+  read = false,
 }: {
   value: ApplicationFields;
   onChange: (next: ApplicationFields) => void;
+  read?: boolean;
 }) {
+  const notFound = read ? "Not found in the text. Type it in." : undefined;
   const setRequirement = (index: number, text: string) =>
     onChange({ ...value, requirements: value.requirements.map((item, i) => (i === index ? text : item)) });
 
@@ -118,6 +129,7 @@ export function JobFields({
             name="company"
             value={value.company}
             maxLength={200}
+            placeholder={notFound}
             onChange={(event) => onChange({ ...value, company: event.target.value })}
             className={CONTROL}
           />
@@ -128,23 +140,26 @@ export function JobFields({
             name="position"
             value={value.position}
             maxLength={200}
+            placeholder={notFound}
             onChange={(event) => onChange({ ...value, position: event.target.value })}
             className={CONTROL}
           />
         </label>
       </div>
-      <label className="grid gap-4 min-w-0">
-        <span className="text-small text-text-secondary">Link to the posting, if you have one</span>
-        <input
-          name="postingUrl"
-          type="url"
-          inputMode="url"
-          placeholder="https://"
-          value={value.postingUrl ?? ""}
-          onChange={(event) => onChange({ ...value, postingUrl: event.target.value })}
-          className={CONTROL}
-        />
-      </label>
+      {read ? null : (
+        <label className="grid gap-4 min-w-0">
+          <span className="text-small text-text-secondary">{POSTING_LINK_LABEL}</span>
+          <input
+            name="postingUrl"
+            type="url"
+            inputMode="url"
+            placeholder="https://"
+            value={value.postingUrl ?? ""}
+            onChange={(event) => onChange({ ...value, postingUrl: event.target.value })}
+            className={CONTROL}
+          />
+        </label>
+      )}
       <div className="grid gap-4 min-w-0">
         <span className="text-small text-text-secondary">Key requirements</span>
         <div className="grid gap-6">
@@ -170,7 +185,9 @@ export function JobFields({
             </div>
           ))}
           {value.requirements.length === 0 ? (
-            <p className="text-small text-text-muted">None noted. Add the ones that matter to you, or leave this empty.</p>
+            <p className="text-small text-text-muted">
+              {read ? "None found." : "None noted."} Add the ones that matter to you, or leave this empty.
+            </p>
           ) : null}
         </div>
         <div>

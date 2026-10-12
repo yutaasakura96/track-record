@@ -1,5 +1,5 @@
 /**
- * Applications (`docs/07-api-design.md` §9b, issue #70).
+ * Applications (`docs/07-api-design.md` §9b, issues #70 and #73).
  *
  * One job the author is looking at or has applied for: the posting, where it
  * stands, and the date of each step. The rules for moving through the steps
@@ -32,6 +32,8 @@ import {
   APPLICATION_STATUSES,
   APPLICATION_STEPS,
   CLOSED_KINDS,
+  JOB_DESCRIPTION_MAX,
+  JOB_DESCRIPTION_READ_MIN,
   StandingRefused,
   close,
   figures,
@@ -47,11 +49,10 @@ import {
   type ClosedKind,
   type Standing,
 } from "~/shared/application";
+import { ModelUnavailableError, type ModelUsage, type PostingReading } from "~/model";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
-/** The limit a tailored résumé's job description has always had (`docs/06`, 2026-10-08). */
-const JOB_DESCRIPTION_MAX = 20_000;
 const NAME_MAX = 200;
 const REQUIREMENT_MAX = 300;
 const REQUIREMENTS_MAX = 30;
@@ -71,16 +72,23 @@ const requirements = z
   .max(REQUIREMENTS_MAX, `An application holds at most ${REQUIREMENTS_MAX} key requirements.`)
   .transform((items) => items.filter((item) => item !== ""));
 
+const tooLong = `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`;
+
 const createBody = z.strictObject({
   company,
   position,
+  jobDescription: z.string().trim().min(1, "Paste the job description.").max(JOB_DESCRIPTION_MAX, tooLong),
+  postingUrl: postingUrl.optional(),
+  requirements: requirements.optional(),
+});
+
+/** The text to read, and nothing else: the link is only stored, so it is not sent here. */
+const readBody = z.strictObject({
   jobDescription: z
     .string()
     .trim()
-    .min(1, "Paste the job description.")
-    .max(JOB_DESCRIPTION_MAX, `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`),
-  postingUrl: postingUrl.optional(),
-  requirements: requirements.optional(),
+    .min(JOB_DESCRIPTION_READ_MIN, "Paste the job description first. A few lines is enough.")
+    .max(JOB_DESCRIPTION_MAX, tooLong),
 });
 
 /** The job description is not here: it stays as it was pasted. */
@@ -98,6 +106,20 @@ const standingBody = z.strictObject({
   step: z.enum(APPLICATION_STEPS),
   closedAs: z.enum(CLOSED_KINDS).nullable(),
   dates: z.partialRecord(z.enum(APPLICATION_STATUSES), day),
+});
+
+/**
+ * What was read, held to the limits a saved application has, so a proposal is
+ * always one `POST /api/applications` would accept. The model is asked for
+ * short lines and is not trusted to have written them.
+ */
+const proposalOf = (read: PostingReading): PostingReading => ({
+  company: read.company.trim().slice(0, NAME_MAX).trim(),
+  position: read.position.trim().slice(0, NAME_MAX).trim(),
+  requirements: read.requirements
+    .map((item) => item.trim().slice(0, REQUIREMENT_MAX).trim())
+    .filter((item) => item !== "")
+    .slice(0, REQUIREMENTS_MAX),
 });
 
 type ApplicationRow = typeof applications.$inferSelect;
@@ -179,6 +201,47 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
     console.log(JSON.stringify({ event: "application_created", applicationId: id, characters: body.jobDescription.length }));
 
     return c.json(await detail(db, user.id, id), 201);
+  });
+
+  /**
+   * Reads a pasted posting and proposes the company, the position and the key
+   * requirements (issue #73). **It stores nothing**: the application is made
+   * by `POST /api/applications`, when the author has checked what was read.
+   *
+   * The one route here that calls the model. A reading that fails answers 503
+   * and the screen opens the same fields empty, so adding a job never depends
+   * on it.
+   */
+  api.post("/api/applications/read-posting", async (c) => {
+    const { jobDescription } = await parseBody(c, readBody);
+
+    let usage: ModelUsage | null = null;
+    let read: PostingReading;
+    try {
+      read = await c.get("model").readPosting(jobDescription, { onUsage: (u) => (usage = u) });
+    } catch (err) {
+      if (!(err instanceof ModelUnavailableError)) throw err;
+      // A length and the failure. Never the text.
+      console.log(JSON.stringify({ event: "posting_read_failed", characters: jobDescription.length }));
+      throw new ApiError(
+        "upstream_unavailable",
+        "The job description could not be read just now. Type the fields in; your text is kept.",
+      );
+    }
+
+    const proposal = proposalOf(read);
+    // Lengths and counts. Never the text, the company, the position or a requirement.
+    console.log(
+      JSON.stringify({
+        event: "posting_read",
+        characters: jobDescription.length,
+        company: proposal.company !== "",
+        position: proposal.position !== "",
+        requirements: proposal.requirements.length,
+        ...(usage ?? {}),
+      }),
+    );
+    return c.json(proposal);
   });
 
   api.get("/api/applications/:id", async (c) =>

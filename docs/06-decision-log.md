@@ -5992,3 +5992,46 @@ are saved in the same batch. Undo restores the standing from before the entry an
 The first-interview figure is counted from the first interview step's date. A real first interview
 recorded after the application had already reached Second interview should make that figure
 available without claiming the application moved backwards.
+
+### [2026-10-12] How a posting is read: asked for, not forced, and the same text is read once
+
+Issue #73, which builds the fifth model function decided on 2026-10-11. That entry settled what
+the function returns and where it goes. These are the choices the build made that it left open.
+
+**`readPosting(jobDescription)` returns `{ company, position, requirements }`, behind
+`POST /api/applications/read-posting`, which stores nothing.** The application is still made by
+`POST /api/applications`, unchanged, when the owner saves. The route takes the text and nothing
+else: the link is never sent to it. A posting that states no company is an empty string and a
+`200`, because "the text does not say" is an answer; a model failure is a `503`, and the screen
+treats every failure of this request alike, as the fields empty to type in.
+
+**The tool is asked for by the prompt, with `strict: true`, and not forced.** `generateRender`
+forces its tool, which `claude-opus-5` accepts. The models after it answer a forced `tool_choice`
+with a 400, and a 400 here would look exactly like "the reading failed" for ever: the hand-typed
+path would hide a feature that had stopped working. Asking is the form that survives a model
+change, and it is what `gradeFacts` already does. An answer with no usable tool call is a failed
+reading. Revisit `generateRender`'s forced call before `ANTHROPIC_MODEL` moves.
+
+**It runs at low effort**, as `Explain this` does. It copies three things out of one page, the
+owner checks all three before anything is saved, and they are waiting on it with the form open.
+
+**What was read is held to a saved application's limits before it is proposed** (200 characters,
+30 requirements of 300), so no proposal is one the save would refuse. The prompt asks for at most
+eight requirements; the reader keeps twelve at most, drops blanks and repeats, and trusts nothing
+about the shape.
+
+**The same text is not read twice.** Going back to the text and on again with it unchanged opens
+the check step as it was left, with the owner's corrections. The prototype read again and
+overwrote them. Changed text is read again and replaces the fields, with one exception: fields
+typed in after a failed reading survive a second reading that finds nothing.
+
+**Text under 40 characters is refused by the route as well as the screen**, so a stray request
+cannot spend a model call on a title. `POST /api/applications` keeps its own rule (any non-empty
+job description), because an application carried over or added through the API is not this screen.
+
+Rejected: **saving a draft application before the check**, which is the thing the confirmation
+step exists to prevent. **Sending the link for the model to read**, which nothing asked for and
+which would make a stored field a fetched one. **Structured output without a tool**, which the
+seam has no other use of; one more shape of call to keep in step with model changes buys nothing
+over a strict tool.
+

@@ -187,6 +187,15 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
         requirements: ["Has run a quayside cutover"],
       })
     ).json()) as { id: string };
+    model.postings = [
+      { company: "Harrowgate Shipping", position: "platform lead", requirements: ["Has run a quayside cutover"] },
+      new ModelUnavailableError("The model service returned 529."),
+    ];
+    for (const _attempt of [1, 2]) {
+      await client.post("/api/applications/read-posting", {
+        jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
+      });
+    }
     await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
     await client.patch(`/api/applications/${application.id}`, { position: "platform lead, quayside" });
     await client.post(`/api/applications/${application.id}/interviews`, {
@@ -227,6 +236,8 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"flag_explained","flagId":"flg_/);
     expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
     expect(log).toMatch(/"event":"application_created","applicationId":"app_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"posting_read","characters":\d+,"company":true,"position":true,"requirements":1/);
+    expect(log).toMatch(/"event":"posting_read_failed","characters":\d+/);
     expect(log).toMatch(/"event":"application_standing_set","applicationId":"app_[^"]+","step":"applied","closedAs":null/);
     expect(log).toMatch(
       /"event":"interview_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","round":"interview_1","questions":1,"movedTo":"interview_1"/,

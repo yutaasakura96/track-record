@@ -913,6 +913,20 @@ export function useCreateApplication() {
   });
 }
 
+/** What was read from a pasted posting: a proposal to check, and nothing saved (issue #73). */
+export interface PostingProposal {
+  company: string;
+  position: string;
+  requirements: string[];
+}
+
+/** Reads a pasted posting. It writes nothing, so there is nothing to refresh afterwards. */
+export const useReadPosting = () =>
+  useMutation({
+    mutationFn: (jobDescription: string) =>
+      api<PostingProposal>("/api/applications/read-posting", { method: "POST", ...json({ jobDescription }) }),
+  });
+
 /** One change to where an application stands. Each answers with the application as it is afterwards. */
 export type StandingChange =
   | { change: "set"; status: ApplicationStatus }

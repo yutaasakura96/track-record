@@ -635,7 +635,7 @@ the screens.
 | `position` | text | no | Empty on a row carried over from a tailored résumé, until the author fills it in |
 | `posting_url` | text | yes | An `http(s)` link to the posting. Never fetched |
 | `job_description` | text | no | As pasted, up to 20,000 characters. **Not changed after the row is made.** Somebody else's text: never a source of facts, never logged |
-| `requirements` | text[] | no | Default `{}`. The key requirements, typed by the author |
+| `requirements` | text[] | no | Default `{}`. The key requirements, as the author saved them: read from the job description and checked (#73), or typed |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
 | `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone, and an interview entry added (§3.15). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |

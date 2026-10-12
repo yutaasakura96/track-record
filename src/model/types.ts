@@ -244,8 +244,19 @@ export interface RenderSpec {
 }
 
 /**
- * Generation's counterpart to `ExtractionContext`, and what grading and
- * explaining report through too. It carries one field and is optional — this
+ * What was read from a pasted job posting (issue #73). It describes a job,
+ * never the author: it is proposed on a confirmation step and is not a fact.
+ * An empty string or an empty list is "the text does not say".
+ */
+export interface PostingReading {
+  company: string;
+  position: string;
+  requirements: string[];
+}
+
+/**
+ * Generation's counterpart to `ExtractionContext`, and what grading,
+ * explaining and reading a posting report through too. It carries one field and is optional — this
  * is a reporting channel, not a capability of its own.
  */
 export interface GenerationContext {
@@ -270,6 +281,12 @@ export interface ModelSeam {
    * `Explain this`, never on a list read.
    */
   explainFlag(flag: FlagToExplain, ctx?: GenerationContext): Promise<string>;
+  /**
+   * The company, the position and the key requirements a pasted posting
+   * states. Called only when the author presses `Read it`; what it returns is
+   * a proposal to check and is stored nowhere by this call.
+   */
+  readPosting(jobDescription: string, ctx?: GenerationContext): Promise<PostingReading>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

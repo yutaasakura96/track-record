@@ -20,6 +20,7 @@ import type {
   GradableFact,
   ModelSeam,
   ModelUsage,
+  PostingReading,
   RenderFact,
   RenderSpec,
 } from "~/model/types";
@@ -53,6 +54,10 @@ export interface StubModel extends ModelSeam {
   /** Queued responses, one per `explainFlag` call. */
   explanations: (string | Error)[];
   explainCalls: FlagToExplain[];
+  /** Queued responses, one per `readPosting` call. Unqueued, it finds nothing. */
+  postings: (PostingReading | Error)[];
+  /** Every job description the reading was actually given. */
+  postingCalls: string[];
   /**
    * Reported through `onUsage` on every call, extraction and generation alike.
    * Left unset to model a provider that reports nothing, which is what the
@@ -71,6 +76,8 @@ export function stubModel(): StubModel {
     gradeCalls: [],
     explanations: [],
     explainCalls: [],
+    postings: [],
+    postingCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
       const next = stub.extractions.shift() ?? [];
@@ -98,6 +105,13 @@ export function stubModel(): StubModel {
     async explainFlag(flag, ctx) {
       stub.explainCalls.push(flag);
       const next = stub.explanations.shift() ?? "It was flagged so that you can check it.";
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return next;
+    },
+    async readPosting(jobDescription, ctx) {
+      stub.postingCalls.push(jobDescription);
+      const next = stub.postings.shift() ?? { company: "", position: "", requirements: [] };
       if (next instanceof Error) throw next;
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next;
