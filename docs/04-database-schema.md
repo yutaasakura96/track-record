@@ -622,7 +622,8 @@ export (S15). A rejected fact's flags are kept and left off the list.
 ### 3.14 `applications` and `application_steps` · migration 0017, 2026-10-11 (#70)
 
 A job the author is looking at or has applied for, and the date of each status it has reached.
-Entered by hand. Its rules are one module, `src/shared/application.ts`, read by the routes and by
+Saved by the author: the company, the position and the requirements may be proposed from the job
+description first (#73), and nothing is stored until they are checked. Its rules are one module, `src/shared/application.ts`, read by the routes and by
 the screens.
 
 **`applications`**
