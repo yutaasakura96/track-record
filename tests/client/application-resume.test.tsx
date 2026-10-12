@@ -203,6 +203,21 @@ describe("choosing a résumé, before Applied", () => {
     expect(pathname()).toBe(`/applications/${ID}`);
   });
 
+  it("puts back a tailored résumé whose first proposal is waiting without generating, and refuses nothing", async () => {
+    const waiting = document({ ...OWN, currentVersionId: null, currentVersionNo: null, pendingProposalId: "prop-test-own" });
+    const { api, user, pathname } = open(application(NOT_APPLIED), {
+      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [waiting], choices: choicesOf([waiting]) }),
+    });
+    const resume = await panel();
+    await user.click(resume.getByRole("button", { name: "Make a tailored résumé" }));
+
+    await waitFor(() => expect(resume.queryByRole("button", { name: "Make a tailored résumé" })).toBeNull());
+    expect(resume.getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/proposals/prop-test-own");
+    expect(api.writes()).toEqual([`POST ${AT}/tailored-resume`]);
+    expect(resume.queryByRole("alert")).toBeNull();
+    expect(pathname()).toBe(`/applications/${ID}`);
+  });
+
   it("regenerates a tailored résumé from its row, and links to its history", async () => {
     const start = application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) });
     const { api, user, pathname } = open(start, { [`POST /api/renders/${TAILORED}/generate`]: { proposalId: "prop-test-own-2" } });

@@ -305,8 +305,8 @@ the entry point and `07-api-design.md` §7 for the document routes.
 2. **Make a tailored résumé** stores the résumé from the application's job description
    (`POST /api/applications/:id/tailored-resume`), generates it and opens Diff Review as in Flow 3.
    Accepting or keeping the current version returns to the application. A refusal to generate is
-   said on the application, and the résumé stays on it to generate later. One that already has a
-   version and was taken off is put back as it is, with nothing generated.
+   said on the application, and the résumé stays on it to generate later. One that was taken off
+   is put back as it is, and is generated only when it has neither a version nor a proposal waiting.
 3. Before Applied, a document can be taken off (`Take off`) and others added. Nothing is kept yet:
    each row is the live document at its current version.
 4. **Move to Applied.** Every document on the application that has a version and no sent copy yet

@@ -78,7 +78,7 @@ export function ResumePanel({
   const tailor = async () => {
     const next = await run({ change: "tailor" });
     const made = next?.documents.find((document) => document.tailored);
-    if (made && made.currentVersionId === null) await write(made.ref);
+    if (made && made.currentVersionId === null && made.pendingProposalId === null) await write(made.ref);
   };
 
   const use = async (refs: string[]) => {
