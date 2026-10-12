@@ -84,8 +84,9 @@ export function ApplicationsScreen() {
         <div className="border border-dashed border-border-dashed rounded-panel px-20 py-40 grid gap-12 justify-items-center text-center">
           <h2 className="text-page font-semibold tracking-tight text-text-bright">No applications yet</h2>
           <p className="max-w-measure text-ui text-text-secondary">
-            Add a job to start: the company, the position and the job description. After that the application
-            holds each step it reaches and the date of each, and tells you when it has gone quiet.
+            Paste a job description to start. The company, the position and the key requirements are read out
+            of it for you to check. After that the application holds the résumé you send, each step and its
+            date, and a note of every interview.
           </p>
           <Link to="/applications/new" className={PRIMARY}>
             Add a job

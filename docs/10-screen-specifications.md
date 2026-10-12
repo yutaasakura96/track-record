@@ -1373,7 +1373,7 @@ right **`Add a job`** (primary), to Screen 13.
 | State | Behaviour |
 |---|---|
 | **Loading** | The header and intro at once; `Loading your applications…` in the panel |
-| **None yet** | In place of the filter and panel, a dashed block: heading `No applications yet`; `Paste a job description to start. The company, the position and the key requirements are read out of it for you to check. After that the application holds the résumé you send, each step and its date, and a note of every interview.`; **`Add a job`** (primary); and `A job description is kept with its application. It is never a source of facts about you.` Until #73 the second sentence reads `Type in the company and the position.` |
+| **None yet** | In place of the filter and panel, a dashed block: heading `No applications yet`; `Paste a job description to start. The company, the position and the key requirements are read out of it for you to check. After that the application holds the résumé you send, each step and its date, and a note of every interview.`; **`Add a job`** (primary); and `A job description is kept with its application. It is never a source of facts about you.` |
 | **The filter matches none** | `No application matches.` and the link `Show all` |
 | **Could not load** | The reason in the panel, with `Try again` |
 
