@@ -819,6 +819,7 @@ live rows.
   stops following and stays.
 - **Written at two moments.** Whenever an application leaves Not applied, whichever step it lands
   on, by a move or by Undo, each attached document that has a version and no live copy is frozen.
+  The move an interview entry makes (§3.15) is one of those moves.
   A change between steps from Applied onward freezes nothing. `Record another sent copy`
   freezes the documents picked, always, with no comparison against earlier copies.
 - **A file that cannot be built refuses the move.** The files are built before anything is saved,

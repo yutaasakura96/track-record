@@ -6215,3 +6215,22 @@ From Applied onward the owner says what was sent, with `Record another sent copy
 
 Rejected: **keeping the freeze on arrival at Applied and teaching Undo to take those copies
 back**, which adds a second take-back rule to repair a freeze nobody asked for.
+
+### [2026-10-12] An interview entry's move freezes like any other move
+
+Issue #71, on rebasing over #72. Extends the entry above, "Only leaving Not applied freezes", to a
+route that did not exist when it was written. It changes nothing in that entry.
+
+**The freeze is in `saveStanding`, the one write every change to where an application stands goes
+through.** #72 added a second caller: saving an interview entry for a later round moves the
+application there, and can take it out of Not applied. With the freeze in the step and standing
+routes only, that move left an application at an interview step with documents attached and no
+sent copy, which is what the freeze exists to prevent.
+
+The copies are dated with the entry's day, which is the date the move saves. The entry, its
+questions, the move and the copies are one batch, so a file that cannot be built refuses the entry
+too. Undo of that move takes the copies back, as it does for any move. The screen says the same
+sentence after the entry's confirmation (`10`, Screen 13).
+
+Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
+with the first.

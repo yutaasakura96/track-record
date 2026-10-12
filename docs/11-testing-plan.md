@@ -457,6 +457,7 @@ And an application has one tailored résumé: asked again, it is the same one
 When it moves out of Not applied, to Applied or straight to a later step
 Then every document on it with a version and no sent copy yet is frozen as sent, with that step's date
 And a document that cannot be frozen refuses the move, and nothing is saved
+And an interview entry that takes it out of Not applied freezes the same way, and its Undo takes the copies back
 
 Given a sent copy
 When the document gets a later version, the author's name and address change, or the record changes

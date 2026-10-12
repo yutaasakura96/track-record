@@ -101,7 +101,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
 
     // An entry is a change to the application whether or not it moves the
     // status, so the same write marks it as changed now.
-    await saveStanding(db, user.id, id, row, steps, next, [
+    const frozen = await saveStanding(db, user.id, id, row, steps, next, [
       db.insert(interviews).values({
         id: interviewId,
         userId: user.id,
@@ -127,7 +127,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
       }),
     );
 
-    return c.json(await detail(db, user.id, id), 201);
+    return c.json({ ...(await detail(db, user.id, id)), frozen }, 201);
   });
 
   /** Attaches a link to a recording kept elsewhere to an entry. Only the link is kept. */

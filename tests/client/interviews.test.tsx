@@ -318,6 +318,25 @@ describe("an entry saved for a later round", () => {
     expect(screen.getByRole("button", { name: "Change the date" })).toBeTruthy();
   });
 
+  it("says which documents were frozen as sent when the entry takes it out of Not applied", async () => {
+    const before: Standing = { step: "not_applied", closedAs: null, dates: { not_applied: "2026-09-20" } };
+    const mounted = open(before, [], {
+      [`POST ${AT}/interviews`]: () => ({
+        ...application(standingAfterInterview(before, "interview_1", "2026-10-08"), TODAY, [FIRST]),
+        frozen: [{ title: "Main résumé", versionNo: 3 }],
+      }),
+    });
+    const form = await openForm(mounted.user);
+    fireEvent.change(within(form).getByLabelText("Date"), { target: { value: "2026-10-08" } });
+    await mounted.user.type(within(form).getByLabelText("How it went"), "A first conversation.");
+    await mounted.user.click(within(form).getByRole("button", { name: "Save interview" }));
+
+    const said = await screen.findByText(/^Interview saved, and the status moved/);
+    expect(said.textContent).toBe(
+      "Interview saved, and the status moved to First interview to match. Date saved as 2026-10-08. Main résumé v3 was frozen as sent.",
+    );
+  });
+
   it("is undone by putting back the standing from before it, and the entry stays", async () => {
     const { api, user } = await saveFinal();
     await user.click(await screen.findByRole("button", { name: "Undo" }));

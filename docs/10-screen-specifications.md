@@ -1629,7 +1629,8 @@ questions they asked.`
   change is said: `Interview saved, and the status moved to <step> to match. Date saved as <date>.`
   with `Change the date` and `Undo`, and that notice is brought into view, since the form is
   further down the page. The steps it passes over are skipped, as on any move. Undo puts the status
-  back and keeps the entry.
+  back and keeps the entry. One that takes the application out of Not applied freezes its documents
+  as any move does, and the notice ends with the same `<title> v<N> was frozen as sent.`
 - **An entry for an earlier skipped interview round fills that step's missing date** with the
   entry's day on an open application, without moving the current status. It is said in Where it
   stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.

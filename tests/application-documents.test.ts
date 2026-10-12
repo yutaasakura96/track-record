@@ -356,6 +356,36 @@ describe("moving to Applied", () => {
     expect(moved.sentCopies).toEqual([]);
   });
 
+  it("freezes when an interview entry is what takes it out of Not applied, and Undo takes that back", async () => {
+    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    const made = await add();
+    await choose(made.id, ["english_resume"]);
+
+    vi.setSystemTime(dayAfter(5));
+    const response = await client.post(`/api/applications/${made.id}/interviews`, {
+      date: dateAfter(4),
+      round: "interview_1",
+      howItWent: "A first conversation about the telemetry service.",
+    });
+    expect(response.status).toBe(201);
+    const noted = (await response.json()) as Detail;
+    expect(noted.step).toBe("interview_1");
+    expect(noted.frozen).toEqual([{ title: "Main résumé", versionNo: 1 }]);
+    expect(noted.sentCopies.map((copy) => [copy.title, copy.versionNo, copy.sentOn])).toEqual([
+      ["Main résumé", 1, dateAfter(4)],
+    ]);
+
+    const undone = await client.put(`/api/applications/${made.id}/standing`, {
+      step: made.step,
+      closedAs: null,
+      dates: made.dates,
+    });
+    expect(undone.status).toBe(200);
+    const back = await read(made.id);
+    expect(back.step).toBe("not_applied");
+    expect(back.sentCopies).toEqual([]);
+  });
+
   it("leaves a tailored résumé that has no version yet out of the freeze", async () => {
     const made = await add();
     await client.post(`/api/applications/${made.id}/tailored-resume`);

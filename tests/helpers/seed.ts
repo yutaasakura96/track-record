@@ -62,7 +62,7 @@ export async function asCandidates(importId: string): Promise<void> {
 }
 
 /**
- * A tailored résumé as migrations 0017 and 0018 leave one: inside an
+ * A tailored résumé as migrations 0017 and 0019 leave one: inside an
  * application at Not applied that holds its job description, and listed as a
  * document of it. The ones made before an application could write its own
  * résumé are exactly these rows.

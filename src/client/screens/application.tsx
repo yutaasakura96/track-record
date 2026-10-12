@@ -169,7 +169,12 @@ function Body({ application }: { application: Application }) {
     flash(`Undone.${frozenText(next.frozen)}`);
   };
 
-  const standingChangedByInterview = (before: Standing, step: ApplicationStep, moved: boolean) => {
+  const standingChangedByInterview = (
+    before: Standing,
+    step: ApplicationStep,
+    moved: boolean,
+    frozen: Application["frozen"],
+  ) => {
     setFailure(null);
     setDating(null);
     setMoved({
@@ -179,7 +184,7 @@ function Body({ application }: { application: Application }) {
         : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
       dated: step,
       elsewhere: true,
-      frozen: "",
+      frozen: frozenText(frozen),
     });
   };
 

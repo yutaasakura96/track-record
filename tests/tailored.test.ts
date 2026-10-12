@@ -9,7 +9,7 @@
  *
  * Since issue #70 it lives inside an application, which is where its status is
  * read from here. The ones in these tests are seeded as migrations 0017 and
- * 0018 leave one; making one from an application is pinned in
+ * 0019 leave one; making one from an application is pinned in
  * `application-documents.test.ts`. Every entry here is INVENTED.
  */
 import { env } from "cloudflare:test";

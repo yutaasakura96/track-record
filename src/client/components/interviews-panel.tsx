@@ -34,7 +34,7 @@ export function InterviewsPanel({
   onStandingChanged,
 }: {
   application: Application;
-  onStandingChanged: (before: Standing, step: ApplicationStep, moved: boolean) => void;
+  onStandingChanged: (before: Standing, step: ApplicationStep, moved: boolean, frozen: Application["frozen"]) => void;
 }) {
   const [adding, setAdding] = useState(false);
   const flash = useFlashStore((state) => state.show);
@@ -50,6 +50,7 @@ export function InterviewsPanel({
       { step: application.step, closedAs: application.closedAs, dates: application.dates },
       moved ? next.step : round,
       moved,
+      next.frozen,
     );
   };
 
