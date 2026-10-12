@@ -153,8 +153,9 @@ step is the place).
 
 **Sent copy**:
 A document exactly as it was sent for an Application: the file of that day, kept whole, with the day
-it was sent. Frozen when the Application moves to Applied, or when the author
-records another one afterwards, of any document. It is not a version and does not point at one:
+it was sent. Frozen when the Application leaves Not applied for Applied or a later step by a move
+or Undo, if that document has no sent copy yet; or when the author records another one afterwards,
+of any document. It records the version it came from but is never read through that link:
 later changes to the document or to the record never reach it.
 _Avoid_: snapshot, attachment, submitted version (a version is a render's, and can be edited from).
 

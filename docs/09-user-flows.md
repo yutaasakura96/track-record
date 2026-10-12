@@ -308,8 +308,8 @@ the entry point and `07-api-design.md` §7 for the document routes.
    said on the application, and the résumé stays on it to generate later.
 3. Before Applied, a document can be taken off (`Take off`) and others added. Nothing is kept yet:
    each row is the live document at its current version.
-4. **Move to Applied.** Every document on the application that has a version is frozen as sent,
-   with that day's date, and the panel says which. If a file cannot be built the move is not made
+4. **Move to Applied.** Every document on the application that has a version and no sent copy yet
+   is frozen as sent, with that day's date, and the panel says which. If a file cannot be built the move is not made
    and the reason is said.
 5. **What you sent** lists every copy. **Read it** opens the copy as it was sent (Screen 15);
    **Download** returns the stored file. Editing or regenerating the document afterwards, or
@@ -318,8 +318,8 @@ the entry point and `07-api-design.md` §7 for the document routes.
    press **Record the ticked documents**. Each is frozen again, dated today, beside the earlier
    copies.
 
-Correcting the Applied date moves the sent date of the copies that move froze. Undo of the move
-takes those copies back, and the next move freezes the documents again. An Undo that takes the
+Correcting the reached step's date moves the sent date of the copies that change froze. Undo of the
+move takes those copies back, and the next move freezes the documents again. An Undo that takes the
 application out of Not applied, to Applied or a later step, freezes any attached document with no
 sent copy, as a move does, and says which. A move or an Undo between steps from Applied onward
 freezes nothing.

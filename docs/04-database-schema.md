@@ -781,8 +781,8 @@ live rows.
 - **The tailored résumé is a row here too.** `renders.application_id` says which application it was
   written for; this row says it is being sent. Taking it off and putting it back leaves the résumé
   and its versions as they were.
-- **The set can only be changed before Applied.** Afterwards a document is sent by recording a copy
-  of it, and nothing is taken off.
+- **The chosen set can be edited at Not applied.** From Applied onward, recording another sent copy
+  can add a document to the application, but nothing is taken off.
 
 **`application_sent_copies`** — one row per document per time it was sent.
 
@@ -799,10 +799,10 @@ live rows.
 | `filename` | text | no | The download's name, as sent |
 | `file` | bytea | no | **The `.docx` as generated the day it was sent.** Never written again |
 | `page` | jsonb | no | What the screen shows of it (`SentPage`, `src/render/sent-page.ts`), taken at the same moment from the same inputs as the file. Never written again |
-| `sent_on` | date | no | **A real day** (§0), as a step's `happened_on` is. The date of the step the freezing move reached, or today in Japan for a copy recorded by hand |
+| `sent_on` | date | no | **A real day** (§0), as a step's `happened_on` is. The date of the step reached when the copy was frozen, or today in Japan for a copy recorded by hand |
 | `recorded_at` | timestamptz | no | Orders copies. The latest copy of a document is the one most recently recorded, never the one with the latest `sent_on` |
-| `frozen_step_id` | text | yes | FK → `application_steps.id` **set null**. The step row whose date the freezing move saved. Null on a copy recorded by hand |
-| `undone_at` | timestamptz | yes | Set when the move that froze the copy is undone. A copy with it set is read by no route |
+| `frozen_step_id` | text | yes | FK → `application_steps.id` **set null**. The step row whose date the freezing change saved. Null on a copy recorded by hand |
+| `undone_at` | timestamptz | yes | Set when the change that froze the copy is undone. A copy with it set is read by no route |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `application_id` and `user_id`, each over the rows with `undone_at` null.
@@ -1068,12 +1068,13 @@ the profile photo is not. Rows stamped `removed_at` or `undone_at` are exported 
 
 **Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
 `last_activity_at` and the changes counted as activity, §3.15 the interview entries and their
-questions (#72), and §3.16 a recording kept as a link (#74), and §3.17 the documents and sent copies (#71). Screen 12 in `10` specifies the later upload changes. Step, close, interview and
+questions (#72), §3.16 a recording kept as a link (#74), and §3.17 the documents and sent copies
+(#71). Screen 12 in `10` specifies the later upload changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent
 date follows a correction of the Applied date when that move froze it, and Undo of the move that
-froze copies removes those copies (`10`, Screen 13). Copies are written at two moments: leaving
+froze copies removes those copies (`10`, Screen 14). Copies are written at two moments: leaving
 Not applied for Applied or any later step, by a move or by Undo, freezes every attached
 document that has no sent copy yet, and from Applied onward `Record another sent
 copy` freezes any document the owner picks, always, with no comparison against earlier copies, so

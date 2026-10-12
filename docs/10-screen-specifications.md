@@ -1472,8 +1472,8 @@ Under each step reached:
 - **`skipped`** in `text-muted` and `add a date` (bare) for a step that was passed over.
 - Pressing either opens, in place, a date field (no later than today), `Save` (ghost) and `Cancel`
   (bare). Saving says `Date corrected. The day counts follow it.`; saving a date that
-  was not changed closes the field and says nothing. A sent copy frozen on the Applied
-  date follows a correction of that date.
+  was not changed closes the field and says nothing. A sent copy frozen on the date of the step
+  reached follows a correction of that date.
 
 **Three figures**, as tiles, the number in the Stat value role (`05` §2) with `days` small beside it:
 
@@ -1560,8 +1560,8 @@ copy, earlier copies of the same document included, most recently recorded first
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
-  own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
-  that move removes the copies it froze (Status).
+  own. Its sent date follows a correction of the reached step's date when that change froze it,
+  and Undo of that change takes back the copies it froze (Status).
 - **Copies are frozen at two moments and no other.** Leaving Not applied for Applied or any later
   step, by a move or by Undo, freezes the attached documents that have no sent copy yet
   (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
@@ -1585,7 +1585,7 @@ copy, earlier copies of the same document included, most recently recorded first
 | **Applied or later, nothing frozen** | `No sent copy is recorded. Use “Record another sent copy” to add one.` |
 | **Applied or later, no document at all** | `No résumé is recorded for this application.` above the same two buttons |
 | **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
-| **Freezing failed** | The move to Applied is not made, and the reason is said in the panel. A status that says Applied with nothing kept would be the wrong half to save |
+| **Freezing failed** | The change out of Not applied is not made, and the reason is said in the panel |
 
 #### Interviews · #72, recordings #74 and #76
 

@@ -455,7 +455,7 @@ And several can be on it at once, beside a tailored résumé made from its job d
 And an application has one tailored résumé: asked again, it is the same one
 
 When it moves out of Not applied, to Applied or straight to a later step
-Then every document on it with a version is frozen as sent, with that day's date
+Then every document on it with a version and no sent copy yet is frozen as sent, with that step's date
 And a document that cannot be frozen refuses the move, and nothing is saved
 
 Given a sent copy
