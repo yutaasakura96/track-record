@@ -292,7 +292,7 @@ it is never out of date and there is no second copy to keep in step.
    the same document routes. A refusal or an abandoned proposal leaves the existing résumé intact.
 
 The former Tailored résumés screen and `POST /api/tailored-resumes` are gone. A new tailored
-résumé is made from its application (Flow 13). See Screen 14 in `10-screen-specifications.md` for
+résumé is made from its application (Flow 14). See Screen 14 in `10-screen-specifications.md` for
 the entry point and `07-api-design.md` §7 for the document routes.
 
 ---
@@ -354,8 +354,8 @@ added again.
    Accepting or keeping the current version returns to the application. A refusal to generate is
    said on the application, and the résumé stays on it to generate later. One that was taken off
    is put back as it is, and is generated only when it has neither a version nor a proposal waiting.
-3. Before Applied, a document can be taken off (`Take off`) and others added. Nothing is kept yet:
-   each row is the live document at its current version.
+3. At Not applied, a document can be taken off (`Take off`) and others added. Each row is the live
+   document at its current version; copies from an earlier move remain under **What you sent**.
 4. **Move to Applied.** Every document on the application that has a version and no sent copy yet
    is frozen as sent, with that day's date, and the panel says which. If a file cannot be built the move is not made
    and the reason is said.

@@ -443,6 +443,8 @@ Then a link is drawn with its label or `Recording kept elsewhere`, its address, 
 And an address that is not http or https is never drawn as something to open
 And a link that is not one is refused without a request, with what was typed kept
 And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
+```
+
 ### 2.6l A sent copy is the file of the day, and nothing later reaches it
 
 `tests/application-documents.test.ts`, `tests/applications-migration.test.ts` (0020) and
@@ -463,9 +465,9 @@ Given a sent copy
 When the document gets a later version, the author's name and address change, or the record changes
 Then the copy's file and its page are byte for byte what they were
 And the company renamed later does not rename the copy
-And no route changes a copy
+And no route changes the copy's file or page
 
-When the Applied date is corrected
+When the date of the step that froze a copy is corrected
 Then the copies that move froze follow it, and a copy from an earlier move does not
 When the move is undone
 Then the copies it froze are gone from every read, and a copy recorded by hand stays

@@ -52,7 +52,7 @@ are marked as the owner's in each issue.
   position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13).
   **#74, built 2026-10-12**: a link to a recording kept elsewhere on an interview entry, opened in
   a new tab and removable for good (`04` §3.16, `07` §9b). No file is stored. The
-  rest of #71 to #73 and #75 to #77 follow in the order their `Depends on` lines give;
+  rest of #75 to #77 follow in the order their `Depends on` lines give;
   each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
   before #76.
 
