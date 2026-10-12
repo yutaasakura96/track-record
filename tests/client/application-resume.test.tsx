@@ -191,6 +191,18 @@ describe("choosing a résumé, before Applied", () => {
     expect(resume.queryByRole("button", { name: "Make a tailored résumé" })).toBeNull();
   });
 
+  it("puts back a tailored résumé that has a version without generating, and stays on the application", async () => {
+    const { api, user, pathname } = open(application(NOT_APPLIED), {
+      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) }),
+    });
+    const resume = await panel();
+    await user.click(resume.getByRole("button", { name: "Make a tailored résumé" }));
+
+    expect(await resume.findByRole("button", { name: "Regenerate" })).toBeTruthy();
+    expect(api.writes()).toEqual([`POST ${AT}/tailored-resume`]);
+    expect(pathname()).toBe(`/applications/${ID}`);
+  });
+
   it("regenerates a tailored résumé from its row, and links to its history", async () => {
     const start = application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) });
     const { api, user, pathname } = open(start, { [`POST /api/renders/${TAILORED}/generate`]: { proposalId: "prop-test-own-2" } });

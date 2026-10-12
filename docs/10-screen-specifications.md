@@ -1535,7 +1535,8 @@ says `Reopened at <step>.`
 - `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
   tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
-- Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
+- Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
+  was taken off and generates only when it has no version yet, and `Add a document you
   already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
   opens the tick card in place, with `Cancel`. Before Applied the card is the one above, ticked
   with what is on the application, and saving it takes off what was unticked. From Applied onward
