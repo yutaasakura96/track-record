@@ -10,7 +10,7 @@
  * All fixtures are invented.
  */
 import { describe, expect, it } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Application, ApplicationDocument, DocumentChoice, Proposal, SentCopy, SentCopyPage } from "~/client/api";
 import { figures, moveTo, type Standing } from "~/shared/application";
 import { mount, Refusal, type Call, type Routes } from "./harness";
@@ -448,6 +448,37 @@ describe("a sent copy", () => {
 
     await user.click(screen.getByRole("link", { name: "Back to the application" }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
+  });
+
+  it("shows the corrected date when the copy is opened again after the Applied date was corrected", async () => {
+    const sentOn = (date: string) =>
+      screen.findByText((_, element) => element?.tagName === "SPAN" && (element.textContent ?? "").startsWith(`Sent to Osprey Grid on ${date}.`));
+    let standing = APPLIED;
+    const now = () =>
+      application(standing, {
+        documents: [RIREKISHO],
+        choices: choicesOf([RIREKISHO]),
+        sentCopies: [copy(RIREKISHO, standing.dates.applied!, { id: SENT.id })],
+      });
+    const { user } = openCopy({
+      "GET /api/applications": { items: [], today: TODAY },
+      [`GET ${AT}`]: now,
+      [`GET ${AT}/sent-copies/${SENT.id}`]: () => ({ ...SENT, sentOn: standing.dates.applied! }),
+      [`PATCH ${AT}/steps/applied`]: ({ body }: Call) => {
+        standing = { ...standing, dates: { ...standing.dates, applied: (body as { date: string }).date } };
+        return now();
+      },
+    });
+    expect(await sentOn("2026-10-06")).toBeTruthy();
+
+    await user.click(screen.getByRole("link", { name: "Back to the application" }));
+    await user.click(await screen.findByRole("button", { name: "Applied, 2026-10-06. Correct this date" }));
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-10-04" } });
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await screen.findByRole("button", { name: "Applied, 2026-10-04. Correct this date" });
+
+    await user.click(screen.getByRole("link", { name: "Read 履歴書 v4, sent 2026-10-04" }));
+    expect(await sentOn("2026-10-04")).toBeTruthy();
   });
 
   it("says so when the copy is not there, and offers nothing to do to it", async () => {

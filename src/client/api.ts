@@ -514,6 +514,7 @@ export const keys = {
   // whatever refreshes the documents refreshes these.
   applications: ["renders", "applications"] as const,
   application: (id: string) => ["renders", "applications", id] as const,
+  sentCopies: (applicationId: string) => ["renders", "applications", applicationId, "sent"] as const,
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
@@ -956,10 +957,11 @@ export const useApplication = (id: string) =>
 
 export const useSentCopy = (applicationId: string, copyId: string) =>
   useQuery({
-    queryKey: [...keys.application(applicationId), "sent", copyId] as const,
+    queryKey: [...keys.sentCopies(applicationId), copyId] as const,
     queryFn: () => api<SentCopyPage>(`/api/applications/${applicationId}/sent-copies/${copyId}`),
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
     // The file as it was that day: it does not change while it is being read.
+    // Its date, its company and whether it is there at all follow the application.
     staleTime: Infinity,
   });
 
@@ -1011,6 +1013,7 @@ export function useApplicationActions(id: string) {
   const settled = (next: Application) => {
     queryClient.setQueryData(keys.application(id), next);
     void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    void queryClient.invalidateQueries({ queryKey: keys.sentCopies(id) });
   };
   const edit = useMutation({
     mutationFn: (body: ApplicationFields) => api<Application>(base, { method: "PATCH", ...json(body) }),
