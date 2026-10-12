@@ -1326,7 +1326,7 @@ description, the résumé sent, where it stands and how the interviews went (`02
   governs where the prototype derives last change from event dates.
 - **A short confirmation after an action is one line with `role="status"`**, at the foot of the
   content column, which leaves by itself: `Saved as Not applied.`, `Date corrected. The day counts
-  follow it.`, `Undone.` (with what the Undo froze, Screen 13). A status change is said in the panel instead, where its Undo is.
+  follow it.`, `Undone.` (with what the Undo froze, Screen 14). A status change is said in the panel instead, where its Undo is.
 - **No text of a job description, a company, a position, an interviewer or a question is logged**
   (`AGENTS.md`), and the list is served without job description text, as the tailored listing is.
 
