@@ -15,6 +15,7 @@ import {
   type GradableFact,
   type ModelSeam,
   type ModelUsage,
+  type PostingReading,
   type RenderFact,
   type RenderSpec,
 } from "../types";
@@ -23,6 +24,7 @@ import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
 import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent } from "../generate";
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
+import { READ_POSTING_SYSTEM_PROMPT, READ_POSTING_TOOL, postingRequest, readPostingInput } from "../posting";
 
 /**
  * Thinking and effort are stated rather than inherited.
@@ -45,6 +47,12 @@ const OUTPUT_CONFIG = { effort: "high" } as const;
  * decide a fact's grade run at.
  */
 const EXPLAIN_OUTPUT_CONFIG = { effort: "low" } as const;
+/**
+ * Reading a posting copies three things out of a page of text, and the author
+ * checks every one of them before anything is saved. They are waiting on it
+ * with the form open, so it runs at the effort `Explain this` does.
+ */
+const READ_POSTING_OUTPUT_CONFIG = { effort: "low" } as const;
 
 export interface AnthropicSeamConfig {
   apiKey: string;
@@ -213,6 +221,32 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
           throw new ModelUnavailableError("The model did not return an explanation.");
         }
         return text;
+      } catch (err) {
+        throw asModelError(err);
+      }
+    },
+
+    async readPosting(jobDescription: string, ctx?: GenerationContext): Promise<PostingReading> {
+      try {
+        // The tool is asked for by the prompt, not forced: the models after
+        // `claude-opus-5` refuse a forced `tool_choice`, and a posting that
+        // cannot be read should not also be a request that cannot be made.
+        const stream = client.messages.stream({
+          model: config.model,
+          max_tokens: 4000,
+          thinking: THINKING,
+          output_config: READ_POSTING_OUTPUT_CONFIG,
+          system: [{ type: "text", text: READ_POSTING_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          tools: [READ_POSTING_TOOL],
+          messages: [{ role: "user", content: postingRequest(jobDescription) }],
+        });
+        const message = await stream.finalMessage();
+        // Before the unusable-response check, as in generation: the call ran.
+        ctx?.onUsage?.(readUsage(message.usage));
+        const block = message.content.find((b) => b.type === "tool_use" && b.name === READ_POSTING_TOOL.name);
+        const reading = block?.type === "tool_use" ? readPostingInput(block.input) : null;
+        if (!reading) throw new ModelUnavailableError("The model did not return a reading.");
+        return reading;
       } catch (err) {
         throw asModelError(err);
       }

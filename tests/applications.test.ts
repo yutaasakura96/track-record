@@ -13,8 +13,10 @@
  * which only the clock moves. Every entry here is INVENTED.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { harness, stubModel, type Client, type Harness } from "./helpers/harness";
+import { harness, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, seedTailoredResume } from "./helpers/seed";
+import { ModelUnavailableError } from "~/model";
+import { NOT_A_POSTING, POSTING_EN, POSTING_JA, READING_EN, READING_JA } from "./fixtures/postings";
 
 interface Row {
   id: string;
@@ -50,12 +52,14 @@ const dateAfter = (days: number) => dayAfter(days).toISOString().slice(0, 10);
 
 let app: Harness;
 let client: Client;
+let model: StubModel;
 
 beforeEach(async () => {
   // Only `Date`: the database is real and its requests keep their real timers.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(DAY_ONE);
-  app = harness(stubModel());
+  model = stubModel();
+  app = harness(model);
   client = app.as(await seedAllowedUser());
 });
 
@@ -168,6 +172,95 @@ describe("adding a job by hand", () => {
     expect((await read(made.id)).postingUrl).toBe(link);
     expect((await edit({ postingUrl: "" })).status).toBe(200);
     expect(await read(made.id)).toMatchObject({ postingUrl: null, position: "Staff Backend Engineer" });
+  });
+});
+
+describe("reading a pasted posting", () => {
+  const READ = "/api/applications/read-posting";
+  const reading = async (jobDescription: string) => {
+    const response = await client.post(READ, { jobDescription });
+    return { status: response.status, body: (await response.json()) as Record<string, unknown> };
+  };
+
+  it("proposes the company, the position and the key requirements, in English and in 日本語", async () => {
+    model.postings = [READING_EN, READING_JA];
+
+    expect(await reading(POSTING_EN)).toEqual({ status: 200, body: READING_EN });
+    expect(await reading(`\n${POSTING_JA}\n`)).toEqual({ status: 200, body: READING_JA });
+    // The text as pasted, trimmed, and nothing else: no link, no record.
+    expect(model.postingCalls).toEqual([POSTING_EN, POSTING_JA]);
+  });
+
+  it("saves nothing: there is no application until the author saves one", async () => {
+    model.postings = [READING_EN];
+    await reading(POSTING_EN);
+    expect((await list()).items).toEqual([]);
+
+    const saved = await add({ ...READING_EN, jobDescription: POSTING_EN });
+    expect(saved).toMatchObject({ ...READING_EN, jobDescription: POSTING_EN, step: "not_applied" });
+    expect((await list()).items).toHaveLength(1);
+  });
+
+  it("answers with empty fields when the text states none of them", async () => {
+    expect(await reading(NOT_A_POSTING)).toEqual({
+      status: 200,
+      body: { company: "", position: "", requirements: [] },
+    });
+  });
+
+  it("answers 503 when the model fails, saves nothing, and adding the job by hand still works", async () => {
+    model.postings = [new ModelUnavailableError("The model service returned 529.", 529)];
+
+    const failed = await reading(POSTING_EN);
+    expect(failed.status).toBe(503);
+    expect(failed.body).toMatchObject({
+      error: {
+        code: "upstream_unavailable",
+        message: "The job description could not be read just now. Type the fields in; your text is kept.",
+      },
+    });
+    expect((await list()).items).toEqual([]);
+
+    const byHand = await add({ company: "Vellum Tideworks", position: "Backend Engineer", jobDescription: POSTING_EN });
+    expect(byHand).toMatchObject({ company: "Vellum Tideworks", step: "not_applied", requirements: [] });
+  });
+
+  it("refuses text too short to read, text over the limit and an extra field, without calling the model", async () => {
+    expect(await reading("Backend engineer")).toMatchObject({
+      status: 422,
+      body: { error: { message: "Paste the job description first. A few lines is enough." } },
+    });
+    expect(await reading("x".repeat(20_001))).toMatchObject({
+      status: 422,
+      body: { error: { message: "A job description can be at most 20,000 characters." } },
+    });
+    const extra = await client.post(READ, { jobDescription: POSTING_EN, postingUrl: "https://jobs.example.invalid/vellum" });
+    expect(extra.status).toBe(422);
+    expect(model.postingCalls).toEqual([]);
+  });
+
+  it("holds what was read to the limits a saved application has, so a proposal can always be saved", async () => {
+    model.postings = [
+      {
+        company: "V".repeat(260),
+        position: `  ${"P".repeat(199)} x`,
+        requirements: [...Array.from({ length: 34 }, (_, index) => `Requirement ${index + 1}`), "R".repeat(400), "  "],
+      },
+    ];
+    const { body } = await reading(POSTING_EN);
+    const proposal = body as { company: string; position: string; requirements: string[] };
+
+    expect(proposal.company).toBe("V".repeat(200));
+    expect(proposal.position).toBe("P".repeat(199));
+    expect(proposal.requirements).toHaveLength(30);
+    expect(proposal.requirements.every((item) => item.length <= 300)).toBe(true);
+    expect((await client.post("/api/applications", { ...proposal, jobDescription: POSTING_EN })).status).toBe(201);
+  });
+
+  it("is refused without a session, before the model is reached", async () => {
+    const response = await app.anonymous().post(READ, { jobDescription: POSTING_EN });
+    expect(response.status).toBe(401);
+    expect(model.postingCalls).toEqual([]);
   });
 });
 

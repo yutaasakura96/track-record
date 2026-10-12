@@ -1,7 +1,8 @@
 /**
- * THE SEAM. Four functions, and nothing else: read a passage into facts, write
- * a document from facts, grade facts extracted before grading existed, and
- * explain one flag (`docs/06`, 2026-10-08).
+ * THE SEAM. Five functions, and nothing else: read a passage into facts, write
+ * a document from facts, grade facts extracted before grading existed,
+ * explain one flag (`docs/06`, 2026-10-08), and read a pasted job posting
+ * (`docs/06`, 2026-10-11).
  *
  * Nothing outside `src/model/` imports an SDK or knows a provider name
  * (`docs/03-technical-design.md` §4). Swapping providers is a configuration
@@ -244,8 +245,19 @@ export interface RenderSpec {
 }
 
 /**
- * Generation's counterpart to `ExtractionContext`, and what grading and
- * explaining report through too. It carries one field and is optional — this
+ * What was read from a pasted job posting (issue #73). It describes a job,
+ * never the author: it is proposed on a confirmation step and is not a fact.
+ * An empty string or an empty list is "the text does not say".
+ */
+export interface PostingReading {
+  company: string;
+  position: string;
+  requirements: string[];
+}
+
+/**
+ * Generation's counterpart to `ExtractionContext`, and what grading,
+ * explaining and reading a posting report through too. It carries one field and is optional — this
  * is a reporting channel, not a capability of its own.
  */
 export interface GenerationContext {
@@ -270,6 +282,12 @@ export interface ModelSeam {
    * `Explain this`, never on a list read.
    */
   explainFlag(flag: FlagToExplain, ctx?: GenerationContext): Promise<string>;
+  /**
+   * The company, the position and the key requirements a pasted posting
+   * states. Called only when the author presses `Read it`; what it returns is
+   * a proposal to check and is stored nowhere by this call.
+   */
+  readPosting(jobDescription: string, ctx?: GenerationContext): Promise<PostingReading>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

@@ -47,7 +47,9 @@ are marked as the owner's in each issue.
   come into scope. `CONTEXT.md`, `02` §3a and S20 to S24, and `10` Screens 12 to 15 are written, and
   the reviewed prototype is `docs/prototype/applications-prototype.html`. #70 builds the list,
   application page and status steps. **#72, built 2026-10-12**: interview entries with the
-  questions asked, and the move of the status that saving one makes (`04` §3.15, `07` §9b). The
+  questions asked, and the move of the status that saving one makes (`04` §3.15, `07` §9b).
+  **#73, built 2026-10-12**: a pasted posting is read by a fifth model function into a company, a
+  position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13). The
   rest of #71 to #77 follow in the order their `Depends on` lines give;
   each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
   before #76.
