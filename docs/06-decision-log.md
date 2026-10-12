@@ -6187,7 +6187,7 @@ every change to the standing goes through, so no route can leave Not applied wit
 applied or returns to it.
 
 **Undo says what it froze.** Its confirmation is `Undone.`, followed by the sentence a move uses,
-`<title> v<N> was frozen as sent.`, when it froze anything (`10`, Screen 13).
+`<title> v<N> was frozen as sent.`, when it froze anything (`10`, Screen 14).
 
 Rejected: **freezing on Undo only when it lands on Applied**, which leaves the same hole one step
 further on. **Leaving Undo out of the freeze** because it restores a past standing: the documents
@@ -6230,7 +6230,7 @@ sent copy, which is what the freeze exists to prevent.
 The copies are dated with the entry's day, which is the date the move saves. The entry, its
 questions, the move and the copies are one batch, so a file that cannot be built refuses the entry
 too. Undo of that move takes the copies back, as it does for any move. The screen says the same
-sentence after the entry's confirmation (`10`, Screen 13).
+sentence after the entry's confirmation (`10`, Screen 14).
 
 Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
 with the first.
