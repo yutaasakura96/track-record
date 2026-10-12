@@ -816,7 +816,7 @@ live rows.
   follows a correction of that step's date: the correction supersedes the step row, and the copy is
   pointed at the new one. `undone_at` is set by Undo of that move, found by `frozen_step_id` naming
   a live step row. A move back to Not applied that is not an Undo supersedes the row, so the copy
-  stops following and stays.
+  stops following and stays, and it does not follow again when that move back is itself undone.
 - **Written at two moments.** Whenever an application leaves Not applied, whichever step it lands
   on, by a move or by Undo, each attached document that has a version and no live copy is frozen.
   The move an interview entry makes (§3.15) is one of those moves.

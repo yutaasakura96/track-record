@@ -76,28 +76,35 @@ export async function buildDocumentFile(
   const filename = filenameFor(render, kind, "docx", version);
   const today = tokyoToday();
 
-  try {
-    // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
-    // derived from the record rather than read out of the version, its identity
-    // block comes from the profile row, and the only generated text in it is
-    // the two prose blocks. The submission date is stamped now, in Tokyo, and
-    // the age is computed against it (`docs/04` §4).
-    if (kind === "rirekisho") {
-      const profile = await collectRirekishoProfile(db, userId);
-      const record = await collectRirekishoRecord(db, userId);
+  // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
+  // derived from the record rather than read out of the version, its identity
+  // block comes from the profile row, and the only generated text in it is
+  // the two prose blocks. The submission date is stamped now, in Tokyo, and
+  // the age is computed against it (`docs/04` §4).
+  if (kind === "rirekisho") {
+    const profile = await collectRirekishoProfile(db, userId);
+    const record = await collectRirekishoRecord(db, userId);
+    return assembled(version, () => {
       const data = rirekishoTemplateData({ profile, record, submittedOn: today, content });
       return { bytes: fillRirekishoTemplate(data), filename, page: rirekishoSentPage(data, content) };
-    }
+    });
+  }
 
-    // Read now rather than stored with the version: the identity block is not
-    // a claim about a career, and an accepted version must not go stale because
-    // a phone number changed (`src/render/identity.ts`).
-    const identity = await renderIdentity(db, userId);
-    return {
-      bytes: await toDocx(content, RENDER_TITLE[kind], kind, identity, today),
-      filename,
-      page: sentPage(kind, content, identity, today),
-    };
+  // Read now rather than stored with the version: the identity block is not
+  // a claim about a career, and an accepted version must not go stale because
+  // a phone number changed (`src/render/identity.ts`).
+  const identity = await renderIdentity(db, userId);
+  return assembled(version, async () => ({
+    bytes: await toDocx(content, RENDER_TITLE[kind], kind, identity, today),
+    filename,
+    page: sentPage(kind, content, identity, today),
+  }));
+}
+
+/** Runs the build alone, so a read that fails before it is not reported as a file that could not be assembled. */
+async function assembled(version: VersionRow, build: () => DocumentFile | Promise<DocumentFile>): Promise<DocumentFile> {
+  try {
+    return await build();
   } catch (error) {
     // A refusal with words for the author is passed on as it is.
     if (error instanceof ApiError) throw error;
