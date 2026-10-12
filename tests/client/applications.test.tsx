@@ -461,7 +461,7 @@ describe("adding a job", () => {
 
   it("says it is reading, and holds the text still while it does", async () => {
     let answer: (value: unknown) => void = () => {};
-    const { user } = open({ [READ]: () => new Promise((resolve) => (answer = resolve)) });
+    const { api, user } = open({ [READ]: () => new Promise((resolve) => (answer = resolve)) });
     await readIt(user);
 
     expect((await screen.findByRole("status")).textContent).toBe(
@@ -471,8 +471,12 @@ describe("adding a job", () => {
     expect((screen.getByLabelText(LINK) as HTMLInputElement).readOnly).toBe(true);
     expect(screen.queryByRole("button", { name: "Read it" })).toBeNull();
 
+    // Enter in the link field submits the form again; one reading is in flight at a time.
+    fireEvent.submit(screen.getByLabelText(LINK).closest("form")!);
+
     answer(READING);
     expect(await screen.findByRole("heading", { name: "Check what was read" })).toBeTruthy();
+    expect(api.writes()).toEqual([READ]);
   });
 
   it("opens the fields empty to type in when the reading fails, and saves what is typed", async () => {

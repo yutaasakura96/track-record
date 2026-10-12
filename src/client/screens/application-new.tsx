@@ -72,6 +72,7 @@ export function NewApplicationScreen() {
 
   const readIt = async (event: FormEvent) => {
     event.preventDefault();
+    if (read.isPending) return;
     const text = jobDescription.trim();
     if (text.length < JOB_DESCRIPTION_READ_MIN) {
       return setFailure("Paste the job description first. A few lines is enough.");
