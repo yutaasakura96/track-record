@@ -7,10 +7,9 @@
  * Applied onward nothing is chosen any more, only recorded: `Record another
  * sent copy` freezes whatever is ticked, always, and compares nothing.
  *
- * Leaving Not applied for any step, or arriving at Applied, by a move or by
- * Undo, is the other moment a copy is frozen. It lives with the status routes
- * in `./applications.ts`, because the change and its copies are one
- * transaction.
+ * Leaving Not applied for any step, by a move or by Undo, is the other moment
+ * a copy is frozen. It lives with the status routes in `./applications.ts`,
+ * because the change and its copies are one transaction.
  *
  * No log line here carries a company, a title or any text of a document: ids
  * and counts.

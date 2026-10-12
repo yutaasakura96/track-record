@@ -472,6 +472,8 @@ When the status is moved back and forward again
 Then the copies stay and the same document is not frozen twice
 When a document is attached at Not applied and Undo puts back Applied or a later step
 Then that document is frozen, the Undo says which, and the copies already there are left alone
+When a move or an Undo arrives at Applied from a later step, with a document that has no copy
+Then nothing is frozen
 
 When another sent copy is recorded, from Applied onward
 Then each ticked document is frozen again, always, and the latest is the one most recently recorded

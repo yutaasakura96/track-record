@@ -7,8 +7,7 @@
  * application stands goes through {@link saveStanding}, so a date is never
  * overwritten: the row holding it is superseded and a new one written.
  * It is also where the documents are frozen: whenever an application leaves
- * Not applied for any step or arrives at Applied, by a move, by Undo or by an
- * interview entry's move.
+ * Not applied for any step, by a move, by Undo or by an interview entry's move.
  *
  * Gone quiet and the "how long since" figures are worked out on every read,
  * against today's date in Japan. None is stored. The figures count from the
@@ -398,9 +397,9 @@ export const markActivity = (db: Db, userId: string, applicationId: string, now:
  * What a change to the standing is, which decides what it does to sent copies
  * (`docs/10` Screen 14, issue #71).
  *
- * Whatever the kind, a change that leaves Not applied for any step, or that
- * arrives at Applied, freezes the documents on the application that have no
- * sent copy yet. One that already has a copy is left alone.
+ * Whatever the kind, a change that leaves Not applied for any step freezes
+ * the documents on the application that have no sent copy yet. One that
+ * already has a copy is left alone, and no other change freezes anything.
  *
  * - `move`: a step set, a close, a reopen. It does nothing more to copies.
  * - `correct`: one date put right. A copy frozen by the change that saved
@@ -484,7 +483,7 @@ export async function saveStanding(
 
   let frozen: NamedVersion[] = [];
   const copies: BatchItem<"pg">[] = [];
-  if (leaving || (previous.currentStep !== "applied" && next.step === "applied")) {
+  if (leaving) {
     // Built before anything is saved: a file that cannot be made refuses the
     // move, so Applied is never saved with nothing kept.
     const made = await freezeDocuments(db, userId, previous, await unsentDocuments(db, userId, applicationId), {

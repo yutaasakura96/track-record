@@ -554,6 +554,24 @@ describe("moving back, and undoing", () => {
     expect(restored.sentCopies.find((copy) => copy.title === "Main résumé")?.id).toBe(passed.sentCopies[0]!.id);
   });
 
+  it("freezes nothing when a move or an Undo arrives at Applied from a later step", async () => {
+    const { made, after } = await applied();
+    const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    await accept(stored.documents.find((document) => document.title.startsWith("Tailored"))!.ref, content("Ran telemetry ingestion for tide gauges."));
+
+    const passed = (await (await move(made.id, "resume_passed")).json()) as Detail;
+    expect(passed.frozen).toEqual([]);
+    const undone = (await (await client.put(`/api/applications/${made.id}/standing`, { step: after.step, closedAs: null, dates: after.dates })).json()) as Detail;
+    expect(undone.step).toBe("applied");
+    expect(undone.frozen).toEqual([]);
+
+    await move(made.id, "resume_passed");
+    const back = (await (await move(made.id, "applied")).json()) as Detail;
+    expect(back.frozen).toEqual([]);
+    expect(back.sentCopies.map((copy) => copy.id)).toEqual(after.sentCopies.map((copy) => copy.id));
+    expect(back.documents).toHaveLength(2);
+  });
+
   it("takes back the copies a move froze when that move is undone, and freezes them again on the next move", async () => {
     const { made, before, after } = await applied();
     expect(after.sentCopies).toHaveLength(1);

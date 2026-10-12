@@ -6,7 +6,7 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import {
   applicationDocuments,
   applicationSentCopies,
@@ -34,6 +34,9 @@ import { importStatus } from "./imports";
 import { provenanceCounts } from "./facts";
 import { factOfFlag, openFlags } from "./flags";
 import type { AppEnv } from "../env";
+
+/** A sent copy as a backup holds it: every column but the file, which is bytes, and the owner. */
+const { file: _file, userId: _userId, ...sentCopyColumns } = getTableColumns(applicationSentCopies);
 
 export function registerOverviewRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -282,7 +285,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId)),
       // Taken-off documents and undone copies too, for the same reason.
       db.select().from(applicationDocuments).where(eq(applicationDocuments.userId, userId)),
-      db.select().from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
+      db.select(sentCopyColumns).from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
     ]);
 
     const body = {
@@ -310,8 +313,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       interviews: only(interviewRows),
       interviewQuestions: only(interviewQuestionRows),
       applicationDocuments: only(applicationDocumentRows),
-      // A sent copy's file is bytes too. Its page, what the file says, is here.
-      applicationSentCopies: sentCopyRows.map(({ userId: _u, file: _file, ...rest }) => rest),
+      // A sent copy's file is bytes too, and is not read. Its page, what the file says, is here.
+      applicationSentCopies: sentCopyRows,
     };
 
     return new Response(JSON.stringify(body, null, 2), {

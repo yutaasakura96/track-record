@@ -6193,3 +6193,25 @@ Rejected: **freezing on Undo only when it lands on Applied**, which leaves the s
 further on. **Leaving Undo out of the freeze** because it restores a past standing: the documents
 on the application are today's, and a standing at Applied with an unsent document is what the
 freeze exists to prevent.
+
+### [2026-10-12] Only leaving Not applied freezes; arriving at Applied from a later step does not
+
+Issue #71, review of the change. Supersedes one sentence of the entry above, "Leaving Not applied
+freezes the unsent documents, by a move or by Undo": `Any arrival at Applied does the same.`
+Everything else in that entry stands.
+
+**The rule is the one sentence.** Whenever an application leaves Not applied for Applied or any
+later step, by a move or by Undo, each attached document with no sent copy yet is frozen. Nothing
+else freezes automatically. A move or an Undo between steps from Applied onward freezes nothing,
+including one that lands on Applied.
+
+A document with a version and no copy can exist past Applied: a tailored résumé can be made at any
+step. Stepping back to Applied, or undoing a step forward from it, froze that résumé as sent on
+the old Applied date, which could be a day before the version existed, and said so. The owner had
+sent nothing. Undo takes copies back only when it returns to Not applied, so that copy could not
+be taken back by any route.
+
+From Applied onward the owner says what was sent, with `Record another sent copy`.
+
+Rejected: **keeping the freeze on arrival at Applied and teaching Undo to take those copies
+back**, which adds a second take-back rule to repair a freeze nobody asked for.
