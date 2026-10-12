@@ -835,7 +835,7 @@ function EmptyRecord({ refresh }: { refresh: ReactNode }) {
 const Backup = () => (
   <Section
     heading="Backup"
-    about="Your whole record as one JSON file: everything you entered, every fact, and where each fact is quoted from. The imported documents themselves are not included."
+    about="Your whole record as one JSON file: everything you entered, every fact, and where each fact is quoted from. The imported documents themselves are not included, and neither are recordings of interviews or the links to them."
     action={
       <a href="/api/export" className={`shrink-0 ${SECONDARY}`}>
         Export my record

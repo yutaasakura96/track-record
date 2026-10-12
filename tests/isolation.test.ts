@@ -232,6 +232,13 @@ describe("one user's record is unreachable from another's session", () => {
       questions: ["taken"],
     });
     expect(noted.status, "add an interview").toBe(404);
+    // The entry id is not what is refused here: the application in the path is not theirs.
+    const attached = await a.client.post(`/api/applications/${b.applicationId}/interviews/placeholder/recordings`, {
+      url: "https://taken.example.invalid/rec",
+    });
+    expect(attached.status, "attach a recording").toBe(404);
+    const removed = await a.client.delete(`/api/applications/${b.applicationId}/interviews/placeholder/recordings/placeholder`);
+    expect(removed.status, "remove a recording").toBe(404);
 
     // And the other user's records are unchanged.
     const theirs = await b.client.json<{ company: string; step: string; closedAs: string | null }>(

@@ -986,6 +986,28 @@ export function useAddInterview(applicationId: string) {
 }
 
 /**
+ * The recordings of one interview entry (issue #74): a link added, and a
+ * recording removed for good. Each answers with the application afterwards.
+ */
+export function useRecordings(applicationId: string, interviewId: string) {
+  const queryClient = useQueryClient();
+  const base = `/api/applications/${applicationId}/interviews/${interviewId}/recordings`;
+  const settled = (next: Application) => {
+    queryClient.setQueryData(keys.application(applicationId), next);
+    void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+  };
+  const addLink = useMutation({
+    mutationFn: (body: { url: string; label: string }) => api<Application>(base, { method: "POST", ...json(body) }),
+    onSuccess: settled,
+  });
+  const remove = useMutation({
+    mutationFn: (recordingId: string) => api<Application>(`${base}/${recordingId}`, { method: "DELETE" }),
+    onSuccess: settled,
+  });
+  return { addLink, remove };
+}
+
+/**
  * The restore preview's diff. `from` is the current version, so the split view
  * reports what committing the restore will CHANGE rather than what it undoes.
  */

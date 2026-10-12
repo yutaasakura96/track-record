@@ -60,7 +60,8 @@ users (Better Auth)
  ├── applications                1:N   (a job being looked at or applied for)
  │    ├── application_steps      1:N   (the date of each status reached; superseded, never deleted)
  │    ├── interviews             1:N   (the author's note of one real interview)
- │    │    └── interview_questions 1:N  (the questions asked, each a row, in order)
+ │    │    ├── interview_questions 1:N  (the questions asked, each a row, in order)
+ │    │    └── interview_recordings 1:N (a link to a recording kept elsewhere; the one removable row)
  │    └── renders                0:1   (the tailored résumé written for it)
  ├── skill_curations             1:N   [M2]
  └── render_inclusions           1:N   [M2]
@@ -101,6 +102,7 @@ create type application_status as enum ('not_applied', 'applied', 'resume_passed
                                          'interview_2', 'interview_final', 'offer',
                                          'rejected', 'withdrawn');
 create type interview_round as enum ('interview_1', 'interview_2', 'interview_final', 'other');
+create type recording_kind as enum ('link');
 ```
 
 ---
@@ -721,6 +723,36 @@ route and by the form.
 - **An entry is saved once.** No route edits or removes one (`06`, 2026-10-12). Both tables are in
   the export.
 
+### 3.16 `interview_recordings` · migration 0019, 2026-10-12 (#74)
+
+A recording of an interview, on its entry. Today that is **a link to one kept somewhere else**:
+only the link is held, nothing fetches it, and no file is stored. Uploading an audio file (#76)
+adds a second `recording_kind` and its own columns to this table. The rules are
+`src/shared/recording.ts`, read by the route and by the form.
+
+| Column | Type | Null | Notes |
+|---|---|---|---|
+| `id` | text | no | PK, `rec_…` |
+| `user_id` | text | no | FK → `users.id` **cascade** |
+| `interview_id` | text | no | FK → `interviews.id` **cascade** |
+| `kind` | recording_kind | no | `link` |
+| `url` | text | yes | `http` or `https`, with a host and no whitespace, up to 2,000 characters. **Null once removed, and only then.** Never logged |
+| `label` | text | no | Default `''`. What it is, in a few words, up to 200 characters. Emptied on removal. Never logged |
+| `removed_at` | timestamptz | yes | When the author removed it. Null while it is there |
+| `created_at`, `updated_at` | timestamptz | no | A card lists its recordings by `created_at` |
+
+**Index:** `(user_id, interview_id)`. **Checks:** a `link` has a `url` exactly when `removed_at` is
+null; a removed row has an empty `label`.
+
+- **This is the one row the author can remove** (`06`, 2026-10-11). Removing does not delete the
+  row. It sets `removed_at` and empties `url` and `label` in the same statement, so the link is
+  gone from the database for good and the entry can still say `A recording was removed on <date>`.
+  The date shown is the day in Japan of `removed_at`. `removed_at` is not a soft delete: nothing
+  of the recording is kept behind it.
+- **Adding and removing one are activity on the application.** Both are written in one `db.batch`
+  with `applications.last_activity_at` and under its conflict guard (`07` §9b).
+- **Not in the export** (S24). The entry it hangs from is.
+
 ---
 
 ## 4. The 履歴書 field contract
@@ -936,11 +968,14 @@ technologies: {AWS, VPC, IAM}
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
+| `interviews`, `interview_questions` | **Never deleted.** An entry is saved once |
+| `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). The link and its label are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
 | `profiles.photo` | Deletable by the author. Nothing else expires |
 | Anything | **No soft-delete columns.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight |
 
-**Export (S15)** reads every table above except `sessions` and `accounts`, and emits JSON:
+**Export (S15)** reads every table above except `sessions`, `accounts` and `interview_recordings`
+(S24: a recording is not in the exported record, a link to one included), and emits JSON:
 every entity, every provenance and disclosure value, and every evidence pointer.
 
 > **Known tension, recorded rather than resolved.** "Never deleted" is correct for a single-user
@@ -954,8 +989,8 @@ every entity, every provenance and disclosure value, and every evidence pointer.
 ## 7. Migration and environment notes
 
 **Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
-`last_activity_at` and the changes counted as activity, and §3.15 the interview entries and their
-questions (#72). Screen 12 in `10` specifies the later document and recording changes. Step, close, interview and
+`last_activity_at` and the changes counted as activity, §3.15 the interview entries and their
+questions (#72), and §3.16 a recording kept as a link (#74). Screen 12 in `10` specifies the later document and upload changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent
 date and the time it was recorded. **The stored file of a sent copy is never changed.** The record is not insert only: its sent

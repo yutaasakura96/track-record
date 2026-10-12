@@ -13,6 +13,7 @@
  * leaves the status where it is.
  */
 import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
+import type { Recording } from "./recording";
 
 /** The three interview steps, under their step names, and a conversation that is not a round. */
 export const INTERVIEW_ROUNDS = ["interview_1", "interview_2", "interview_final", "other"] as const;
@@ -42,6 +43,8 @@ export interface Interview {
   who: string;
   howItWent: string;
   questions: { id: string; text: string }[];
+  /** Its recordings in the order they were attached, a removed one still in its place (issue #74). */
+  recordings: Recording[];
 }
 
 /**

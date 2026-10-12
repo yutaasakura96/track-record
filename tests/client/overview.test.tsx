@@ -1382,4 +1382,14 @@ describe("the backup", () => {
     const link = await screen.findByRole("link", { name: "Export my record" });
     expect(link.getAttribute("href")).toBe("/api/export");
   });
+
+  it("says what the file leaves out, interview recordings among it", async () => {
+    open([row()]);
+
+    expect(
+      await screen.findByText(
+        /The imported documents themselves are not included, and neither are recordings of interviews or the links to them\.$/,
+      ),
+    ).toBeTruthy();
+  });
 });
