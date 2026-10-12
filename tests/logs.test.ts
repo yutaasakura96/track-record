@@ -198,13 +198,21 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     }
     await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
     await client.patch(`/api/applications/${application.id}`, { position: "platform lead, quayside" });
-    await client.post(`/api/applications/${application.id}/interviews`, {
-      date: "2026-01-05",
-      round: "interview_1",
-      who: "Ottoline Varga, head of berths",
-      howItWent: "She walked through the gantry backlog.",
-      questions: ["How would you sequence a berth swap?"],
-    });
+    const noted = (await (
+      await client.post(`/api/applications/${application.id}/interviews`, {
+        date: "2026-01-05",
+        round: "interview_1",
+        who: "Ottoline Varga, head of berths",
+        howItWent: "She walked through the gantry backlog.",
+        questions: ["How would you sequence a berth swap?"],
+      })
+    ).json()) as { interviews: { id: string }[] };
+    const recordings = `/api/applications/${application.id}/interviews/${noted.interviews[0]!.id}/recordings`;
+    const attached = (await (
+      await client.post(recordings, { url: "https://calls.example.invalid/rec/mooring-debrief", label: "Their take of the stevedore call" })
+    ).json()) as { interviews: { recordings: { id: string }[] }[] };
+    await client.post(recordings, { url: "javascript:windlass()", label: "capstan" });
+    await client.delete(`${recordings}/${attached.interviews[0]!.recordings[0]!.id}`);
     await client.get(`/api/applications/${application.id}`);
     await client.get("/api/applications");
     await client.get("/api/master-document");
@@ -227,6 +235,11 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       "berths",
       "gantry",
       "berth swap",
+      "calls.example",
+      "mooring",
+      "stevedore",
+      "windlass",
+      "capstan",
       "Yosuke Aoki",
     ]) {
       expect(log, `a log line contained "${needle}"`).not.toContain(needle);
@@ -242,6 +255,10 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(
       /"event":"interview_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","round":"interview_1","questions":1,"movedTo":"interview_1"/,
     );
+    expect(log).toMatch(
+      /"event":"recording_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+","kind":"link"/,
+    );
+    expect(log).toMatch(/"event":"recording_removed","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+"/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });

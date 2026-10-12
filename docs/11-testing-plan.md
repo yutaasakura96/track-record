@@ -418,6 +418,33 @@ And a move is said where a status change is said, with its Undo
 And another user cannot add an entry to an application, and reads none of its entries
 ```
 
+### 2.6k A recording is a link, only an http or https one, and can be removed for good
+
+`tests/recordings.test.ts` and `tests/client/recordings.test.tsx` (#74).
+
+```
+Given an application with an interview entry
+When a link is attached to the entry
+Then the entry reads back the link and what it is, in the order attached, and no other entry does
+And a link that is not http or https is refused and nothing is stored: no scheme, javascript:, data:, file:, ftp:, a bare https://, one with a space in it
+And an entry of another application, or one that is not there, is a miss
+
+When a recording is removed
+Then its link and label are gone from the database, and the entry keeps a line with the day in Japan
+And the line stays in its place among the entry's other recordings
+And removing it a second time is a miss
+
+Then attaching and removing each count as a change to the application, and neither moves the status
+And no recording is in the exported record
+And another user can neither attach, remove nor read one
+
+On the screen
+Then a link is drawn with its label or `Recording kept elsewhere`, its address, and Open in a new tab
+And an address that is not http or https is never drawn as something to open
+And a link that is not one is refused without a request, with what was typed kept
+And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

@@ -6064,3 +6064,51 @@ owner reviewed it.
 Rejected: **keeping the rule and emptying the fields only when changed text fails to read**, which
 keeps the record of the text and the second state it makes possible, to protect corrections the
 owner can retype in three fields.
+
+### [2026-10-12] A recording by link: what is stored, what removing empties, and what opens
+
+Issue #74, the first half of S24. The entry of 2026-10-11 decided that an interview entry can
+carry a link to a recording kept elsewhere and that a recording can be removed. This is how the
+link was built. Upload (#76) adds to it and changes none of it.
+
+**One table, `interview_recordings`, with a `recording_kind` that holds only `link`.** #76 adds
+its own kind and its own columns. A removed recording is the same row, and what the page reads is
+one of three shapes: a link, later an upload, or a line saying one was removed.
+
+**Removing empties the link; it does not hide it.** `removed_at` is set and `url` and `label` are
+set to null and empty in the same statement, and a check on the table refuses a removed row that
+still has either. So "removed for good" is true of the database and not only of the page, and the
+row that stays holds an id and a time, which is all the line `A recording was removed on <date>`
+needs. The label goes with the link because it is the author's words about a call with other
+people, and a removed recording that kept `Their recording of the call` would still say whose it
+was. The date shown is the day in Japan, like every other day on these screens.
+
+**The routes sit under the application**, `…/applications/:id/interviews/:interviewId/recordings`,
+and not at `/api/recordings/:id` as the prototype report sketched. Attaching and removing are
+activity on the application (`10`, What a change is), so both write through the same
+`saveStanding` as every other change to it: `last_activity_at` moves, and a write over a newer
+one is refused as changed somewhere else. The path names the application that write needs.
+
+**`http` or `https`, checked three times.** The form refuses anything else before a request is
+made; the route refuses it again, since the form is not what the server trusts; and `Open` is
+drawn only for an address that passes the same rule when it is read back. The rule is one
+function, `isWebLink` in `src/shared/recording.ts`: the scheme, a host, and no whitespace. The
+link becomes an `href`, so `javascript:` and `data:` are what this is for, not tidiness. `Open`
+is `target="_blank"` with `noopener noreferrer`: the place the recording lives is not told which
+application page the click came from.
+
+**Not in the export, a link included.** S24 says recordings are not in the exported record. A
+link is small and could have been, but one rule for both kinds is the one the Backup panel can
+say in a sentence, and it now says it.
+
+**`AGENTS.md` is corrected**, as the entry of 2026-10-11 said the issue that builds removal would:
+nothing is ever deleted, except a recording.
+
+Rejected: **deleting the row**, which leaves an entry that silently used to have a recording
+(2026-10-11). **Keeping the link on the removed row**, which is hiding, and fails the owner who
+was asked to take one down. **A text column for the kind**, where the enum is how the rest of the
+schema names a closed list. **Exporting links and not uploads**, which makes the Backup sentence
+two rules.
+
+**Revisit if:** the owner wants links in the backup after all, which is one more read in
+`GET /api/export` and a change to that sentence.

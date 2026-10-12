@@ -90,6 +90,11 @@ export const applicationStatus = pgEnum("application_status", [
  * for a conversation that is not a round and never moves the status.
  */
 export const interviewRound = pgEnum("interview_round", ["interview_1", "interview_2", "interview_final", "other"]);
+/**
+ * What a recording on an interview entry is (issue #74). A link to one kept
+ * elsewhere is the only kind until upload is built (#76), which adds its own.
+ */
+export const recordingKind = pgEnum("recording_kind", ["link"]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -742,6 +747,35 @@ export const interviewQuestions = pgTable("interview_questions", {
 }, (t) => [
   uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position),
   index("interview_questions_user_idx").on(t.userId),
+]);
+
+/**
+ * A recording of an interview, on its entry (issue #74): a link to one kept
+ * elsewhere. Only the link is held, and nothing here fetches it.
+ *
+ * THE ONE ROW THE AUTHOR CAN REMOVE (decision log, 2026-10-11). Removing does
+ * not delete the row: it sets `removed_at` and empties `url` and `label`, so
+ * the link is gone for good and the entry can still say that a recording was
+ * removed and when. The check holds the two together.
+ *
+ * `url` and `label` are the author's words about a call with other people:
+ * never logged, like the entry they hang from.
+ */
+export const interviewRecordings = pgTable("interview_recordings", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  interviewId: text("interview_id").notNull().references(() => interviews.id, { onDelete: "cascade" }),
+  kind: recordingKind("kind").notNull(),
+  /** `http` or `https`. Null once removed, and only then. */
+  url: text("url"),
+  /** What it is, in a few words. Empty when not given, and once removed. */
+  label: text("label").notNull().default(""),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  index("interview_recordings_interview_idx").on(t.userId, t.interviewId),
+  check("interview_recordings_link_ck", sql`${t.kind} <> 'link' or (${t.url} is null) = (${t.removedAt} is not null)`),
+  check("interview_recordings_removed_ck", sql`${t.removedAt} is null or ${t.label} = ''`),
 ]);
 
 /* ------------------------------------------------------------- M2 tables */

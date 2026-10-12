@@ -49,7 +49,9 @@ are marked as the owner's in each issue.
   application page and status steps. **#72, built 2026-10-12**: interview entries with the
   questions asked, and the move of the status that saving one makes (`04` §3.15, `07` §9b).
   **#73, built 2026-10-12**: a pasted posting is read by a fifth model function into a company, a
-  position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13). The
+  position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13).
+  **#74, built 2026-10-12**: a link to a recording kept elsewhere on an interview entry, opened in
+  a new tab and removable for good (`04` §3.16, `07` §9b). No file is stored. The
   rest of #71 to #77 follow in the order their `Depends on` lines give;
   each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
   before #76.

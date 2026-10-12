@@ -217,6 +217,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
    * render, export, or appear in any output. What is exported is the pointer —
    * the version id, the quote offsets and the line number — which is what makes
    * an imported fact's evidence restorable alongside the document it came from.
+   *
+   * **Interview recordings are absent too**, a link to one included (S24,
+   * decision log 2026-10-11): `interview_recordings` is not read here.
    */
   api.get("/api/export", async (c) => {
     const userId = c.get("user").id;

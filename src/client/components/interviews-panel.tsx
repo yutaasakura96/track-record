@@ -4,7 +4,8 @@
  *
  * One card an interview entry, newest day first, and a form that adds one. The
  * questions asked are separate items in the order given: typed one at a time,
- * or pasted as several lines and split.
+ * or pasted as several lines and split. A card ends with the entry's
+ * recordings (`./interview-recordings`, issue #74).
  *
  * A changed standing is said in Where it stands, with its Undo, so this panel
  * hands the change up rather than confirming it here.
@@ -25,6 +26,7 @@ import {
   type InterviewRound,
 } from "~/shared/interview";
 import { CONTROL } from "./application-chrome";
+import { InterviewRecordings } from "./interview-recordings";
 import { Button, Mono, Panel } from "./ui";
 
 export function InterviewsPanel({
@@ -72,7 +74,7 @@ export function InterviewsPanel({
       ) : (
         <ul className={`grid gap-8 ${adding ? "mt-10" : ""}`}>
           {entries.map((entry) => (
-            <InterviewCard key={entry.id} entry={entry} />
+            <InterviewCard key={entry.id} applicationId={application.id} entry={entry} />
           ))}
         </ul>
       )}
@@ -80,7 +82,7 @@ export function InterviewsPanel({
   );
 }
 
-function InterviewCard({ entry }: { entry: Interview }) {
+function InterviewCard({ applicationId, entry }: { applicationId: string; entry: Interview }) {
   return (
     <li className="min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-10">
       <div className="flex flex-wrap items-baseline gap-x-12 gap-y-6">
@@ -103,6 +105,7 @@ function InterviewCard({ entry }: { entry: Interview }) {
           </ol>
         </div>
       ) : null}
+      <InterviewRecordings applicationId={applicationId} entry={entry} />
     </li>
   );
 }
@@ -260,6 +263,9 @@ function NewInterview({
         </div>
         <span className="text-small text-text-muted">Pasting several lines adds them all at once.</span>
       </div>
+      <p className="text-small text-text-muted">
+        A recording is attached after you save, from the interview's own card.
+      </p>
       <div className="flex flex-wrap items-center gap-8">
         <Button variant="primary" onClick={() => void save()} disabled={add.isPending} disabledReason="Saving…">
           {add.isPending ? "Saving…" : "Save interview"}

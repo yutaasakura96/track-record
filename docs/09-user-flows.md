@@ -325,6 +325,27 @@ entry point and `07-api-design.md` §7 for the document routes.
 
 ---
 
+## Flow 13 · Keep a link to a recording of an interview · M3 (#60, #74)
+
+1. On an interview's card → `Attach a recording`. The link form opens in place.
+2. The author pastes the link and, if they like, says what it is in a few words → **Add the link**
+   → `POST /api/applications/:id/interviews/:interviewId/recordings`. Only the link is kept.
+3. The card shows a row: `Link`, what it is, the address. `Open` opens it in a new tab.
+4. `Remove` asks once in place of the row → **Remove it** → `DELETE …/recordings/:recordingId`.
+   The link is gone for good and the card keeps `A recording was removed on <date>.`
+
+| Step | What can go wrong | What the author sees |
+|---|---|---|
+| 2 | The text is not an `http` or `https` link | `That does not look like a link. It should start with https://` Nothing is sent |
+| 2, 4 | The application was changed in another tab | The form or the question stays, and says to reload |
+| 3 | The recording was taken down where it lives | The link opens to whatever is there now. The form said so when the link was added |
+| 4 | Remove was pressed by mistake | `Keep it` closes the question and nothing changes |
+
+**If abandoned:** `Cancel` discards what was typed. A removed link cannot be brought back; it is
+added again.
+
+---
+
 ## Not a flow · Adopting an existing document as version 1
 
 **Rejected.** The author has a hand-tuned résumé, and adopting it as `v1` so the first diff compares

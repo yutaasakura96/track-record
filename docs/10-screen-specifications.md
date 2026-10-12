@@ -537,7 +537,8 @@ reason above the rows.
 
 **Section 5 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
 you entered, every fact, and where each fact is quoted from. The imported documents themselves are
-not included.`, and a secondary `Export my record`, which is `GET /api/export` (S15).
+not included, and neither are recordings of interviews or the links to them.`, and a secondary
+`Export my record`, which is `GET /api/export` (S15, S24).
 
 ### Importing a document
 
@@ -1589,8 +1590,8 @@ questions they asked.`
 - How it went, as a paragraph in `text-body`, with the line breaks it was typed with. Left out when
   empty.
 - `Questions asked`, then the questions as a numbered list. Left out when there are none.
-- Its recordings, a row each, then **`Attach a recording`** (ghost). Built by #74 and #76, with
-  the form's line about recordings; until then a card ends at its questions.
+- Its recordings, a row each in the order attached, then **`Attach a recording`** (ghost). A link
+  is built (#74), with the form's line about recordings; uploading audio follows in #76.
 
 **The form**, a card titled `New interview`, opened at the top of the panel:
 
@@ -1646,12 +1647,15 @@ questions they asked.`
   the card is the link form alone.**
 - **The link form:** `Link to the recording` (placeholder `https://`), `What it is, in a few words`
   (placeholder `Their recording of the call`), `Only the link is kept. If the recording is taken
-  down where it lives, it is gone here too.`, **`Add the link`** (secondary) and `Cancel`. Saved,
-  it says `Link added.`
+  down where it lives, it is gone here too.`, **`Add the link`** (secondary) and `Cancel`. The
+  card opens with the cursor in the link field, and Enter in either field adds the link. Saved,
+  it says `Link added.` A link that is refused keeps the card and what was typed, and says why
+  under the buttons.
 - **Uploading**, a `role="status"` row: `Uploading <name>`, the progress bar of `05` §7, and `N of
   M MB. Keep this page open.` Done, it says `Recording uploaded.`
 
-**`Remove` asks once, in place of the row**, as an alert dialog: `Remove <name> for good?`, then
+**`Remove` asks once, in place of the row**, as an alert dialog: `Remove <name> for good?`, a
+link's name being its label, or `this link` when it has none, then
 for a file `The file is deleted from storage and cannot be brought back.` and for a link `Only the
 link is removed; the recording stays where it lives.`, then `The interview keeps a line saying one
 was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says `Recording removed.`
@@ -1662,7 +1666,9 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
   audio or video`, its `Video` chip and its `2 GB` are not the spec; #76 sets the size and type
   limits and writes them into the sentence above.
 - **A link is `http` or `https`**, or it is refused: `That does not look like a link. It should
-  start with https://`
+  start with https://` It is refused before anything is sent and again by the server, and `Open`
+  is drawn only for an address that passes the same rule, so no other kind of address is ever
+  opened from this page. `Open` sends no referrer.
 - **Only the owner, signed in, can play or download an upload.** Nothing here shares one.
 - **A recording is the only thing on these screens that can be removed.** An entry cannot, and an
   application cannot.

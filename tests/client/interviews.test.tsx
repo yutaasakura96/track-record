@@ -45,6 +45,7 @@ const FIRST: Interview = {
     { id: "ivq-test-1", text: "What would you measure first on a service you inherit?" },
     { id: "ivq-test-2", text: "Tell us about an outage you caused." },
   ],
+  recordings: [],
 };
 const SECOND: Interview = {
   id: "int-test-second",
@@ -53,6 +54,7 @@ const SECOND: Interview = {
   who: "",
   howItWent: "",
   questions: [{ id: "ivq-test-3", text: "Why robotics?" }],
+  recordings: [],
 };
 
 const application = (standing: Standing, lastActivityOn: string, interviews: Interview[]): Application => ({
@@ -95,6 +97,7 @@ function open(start: Standing = FERNHILL, entries: Interview[] = [SECOND, FIRST]
           who: entry.who,
           howItWent: entry.howItWent,
           questions: entry.questions.map((text, index) => ({ id: `ivq-test-new-${index}`, text })),
+          recordings: [],
         },
         ...interviews,
       ];
@@ -129,7 +132,7 @@ describe("the interview entries of an application", () => {
         .map((item) => item.textContent),
     ).toEqual(["What would you measure first on a service you inherit?", "Tell us about an outage you caused."]);
     // Nobody named, nothing written about how it went: neither line is drawn.
-    expect(cards[0]!.textContent).toBe("Second interview2026-10-02Questions askedWhy robotics?");
+    expect(cards[0]!.textContent).toBe("Second interview2026-10-02Questions askedWhy robotics?Attach a recording");
   });
 
   it("says what to note when there are none, and what to do next at an interview step", async () => {
