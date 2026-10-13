@@ -822,8 +822,8 @@ live rows.
   The move an interview entry makes (§3.15) is one of those moves.
   A change between steps from Applied onward freezes nothing. `Record another sent copy`
   freezes the documents picked, always, with no comparison against earlier copies.
-- **A file that cannot be built refuses the move.** The files are built before anything is saved,
-  so Applied is never saved with nothing kept.
+- **A file that cannot be built refuses the standing change.** The files are built before anything is saved,
+  so a failed build saves neither the step change nor a partial set of copies.
 - **Carry-over.** Migration 0020 lists each tailored résumé that 0017 linked as a document of its
   application. `down/0020_application_documents.sql` reverses it, and
   `tests/applications-migration.test.ts` runs both directions.
