@@ -56,7 +56,6 @@ const overview = (documents: RenderRow[], canGenerate = true): Overview => ({
   review: null,
   unconfirmed: null,
   documents,
-  tailored: [],
   canGenerate,
   isEmpty: false,
 });
@@ -680,22 +679,13 @@ describe("the English documents and the Japanese ones, apart", () => {
 
 /**
  * Issue #57. A flag is advice, so it is a line under the facts and never the
- * Next step; the master document is one link from the facts it lists; and a
- * tailored résumé is a row of its own, addressed by its id.
+ * Next step; and the master document is one link from the facts it lists. A
+ * tailored résumé is no longer on Home: it is on its application (issue #70).
  */
 describe("what automatic acceptance adds to Home", () => {
   const with57 = (over: Partial<Overview>, documents: RenderRow[] = [row()]): Routes => ({
     "GET /api/overview": { ...overview(documents), ...over },
   });
-  const tailored = (n: number, over: Partial<RenderRow> = {}): RenderRow =>
-    row({
-      id: `rnd-test-${n}`,
-      ref: `rnd-test-${n}`,
-      title: `Résumé for Quillset ${n}`,
-      tailored: { label: `Quillset role ${n}`, createdAt: "2026-10-07T03:00:00.000Z" },
-      ...over,
-    });
-
   it("says how many facts are flagged and where the list is, and makes no step of them", async () => {
     open(
       [],
@@ -734,38 +724,11 @@ describe("what automatic acceptance adds to Home", () => {
     expect(within(await documentRow()).getByText("English · your main résumé, tailored to no job")).toBeTruthy();
   });
 
-  it("lists the newest tailored résumés by name, and says how many more there are", async () => {
-    open([], with57({ tailored: [1, 2, 3, 4, 5].map((n) => tailored(n)) }));
-    const section = (await screen.findByText("Quillset role 1")).closest("section")!;
-
-    expect(within(section).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      expect.stringContaining("Quillset role 1"),
-      expect.stringContaining("Quillset role 2"),
-      expect.stringContaining("Quillset role 3"),
-    ]);
-    expect(within(section).getByText("And 2 more on the Tailored résumés screen.")).toBeTruthy();
-    expect(within(section).getByRole("link", { name: "Open tailored résumés" }).getAttribute("href")).toBe("/tailored");
-  });
-
-  it("generates the tailored résumé whose row was pressed, by its own id", async () => {
-    const POST = "POST /api/renders/rnd-test-2/generate";
-    const { api, user, pathname } = open([], {
-      ...with57({ tailored: [tailored(1), tailored(2)] }),
-      [POST]: { proposalId: "prop-test-orrery" },
-    });
-    const item = (await screen.findByText("Quillset role 2")).closest("li")!;
-    await user.click(within(item).getByRole("button", { name: "Generate" }));
-
-    await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-orrery"));
-    expect(api.writes()).toEqual([POST]);
-  });
-
-  it("offers to make the first tailored résumé when there are none", async () => {
-    open([], with57({ tailored: [] }));
-    const link = await screen.findByRole("link", { name: "Make one" });
-
-    expect(link.getAttribute("href")).toBe("/tailored");
-    expect(within(link.closest("section")!).queryAllByRole("listitem")).toEqual([]);
+  it("has no section for tailored résumés: each one is an application now", async () => {
+    open([], with57({}));
+    await screen.findByRole("link", { name: "Open master document" });
+    expect(screen.queryByText(/Tailored résumés/)).toBeNull();
+    expect(screen.queryByRole("link", { name: "Make one" })).toBeNull();
   });
 });
 
@@ -798,7 +761,7 @@ describe("the sidebar", () => {
       "Documents",
       "Flagged",
       "Master document",
-      "Tailored résumés",
+      "Applications",
     ]);
     expect(within(nav).queryByText("Facts")).toBeNull();
   });
@@ -1418,5 +1381,15 @@ describe("the backup", () => {
 
     const link = await screen.findByRole("link", { name: "Export my record" });
     expect(link.getAttribute("href")).toBe("/api/export");
+  });
+
+  it("says what the file leaves out, interview recordings among it", async () => {
+    open([row()]);
+
+    expect(
+      await screen.findByText(
+        /The imported documents themselves are not included, and neither are recordings of interviews or the links to them\.$/,
+      ),
+    ).toBeTruthy();
   });
 });

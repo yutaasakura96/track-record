@@ -1,5 +1,5 @@
 /**
- * THE SEAM. Four functions.
+ * THE SEAM. Five functions.
  *
  * **Nothing outside this directory imports an SDK or names a provider** — and
  * that includes the provider's environment variables, which is why the bindings
@@ -20,6 +20,7 @@ export type {
   GradableFact,
   ModelSeam,
   ModelUsage,
+  PostingReading,
   RenderFact,
   RenderSpec,
 } from "./types";

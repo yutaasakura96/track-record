@@ -178,10 +178,43 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     model.gradings = [new ModelUnavailableError("The model service returned 529.")];
     await client.post("/api/facts/sort", {});
 
-    await client.post("/api/tailored-resumes", {
-      label: "Harrowgate Shipping, platform lead",
-      jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
-    });
+    const application = (await (
+      await client.post("/api/applications", {
+        company: "Harrowgate Shipping",
+        position: "platform lead",
+        jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
+        postingUrl: "https://jobs.example.invalid/harrowgate/platform-lead",
+        requirements: ["Has run a quayside cutover"],
+      })
+    ).json()) as { id: string };
+    model.postings = [
+      { company: "Harrowgate Shipping", position: "platform lead", requirements: ["Has run a quayside cutover"] },
+      new ModelUnavailableError("The model service returned 529."),
+    ];
+    for (const _attempt of [1, 2]) {
+      await client.post("/api/applications/read-posting", {
+        jobDescription: "Harrowgate Shipping is hiring a platform lead for its quayside systems.",
+      });
+    }
+    await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
+    await client.patch(`/api/applications/${application.id}`, { position: "platform lead, quayside" });
+    const noted = (await (
+      await client.post(`/api/applications/${application.id}/interviews`, {
+        date: "2026-01-05",
+        round: "interview_1",
+        who: "Ottoline Varga, head of berths",
+        howItWent: "She walked through the gantry backlog.",
+        questions: ["How would you sequence a berth swap?"],
+      })
+    ).json()) as { interviews: { id: string }[] };
+    const recordings = `/api/applications/${application.id}/interviews/${noted.interviews[0]!.id}/recordings`;
+    const attached = (await (
+      await client.post(recordings, { url: "https://calls.example.invalid/rec/mooring-debrief", label: "Their take of the stevedore call" })
+    ).json()) as { interviews: { recordings: { id: string }[] }[] };
+    await client.post(recordings, { url: "javascript:windlass()", label: "capstan" });
+    await client.delete(`${recordings}/${attached.interviews[0]!.recordings[0]!.id}`);
+    await client.get(`/api/applications/${application.id}`);
+    await client.get("/api/applications");
     await client.get("/api/master-document");
     await client.get("/api/master-document/download");
     await client.get("/api/master-document?language=ja");
@@ -194,8 +227,19 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       "eight hours",
       "kept Private because",
       "Harrowgate",
+      "harrowgate",
       "quayside",
       "platform lead",
+      "cutover",
+      "Ottoline",
+      "berths",
+      "gantry",
+      "berth swap",
+      "calls.example",
+      "mooring",
+      "stevedore",
+      "windlass",
+      "capstan",
       "Yosuke Aoki",
     ]) {
       expect(log, `a log line contained "${needle}"`).not.toContain(needle);
@@ -204,7 +248,17 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"import_finished".*"repeats":0/);
     expect(log).toMatch(/"event":"flag_explained","flagId":"flg_/);
     expect(log).toMatch(/"event":"facts_sorted","sorted":1,"flagged":1,"remaining":0/);
-    expect(log).toMatch(/"event":"tailored_resume_created","renderId":"[a-z]+_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"application_created","applicationId":"app_[^"]+","characters":\d+/);
+    expect(log).toMatch(/"event":"posting_read","characters":\d+,"company":true,"position":true,"requirements":1/);
+    expect(log).toMatch(/"event":"posting_read_failed","characters":\d+/);
+    expect(log).toMatch(/"event":"application_standing_set","applicationId":"app_[^"]+","step":"applied","closedAs":null/);
+    expect(log).toMatch(
+      /"event":"interview_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","round":"interview_1","questions":1,"movedTo":"interview_1"/,
+    );
+    expect(log).toMatch(
+      /"event":"recording_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+","kind":"link"/,
+    );
+    expect(log).toMatch(/"event":"recording_removed","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+"/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });

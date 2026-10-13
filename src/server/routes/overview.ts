@@ -6,13 +6,19 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, isNull, sql } from "drizzle-orm";
 import {
+  applicationDocuments,
+  applicationSentCopies,
+  applicationSteps,
+  applications,
   certifications,
   educations,
   employers,
   factFlags,
   facts,
+  interviewQuestions,
+  interviews,
   profiles,
   projects,
   renderProposals,
@@ -28,6 +34,9 @@ import { importStatus } from "./imports";
 import { provenanceCounts } from "./facts";
 import { factOfFlag, openFlags } from "./flags";
 import type { AppEnv } from "../env";
+
+/** A sent copy as a backup holds it: every column but the file, which is bytes, and the owner. */
+const { file: _file, userId: _userId, ...sentCopyColumns } = getTableColumns(applicationSentCopies);
 
 export function registerOverviewRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -199,8 +208,6 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
        */
       unconfirmed: unconfirmed ?? null,
       documents: documents.documents,
-      /** The tailored résumés, newest first (issue #57). */
-      tailored: documents.tailored,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */
       isEmpty: totalFacts === 0 && employerRows.length === 0 && latestImport === undefined,
@@ -215,6 +222,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
    * render, export, or appear in any output. What is exported is the pointer —
    * the version id, the quote offsets and the line number — which is what makes
    * an imported fact's evidence restorable alongside the document it came from.
+   *
+   * **Interview recordings are absent too**, a link to one included (S24,
+   * decision log 2026-10-11): `interview_recordings` is not read here.
    */
   api.get("/api/export", async (c) => {
     const userId = c.get("user").id;
@@ -236,6 +246,12 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       versionOfRenders,
       proposalRows,
       flagRows,
+      applicationRows,
+      applicationStepRows,
+      interviewRows,
+      interviewQuestionRows,
+      applicationDocumentRows,
+      sentCopyRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -262,6 +278,14 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       db.select().from(renderVersions).where(eq(renderVersions.userId, userId)),
       db.select().from(renderProposals).where(eq(renderProposals.userId, userId)),
       db.select().from(factFlags).where(eq(factFlags.userId, userId)),
+      db.select().from(applications).where(eq(applications.userId, userId)),
+      // Superseded rows too: a backup holds what the database holds.
+      db.select().from(applicationSteps).where(eq(applicationSteps.userId, userId)),
+      db.select().from(interviews).where(eq(interviews.userId, userId)),
+      db.select().from(interviewQuestions).where(eq(interviewQuestions.userId, userId)),
+      // Taken-off documents and undone copies too, for the same reason.
+      db.select().from(applicationDocuments).where(eq(applicationDocuments.userId, userId)),
+      db.select(sentCopyColumns).from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
     ]);
 
     const body = {
@@ -284,6 +308,13 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       renders: only(renderRows),
       renderVersions: only(versionOfRenders),
       renderProposals: only(proposalRows),
+      applications: only(applicationRows),
+      applicationSteps: only(applicationStepRows),
+      interviews: only(interviewRows),
+      interviewQuestions: only(interviewQuestionRows),
+      applicationDocuments: only(applicationDocumentRows),
+      // A sent copy's file is bytes too, and is not read. Its page, what the file says, is here.
+      applicationSentCopies: sentCopyRows,
     };
 
     return new Response(JSON.stringify(body, null, 2), {

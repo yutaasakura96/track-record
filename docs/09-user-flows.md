@@ -283,30 +283,94 @@ it is never out of date and there is no second copy to keep in step.
 
 ---
 
-## Flow 11 · Generate a résumé tailored to a job · M3 (#57)
+## Flow 11 · Open a carried-over tailored résumé · M3 (#57, #70)
 
-1. Sidebar → **Tailored résumés**. The **New tailored résumé** form is at the top of the screen.
-2. Author names it (the company and role) and pastes the job description, or presses **Read it from
-   a text file** and chooses a `.txt` or `.md` file whose content fills the box. **Generate résumé**
-   → `POST /api/tailored-resumes` → `201`.
-3. The client asks for its first version → `POST /api/renders/:ref/generate`, with the new résumé's
-   id as the ref. The model is given the same facts the main résumé is given, and the job
-   description as text to read.
-4. **Diff Review opens**, exactly as in Flow 3: the proposal is read and accepted or rejected.
-5. The résumé is listed with its name, version and status. It is regenerated, edited, restored and
-   downloaded like any document, under its own id. **Any number can be made.**
+1. Sidebar → **Applications** → the application made from the tailored résumé. Its page shows the
+   résumé under **Résumé for this job**.
+2. Generate or update it with `POST /api/renders/:ref/generate`, using its résumé id as the ref.
+   Diff Review opens as in Flow 3; accepting, dismissing, editing, restoring and downloading use
+   the same document routes. A refusal or an abandoned proposal leaves the existing résumé intact.
+
+The former Tailored résumés screen and `POST /api/tailored-resumes` are gone. A new tailored
+résumé is made from its application (Flow 14). See Screen 14 in `10-screen-specifications.md` for
+the entry point and `07-api-design.md` §7 for the document routes.
+
+---
+
+## Flow 12 · Note how an interview went · M3 (#60, #72)
+
+1. Sidebar → **Applications** → the application → **Interviews** → `Add an interview`. The form
+   opens on today and on the earliest round at or after the status that has no entry yet.
+2. The author sets the date and round, types who it was with and how it went, and adds the
+   questions asked: one at a time with Enter, or several pasted lines at once. Nothing is written
+   yet.
+3. **Save interview** → `POST /api/applications/:id/interviews`, one write. The entry and its
+   questions, each its own row in order, are saved together.
+4. If the round is later than the status, the same write moves the application to that round with
+   the entry's date. If an earlier interview round was skipped, the write fills its missing date
+   without moving the status back. **Where it stands** says which change was made, with
+   `Change the date` and `Undo`. When standing does not change, one line says `Interview saved.`
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 2 | No name, no job description, or one over 20,000 characters | The button is disabled and says why. The server refuses the same with `422`. Nothing created |
-| 2 | The record holds no fact a document may use | The button reads **Save**: the résumé is named and kept, and nothing is generated |
-| 3 | A profile field the résumé needs is missing | The same refusal Flow 3 gives, in the same words. **The tailored résumé is kept**, so Generate is offered on its row once the cause is fixed |
-| 3 | Anthropic unavailable | As Flow 3: nothing is applied, the résumé stays listed as never generated |
-| 3 | The job description asks for something the record does not hold | It is not invented. A tailored résumé is written only from facts, and every block still cites the facts it rests on |
-| 3 | The job description contains instructions to the model | It is passed as text to read, marked as a job description, and the rules it is read under are the system prompt's |
+| 2 | A pasted list carries bullets or numbers | They are dropped, and each line is one question |
+| 3 | Neither how it went nor a question was given | `Write how it went, or add at least one question.` Nothing is written |
+| 3 | The save is refused or fails | The form stays open with everything typed in it, and says why |
+| 4 | The move or filled date should be taken back | `Undo` puts the standing back. The entry stays |
+| 4 | An earlier interview round was skipped | Its missing date is filled; the status stays put and the first-interview figure follows that date |
+| 4 | The round already has a date, is Other conversation, or the application is closed | The entry is saved and the standing is left alone |
 
-**If abandoned:** at step 2, nothing exists. After step 2, the named résumé exists with no version.
-After step 3, the proposal waits, as every proposal does.
+**If abandoned:** `Cancel`, or leaving the page, discards what was typed. Nothing is saved until
+**Save interview**, and an entry once saved is not edited (`06`, 2026-10-12).
+
+---
+
+## Flow 13 · Keep a link to a recording of an interview · M3 (#60, #74)
+
+1. On an interview's card → `Attach a recording`. The link form opens in place.
+2. The author pastes the link and, if they like, says what it is in a few words → **Add the link**
+   → `POST /api/applications/:id/interviews/:interviewId/recordings`. Only the link is kept.
+3. The card shows a row: `Link`, what it is, the address. `Open` opens it in a new tab.
+4. `Remove` asks once in place of the row → **Remove it** → `DELETE …/recordings/:recordingId`.
+   The link is gone for good and the card keeps `A recording was removed on <date>.`
+
+| Step | What can go wrong | What the author sees |
+|---|---|---|
+| 2 | The text is not an `http` or `https` link | `That does not look like a link. It should start with https://` Nothing is sent |
+| 2, 4 | The application was changed in another tab | The form or the question stays, and says to reload |
+| 3 | The recording was taken down where it lives | The link opens to whatever is there now. The form said so when the link was added |
+| 4 | Remove was pressed by mistake | `Keep it` closes the question and nothing changes |
+
+**If abandoned:** `Cancel` discards what was typed. A removed link cannot be brought back; it is
+added again.
+
+## Flow 14 · Choose what to send, and keep what was sent · #71
+
+1. **Applications** → an application at Not applied. Under **Résumé for this job**, either
+   **Make a tailored résumé** or tick documents under **Use a document you already have** and press
+   **Use the ticked documents**. Both can be done, and several documents can be on one application.
+2. **Make a tailored résumé** stores the résumé from the application's job description
+   (`POST /api/applications/:id/tailored-resume`), generates it and opens Diff Review as in Flow 3.
+   Accepting or keeping the current version returns to the application. A refusal to generate is
+   said on the application, and the résumé stays on it to generate later. One that was taken off
+   is put back as it is, and is generated only when it has neither a version nor a proposal waiting.
+3. At Not applied, a document can be taken off (`Take off`) and others added. Each row is the live
+   document at its current version; copies from an earlier move remain under **What you sent**.
+4. **Move to Applied.** Every document on the application that has a version and no sent copy yet
+   is frozen as sent, with that day's date, and the panel says which. If a file cannot be built the move is not made
+   and the reason is said.
+5. **What you sent** lists every copy. **Read it** opens the copy as it was sent (Screen 15);
+   **Download** returns the stored file. Editing or regenerating the document afterwards, or
+   changing the profile or the record, changes neither.
+6. Later, **Record another sent copy**: tick any of the three documents or the tailored résumé and
+   press **Record the ticked documents**. Each is frozen again, dated today, beside the earlier
+   copies.
+
+Correcting the reached step's date moves the sent date of the copies that change froze. Undo of the
+move takes those copies back, and the next move freezes the documents again. An Undo that takes the
+application out of Not applied, to Applied or a later step, freezes any attached document with no
+sent copy, as a move does, and says which. A move or an Undo between steps from Applied onward
+freezes nothing.
 
 ---
 

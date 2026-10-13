@@ -7,14 +7,12 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, isNotNull, ne, sql } from "drizzle-orm";
-import { z } from "zod";
+import { and, desc, eq, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { collectRenderInputs, generateIntoProposal } from "../services/render";
-import { parseBody } from "../services/validate";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
@@ -32,10 +30,9 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { DOCX_MIME, downloadFilename, toDocx } from "~/render/docx";
-import { buildRirekisho, rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
-import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
-import type { RenderIdentity } from "~/render/identity";
+import { DOCX_MIME } from "~/render/docx";
+import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
+import { buildDocumentFile, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -46,22 +43,6 @@ import {
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
-/** Long enough for any posting; short enough that a pasted file of something else is refused. */
-const JOB_DESCRIPTION_MAX = 20_000;
-
-const tailoredBody = z.strictObject({
-  label: z
-    .string()
-    .trim()
-    .min(1, "Name this résumé, for example the company and the role.")
-    .max(120, "Keep the name under 120 characters."),
-  jobDescription: z
-    .string()
-    .trim()
-    .min(1, "Paste the job description this résumé is for.")
-    .max(JOB_DESCRIPTION_MAX, `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`),
-});
-
 export function registerRenderRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
 
@@ -71,61 +52,6 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const state = await renderState(db, user.id);
     return c.json({ items: state.documents });
-  });
-
-  /**
-   * The tailored résumés (issue #57), newest first. Each is a document of its
-   * own, addressed by `ref` on every `/api/renders/:ref/…` route. The job
-   * description is not in the listing: it is long, and one résumé's is read
-   * from its own route.
-   */
-  api.get("/api/tailored-resumes", async (c) => {
-    const state = await renderState(c.get("db"), c.get("user").id);
-    // `canGenerate` with the list, so the screen offers no Generate into a 428.
-    return c.json({ items: state.tailored, canGenerate: state.usableFacts > 0 });
-  });
-
-  /**
-   * Names a tailored résumé and stores the job description it is written
-   * toward. It generates nothing: the client asks for the first version with
-   * the same Generate every document has, so a refusal there (no usable fact,
-   * a missing profile field) is said the way it is said everywhere else, and
-   * the résumé is still there to generate later.
-   */
-  api.post("/api/tailored-resumes", async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const body = await parseBody(c, tailoredBody);
-
-    const id = newId("render");
-    await db.insert(renders).values({
-      id,
-      userId: user.id,
-      kind: "english_resume",
-      label: body.label,
-      jobDescription: body.jobDescription,
-    });
-    // An id and a length. Never the text: a job description names a company.
-    console.log(JSON.stringify({ event: "tailored_resume_created", renderId: id, characters: body.jobDescription.length }));
-
-    const state = await renderState(db, user.id);
-    return c.json(state.tailored.find((row) => row.id === id), 201);
-  });
-
-  /** One tailored résumé, with the job description it was written toward. */
-  api.get("/api/tailored-resumes/:id", async (c) => {
-    const user = c.get("user");
-    const db = c.get("db");
-    const id = pathParam(c, "id");
-    const [row] = await db
-      .select({ jobDescription: renders.jobDescription })
-      .from(renders)
-      .where(and(eq(renders.userId, user.id), eq(renders.id, id), isNotNull(renders.jobDescription)))
-      .limit(1);
-    if (!row) throw notFound("That résumé");
-
-    const state = await renderState(db, user.id);
-    return c.json({ ...state.tailored.find((r) => r.id === id), jobDescription: row.jobDescription });
   });
 
   api.post("/api/renders/:ref/generate", async (c) => {
@@ -807,90 +733,30 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // not served under the main résumé's address, nor the reverse.
     const version = await requireVersion(db, user.id, target, versionId);
 
-    const content = version.content as RenderContent;
-
-    /**
-     * **Enforcement point 4 at the last render time there is** (issue #17). A
-     * version is a snapshot of what could be rendered in August, not a standing
-     * permission to keep rendering it. A fact set Private in September is
-     * withheld from the file that leaves the tool in September, whatever the
-     * stored content says.
-     *
-     * `409` rather than the restore route's `422`: restore submits content to
-     * be made current and the content is what fails validation, while a
-     * download asks for a file the record's CURRENT state will not allow. The
-     * ids are named because a refusal the author cannot act on is a dead end —
-     * the way out is the hand-edit route, which lifts the block and produces a
-     * version that downloads (`docs/06`, 2026-09-12 third entry).
-     */
-    const record = await collectEditableRecord(db, user.id);
-    const withheld = badCitations(citedFactIds(content), record);
-    if (withheld.length > 0) {
-      throw new ApiError("conflict", citationMessage(withheld), {
-        facts: withheld.map((b) => ({ factId: b.factId, problem: b.problem })),
-      });
-    }
-
-    const title = RENDER_TITLE[kind];
-    const filename = downloadFilename(kind, format, version.acceptedAt, render?.label ? { label: render.label, id: render.id } : null);
-
-    // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
-    // derived from the record rather than read out of the version, its identity
-    // block comes from the profile row, and the only generated text in it is
-    // the two prose blocks. The submission date is stamped now, in Tokyo, and
-    // the age is computed against it (`docs/04` §4).
-    if (kind === "rirekisho") {
-      if (format === "md") {
+    if (format === "md") {
+      const content = version.content as RenderContent;
+      // Withheld before the file is assembled, as the `.docx` is (`../services/document-file`).
+      await refuseWithheldCitations(db, user.id, content);
+      if (kind === "rirekisho") {
         throw new ApiError("conflict", "A 履歴書 is a form and is produced as .docx only.");
       }
-      const profile = await collectRirekishoProfile(db, user.id);
-      const record = await collectRirekishoRecord(db, user.id);
-      let filled: Uint8Array;
-      try {
-        filled = buildRirekisho({ profile, record, submittedOn: tokyoToday(), content });
-      } catch {
-        console.error(JSON.stringify({ event: "docx_build_failed", versionId }));
-        throw new ApiError(
-          "internal",
-          "That document could not be assembled. Your saved version is unchanged.",
-        );
-      }
-      return new Response(filled as BodyInit, {
-        headers: {
-          "content-type": DOCX_MIME,
-          "content-disposition": `attachment; filename="${filename}"`,
-        },
-      });
-    }
-
-    // Read at download rather than stored with the version: the identity block
-    // is not a claim about a career, and an accepted version must not go stale
-    // because a phone number changed (`src/render/identity.ts`).
-    const identity = await renderIdentity(db, user.id);
-
-    if (format === "md") {
-      return new Response(toMarkdown(content, title, kind, identity, tokyoToday()), {
+      // Read at download rather than stored with the version: the identity block
+      // is not a claim about a career, and an accepted version must not go stale
+      // because a phone number changed (`src/render/identity.ts`).
+      const identity = await renderIdentity(db, user.id);
+      return new Response(toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday()), {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filename}"`,
+          "content-disposition": `attachment; filename="${filenameFor(render, kind, format, version)}"`,
         },
       });
     }
 
-    let bytes: Uint8Array;
-    try {
-      bytes = await toDocx(content, title, kind, identity, tokyoToday());
-    } catch {
-      // The download fails; the stored content is untouched and the next
-      // download can succeed.
-      console.error(JSON.stringify({ event: "docx_build_failed", versionId }));
-      throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
-    }
-
-    return new Response(bytes as BodyInit, {
+    const file = await buildDocumentFile(db, user.id, kind, render, version);
+    return new Response(file.bytes as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${filename}"`,
+        "content-disposition": `attachment; filename="${file.filename}"`,
       },
     });
   });
@@ -938,43 +804,8 @@ const proposalWaiting = (target: RenderRef, proposalId: string | null) =>
   );
 
 /**
- * The identity block's source, narrowed to the three fields a header may read.
- * The restricted PII columns are never selected, so they cannot reach a render
- * by accident — `src/render/identity.ts` and `docs/04` §3.2.
- *
- * A missing profile is a precondition failure, not a nameless document: nothing
- * can be generated without one (`requiredProfileFields`), so its absence at
- * download time means the row went away underneath an existing version.
- */
-async function renderIdentity(db: Db, userId: string): Promise<RenderIdentity> {
-  const [profile] = await db
-    .select({
-      nameLatin: profiles.nameLatin,
-      familyNameKanji: profiles.familyNameKanji,
-      givenNameKanji: profiles.givenNameKanji,
-      email: profiles.email,
-    })
-    .from(profiles)
-    .where(eq(profiles.userId, userId))
-    .limit(1);
-
-  if (!profile) {
-    throw preconditionFailed(
-      "That document cannot be assembled without your name. Add it to your profile and download again.",
-      ["nameLatin"],
-    );
-  }
-
-  return {
-    nameLatin: profile.nameLatin,
-    nameKanji: `${profile.familyNameKanji} ${profile.givenNameKanji}`.trim(),
-    email: profile.email,
-  };
-}
-
-/**
  * A main document's `renders` row is created on first generation, not on
- * sign-up. A tailored résumé's row exists from the moment it is named.
+ * sign-up. A tailored résumé's row exists already: it is how it is addressed.
  */
 async function ensureRender(db: Db, userId: string, target: RenderRef) {
   const read = async () => {
@@ -1016,9 +847,9 @@ interface RenderState {
 }
 
 /**
- * One query set backs `GET /api/renders`, the tailored résumés and the
- * overview's Documents section. All five kinds are always reported, whether or
- * not a row exists; a tailored résumé is reported once it has been named.
+ * One query set backs `GET /api/renders`, the overview's Documents section and
+ * the résumé an application shows. All five kinds are always reported, whether
+ * or not a row exists; a tailored résumé is reported because its row does.
  */
 export async function renderState(
   db: Db,

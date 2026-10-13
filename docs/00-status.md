@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-10-08
+**Updated:** 2026-10-11
 
 ## Done
 
@@ -43,6 +43,18 @@ are marked as the owner's in each issue.
   that press in production, and reading the Flagged list when they want to.
 - **#59, built 2026-10-10** (decision log, that date): Home's documents are two tabs, English and
   日本語, each led by that language's master document. Nothing is owed by the owner.
+- **#60, Applications, specified 2026-10-11** (#69; decision log, that date): job applications
+  come into scope. `CONTEXT.md`, `02` §3a and S20 to S24, and `10` Screens 12 to 15 are written, and
+  the reviewed prototype is `docs/prototype/applications-prototype.html`. #70 builds the list,
+  application page and status steps. **#71 and #72, built 2026-10-12**: documents and sent copies
+  (`04` §3.17, `07` §9c), plus interview entries and their status changes (`04` §3.15, `07` §9b).
+  **#73, built 2026-10-12**: a pasted posting is read by a fifth model function into a company, a
+  position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13).
+  **#74, built 2026-10-12**: a link to a recording kept elsewhere on an interview entry, opened in
+  a new tab and removable for good (`04` §3.16, `07` §9b). No file is stored. The
+  rest of #75 to #77 follow in the order their `Depends on` lines give;
+  each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
+  before #76.
 
 ## Blocked
 

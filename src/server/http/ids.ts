@@ -25,6 +25,13 @@ export const ID_PREFIXES = {
   renderProposal: "prp",
   skillCuration: "skl",
   factFlag: "flg",
+  application: "app",
+  applicationStep: "aps",
+  interview: "int",
+  interviewQuestion: "ivq",
+  interviewRecording: "rec",
+  applicationDocument: "apd",
+  applicationSentCopy: "asc",
 } as const;
 
 export type IdKind = keyof typeof ID_PREFIXES;

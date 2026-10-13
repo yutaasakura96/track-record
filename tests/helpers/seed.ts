@@ -6,7 +6,7 @@
 import { env } from "cloudflare:test";
 import { createDb } from "~/server/db/client";
 import { eq, inArray } from "drizzle-orm";
-import { factFlags, facts, users } from "~/server/db/schema";
+import { applicationDocuments, applicationSteps, applications, factFlags, facts, renders, users } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import type { SeededUser } from "./harness";
 
@@ -59,6 +59,36 @@ export async function asCandidates(importId: string): Promise<void> {
       .set({ status: "candidate", provenance: "generated", autoAcceptedAt: null, gradedAt: null, resolvedAt: null })
       .where(eq(facts.sourceDocumentVersionId, importId)),
   ]);
+}
+
+/**
+ * A tailored résumé as migrations 0017 and 0019 leave one: inside an
+ * application at Not applied that holds its job description, and listed as a
+ * document of it. The ones made before an application could write its own
+ * résumé are exactly these rows.
+ */
+export async function seedTailoredResume(
+  user: SeededUser,
+  label = "Kestrel, platform engineer",
+  jobDescription = "Platform engineer. You will run the batch platform for a logistics marketplace.",
+): Promise<{ id: string; applicationId: string }> {
+  const db = createDb(bindings.DATABASE_URL);
+  const suffix = `test_${++counter}_${Math.trunc(Math.random() * 1e9)}`;
+  const id = `rnd_${suffix}`;
+  const applicationId = `app_${suffix}`;
+  await db.batch([
+    db.insert(applications).values({ id: applicationId, userId: user.id, company: label, position: "", jobDescription }),
+    db.insert(applicationSteps).values({
+      id: `aps_${suffix}`,
+      userId: user.id,
+      applicationId,
+      status: "not_applied",
+      happenedOn: "2026-10-08",
+    }),
+    db.insert(renders).values({ id, userId: user.id, kind: "english_resume", label, jobDescription, applicationId }),
+    db.insert(applicationDocuments).values({ id: `apd_${suffix}`, userId: user.id, applicationId, renderId: id }),
+  ]);
+  return { id, applicationId };
 }
 
 export const PROFILE_FIXTURE = {

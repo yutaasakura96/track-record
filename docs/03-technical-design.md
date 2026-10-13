@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a four-function seam (§4) |
+| Model | **Anthropic `claude-opus-5`** | Behind a five-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -88,7 +88,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   └── rirekisho.blank.docx    # 履歴書 grid, every value stripped (built by scripts/)
 ├── src/
 │   ├── client/                 # React SPA
-│   │   ├── screens/            # fact-review, diff-review, overview, flagged, master-document, tailored
+│   │   ├── screens/            # fact-review, diff-review, overview, flagged, master-document, applications
 │   │   ├── components/
 │   │   ├── components/ui/      # shadcn — owned, restyled to doc 05
 │   │   ├── stores/             # Zustand — UI state only
@@ -104,6 +104,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   │   ├── generate.ts
 │   │   ├── grade.ts            # the grading rules, stated once for extraction and the sort
 │   │   ├── explain.ts
+│   │   ├── posting.ts          # reading a pasted job posting (#73)
 │   │   └── providers/anthropic.ts
 │   ├── pipeline/               # Workflow definitions
 │   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
@@ -118,7 +119,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly four places**. Nothing outside `src/model/` imports an
+The application touches a model in **exactly five places**. Nothing outside `src/model/` imports an
 SDK or knows a provider name.
 
 ```ts
@@ -126,6 +127,7 @@ extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[
 generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
 gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
 explainFlag(flag: FlagToExplain): Promise<string>
+readPosting(jobDescription: string): Promise<PostingReading>
 ```
 
 It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
@@ -133,6 +135,13 @@ them, by the same rules (§4.1), and is called only by `POST /api/facts/sort`. `
 the plain-words account of one flag and is called only when the author presses `Explain this`; no
 read, list or poll reaches it, and its answer is stored so a second press reads it back. It runs at
 low effort: the answer is three short paragraphs about one fact.
+
+`readPosting` is the fifth, since 2026-10-12 (#73). It takes a pasted job description and returns
+the company, the position and the key requirements, and is called only by
+`POST /api/applications/read-posting`, when the author presses `Read it`. **What it returns is a
+proposal on a confirmation step and never a fact**: no quote, no grade, nothing stored by the call
+(`06`, 2026-10-11). It runs at low effort, and its tool is asked for by the prompt and not forced,
+so the call does not depend on a `tool_choice` the models after `claude-opus-5` refuse.
 
 Swapping providers is a config value plus one adapter file. The M2 bake-off this was built for was
 dropped on 2026-09-21 (`docs/06`); the seam stays, so a model upgrade or a later swap stays cheap.
@@ -628,8 +637,10 @@ résumé** → diff → accept. One document, one employer, `.docx` out.
 **Not built for M1:** 履歴書 and its template, 職務経歴書, both career stories, skills curation,
 quick capture, version history UI, conflict detection, per-render inclusion rules.
 
-**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site, application tracking,
-mobile layouts.
+**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site, mobile layouts.
+Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
+log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
+layout exists for its screens only.
 
 **Desktop only**, minimum 1280px — but built **fluid** (no fixed page widths, panes flex), so the
 M3 quick-capture screen can ship narrow without re-laying-out the app.

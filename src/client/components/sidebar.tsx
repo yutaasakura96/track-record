@@ -8,7 +8,7 @@
  * header. They are focused, full-width tasks, not navigation destinations.
  */
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useImportSummary } from "../api";
+import { useApplications, useImportSummary } from "../api";
 import { useThemeStore, type Theme } from "../stores/theme";
 import { Mono, SegmentedControl } from "./ui";
 
@@ -22,16 +22,17 @@ import { Mono, SegmentedControl } from "./ui";
  * A row earns its place when its route exists. `to` is what makes it navigable
  * and what makes exactly one row active, so the two cannot drift apart.
  */
-const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" }[] = [
+const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" | "goneQuiet" }[] = [
   { label: "Home", to: "/" },
   { label: "Record", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
-  // Issue #57: what the importer flagged, everything it accepted, and the
-  // résumés written from that for one job each.
+  // Issue #57: what the importer flagged, and everything it accepted.
   { label: "Flagged", to: "/flagged", counts: "openFlags" },
   { label: "Master document", to: "/master" },
-  { label: "Tailored résumés", to: "/tailored" },
+  // Issue #70: the jobs applied for. It took the Tailored résumés row, and
+  // each of those résumés is inside its application.
+  { label: "Applications", to: "/applications", counts: "goneQuiet" },
 ];
 
 /**
@@ -42,6 +43,7 @@ const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" 
 const COUNT_LABEL = {
   openCandidates: (n: number) => `${n.toLocaleString("en-US")} ${n === 1 ? "fact" : "facts"} to sort`,
   openFlags: (n: number) => `${n.toLocaleString("en-US")} to check`,
+  goneQuiet: (n: number) => `${n.toLocaleString("en-US")} gone quiet`,
 } as const;
 
 export function Sidebar({ name }: { name: string }) {
@@ -51,6 +53,9 @@ export function Sidebar({ name }: { name: string }) {
   // listing: the badges are two numbers and this is the only query the chrome
   // makes on Home, Record and Skills.
   const summary = useImportSummary().data;
+  // Read where the list reads it, so the row and the list cannot disagree.
+  const goneQuiet = useApplications().data?.items.filter((row) => row.quietDays !== null).length;
+  const counts = { ...summary, goneQuiet };
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
 
@@ -63,7 +68,8 @@ export function Sidebar({ name }: { name: string }) {
 
       <ul className="p-10 grid gap-2">
         {NAV.map((item) => {
-          const active = path === item.to;
+          // An application's own page and Add a job are under Applications.
+          const active = path === item.to || (item.to !== "/" && path.startsWith(`${item.to}/`));
           return (
             <li key={item.label}>
               <Link
@@ -75,14 +81,14 @@ export function Sidebar({ name }: { name: string }) {
                 {item.label}
                 {/* On a line of its own and in words: a bare number beside
                     `Documents` read as a number of documents (issue #58). */}
-                {item.counts && (summary?.[item.counts] ?? 0) > 0 ? (
+                {item.counts && (counts[item.counts] ?? 0) > 0 ? (
                   <span
                     className={`block text-small font-normal ${
                       // Amber is for what is held back. A flag is advice.
                       item.counts === "openCandidates" ? "text-generated-text" : "text-text-muted"
                     }`}
                   >
-                    {COUNT_LABEL[item.counts](summary![item.counts])}
+                    {COUNT_LABEL[item.counts](counts[item.counts]!)}
                   </span>
                 ) : null}
               </Link>

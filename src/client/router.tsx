@@ -10,6 +10,7 @@ import {
   createRoute,
   createRouter,
   Outlet,
+  redirect,
   useNavigate,
   useRouterState,
 } from "@tanstack/react-router";
@@ -28,7 +29,10 @@ import { VersionHistoryScreen } from "./screens/version-history";
 import { VersionEditScreen } from "./screens/version-edit";
 import { FlaggedScreen } from "./screens/flagged";
 import { MasterDocumentScreen } from "./screens/master-document";
-import { TailoredScreen } from "./screens/tailored";
+import { ApplicationsScreen } from "./screens/applications";
+import { SentCopyScreen } from "./screens/sent-copy";
+import { NewApplicationScreen } from "./screens/application-new";
+import { ApplicationScreen } from "./screens/application";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -122,10 +126,41 @@ const masterDocumentRoute = createRoute({
   component: MasterDocumentScreen,
 });
 
+const applicationsRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/applications",
+  component: ApplicationsScreen,
+});
+
+const newApplicationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/applications/new",
+  component: NewApplicationScreen,
+});
+
+const applicationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/applications/$applicationId",
+  component: ApplicationScreen,
+});
+
+const sentCopyRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/applications/$applicationId/sent/$copyId",
+  component: SentCopyScreen,
+});
+
+/**
+ * Where the Tailored résumés screen was (issue #70). Each of those résumés is
+ * an application now, so a bookmark to the old screen lands on the list that
+ * holds them.
+ */
 const tailoredRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/tailored",
-  component: TailoredScreen,
+  beforeLoad: () => {
+    throw redirect({ to: "/applications", replace: true });
+  },
 });
 
 const factReviewRoute = createRoute({
@@ -164,6 +199,10 @@ const routeTree = rootRoute.addChildren([
   documentsRoute,
   flaggedRoute,
   masterDocumentRoute,
+  applicationsRoute,
+  newApplicationRoute,
+  applicationRoute,
+  sentCopyRoute,
   tailoredRoute,
   factReviewRoute,
   diffReviewRoute,

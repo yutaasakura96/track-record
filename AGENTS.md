@@ -98,7 +98,7 @@ test it with a real table rather than prose.
 Cloudflare Workers (paid) · Hono API · React + Vite SPA · TanStack Router + Query · Zustand ·
 Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
 Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
-four-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
+five-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
 `docxtemplater` for Word output.
 
 **Rules that are easy to break and expensive to fix:**
@@ -115,6 +115,8 @@ four-function seam · BudouX for Japanese segmentation · jsdiff for diffing · 
 - **Logs never contain source text, fact claims, or render content.**
 - **No secret and no database dump is ever committed.** This repo is public.
 - **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
+  The exceptions are an application step's and an interview entry's `happened_on`, real days
+  (`docs/04` §3.14, §3.15).
 - **Every design value comes from `@theme`, generated from `docs/05-design-system.md`.** Arbitrary
   Tailwind values (`p-[13px]`, `text-[#fff]`) and raw colour literals are banned by
   `scripts/check-design-tokens.mjs`, which `npm run lint` runs — they are how the forbidden list dies.
@@ -125,7 +127,9 @@ four-function seam · BudouX for Japanese segmentation · jsdiff for diffing · 
   text; a parser upgrade creates a new version.
 - **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
   Calendar scope. Release blocker, not a hardening task.
-- **Nothing is ever deleted** — render versions, source documents and rejected facts are permanent.
+- **Nothing is ever deleted, except a recording** — render versions, source documents and rejected
+  facts are permanent; a recording on an interview entry is the one thing the author can remove
+  (`docs/04` §3.16).
   This is correct for one user and becomes wrong at the second: account deletion that actually
   deletes is a gate before the second invite (`08` §6, `13` §8).
 

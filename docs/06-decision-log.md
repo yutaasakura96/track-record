@@ -5681,3 +5681,556 @@ hidden. The line above the rows still speaks for the rows of the open tab.
 
 **Revisit if:** the Next step stops naming a waiting proposal, or a waiting version in the other
 language is missed in use.
+
+### [2026-10-11] Applications are in scope: one area, a fixed list of steps, and a tailored résumé lives inside its application
+
+Issue #60, by the owner's decisions of 2026-10-05 and 2026-10-10 and the prototype review of
+2026-10-10. Supersedes the second half of the 2026-08-11 entry "Renders are dated versions;
+applicant tracking is LATER". Its first half stands: a render is still a dated version. Its revisit
+condition was a real job search with applications tracked somewhere else, and that is what
+happened. Non-goal 5 in `02` §9 and "not built at all in v1" in `03` §13 are rewritten to match.
+
+**One area, `Applications`.** Each job is one **application**, and it holds the job description as
+posted, the résumé for that job, where it stands, and how each interview went. A tailored résumé
+exists only for a job, so it lives inside its application, and making one is an action on the
+application. **Applications replaces the Tailored résumés screen** of 2026-10-08: the sidebar row
+and Home's section go, and every tailored résumé already made is carried over as an application at
+Not applied with its job description, with the company and the position left for the owner to
+confirm. The row stays a `renders` row addressed by its id, as the 2026-10-08 entry made it, and the
+main résumé's index keeps its meaning.
+
+**A job is added by pasting its description**, with an optional link to the posting. The company,
+the position and the key requirements are read out of the text and the owner confirms or corrects
+them before anything is saved (the entry below on the fifth model function).
+
+**The status is a fixed list of seven steps**: Not applied, Applied, Résumé passed, First interview,
+Second interview, Final interview, Offer. **Rejected and Withdrawn close an application at the step
+it had reached**, and a closed one can be reopened there. Any step can be skipped: a company that
+never says the résumé passed is not made to. A step saves its date when it is set and the date can
+be corrected. A skipped step has no date unless one is added, and "since the résumé passed" and
+"since the first interview" are shown only when those steps carry a date.
+
+**Gone quiet is derived, never stored.** An application is gone quiet when nothing about it has
+changed for 14 days while the owner is waiting to hear back: Applied through Final interview, and
+not closed. A step set, an interview entry added and a sent copy recorded each count as a change.
+Not applied, Offer, Rejected and Withdrawn are never marked. Nothing is emailed and there is no
+notification: the mark is on the list, on the application and in the sidebar's count.
+
+**An application can hold several documents.** A tailored résumé, or documents the record already
+has (the main résumé, 履歴書, 職務経歴書), or both. A Japanese application sends 履歴書 and 職務経歴書
+together. **Tailoring stays English only.** A tailored 職務経歴書 is its own later piece.
+
+**Saving an interview entry for a later round moves the status to that round**, says so, and offers
+Undo. The steps and the interview entries say overlapping things, and one being behind the other is
+the failure to prevent.
+
+**A status has no colour of its own.** Green, amber and red mean measured, not usable yet and
+removed (`05` §9, rule 9). The current step is the accent; Not applied and a closed application are
+muted. A green Offer or a red Rejected would spend those meanings on something else.
+
+**An application is never deleted.** One added by mistake is marked Withdrawn. This is the standing
+rule, restated because the entry below on recordings makes the first exception to it.
+
+**Suburi is reached by two hand-carried exports and nothing wired**: the job description downloaded
+as a text file, which Suburi already imports, and the questions asked copied as plain text, one a
+line. Both apps would otherwise hold postings and questions with no line between them. The line is
+that this one keeps what really happened and Suburi keeps practice. No API, no shared database, no
+shared bucket; whether Suburi takes the questions in is Suburi's to decide.
+
+**The reviewed prototype is committed** as `docs/prototype/applications-prototype.html` and is the
+reference for how each screen looks, reads and behaves. `02` and `10` are the contract; where the
+prototype and they disagree, they win, and `docs/prototype/README.md` lists where they already do.
+The schema (`04`), the API (`07`) and the flows (`09`) are written by the issue that builds each
+part (#70 to #77), not here.
+
+Rejected: **keeping the Tailored résumés screen beside Applications**, which is two places for one
+thing. **A free-text status**, which cannot be filtered or counted and makes "since the résumé
+passed" a guess. **Marking everything open as gone quiet**, which flags a job saved and never
+applied to. **Exactly one document an application**, which a Japanese application breaks on the
+first try. **A wired link to Suburi**, which both repos rule out.
+
+**Revisit if:** the fixed steps turn out not to fit the applications actually made, for instance a
+company with five rounds, or the owner wants reminders that leave the application.
+
+### [2026-10-11] Applications works at phone width, and the rest of the app stays desktop only
+
+Issue #60, prototype question 1. Supersedes the desktop half of the 2026-08-12 entry "Dark theme
+only; desktop only" for the Applications screens and nothing else. That entry's revisit condition
+named one narrow surface the author would want on a phone. It expected quick capture; it turned out
+to be this.
+
+**Noting an interview is a phone job.** The owner walks out of one and wants the questions written
+down before they are forgotten, and the laptop is not open. So the Applications routes are exempt
+from the wider-window message, and are laid out for a phone as the prototype shows at 390px: no
+sidebar, a `Menu` button in the header, rows and panels in one column, the steps as a vertical list.
+
+**Every other screen keeps the message under 1024px.** Fact Review and Diff Review are two panes and
+do not survive a phone, and the reason given on 2026-08-12 still holds for them. The menu says so in
+a sentence, so the other rows are not read as broken.
+
+Rejected: **the whole app on a phone**, a much larger job for screens nobody opens there. **Keeping
+Applications desktop only**, which sends the interview note to a notes app and loses the reason to
+track it here.
+
+**Revisit if:** another screen turns out to be wanted on a phone. Each is its own exception, argued
+on its own.
+
+### [2026-10-11] A status step's date is a real day
+
+Issue #60. **The rule that calendar columns are month precision is a rule about the career
+record**, where a period is `2022-04 to 2024-09` and a day is never known or rendered (`04`,
+`AGENTS.md`). An application's dates are a different kind of thing: the day it was added, the day
+each step was reached, the day it was closed, the day of an interview, the day a copy was sent, the
+day a recording was uploaded or removed. "16 days since the first interview" and "gone quiet at 14
+days" cannot be counted from a month.
+
+**So these dates are stored and shown to the day**, and a count of days is the number of calendar
+days between two of them. The date is saved as today when the step is set, and the owner can
+correct it to any day up to today; the figures follow the corrected date.
+
+**The carve-out is this list and no wider.** A period on an employer, a role, a project, an
+education or a certification stays month precision with the day pinned to `01`. Nobody "fixes" an
+application date to the first of the month, and nobody widens a record date to a day because
+applications have them. `AGENTS.md` states the month rule without this exception today; the issue
+that adds the first day-precision column (#70) corrects it there.
+
+Rejected: **month precision with a day count from the first of the month**, which is wrong by up to
+thirty days on a figure whose threshold is fourteen. **A timestamp of when the row was written
+instead of a date the owner can correct**, which makes a step noted two days late two days wrong
+for good.
+
+### [2026-10-11] A sent copy is the file of the day, not a pointer to a version
+
+Issue #60, prototype question 4. **When an application moves to Applied, every document attached to
+it is frozen as sent**, automatically, with that day's date. A document recorded as sent later, for
+a company that asks for an updated one, is frozen the day it is recorded.
+
+**The copy is the file as generated at that moment, stored.** Render versions are permanent, so a
+pointer to the version looks like enough. It is not. A document's header, the name and the contact
+details, is assembled at download and is not in the version, and a 履歴書 version holds only its two
+prose blocks while its three tables are filled from the record at download (`10`, Screen 5). A copy
+"sent on 3 September" and downloaded in December from a pointer would carry December's tables and
+December's address. The sent copy therefore keeps the `.docx` as it was, and what the page needs to
+show it, taken at the same moment. The stored file is never changed: nothing edits it, and later
+changes to the document or to the record do not reach it. Only two things touch the copy's record,
+both the owner's own corrections of the move that froze it: its sent date follows a correction of
+the Applied date, and Undo of that move removes the copies it froze.
+
+The files are small; a résumé `.docx` was measured at 13,574 bytes (2026-09-04 entry). Where the bytes
+are kept is for the issue that builds this (#71).
+
+Rejected: **a pointer to the render version**, above. **A separate `Mark as sent` button**, which is
+a second thing to remember at the moment the owner has just applied. **Freezing on every status
+change**, which keeps copies nobody sent.
+
+### [2026-10-11] A recording can be removed, and it is the only thing that can; recordings are audio only
+
+Issue #60, prototype questions 10 and 12. An interview entry can carry recordings: an uploaded file,
+or a link to a recording kept somewhere else.
+
+**A recording can be removed for good.** It is the first real delete in the product. Everything
+else stays, as it has since the start: an application, a status step, an interview entry, a sent
+copy, a render version, a source document, a rejected fact. A recording is different in two ways.
+It carries other people's voices, and the owner may be asked to delete one; and it is the only
+large object the product holds. Removing an upload deletes the file from storage and it cannot be
+brought back. Removing a link removes only the link. **The interview entry keeps a line saying a
+recording was removed and when**, so the record shows that something was there. Remove asks once.
+
+**Audio only, not video.** The prototype offered both, up to 2 GB a file, and the review changed
+it. An hour of audio is tens of megabytes and an hour of video is several hundred, and what the
+owner needs afterwards is what was said. The 2 GB figure was sized for video and does not carry
+over; the limit on an audio file is set by the issue that builds upload (#76), with the type limit,
+and both are explained in the interface.
+
+**No transcript.** What was said goes in the notes the owner types. Suburi already has a
+speech-to-text path and a correction step that is its core; a second one here would be the
+duplication the two repos exist to avoid. **A recording is never sent to a model**, is private to
+its owner, and is not in the JSON backup, which the Backup panel will say.
+
+**A link comes first and needs no storage** (#74); upload waits for object storage, which only the
+owner can set up (#76).
+
+`AGENTS.md` says nothing is ever deleted, and that stays true of the code until removal is built;
+the issue that builds it corrects the line.
+
+Rejected: **nothing removable, recordings included**, which leaves the owner unable to honour a
+request to delete someone else's voice. **Deleting an application that was never applied to**,
+which the owner declined: Withdrawn says the same thing and keeps the history. **Removing the
+recording's row with the file**, which leaves an interview that silently used to have one.
+
+**Revisit if:** the owner wants video after all, or a transcript, each of which is a storage and a
+privacy decision of its own.
+
+### [2026-10-11] Reading a pasted posting is a fifth model function, and what it returns is never a fact
+
+Issue #60. Supersedes the count in the 2026-10-08 entry "The model seam grows from two functions to
+four": it will be five. The seam itself is unchanged, one module that nothing outside `src/model/`
+reaches around.
+
+**The function takes the pasted job description and returns three things: the company, the
+position, and the key requirements as a short list.** They are proposed on a confirmation screen
+where every field can be corrected, and nothing is saved until the owner saves. A call that fails,
+or finds nothing, leaves the same screen with the fields empty to type in, so adding a job never
+depends on the model.
+
+**A posting is somebody else's text.** What is read from it describes a job, not the author. It
+never becomes a Fact, never reaches a render as a claim, and is not stored anywhere a fact is. This
+is the 2026-10-08 rule that a job description is never a source of facts, applied to the reading
+as well as to the writing. The company is not an Employer and the position is not a Role (`CONTEXT.md`).
+
+**The existing rules for the text carry over**: 20,000 characters at most, kept out of listings,
+and never logged. A company's name, a position, a requirement, an interviewer's name, the notes on
+how an interview went and the questions asked join the list of things a log never contains; a log
+line carries ids and counts.
+
+It follows the rules every model function follows (the pinned model, a prompt of its own, tests
+against invented fixtures) and is built by #73. `03` §1 and §4 and `AGENTS.md` say four functions
+until then, and #73 corrects them.
+
+Rejected: **parsing the text without a model**, which reads the first line of a tidy English
+posting and nothing else. **Extending `extract`**, whose output is facts with quotes and Provenance,
+the opposite of what this must return. **Saving what was read without a confirmation**, which puts
+a model's guess at a company name on the list as if the owner had typed it.
+
+### [2026-10-11] Application activity, closed-day counts and later sent copies
+
+Issue #69, review of #60. An application keeps one last-activity timestamp: the time the owner
+last changed its record. Status changes and date corrections, interview additions or edits,
+document choices and sent copies all update it, as do other owner edits to the application.
+List order and the derived gone-quiet mark use that timestamp. The event dates remain separate:
+the résumé-passed and first-interview figures use their step dates, and `since it was closed`
+uses the close date even after later activity. This supersedes any event-date calculation of
+last change in the reviewed prototype; the prototype stays as reviewed.
+
+**Sent copies are recorded at two moments, and nothing is ever compared.** On moving from Not
+applied to a later step, every document attached to the application that has no sent copy yet is
+frozen as one; after a move back, a document that already has a copy is not frozen again by the
+move. From Applied onward the
+application offers one explicit action, `Record another sent copy`: the owner picks any document,
+an existing one, the same one again, or a tailored résumé made after Applied, and it is frozen as a
+further sent copy with its date, always. Each copy carries the time it was recorded, and the
+latest is the most recently recorded, independent of the correctable sent date. The list row shows
+only the latest sent copy of each document; the application page lists every copy with its date. This completes the later-copy path
+in the sent-copy decision above, whose rejected `Mark as sent` button was about the move to
+Applied; the prototype's picker remains a visual reference where it differs.
+
+Rejected: **working out whether a document has changed since it was sent**, by version number or
+by comparing files. A 履歴書 changes with the record at the same version, and a download stamps
+the day's date into the file, so neither comparison says what the owner sent. The owner knows, and
+says so.
+
+### [2026-10-11] Editing the job fields is not activity, and neither is a save that changes nothing
+
+Issue #70, review of the change. Supersedes one clause of the entry above, "Application activity,
+closed-day counts and later sent copies": `as do other owner edits to the application`. The
+last-activity timestamp moves only when a counted field actually changes value: a status set,
+closed, reopened or undone; a step or close date added or corrected; and later an interview entry
+and a document added or recorded as sent. Editing the company, position, link or requirements does
+not move it. A save that leaves the status and every date as they were does not move it either:
+the same day saved again, the step it is already at, the standing it already has. Such a save
+writes nothing. Everything else in that entry stands.
+
+Gone quiet is about hearing back. Correcting a typo in a company name says nothing about whether
+the company has answered, and it must not clear the mark or move the application to the top of
+the list. The same holds for pressing Save on a date that was not changed.
+
+Rejected: **every owner edit counts**, which lets a spelling correction hide an application that
+has been waiting three weeks. **Counting a write whether or not it changed anything**, which makes
+the mark depend on which button was pressed, not on what the record says.
+
+### [2026-10-12] An interview entry: questions are rows, the move is part of the save, and an entry is saved once
+
+Issue #72, the build of S22. Three things the specification left to the build.
+
+**Each question is a row of `interview_questions`, with a position, and not an item in an array
+column.** The acceptance says the questions are stored as separate items in order, and an array
+would satisfy the words. A row gives a question an id. The hand-off that copies the questions asked
+(#77) reads them one by one, and anything later that points at a single question, a note on it or a
+practice round made from it, has something to point at without a migration that splits arrays.
+`requirements` on an application stays an array: nothing addresses one requirement.
+
+**The entry, its questions and the status move are one write.** `POST
+/api/applications/:id/interviews` saves all of it in one `db.batch`, through the same
+`saveStanding` every other change to where an application stands goes through, so the dates a move
+replaces are superseded and Undo is the existing `PUT …/standing`. The step's date is the entry's
+date, not today: an interview noted three days late happened three days ago, and "since the first
+interview" counts from when it happened. The round's values are the three interview steps' own
+names plus `other`, so the entry's round and the step it moves to are one word and no mapping can
+drift.
+
+Rejected: **two requests from the screen**, the entry and then the step, which can save an entry
+and fail the move, leaving exactly the disagreement the rule exists to remove. **Storing on the
+entry that it moved the status**, which would have to be kept true through every later Undo and
+date correction and is asked by nothing. **Ask each time** and **never move it** were the
+prototype's other answers to question 7 and were not chosen at the review.
+
+**An entry is saved once: no edit and no removal.** `10` left correcting an entry to this issue.
+The reviewed prototype shows none, the issue's acceptance asks for none, and nothing in this
+product is deleted. An edit raises questions the review did not see: whether the old text is kept
+as an earlier version, as a corrected step date is; whether changing an entry's round or date moves
+the status again or moves it back; and what happens to a recording attached to it. Building an
+answer to those unasked would be deciding them. Until it is decided, a mistake in an entry is
+lived with, or put right in a further entry.
+
+Revisit when the owner first wants to correct an entry, which will be soon after real use, and
+decide those three questions then.
+
+**Not built here, by the split of #60:** the recording rows and `Attach a recording` on a card,
+and the form's line `A recording is attached after you save`, belong to #74 and #76. The form does
+not promise an action the card does not yet offer.
+
+### [2026-10-12] An interview entry dates an earlier skipped interview step
+
+Issue #72, owner decision during review. When an open application has passed over an interview
+step without a date, saving an entry for that earlier round fills the missing step date with the
+interview's day. The current status does not move back. A step that already has a date keeps it;
+its date remains correctable through the ordinary step-date action. An entry for Other conversation
+or on a closed application changes no step date. This supersedes the no-date-for-earlier-round
+clause in the issue #72 API and screen specifications. The entry, its questions and any step date
+are saved in the same batch. Undo restores the standing from before the entry and keeps the entry.
+
+The first-interview figure is counted from the first interview step's date. A real first interview
+recorded after the application had already reached Second interview should make that figure
+available without claiming the application moved backwards.
+
+### [2026-10-12] How a posting is read: asked for, not forced, and the same text is read once
+
+Issue #73, which builds the fifth model function decided on 2026-10-11. That entry settled what
+the function returns and where it goes. These are the choices the build made that it left open.
+
+**`readPosting(jobDescription)` returns `{ company, position, requirements }`, behind
+`POST /api/applications/read-posting`, which stores nothing.** The application is still made by
+`POST /api/applications`, unchanged, when the owner saves. The route takes the text and nothing
+else: the link is never sent to it. A posting that states no company is an empty string and a
+`200`, because "the text does not say" is an answer; a model failure is a `503`, and the screen
+treats every failure of this request alike, as the fields empty to type in.
+
+**The tool is asked for by the prompt, with `strict: true`, and not forced.** `generateRender`
+forces its tool, which `claude-opus-5` accepts. The models after it answer a forced `tool_choice`
+with a 400, and a 400 here would look exactly like "the reading failed" for ever: the hand-typed
+path would hide a feature that had stopped working. Asking is the form that survives a model
+change, and it is what `gradeFacts` already does. An answer with no usable tool call is a failed
+reading. Revisit `generateRender`'s forced call before `ANTHROPIC_MODEL` moves.
+
+**It runs at low effort**, as `Explain this` does. It copies three things out of one page, the
+owner checks all three before anything is saved, and they are waiting on it with the form open.
+
+**What was read is held to a saved application's limits before it is proposed** (200 characters,
+30 requirements of 300), so no proposal is one the save would refuse. The prompt asks for at most
+eight requirements; the reader keeps twelve at most, drops blanks and repeats, and trusts nothing
+about the shape.
+
+**The same text is not read twice.** Going back to the text and on again with it unchanged opens
+the check step as it was left, with the owner's corrections. The prototype read again and
+overwrote them. Changed text is read again and replaces the fields, with one exception: fields
+typed in after a failed reading survive a second reading that finds nothing.
+
+**Text under 40 characters is refused by the route as well as the screen**, so a stray request
+cannot spend a model call on a title. `POST /api/applications` keeps its own rule (any non-empty
+job description), because an application carried over or added through the API is not this screen.
+
+Rejected: **saving a draft application before the check**, which is the thing the confirmation
+step exists to prevent. **Sending the link for the model to read**, which nothing asked for and
+which would make a stored field a fetched one. **Structured output without a tool**, which the
+seam has no other use of; one more shape of call to keep in step with model changes buys nothing
+over a strict tool.
+
+### [2026-10-12] Read it always reads: the read-once rule is withdrawn
+
+Supersedes the paragraph **The same text is not read twice** in the entry above, *How a posting is
+read*. The rest of that entry stands.
+
+**`Read it` reads every time it is pressed, and what is read replaces the company, the position
+and the requirements.** A reading that fails empties those three. The text and the link are kept
+either way. This is what the reviewed prototype does, and "matches the prototype's add a job flow"
+is the first acceptance criterion of #73.
+
+The read-once rule kept a record of the text the fields were last read from, and skipped the call
+when the text had not changed. Review of the build found what that cost. Read posting A, go back,
+paste posting B, and have the reading fail: the fields still held A's company, position and
+requirements, under the line saying the description could not be read, and saving paired them with
+B's text. Going back to A's text then skipped the read and left the failure line over a good
+reading. The exception for fields typed after a failure was partial as well: a second reading that
+found only requirements emptied a hand-typed company.
+
+Every one of those came from the screen holding two things that could disagree, the fields and
+which text they belonged to. With no record of the text there is nothing to disagree: the fields
+are always the last reading, or empty.
+
+**What is given up:** corrections made in Step 2 are lost by going back and pressing `Read it`
+again, and an unchanged text costs a second model call. Both were what the prototype did when the
+owner reviewed it.
+
+Rejected: **keeping the rule and emptying the fields only when changed text fails to read**, which
+keeps the record of the text and the second state it makes possible, to protect corrections the
+owner can retype in three fields.
+
+### [2026-10-12] A recording by link: what is stored, what removing empties, and what opens
+
+Issue #74, the first half of S24. The entry of 2026-10-11 decided that an interview entry can
+carry a link to a recording kept elsewhere and that a recording can be removed. This is how the
+link was built. Upload (#76) adds to it and changes none of it.
+
+**One table, `interview_recordings`, with a `recording_kind` that holds only `link`.** #76 adds
+its own kind and its own columns. A removed recording is the same row, and what the page reads is
+one of three shapes: a link, later an upload, or a line saying one was removed.
+
+**Removing empties the link; it does not hide it.** `removed_at` is set and `url` and `label` are
+set to null and empty in the same statement, and a check on the table refuses a removed row that
+still has either. So "removed for good" is true of the database and not only of the page, and the
+row that stays holds an id and a time, which is all the line `A recording was removed on <date>`
+needs. The label goes with the link because it is the author's words about a call with other
+people, and a removed recording that kept `Their recording of the call` would still say whose it
+was. The date shown is the day in Japan, like every other day on these screens.
+
+**The routes sit under the application**, `…/applications/:id/interviews/:interviewId/recordings`,
+and not at `/api/recordings/:id` as the prototype report sketched. Attaching and removing are
+activity on the application (`10`, What a change is), so both write through the same
+`saveStanding` as every other change to it: `last_activity_at` moves, and a write over a newer
+one is refused as changed somewhere else. The path names the application that write needs.
+
+**`http` or `https`, checked three times.** The form refuses anything else before a request is
+made; the route refuses it again, since the form is not what the server trusts; and `Open` is
+drawn only for an address that passes the same rule when it is read back. The rule is one
+function, `isWebLink` in `src/shared/recording.ts`: the scheme, a host, and no whitespace. The
+link becomes an `href`, so `javascript:` and `data:` are what this is for, not tidiness. `Open`
+is `target="_blank"` with `noopener noreferrer`: the place the recording lives is not told which
+application page the click came from.
+
+**Not in the export, a link included.** S24 says recordings are not in the exported record. A
+link is small and could have been, but one rule for both kinds is the one the Backup panel can
+say in a sentence, and it now says it.
+
+**`AGENTS.md` is corrected**, as the entry of 2026-10-11 said the issue that builds removal would:
+nothing is ever deleted, except a recording.
+
+Rejected: **deleting the row**, which leaves an entry that silently used to have a recording
+(2026-10-11). **Keeping the link on the removed row**, which is hiding, and fails the owner who
+was asked to take one down. **A text column for the kind**, where the enum is how the rest of the
+schema names a closed list. **Exporting links and not uploads**, which makes the Backup sentence
+two rules.
+
+**Revisit if:** the owner wants links in the backup after all, which is one more read in
+`GET /api/export` and a change to that sentence.
+
+### [2026-10-12] Sent copies are kept in Postgres, and an application's documents are pointer rows
+
+Issue #71. Settles what the 2026-10-11 entry "A sent copy is the file of the day" left open: where
+the bytes are kept.
+
+**The `.docx` is a `bytea` column on the copy's own row, with the page beside it as `jsonb`**
+(`04` §3.17). The move to Applied and the copies it freezes are one `db.batch`, so Applied is never
+saved with nothing kept and a copy is never kept for a move that did not happen. A file in object
+storage could not be written in that transaction, and a failed second write would leave exactly
+the half-saved state the Screen 14 spec rules out. The files are tens of kilobytes and there is one
+user. The page is stored, never rebuilt: rebuilding it would read today's profile and today's
+record.
+
+**What an application is sending is a separate table of pointer rows**, `application_documents`.
+A document on an application before Applied is the live document, read at its current version
+every time; it becomes a file only when it is sent. Taking one off stamps `removed_at` and deletes
+nothing. The tailored résumé is a row there too, so "written for this application"
+(`renders.application_id`) and "being sent with it" are two facts, and taking it off loses neither
+the résumé nor its versions.
+
+**A copy knows which move froze it by the step row that move wrote**, `frozen_step_id`. A date
+correction supersedes that row and writes another, and the copy is pointed at the new one, so its
+sent date follows. Undo of the move finds the copies naming a live step row and stamps
+`undone_at`; no route reads a copy so stamped. A plain move back to Not applied supersedes the row,
+which is what makes those copies stay: the row they name is no longer live. A copy recorded by
+hand names no row and is reached by neither.
+
+**"Removes the copies it froze" is a stamp, not a delete.** The 2026-10-11 entry on recordings says
+a recording is the only thing that can be removed, and that stands: an undone copy leaves every
+screen and every route and stays in the table and in the export.
+
+**An application has at most one tailored résumé, by a unique index** on `renders.application_id`.
+Two requests at once cannot make two; the second is answered with the first.
+
+**The export carries a sent copy's record and its page, not its file**, as it carries a profile
+without its photo.
+
+**On an application the untailored English résumé is called `Main résumé`** and the tailored one
+`Tailored résumé for <company>`, as the reviewed prototype has them. A copy keeps the title it was
+sent under. Screens 2, 5 and 6 keep the names they had.
+
+**Two places follow `10` where the reviewed prototype differs.** The button from Applied onward is
+`Record another sent copy`, and a document's row says nothing about being newer than what was
+sent: nothing is compared (entry "Application activity, closed-day counts and later sent copies").
+Screen 15's notice puts `Download` and `Back to the application` on its right, as `10` says, where
+the prototype stacks them under the sentence.
+
+Rejected: **R2 for the files**, above; it arrives with #76 for audio, which is large and is not
+written in the same transaction as anything. **Copying the documents onto the application when
+they are chosen**, which would freeze what nobody has sent yet. **Deleting undone copies**, which
+would be the second thing in the product that can be deleted. **Rebuilding the page from the
+version**, which is the pointer the 2026-10-11 entry rejected, by another route.
+
+### [2026-10-12] Leaving Not applied freezes the unsent documents, by a move or by Undo
+
+Issue #71, review of the change. Extends the 2026-10-11 entry "Application activity, closed-day
+counts and later sent copies", which said the freeze happens "on moving from Not applied to a
+later step" and did not say what Undo does.
+
+**One rule, whatever made the change.** Whenever an application leaves Not applied for Applied or
+any later step, by a move or by Undo, each attached document that has no sent copy yet is frozen.
+Any arrival at Applied does the same. A document that already has a copy is left alone, and
+nothing is compared. Further copies stay the explicit `Record another sent copy`.
+
+The case that forced it: an application is moved back to Not applied, a document is attached
+there, and Undo puts the earlier standing back. The application then stood at Applied, or at
+Résumé passed, with a document on it and no copy of it. The freeze is decided in the one place
+every change to the standing goes through, so no route can leave Not applied without it.
+
+**Undo still takes back the copies the undone move froze** when it returns to Not applied
+(entry "Sent copies are kept in Postgres"). The two do not meet: one Undo either leaves Not
+applied or returns to it.
+
+**Undo says what it froze.** Its confirmation is `Undone.`, followed by the sentence a move uses,
+`<title> v<N> was frozen as sent.`, when it froze anything (`10`, Screen 14).
+
+Rejected: **freezing on Undo only when it lands on Applied**, which leaves the same hole one step
+further on. **Leaving Undo out of the freeze** because it restores a past standing: the documents
+on the application are today's, and a standing at Applied with an unsent document is what the
+freeze exists to prevent.
+
+### [2026-10-12] Only leaving Not applied freezes; arriving at Applied from a later step does not
+
+Issue #71, review of the change. Supersedes one sentence of the entry above, "Leaving Not applied
+freezes the unsent documents, by a move or by Undo": `Any arrival at Applied does the same.`
+Everything else in that entry stands.
+
+**The rule is the one sentence.** Whenever an application leaves Not applied for Applied or any
+later step, by a move or by Undo, each attached document with no sent copy yet is frozen. Nothing
+else freezes automatically. A move or an Undo between steps from Applied onward freezes nothing,
+including one that lands on Applied.
+
+A document with a version and no copy can exist past Applied: a tailored résumé can be made at any
+step. Stepping back to Applied, or undoing a step forward from it, froze that résumé as sent on
+the old Applied date, which could be a day before the version existed, and said so. The owner had
+sent nothing. Undo takes copies back only when it returns to Not applied, so that copy could not
+be taken back by any route.
+
+From Applied onward the owner says what was sent, with `Record another sent copy`.
+
+Rejected: **keeping the freeze on arrival at Applied and teaching Undo to take those copies
+back**, which adds a second take-back rule to repair a freeze nobody asked for.
+
+### [2026-10-12] An interview entry's move freezes like any other move
+
+Issue #71, on rebasing over #72. Extends the entry above, "Only leaving Not applied freezes", to a
+route that did not exist when it was written. It changes nothing in that entry.
+
+**The freeze is in `saveStanding`, the one write every change to where an application stands goes
+through.** #72 added a second caller: saving an interview entry for a later round moves the
+application there, and can take it out of Not applied. With the freeze in the step and standing
+routes only, that move left an application at an interview step with documents attached and no
+sent copy, which is what the freeze exists to prevent.
+
+The copies are dated with the entry's day, which is the date the move saves. The entry, its
+questions, the move and the copies are one batch, so a file that cannot be built refuses the entry
+too. Undo of that move takes the copies back, as it does for any move. The screen says the same
+sentence after the entry's confirmation (`10`, Screen 14).
+
+Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
+with the first.

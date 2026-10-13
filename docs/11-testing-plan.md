@@ -311,8 +311,8 @@ Then it is the one of that language, and its download is that language's file
 
 ### 2.6h A tailored résumé is the main résumé's rules with a job description
 
-`tests/tailored.test.ts`, `tests/client/tailored.test.tsx`, and the prompt in `tests/prompt.test.ts`
-(#57).
+`tests/tailored.test.ts` and the prompt in `tests/prompt.test.ts` (#57). The résumé under test is
+seeded with its application, as migration 0017 leaves one: since #70 no route creates one.
 
 ```
 Given a named job description
@@ -324,6 +324,170 @@ And the result is a proposal, read as a diff and accepted, with versions apart f
 And a version asked for under another document's ref is not found
 And its file is withheld once a fact it cites is made Private, as the main résumé's is
 And another user's tailored résumé is not listed, and is a 404 on every route addressed by its id
+```
+
+### 2.6i An application's dates are saved, corrected and counted from
+
+`tests/applications.test.ts`, `tests/applications-migration.test.ts` and
+`tests/client/applications.test.tsx` (#70). The clock is set, so every day count is exact.
+
+```
+Given a job added by hand
+Then it is at Not applied, with today as the day it was added
+
+When a step is set
+Then today is saved under it, and a step passed over has no date until one is added
+When a date is corrected
+Then the figures that count from it follow, and the date it replaced is kept, superseded
+
+When nothing has changed for 14 days and it is waiting to hear back
+Then it has gone quiet, and at 13 days it has not
+And a step entered late, or one not waiting to hear back, is not quiet
+And correcting the company or the position does not count as a change
+
+When a move is undone
+Then the standing from before it is put back whole
+
+Given a tailored résumé made before migration 0017
+When the migration runs
+Then it is an application at Not applied holding its job description, and the résumé row is unchanged
+And running it again adds nothing, and the down script removes only what it added
+
+And another user's application is not listed, and is a 404 on every route addressed by its id
+```
+
+### 2.6i-2 A posting is read into a proposal, and adding a job never depends on it
+
+`tests/applications.test.ts`, `tests/client/applications.test.tsx` and the prompt in
+`tests/prompt.test.ts` (#73). The model is stubbed; the postings and the readings it answers with
+are invented, in English and in 日本語 (`tests/fixtures/postings.ts`).
+
+```
+Given a job description pasted into Add a job
+When Read it is pressed
+Then the model is given that text and nothing else, and its company, position and requirements fill the check step
+And no application exists until Save application is pressed
+And what is saved is the fields as the author left them, not what was read
+
+When the reading fails, or the server cannot be reached
+Then the check step opens with the fields empty and says so, and what is typed there is saved
+When the text states no company and no position
+Then both fields are empty and the screen says they were not found
+
+When the text is missing, under 40 characters or over 20,000
+Then nothing is read, on the screen or by the route, and the model is not called
+And what was read is held to the limits a saved application has
+And going back to the text and on again reads it again, and what is read replaces the fields
+And a reading that fails after one that succeeded leaves the fields empty, not the earlier reading
+```
+
+### 2.6j An interview entry keeps its questions apart, and dates skipped earlier rounds
+
+`tests/interviews.test.ts`, `tests/interview-rules.test.ts` and `tests/client/interviews.test.tsx`
+(#72). The clock is set, so every day count is exact.
+
+```
+Given an application
+When an interview entry is added
+Then it holds the day, the round, who it was with and how it went
+And each question is a row of its own, numbered in the order given, the blank ones dropped
+And an entry with neither how it went nor a question is refused, and so is a future day
+
+When the entry is for a round later than the status
+Then the status moves to that round with the entry's day, and the first-interview figure follows
+And the rounds passed over have no date
+And undoing the move puts the standing back and keeps the entry
+
+When the entry is for an earlier interview round whose date was skipped on an open application
+Then that date is filled with the entry's day, the current status stays put, and the figure follows
+And a second entry for that round does not replace the date; Undo removes the filled date, not the entry
+
+When the round already has a date, is not a round, or the application is closed
+Then the status and its dates are left alone, and the entry still counts as a change
+
+When the application was changed after a save read it, by a move or by a date alone
+Then the save is refused as changed somewhere else, and nothing of it is written
+
+On the screen
+Then several pasted lines become several questions; a leading number, `-` or `*` is dropped only with following whitespace, while `•` and `・` are dropped with or without it
+And a draft typed before the paste is saved before the pasted questions
+And the question still in the field is saved with the rest, in one write
+And clearing the date prevents the save and shows a message
+And a move is said where a status change is said, with its Undo
+
+And another user cannot add an entry to an application, and reads none of its entries
+```
+
+### 2.6k A recording is a link, only an http or https one, and can be removed for good
+
+`tests/recordings.test.ts` and `tests/client/recordings.test.tsx` (#74).
+
+```
+Given an application with an interview entry
+When a link is attached to the entry
+Then the entry reads back the link and what it is, in the order attached, and no other entry does
+And a link that is not http or https is refused and nothing is stored: no scheme, javascript:, data:, file:, ftp:, a bare https://, one with a space in it
+And an entry of another application, or one that is not there, is a miss
+
+When a recording is removed
+Then its link and label are gone from the database, and the entry keeps a line with the day in Japan
+And the line stays in its place among the entry's other recordings
+And removing it a second time is a miss
+
+Then attaching and removing each count as a change to the application, and neither moves the status
+And no recording is in the exported record
+And another user can neither attach, remove nor read one
+
+On the screen
+Then a link is drawn with its label or `Recording kept elsewhere`, its address, and Open in a new tab
+And an address that is not http or https is never drawn as something to open
+And a link that is not one is refused without a request, with what was typed kept
+And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
+```
+
+### 2.6l A sent copy is the file of the day, and nothing later reaches it
+
+`tests/application-documents.test.ts`, `tests/applications-migration.test.ts` (0020) and
+`tests/client/application-resume.test.tsx` (#71). The clock is set.
+
+```
+Given an application at Not applied
+Then the main résumé, 履歴書 and 職務経歴書 are offered, and one with no version cannot be ticked
+And several can be on it at once, beside a tailored résumé made from its job description
+And an application has one tailored résumé: asked again, it is the same one
+
+When it moves out of Not applied, to Applied or straight to a later step
+Then every document on it with a version and no sent copy yet is frozen as sent, with that step's date
+And a document that cannot be frozen refuses the move, and nothing is saved
+And an interview entry that takes it out of Not applied freezes the same way, and its Undo takes the copies back
+
+Given a sent copy
+When the document gets a later version, the author's name and address change, or the record changes
+Then the copy's file and its page are byte for byte what they were
+And the company renamed later does not rename the copy
+And no route changes the copy's file or page
+
+When the date of the step that froze a copy is corrected
+Then the copies that move froze follow it, and a copy from an earlier move does not
+When the move is undone
+Then the copies it froze are gone from every read, and a copy recorded by hand stays
+When the status is moved back and forward again
+Then the copies stay and the same document is not frozen twice
+When a document is attached at Not applied and Undo puts back Applied or a later step
+Then that document is frozen, the Undo says which, and the copies already there are left alone
+When a move or an Undo arrives at Applied from a later step, with a document that has no copy
+Then nothing is frozen
+
+When another sent copy is recorded, from Applied onward
+Then each ticked document is frozen again, always, and the latest is the one most recently recorded
+And it takes a document not on the application, and a tailored résumé made after Applied
+And before Applied it is refused
+
+Given tailored résumés linked by migration 0017
+When migration 0020 runs
+Then each is listed as a document of its application, and the down script removes only what it added
+
+And another user's application, document or sent copy is a 404 on every route here
 ```
 
 ### 2.7 Failure never destroys a stored version
@@ -350,6 +514,9 @@ Then it contains no source text, no fact claim, no quote, and no render content
 ```
 
 Otherwise the logs become a second, un-governed copy of NDA-bound material.
+
+**Extended 2026-10-12 (#73)** to a posting read and a reading that fails: the log carries the
+text's length and counts, never the company, the position or a requirement.
 
 **Extended 2026-10-08 (#57)** to the four new sources of a log line: grading and flagging an import,
 the sort, `Explain this`, and creating and generating a tailored résumé. The search also covers flag

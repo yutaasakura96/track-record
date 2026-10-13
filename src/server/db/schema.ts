@@ -9,12 +9,14 @@
  *   - text primary keys generated with nanoid(), matching Better Auth
  *   - created_at / updated_at on every table
  *   - user_id on every record-bearing table; EVERY query filters by it
- *   - MONTH PRECISION on all calendar columns: `date` with the day pinned to
- *     `01`, never rendered. Forms collect month and year only.
+ *   - MONTH PRECISION on the record's calendar columns: `date` with the day
+ *     pinned to `01`, never rendered. Forms collect month and year only.
+ *     `happened_on` on `application_steps` and `interviews` are the day-precision
+ *     dates, and the first says why.
  */
 import {
   pgTable, pgEnum, text, integer, bigint, boolean, timestamp, date, jsonb, doublePrecision,
-  index, uniqueIndex, customType, primaryKey,
+  index, uniqueIndex, customType, primaryKey, check,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 
@@ -73,6 +75,26 @@ export const chunkStatus = pgEnum("chunk_status", ["pending", "done", "failed"])
  * it likely restates a fact already in the record, and may disagree with it.
  */
 export const factFlagKind = pgEnum("fact_flag_kind", ["confidential", "number", "unsure", "repeat"]);
+/**
+ * The fixed list an application's status is taken from (issue #70): seven
+ * steps in order, then the two ways of closing. `src/shared/application.ts`
+ * holds the same list and the rules for moving through it.
+ */
+export const applicationStatus = pgEnum("application_status", [
+  "not_applied", "applied", "resume_passed", "interview_1", "interview_2", "interview_final", "offer",
+  "rejected", "withdrawn",
+]);
+/**
+ * Which interview an entry is a note of (issue #72): one of the three
+ * interview steps, under the names `application_status` gives them, or `other`
+ * for a conversation that is not a round and never moves the status.
+ */
+export const interviewRound = pgEnum("interview_round", ["interview_1", "interview_2", "interview_final", "other"]);
+/**
+ * What a recording on an interview entry is (issue #74). A link to one kept
+ * elsewhere is the only kind until upload is built (#76), which adds its own.
+ */
+export const recordingKind = pgEnum("recording_kind", ["link"]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -495,6 +517,12 @@ export const renders = pgTable("renders", {
   jobDescription: text("job_description"),
   /** The author's name for a tailored résumé. Null on a main document. */
   label: text("label"),
+  /**
+   * The application a tailored résumé belongs to (issue #70). Null on a main
+   * document. `job_description` stays written beside it, because that column
+   * is what keeps a tailored résumé out of the one-per-kind index below.
+   */
+  applicationId: text("application_id").references(() => applications.id, { onDelete: "set null" }),
   /** null = NEVER GENERATED, which is distinct from generated-and-unchanged. */
   currentVersionId: text("current_version_id"),
   staleSinceFactCount: integer("stale_since_fact_count"),
@@ -503,6 +531,9 @@ export const renders = pgTable("renders", {
   // One main document per kind. A tailored résumé is outside it: there may be
   // any number of those.
   uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind).where(sql`${t.jobDescription} is null`),
+  // An application holds at most one tailored résumé (issue #71). Two requests
+  // making one at once would both insert; this lets one through.
+  uniqueIndex("renders_application_uq").on(t.applicationId).where(sql`${t.applicationId} is not null`),
 ]);
 
 /** Accepted versions. NEVER deleted. */
@@ -605,6 +636,212 @@ export const renderProposals = pgTable("render_proposals", {
   uniqueIndex("render_proposals_one_waiting_uq")
     .on(t.renderId)
     .where(sql`${t.status} = 'pending' and ${t.generationStatus} <> 'failed'`),
+]);
+
+/* ----------------------------------------------------------- applications */
+
+/**
+ * One job the author is looking at or has applied for (issue #70). NEVER
+ * deleted: one added by mistake is withdrawn.
+ *
+ * Where it stands is two columns: the step it is at, and how it closed if it
+ * did. A closed application keeps its step, so reopening it returns it there.
+ * Gone quiet and the "how long since" figures are worked out on read and are
+ * stored nowhere: the figures from the dates in `application_steps`, and gone
+ * quiet from `last_activity_at`.
+ */
+export const applications = pgTable("applications", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  company: text("company").notNull(),
+  /** Empty only on an application carried over from a tailored résumé, until the author fills it in. */
+  position: text("position").notNull(),
+  postingUrl: text("posting_url"),
+  /**
+   * The posting as the author pasted it. Somebody else's text: never a source
+   * of facts, never logged, and absent from the listing.
+   */
+  jobDescription: text("job_description").notNull(),
+  requirements: text("requirements").array().notNull().default(sql`'{}'`),
+  currentStep: applicationStatus("current_step").notNull().default("not_applied"),
+  closedAs: applicationStatus("closed_as"),
+  /**
+   * When the author last changed what this application records: a status set,
+   * a date corrected, and later an interview noted or a document added or
+   * sent. The list is ordered by it and gone quiet is counted from it, so a
+   * step entered late with an old date does not read as weeks of silence
+   * (decided in the review of issue #69). Correcting the company or the
+   * position is not activity and leaves it alone, which is why this is not
+   * `updated_at`.
+   */
+  lastActivityAt: timestamp("last_activity_at", { withTimezone: true }).notNull().defaultNow(),
+  ...timestamps,
+}, (t) => [
+  index("applications_user_idx").on(t.userId),
+  check("applications_current_step_ck", sql`${t.currentStep} not in ('rejected', 'withdrawn')`),
+  check("applications_closed_as_ck", sql`${t.closedAs} in ('rejected', 'withdrawn')`),
+]);
+
+/**
+ * The date of each status an application has reached (issue #70).
+ *
+ * One live row per status that has a date: the day the job was added under
+ * `not_applied`, a row per step reached, and the day it closed. A step passed
+ * over has no row. A change never updates or deletes a row: it sets
+ * `superseded_at` on the row it replaces and inserts the new one, so a
+ * corrected date, a step moved back from and an undone change all stay on
+ * record.
+ */
+export const applicationSteps = pgTable("application_steps", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  status: applicationStatus("status").notNull(),
+  /**
+   * DAY PRECISION, which only this column and `interviews.happened_on` are.
+   * "16 days since the first interview" needs days. The month rule is about
+   * the career record, and this is not part of it; nothing here reaches a render.
+   */
+  happenedOn: date("happened_on", { mode: "string" }).notNull(),
+  supersededAt: timestamp("superseded_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  // Two requests changing one application at once would both insert. This lets
+  // one through, and the other is told to reload.
+  uniqueIndex("application_steps_live_uq").on(t.applicationId, t.status).where(sql`${t.supersededAt} is null`),
+  index("application_steps_user_idx").on(t.userId).where(sql`${t.supersededAt} is null`),
+]);
+
+/**
+ * The author's note of one real interview (issue #72): the day, the round, who
+ * it was with and how it went. Its questions are rows of their own.
+ *
+ * Written by hand and read by no model. `who` and `how_it_went` name other
+ * people and what they said: never logged, like the job description.
+ */
+export const interviews = pgTable("interviews", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  /** DAY PRECISION, like `application_steps.happened_on`, and for the same reason. */
+  happenedOn: date("happened_on", { mode: "string" }).notNull(),
+  round: interviewRound("round").notNull(),
+  /** Names or roles, as the author typed them. Empty when not given. */
+  who: text("who").notNull().default(""),
+  /** Empty only when the entry has at least one question. */
+  howItWent: text("how_it_went").notNull().default(""),
+  ...timestamps,
+}, (t) => [index("interviews_application_idx").on(t.userId, t.applicationId)]);
+
+/**
+ * One question asked at an interview, in the order the author gave them
+ * (issue #72). A row and not a list in a column, so a question has an id of
+ * its own if a hand-off ever needs one.
+ */
+export const interviewQuestions = pgTable("interview_questions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  interviewId: text("interview_id").notNull().references(() => interviews.id, { onDelete: "cascade" }),
+  /** From 0, with no gaps: the place of the question in its interview. */
+  position: integer("position").notNull(),
+  text: text("text").notNull(),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position),
+  index("interview_questions_user_idx").on(t.userId),
+]);
+
+/**
+ * A recording of an interview, on its entry (issue #74): a link to one kept
+ * elsewhere. Only the link is held, and nothing here fetches it.
+ *
+ * THE ONE ROW THE AUTHOR CAN REMOVE (decision log, 2026-10-11). Removing does
+ * not delete the row: it sets `removed_at` and empties `url` and `label`, so
+ * the link is gone for good and the entry can still say that a recording was
+ * removed and when. The check holds the two together.
+ *
+ * `url` and `label` are the author's words about a call with other people:
+ * never logged, like the entry they hang from.
+ */
+export const interviewRecordings = pgTable("interview_recordings", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  interviewId: text("interview_id").notNull().references(() => interviews.id, { onDelete: "cascade" }),
+  kind: recordingKind("kind").notNull(),
+  /** `http` or `https`. Null once removed, and only then. */
+  url: text("url"),
+  /** What it is, in a few words. Empty when not given, and once removed. */
+  label: text("label").notNull().default(""),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  index("interview_recordings_interview_idx").on(t.userId, t.interviewId),
+  check("interview_recordings_link_ck", sql`${t.kind} <> 'link' or (${t.url} is null) = (${t.removedAt} is not null)`),
+  check("interview_recordings_removed_ck", sql`${t.removedAt} is null or ${t.label} = ''`),
+]);
+
+/**
+ * The documents an application is using (issue #71): its tailored résumé, and
+ * any of the main résumé, 履歴書 and 職務経歴書 beside it.
+ *
+ * A row is a pointer to a document, never a copy of one: what was sent is in
+ * `application_sent_copies`. Taking a document off sets `removed_at` and
+ * deletes nothing, so the same document can be put back.
+ */
+export const applicationDocuments = pgTable("application_documents", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  renderId: text("render_id").notNull().references(() => renders.id, { onDelete: "cascade" }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  uniqueIndex("application_documents_live_uq").on(t.applicationId, t.renderId).where(sql`${t.removedAt} is null`),
+  index("application_documents_user_idx").on(t.userId).where(sql`${t.removedAt} is null`),
+]);
+
+/**
+ * A document as it was sent (issue #71; decision log, 2026-10-11).
+ *
+ * THE FILE, not a pointer to a version. A document's name and contact lines
+ * are put on at download, and a 履歴書's three tables are filled from the record
+ * at download, so a version read back months later would carry that day's
+ * address and that day's tables. `file` is the `.docx` as it was generated the
+ * day it was sent, and `page` is what the screen shows of it, taken at the same
+ * moment. Neither is ever written again.
+ *
+ * Two things do touch a row, both the owner correcting the move that froze it.
+ * `sent_on` follows a correction of the date that move saved, for as long as
+ * `frozen_step_id` names the live row holding that date. Undo of the move sets
+ * `undone_at`, and a copy with it set is read by nothing.
+ *
+ * `title` and `version_no` are kept as they were: the company may be renamed
+ * and the document will move on.
+ */
+export const applicationSentCopies = pgTable("application_sent_copies", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  applicationId: text("application_id").notNull().references(() => applications.id, { onDelete: "cascade" }),
+  /** Which document this is a copy of. `latest` is per document. */
+  renderId: text("render_id").notNull().references(() => renders.id, { onDelete: "cascade" }),
+  renderVersionId: text("render_version_id").notNull().references(() => renderVersions.id, { onDelete: "cascade" }),
+  kind: renderKind("kind").notNull(),
+  title: text("title").notNull(),
+  versionNo: integer("version_no").notNull(),
+  filename: text("filename").notNull(),
+  file: bytea("file").notNull(),
+  page: jsonb("page").notNull(),
+  /** DAY PRECISION, as an application step's date is, and for the same reason. */
+  sentOn: date("sent_on", { mode: "string" }).notNull(),
+  /** Orders copies. The sent date can be corrected and does not. */
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  /** The step row whose date the freezing move saved. Null on a copy recorded by hand. */
+  frozenStepId: text("frozen_step_id").references(() => applicationSteps.id, { onDelete: "set null" }),
+  undoneAt: timestamp("undone_at", { withTimezone: true }),
+  ...timestamps,
+}, (t) => [
+  index("application_sent_copies_application_idx").on(t.applicationId).where(sql`${t.undoneAt} is null`),
+  index("application_sent_copies_user_idx").on(t.userId).where(sql`${t.undoneAt} is null`),
 ]);
 
 /* ------------------------------------------------------------- M2 tables */

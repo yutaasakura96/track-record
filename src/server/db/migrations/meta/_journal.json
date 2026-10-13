@@ -120,6 +120,34 @@
       "when": 1791585175907,
       "tag": "0016_repeat_system_settlement",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791669635471,
+      "tag": "0017_applications",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791755434500,
+      "tag": "0018_interviews",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1791780488781,
+      "tag": "0019_interview_recordings",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1791841232709,
+      "tag": "0020_application_documents",
+      "breakpoints": true
     }
   ]
 }
