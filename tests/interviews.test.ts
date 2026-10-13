@@ -432,11 +432,20 @@ describe("correcting an entry", () => {
     expect([questions[1]!.id, questions[2]!.id]).toEqual([build!.id, measure!.id]);
     expect(questions.map((question) => question.id)).not.toContain(outage!.id);
 
-    // What the database holds: the same rows, numbered from 0 with no gap, and the one left out gone.
-    const backup = await client.json<{ interviewQuestions: { id: string; position: number }[] }>("/api/export");
-    expect(backup.interviewQuestions.sort((a, b) => a.position - b.position).map((row) => [row.id, row.position])).toEqual(
+    const backup = await client.json<{ interviewQuestions: { id: string; position: number; removedAt: string | null }[] }>("/api/export");
+    const live = backup.interviewQuestions.filter((row) => row.removedAt === null);
+    expect(live.sort((a, b) => a.position - b.position).map((row) => [row.id, row.position])).toEqual(
       questions.map((question, position) => [question.id, position]),
     );
+    expect(backup.interviewQuestions.find((row) => row.id === outage!.id)).toMatchObject({
+      id: outage!.id, position: 1,
+    });
+    expect(backup.interviewQuestions.find((row) => row.id === outage!.id)?.removedAt).not.toBeNull();
+    expect((await read(id)).interviews[0]!.questions).toEqual(questions);
+    expect((await correct(id, entry!.id, {
+      ...asSaved(after.interviews[0]!),
+      questions: [{ id: outage!.id, text: outage!.text }],
+    })).status).toBe(422);
   });
 
   it("is followed by the date of its round's step, and by the first-interview figure", async () => {

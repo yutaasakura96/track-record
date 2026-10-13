@@ -41,7 +41,7 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         and(eq(interviews.id, interviewQuestions.interviewId), eq(interviews.userId, userId)),
       )
       .where(
-        and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt)),
+        and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt), isNull(interviewQuestions.removedAt)),
       )
       .orderBy(asc(interviewQuestions.position)),
     db

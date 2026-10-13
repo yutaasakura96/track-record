@@ -1867,6 +1867,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "removed_at": {
+          "name": "removed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -1902,6 +1908,7 @@
           "isUnique": true,
           "concurrently": false,
           "method": "btree",
+          "where": "\"interview_questions\".\"removed_at\" is null",
           "with": {}
         },
         "interview_questions_user_idx": {

@@ -711,11 +711,12 @@ route and by the form.
 | `id` | text | no | PK, `ivq_…` |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `interview_id` | text | no | FK → `interviews.id` **cascade** |
-| `position` | integer | no | From 0 with no gap: the place of the question in its interview |
+| `position` | integer | no | Live questions run from 0 with no gap; a removed row keeps its former place |
 | `text` | text | no | Up to 1,000 characters, at most 100 an interview. Never logged |
+| `removed_at` | timestamptz | yes | Stamped when an edit leaves the question out. Null while visible |
 | `created_at`, `updated_at` | timestamptz | no | |
 
-**Unique:** `(interview_id, position)`. **Index:** `user_id`.
+**Unique:** `(interview_id, position) where removed_at is null`. **Index:** `user_id`.
 
 - **A question is a row, not an item in an array column**, so it has an id of its own. The
   hand-off of the questions asked (#77) and anything later that points at one question need it.
@@ -727,7 +728,7 @@ route and by the form.
 - **An entry can be corrected, in place** (#81; `06`, 2026-10-14). The five columns are
   overwritten and no earlier wording is kept: the entry is the author's note, and the note is what
   they last wrote. **A question that stays keeps its row and its id**, in its new place and with
-  its new words; one left out has its row deleted; a new one is a new row. `position` still runs
+  its new words; one left out has its row stamped `removed_at`; a new one is a new row. Live `position` still runs
   from 0 with no gap: a question changing place is parked at a negative position inside the batch,
   because the unique index is checked a row at a time.
 - **A corrected day is followed by the date of its round's step** when that date is still the
@@ -1056,7 +1057,7 @@ technologies: {AWS, VPC, IAM}
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
-| `interviews`, `interview_questions` | An entry is **never deleted**: one the author deletes is stamped `removed_at` and its questions stay (#81). Correcting an entry overwrites it, and a question the correction leaves out has its row deleted, the one row here that is |
+| `interviews`, `interview_questions` | **Never deleted.** An entry or question the author removes is stamped `removed_at`; both remain in the export (#81) |
 | `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). The link and its label are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |

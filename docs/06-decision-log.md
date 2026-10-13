@@ -6301,3 +6301,12 @@ entry first set the step date.
 When the owner set the step date by hand to the same day as the entry, and no other live entry
 shares it, the step date still follows the edit. That ambiguity is accepted without additional
 provenance or a migration.
+
+### [2026-10-14] Omitted interview questions remain in the record
+
+Issue #81. Supersedes the question deletion rule in the entry above, "An interview entry can be
+corrected and deleted". A question left out of an edit keeps its row, stamped `removed_at`.
+Only live questions appear on the application page, with positions from 0 without gaps. The
+export includes stamped questions. The unique position constraint covers live questions only,
+so a removed row can retain its former position without blocking another edit. This follows the
+standing rule that a recording is the only thing the author can remove for good.

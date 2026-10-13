@@ -196,7 +196,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
 
     const { row, steps, standing } = await readStanding(db, user.id, id);
     const entry = await requireInterview(db, user.id, id, interviewId);
-    const ofEntry = and(eq(interviewQuestions.userId, user.id), eq(interviewQuestions.interviewId, interviewId));
+    const ofEntry = and(eq(interviewQuestions.userId, user.id), eq(interviewQuestions.interviewId, interviewId), isNull(interviewQuestions.removedAt));
     const stored = await db
       .select({ id: interviewQuestions.id, position: interviewQuestions.position, text: interviewQuestions.text })
       .from(interviewQuestions)
@@ -264,7 +264,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
           .update(interviews)
           .set({ happenedOn: body.date, round: body.round, who: body.who, howItWent: body.howItWent, updatedAt: now })
           .where(and(eq(interviews.userId, user.id), eq(interviews.id, interviewId))),
-        ...(gone.length > 0 ? [db.delete(interviewQuestions).where(and(ofEntry, inArray(interviewQuestions.id, gone)))] : []),
+        ...(gone.length > 0 ? [db.update(interviewQuestions).set({ removedAt: now, updatedAt: now }).where(and(ofEntry, inArray(interviewQuestions.id, gone)))] : []),
         ...placed,
         ...body.questions.flatMap((question, position) =>
           question.id === undefined

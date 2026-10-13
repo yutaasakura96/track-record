@@ -424,7 +424,7 @@ A saved entry corrected or deleted (#81), in the same three files:
 Given an application with an interview entry
 When the entry is corrected
 Then its day, round, who and how it went are overwritten, at once and after a reload
-And a question that stays is the same row in its new place, one left out is gone, a new one is added, numbered from 0 with no gap
+And a question that stays is the same row in its new place, one left out is stamped and hidden but kept in the export, and live questions including new ones are numbered from 0 with no gap
 And a correction that changes nothing writes nothing, and one that changes anything counts as a change
 And it is refused for what a new entry is refused for, for a question that is not the entry's, and for one given twice
 

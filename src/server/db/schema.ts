@@ -754,9 +754,10 @@ export const interviewQuestions = pgTable("interview_questions", {
   /** From 0, with no gaps: the place of the question in its interview. */
   position: integer("position").notNull(),
   text: text("text").notNull(),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
-  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position),
+  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position).where(sql`${t.removedAt} is null`),
   index("interview_questions_user_idx").on(t.userId),
 ]);
 
