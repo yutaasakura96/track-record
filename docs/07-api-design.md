@@ -602,8 +602,10 @@ document: asked for under another's ref it is `404`. A response that carried `re
 `renderRef` and `title` beside it.
 
 The three `/api/tailored-resumes` routes were removed on 2026-10-11 (#70): a tailored résumé is
-read with its application (§9b), and every `:ref` route below still serves it. Until #71 no route
-makes a new one.
+read with its application (§9b), and every `:ref` route below still serves it. An application
+makes its own with `POST /api/applications/:id/tailored-resume` (§9c, #71). A proposal for a
+tailored résumé carries its `applicationId`, `null` for any other document, so Diff Review can go
+back to the application it came from.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -942,12 +944,12 @@ screens read too.
 | `GET` | `/api/applications` | `{ items, today }`, newest activity first. No job description in the listing |
 | `POST` | `/api/applications` | Body `{ company, position, jobDescription, postingUrl?, requirements? }` → `201` + the application, at Not applied with today as the day it was added. `422` for an empty company, position or job description, a job description over 20,000 characters, a link that is not `http(s)`, or an extra field |
 | `POST` | `/api/applications/read-posting` | Body `{ jobDescription }` → `200` + `{ company, position, requirements }`, read from the text by the model. **A proposal: nothing is stored**, and the application is made by `POST /api/applications` when the author saves. `422` for text under 40 characters, over 20,000, or an extra field, with no model call. `503` when the reading fails |
-| `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements` and `resume` |
+| `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements`, and its `documents`, `choices` and `sentCopies` (§9c) |
 | `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`. **The job description is not editable.** Does not count as activity |
-| `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either |
+| `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either. **Leaving Not applied freezes its documents** (§9c) |
 | `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
-| `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date |
+| `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date. It freezes as a move does (§9c) |
 | `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **On an open application, a later round moves the step and saves its date; an earlier skipped round fills only its missing date.** The entry and standing are saved in the same transaction. `422` for a missing date, a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
 | `POST` | `/api/applications/:id/interviews/:interviewId/recordings` | Body `{ url, label? }` → `201` + the application. Attaches a link to a recording kept elsewhere to that entry. **Only the link is kept, and only `http` or `https`.** `422` for anything else in `url`, a link over 2,000 characters, a `label` over 200, or an extra field. `404` for an entry that is not on that application. `409` when the application changed after it was read |
 | `DELETE` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId` | → `200` + the application. **Removes the recording for good**: its link and label are emptied, and the entry keeps a line with the day. `404` for a recording not on that entry, or already removed. `409` when the application changed after it was read |
@@ -961,7 +963,8 @@ screens read too.
              "interview_1": "2026-09-24", "interview_2": "2026-10-02" },
   "daysSinceResumePassed": 28, "daysSinceFirstInterview": 16, "daysSinceClosed": null,
   "daysSinceLastActivity": 8, "quietDays": null,
-  "requirements": [], "jobDescription": "…", "resume": null, "canGenerate": true,
+  "requirements": [], "jobDescription": "…", "documents": [], "choices": [], "sentCopies": [],
+  "canGenerate": true,
   "interviews": [
     { "id": "int_7Rk1", "date": "2026-10-02", "round": "interview_2", "who": "R. Halloran, VP Engineering",
       "howItWent": "A system design hour.",
@@ -976,8 +979,10 @@ screens read too.
 ```
 
 - **A listing item is the same without `requirements`, `jobDescription`, `canGenerate`,
-  `interviews` and `today`**, and its `resume` is `{ title, versionNo }` or `null`. In the single read `resume` is
-  the tailored résumé as a `GET /api/renders` item (§7), or `null` when the application has none.
+  `interviews`, `today` and the three document lists.** It carries
+  `resume: { documents: [{ title, versionNo }], sent }`
+  instead: before anything was sent, the documents on the application at their current versions;
+  afterwards, the latest copy of each document sent, at the version sent, with `sent: true`.
 - **`step` is one of the seven steps and `closedAs` is `rejected`, `withdrawn` or `null`.** A closed
   application keeps the step it was closed at.
 - **`dates` holds a day for each status that has one.** `not_applied` is the day the job was added.
@@ -1026,16 +1031,64 @@ screens read too.
   always one `POST /api/applications` accepts. It takes the text only: the link is never sent to
   it, and nothing is fetched. A failed reading is `503 upstream_unavailable`, `The job description
   could not be read just now. Type the fields in; your text is kept.`
-- Every write answers with the application as it is afterwards. Another user's application is
-  `404` on every route.
+- Every write answers with the application as it is afterwards. One that froze documents adds
+  `frozen: [{ title, versionNo }]`, which is what the screen's notice names. Another user's
+  application is `404` on every route.
 - Logged: `posting_read` with the text's length, whether a company and a position were found, the
   number of requirements and the token counts, `posting_read_failed` with the length,
   `application_created` with the id and the job description's length,
-  `application_standing_set` with the id, `step` and `closedAs`, and `interview_added` with the two
+  `application_standing_set` with the id, `step`, `closedAs` and how many documents it froze, and
+  `interview_added` with the two
   ids, the round, the number of questions and `movedTo`, the step it moved the application to or
   `null`, `recording_added` with the three ids and the kind, and `recording_removed` with the
   three ids. Never the company, the position, who an interview was with, how it went, a question,
   a recording's link or label, or any other text.
+
+---
+
+## 9c. An application's documents and sent copies · #71
+
+What an application is sending and what it sent (`04` §3.17). **No route here reaches a model**: a
+tailored résumé is stored here and generated by `POST /api/renders/:ref/generate` (§7), like every
+other document.
+
+| Method | Path | Notes |
+|---|---|---|
+| `PUT` | `/api/applications/:id/documents` | Body `{ documents: kind[] }`, any of `english_resume`, `rirekisho`, `shokumu_keirekisho`, each once. The ticked set, whole: one left out is taken off. The tailored résumé is not on this list and is left alone. `409` from Applied onward, `422` for a document with no version yet or a kind that is not one of the three |
+| `DELETE` | `/api/applications/:id/documents/:ref` | Takes one document off, the tailored résumé included. The document itself is untouched. `409` from Applied onward, `404` when it is not on the application |
+| `POST` | `/api/applications/:id/tailored-resume` | Stores the application's tailored résumé, English, from its job description, and puts it on the application. `201`, or `200` with the one it already has, put back on if it had been taken off. **Generates nothing** |
+| `POST` | `/api/applications/:id/sent-copies` | Body `{ documents: ref[] }`, a kind or the tailored résumé's id, each once. **Record another sent copy**: freezes each as a further copy dated today, with no comparison against earlier ones, and puts on the application any that was not. `201` + the application with `frozen`. `409` at Not applied, where the move does the freezing; `422` for a document with no version; `409` when a file cannot be built, with nothing saved |
+| `GET` | `/api/applications/:id/sent-copies/:copyId` | One copy to read: `{ id, kind, title, versionNo, sentOn, recordedAt, filename, language, applicationId, company, page }` |
+| `GET` | `/api/applications/:id/sent-copies/:copyId/download` | The stored `.docx`, byte for byte. Never a fresh one |
+
+- **`documents`** are the ones on the application, the tailored résumé first and then the three
+  in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,
+  currentVersionNo, status, newFactsSince, withdrawnFactsSince, pendingProposalId }`: the fields of
+  a `GET /api/renders` item (§7), with the title an application uses (`Main résumé`, `履歴書`,
+  `職務経歴書`, `Tailored résumé for <company>`).
+- **`choices`** are every document that could be ticked, the same shape with `onApplication`: the
+  three always, and the tailored résumé once the application has one.
+- **`sentCopies`** are `{ id, ref, kind, title, versionNo, sentOn, recordedAt }`, most recently
+  recorded first. `title` and `versionNo` are as sent, so a company renamed since does not rename
+  the copy.
+- **`page`** is `{ stamp, name, contact, sections: [{ heading, blocks: [{ kind, text }] }] }`: what
+  the file said, stored with it. It is never rebuilt from the record.
+- **The freeze.** Whenever an application leaves Not applied for Applied or any later step, by a
+  move or by `PUT …/standing` Undo, every attached document with a version and no copy yet is
+  frozen, dated with the day that step saved. Documents with a copy are left alone, and no other
+  change of step freezes anything. A move made by `POST …/interviews` is a move: it freezes the
+  same way and answers with `frozen`. The files are built first, and one that cannot be built (a citation withheld
+  since, `409`) refuses the move with nothing saved.
+- **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
+  moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
+  move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
+  taken back is `404` on both of its routes.
+- **`lastActivityAt` moves** when the documents on the application change, when the tailored résumé
+  is put on it, and when a copy is recorded. The same ticks saved again write nothing.
+- A copy asked for under another application, or another user's, is `404`.
+- Logged: `application_documents_set` with the id and the counts added and removed,
+  `tailored_resume_created` with the ids and the job description's length, and
+  `application_copies_recorded` with the id and the count. Never a title, a filename or any text.
 
 ---
 
@@ -1046,7 +1099,7 @@ screens read too.
 | `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, stale }] }], candidates: [{ name, factCount, certificationCount, curated }] }`; `stale` is computed on the read. `PUT` takes `{ groups: [{ name, skills: string[] }] }` and replaces the whole list; `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
 | `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
 | `POST` | `/api/capture` | M3 | Free text in, a short interrogation, **Attested** facts out |
-| `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15) |
+| `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15). A sent copy is exported with its page and without its file |
 
 ---
 

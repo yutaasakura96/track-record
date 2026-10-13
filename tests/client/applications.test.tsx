@@ -45,7 +45,9 @@ const application = (standing: Standing, lastActivityOn: string, over: Partial<A
   ...figures(standing, lastActivityOn, TODAY),
   requirements: ["Idempotent APIs and event streams"],
   jobDescription: POSTING,
-  resume: null,
+  documents: [],
+  choices: [],
+  sentCopies: [],
   canGenerate: true,
   interviews: [],
   today: TODAY,
@@ -66,7 +68,7 @@ const row = (
   lastActivityAt: `${lastActivityOn}T03:00:00.000Z`,
   ...standing,
   ...figures(standing, lastActivityOn, TODAY),
-  resume: null,
+  resume: { documents: [], sent: false },
   ...over,
 });
 
@@ -200,12 +202,12 @@ describe("the list of applications", () => {
     openList([
       row("app-test-kestrel", "Kestrel, platform engineer", at("not_applied", { not_applied: "2026-10-07" }), "2026-10-07", {
         position: "",
-        resume: { title: "Résumé for Kestrel, platform engineer", versionNo: 2 },
+        resume: { documents: [{ title: "Tailored résumé for Kestrel, platform engineer", versionNo: 2 }], sent: false },
       }),
     ]);
     const kestrel = within(await screen.findByRole("link", { name: "Open Kestrel, platform engineer" }));
     expect(kestrel.getByText("Position not filled in")).toBeTruthy();
-    expect(kestrel.getByText("Résumé for Kestrel, platform engineer v2, not sent")).toBeTruthy();
+    expect(kestrel.getByText("Tailored résumé for Kestrel, platform engineer v2, not sent")).toBeTruthy();
   });
 
   it("opens an application from its row", async () => {
@@ -260,6 +262,26 @@ describe("where an application stands", () => {
     expect(api.writes()).toEqual([`POST ${AT}/steps`, `PUT ${AT}/standing`]);
     expect(api.bodyOf("PUT", `${AT}/standing`)).toEqual(FERNHILL);
     expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
+  it("says what an Undo froze, after its confirmation, and only then", async () => {
+    const applied = at("applied", { not_applied: "2026-09-18", applied: "2026-09-20" });
+    const { user } = openOne(applied, "2026-09-20", {
+      [`PUT ${AT}/standing`]: ({ body }: Call) =>
+        application(body as Standing, TODAY, { frozen: [{ title: "職務経歴書", versionNo: 3 }] }),
+    });
+    await user.selectOptions(await screen.findByLabelText("Set another step"), "not_applied");
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByText("Undone. 職務経歴書 v3 was frozen as sent.")).toBeTruthy();
+  });
+
+  it("says only that it was undone when the Undo froze nothing", async () => {
+    const { user } = openOne();
+    await user.click(await screen.findByRole("button", { name: "Move to Final interview" }));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+
+    expect(await screen.findByText("Undone.")).toBeTruthy();
   });
 
   it("corrects a date with one write naming that step, and the figure follows", async () => {

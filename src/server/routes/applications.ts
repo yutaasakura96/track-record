@@ -6,6 +6,8 @@
  * are in `~/shared/application`, and every route that changes where an
  * application stands goes through {@link saveStanding}, so a date is never
  * overwritten: the row holding it is superseded and a new one written.
+ * It is also where the documents are frozen: whenever an application leaves
+ * Not applied for any step, by a move, by Undo or by an interview entry's move.
  *
  * Gone quiet and the "how long since" figures are worked out on every read,
  * against today's date in Japan. None is stored. The figures count from the
@@ -16,17 +18,22 @@
  * No log line here carries any of them: an id, a status, a length.
  */
 import type { Context, Hono } from "hono";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
-import { applicationSteps, applications, renderVersions, renders } from "../db/schema";
+import { applicationSentCopies, applicationSteps, applications } from "../db/schema";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
-import { tailoredTitle } from "../services/render-ref";
 import { interviewsOf } from "../services/interviews";
-import { renderState } from "./renders";
+import {
+  freezeDocuments,
+  liveCopies,
+  readDocuments,
+  readResumeLines,
+  unsentDocuments,
+} from "../services/application-documents";
 import { tokyoToday } from "~/render/rirekisho";
 import {
   APPLICATION_STATUSES,
@@ -50,6 +57,7 @@ import {
   type Standing,
 } from "~/shared/application";
 import { ModelUnavailableError, type ModelUsage, type PostingReading } from "~/model";
+import type { NamedVersion } from "~/shared/application-documents";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
@@ -137,34 +145,18 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
     const today = tokyoToday();
-    const [rows, steps, resumes] = await db.batch([
+    const [rows, steps] = await db.batch([
       db.select(SUMMARY).from(applications).where(eq(applications.userId, user.id)),
       db.select(LIVE_STEP).from(applicationSteps).where(liveSteps(user.id)),
-      db
-        .select({
-          applicationId: renders.applicationId,
-          label: renders.label,
-          versionNo: renderVersions.versionNo,
-        })
-        .from(renders)
-        .leftJoin(
-          renderVersions,
-          and(eq(renderVersions.id, renders.currentVersionId), eq(renderVersions.userId, user.id)),
-        )
-        .where(and(eq(renders.userId, user.id), isNotNull(renders.applicationId))),
     ]);
+    const resumeOf = await readResumeLines(db, user.id, new Map(rows.map((row) => [row.id, row.company])));
 
     const stepsOf = groupBy(steps, (step) => step.applicationId);
-    const resumeOf = new Map(resumes.map((row) => [row.applicationId, row]));
     const items = rows
-      .map((row) => {
-        const standing = standingOf(row, stepsOf.get(row.id) ?? []);
-        const resume = resumeOf.get(row.id);
-        return {
-          ...summaryOf(row, standing, today),
-          resume: resume ? { title: tailoredTitle(resume.label), versionNo: resume.versionNo } : null,
-        };
-      })
+      .map((row) => ({
+        ...summaryOf(row, standingOf(row, stepsOf.get(row.id) ?? []), today),
+        resume: resumeOf.get(row.id) ?? { documents: [], sent: false },
+      }))
       .sort((a, b) => b.lastActivityAt.localeCompare(a.lastActivityAt));
 
     return c.json({ items, today });
@@ -271,6 +263,7 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
   /**
    * Sets a step, or closes the application as rejected or withdrawn. Either
    * saves today's date, which `PATCH …/steps/:status` corrects afterwards.
+   * Moving out of Not applied freezes the documents on it that were never sent.
    */
   api.post("/api/applications/:id/steps", async (c) => {
     const { status } = await parseBody(c, stepBody);
@@ -286,7 +279,7 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
     if (!isStep(status) && !isClosedKind(status)) throw notFound("That step");
     const { date } = await parseBody(c, dateBody);
     if (date > tokyoToday()) throw validationFailed("A date cannot be in the future.", ["date"]);
-    return change(c, (standing) => setDate(standing, status, date));
+    return change(c, (standing) => setDate(standing, status, date), "correct");
   });
 
   /** Reopens a closed application at the step it was closed at. */
@@ -296,12 +289,13 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
    * Puts an application back where it stood: step, closed or not, and every
    * date. This is Undo. The screen holds the standing from before a change and
    * sends it here, and the dates it replaces are superseded like any others.
+   * Back at Not applied, the copies the undone move froze are taken back too.
    */
   api.put("/api/applications/:id/standing", async (c) => {
     const body = await parseBody(c, standingBody);
     const problem = standingProblem(body, tokyoToday());
     if (problem) throw validationFailed(problem, ["dates"]);
-    return change(c, () => body);
+    return change(c, () => body, "restore");
   });
 }
 
@@ -356,7 +350,7 @@ const summaryOf = (row: SummaryRow, standing: Standing, today: string) => ({
 });
 
 /** A miss is a 404, and so is another user's id: saying a row exists would confirm it. */
-async function requireApplication(db: Db, userId: string, id: string) {
+export async function requireApplication(db: Db, userId: string, id: string) {
   const [row] = await db
     .select()
     .from(applications)
@@ -372,24 +366,16 @@ export async function readStanding(db: Db, userId: string, id: string) {
   return { row, steps, standing: standingOf(row, steps) };
 }
 
-/** One application in full: the posting, where it stands, its résumé if it has one, and its interview entries. */
+/** One application in full: the posting, where it stands, its documents, what was sent and its interview entries. */
 export async function detail(db: Db, userId: string, id: string) {
   const { row, standing } = await readStanding(db, userId, id);
-  const [resume] = await db
-    .select({ id: renders.id })
-    .from(renders)
-    .where(and(eq(renders.userId, userId), eq(renders.applicationId, id)))
-    .limit(1);
-  const documents = resume ? await renderState(db, userId) : null;
   const today = tokyoToday();
 
   return {
     ...summaryOf(row, standing, today),
     requirements: row.requirements,
     jobDescription: row.jobDescription,
-    /** The tailored résumé written for this job, as every document list shows one. */
-    resume: documents?.tailored.find((document) => document.id === resume!.id) ?? null,
-    canGenerate: (documents?.usableFacts ?? 0) > 0,
+    ...(await readDocuments(db, userId, row)),
     interviews: await interviewsOf(db, userId, id),
     today,
   };
@@ -398,11 +384,37 @@ export async function detail(db: Db, userId: string, id: string) {
 /* ----------------------------------------------------------------- writes */
 
 /**
+ * The update that marks an application as changed now, for a batch. The list
+ * is ordered by it and gone quiet is counted from it.
+ */
+export const markActivity = (db: Db, userId: string, applicationId: string, now: Date) =>
+  db
+    .update(applications)
+    .set({ lastActivityAt: now, updatedAt: now })
+    .where(and(eq(applications.userId, userId), eq(applications.id, applicationId)));
+
+/**
+ * What a change to the standing is, which decides what it does to sent copies
+ * (`docs/10` Screen 14, issue #71).
+ *
+ * Whatever the kind, a change that leaves Not applied for any step freezes
+ * the documents on the application that have no sent copy yet. One that
+ * already has a copy is left alone, and no other change freezes anything.
+ *
+ * - `move`: a step set, a close, a reopen. It does nothing more to copies.
+ * - `correct`: one date put right. A copy frozen by the change that saved
+ *   that date follows it.
+ * - `restore`: Undo. Back at Not applied, it takes back the copies the undone
+ *   move froze. A plain move back to Not applied keeps them.
+ */
+type ChangeKind = "move" | "correct" | "restore";
+
+/**
  * Reads where an application stands, applies one change to it, saves it and
  * answers with the result. A change that leaves it standing as it was is not
  * activity: nothing is written and nothing logged.
  */
-async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standing) {
+async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standing, kind: ChangeKind = "move") {
   const user = c.get("user");
   const db = c.get("db");
   const id = pathParam(c, "id");
@@ -421,9 +433,9 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
     APPLICATION_STATUSES.every((status) => next.dates[status] === standing.dates[status]);
   if (same) return c.json(await detail(db, user.id, id));
 
-  await saveStanding(db, user.id, id, row, steps, next);
-  console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs }));
-  return c.json(await detail(db, user.id, id));
+  const frozen = await saveStanding(db, user.id, id, row, steps, next, [], kind);
+  console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs, frozen: frozen.length }));
+  return c.json({ ...(await detail(db, user.id, id)), frozen });
 }
 
 /**
@@ -440,6 +452,9 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
  *
  * `alongside` is what else the same change writes, an interview entry and its
  * questions, so that it and the status it moved are saved or refused together.
+ *
+ * What `kind` does to sent copies is written in the same transaction, and the
+ * documents it froze are the answer.
  */
 export async function saveStanding(
   db: Db,
@@ -449,10 +464,11 @@ export async function saveStanding(
   live: StepRow[],
   next: Standing,
   alongside: BatchItem<"pg">[] = [],
-) {
+  kind: ChangeKind = "move",
+): Promise<NamedVersion[]> {
   const liveBy = new Map(live.map((row) => [row.status as ApplicationStatus, row]));
   const changed = APPLICATION_STATUSES.filter((status) => liveBy.get(status)?.happenedOn !== next.dates[status]);
-  const superseded = changed.flatMap((status) => liveBy.get(status)?.id ?? []);
+  const superseded = changed.flatMap((status) => liveBy.get(status) ?? []);
   const written = changed.flatMap((status) => {
     const happenedOn = next.dates[status];
     return happenedOn
@@ -461,6 +477,47 @@ export async function saveStanding(
   });
 
   const now = new Date();
+  const leaving = previous.currentStep === "not_applied" && next.step !== "not_applied";
+  const returning = previous.currentStep !== "not_applied" && next.step === "not_applied";
+  const mine = and(eq(applicationSentCopies.applicationId, applicationId), liveCopies(userId));
+
+  let frozen: NamedVersion[] = [];
+  const copies: BatchItem<"pg">[] = [];
+  if (leaving) {
+    // Built before anything is saved: a file that cannot be made refuses the
+    // move, so Applied is never saved with nothing kept.
+    const made = await freezeDocuments(db, userId, previous, await unsentDocuments(db, userId, applicationId), {
+      sentOn: next.dates[next.step]!,
+      recordedAt: now,
+      frozenStepId: (written.find((row) => row.status === next.step) ?? live.find((step) => step.status === next.step))!.id,
+    });
+    frozen = made.named;
+    copies.push(...made.rows.map((copy) => db.insert(applicationSentCopies).values(copy)));
+  }
+  if (kind === "correct") {
+    for (const row of written) {
+      const replaced = superseded.find((old) => old.status === row.status);
+      if (!replaced) continue;
+      copies.push(
+        db
+          .update(applicationSentCopies)
+          .set({ sentOn: row.happenedOn, frozenStepId: row.id, updatedAt: now })
+          .where(and(mine, eq(applicationSentCopies.frozenStepId, replaced.id))),
+      );
+    }
+  }
+  if (kind === "restore" && returning && live.length > 0) {
+    // The copies a move froze name the live row of the date it saved. One
+    // recorded by hand names none, and one from an earlier move names a row
+    // that was superseded when the application was moved back, so both stay.
+    copies.push(
+      db
+        .update(applicationSentCopies)
+        .set({ undoneAt: now, updatedAt: now })
+        .where(and(mine, inArray(applicationSentCopies.frozenStepId, live.map((step) => step.id)))),
+    );
+  }
+
   try {
     await db.batch([
       db.execute(sql`
@@ -480,15 +537,16 @@ export async function saveStanding(
         )
         select 1 / count(*)::integer from changed
       `),
-      ...superseded.map((id) =>
+      ...superseded.map((row) =>
         db
           .update(applicationSteps)
           .set({ supersededAt: now, updatedAt: now })
           .where(
-            and(eq(applicationSteps.userId, userId), eq(applicationSteps.id, id), isNull(applicationSteps.supersededAt)),
+            and(eq(applicationSteps.userId, userId), eq(applicationSteps.id, row.id), isNull(applicationSteps.supersededAt)),
           ),
       ),
       ...written.map((row) => db.insert(applicationSteps).values(row)),
+      ...copies,
       ...alongside,
     ]);
   } catch (error) {
@@ -500,4 +558,5 @@ export async function saveStanding(
     if (!stale && !violatesUnique(error, "application_steps_live_uq")) throw error;
     throw new ApiError("conflict", "This application was changed somewhere else. Reload it and try again.");
   }
+  return frozen;
 }

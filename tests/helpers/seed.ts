@@ -6,7 +6,7 @@
 import { env } from "cloudflare:test";
 import { createDb } from "~/server/db/client";
 import { eq, inArray } from "drizzle-orm";
-import { applicationSteps, applications, factFlags, facts, renders, users } from "~/server/db/schema";
+import { applicationDocuments, applicationSteps, applications, factFlags, facts, renders, users } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import type { SeededUser } from "./harness";
 
@@ -62,10 +62,10 @@ export async function asCandidates(importId: string): Promise<void> {
 }
 
 /**
- * A tailored résumé as migration 0017 leaves one: inside an application at Not
- * applied that holds its job description. No route makes one until an
- * application can write its own résumé, and the ones made before that are
- * exactly these rows.
+ * A tailored résumé as migrations 0017 and 0019 leave one: inside an
+ * application at Not applied that holds its job description, and listed as a
+ * document of it. The ones made before an application could write its own
+ * résumé are exactly these rows.
  */
 export async function seedTailoredResume(
   user: SeededUser,
@@ -86,6 +86,7 @@ export async function seedTailoredResume(
       happenedOn: "2026-10-08",
     }),
     db.insert(renders).values({ id, userId: user.id, kind: "english_resume", label, jobDescription, applicationId }),
+    db.insert(applicationDocuments).values({ id: `apd_${suffix}`, userId: user.id, applicationId, renderId: id }),
   ]);
   return { id, applicationId };
 }

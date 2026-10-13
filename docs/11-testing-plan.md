@@ -445,6 +445,51 @@ And a link that is not one is refused without a request, with what was typed kep
 And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
 ```
 
+### 2.6l A sent copy is the file of the day, and nothing later reaches it
+
+`tests/application-documents.test.ts`, `tests/applications-migration.test.ts` (0020) and
+`tests/client/application-resume.test.tsx` (#71). The clock is set.
+
+```
+Given an application at Not applied
+Then the main résumé, 履歴書 and 職務経歴書 are offered, and one with no version cannot be ticked
+And several can be on it at once, beside a tailored résumé made from its job description
+And an application has one tailored résumé: asked again, it is the same one
+
+When it moves out of Not applied, to Applied or straight to a later step
+Then every document on it with a version and no sent copy yet is frozen as sent, with that step's date
+And a document that cannot be frozen refuses the move, and nothing is saved
+And an interview entry that takes it out of Not applied freezes the same way, and its Undo takes the copies back
+
+Given a sent copy
+When the document gets a later version, the author's name and address change, or the record changes
+Then the copy's file and its page are byte for byte what they were
+And the company renamed later does not rename the copy
+And no route changes the copy's file or page
+
+When the date of the step that froze a copy is corrected
+Then the copies that move froze follow it, and a copy from an earlier move does not
+When the move is undone
+Then the copies it froze are gone from every read, and a copy recorded by hand stays
+When the status is moved back and forward again
+Then the copies stay and the same document is not frozen twice
+When a document is attached at Not applied and Undo puts back Applied or a later step
+Then that document is frozen, the Undo says which, and the copies already there are left alone
+When a move or an Undo arrives at Applied from a later step, with a document that has no copy
+Then nothing is frozen
+
+When another sent copy is recorded, from Applied onward
+Then each ticked document is frozen again, always, and the latest is the one most recently recorded
+And it takes a document not on the application, and a tailored résumé made after Applied
+And before Applied it is refused
+
+Given tailored résumés linked by migration 0017
+When migration 0020 runs
+Then each is listed as a document of its application, and the down script removes only what it added
+
+And another user's application, document or sent copy is a 404 on every route here
+```
+
 ### 2.7 Failure never destroys a stored version
 
 ```

@@ -1280,7 +1280,7 @@ set in `text-dim`**: it is here, and it is not what a résumé is written from.
 **Replaced by Screens 12 to 14** (decided 2026-10-10, #60; retired by #70). The screen, its sidebar
 row and Home's `Tailored résumés` section are gone. Existing tailored résumés appear on their
 application pages, under **Résumé for this job**; their generation, review, history and download
-still use Screens 2, 5 and 6. Making a new tailored résumé from an application belongs to #71. Its
+still use Screens 2, 5 and 6. A new tailored résumé is made from its application (Screen 14, #71). Its
 Rules outlive it: they are the rules of the tailored résumé made from an application (Screen 14).
 
 ### Rules
@@ -1297,8 +1297,8 @@ Rules outlive it: they are the rules of the tailored résumé made from an appli
 
 ## Screens 12 to 15 — Applications
 
-Specified 2026-10-11 (issues #60 and #69; decision log, that date). Not built yet: each part names
-the issue that builds it. Every job the author is looking at or has applied for, each with its job
+Specified 2026-10-11 (issues #60 and #69; decision log, that date). Each part names the issue that
+builds it; #70 and #71 are built. Every job the author is looking at or has applied for, each with its job
 description, the résumé sent, where it stands and how the interviews went (`02` §3a, S20 to S24).
 
 **What all four share:**
@@ -1326,7 +1326,7 @@ description, the résumé sent, where it stands and how the interviews went (`02
   governs where the prototype derives last change from event dates.
 - **A short confirmation after an action is one line with `role="status"`**, at the foot of the
   content column, which leaves by itself: `Saved as Not applied.`, `Date corrected. The day counts
-  follow it.`, `Undone.` A status change is said in the panel instead, where its Undo is.
+  follow it.`, `Undone.` (with what the Undo froze, Screen 14). A status change is said in the panel instead, where its Undo is.
 - **No text of a job description, a company, a position, an interviewer or a question is logged**
   (`AGENTS.md`), and the list is served without job description text, as the tailored listing is.
 
@@ -1472,8 +1472,8 @@ Under each step reached:
 - **`skipped`** in `text-muted` and `add a date` (bare) for a step that was passed over.
 - Pressing either opens, in place, a date field (no later than today), `Save` (ghost) and `Cancel`
   (bare). Saving says `Date corrected. The day counts follow it.`; saving a date that
-  was not changed closes the field and says nothing. A sent copy frozen on the Applied
-  date follows a correction of that date.
+  was not changed closes the field and says nothing. A sent copy frozen on the date of the step
+  reached follows a correction of that date.
 
 **Three figures**, as tiles, the number in the Stat value role (`05` §2) with `days` small beside it:
 
@@ -1496,7 +1496,8 @@ Under each step reached:
 <date>.`, with `<title> v<N> was frozen as sent.` (`were`, for several) when the move froze
 documents, or `Marked as rejected. Date saved as <date>.` On its right `Change the date` and
 **`Undo`** (both bare). Undo puts back the status, the dates and, if the move froze them, the sent
-copies, and says `Undone.` It is offered for the last change only, until the application is left.
+copies, and says `Undone.`, followed by the same `<title> v<N> was frozen as sent.` when putting
+the standing back froze documents. It is offered for the last change only, until the application is left.
 
 **The controls, closed:** one notice, `Rejected on <date>, after <step>.` (`Withdrawn on`), the date
 a button to correct it, and **`Reopen`** (ghost), which returns the application to that step and
@@ -1507,9 +1508,10 @@ says `Reopened at <step>.`
 - **Any step can be set from any other.** Setting an earlier step leaves the later ones not
   reached and without a date on the screen; sent copies stay.
 - **A step set saves today's date**, a step skipped over saves none.
-- **Moving from Not applied to any later step freezes every document on the application that has
-  no sent copy yet** (#71). One that already has a copy, after a move back, is not frozen again by
-  the move; `Record another sent copy` is for that.
+- **Leaving Not applied for Applied or any later step, by a move or by Undo, freezes every
+  attached document that has no sent copy yet** (#71). One that already has a copy, after a move
+  back, is not frozen again, and a change between steps from Applied onward freezes nothing;
+  `Record another sent copy` is for that.
 - **Closing is not a step.** It keeps the step reached, and the list counts the application under
   Rejected or Withdrawn.
 
@@ -1533,9 +1535,14 @@ says `Reopened at <step>.`
 - `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
   tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
-- Under the rows: `Make a tailored résumé` (ghost) while there is none, and `Add a document you
+- Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
+  was taken off and generates only when it has neither a version nor a proposal waiting, and `Add a document you
   already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
-  opens the tick card in place, with `Cancel`. From Applied onward the card lists every document
+  opens the tick card in place, with `Cancel`. Before Applied the card is the one above, ticked
+  with what is on the application, and saving it takes off what was unticked. From Applied onward
+  it is headed `Record another sent copy`, reads `Tick what you sent. Each one is frozen as it is
+  today, as a further copy, whether or not it was sent before.`, starts with nothing ticked, and
+  its button is **`Record the ticked documents`**. From Applied onward the card lists every document
   the owner could have sent: the three, whether or not they are on the application or were sent
   before, and the application's tailored résumé when it has one, as a fourth tick.
 
@@ -1548,15 +1555,17 @@ copy, earlier copies of the same document included, most recently recorded first
 
 - **Making a tailored résumé is the 2026-10-08 flow, started here.** It stores the résumé from this
   application's job description, generates, and opens Diff Review (Screen 2, unchanged, titled with
-  the résumé's name). Accept or Reject returns here. Screens 5 and 6 serve it as they did. Screen
+  the résumé's name). Accept or Reject returns here. A tailored résumé with no version yet has
+  `Generate` where `Regenerate` would be, and one with a proposal waiting has `Review changes`. Screens 5 and 6 serve it as they did. Screen
   11's Rules hold word for word.
 - **An application holds at most one tailored résumé**, and any of the three documents beside it.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
-  own. Its sent date follows a correction of the Applied date when that move froze it, and Undo of
-  that move removes the copies it froze (Status).
-- **Copies are frozen at two moments and no other.** The move out of Not applied freezes the
-  documents that have no sent copy yet (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
+  own. Its sent date follows a correction of the reached step's date when that change froze it,
+  and Undo of that change takes back the copies it froze (Status).
+- **Copies are frozen at two moments and no other.** Leaving Not applied for Applied or any later
+  step, by a move or by Undo, freezes the attached documents that have no sent copy yet
+  (Status). From Applied onward, **`Record another sent copy`** freezes each ticked
   document as a further sent copy, dated today, and says `<title> v<N> frozen as sent today.` It
   takes any document: one not yet on the application, which is added to it; one already sent, the
   same one again; or a tailored résumé made after Applied.
@@ -1577,7 +1586,7 @@ copy, earlier copies of the same document included, most recently recorded first
 | **Applied or later, nothing frozen** | `No sent copy is recorded. Use “Record another sent copy” to add one.` |
 | **Applied or later, no document at all** | `No résumé is recorded for this application.` above the same two buttons |
 | **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
-| **Freezing failed** | The move to Applied is not made, and the reason is said in the panel. A status that says Applied with nothing kept would be the wrong half to save |
+| **Freezing failed** | The change out of Not applied is not made, and the reason is said in the panel |
 
 #### Interviews · #72, recordings #74 and #76
 
@@ -1621,7 +1630,8 @@ questions they asked.`
   change is said: `Interview saved, and the status moved to <step> to match. Date saved as <date>.`
   with `Change the date` and `Undo`, and that notice is brought into view, since the form is
   further down the page. The steps it passes over are skipped, as on any move. Undo puts the status
-  back and keeps the entry.
+  back and keeps the entry. One that takes the application out of Not applied freezes its documents
+  as any move does, and the notice ends with the same `<title> v<N> was frozen as sent.`
 - **An entry for an earlier skipped interview round fills that step's missing date** with the
   entry's day on an open application, without moving the current status. It is said in Where it
   stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.

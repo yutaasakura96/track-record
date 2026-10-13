@@ -32,12 +32,13 @@ interface Row {
   daysSinceClosed: number | null;
   daysSinceLastActivity: number;
   quietDays: number | null;
-  resume: { title: string; versionNo: number | null } | null;
+  resume: { documents: { title: string; versionNo: number | null }[]; sent: boolean };
 }
 interface Detail extends Omit<Row, "resume"> {
   requirements: string[];
   jobDescription: string;
-  resume: { id: string; ref: string; status: string } | null;
+  documents: { ref: string; tailored: boolean; status: string }[];
+  sentCopies: unknown[];
   canGenerate: boolean;
   today: string;
 }
@@ -98,7 +99,8 @@ describe("adding a job by hand", () => {
       daysSinceResumePassed: null,
       daysSinceFirstInterview: null,
       quietDays: null,
-      resume: null,
+      documents: [],
+      sentCopies: [],
       today: dateAfter(0),
     });
     expect(await read(made.id)).toEqual(made);
@@ -108,7 +110,7 @@ describe("adding a job by hand", () => {
     const made = await add();
     const body = await list();
     expect(body.items).toHaveLength(1);
-    expect(body.items[0]).toMatchObject({ id: made.id, company: "Vellum Tideworks", step: "not_applied", resume: null });
+    expect(body.items[0]).toMatchObject({ id: made.id, company: "Vellum Tideworks", step: "not_applied", resume: { documents: [], sent: false } });
     expect(JSON.stringify(body)).not.toContain("harbour scheduling");
   });
 
@@ -580,14 +582,14 @@ describe("a tailored résumé carried over", () => {
         company: "Kestrel, platform engineer",
         position: "",
         step: "not_applied",
-        resume: { title: "Résumé for Kestrel, platform engineer", versionNo: null },
+        resume: { documents: [{ title: "Tailored résumé for Kestrel, platform engineer", versionNo: null }], sent: false },
       },
     ]);
 
     const one = await read(carried.applicationId, mine);
     expect(one).toMatchObject({
       jobDescription: POSTING,
-      resume: { id: carried.id, ref: carried.id, status: "never_generated" },
+      documents: [{ ref: carried.id, tailored: true, status: "never_generated" }],
       canGenerate: false,
     });
     // It is the document it was: every render route still answers by its id.

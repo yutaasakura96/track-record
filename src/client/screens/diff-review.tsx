@@ -47,13 +47,30 @@ export function DiffReview() {
       ) : proposal.data.status !== "pending" ? (
         <Decided proposal={proposal.data} />
       ) : proposal.data.unchanged ? (
-        <Unchanged proposalId={proposalId} />
+        <Unchanged proposal={proposal.data} />
       ) : (
         <Review proposalId={proposalId} proposal={proposal.data} changes={changes} additions={diff.data?.additions ?? 0} removals={diff.data?.removals ?? 0} />
       )}
     </div>
   );
 }
+
+/**
+ * Where a review returns to. A tailored résumé is made from its application
+ * and its review goes back there (`docs/10` Screen 14); every other document
+ * goes back to Home.
+ */
+function useLeave(proposal: Pick<Proposal, "applicationId">) {
+  const navigate = useNavigate();
+  const { applicationId } = proposal;
+  return () =>
+    applicationId
+      ? navigate({ to: "/applications/$applicationId", params: { applicationId } })
+      : navigate({ to: "/" });
+}
+
+const backLabel = (proposal: Pick<Proposal, "applicationId">) =>
+  proposal.applicationId ? "Back to the application" : "Back to your record";
 
 function Header({ proposal }: { proposal: Proposal }) {
   return (
@@ -120,6 +137,7 @@ const Generating = ({ proposal }: { proposal: Proposal }) => (
  */
 function Failed({ proposal }: { proposal: Proposal }) {
   const navigate = useNavigate();
+  const leave = useLeave(proposal);
   const generate = useGenerate();
   const { dismiss } = useDecideProposal(proposal.id);
   const [failure, setFailure] = useState<string | null>(null);
@@ -154,10 +172,10 @@ function Failed({ proposal }: { proposal: Proposal }) {
             disabledReason={busy ? "Working…" : undefined}
             onClick={async () => {
               await dismiss.mutateAsync().catch(() => undefined);
-              await navigate({ to: "/" });
+              await leave();
             }}
           >
-            Back to your record
+            {backLabel(proposal)}
           </Button>
           <Button
             variant="primary"
@@ -184,9 +202,9 @@ function Failed({ proposal }: { proposal: Proposal }) {
   );
 }
 
-function Unchanged({ proposalId }: { proposalId: string }) {
-  const { dismiss } = useDecideProposal(proposalId);
-  const navigate = useNavigate();
+function Unchanged({ proposal }: { proposal: Proposal }) {
+  const { dismiss } = useDecideProposal(proposal.id);
+  const leave = useLeave(proposal);
   const [failure, setFailure] = useState<string | null>(null);
   return (
     <main className="flex-1 grid place-items-center px-20">
@@ -211,10 +229,10 @@ function Unchanged({ proposalId }: { proposalId: string }) {
                 setFailure(failureText(error));
                 return;
               }
-              await navigate({ to: "/" });
+              await leave();
             }}
           >
-            Back to your record
+            {backLabel(proposal)}
           </Button>
         </div>
       </div>
@@ -223,7 +241,7 @@ function Unchanged({ proposalId }: { proposalId: string }) {
 }
 
 function Decided({ proposal }: { proposal: Proposal }) {
-  const navigate = useNavigate();
+  const leave = useLeave(proposal);
   const accepted = proposal.status === "accepted";
   return (
     <main className="flex-1 grid place-items-center px-20">
@@ -240,8 +258,8 @@ function Decided({ proposal }: { proposal: Proposal }) {
             : "Your stored version is exactly as it was. The dismissed proposal is retained."}
         </p>
         <div className="mt-20">
-          <Button variant="primary" onClick={() => void navigate({ to: "/" })}>
-            Back to your record
+          <Button variant="primary" onClick={() => void leave()}>
+            {backLabel(proposal)}
           </Button>
         </div>
       </div>
@@ -265,7 +283,7 @@ function Review({
   removals: number;
 }) {
   const { accept, dismiss } = useDecideProposal(proposalId);
-  const navigate = useNavigate();
+  const leave = useLeave(proposal);
   // A refused decision used to reject into nothing: the buttons stayed, no
   // message appeared, and the author could not tell whether it had landed.
   const [failure, setFailure] = useState<string | null>(null);
@@ -277,7 +295,7 @@ function Review({
       setFailure(failureText(error));
       return;
     }
-    await navigate({ to: "/" });
+    await leave();
   };
 
   return (

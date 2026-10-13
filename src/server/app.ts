@@ -29,6 +29,7 @@ import { registerMasterRoutes } from "./routes/master";
 import { registerRenderRoutes } from "./routes/renders";
 import { registerApplicationRoutes } from "./routes/applications";
 import { registerInterviewRoutes } from "./routes/interviews";
+import { registerApplicationDocumentRoutes } from "./routes/application-documents";
 import { registerOverviewRoutes } from "./routes/overview";
 
 export interface AppOptions {
@@ -69,6 +70,7 @@ export function createApp(options: AppOptions = {}) {
   registerRenderRoutes(app);
   registerApplicationRoutes(app);
   registerInterviewRoutes(app);
+  registerApplicationDocumentRoutes(app);
   registerOverviewRoutes(app);
 
   return app;

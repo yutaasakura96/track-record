@@ -6112,3 +6112,125 @@ two rules.
 
 **Revisit if:** the owner wants links in the backup after all, which is one more read in
 `GET /api/export` and a change to that sentence.
+
+### [2026-10-12] Sent copies are kept in Postgres, and an application's documents are pointer rows
+
+Issue #71. Settles what the 2026-10-11 entry "A sent copy is the file of the day" left open: where
+the bytes are kept.
+
+**The `.docx` is a `bytea` column on the copy's own row, with the page beside it as `jsonb`**
+(`04` §3.17). The move to Applied and the copies it freezes are one `db.batch`, so Applied is never
+saved with nothing kept and a copy is never kept for a move that did not happen. A file in object
+storage could not be written in that transaction, and a failed second write would leave exactly
+the half-saved state the Screen 14 spec rules out. The files are tens of kilobytes and there is one
+user. The page is stored, never rebuilt: rebuilding it would read today's profile and today's
+record.
+
+**What an application is sending is a separate table of pointer rows**, `application_documents`.
+A document on an application before Applied is the live document, read at its current version
+every time; it becomes a file only when it is sent. Taking one off stamps `removed_at` and deletes
+nothing. The tailored résumé is a row there too, so "written for this application"
+(`renders.application_id`) and "being sent with it" are two facts, and taking it off loses neither
+the résumé nor its versions.
+
+**A copy knows which move froze it by the step row that move wrote**, `frozen_step_id`. A date
+correction supersedes that row and writes another, and the copy is pointed at the new one, so its
+sent date follows. Undo of the move finds the copies naming a live step row and stamps
+`undone_at`; no route reads a copy so stamped. A plain move back to Not applied supersedes the row,
+which is what makes those copies stay: the row they name is no longer live. A copy recorded by
+hand names no row and is reached by neither.
+
+**"Removes the copies it froze" is a stamp, not a delete.** The 2026-10-11 entry on recordings says
+a recording is the only thing that can be removed, and that stands: an undone copy leaves every
+screen and every route and stays in the table and in the export.
+
+**An application has at most one tailored résumé, by a unique index** on `renders.application_id`.
+Two requests at once cannot make two; the second is answered with the first.
+
+**The export carries a sent copy's record and its page, not its file**, as it carries a profile
+without its photo.
+
+**On an application the untailored English résumé is called `Main résumé`** and the tailored one
+`Tailored résumé for <company>`, as the reviewed prototype has them. A copy keeps the title it was
+sent under. Screens 2, 5 and 6 keep the names they had.
+
+**Two places follow `10` where the reviewed prototype differs.** The button from Applied onward is
+`Record another sent copy`, and a document's row says nothing about being newer than what was
+sent: nothing is compared (entry "Application activity, closed-day counts and later sent copies").
+Screen 15's notice puts `Download` and `Back to the application` on its right, as `10` says, where
+the prototype stacks them under the sentence.
+
+Rejected: **R2 for the files**, above; it arrives with #76 for audio, which is large and is not
+written in the same transaction as anything. **Copying the documents onto the application when
+they are chosen**, which would freeze what nobody has sent yet. **Deleting undone copies**, which
+would be the second thing in the product that can be deleted. **Rebuilding the page from the
+version**, which is the pointer the 2026-10-11 entry rejected, by another route.
+
+### [2026-10-12] Leaving Not applied freezes the unsent documents, by a move or by Undo
+
+Issue #71, review of the change. Extends the 2026-10-11 entry "Application activity, closed-day
+counts and later sent copies", which said the freeze happens "on moving from Not applied to a
+later step" and did not say what Undo does.
+
+**One rule, whatever made the change.** Whenever an application leaves Not applied for Applied or
+any later step, by a move or by Undo, each attached document that has no sent copy yet is frozen.
+Any arrival at Applied does the same. A document that already has a copy is left alone, and
+nothing is compared. Further copies stay the explicit `Record another sent copy`.
+
+The case that forced it: an application is moved back to Not applied, a document is attached
+there, and Undo puts the earlier standing back. The application then stood at Applied, or at
+Résumé passed, with a document on it and no copy of it. The freeze is decided in the one place
+every change to the standing goes through, so no route can leave Not applied without it.
+
+**Undo still takes back the copies the undone move froze** when it returns to Not applied
+(entry "Sent copies are kept in Postgres"). The two do not meet: one Undo either leaves Not
+applied or returns to it.
+
+**Undo says what it froze.** Its confirmation is `Undone.`, followed by the sentence a move uses,
+`<title> v<N> was frozen as sent.`, when it froze anything (`10`, Screen 14).
+
+Rejected: **freezing on Undo only when it lands on Applied**, which leaves the same hole one step
+further on. **Leaving Undo out of the freeze** because it restores a past standing: the documents
+on the application are today's, and a standing at Applied with an unsent document is what the
+freeze exists to prevent.
+
+### [2026-10-12] Only leaving Not applied freezes; arriving at Applied from a later step does not
+
+Issue #71, review of the change. Supersedes one sentence of the entry above, "Leaving Not applied
+freezes the unsent documents, by a move or by Undo": `Any arrival at Applied does the same.`
+Everything else in that entry stands.
+
+**The rule is the one sentence.** Whenever an application leaves Not applied for Applied or any
+later step, by a move or by Undo, each attached document with no sent copy yet is frozen. Nothing
+else freezes automatically. A move or an Undo between steps from Applied onward freezes nothing,
+including one that lands on Applied.
+
+A document with a version and no copy can exist past Applied: a tailored résumé can be made at any
+step. Stepping back to Applied, or undoing a step forward from it, froze that résumé as sent on
+the old Applied date, which could be a day before the version existed, and said so. The owner had
+sent nothing. Undo takes copies back only when it returns to Not applied, so that copy could not
+be taken back by any route.
+
+From Applied onward the owner says what was sent, with `Record another sent copy`.
+
+Rejected: **keeping the freeze on arrival at Applied and teaching Undo to take those copies
+back**, which adds a second take-back rule to repair a freeze nobody asked for.
+
+### [2026-10-12] An interview entry's move freezes like any other move
+
+Issue #71, on rebasing over #72. Extends the entry above, "Only leaving Not applied freezes", to a
+route that did not exist when it was written. It changes nothing in that entry.
+
+**The freeze is in `saveStanding`, the one write every change to where an application stands goes
+through.** #72 added a second caller: saving an interview entry for a later round moves the
+application there, and can take it out of Not applied. With the freeze in the step and standing
+routes only, that move left an application at an interview step with documents attached and no
+sent copy, which is what the freeze exists to prevent.
+
+The copies are dated with the entry's day, which is the date the move saves. The entry, its
+questions, the move and the copies are one batch, so a file that cannot be built refuses the entry
+too. Undo of that move takes the copies back, as it does for any move. The screen says the same
+sentence after the entry's confirmation (`10`, Screen 14).
+
+Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
+with the first.

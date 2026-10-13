@@ -17,6 +17,8 @@ import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from 
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
+import type { NamedVersion, SendableKind } from "~/shared/application-documents";
+import type { SentPage } from "~/render/sent-page";
 
 export interface ApiErrorBody {
   error: { code: string; message: string; details?: Record<string, unknown> & { fields?: string[] } };
@@ -378,6 +380,8 @@ export interface Proposal {
   /** What the render routes address this document by, and what it is called. */
   renderRef: string;
   title: string;
+  /** The application a tailored résumé belongs to. `null` on a main document. */
+  applicationId: string | null;
   status: "generating" | "failed" | "pending" | "accepted" | "dismissed";
   generationStatus: "generating" | "ready" | "failed";
   error: { code: string; message: string } | null;
@@ -510,6 +514,7 @@ export const keys = {
   // whatever refreshes the documents refreshes these.
   applications: ["renders", "applications"] as const,
   application: (id: string) => ["renders", "applications", id] as const,
+  sentCopies: (applicationId: string) => ["renders", "applications", applicationId, "sent"] as const,
 };
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
@@ -862,20 +867,68 @@ export interface ApplicationSummary extends Standing, Figures {
 }
 
 export interface ApplicationRow extends ApplicationSummary {
-  /** Its tailored résumé, and the version current now. `null` when it has none. */
-  resume: { title: string; versionNo: number | null } | null;
+  /**
+   * The latest sent copy of each document. With nothing sent, the documents
+   * chosen, and `sent` is false.
+   */
+  resume: { documents: NamedVersion[]; sent: boolean };
+}
+
+/** A document on an application (issue #71): the same document as on Home, pointed at. */
+export interface ApplicationDocument {
+  /** What the render routes address it by: its kind, or the tailored résumé's id. */
+  ref: string;
+  kind: RenderKind;
+  tailored: boolean;
+  title: string;
+  language: "en" | "ja";
+  currentVersionId: string | null;
+  currentVersionNo: number | null;
+  status: RenderRow["status"];
+  newFactsSince: number | null;
+  withdrawnFactsSince: number | null;
+  pendingProposalId: string | null;
+}
+
+/** A document that could be ticked: the three, and this application's tailored résumé. */
+export interface DocumentChoice extends ApplicationDocument {
+  onApplication: boolean;
+}
+
+/** One copy that was sent. The file and its page are read from its own routes. */
+export interface SentCopy {
+  id: string;
+  ref: string;
+  kind: RenderKind;
+  title: string;
+  versionNo: number;
+  sentOn: string;
+  recordedAt: string;
 }
 
 export interface Application extends ApplicationSummary {
   requirements: string[];
   jobDescription: string;
-  /** Its tailored résumé as a document row. `null` when it has none. */
-  resume: RenderRow | null;
+  documents: ApplicationDocument[];
+  choices: DocumentChoice[];
+  /** Every copy, most recently recorded first. */
+  sentCopies: SentCopy[];
   canGenerate: boolean;
   /** Its interview entries, newest day first (issue #72). */
   interviews: Interview[];
   /** Today in Japan, which every figure is counted to. */
   today: string;
+  /** On the answer to a change that froze documents: which ones. */
+  frozen?: NamedVersion[];
+}
+
+/** A sent copy as it is read (`docs/10` Screen 15). */
+export interface SentCopyPage extends Omit<SentCopy, "ref"> {
+  applicationId: string;
+  company: string;
+  language: "en" | "ja";
+  filename: string;
+  page: SentPage;
 }
 
 export interface ApplicationFields {
@@ -898,8 +951,27 @@ export const useApplication = (id: string) =>
     queryFn: () => api<Application>(`/api/applications/${id}`),
     // A `404` is the answer "there is no such application", not a blip to retry.
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
-    refetchInterval: (query) => (query.state.data?.resume?.status === "proposal_generating" ? POLL_MS : false),
+    refetchInterval: (query) =>
+      query.state.data?.documents.some((document) => document.status === "proposal_generating") ? POLL_MS : false,
   });
+
+export const useSentCopy = (applicationId: string, copyId: string) =>
+  useQuery({
+    queryKey: [...keys.sentCopies(applicationId), copyId] as const,
+    queryFn: () => api<SentCopyPage>(`/api/applications/${applicationId}/sent-copies/${copyId}`),
+    retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
+    // The file as it was that day: it does not change while it is being read.
+    // Its date, its company and whether it is there at all follow the application.
+    staleTime: Infinity,
+  });
+
+/** The stored file of a sent copy. Fetched, so a refusal is said on the screen and not in a tab of JSON. */
+export const downloadSentCopy = (applicationId: string, copyId: string): Promise<void> =>
+  saveResponse(
+    `/api/applications/${applicationId}/sent-copies/${copyId}/download`,
+    "sent-copy.docx",
+    "That copy could not be downloaded.",
+  );
 
 export function useCreateApplication() {
   const queryClient = useQueryClient();
@@ -941,6 +1013,7 @@ export function useApplicationActions(id: string) {
   const settled = (next: Application) => {
     queryClient.setQueryData(keys.application(id), next);
     void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    void queryClient.invalidateQueries({ queryKey: keys.sentCopies(id) });
   };
   const edit = useMutation({
     mutationFn: (body: ApplicationFields) => api<Application>(base, { method: "PATCH", ...json(body) }),
@@ -957,7 +1030,19 @@ export function useApplicationActions(id: string) {
             : api<Application>(`${base}/standing`, { method: "PUT", ...json(action.standing) }),
     onSuccess: settled,
   });
-  return { edit, stand };
+  /** What changes the documents on it, or records what was sent (issue #71). */
+  const documents = useMutation({
+    mutationFn: (action: DocumentChange) =>
+      action.change === "choose"
+        ? api<Application>(`${base}/documents`, { method: "PUT", ...json({ documents: action.kinds }) })
+        : action.change === "take-off"
+          ? api<Application>(`${base}/documents/${action.ref}`, { method: "DELETE" })
+          : action.change === "tailor"
+            ? api<Application>(`${base}/tailored-resume`, { method: "POST" })
+            : api<Application>(`${base}/sent-copies`, { method: "POST", ...json({ documents: action.refs }) }),
+    onSuccess: settled,
+  });
+  return { edit, stand, documents };
 }
 
 /** An interview entry as the form sends it. Each question is its own item, in order. */
@@ -984,6 +1069,14 @@ export function useAddInterview(applicationId: string) {
     },
   });
 }
+export type DocumentChange =
+  /** Before Applied: which of the three are on the application, whole. */
+  | { change: "choose"; kinds: SendableKind[] }
+  | { change: "take-off"; ref: string }
+  /** Stores the tailored résumé and puts it on the application. Generating it is `useGenerate`. */
+  | { change: "tailor" }
+  /** From Applied onward: each is frozen as a further sent copy, always. */
+  | { change: "record"; refs: string[] };
 
 /**
  * The recordings of one interview entry (issue #74): a link added, and a
