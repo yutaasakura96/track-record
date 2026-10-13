@@ -931,7 +931,7 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 
 ---
 
-## 9b. Applications · #70, interview entries #72, reading a posting #73, a recording by link #74
+## 9b. Applications · #70, interview entries #72 and #81, reading a posting #73, a recording by link #74
 
 A job the author is looking at or has applied for (`04` §3.14), the interview entries on it
 (`04` §3.15), and the recordings on an entry (`04` §3.16). **One route here reaches a model**, `POST /api/applications/read-posting`, and it
@@ -951,6 +951,8 @@ screens read too.
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
 | `PUT` | `/api/applications/:id/standing` | Body `{ step, closedAs, dates }`: the standing from before a change, put back whole. **This is Undo.** `422` for a standing the changes above could not have produced: a date on a step not reached, a missing date for the step it is at, a future date. It freezes as a move does (§9c) |
 | `POST` | `/api/applications/:id/interviews` | Body `{ date, round, who?, howItWent?, questions? }` → `201` + the application. `round` is `interview_1`, `interview_2`, `interview_final` or `other`; `questions` is a list of strings, each stored as its own row in the order given, blank ones dropped. **On an open application, a later round moves the step and saves its date; an earlier skipped round fills only its missing date.** The entry and standing are saved in the same transaction. `422` for a missing date, a day that does not exist or is in the future, a round not in the list, an entry with neither `howItWent` nor a question, `who` over 200 characters, `howItWent` over 10,000, a question over 1,000, more than 100 questions, or an extra field |
+| `PUT` | `/api/applications/:id/interviews/:interviewId` | Body `{ date, round, who?, howItWent?, questions? }`, the entry whole → `200` + the application. **Corrects the entry in place.** `questions` is a list of `{ id?, text }`: one with the `id` of a question the entry has stays that row, in its new place and with its new words; one the list leaves out is gone; one with no `id` is new. Blank ones are dropped. `422` for everything `POST` refuses, for an `id` that is not one of the entry's questions, and for one given twice. `404` for an entry not on that application, or deleted. `409` when the application changed after it was read |
+| `DELETE` | `/api/applications/:id/interviews/:interviewId` | → `200` + the application, without the entry. **The status and its dates are not changed.** The entry's recordings are removed with it. `404` for an entry not on that application, or already deleted. `409` when the application changed after it was read |
 | `POST` | `/api/applications/:id/interviews/:interviewId/recordings` | Body `{ url, label? }` → `201` + the application. Attaches a link to a recording kept elsewhere to that entry. **Only the link is kept, and only `http` or `https`.** `422` for anything else in `url`, a link over 2,000 characters, a `label` over 200, or an extra field. `404` for an entry that is not on that application. `409` when the application changed after it was read |
 | `DELETE` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId` | → `200` + the application. **Removes the recording for good**: its link and label are emptied, and the entry keeps a line with the day. `404` for a recording not on that entry, or already removed. `409` when the application changed after it was read |
 
@@ -995,8 +997,22 @@ screens read too.
   **`quietDays` is that same count once it reaches 14 while the step is Applied, Résumé passed or
   an interview and the application is open, and `null` otherwise.**
 - **`interviews` is every entry of the application, newest `date` first**, and of two on one day
-  the one added later first. Each carries its `questions` in the order they were given. There is no
-  route that edits or removes an entry: it is saved once.
+  the one added later first. Each carries its `questions` in the order they were given. An entry
+  the author deleted is not among them.
+- **A corrected entry's day is followed by the date of its round's step** (#81). When only the
+  day changes, on an open application whose step for that round is reached and still dated with
+  the entry's old day, that date becomes the new day, and `daysSinceFirstInterview` follows it. A
+  date the author has set by hand since, which no longer equals the entry's old day, is left as it
+  is. In every other case a changed day or round does what saving the corrected entry new would: a
+  round later than the status moves it there with the entry's day, a reached round with no date
+  takes the day, and nothing moves back. A correction of the words alone never changes `step` or
+  a date. Undo is `PUT …/standing`, and leaves the entry as corrected.
+- **A correction that changes nothing writes nothing**, as on the other routes here: it answers
+  with the application and logs nothing.
+- **Deleting an entry moves nothing back.** The step it moved the application to and the date it
+  saved under it stay, and are changed with the status controls if they are wrong. The row is kept
+  (`04` §3.15); its recordings are removed for good, as `DELETE …/recordings/:recordingId` removes
+  one.
 - **`recordings` is every recording of the entry, in the order attached.** A link is `{ id, kind:
   "link", url, label }`, `label` an empty string when none was given. One that was removed stays
   in its place as `{ id, kind: "removed", removedOn }`, the day in Japan it was removed, and
@@ -1005,8 +1021,9 @@ screens read too.
   2,000 characters. Anything else, `javascript:`, `data:`, `file:` and an address with no scheme
   included, is `422` with `That does not look like a link. It should start with https://`.
   Nothing fetches a link; it is stored, shown, and opened by the author in a new tab.
-- **Removing a recording is the one delete on these routes** (`06`, 2026-10-11). It is a `404`
-  for a recording that is not on that entry of that application, and for one already removed.
+- **Removing a recording is the one thing on these routes that is gone for good** (`06`,
+  2026-10-11). It is a `404` for a recording that is not on that entry of that application, for
+  one already removed, and for one on a deleted entry.
 - **An interview entry moves the status only forward.** On an open application, an entry for an
   earlier interview step that was skipped fills that step's missing date with the interview's day;
   the current step does not move back. An existing step date stays as it is. For `other` and on a
@@ -1014,15 +1031,15 @@ screens read too.
   over get no date, as on any move. Undo is the same `PUT …/standing` for either kind of standing
   change, and leaves the entry in place.
 - **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date, on
-  every interview entry added, whether or not it moved the status, and on every recording
-  attached or removed**, so not
+  every interview entry added, corrected or deleted, whether or not it moved the status, and on
+  every recording attached or removed**, so not
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
   day saved again, the step it is already at, the standing it already has. That one answers with
   the application, writes nothing and logs nothing. The list is ordered by it.
 - **A write to where an application stands is refused when the application changed after the write
   read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
-  That covers the step, close, date, reopen and standing routes, an interview entry and both
-  recording routes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
+  That covers the step, close, date, reopen and standing routes, an interview entry added,
+  corrected or deleted, and both recording routes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
   included. The check is on `lastActivityAt`, inside the same batch as the write.
 - **`read-posting` answers with what the text states and nothing it does not**: `company` and
   `position` are an empty string, and `requirements` an empty list, where the text names none.
@@ -1040,7 +1057,8 @@ screens read too.
   `application_standing_set` with the id, `step`, `closedAs` and how many documents it froze, and
   `interview_added` with the two
   ids, the round, the number of questions and `movedTo`, the step it moved the application to or
-  `null`, `recording_added` with the three ids and the kind, and `recording_removed` with the
+  `null`, `interview_edited` with the same fields, `interview_removed` with the two ids,
+  `recording_added` with the three ids and the kind, and `recording_removed` with the
   three ids. Never the company, the position, who an interview was with, how it went, a question,
   a recording's link or label, or any other text.
 

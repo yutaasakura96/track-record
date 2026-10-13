@@ -418,6 +418,34 @@ And a move is said where a status change is said, with its Undo
 And another user cannot add an entry to an application, and reads none of its entries
 ```
 
+A saved entry corrected or deleted (#81), in the same three files:
+
+```
+Given an application with an interview entry
+When the entry is corrected
+Then its day, round, who and how it went are overwritten, at once and after a reload
+And a question that stays is the same row in its new place, one left out is gone, a new one is added, numbered from 0 with no gap
+And a correction that changes nothing writes nothing, and one that changes anything counts as a change
+And it is refused for what a new entry is refused for, for a question that is not the entry's, and for one given twice
+
+When its day is corrected and the step for its round still carried the old day
+Then that step's date and the first-interview figure follow, and Undo puts the date back and keeps the correction
+And a date set by hand since is left; words alone never move the status; a later round moves it on; a closed application stays
+
+When the entry is deleted
+Then it is off the application, at once and after a reload, and the status and its dates are as they were
+And its row and its questions are kept, and its recording links are emptied for good
+And it cannot be corrected, deleted again or given a recording
+
+On the screen
+Then Edit opens the form in place of the card with what was saved, each question in a field
+And saving is one write, a kept question under its id and a new one without
+And a followed date is said where a status change is said, with its Undo
+And Delete asks once in the card, writes nothing until answered, and says when recording links go with it
+
+And another user cannot correct or delete an entry, through its application or their own
+```
+
 ### 2.6k A recording is a link, only an http or https one, and can be removed for good
 
 `tests/recordings.test.ts` and `tests/client/recordings.test.tsx` (#74).

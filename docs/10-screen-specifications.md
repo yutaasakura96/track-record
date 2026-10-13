@@ -1588,14 +1588,16 @@ copy, earlier copies of the same document included, most recently recorded first
 | **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
 | **Freezing failed** | The change out of Not applied is not made, and the reason is said in the panel |
 
-#### Interviews · #72, recordings #74 and #76
+#### Interviews · #72 and #81, recordings #74 and #76
 
 Panel header **`Add an interview`** (ghost), absent while the form is open. One card an interview
 entry, newest date first, and of two on one day the one added later first. With no entry and the
 form closed: `None yet. After each one, note the date, who you spoke with, how it went and the
 questions they asked.`
 
-- One line: the round at the row-title size, the date in mono, and `with <who>` when given.
+- One line: the round at the row-title size, the date in mono, and `with <who>` when given. At its
+  end, `Edit` and `Delete` as quiet links, named for a screen reader `Edit the <round> entry of
+  <date>` and `Delete the <round> entry of <date>`. They wrap under the line at phone width.
 - How it went, as a paragraph in `text-body`, with the line breaks it was typed with. Left out when
   empty.
 - `Questions asked`, then the questions as a numbered list. Left out when there are none.
@@ -1621,6 +1623,22 @@ questions they asked.`
   A save the server refuses keeps the form and everything typed in it, and says why under the
   buttons.
 
+**`Edit` opens the same form in place of the card**, titled `Edit interview`, holding what was
+saved (#81). Three things differ:
+
+- Each question in the list is a field, labelled `Question <n>`, with its `Remove`, so its words
+  can be put right where it stands. One emptied is dropped on save.
+- The line about recordings is absent: the card it came from carries them.
+- The primary button is **`Save changes`**. Saved, the card is drawn again and it says `Interview
+  saved.` `Cancel` puts the card back unchanged.
+
+**`Delete` asks once, in the card**, under its first line and with the rest of the card still
+there to read, as an alert dialog: `Delete this entry? Its notes and questions are taken off this
+application, and there is no undo.`, then `Its recording links are removed with it.` when it has
+one, then `The status and its dates stay as they are.` **`Delete it`** (secondary) and `Keep it`
+(bare), which has the focus. Deleted, it says `Interview deleted.` A delete the server refuses
+keeps the card and says why in the dialog.
+
 **Rules**
 
 - **An entry needs how it went or at least one question**: `Write how it went, or add at least one
@@ -1637,7 +1655,15 @@ questions they asked.`
   stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.
   A step that already has a date keeps it. `Other conversation` and entries on a closed application
   leave the standing alone and say `Interview saved.` Every entry still counts as activity (What a change is).
-- **An entry is saved once.** There is no edit and no removal of an entry (`06`, 2026-10-12).
+- **A corrected day moves its round's step date with it**, when that date was still the entry's
+  old day (`07` §9b). It is said in Where it stands: `Interview saved, and the <step> date was
+  changed to match. Date saved as <date>.` with `Change the date` and `Undo`; Undo puts the date
+  back and keeps the entry as corrected. A date the author set by hand is left, and the save says
+  `Interview saved.` A round changed to a later one moves the status, said as for a new entry.
+- **Deleting an entry moves nothing back.** The status it moved the application to and the date it
+  saved stay; they are changed in Where it stands if they are wrong.
+- **A correction or a delete counts as activity**, like the entry itself. A correction that
+  changed nothing writes nothing.
 - **Each question is its own item, in the order given.**
 - **No model reads an entry or writes one.**
 
@@ -1680,8 +1706,8 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
   is drawn only for an address that passes the same rule, so no other kind of address is ever
   opened from this page. `Open` sends no referrer.
 - **Only the owner, signed in, can play or download an upload.** Nothing here shares one.
-- **A recording is the only thing on these screens that can be removed.** An entry cannot, and an
-  application cannot.
+- **A recording is the only thing on these screens that is removed for good.** A deleted entry
+  leaves the page and is kept (`04` §3.15); an application cannot be deleted.
 
 **States**
 
@@ -1738,8 +1764,8 @@ Named so that nobody reads an unwired button as a decision.
   behaviour is what this document says.
 - **Its tailored-résumé screen is a stand-in for Screen 2**, and stacks the two columns at phone
   width. That is not a decision about Screen 2 (Responsive behaviour).
-- **Correcting an interview entry after saving** is not shown, and #72 built none: an entry is
-  saved once (`06`, 2026-10-12). Editing one is a decision still to make, not an oversight.
+- **Correcting or deleting an interview entry after saving** is not shown. #81 built both, to
+  this document (`06`, 2026-10-14).
 - **`Prototype only:` controls** (the sample postings, the sample file) and the bar above the frame
   are not part of any screen.
 

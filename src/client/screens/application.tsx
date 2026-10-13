@@ -11,7 +11,8 @@
  * with. Undo sends back the standing from before the last change.
  *
  * Under it, the interview entries (issue #72). Saving one for a later round is
- * a change to where it stands too, and is said and undone here like the rest.
+ * a change to where it stands too, and so is correcting the day of one (issue
+ * #81); both are said and undone here like the rest.
  *
  * Moving out of Not applied also freezes the documents on the application as
  * sent (issue #71). The panel that chooses them is `../components/application-resume`.
@@ -36,7 +37,7 @@ import {
   days,
 } from "../components/application-chrome";
 import { QUIET } from "../components/document-row";
-import { InterviewsPanel } from "../components/interviews-panel";
+import { InterviewsPanel, type StandingChange } from "../components/interviews-panel";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { NextStep } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
@@ -172,16 +173,19 @@ function Body({ application }: { application: Application }) {
   const standingChangedByInterview = (
     before: Standing,
     step: ApplicationStep,
-    moved: boolean,
+    change: StandingChange,
     frozen: Application["frozen"],
   ) => {
     setFailure(null);
     setDating(null);
     setMoved({
       before,
-      text: moved
-        ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
-        : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
+      text:
+        change === "moved"
+          ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
+          : change === "added"
+            ? `Interview saved, and the ${STATUS_LABEL[step]} date was added.`
+            : `Interview saved, and the ${STATUS_LABEL[step]} date was changed to match.`,
       dated: step,
       elsewhere: true,
       frozen: frozenText(frozen),

@@ -19,7 +19,8 @@ import { CONTROL } from "./application-chrome";
 import { QUIET } from "./document-row";
 import { Button, Chip } from "./ui";
 
-const ROW =
+/** A row inside an interview's card: a recording, or a question asked once before something is removed. */
+export const ROW =
   "min-w-0 flex flex-wrap items-center gap-10 bg-surface-raised border border-border-control rounded-control px-10 py-8";
 
 export function InterviewRecordings({ applicationId, entry }: { applicationId: string; entry: Interview }) {

@@ -7,11 +7,15 @@
  * or pasted as several lines and split. A card ends with the entry's
  * recordings (`./interview-recordings`, issue #74).
  *
+ * A saved entry is corrected in the same form, opened in place of its card,
+ * and deleted after one question asked in the card (issue #81). In the form a
+ * saved question is a field, so its words can be put right where it stands.
+ *
  * A changed standing is said in Where it stands, with its Undo, so this panel
  * hands the change up rather than confirming it here.
  */
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { failureText, useAddInterview, type Application } from "../api";
+import { failureText, useAddInterview, useInterviewActions, type Application, type InterviewCorrection } from "../api";
 import { useFlashStore } from "../stores/flash";
 import type { ApplicationStep, Standing } from "~/shared/application";
 import {
@@ -26,32 +30,45 @@ import {
   type InterviewRound,
 } from "~/shared/interview";
 import { CONTROL } from "./application-chrome";
-import { InterviewRecordings } from "./interview-recordings";
+import { QUIET } from "./document-row";
+import { InterviewRecordings, ROW } from "./interview-recordings";
 import { Button, Mono, Panel } from "./ui";
+
+/** What saving an entry did to where the application stands: moved it, dated a step passed over, or put a date right. */
+export type StandingChange = "moved" | "added" | "corrected";
 
 export function InterviewsPanel({
   application,
   onStandingChanged,
 }: {
   application: Application;
-  onStandingChanged: (before: Standing, step: ApplicationStep, moved: boolean, frozen: Application["frozen"]) => void;
+  onStandingChanged: (before: Standing, step: ApplicationStep, change: StandingChange, frozen: Application["frozen"]) => void;
 }) {
   const [adding, setAdding] = useState(false);
+  /** The entry open for correction, by id. */
+  const [editing, setEditing] = useState<string | null>(null);
   const flash = useFlashStore((state) => state.show);
   const entries = application.interviews;
 
   const saved = (next: Application, round: InterviewRound) => {
-    setAdding(false);
     if (round === "other") return flash("Interview saved.");
     const moved = next.step !== application.step;
-    const dated = next.dates[round] !== application.dates[round];
-    if (!moved && !dated) return flash("Interview saved.");
+    const was = application.dates[round];
+    if (!moved && next.dates[round] === was) return flash("Interview saved.");
     onStandingChanged(
       { step: application.step, closedAs: application.closedAs, dates: application.dates },
       moved ? next.step : round,
-      moved,
+      moved ? "moved" : was ? "corrected" : "added",
       next.frozen,
     );
+  };
+  const added = (next: Application, round: InterviewRound) => {
+    setAdding(false);
+    saved(next, round);
+  };
+  const corrected = (next: Application, round: InterviewRound) => {
+    setEditing(null);
+    saved(next, round);
   };
 
   return (
@@ -65,7 +82,7 @@ export function InterviewsPanel({
         )
       }
     >
-      {adding ? <NewInterview application={application} onSaved={saved} onCancel={() => setAdding(false)} /> : null}
+      {adding ? <NewInterview application={application} onSaved={added} onCancel={() => setAdding(false)} /> : null}
       {entries.length === 0 ? (
         adding ? null : (
           <p className="text-small text-text-muted">
@@ -74,23 +91,82 @@ export function InterviewsPanel({
         )
       ) : (
         <ul className={`grid gap-8 ${adding ? "mt-10" : ""}`}>
-          {entries.map((entry) => (
-            <InterviewCard key={entry.id} applicationId={application.id} entry={entry} />
-          ))}
+          {entries.map((entry) =>
+            editing === entry.id ? (
+              <li key={entry.id} className="min-w-0">
+                <EditInterview application={application} entry={entry} onSaved={corrected} onCancel={() => setEditing(null)} />
+              </li>
+            ) : (
+              <InterviewCard key={entry.id} applicationId={application.id} entry={entry} onEdit={() => setEditing(entry.id)} />
+            ),
+          )}
         </ul>
       )}
     </Panel>
   );
 }
 
-function InterviewCard({ applicationId, entry }: { applicationId: string; entry: Interview }) {
+function InterviewCard({ applicationId, entry, onEdit }: { applicationId: string; entry: Interview; onEdit: () => void }) {
+  const { remove } = useInterviewActions(applicationId, entry.id);
+  const flash = useFlashStore((state) => state.show);
+  const [deleting, setDeleting] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const name = `the ${ROUND_LABEL[entry.round]} entry of ${entry.date}`;
+  const linked = entry.recordings.some((recording) => recording.kind === "link");
+
+  const deleteIt = async () => {
+    setFailure(null);
+    try {
+      await remove.mutateAsync();
+      flash("Interview deleted.");
+    } catch (error) {
+      setFailure(failureText(error));
+    }
+  };
+
   return (
     <li className="min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-10">
       <div className="flex flex-wrap items-baseline gap-x-12 gap-y-6">
         <h3 className="text-row font-medium text-text-strong">{ROUND_LABEL[entry.round]}</h3>
         <Mono className="text-text-muted">{entry.date}</Mono>
         {entry.who ? <span className="text-small text-text-muted">with {entry.who}</span> : null}
+        {deleting ? null : (
+          <span className="ml-auto flex items-baseline gap-12">
+            <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={QUIET}>
+              Edit
+            </button>
+            <button type="button" aria-label={`Delete ${name}`} onClick={() => setDeleting(true)} className={QUIET}>
+              Delete
+            </button>
+          </span>
+        )}
       </div>
+      {deleting ? (
+        <div role="alertdialog" aria-label="Delete this interview" className={ROW}>
+          <span className="basis-full text-small text-text-secondary break-words">
+            Delete this entry? Its notes and questions are taken off this application, and there is no undo.
+            {linked ? " Its recording links are removed with it." : ""} The status and its dates stay as they are.
+          </span>
+          <Button variant="secondary" onClick={() => void deleteIt()} disabled={remove.isPending} disabledReason="Deleting…">
+            Delete it
+          </Button>
+          <Button
+            variant="bare"
+            autoFocus
+            onClick={() => {
+              setDeleting(false);
+              setFailure(null);
+            }}
+          >
+            Keep it
+          </Button>
+          {failure ? (
+            <p role="alert" className="basis-full text-smaller text-removed">
+              {failure}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
       {entry.howItWent ? (
         <p className="text-claim text-text-body whitespace-pre-wrap break-words">{entry.howItWent}</p>
       ) : null}
@@ -121,22 +197,76 @@ function NewInterview({
   onCancel: () => void;
 }) {
   const add = useAddInterview(application.id);
-  const [date, setDate] = useState(application.today);
-  const [round, setRound] = useState<InterviewRound>(() =>
-    defaultRound(
-      application.step,
-      application.interviews.map((entry) => entry.round),
-    ),
+  return (
+    <InterviewForm
+      application={application}
+      pending={add.isPending}
+      onSave={({ questions, ...fields }) => add.mutateAsync({ ...fields, questions: questions.map((question) => question.text) })}
+      onSaved={onSaved}
+      onCancel={onCancel}
+    />
   );
-  const [who, setWho] = useState("");
-  const [howItWent, setHowItWent] = useState("");
-  const [questions, setQuestions] = useState<string[]>([]);
+}
+
+function EditInterview({
+  application,
+  entry,
+  onSaved,
+  onCancel,
+}: {
+  application: Application;
+  entry: Interview;
+  onSaved: (next: Application, round: InterviewRound) => void;
+  onCancel: () => void;
+}) {
+  const { correct } = useInterviewActions(application.id, entry.id);
+  return (
+    <InterviewForm
+      application={application}
+      entry={entry}
+      pending={correct.isPending}
+      onSave={(fields) => correct.mutateAsync(fields)}
+      onSaved={onSaved}
+      onCancel={onCancel}
+    />
+  );
+}
+
+/** The one form an entry is written in. With `entry` it corrects that one; without, it adds one. */
+function InterviewForm({
+  application,
+  entry,
+  pending,
+  onSave,
+  onSaved,
+  onCancel,
+}: {
+  application: Application;
+  entry?: Interview;
+  pending: boolean;
+  onSave: (fields: InterviewCorrection) => Promise<Application>;
+  onSaved: (next: Application, round: InterviewRound) => void;
+  onCancel: () => void;
+}) {
+  const [date, setDate] = useState(entry?.date ?? application.today);
+  const [round, setRound] = useState<InterviewRound>(
+    () =>
+      entry?.round ??
+      defaultRound(
+        application.step,
+        application.interviews.map((noted) => noted.round),
+      ),
+  );
+  const [who, setWho] = useState(entry?.who ?? "");
+  const [howItWent, setHowItWent] = useState(entry?.howItWent ?? "");
+  /** A saved question keeps its id, so that correcting the entry leaves it the question it was. */
+  const [questions, setQuestions] = useState<InterviewCorrection["questions"]>(entry?.questions ?? []);
   const [draft, setDraft] = useState("");
   const [failure, setFailure] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
 
   const addQuestions = (text: string) => {
-    setQuestions((list) => [...list, ...questionsIn(text)]);
+    setQuestions((list) => [...list, ...questionsIn(text).map((question) => ({ text: question }))]);
     setFailure(null);
     field.current?.focus();
   };
@@ -166,13 +296,13 @@ function NewInterview({
   };
 
   const save = async () => {
-    // What is still in the field is a question too.
-    const all = [...questions, ...questionsIn(draft)];
+    // What is still in the field is a question too, and one emptied in its field is none.
+    const all = [...questions, ...questionsIn(draft).map((text) => ({ text }))].filter((question) => question.text.trim() !== "");
     if (!date) return setFailure("Give the interview a date.");
     if (howItWent.trim() === "" && all.length === 0) return setFailure(EMPTY_ENTRY);
     setFailure(null);
     try {
-      onSaved(await add.mutateAsync({ date, round, who, howItWent, questions: all }), round);
+      onSaved(await onSave({ date, round, who, howItWent, questions: all }), round);
     } catch (error) {
       setFailure(failureText(error));
     }
@@ -180,7 +310,7 @@ function NewInterview({
 
   return (
     <div className="min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-12">
-      <h3 className="text-row font-medium text-text-strong">New interview</h3>
+      <h3 className="text-row font-medium text-text-strong">{entry ? "Edit interview" : "New interview"}</h3>
       <div className="grid grid-cols-2 gap-12">
         <label className="grid gap-4 min-w-0">
           <span className="text-small text-text-secondary">Date</span>
@@ -231,10 +361,8 @@ function NewInterview({
         <span className="text-small text-text-secondary">Questions asked</span>
         {questions.length > 0 ? (
           <ol className="grid gap-4 pl-20 list-decimal text-claim text-text-body">
-            {questions.map((question, index) => (
-              // Keyed by place: until it is saved, a question has no identity but its position in the list.
-              <li key={index} className="break-words">
-                {question}{" "}
+            {questions.map((question, index) => {
+              const removeIt = (
                 <Button
                   variant="bare"
                   aria-label={`Remove question ${index + 1}`}
@@ -242,8 +370,29 @@ function NewInterview({
                 >
                   Remove
                 </Button>
-              </li>
-            ))}
+              );
+              // Keyed by place unless it is saved: until then a question has no identity but its position in the list.
+              return entry ? (
+                <li key={question.id ?? index}>
+                  <div className="flex items-center gap-6">
+                    <input
+                      name={`question${index + 1}`}
+                      aria-label={`Question ${index + 1}`}
+                      value={question.text}
+                      onChange={(event) =>
+                        setQuestions((list) => list.map((item, i) => (i === index ? { ...item, text: event.target.value } : item)))
+                      }
+                      className={CONTROL}
+                    />
+                    {removeIt}
+                  </div>
+                </li>
+              ) : (
+                <li key={index} className="break-words">
+                  {question.text} {removeIt}
+                </li>
+              );
+            })}
           </ol>
         ) : null}
         <div className="flex items-center gap-6">
@@ -264,12 +413,14 @@ function NewInterview({
         </div>
         <span className="text-small text-text-muted">Pasting several lines adds them all at once.</span>
       </div>
-      <p className="text-small text-text-muted">
-        A recording is attached after you save, from the interview's own card.
-      </p>
+      {entry ? null : (
+        <p className="text-small text-text-muted">
+          A recording is attached after you save, from the interview's own card.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-8">
-        <Button variant="primary" onClick={() => void save()} disabled={add.isPending} disabledReason="Saving…">
-          {add.isPending ? "Saving…" : "Save interview"}
+        <Button variant="primary" onClick={() => void save()} disabled={pending} disabledReason="Saving…">
+          {pending ? "Saving…" : entry ? "Save changes" : "Save interview"}
         </Button>
         <Button variant="bare" onClick={onCancel}>
           Cancel

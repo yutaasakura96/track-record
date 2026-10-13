@@ -233,7 +233,7 @@ and neither does #60.
 **S22 · Note how each interview went** — `MUST` · #60
 > As the Author, I want to write down each interview while I remember it, so that the questions I was really asked and how I answered are there the next time.
 
-**Acceptance:** One entry an interview: the date, the round (first, second, final, or another conversation), who it was with, how it went, and **the questions asked as a list**, each question its own item, in order. Several pasted lines become several questions. An entry needs how it went or at least one question. **Saving an entry for a later round than the application's status moves the status to that round**, with the interview's date, says so, and offers Undo. It can be written on a phone (S20). No AI reads or writes an interview entry.
+**Acceptance:** One entry an interview: the date, the round (first, second, final, or another conversation), who it was with, how it went, and **the questions asked as a list**, each question its own item, in order. Several pasted lines become several questions. An entry needs how it went or at least one question. **Saving an entry for a later round than the application's status moves the status to that round**, with the interview's date, says so, and offers Undo. **A saved entry can be corrected and deleted** (#81): a corrected date is followed by the matching step's date and the figure counted from it, and deleting an entry, after one confirmation, does not move the status back. It can be written on a phone (S20). No AI reads or writes an interview entry.
 
 ---
 

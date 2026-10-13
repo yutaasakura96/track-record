@@ -8,13 +8,19 @@
  * already reached, a conversation that is not a round, or one on a closed
  * application leaves the status alone; and Undo of the move keeps the entry.
  *
+ * And of a saved entry (issue #81): a correction overwrites it and keeps the
+ * row of each question that stays; a corrected day is followed by its round's
+ * step date and the figure; deleting takes it off the page, keeps the row and
+ * moves nothing back; and neither reaches another user's entry.
+ *
  * Every company, person and question here is INVENTED.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { harness, stubModel, type Client, type Harness } from "./helpers/harness";
 import { SECOND_EMAIL, seedAllowedUser } from "./helpers/seed";
 import { readStanding, saveStanding } from "~/server/routes/applications";
-import { interviews } from "~/server/db/schema";
+import { eq } from "drizzle-orm";
+import { interviewRecordings, interviews } from "~/server/db/schema";
 import { moveTo } from "~/shared/application";
 import { standingAfterInterview } from "~/shared/interview";
 
@@ -360,7 +366,296 @@ describe("an entry that leaves the status alone", () => {
   });
 });
 
+describe("correcting an entry", () => {
+  const correct = (id: string, interviewId: string, body: Record<string, unknown>, as: Client = client) =>
+    as.put(`/api/applications/${id}/interviews/${interviewId}`, body);
+  /** The entry as its form would send it back, each question under its id. */
+  const asSaved = (entry: Entry) => ({
+    date: entry.date,
+    round: entry.round,
+    who: entry.who,
+    howItWent: entry.howItWent,
+    questions: entry.questions.map(({ id, text }) => ({ id, text })),
+  });
+
+  it("overwrites the day, the round, who and how it went, at once and after a reload", async () => {
+    const { id } = await add();
+    await set(id, "interview_2");
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+
+    const response = await correct(id, entry!.id, {
+      ...asSaved(entry!),
+      date: "2026-02-27",
+      round: "other",
+      who: "The recruiter",
+      howItWent: "Shorter than planned.",
+    });
+    expect(response.status).toBe(200);
+    const after = (await response.json()) as Detail;
+
+    expect(after.interviews).toHaveLength(1);
+    expect(after.interviews[0]).toMatchObject({
+      id: entry!.id,
+      date: "2026-02-27",
+      round: "other",
+      who: "The recruiter",
+      howItWent: "Shorter than planned.",
+    });
+    expect((await read(id)).interviews).toEqual(after.interviews);
+  });
+
+  it("keeps the row of each question that stays, in its new place, drops the ones left out and adds the new", async () => {
+    const { id } = await add();
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+    const [measure, outage, build] = entry!.questions;
+
+    const after = (await (
+      await correct(id, entry!.id, {
+        ...asSaved(entry!),
+        questions: [
+          { text: "Who is on call tonight?" },
+          { id: build!.id, text: build!.text },
+          { id: measure!.id, text: "What would you measure first?" },
+          { text: "  " },
+          { text: "What did the last incident teach you?" },
+        ],
+      })
+    ).json()) as Detail;
+
+    const questions = after.interviews[0]!.questions;
+    expect(questions.map((question) => question.text)).toEqual([
+      "Who is on call tonight?",
+      "How do you decide what not to build?",
+      "What would you measure first?",
+      "What did the last incident teach you?",
+    ]);
+    expect([questions[1]!.id, questions[2]!.id]).toEqual([build!.id, measure!.id]);
+    expect(questions.map((question) => question.id)).not.toContain(outage!.id);
+
+    // What the database holds: the same rows, numbered from 0 with no gap, and the one left out gone.
+    const backup = await client.json<{ interviewQuestions: { id: string; position: number }[] }>("/api/export");
+    expect(backup.interviewQuestions.sort((a, b) => a.position - b.position).map((row) => [row.id, row.position])).toEqual(
+      questions.map((question, position) => [question.id, position]),
+    );
+  });
+
+  it("is followed by the date of its round's step, and by the first-interview figure", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    vi.setSystemTime(dayAfter(20));
+    const noted = (await (await note(id, { ...FIRST, date: dateAfter(16) })).json()) as Detail;
+    expect(noted.dates.interview_1).toBe(dateAfter(16));
+    expect(noted.daysSinceFirstInterview).toBe(4);
+
+    // It was the day before.
+    const after = (await (await correct(id, noted.interviews[0]!.id, { ...asSaved(noted.interviews[0]!), date: dateAfter(15) })).json()) as Detail;
+
+    expect(after.step).toBe("interview_1");
+    expect(after.dates.interview_1).toBe(dateAfter(15));
+    expect(after.daysSinceFirstInterview).toBe(5);
+    expect(after.interviews[0]!.date).toBe(dateAfter(15));
+    expect((await read(id)).dates.interview_1).toBe(dateAfter(15));
+
+    // Undo puts the step's date back and keeps the corrected entry.
+    const undone = await client.put(`/api/applications/${id}/standing`, { step: noted.step, closedAs: noted.closedAs, dates: noted.dates });
+    expect(undone.status).toBe(200);
+    const restored = await read(id);
+    expect(restored.dates.interview_1).toBe(dateAfter(16));
+    expect(restored.interviews[0]!.date).toBe(dateAfter(15));
+  });
+
+  it("leaves a step date the author set by hand, and a status the words alone do not concern", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    const before = await read(id);
+    const noted = (await (await note(id, { ...FIRST, date: "2026-02-20" })).json()) as Detail;
+    const [entry] = noted.interviews;
+
+    // Undone: back at Applied. Putting a typo right must not move it again.
+    await client.put(`/api/applications/${id}/standing`, { step: before.step, closedAs: before.closedAs, dates: before.dates });
+    const reworded = (await (await correct(id, entry!.id, { ...asSaved(entry!), who: "Two engineers" })).json()) as Detail;
+    expect(reworded.step).toBe("applied");
+    expect(reworded.dates.interview_1).toBeUndefined();
+    expect(reworded.interviews[0]!.who).toBe("Two engineers");
+
+    // At the round again, with a date set by hand that is not the entry's.
+    await set(id, "interview_1");
+    await client.patch(`/api/applications/${id}/steps/interview_1`, { date: "2026-02-25" });
+    const redated = (await (await correct(id, entry!.id, { ...asSaved(entry!), who: "Two engineers", date: "2026-02-18" })).json()) as Detail;
+    expect(redated.dates.interview_1).toBe("2026-02-25");
+    expect(redated.interviews[0]!.date).toBe("2026-02-18");
+  });
+
+  it("moves the status on when the round becomes a later one, and never back", async () => {
+    const { id } = await add();
+    await set(id, "interview_1");
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+
+    const later = (await (await correct(id, entry!.id, { ...asSaved(entry!), round: "interview_final", date: "2026-02-27" })).json()) as Detail;
+    expect(later.step).toBe("interview_final");
+    expect(later.dates.interview_final).toBe("2026-02-27");
+
+    const earlier = (await (await correct(id, entry!.id, { ...asSaved(entry!), round: "interview_2", date: "2026-02-24" })).json()) as Detail;
+    expect(earlier.step).toBe("interview_final");
+    expect(earlier.dates.interview_final).toBe("2026-02-27");
+    // The round it now names was passed over, so it gets the entry's day.
+    expect(earlier.dates.interview_2).toBe("2026-02-24");
+  });
+
+  it("leaves a closed application where it stands", async () => {
+    const { id } = await add();
+    await set(id, "interview_1");
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+    await set(id, "rejected");
+
+    const after = (await (await correct(id, entry!.id, { ...asSaved(entry!), date: "2026-02-20" })).json()) as Detail;
+    expect(after).toMatchObject({ step: "interview_1", closedAs: "rejected" });
+    expect(after.dates.interview_1).toBe(dateAfter(0));
+    expect(after.interviews[0]!.date).toBe("2026-02-20");
+  });
+
+  it("writes nothing when nothing was changed, and counts as a change when something was", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    const noted = (await (await note(id, { ...FIRST, round: "other" })).json()) as Detail;
+    const [entry] = noted.interviews;
+    vi.setSystemTime(dayAfter(20));
+
+    const same = (await (await correct(id, entry!.id, asSaved(entry!))).json()) as Detail;
+    expect(same.lastActivityAt).toBe(noted.lastActivityAt);
+    expect(same.quietDays).toBe(20);
+
+    const changed = (await (await correct(id, entry!.id, { ...asSaved(entry!), howItWent: "Friendly and fast." })).json()) as Detail;
+    expect(changed.daysSinceLastActivity).toBe(0);
+    expect(changed.quietDays).toBeNull();
+  });
+
+  it("refuses what a new entry is refused for, a question that is not the entry's, and an entry that is not there", async () => {
+    const { id } = await add();
+    const noted = (await (await note(id, FIRST)).json()) as Detail;
+    const other = ((await (await note(id, { ...FIRST, round: "other", questions: ["Why now?"] })).json()) as Detail).interviews.find(
+      (entry) => entry.round === "other",
+    )!;
+    const entry = noted.interviews[0]!;
+    const saved = asSaved(entry);
+
+    for (const [why, body] of [
+      ["no such day", { ...saved, date: "2026-02-30" }],
+      ["tomorrow", { ...saved, date: dateAfter(1) }],
+      ["not a round", { ...saved, round: "offer" }],
+      ["an extra field", { ...saved, recording: "https://example.invalid/call.m4a" }],
+      ["nothing in it", { ...saved, howItWent: " ", questions: [] }],
+      ["questions as plain strings", { ...saved, questions: ["Why now?"] }],
+      ["a question of another entry", { ...saved, questions: [{ id: other.questions[0]!.id, text: "Why now?" }] }],
+      ["one question twice", { ...saved, questions: [saved.questions[0], saved.questions[0]] }],
+    ] as [string, Record<string, unknown>][]) {
+      expect((await correct(id, entry.id, body)).status, why).toBe(422);
+    }
+    expect((await correct(id, "int_nothere", saved)).status).toBe(404);
+
+    expect((await read(id)).interviews.find((item) => item.id === entry.id)).toEqual(entry);
+  });
+});
+
+describe("deleting an entry", () => {
+  const remove = (id: string, interviewId: string, as: Client = client) =>
+    as.delete(`/api/applications/${id}/interviews/${interviewId}`);
+
+  it("takes it off the application, at once and after a reload, and leaves the status and its dates", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    await note(id, { ...FIRST, round: "other" });
+    const noted = (await (await note(id, FIRST)).json()) as Detail;
+    expect(noted.step).toBe("interview_1");
+    const moved = noted.interviews.find((entry) => entry.round === "interview_1")!;
+
+    const response = await remove(id, moved.id);
+    expect(response.status).toBe(200);
+    const after = (await response.json()) as Detail;
+
+    expect(after.interviews.map((entry) => entry.round)).toEqual(["other"]);
+    // The entry that moved the status is gone, and the status is not moved back.
+    expect(after.step).toBe("interview_1");
+    expect(after.dates).toEqual(noted.dates);
+    expect(after.daysSinceFirstInterview).toBe(0);
+    expect((await read(id)).interviews).toEqual(after.interviews);
+  });
+
+  it("leaves nothing of it to correct, delete again or attach a recording to", async () => {
+    const { id } = await add();
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+    expect((await remove(id, entry!.id)).status).toBe(200);
+
+    expect((await remove(id, entry!.id)).status).toBe(404);
+    expect(
+      (await client.put(`/api/applications/${id}/interviews/${entry!.id}`, { ...FIRST, questions: [] })).status,
+    ).toBe(404);
+    expect(
+      (await client.post(`/api/applications/${id}/interviews/${entry!.id}/recordings`, { url: "https://calls.example.invalid/rec/one" }))
+        .status,
+    ).toBe(404);
+    expect((await remove(id, "int_nothere")).status).toBe(404);
+  });
+
+  it("keeps the row and its questions, and removes its recording links for good", async () => {
+    const { id } = await add();
+    const [entry] = ((await (await note(id, FIRST)).json()) as Detail).interviews;
+    await client.post(`/api/applications/${id}/interviews/${entry!.id}/recordings`, {
+      url: "https://calls.example.invalid/rec/one",
+      label: "Their recording",
+    });
+    await remove(id, entry!.id);
+
+    const backup = await client.json<{
+      interviews: { id: string; removedAt: string | null; howItWent: string }[];
+      interviewQuestions: { interviewId: string }[];
+    }>("/api/export");
+    expect(backup.interviews).toHaveLength(1);
+    expect(backup.interviews[0]).toMatchObject({ id: entry!.id, howItWent: FIRST.howItWent });
+    expect(backup.interviews[0]!.removedAt).not.toBeNull();
+    expect(backup.interviewQuestions.filter((row) => row.interviewId === entry!.id)).toHaveLength(3);
+
+    const links = await app.db.select().from(interviewRecordings).where(eq(interviewRecordings.interviewId, entry!.id));
+    expect(links).toHaveLength(1);
+    expect(links[0]).toMatchObject({ url: null, label: "" });
+    expect(links[0]!.removedAt).not.toBeNull();
+  });
+
+  it("counts as a change to the application", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    const [entry] = ((await (await note(id, { ...FIRST, round: "other" })).json()) as Detail).interviews;
+    vi.setSystemTime(dayAfter(20));
+    expect((await read(id)).quietDays).toBe(20);
+
+    const after = (await (await remove(id, entry!.id)).json()) as Detail;
+    expect(after.daysSinceLastActivity).toBe(0);
+    expect(after.quietDays).toBeNull();
+  });
+});
+
 describe("another user's interviews", () => {
+  it("cannot be corrected or deleted, and are as they were", async () => {
+    const mine = await add();
+    const [entry] = ((await (await note(mine.id, FIRST)).json()) as Detail).interviews;
+    const other = app.as(await seedAllowedUser(SECOND_EMAIL));
+    const theirs = await add(other);
+    const taken = { date: dateAfter(0), round: "interview_final", who: "taken", howItWent: "taken", questions: [{ text: "taken" }] };
+
+    // Through the owner's application, and through their own with the owner's entry.
+    for (const applicationId of [mine.id, theirs.id]) {
+      const at = `/api/applications/${applicationId}/interviews/${entry!.id}`;
+      expect((await other.put(at, taken)).status).toBe(404);
+      expect((await other.delete(at)).status).toBe(404);
+    }
+
+    const after = await read(mine.id);
+    expect(after.step).toBe("interview_1");
+    expect(after.interviews).toEqual([entry]);
+    expect((await read(theirs.id, other)).interviews).toEqual([]);
+    expect((await read(theirs.id, other)).step).toBe("not_applied");
+  });
+
   it("cannot be added to or read, and theirs are unchanged", async () => {
     const mine = await add();
     await note(mine.id, FIRST);

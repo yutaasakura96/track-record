@@ -11,6 +11,10 @@
  * moves the status to that round, with the entry's day as the step's date. One
  * for an EARLIER round that was skipped gives that step the entry's day and
  * leaves the status where it is.
+ *
+ * A saved entry can be corrected and deleted (issue #81). A corrected day is
+ * followed by the date of its round's step; deleting an entry leaves the
+ * status and every date as they are.
  */
 import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
 import type { Recording } from "./recording";
@@ -57,6 +61,30 @@ export function standingAfterInterview(standing: Standing, round: InterviewRound
   if (stepIndex(round) > stepIndex(standing.step)) return moveTo(standing, round, date);
   if (standing.dates[round]) return standing;
   return { ...standing, dates: { ...standing.dates, [round]: date } };
+}
+
+/**
+ * Where an application stands once an entry's round or day is corrected
+ * (issue #81). The step's date follows the entry it came from: a corrected day
+ * replaces the date of the entry's round while that date is still the entry's
+ * old day. A date the author has set by hand since is theirs and is left as it
+ * is. Anything else is what saving the corrected entry new would do, so a
+ * round changed to a later one moves the status there, and nothing an edit
+ * does moves it back. An edit of the words alone changes nothing here.
+ */
+export function standingAfterEdit(
+  standing: Standing,
+  before: { round: InterviewRound; date: string },
+  after: { round: InterviewRound; date: string },
+): Standing {
+  if (after.round === before.round && after.date === before.date) return standing;
+  if (standing.closedAs || after.round === "other") return standing;
+  const follows =
+    after.round === before.round &&
+    stepIndex(after.round) <= stepIndex(standing.step) &&
+    standing.dates[after.round] === before.date;
+  if (follows) return { ...standing, dates: { ...standing.dates, [after.round]: after.date } };
+  return standingAfterInterview(standing, after.round, after.date);
 }
 
 /** The round a new entry starts on: the earliest at or after the status with no entry yet. */

@@ -682,7 +682,7 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
   anything. `src/server/db/migrations/down/0017_applications.sql` reverses the migration; it is run
   by hand and `tests/applications-migration.test.ts` runs both directions.
 
-### 3.15 `interviews` and `interview_questions` · migration 0018, 2026-10-12 (#72)
+### 3.15 `interviews` and `interview_questions` · migration 0018, 2026-10-12 (#72); 0021, 2026-10-14 (#81)
 
 The author's note of one real interview, and the questions asked at it. Written by hand; no model
 reads or writes either table. Their rules are one module, `src/shared/interview.ts`, read by the
@@ -699,6 +699,7 @@ route and by the form.
 | `round` | interview_round | no | `interview_1`, `interview_2`, `interview_final`, under the names `application_status` gives those steps, or `other` for a conversation that is not a round |
 | `who` | text | no | Default `''`. Names or roles as typed, up to 200 characters. Other people's names: never logged |
 | `how_it_went` | text | no | Default `''`, up to 10,000 characters. Empty only when the entry has a question. Never logged |
+| `removed_at` | timestamptz | yes | When the author deleted the entry (#81). Null while it is there. **No read behind a page returns a row that has it** |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `(user_id, application_id)`, the read behind an application's page.
@@ -723,8 +724,20 @@ route and by the form.
   of it is saved or none is.
 - **The status an entry moved is not stored on the entry.** The move is an ordinary change to
   `application_steps`, so Undo puts the standing back and leaves the entry where it is.
-- **An entry is saved once.** No route edits or removes one (`06`, 2026-10-12). Both tables are in
-  the export.
+- **An entry can be corrected, in place** (#81; `06`, 2026-10-14). The five columns are
+  overwritten and no earlier wording is kept: the entry is the author's note, and the note is what
+  they last wrote. **A question that stays keeps its row and its id**, in its new place and with
+  its new words; one left out has its row deleted; a new one is a new row. `position` still runs
+  from 0 with no gap: a question changing place is parked at a negative position inside the batch,
+  because the unique index is checked a row at a time.
+- **A corrected day is followed by the date of its round's step** when that date is still the
+  entry's old day, by superseding the step's row as any corrected date does (§3.14). A date the
+  author has since set by hand is left. A round changed to a later one moves the status as a new
+  entry would. `07` §9b has the rule.
+- **A deleted entry keeps its row.** `removed_at` is stamped, its questions stay, and nothing
+  reads either again. Its recordings are removed in the same batch exactly as removing each would
+  (§3.16), so no link outlives the entry it hung from. The status and every step date stay as they
+  are. Both tables are in the export, a deleted entry included.
 
 ### 3.16 `interview_recordings` · migration 0019, 2026-10-12 (#74)
 
@@ -1043,7 +1056,7 @@ technologies: {AWS, VPC, IAM}
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
-| `interviews`, `interview_questions` | **Never deleted.** An entry is saved once |
+| `interviews`, `interview_questions` | An entry is **never deleted**: one the author deletes is stamped `removed_at` and its questions stay (#81). Correcting an entry overwrites it, and a question the correction leaves out has its row deleted, the one row here that is |
 | `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). The link and its label are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
