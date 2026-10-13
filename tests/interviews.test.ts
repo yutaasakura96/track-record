@@ -464,6 +464,22 @@ describe("correcting an entry", () => {
     expect(restored.interviews[0]!.date).toBe(dateAfter(15));
   });
 
+  it("keeps the first interview date when another live entry shares the old day", async () => {
+    const { id } = await add();
+    await set(id, "applied");
+    vi.setSystemTime(dayAfter(20));
+    await note(id, { ...FIRST, date: dateAfter(16) });
+    const noted = (await (await note(id, { ...FIRST, date: dateAfter(16) })).json()) as Detail;
+    const corrected = (await (await correct(id, noted.interviews[0]!.id, {
+      ...asSaved(noted.interviews[0]!), date: dateAfter(15),
+    })).json()) as Detail;
+
+    expect(corrected.interviews.find((entry) => entry.id === noted.interviews[0]!.id)?.date).toBe(dateAfter(15));
+    expect(corrected.dates.interview_1).toBe(dateAfter(16));
+    expect(corrected.daysSinceFirstInterview).toBe(4);
+    expect((await read(id)).dates.interview_1).toBe(dateAfter(16));
+  });
+
   it("leaves a step date the author set by hand, and a status the words alone do not concern", async () => {
     const { id } = await add();
     await set(id, "applied");

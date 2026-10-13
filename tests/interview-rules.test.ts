@@ -54,6 +54,18 @@ describe("the standing after an entry is corrected", () => {
     );
   });
 
+  it("keeps the step date when another live entry shares the round and old day", () => {
+    const before = at("interview_2", { interview_1: "2026-02-10", interview_2: "2026-02-20" });
+    expect(standingAfterEdit(before, first("2026-02-10"), first("2026-02-09"), true)).toBe(before);
+  });
+
+  it("follows a hand-set step date that equals the entry's old day when no entry shares it", () => {
+    const before = at("interview_1", { interview_1: "2026-02-10" });
+    expect(standingAfterEdit(before, first("2026-02-10"), first("2026-02-09"), false)).toEqual(
+      at("interview_1", { interview_1: "2026-02-09" }),
+    );
+  });
+
   it("leaves a date that is not the entry's old day, since the author set it", () => {
     const before = at("interview_1", { interview_1: "2026-02-12" });
     expect(standingAfterEdit(before, first("2026-02-10"), first("2026-02-09"))).toEqual(before);

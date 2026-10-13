@@ -67,7 +67,7 @@ export function standingAfterInterview(standing: Standing, round: InterviewRound
  * Where an application stands once an entry's round or day is corrected
  * (issue #81). The step's date follows the entry it came from: a corrected day
  * replaces the date of the entry's round while that date is still the entry's
- * old day. A date the author has set by hand since is theirs and is left as it
+ * old day. A different date the author has set by hand since is left as it
  * is. Anything else is what saving the corrected entry new would do, so a
  * round changed to a later one moves the status there, and nothing an edit
  * does moves it back. An edit of the words alone changes nothing here.
@@ -76,13 +76,15 @@ export function standingAfterEdit(
   standing: Standing,
   before: { round: InterviewRound; date: string },
   after: { round: InterviewRound; date: string },
+  otherEntrySharesOldDate = false,
 ): Standing {
   if (after.round === before.round && after.date === before.date) return standing;
   if (standing.closedAs || after.round === "other") return standing;
   const follows =
     after.round === before.round &&
     stepIndex(after.round) <= stepIndex(standing.step) &&
-    standing.dates[after.round] === before.date;
+    standing.dates[after.round] === before.date &&
+    !otherEntrySharesOldDate;
   if (follows) return { ...standing, dates: { ...standing.dates, [after.round]: after.date } };
   return standingAfterInterview(standing, after.round, after.date);
 }

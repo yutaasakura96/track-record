@@ -31,7 +31,7 @@
  * round, a count.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import type { Db } from "../db/client";
@@ -219,7 +219,17 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
       body.questions.every((question, position) => question.id === stored[position]!.id && question.text === stored[position]!.text);
     if (same) return c.json(await detail(db, user.id, id));
 
-    const next = standingAfterEdit(standing, entry, body);
+    const sameDateEntries = body.round === entry.round && body.date !== entry.date
+      ? await db.select({ id: interviews.id }).from(interviews).where(and(
+          eq(interviews.userId, user.id),
+          eq(interviews.applicationId, id),
+          ne(interviews.id, interviewId),
+          eq(interviews.round, entry.round),
+          eq(interviews.happenedOn, entry.date),
+          isNull(interviews.removedAt),
+        )).limit(1)
+      : [];
+    const next = standingAfterEdit(standing, entry, body, sameDateEntries.length > 0);
     const step = next.step !== standing.step ? next.step : null;
     const now = new Date();
     const gone = stored.filter((question) => !kept.has(question.id)).map((question) => question.id);

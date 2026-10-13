@@ -6289,3 +6289,15 @@ which makes the owner remove each link first to do one thing.
 
 **Revisit if:** the owner wants a deleted entry gone from the database and the export too, or
 wants to see or restore what an entry said before a correction.
+
+### [2026-10-14] A shared interview day leaves the step date in place
+
+Issue #81, review of the edit rule. Supersedes the claim above that equality alone establishes
+which entry supplied the step date. When another live entry on the same application and round
+has the edited entry's old day, correcting that entry's day leaves the step date as it is. A
+deleted entry does not count. This resolves the ambiguous shared day without tracking which
+entry first set the step date.
+
+When the owner set the step date by hand to the same day as the entry, and no other live entry
+shares it, the step date still follows the edit. That ambiguity is accepted without additional
+provenance or a migration.

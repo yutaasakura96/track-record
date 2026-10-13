@@ -117,7 +117,9 @@ function open(start: Standing = FERNHILL, entries: Interview[] = [SECOND, FIRST]
           `PUT ${AT}/interviews/${saved.id}`,
           ({ body }: Call) => {
             const entry = body as InterviewCorrection;
-            standing = standingAfterEdit(standing, saved, entry);
+            standing = standingAfterEdit(standing, saved, entry, interviews.some((item) =>
+              item.id !== saved.id && item.round === saved.round && item.date === saved.date,
+            ));
             changedOn = TODAY;
             interviews = interviews.map((item) =>
               item.id === saved.id
