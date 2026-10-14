@@ -153,6 +153,8 @@ function InterviewCard({ applicationId, entry, onEdit }: { applicationId: string
           <Button
             variant="bare"
             autoFocus
+            disabled={remove.isPending}
+            disabledReason="Deleting…"
             onClick={() => {
               setDeleting(false);
               setFailure(null);
@@ -422,7 +424,7 @@ function InterviewForm({
         <Button variant="primary" onClick={() => void save()} disabled={pending} disabledReason="Saving…">
           {pending ? "Saving…" : entry ? "Save changes" : "Save interview"}
         </Button>
-        <Button variant="bare" onClick={onCancel}>
+        <Button variant="bare" onClick={onCancel} disabled={pending} disabledReason="Saving…">
           Cancel
         </Button>
       </div>

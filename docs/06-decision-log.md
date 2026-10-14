@@ -6310,3 +6310,12 @@ Only live questions appear on the application page, with positions from 0 withou
 export includes stamped questions. The unique position constraint covers live questions only,
 so a removed row can retain its former position without blocking another edit. This follows the
 standing rule that a recording is the only thing the author can remove for good.
+
+### [2026-10-14] Editing and deleting an interview entry wait for #82's revision precondition
+
+Issue #81, review. Correcting and deleting an interview entry carry no revision of what the
+owner was looking at. A stale edit form or delete confirmation left open in a second tab can
+therefore overwrite or delete an entry just corrected in the first. The fix is the revision
+precondition issue #82 adds for two-tab protection, and these two writes need it as well; it is
+not built here. While either write is pending, its Cancel or Keep it control is disabled, so the
+form cannot close on a write that still lands.
