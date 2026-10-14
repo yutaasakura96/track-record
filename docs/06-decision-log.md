@@ -6234,3 +6234,88 @@ sentence after the entry's confirmation (`10`, Screen 14).
 
 Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
 with the first.
+
+### [2026-10-14] An interview entry can be corrected and deleted: overwritten in place, kept when deleted
+
+Issue #81. Supersedes the paragraph **An entry is saved once: no edit and no removal** in the
+entry of 2026-10-12, "An interview entry: questions are rows, the move is part of the save, and an
+entry is saved once". That entry said to revisit when the owner first wanted to correct an entry,
+and named three questions to decide then. The owner asked for editing on 2026-10-12, and #81
+answers the second question. The build answered the other two, and they are the owner's to
+overrule.
+
+**The old wording is not kept as an earlier version.** `PUT …/interviews/:interviewId` overwrites
+the entry. A step's date is superseded and not overwritten because Undo has to put it back, and
+because it is a fact about the application. An entry is the owner's own note, and the note is what
+they last wrote; nothing reads an earlier draft of it, and the company and position on an
+application are already overwritten the same way. **A question that stays keeps its row and its
+id**, which is why the correction names each kept question by id. The 2026-10-12 entry made a
+question a row so that something could point at one, and a correction that deleted and re-made
+every row would break whatever pointed.
+
+**A corrected day is followed by its round's step date, when that date was the entry's.** #81:
+"the matching status step's date and the since-the-first-interview figure follow". The step's date
+moves only while it still equals the entry's old day. A date the owner has set by hand since is
+theirs, and so is one that came from another entry for the same round. In every other case a
+changed day or round does what saving the corrected entry new would do, so the two rules cannot
+drift: a later round moves the status forward, a reached round with no date takes the day, nothing
+moves back. **A correction of the words alone changes nothing about where the application
+stands**, including after an Undo: fixing a typo must not move the status a second time.
+
+**Deleting an entry stamps `removed_at` and keeps the row.** #81 asks for a delete with a
+confirmation, and that deleting does not move the status backwards. From the page the entry is
+gone and there is no way to bring it back. In the database it stays, with its questions, as a
+superseded step date and a document taken off an application stay. So `AGENTS.md` is still right
+that a recording is the one thing removed for good, and the decision of 2026-10-11 stands
+unchanged. The migration is one nullable column, 0021.
+
+**A deleted entry's recording links are removed with it**, emptied in the same batch as removing
+each would. The promise of 2026-10-11 is that a link can be removed for good; a link that could no
+longer be reached to remove, on an entry no page shows, would break it. The confirmation says so
+when the entry has one.
+
+**Both count as activity, and both go through `saveStanding`**, so each is one transaction under
+the conflict guard like every other write to an application. A correction that changes nothing
+writes nothing.
+
+Rejected: **deleting the rows**, which makes an entry the second thing in the product that is
+gone for good, for no reason the recording decision gave: it holds the owner's notes, not other
+people's voices, and it is not large. It can still be done later to rows already stamped; the
+reverse cannot. **Keeping each earlier wording as a version**, a history nobody asked to read.
+**Moving the status back when the entry that moved it is deleted**, which #81 rules out. **The
+step's date always following the entry's**, which overwrites a date the owner corrected by hand
+the next time they fix a typo in the entry. **Refusing to delete an entry that has a recording**,
+which makes the owner remove each link first to do one thing.
+
+**Revisit if:** the owner wants a deleted entry gone from the database and the export too, or
+wants to see or restore what an entry said before a correction.
+
+### [2026-10-14] A shared interview day leaves the step date in place
+
+Issue #81, review of the edit rule. Supersedes the claim above that equality alone establishes
+which entry supplied the step date. When another live entry on the same application and round
+has the edited entry's old day, correcting that entry's day leaves the step date as it is. A
+deleted entry does not count. This resolves the ambiguous shared day without tracking which
+entry first set the step date.
+
+When the owner set the step date by hand to the same day as the entry, and no other live entry
+shares it, the step date still follows the edit. That ambiguity is accepted without additional
+provenance or a migration.
+
+### [2026-10-14] Omitted interview questions remain in the record
+
+Issue #81. Supersedes the question deletion rule in the entry above, "An interview entry can be
+corrected and deleted". A question left out of an edit keeps its row, stamped `removed_at`.
+Only live questions appear on the application page, with positions from 0 without gaps. The
+export includes stamped questions. The unique position constraint covers live questions only,
+so a removed row can retain its former position without blocking another edit. This follows the
+standing rule that a recording is the only thing the author can remove for good.
+
+### [2026-10-14] Editing and deleting an interview entry wait for #82's revision precondition
+
+Issue #81, review. Correcting and deleting an interview entry carry no revision of what the
+owner was looking at. A stale edit form or delete confirmation left open in a second tab can
+therefore overwrite or delete an entry just corrected in the first. The fix is the revision
+precondition issue #82 adds for two-tab protection, and these two writes need it as well; it is
+not built here. While either write is pending, its Cancel or Keep it control is disabled, so the
+form cannot close on a write that still lands.

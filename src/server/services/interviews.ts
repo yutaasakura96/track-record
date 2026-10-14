@@ -7,7 +7,7 @@
  * `routes/interviews.ts` writes through that file's standing, and neither
  * imports the other's half.
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { interviewQuestions, interviewRecordings, interviews } from "../db/schema";
 import { tokyoToday } from "~/render/rirekisho";
@@ -17,7 +17,8 @@ import type { Recording } from "~/shared/recording";
 /**
  * An application's entries, newest day first, each with its questions in the
  * order given and its recordings in the order attached. One round trip: the
- * three reads go out as one batch.
+ * three reads go out as one batch. An entry the author deleted (issue #81) is
+ * not among them, and neither is anything of it.
  */
 export async function interviewsOf(db: Db, userId: string, applicationId: string): Promise<Interview[]> {
   const [entries, questions, recordings] = await db.batch([
@@ -30,7 +31,7 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         howItWent: interviews.howItWent,
       })
       .from(interviews)
-      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt)))
       .orderBy(desc(interviews.happenedOn), desc(interviews.createdAt), desc(interviews.id)),
     db
       .select({ id: interviewQuestions.id, interviewId: interviewQuestions.interviewId, text: interviewQuestions.text })
@@ -39,7 +40,9 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         interviews,
         and(eq(interviews.id, interviewQuestions.interviewId), eq(interviews.userId, userId)),
       )
-      .where(and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(
+        and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt), isNull(interviewQuestions.removedAt)),
+      )
       .orderBy(asc(interviewQuestions.position)),
     db
       .select({
@@ -54,7 +57,9 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         interviews,
         and(eq(interviews.id, interviewRecordings.interviewId), eq(interviews.userId, userId)),
       )
-      .where(and(eq(interviewRecordings.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(
+        and(eq(interviewRecordings.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt)),
+      )
       .orderBy(asc(interviewRecordings.createdAt), asc(interviewRecordings.id)),
   ]);
 

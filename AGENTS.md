@@ -129,7 +129,7 @@ five-function seam · BudouX for Japanese segmentation · jsdiff for diffing · 
   Calendar scope. Release blocker, not a hardening task.
 - **Nothing is ever deleted, except a recording** — render versions, source documents and rejected
   facts are permanent; a recording on an interview entry is the one thing the author can remove
-  (`docs/04` §3.16).
+  for good; deleted interview entries and omitted questions are stamped and kept (`docs/04` §3.15, §3.16).
   This is correct for one user and becomes wrong at the second: account deletion that actually
   deletes is a gate before the second invite (`08` §6, `13` §8).
 

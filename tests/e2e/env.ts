@@ -27,7 +27,13 @@ export const E2E_DATABASE_URL =
 /** Signs the session cookie the setup mints and the Worker verifies. */
 export const E2E_SECRET = "e2e-placeholder-secret-0123456789-abcdefghijklmnopqrstuvwxyz";
 
-export const E2E_ALLOWED_EMAIL = DEV_SESSION_IDENTITY.email;
+export const INTERVIEW_IDENTITY = {
+  sub: "e2e-interview-local",
+  email: "e2e-interview@example.invalid",
+  name: "Interview Test",
+};
+
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -36,6 +42,14 @@ export const STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-storage-state.json",
+);
+
+export const INTERVIEW_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-interview-storage-state.json",
 );
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */

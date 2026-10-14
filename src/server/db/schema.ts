@@ -718,6 +718,9 @@ export const applicationSteps = pgTable("application_steps", {
  *
  * Written by hand and read by no model. `who` and `how_it_went` name other
  * people and what they said: never logged, like the job description.
+ *
+ * An entry can be corrected, in place, and deleted (issue #81). Deleting sets
+ * `removed_at` and keeps the row.
  */
 export const interviews = pgTable("interviews", {
   id: text("id").primaryKey(),
@@ -730,6 +733,12 @@ export const interviews = pgTable("interviews", {
   who: text("who").notNull().default(""),
   /** Empty only when the entry has at least one question. */
   howItWent: text("how_it_went").notNull().default(""),
+  /**
+   * When the author deleted the entry (issue #81). Null while it is there.
+   * The row and its questions stay, as everything but a recording does, and
+   * no read behind a page returns it.
+   */
+  removedAt: timestamp("removed_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [index("interviews_application_idx").on(t.userId, t.applicationId)]);
 
@@ -745,9 +754,10 @@ export const interviewQuestions = pgTable("interview_questions", {
   /** From 0, with no gaps: the place of the question in its interview. */
   position: integer("position").notNull(),
   text: text("text").notNull(),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
-  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position),
+  uniqueIndex("interview_questions_order_uq").on(t.interviewId, t.position).where(sql`${t.removedAt} is null`),
   index("interview_questions_user_idx").on(t.userId),
 ]);
 

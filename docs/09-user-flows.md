@@ -321,7 +321,34 @@ the entry point and `07-api-design.md` §7 for the document routes.
 | 4 | The round already has a date, is Other conversation, or the application is closed | The entry is saved and the standing is left alone |
 
 **If abandoned:** `Cancel`, or leaving the page, discards what was typed. Nothing is saved until
-**Save interview**, and an entry once saved is not edited (`06`, 2026-10-12).
+**Save interview**. A saved entry is put right by Flow 12b.
+
+---
+
+## Flow 12b · Correct or delete an interview entry · M3 (#81)
+
+1. On an interview's card → `Edit`. The form opens in place of the card, holding what was saved,
+   each saved question in a field of its own.
+2. The author changes the date, the round, who it was with, how it went or the questions: rewords
+   one, removes one, adds more. Nothing is written yet.
+3. **Save changes** → `PUT /api/applications/:id/interviews/:interviewId`, one write. The card
+   comes back as corrected and one line says `Interview saved.`
+4. A corrected day follows the step-date rule in `07` §9b. When the first-interview date changes,
+   its figure follows. **Where it stands** says so, with `Change the date` and `Undo`.
+5. To delete: on the card → `Delete`. The card asks once. **Delete it** →
+   `DELETE /api/applications/:id/interviews/:interviewId`. The card is gone and one line says
+   `Interview deleted.` The status and its dates are as they were.
+
+| Step | What can go wrong | What the author sees |
+|---|---|---|
+| 3 | How it went and every question were emptied | `Write how it went, or add at least one question.` Nothing is written |
+| 3, 5 | The application was changed somewhere else, or the write fails | The form or the question stays open, with what was typed, and says why |
+| 4 | The step date no longer equals the entry's old day, or another live entry in the same round shares that old day | The entry is saved and that date is left alone (`07` §9b) |
+| 4 | The round was changed to one later than the status | The status moves there, as for a new entry, with `Undo` |
+| 5 | The entry had moved the status when it was added | Deleting it does not move the status back; the status controls do that |
+| 5 | The entry has recording links | They are removed with it, and the question says so first |
+
+**If abandoned:** `Cancel` in the form, or `Keep it` at the question, leaves the entry as it was.
 
 ---
 

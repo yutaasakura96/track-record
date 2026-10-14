@@ -1069,6 +1069,38 @@ export function useAddInterview(applicationId: string) {
     },
   });
 }
+
+/** A saved entry as its correction sends it: a question it keeps goes under its id, a new one without. */
+export type InterviewCorrection = Omit<InterviewFields, "questions"> & { questions: { id?: string; text: string }[] };
+
+/**
+ * A saved interview entry corrected (issue #81), named by `interviewId`. The
+ * answer is the application afterwards; a corrected day or round can have
+ * changed where it stands.
+ */
+export function useCorrectInterview(applicationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ interviewId, ...body }: InterviewCorrection & { interviewId: string }) =>
+      api<Application>(`/api/applications/${applicationId}/interviews/${interviewId}`, { method: "PUT", ...json(body) }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.application(applicationId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    },
+  });
+}
+
+/** A saved interview entry deleted (issue #81). The answer is the application afterwards. */
+export function useDeleteInterview(applicationId: string, interviewId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Application>(`/api/applications/${applicationId}/interviews/${interviewId}`, { method: "DELETE" }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.application(applicationId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    },
+  });
+}
 export type DocumentChange =
   /** Before Applied: which of the three are on the application, whole. */
   | { change: "choose"; kinds: SendableKind[] }

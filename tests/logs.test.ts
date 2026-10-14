@@ -213,6 +213,15 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     ).json()) as { interviews: { recordings: { id: string }[] }[] };
     await client.post(recordings, { url: "javascript:windlass()", label: "capstan" });
     await client.delete(`${recordings}/${attached.interviews[0]!.recordings[0]!.id}`);
+    const entry = `/api/applications/${application.id}/interviews/${noted.interviews[0]!.id}`;
+    await client.put(entry, {
+      date: "2026-01-04",
+      round: "interview_1",
+      who: "Ottoline Varga and the pilotage lead",
+      howItWent: "She walked through the gantry backlog, then the tide tables.",
+      questions: [{ text: "Which berth floods first?" }, { text: "Who signs off a lighter?" }],
+    });
+    await client.delete(entry);
     await client.get(`/api/applications/${application.id}`);
     await client.get("/api/applications");
     await client.get("/api/master-document");
@@ -239,6 +248,10 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       "mooring",
       "stevedore",
       "windlass",
+      "pilotage",
+      "tide tables",
+      "floods",
+      "lighter",
       "capstan",
       "Yosuke Aoki",
     ]) {
@@ -259,6 +272,10 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
       /"event":"recording_added","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+","kind":"link"/,
     );
     expect(log).toMatch(/"event":"recording_removed","applicationId":"app_[^"]+","interviewId":"int_[^"]+","recordingId":"rec_[^"]+"/);
+    expect(log).toMatch(
+      /"event":"interview_edited","applicationId":"app_[^"]+","interviewId":"int_[^"]+","round":"interview_1","questions":2,"movedTo":null/,
+    );
+    expect(log).toMatch(/"event":"interview_removed","applicationId":"app_[^"]+","interviewId":"int_[^"]+"}/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"en","facts":\d+/);
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });
