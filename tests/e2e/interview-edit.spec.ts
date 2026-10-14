@@ -1,13 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { PROFILE } from "./fixture";
-import { STORAGE_STATE } from "./env";
+import { INTERVIEW_STORAGE_STATE } from "./env";
 
 const evidence = process.env.TEST_EVIDENCE_DIR;
 
 test("edit and delete an interview in the application at desktop and phone width", async ({ browser, baseURL }) => {
   if (evidence) mkdirSync(evidence, { recursive: true });
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE, viewport: { width: 1280, height: 900 } });
+  const context = await browser.newContext({ baseURL, storageState: INTERVIEW_STORAGE_STATE, viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
