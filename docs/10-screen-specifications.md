@@ -1314,12 +1314,9 @@ description, the résumé sent, where it stands and how the interviews went (`02
   `text-muted` with a muted dot. No green, no amber, no red, anywhere on these screens.
 - **Dates are days**, written `2026-10-02`, in mono where they stand alone. A count is `1 day` or
   `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
-- **What a change is.** Each application keeps one last-activity timestamp, set when it is added
-  and when the owner changes its record: setting, closing, reopening or undoing a status; adding
-  or correcting a step or close date; adding an interview entry; choosing a document
-  or recording a sent copy; attaching or removing a recording. Editing the company, position,
-  link or requirements does not set it, and neither does a save that changes nothing. Event dates
-  do not stand in for this timestamp. The list order, last-change count and **gone quiet** use it.
+- **What a change is.** Each application keeps one last-activity timestamp; `07` §9b and §9c own which
+  writes set it. Event dates do not stand in for this timestamp. The list order, last-change count
+  and **gone quiet** use it.
   Gone quiet is 14 days or more since that activity while the status is Applied, Résumé passed or
   one of the three interviews and it is not closed. The mark is worked out on each read and stored
   nowhere. The résumé-passed and first-interview counts use their event dates. This specification

@@ -644,7 +644,7 @@ the screens.
 | `requirements` | text[] | no | Default `{}`. The key requirements, as the author saved them: read from the job description and checked (#73), or typed |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
-| `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone, and an interview entry added (§3.15). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |
+| `last_activity_at` | timestamptz | no | Last change to the application's record (`07` §9b and §9c own which writes count). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `user_id`.
