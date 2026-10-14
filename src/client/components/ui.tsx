@@ -5,17 +5,17 @@
  * **a disabled control always states why**, and **green, amber and red are
  * never decorative** — they mean Measured/added, Generated/blocked, and removed.
  */
-import type { ButtonHTMLAttributes, KeyboardEvent, ReactNode } from "react";
+import type { ButtonHTMLAttributes, KeyboardEvent, ReactNode, Ref } from "react";
 
 type Variant = "primary" | "secondary" | "ghost" | "bare";
 
 const VARIANTS: Record<Variant, string> = {
   primary:
-    "bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover",
+    "max-phone:min-h-control bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover",
   secondary:
-    "border border-border-strong text-text-secondary px-14 py-8 rounded-control text-button font-medium hover:bg-hover",
+    "max-phone:min-h-control border border-border-strong text-text-secondary px-14 py-8 rounded-control text-button font-medium hover:bg-hover",
   ghost:
-    "border border-border-strong text-text-muted px-10 py-6 rounded-control text-small font-medium hover:bg-hover hover:text-text-secondary",
+    "max-phone:min-h-control border border-border-strong text-text-muted px-10 py-6 rounded-control text-small font-medium hover:bg-hover hover:text-text-secondary",
   bare: "text-text-dim px-6 py-4 rounded-chip text-smaller hover:bg-border hover:text-text-secondary",
 };
 
@@ -26,6 +26,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
    * disabled control without a stated reason is not permitted (`docs/05` §6).
    */
   disabledReason?: string;
+  ref?: Ref<HTMLButtonElement>;
 }
 
 export function Button({
@@ -46,7 +47,7 @@ export function Button({
       {...rest}
       disabled={disabled}
       title={disabled ? disabledReason : rest.title}
-      className={`${base} ${disabled ? `${off} px-12 py-6 rounded-control text-button font-medium` : VARIANTS[variant]} ${className}`}
+      className={`${base} ${disabled ? `${off} ${variant === "bare" ? "" : "max-phone:min-h-control"} px-12 py-6 rounded-control text-button font-medium` : VARIANTS[variant]} ${className}`}
     >
       {children}
     </button>
@@ -242,7 +243,7 @@ export function Panel({
       className={`bg-surface-raised border border-border rounded-panel px-16 py-14 ${className}`}
     >
       {(heading || action) && (
-        <header className="flex items-center justify-between mb-12">
+        <header className="flex items-center justify-between max-phone:flex-wrap max-phone:gap-12 mb-12">
           {heading && (
             <h2 className="text-panel font-semibold tracking-snug text-text-strong">{heading}</h2>
           )}

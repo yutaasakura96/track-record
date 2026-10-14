@@ -9,6 +9,11 @@
  *
  * Before Applied the documents are chosen. From Applied onward they are only
  * recorded: `Record another sent copy` freezes whatever is ticked, always.
+ *
+ * Making a tailored résumé, writing or reviewing a version and its history open
+ * screens that ask for a wider window, so in a narrow one they are held back and
+ * the panel says why (issue #75). Choosing, recording, taking off, reading what
+ * was sent and downloading all work at any width.
  */
 import { useState } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
@@ -25,12 +30,20 @@ import {
 } from "../api";
 import { useFlashStore } from "../stores/flash";
 import { DownloadButton } from "./download-button";
+import { useWideEnough } from "./too-narrow";
 import { QUIET, SECONDARY } from "./document-row";
 import { Button, Chip, Panel } from "./ui";
 import { isSendableKind, nameVersions } from "~/shared/application-documents";
 
 const CARD = "min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-8 content-start";
-const ROW = "flex flex-wrap items-center gap-x-12 gap-y-8 px-10 py-12 border-b border-border-inner last:border-b-0";
+const ROW =
+  "flex flex-wrap items-center gap-x-12 gap-y-8 max-phone:flex-col max-phone:items-stretch max-phone:gap-6 px-10 py-12 border-b border-border-inner last:border-b-0";
+/** Why the controls that open a desktop screen are not here, in a window too narrow for one. */
+export const HELD_BACK =
+  "Making a tailored résumé, writing or reviewing a version and its history need a wider window, so they are not shown here.";
+
+/** A row's links: beside its text, and under it, from the left, at phone width. */
+const LINKS = "ml-auto max-phone:ml-0 flex flex-wrap items-center justify-end max-phone:justify-start gap-16 max-phone:gap-12";
 
 export function ResumePanel({
   application,
@@ -51,6 +64,7 @@ export function ResumePanel({
   const applied = application.step !== "not_applied";
   const busy = act.isPending || generate.isPending;
   const hasTailored = documents.some((document) => document.tailored);
+  const wide = useWideEnough();
 
   const run = async (action: DocumentChange) => {
     setFailure(null);
@@ -111,7 +125,7 @@ export function ResumePanel({
   return (
     <Panel heading="Résumé for this job">
       {documents.length === 0 && !applied ? (
-        <div className="grid grid-cols-2 gap-12">
+        <div className="grid grid-cols-2 max-phone:grid-cols-1 gap-12">
           <div className={CARD}>
             <h3 className="text-row font-medium text-text-strong">Make a tailored résumé</h3>
             <p className="text-small text-text-muted">
@@ -119,7 +133,7 @@ export function ResumePanel({
               leads and what is left out; it never adds a claim that is not in your record. You read it as a
               set of changes before it becomes a version. English only for now.
             </p>
-            <div>{makeTailored("primary")}</div>
+            {wide ? <div>{makeTailored("primary")}</div> : <p className="text-small text-text-muted">{HELD_BACK}</p>}
           </div>
           {card}
         </div>
@@ -132,6 +146,7 @@ export function ResumePanel({
                   key={document.ref}
                   document={document}
                   canGenerate={application.canGenerate}
+                  canOpen={wide}
                   canTakeOff={!applied}
                   busy={busy}
                   onWrite={() => void write(document.ref)}
@@ -143,7 +158,7 @@ export function ResumePanel({
             <p className="text-small text-text-muted">No résumé is recorded for this application.</p>
           )}
           <div className="mt-10 flex flex-wrap items-center gap-8">
-            {hasTailored ? null : makeTailored("ghost")}
+            {hasTailored || !wide ? null : makeTailored("ghost")}
             {picking ? null : (
               <Button variant="ghost" onClick={() => setPicking(true)}>
                 {applied ? "Record another sent copy" : "Add a document you already have"}
@@ -151,16 +166,22 @@ export function ResumePanel({
             )}
           </div>
           {picking ? <div className="mt-10">{card}</div> : null}
+          {wide ? null : <p className="mt-10 text-small text-text-muted">{HELD_BACK}</p>}
         </>
       )}
 
       {!application.canGenerate && documents.some((document) => document.tailored && !document.currentVersionId) ? (
         <p className="mt-10 text-small text-text-muted">
           Your record holds no fact a document may use yet, so there is nothing to write the tailored résumé
-          from.{" "}
-          <Link to="/documents" className={QUIET}>
-            Import a document
-          </Link>
+          from.
+          {wide ? (
+            <>
+              {" "}
+              <Link to="/documents" className={QUIET}>
+                Import a document
+              </Link>
+            </>
+          ) : null}
         </p>
       ) : null}
       {failure ? (
@@ -195,6 +216,7 @@ export function ResumePanel({
 function DocumentLine({
   document,
   canGenerate,
+  canOpen,
   canTakeOff,
   busy,
   onWrite,
@@ -202,6 +224,8 @@ function DocumentLine({
 }: {
   document: ApplicationDocument;
   canGenerate: boolean;
+  /** The window is wide enough for the screens History, Generate and Review changes open. */
+  canOpen: boolean;
   canTakeOff: boolean;
   busy: boolean;
   onWrite: () => void;
@@ -216,16 +240,18 @@ function DocumentLine({
           {version} · {document.tailored ? "written for this job" : "the same document as on Home"}
         </div>
       </div>
-      <div className="ml-auto flex flex-wrap items-center justify-end gap-16">
+      <div className={LINKS}>
         {document.currentVersionId ? (
           <>
-            <Link to="/renders/$ref/history" params={{ ref: document.ref }} className={QUIET}>
-              History
-            </Link>
+            {canOpen ? (
+              <Link to="/renders/$ref/history" params={{ ref: document.ref }} className={QUIET}>
+                History
+              </Link>
+            ) : null}
             <DownloadButton kind={document.kind} docRef={document.ref} label="Download" className={QUIET} />
           </>
         ) : null}
-        {document.tailored ? (
+        {document.tailored && canOpen ? (
           <TailoredAction document={document} canGenerate={canGenerate} busy={busy} onWrite={onWrite} />
         ) : null}
         {canTakeOff ? (
@@ -393,7 +419,7 @@ function SentLine({ applicationId, copy }: { applicationId: string; copy: SentCo
           </p>
         ) : null}
       </div>
-      <div className="ml-auto flex items-center gap-16">
+      <div className={LINKS}>
         <Link
           to="/applications/$applicationId/sent/$copyId"
           params={{ applicationId, copyId: copy.id }}

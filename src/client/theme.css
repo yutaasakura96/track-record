@@ -216,6 +216,9 @@
 
   /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
   --breakpoint-wide: 1280px;
+  /* Applications only: under this width its screens take the phone layout,
+   * written `max-phone:` (`docs/10` Responsive behaviour, issue #75). */
+  --breakpoint-phone: 720px;
 }
 
 /* ------------------------------------------------------------------ dark */

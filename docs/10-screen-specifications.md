@@ -1819,7 +1819,10 @@ Under **720px** of width these screens change as follows, and above it they are 
 
 **Nothing scrolls sideways** at 390px, in either theme, with Japanese company and position names.
 
-**Screens 2, 5 and 6 are not Applications screens and keep the message.** So on a phone `Make a
-tailored résumé`, `Regenerate` and `History` lead to a screen that asks for a wider window. #75
-settles what those three controls do at phone width (say so beside them, or hold them back with the
-reason); it does not make Diff Review a phone screen.
+**Screens 2, 5 and 6 are not Applications screens and keep the message.** So in a window under
+1024px, where they ask for a wider one, Résumé for this job holds back every control that leads to
+them: `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it` and `History`,
+and the `Import a document` link. In their place the panel says once, in `text-muted`:
+`Making a tailored résumé, writing or reviewing a version and its history need a wider window, so
+they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
+since none of them leaves Applications (decision log, 2026-10-14). Diff Review is not a phone screen.

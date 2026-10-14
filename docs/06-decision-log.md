@@ -6319,3 +6319,18 @@ therefore overwrite or delete an entry just corrected in the first. The fix is t
 precondition issue #82 adds for two-tab protection, and these two writes need it as well; it is
 not built here. While either write is pending, its Cancel or Keep it control is disabled, so the
 form cannot close on a write that still lands.
+
+### [2026-10-14] Applications holds back what leads to a desktop screen, rather than leading there
+
+Issue #75, settling the question `10` left open. In a window under 1024px, Résumé for this job does
+not offer `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it`, `History`
+or `Import a document`, and says once in the panel why. The threshold is the width gate's, 1024px,
+not the 720px phone layout's, because what decides is whether the screen behind the control would
+open; between 720 and 1024 the layout is the desktop one and those screens still ask for a wider
+window.
+
+**Rejected:** **Keeping the controls with a note beside them**, which leaves a tap that leads to a
+screen saying the window is too narrow, the failure the desktop gate exists to prevent. **Disabled
+controls with the reason in a tooltip**, which a phone has no way to show.
+
+**Revisit if:** Diff Review or version history is made to work at phone width.

@@ -328,7 +328,7 @@ function InterviewForm({
   return (
     <div className="min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-12">
       <h3 className="text-row font-medium text-text-strong">{entry ? "Edit interview" : "New interview"}</h3>
-      <div className="grid grid-cols-2 gap-12">
+      <div className="grid grid-cols-2 max-phone:grid-cols-1 gap-12">
         <label className="grid gap-4 min-w-0">
           <span className="text-small text-text-secondary">Date</span>
           <input

@@ -7,12 +7,12 @@
  * and removed (`docs/05` §9), and an application is none of them: the step it
  * is at is the accent, and one not started or closed is grey.
  */
-import type { ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useProfile, type ApplicationFields } from "../api";
 import { useFlashStore } from "../stores/flash";
 import { STATUS_LABEL, statusOf, type Standing } from "~/shared/application";
-import { Sidebar } from "./sidebar";
+import { MenuSheet, Sidebar } from "./sidebar";
 import { Button, Dot } from "./ui";
 
 export const CONTROL =
@@ -41,12 +41,39 @@ export function ApplicationsFrame({
 }) {
   const profile = useProfile();
   const flash = useFlashStore((state) => state.text);
+  // At phone width the sidebar is a sheet under the header (`docs/10`, Applications at phone width).
+  const [menu, setMenu] = useState(false);
+  const sheet = useId();
+  const toggle = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!menu) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMenu(false);
+      toggle.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menu]);
 
   return (
     <div className="h-screen flex">
-      <Sidebar name={profile.data?.nameLatin ?? ""} />
-      <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-header shrink-0 flex items-center gap-12 px-20 bg-surface border-b border-border">
+      <div className="max-phone:hidden flex">
+        <Sidebar name={profile.data?.nameLatin ?? ""} />
+      </div>
+      <div className="relative flex-1 min-w-0 flex flex-col">
+        <header className="h-header shrink-0 flex items-center gap-12 px-20 max-phone:gap-8 max-phone:px-12 bg-surface border-b border-border">
+          <Button
+            ref={toggle}
+            variant="ghost"
+            aria-expanded={menu}
+            aria-controls={menu ? sheet : undefined}
+            onClick={() => setMenu(!menu)}
+            className="phone:hidden shrink-0"
+          >
+            Menu
+          </Button>
           <h1 className="min-w-0 truncate text-panel font-semibold tracking-snug text-text-strong">
             {crumb ? (
               <>
@@ -58,12 +85,13 @@ export function ApplicationsFrame({
             ) : null}
             {title}
           </h1>
-          {note ? <span className="min-w-0 truncate text-smaller text-text-dimmer">{note}</span> : null}
+          {note ? <span className="max-phone:hidden min-w-0 truncate text-smaller text-text-dimmer">{note}</span> : null}
           {action ? <span className="ml-auto shrink-0 flex gap-8">{action}</span> : null}
         </header>
+        {menu ? <MenuSheet id={sheet} onClose={() => setMenu(false)} /> : null}
 
-        <div className="flex-1 overflow-y-auto px-20 py-26">
-          <div className="mx-auto w-content max-w-full grid gap-20">{children}</div>
+        <div className="flex-1 overflow-y-auto px-20 py-26 max-phone:px-12 max-phone:py-16">
+          <div className="mx-auto w-content max-w-full grid grid-cols-1 gap-20 max-phone:gap-16">{children}</div>
         </div>
       </div>
       {flash ? (
@@ -122,7 +150,7 @@ export function JobFields({
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-12">
+      <div className="grid grid-cols-2 max-phone:grid-cols-1 gap-12">
         <label className="grid gap-4 min-w-0">
           <span className="text-small text-text-secondary">Company</span>
           <input
