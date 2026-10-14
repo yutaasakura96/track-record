@@ -55,3 +55,11 @@ class_name = "ImportWorkflow"
 type = "Data"
 globs = ["**/*.docx"]
 fallthrough = true
+
+# Uploaded interview recordings (issue #76). Private: no public r2.dev address
+# and no custom domain, so the only way to a file is the Worker's own route,
+# which requires the owner's session. `wrangler dev` emulates it on disk and
+# never reaches this bucket; created by the owner, 2026-10-13.
+[[r2_buckets]]
+binding = "RECORDINGS"
+bucket_name = "track-record-recordings"

@@ -96,6 +96,7 @@ function open(start: Recording[] = [], routes: Routes = {}) {
 const card = async () => (await screen.findByRole("heading", { name: "Second interview" })).closest("li")!;
 const openForm = async (user: ReturnType<typeof open>["user"]) => {
   await user.click(within(await card()).getByRole("button", { name: "Attach a recording" }));
+  await user.click(within(await card()).getByRole("button", { name: "Add a link instead" }));
   return within(await card()).getByLabelText("Link to the recording") as HTMLInputElement;
 };
 

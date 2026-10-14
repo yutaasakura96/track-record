@@ -20,6 +20,12 @@ export interface Bindings extends ModelBindings {
   GOOGLE_CLIENT_SECRET: string;
   /** Comma-separated. Sign-up is invite-only by design (`docs/08` §2). */
   ALLOWED_SIGNUP_EMAILS: string;
+  /**
+   * Uploaded interview recordings (issue #76): `track-record-recordings`,
+   * private, emulated on disk by `wrangler dev` and in the suite. Reached only
+   * through `services/recording-store.ts`.
+   */
+  RECORDINGS: R2Bucket;
   /** Absent in tests and in local dev; see src/pipeline/workflow.ts. */
   IMPORT_WORKFLOW?: { create(options: { params: unknown }): Promise<unknown> };
 }

@@ -1,6 +1,6 @@
 /**
  * Reading an application's interview entries (issue #72), each with its
- * recordings (issue #74).
+ * recordings (issues #74 and #76).
  *
  * Here and not beside the route that writes one, because the application's own
  * read carries them: `routes/applications.ts` reads through this and
@@ -48,9 +48,14 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
       .select({
         id: interviewRecordings.id,
         interviewId: interviewRecordings.interviewId,
+        kind: interviewRecordings.kind,
         url: interviewRecordings.url,
         label: interviewRecordings.label,
+        fileName: interviewRecordings.fileName,
+        byteSize: interviewRecordings.byteSize,
+        durationSeconds: interviewRecordings.durationSeconds,
         removedAt: interviewRecordings.removedAt,
+        createdAt: interviewRecordings.createdAt,
       })
       .from(interviewRecordings)
       .innerJoin(
@@ -74,12 +79,32 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
 
 /**
  * A stored row as the page reads it. A removed one says only that it was
- * removed and on which day in Japan; the check on the table means a row that
- * is not removed has its link.
+ * removed and on which day in Japan; the checks on the table mean a row that
+ * is not removed has its link, or its file's name and size.
  */
-function recordingOf(row: { id: string; url: string | null; label: string; removedAt: Date | null }): Recording {
-  if (row.removedAt || row.url === null) {
-    return { id: row.id, kind: "removed", removedOn: tokyoToday(row.removedAt ?? undefined) };
+function recordingOf(row: {
+  id: string;
+  kind: "link" | "upload";
+  url: string | null;
+  label: string;
+  fileName: string | null;
+  byteSize: number | null;
+  durationSeconds: number | null;
+  removedAt: Date | null;
+  createdAt: Date;
+}): Recording {
+  if (!row.removedAt && row.kind === "upload" && row.fileName !== null && row.byteSize !== null) {
+    return {
+      id: row.id,
+      kind: "upload",
+      fileName: row.fileName,
+      byteSize: row.byteSize,
+      durationSeconds: row.durationSeconds,
+      uploadedOn: tokyoToday(row.createdAt),
+    };
   }
-  return { id: row.id, kind: "link", url: row.url, label: row.label };
+  if (!row.removedAt && row.kind === "link" && row.url !== null) {
+    return { id: row.id, kind: "link", url: row.url, label: row.label };
+  }
+  return { id: row.id, kind: "removed", removedOn: tokyoToday(row.removedAt ?? undefined) };
 }

@@ -346,7 +346,7 @@ the entry point and `07-api-design.md` §7 for the document routes.
 | 4 | The step date no longer equals the entry's old day, or another live entry in the same round shares that old day | The entry is saved and that date is left alone (`07` §9b) |
 | 4 | The round was changed to one later than the status | The status moves there, as for a new entry, with `Undo` |
 | 5 | The entry had moved the status when it was added | Deleting it does not move the status back; the status controls do that |
-| 5 | The entry has recording links | They are removed with it, and the question says so first |
+| 5 | The entry has recordings | They are removed with it, uploaded files deleted from storage, and the question says so first |
 
 **If abandoned:** `Cancel` in the form, or `Keep it` at the question, leaves the entry as it was.
 
@@ -354,7 +354,7 @@ the entry point and `07-api-design.md` §7 for the document routes.
 
 ## Flow 13 · Keep a link to a recording of an interview · M3 (#60, #74)
 
-1. On an interview's card → `Attach a recording`. The link form opens in place.
+1. On an interview's card → `Attach a recording` → `Add a link instead`. The link form opens in place.
 2. The author pastes the link and, if they like, says what it is in a few words → **Add the link**
    → `POST /api/applications/:id/interviews/:interviewId/recordings`. Only the link is kept.
 3. The card shows a row: `Link`, what it is, the address. `Open` opens it in a new tab.
@@ -370,6 +370,33 @@ the entry point and `07-api-design.md` §7 for the document routes.
 
 **If abandoned:** `Cancel` discards what was typed. A removed link cannot be brought back; it is
 added again.
+
+---
+
+## Flow 13b · Upload an audio recording of an interview · M3 (#60, #76)
+
+1. On an interview's card → `Attach a recording`. The card says what it takes: MP3, M4A, AAC, WAV,
+   FLAC or Ogg audio, up to 90 MB, stored privately.
+2. **Upload audio** → the file chooser → the author picks the recording. The browser checks its
+   size and its first bytes, reads how long it plays, and sends it as the body of
+   `POST …/recordings/audio`.
+3. A row says `Uploading <name>`, with a progress bar and `N of M MB. Keep this page open.`
+4. Stored, the card lists it: `Audio`, its name, its size, how long it plays, the day, and `only
+   you can play it`. `Recording uploaded.`
+5. `Play` puts the player under the row; seeking reads only the part asked for. `Download` saves the
+   file under its own name.
+6. `Remove` asks once in place of the row → **Remove it** → `DELETE …/recordings/:recordingId`. The
+   file is deleted from storage and the card keeps `A recording was removed on <date>.`
+
+| Step | What can go wrong | What the author sees |
+|---|---|---|
+| 2 | The file is over 90 MB, empty, or not one of the kinds | Its name, its size or type, and the limit, in the card. Nothing is sent |
+| 3 | The connection drops, or the page is closed | Closing asks first. A cut-off upload says `The upload of <name> stopped before it finished, so nothing was kept.` with `Try again`. Nothing is listed |
+| 3 | The application was changed in another tab while it uploaded | The card says to reload. The file it stored is deleted |
+| 6 | Remove was pressed by mistake | `Keep it` closes the question and nothing changes |
+
+**If abandoned:** `Cancel` closes the card. A removed recording cannot be brought back; it is
+uploaded again.
 
 ## Flow 14 · Choose what to send, and keep what was sent · #71
 

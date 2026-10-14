@@ -17,6 +17,7 @@ import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from 
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
+import { keptFileName } from "~/shared/recording";
 import type { NamedVersion, SendableKind } from "~/shared/application-documents";
 import type { SentPage } from "~/render/sent-page";
 
@@ -1110,9 +1111,72 @@ export type DocumentChange =
   /** From Applied onward: each is frozen as a further sent copy, always. */
   | { change: "record"; refs: string[] };
 
+/** How far an upload has got, in bytes. */
+export interface UploadProgress {
+  loaded: number;
+  total: number;
+}
+
 /**
- * The recordings of one interview entry (issue #74): a link added, and a
- * recording removed for good. Each answers with the application afterwards.
+ * An upload that never got an answer: the connection dropped, the page went
+ * offline, or the server stopped part way. Nothing was kept.
+ */
+export class UploadInterrupted extends Error {
+  constructor() {
+    super("The upload stopped before it finished.");
+    this.name = "UploadInterrupted";
+  }
+}
+
+/**
+ * Sends an audio file as the raw body of one request, with its progress.
+ * `XMLHttpRequest` and not `fetch`, because only it reports how much of a
+ * request body has gone. Refusals become the same `ApiError` as {@link api}'s.
+ */
+function sendAudio(
+  path: string,
+  file: File,
+  durationSeconds: number | null,
+  onProgress: (progress: UploadProgress) => void,
+): Promise<Application> {
+  return new Promise((resolve, reject) => {
+    const request = new XMLHttpRequest();
+    request.open("POST", path);
+    request.responseType = "json";
+    request.setRequestHeader("content-type", file.type || "application/octet-stream");
+    request.setRequestHeader("x-file-name", encodeURIComponent(file.name));
+    if (durationSeconds !== null) request.setRequestHeader("x-duration-seconds", String(durationSeconds));
+    request.upload.onprogress = (event) => onProgress({ loaded: event.loaded, total: event.lengthComputable ? event.total : file.size });
+    request.onerror = () => reject(new UploadInterrupted());
+    request.onabort = () => reject(new UploadInterrupted());
+    request.ontimeout = () => reject(new UploadInterrupted());
+    request.onload = () => {
+      const body = request.response as (Application & Partial<ApiErrorBody>) | null;
+      if (request.status >= 200 && request.status < 300 && body) return resolve(body);
+      // An answer that is not ours, or a server that gave up mid-file: either way nothing was kept.
+      if (!body?.error || request.status >= 500) return reject(new UploadInterrupted());
+      reject(
+        new ApiError(
+          request.status,
+          body.error.code ?? "internal",
+          body.error.message ?? "Something went wrong.",
+          body.error.details?.fields ?? [],
+          body.error.details ?? {},
+        ),
+      );
+    };
+    request.send(file);
+  });
+}
+
+/** Where an uploaded recording is played from, and with `download` where it is saved from. */
+export const recordingAudioPath = (applicationId: string, interviewId: string, recordingId: string) =>
+  `/api/applications/${applicationId}/interviews/${interviewId}/recordings/${recordingId}/audio`;
+
+/**
+ * The recordings of one interview entry: a link added (issue #74), an audio
+ * file uploaded (#76), and a recording removed for good. Each answers with the
+ * application afterwards.
  */
 export function useRecordings(applicationId: string, interviewId: string) {
   const queryClient = useQueryClient();
@@ -1125,11 +1189,49 @@ export function useRecordings(applicationId: string, interviewId: string) {
     mutationFn: (body: { url: string; label: string }) => api<Application>(base, { method: "POST", ...json(body) }),
     onSuccess: settled,
   });
+  const upload = useMutation({
+    mutationFn: async ({
+      file,
+      durationSeconds,
+      onProgress,
+    }: {
+      file: File;
+      durationSeconds: number | null;
+      onProgress: (progress: UploadProgress) => void;
+    }) => {
+      const before = new Set(
+        queryClient
+          .getQueryData<Application>(keys.application(applicationId))
+          ?.interviews.find((entry) => entry.id === interviewId)
+          ?.recordings.map((recording) => recording.id),
+      );
+      try {
+        return await sendAudio(`${base}/audio`, file, durationSeconds, onProgress);
+      } catch (error) {
+        if (!(error instanceof UploadInterrupted)) throw error;
+        // The connection can drop after the server stored the file and before its answer arrived.
+        // Read the application again before saying nothing was kept; a failed read says it anyway.
+        const next = await api<Application>(`/api/applications/${applicationId}`).catch(() => null);
+        const landed = next?.interviews
+          .find((entry) => entry.id === interviewId)
+          ?.recordings.some(
+            (recording) =>
+              recording.kind === "upload" &&
+              !before.has(recording.id) &&
+              recording.fileName === keptFileName(file.name) &&
+              recording.byteSize === file.size,
+          );
+        if (next && landed) return next;
+        throw error;
+      }
+    },
+    onSuccess: settled,
+  });
   const remove = useMutation({
     mutationFn: (recordingId: string) => api<Application>(`${base}/${recordingId}`, { method: "DELETE" }),
     onSuccess: settled,
   });
-  return { addLink, remove };
+  return { addLink, upload, remove };
 }
 
 /**

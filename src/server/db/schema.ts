@@ -91,10 +91,10 @@ export const applicationStatus = pgEnum("application_status", [
  */
 export const interviewRound = pgEnum("interview_round", ["interview_1", "interview_2", "interview_final", "other"]);
 /**
- * What a recording on an interview entry is (issue #74). A link to one kept
- * elsewhere is the only kind until upload is built (#76), which adds its own.
+ * What a recording on an interview entry is: a link to one kept elsewhere
+ * (issue #74), or an audio file uploaded to the recordings bucket (#76).
  */
-export const recordingKind = pgEnum("recording_kind", ["link"]);
+export const recordingKind = pgEnum("recording_kind", ["link", "upload"]);
 
 /* --------------------------------------------------- auth (Better Auth) */
 
@@ -762,16 +762,20 @@ export const interviewQuestions = pgTable("interview_questions", {
 ]);
 
 /**
- * A recording of an interview, on its entry (issue #74): a link to one kept
- * elsewhere. Only the link is held, and nothing here fetches it.
+ * A recording of an interview, on its entry: a link to one kept elsewhere
+ * (issue #74), or an audio file uploaded to R2 (#76). Of a link only the link
+ * is held, and nothing here fetches it. Of an upload the row holds what the
+ * page shows; the file is the object `recordingObjectKey(user_id, id)` in the
+ * `RECORDINGS` bucket, and the row is written only once that object exists.
  *
  * THE ONE ROW THE AUTHOR CAN REMOVE (decision log, 2026-10-11). Removing does
- * not delete the row: it sets `removed_at` and empties `url` and `label`, so
- * the link is gone for good and the entry can still say that a recording was
- * removed and when. The check holds the two together.
+ * not delete the row: it sets `removed_at` and empties `url` and `label`, and
+ * of an upload deletes the file and empties what described it, so the
+ * recording is gone for good and the entry can still say that one was removed
+ * and when. The checks hold them together.
  *
- * `url` and `label` are the author's words about a call with other people:
- * never logged, like the entry they hang from.
+ * `url`, `label` and `file_name` are the author's words about a call with
+ * other people: never logged, like the entry they hang from.
  */
 export const interviewRecordings = pgTable("interview_recordings", {
   id: text("id").primaryKey(),
@@ -782,12 +786,27 @@ export const interviewRecordings = pgTable("interview_recordings", {
   url: text("url"),
   /** What it is, in a few words. Empty when not given, and once removed. */
   label: text("label").notNull().default(""),
+  /** An upload's name as the author's file had it. Null for a link, and once removed. */
+  fileName: text("file_name"),
+  /** An upload's size in bytes, at most `RECORDING_MAX_BYTES`. Null for a link, and once removed. */
+  byteSize: integer("byte_size"),
+  /** The type the server recognised from the file's first bytes, never the one the browser claimed. */
+  contentType: text("content_type"),
+  /** How long it plays, as the browser read it before uploading. Null when it could not, and once removed. */
+  durationSeconds: integer("duration_seconds"),
   removedAt: timestamp("removed_at", { withTimezone: true }),
   ...timestamps,
 }, (t) => [
   index("interview_recordings_interview_idx").on(t.userId, t.interviewId),
   check("interview_recordings_link_ck", sql`${t.kind} <> 'link' or (${t.url} is null) = (${t.removedAt} is not null)`),
   check("interview_recordings_removed_ck", sql`${t.removedAt} is null or ${t.label} = ''`),
+  // Compared as text: a value added to an enum cannot be used in the
+  // transaction that adds it, and the migration adding `upload` adds these.
+  check("interview_recordings_link_fields_ck", sql`${t.kind}::text <> 'link' or (${t.fileName} is null and ${t.byteSize} is null and ${t.contentType} is null and ${t.durationSeconds} is null)`),
+  check(
+    "interview_recordings_upload_ck",
+    sql`${t.kind}::text <> 'upload' or (${t.url} is null and (${t.fileName} is null) = (${t.removedAt} is not null) and (${t.byteSize} is null) = (${t.removedAt} is not null) and (${t.contentType} is null) = (${t.removedAt} is not null) and (${t.removedAt} is null or ${t.durationSeconds} is null))`,
+  ),
 ]);
 
 /**

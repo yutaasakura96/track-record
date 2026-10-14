@@ -931,7 +931,7 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 
 ---
 
-## 9b. Applications · #70, interview entries #72 and #81, reading a posting #73, a recording by link #74
+## 9b. Applications · #70, interview entries #72 and #81, reading a posting #73, a recording by link #74 or upload #76
 
 A job the author is looking at or has applied for (`04` §3.14), the interview entries on it
 (`04` §3.15), and the recordings on an entry (`04` §3.16). **One route here reaches a model**, `POST /api/applications/read-posting`, and it
@@ -954,7 +954,9 @@ screens read too.
 | `PUT` | `/api/applications/:id/interviews/:interviewId` | Body `{ date, round, who?, howItWent?, questions? }`, the entry whole → `200` + the application. **Corrects the entry in place.** `questions` is a list of `{ id?, text }`: one with the `id` of a live question stays that row, in its new place and with its new words; one the list leaves out is stamped `removed_at` and hidden from the page but kept in the export; one with no `id` is new. Blank ones are dropped. `422` for everything `POST` refuses, for an `id` that is not one of the entry's live questions, and for one given twice. `404` for an entry not on that application, or deleted. `409` when the application changed after it was read |
 | `DELETE` | `/api/applications/:id/interviews/:interviewId` | → `200` + the application, without the entry. **The status and its dates are not changed.** The entry's recordings are removed with it. `404` for an entry not on that application, or already deleted. `409` when the application changed after it was read |
 | `POST` | `/api/applications/:id/interviews/:interviewId/recordings` | Body `{ url, label? }` → `201` + the application. Attaches a link to a recording kept elsewhere to that entry. **Only the link is kept, and only `http` or `https`.** `422` for anything else in `url`, a link over 2,000 characters, a `label` over 200, or an extra field. `404` for an entry that is not on that application. `409` when the application changed after it was read |
-| `DELETE` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId` | → `200` + the application. **Removes the recording for good**: its link and label are emptied, and the entry keeps a line with the day. `404` for a recording not on that entry, or already removed. `409` when the application changed after it was read |
+| `POST` | `/api/applications/:id/interviews/:interviewId/recordings/audio` | **The body is the audio file itself**, not a form or JSON, with its `Content-Length`; `X-File-Name` is its name, URI-encoded, and `X-Duration-Seconds` how long it plays, when the browser could read it → `201` + the application. **The file is streamed to R2 and the row written only once it is stored.** `422` for a file over 90 MB (`<name> is <size> MB. A recording can be at most 90 MB.`), an empty one, one with no name or no declared length, and one whose first bytes are not MP3, M4A, AAC, WAV, FLAC or Ogg (`<name> is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.`), each before anything is stored. `503` when the whole file did not arrive, with nothing kept. `404` for an entry that is not on that application. `409` when the application changed while it uploaded, with the stored file deleted. A body over 100 MB is refused by Cloudflare's edge with `413` before the Worker runs |
+| `GET` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId/audio` | An uploaded recording's bytes, `inline`; with `?download`, as an `attachment` under its own name. **A single `Range` is answered `206`** with its `Content-Range`, which is what seeking asks for; one past the end is `416`; any other range header gets the whole file. `Cache-Control: private, no-store`. `404` for anything but a live upload on that entry of that application of this user, a link included |
+| `DELETE` | `/api/applications/:id/interviews/:interviewId/recordings/:recordingId` | → `200` + the application. **Removes the recording for good**: an upload's file is deleted from R2 first, then the link and its label, or the file's name, size, type and length, are emptied, and the entry keeps a line with the day. `404` for a recording not on that entry, or already removed. `409` when the application changed after it was read |
 
 ```json
 {
@@ -1015,12 +1017,19 @@ screens read too.
   with the application and logs nothing.
 - **Deleting an entry moves nothing back.** The step it moved the application to and the date it
   saved under it stay, and are changed with the status controls if they are wrong. The row is kept
-  (`04` §3.15); its recordings are removed for good, as `DELETE …/recordings/:recordingId` removes
-  one.
+  (`04` §3.15); its recordings are removed for good, uploaded files deleted, as `DELETE
+  …/recordings/:recordingId` removes one.
 - **`recordings` is every recording of the entry, in the order attached.** A link is `{ id, kind:
-  "link", url, label }`, `label` an empty string when none was given. One that was removed stays
-  in its place as `{ id, kind: "removed", removedOn }`, the day in Japan it was removed, and
-  carries nothing else: the link and its label are emptied when it is removed, not hidden.
+  "link", url, label }`, `label` an empty string when none was given. An upload is `{ id, kind:
+  "upload", fileName, byteSize, durationSeconds, uploadedOn }`, `durationSeconds` null when the
+  browser could not read it and `uploadedOn` the day in Japan. One that was removed stays in its
+  place as `{ id, kind: "removed", removedOn }`, the day in Japan it was removed, and carries
+  nothing else: what described it is emptied when it is removed, not hidden.
+- **An upload is reachable by its owner, signed in, and by nobody else** (S24). The session is
+  required as on every route; the row is read by `user_id`, the application and the entry before
+  the bucket is; the bucket has no public address. **Its type is the one the server recognised**
+  from its first bytes, which is what it is played as, whatever the browser sent as
+  `Content-Type`. The limits are the platform's: decision log, 2026-10-15.
 - **A link is `http` or `https` and nothing else**: that scheme, a host, and no whitespace, up to
   2,000 characters. Anything else, `javascript:`, `data:`, `file:` and an address with no scheme
   included, is `422` with `That does not look like a link. It should start with https://`.
@@ -1043,7 +1052,7 @@ screens read too.
 - **A write to where an application stands is refused when the application changed after the write
   read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
   That covers the step, close, date, reopen and standing routes, an interview entry added,
-  corrected or deleted, and both recording routes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
+  corrected or deleted, and the three recording writes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
   included. The check is on `lastActivityAt`, inside the same batch as the write.
 - **`read-posting` answers with what the text states and nothing it does not**: `company` and
   `position` are an empty string, and `requirements` an empty list, where the text names none.
@@ -1062,9 +1071,11 @@ screens read too.
   `interview_added` with the two
   ids, the round, the number of questions and `movedTo`, the step it moved the application to or
   `null`, `interview_edited` with the same fields, `interview_removed` with the two ids,
-  `recording_added` with the three ids and the kind, and `recording_removed` with the
-  three ids. Never the company, the position, who an interview was with, how it went, a question,
-  a recording's link or label, or any other text.
+  `recording_added` with the three ids and the kind, and for an upload its recognised type and
+  size in bytes, `recording_upload_failed` with the two ids and the declared size, and
+  `recording_removed` with the three ids and the kind. Never the company, the position, who an
+  interview was with, how it went, a question, a recording's link, label or file name, or any
+  other text.
 
 ---
 
