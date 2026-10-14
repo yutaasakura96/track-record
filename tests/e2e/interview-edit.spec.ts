@@ -5,7 +5,7 @@ import { INTERVIEW_STORAGE_STATE } from "./env";
 
 const evidence = process.env.TEST_EVIDENCE_DIR;
 
-test("edit and delete an interview in the application at desktop and phone width", async ({ browser, baseURL }) => {
+test("edit and delete an interview in the application, the panel at desktop and at a phone's width", async ({ browser, baseURL }) => {
   if (evidence) mkdirSync(evidence, { recursive: true });
   const context = await browser.newContext({ baseURL, storageState: INTERVIEW_STORAGE_STATE, viewport: { width: 1280, height: 900 } });
   const page = await context.newPage();
@@ -60,12 +60,21 @@ test("edit and delete an interview in the application at desktop and phone width
   await page.reload();
   await expect(page.getByText("What should we measure first?")).toBeVisible();
 
-  await page.setViewportSize({ width: 390, height: 1300 });
+  // The application page itself opens on a phone only with #75; until then the
+  // panel is checked at a phone's content width, inside the desktop page.
+  const panelWidth = () =>
+    page.evaluate(() => {
+      const panel = [...document.querySelectorAll("h2")].find((heading) => heading.textContent === "Interviews")!.closest("section")!;
+      panel.style.width = "358px";
+      return { scroll: panel.scrollWidth, client: panel.clientWidth };
+    });
+  await panelWidth();
   await expect(page.getByRole("button", { name: "Edit the First interview entry of 2026-01-09" })).toBeVisible();
   await page.getByRole("button", { name: "Edit the First interview entry of 2026-01-09" }).click();
   await expect(page.getByRole("heading", { name: "Edit interview" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save changes" })).toBeVisible();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  const narrow = await panelWidth();
+  expect(narrow.scroll).toBeLessThanOrEqual(narrow.client);
   await page.getByRole("heading", { name: "Edit interview" }).locator("xpath=..").scrollIntoViewIfNeeded();
   if (evidence) await page.screenshot({ path: `${evidence}/interview-edit-phone.png`, fullPage: true });
   await page.getByRole("button", { name: "Cancel" }).click();

@@ -12,7 +12,7 @@
  * The stubbed server answers with the same rules the real one uses
  * (`~/shared/application`, `~/shared/interview`). All fixtures are invented.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import type { Application, InterviewCorrection, InterviewFields } from "~/client/api";
 import { figures, type Standing } from "~/shared/application";
@@ -150,16 +150,6 @@ const openForm = async (user: ReturnType<typeof open>["user"]) => {
 };
 
 describe("the interview entries of an application", () => {
-  it("lets a phone-width reader reach an entry's edit and delete controls", async () => {
-    vi.stubGlobal("innerWidth", 390);
-    const { user } = open();
-    await user.click(await screen.findByRole("button", { name: "Edit the Second interview entry of 2026-10-02" }));
-    expect(screen.getByRole("heading", { name: "Edit interview" })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Cancel" }));
-    await user.click(screen.getByRole("button", { name: "Delete the Second interview entry of 2026-10-02" }));
-    expect(screen.getByRole("alertdialog", { name: "Delete this interview" })).toBeTruthy();
-  });
-
   it("shows one card an entry in the order the server gives, each with its questions numbered", async () => {
     open();
     const cards = within(await panel()).getAllByRole("listitem").filter((item) => item.querySelector("h3"));

@@ -214,8 +214,7 @@
   --shadow-lifted-private: 0 0 0 1px rgba(108, 112, 120, 0.4), 0 10px 26px rgba(13, 14, 18, 0.12);
   --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.55), 0 0 22px rgba(94, 106, 210, 0.2);
 
-  /* Application pages fit a phone; document review still requires a desktop (`docs/10`). */
-  --breakpoint-sm: 640px;
+  /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
   --breakpoint-wide: 1280px;
 }
 
