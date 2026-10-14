@@ -1782,15 +1782,15 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-**Desktop only in v1.** Minimum supported width **1280px**; designed at 1440×900.
+Outside Applications, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
-app shows a message stating that a wider window is required rather than degrading into an unusable
-single column.
+other screens show a message stating that a wider window is required rather than degrading into an
+unusable single column.
 
-The overview screen would adapt to narrow widths, but shipping one responsive screen out of three
-is worse than none: it invites use on a device where the next click fails.
+The overview screen would adapt to narrow widths, but opening it would invite a next click into a
+screen that still needs a wider window.
 
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow

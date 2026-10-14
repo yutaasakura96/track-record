@@ -684,7 +684,7 @@ in §2. Items 1–4 stay human — they are judgement calls about a document a p
 | Visual regression / screenshot diffing | One developer and two themes whose contrast `npm run lint` already holds to a number (`05` §8b). The setup cost exceeds the bugs it would catch |
 | Load and performance | One user. Revisit at the first invited second user |
 | Better Auth internals | Testing a maintained library's own behaviour. **Our allowlist and session middleware are tested; its storage, crypto and cookie attributes are not.** Since 2026-09-02 the sign-in *path* is walked end to end against a local issuer fixture (§2.9) — that asserts our wiring through Better Auth, not Better Auth |
-| Browser compatibility beyond current Chrome and Safari | Desktop only, one known user |
+| Browser compatibility beyond current Chrome and Safari | One known user on those browsers |
 | `.docx` byte-level output | Brittle and meaningless. Structure is asserted; fidelity is checklist item 1 |
 
 **One end-to-end test exists and no more** (§2.9). The flows in `09-user-flows.md` are otherwise

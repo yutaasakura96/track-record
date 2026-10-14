@@ -214,7 +214,7 @@
   --shadow-lifted-private: 0 0 0 1px rgba(108, 112, 120, 0.4), 0 10px 26px rgba(13, 14, 18, 0.12);
   --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.55), 0 0 22px rgba(94, 106, 210, 0.2);
 
-  /* Desktop only, minimum 1280px — but built fluid (`docs/10`). */
+  /* Outside Applications, minimum 1280px — but built fluid (`docs/10`). */
   --breakpoint-wide: 1280px;
   /* Applications only: under this width its screens take the phone layout,
    * written `max-phone:` (`docs/10` Responsive behaviour, issue #75). */
