@@ -725,18 +725,16 @@ route and by the form.
   of it is saved or none is.
 - **The status an entry moved is not stored on the entry.** The move is an ordinary change to
   `application_steps`, so Undo puts the standing back and leaves the entry where it is.
-- **An entry can be corrected, in place** (#81; `06`, 2026-10-14). The five columns are
+- **An entry can be corrected, in place** (#81; `06`, 2026-10-14). Its editable columns are
   overwritten and no earlier wording is kept: the entry is the author's note, and the note is what
   they last wrote. **A question that stays keeps its row and its id**, in its new place and with
   its new words; one left out has its row stamped `removed_at`; a new one is a new row. Live `position` still runs
   from 0 with no gap: a question changing place is parked at a negative position inside the batch,
   because the unique index is checked a row at a time.
-- **A corrected day is followed by the date of its round's step** when that date is still the
-  entry's old day, by superseding the step's row as any corrected date does (§3.14). A date the
-  author has since set by hand is left. A round changed to a later one moves the status as a new
-  entry would. `07` §9b has the rule.
+- **A corrected step date supersedes its previous row**, as any corrected date does (§3.14).
+  `07` §9b owns when an interview edit changes the standing.
 - **A deleted entry keeps its row.** `removed_at` is stamped, its questions stay, and nothing
-  reads either again. Its recordings are removed in the same batch exactly as removing each would
+  reads either on an application page again. Its recordings are removed in the same batch exactly as removing each would
   (§3.16), so no link outlives the entry it hung from. The status and every step date stay as they
   are. Both tables are in the export, a deleted entry included.
 

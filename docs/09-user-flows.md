@@ -333,9 +333,8 @@ the entry point and `07-api-design.md` §7 for the document routes.
    one, removes one, adds more. Nothing is written yet.
 3. **Save changes** → `PUT /api/applications/:id/interviews/:interviewId`, one write. The card
    comes back as corrected and one line says `Interview saved.`
-4. If the day was changed and the step for that round carried the entry's old day, the same write
-   moves that date, and the first-interview figure follows. **Where it stands** says so, with
-   `Change the date` and `Undo`.
+4. A corrected day follows the step-date rule in `07` §9b. When the first-interview date changes,
+   its figure follows. **Where it stands** says so, with `Change the date` and `Undo`.
 5. To delete: on the card → `Delete`. The card asks once. **Delete it** →
    `DELETE /api/applications/:id/interviews/:interviewId`. The card is gone and one line says
    `Interview deleted.` The status and its dates are as they were.
@@ -344,7 +343,7 @@ the entry point and `07-api-design.md` §7 for the document routes.
 |---|---|---|
 | 3 | How it went and every question were emptied | `Write how it went, or add at least one question.` Nothing is written |
 | 3, 5 | The application was changed somewhere else, or the write fails | The form or the question stays open, with what was typed, and says why |
-| 4 | The step's date was set by hand and is not the entry's old day | The entry is saved and that date is left alone |
+| 4 | The step date no longer equals the entry's old day, or another live entry in the same round shares that old day | The entry is saved and that date is left alone (`07` §9b) |
 | 4 | The round was changed to one later than the status | The status moves there, as for a new entry, with `Undo` |
 | 5 | The entry had moved the status when it was added | Deleting it does not move the status back; the status controls do that |
 | 5 | The entry has recording links | They are removed with it, and the question says so first |

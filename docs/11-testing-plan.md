@@ -428,9 +428,11 @@ And a question that stays is the same row in its new place, one left out is stam
 And a correction that changes nothing writes nothing, and one that changes anything counts as a change
 And it is refused for what a new entry is refused for, for a question that is not the entry's, and for one given twice
 
-When its day is corrected and the step for its round still carried the old day
+When its day is corrected and the step for its round still carried the old day, with no other live entry in that round sharing the day
 Then that step's date and the first-interview figure follow, and Undo puts the date back and keeps the correction
-And a date set by hand since is left; words alone never move the status; a later round moves it on; a closed application stays
+And another live entry in that round sharing the old day leaves the step date unchanged; a deleted entry does not count
+And a date set by hand to a different day is left, but one set by hand to the same day follows the edit
+And words alone never move the status; a later round moves it on; a closed application stays
 
 When the entry is deleted
 Then it is off the application, at once and after a reload, and the status and its dates are as they were

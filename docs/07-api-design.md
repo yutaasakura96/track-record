@@ -999,11 +999,15 @@ screens read too.
 - **`interviews` is every entry of the application, newest `date` first**, and of two on one day
   the one added later first. Each carries its `questions` in the order they were given. An entry
   the author deleted is not among them.
-- **A corrected entry's day is followed by the date of its round's step** (#81). When only the
+- **A corrected entry's day can change the date of its round's step** (#81). When only the
   day changes, on an open application whose step for that round is reached and still dated with
-  the entry's old day, that date becomes the new day, and `daysSinceFirstInterview` follows it. A
-  date the author has set by hand since, which no longer equals the entry's old day, is left as it
-  is. In every other case a changed day or round does what saving the corrected entry new would: a
+  the entry's old day, that date becomes the new day; `daysSinceFirstInterview` follows when this
+  is the first-interview step,
+  **unless another live entry of the same application and round shares that old day**. In that
+  case the step date stays. A deleted entry does not count. A step date that no longer equals the
+  entry's old day stays too. A date set by hand that happens to equal the entry's old day still
+  follows the edit when no other live entry shares it; no provenance is tracked. In every other
+  case a changed day or round does what saving the corrected entry new would: a
   round later than the status moves it there with the entry's day, a reached round with no date
   takes the day, and nothing moves back. A correction of the words alone never changes `step` or
   a date. Undo is `PUT …/standing`, and leaves the entry as corrected.

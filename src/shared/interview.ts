@@ -12,9 +12,9 @@
  * for an EARLIER round that was skipped gives that step the entry's day and
  * leaves the status where it is.
  *
- * A saved entry can be corrected and deleted (issue #81). A corrected day is
- * followed by the date of its round's step; deleting an entry leaves the
- * status and every date as they are.
+ * A saved entry can be corrected and deleted (issue #81). A corrected day
+ * can change the date of its round's step; deleting an entry leaves the status
+ * and every date as they are.
  */
 import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
 import type { Recording } from "./recording";
@@ -65,11 +65,12 @@ export function standingAfterInterview(standing: Standing, round: InterviewRound
 
 /**
  * Where an application stands once an entry's round or day is corrected
- * (issue #81). The step's date follows the entry it came from: a corrected day
- * replaces the date of the entry's round while that date is still the entry's
- * old day. A different date the author has set by hand since is left as it
- * is. Anything else is what saving the corrected entry new would do, so a
- * round changed to a later one moves the status there, and nothing an edit
+ * (issue #81). A corrected day replaces the date of its round while that date
+ * is still the entry's old day and no other live entry in the same round
+ * shares that day. A different step date is left as it is. A manually set
+ * date equal to the old day still follows the edit. Anything else is what
+ * saving the corrected entry new would do, so a round changed to a later one
+ * moves the status there, and nothing an edit
  * does moves it back. An edit of the words alone changes nothing here.
  */
 export function standingAfterEdit(

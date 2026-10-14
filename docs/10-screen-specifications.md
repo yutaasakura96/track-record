@@ -1655,11 +1655,11 @@ keeps the card and says why in the dialog.
   stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.
   A step that already has a date keeps it. `Other conversation` and entries on a closed application
   leave the standing alone and say `Interview saved.` Every entry still counts as activity (What a change is).
-- **A corrected day moves its round's step date with it**, when that date was still the entry's
-  old day (`07` §9b). It is said in Where it stands: `Interview saved, and the <step> date was
-  changed to match. Date saved as <date>.` with `Change the date` and `Undo`; Undo puts the date
-  back and keeps the entry as corrected. A date the author set by hand is left, and the save says
-  `Interview saved.` A round changed to a later one moves the status, said as for a new entry.
+- **A corrected day follows the step-date rule in `07` §9b.** When the step date changes, it
+  is said in Where it stands: `Interview saved, and the <step> date was changed to match. Date saved as <date>.`
+  with `Change the date` and `Undo`; Undo puts the date
+  back and keeps the entry as corrected. When the date stays, the save says `Interview saved.`
+  A round changed to a later one moves the status, said as for a new entry.
 - **Deleting an entry moves nothing back.** The status it moved the application to and the date it
   saved stay; they are changed in Where it stands if they are wrong.
 - **A correction or a delete counts as activity**, like the entry itself. A correction that

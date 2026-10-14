@@ -181,7 +181,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
   /**
    * Corrects an entry: every field, whole, over what was saved. A question
    * sent with its id stays the row it was, in its new place and with its new
-   * words; one left out is gone, and one with no id is new.
+   * words; one left out is stamped removed, and one with no id is new.
    *
    * A changed day or round is a change to where the application stands, by
    * `standingAfterEdit`. A correction that changes nothing writes nothing.
