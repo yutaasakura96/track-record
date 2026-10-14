@@ -17,7 +17,7 @@ const number = (n: number) => n.toLocaleString("en-US");
 export const QUIET = "text-small text-accent-link hover:text-accent-link-hover motion-tone whitespace-nowrap";
 /** `Button`'s secondary, for a control that is a link and so cannot be a `Button`. */
 export const SECONDARY =
-  "motion-surface whitespace-nowrap border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover";
+  "motion-surface whitespace-nowrap inline-flex items-center justify-center max-phone:min-h-control border border-border-strong text-text-secondary px-14 py-8 rounded-control text-micro font-medium hover:bg-hover";
 
 export function DocumentRow({
   row,

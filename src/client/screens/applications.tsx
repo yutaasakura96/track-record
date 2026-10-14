@@ -20,7 +20,7 @@ import { nameVersion } from "~/shared/application-documents";
 
 /** `Button`'s primary, for a control that is a link and so cannot be a `Button`. */
 const PRIMARY =
-  "motion-surface whitespace-nowrap bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover";
+  "motion-surface whitespace-nowrap inline-flex items-center justify-center max-phone:min-h-control bg-accent text-on-accent px-12 py-6 rounded-control text-button font-medium hover:bg-accent-hover";
 
 const FILTERS: [StatusBucket, string][] = [
   ["not_applied", "Not applied"],
@@ -162,7 +162,7 @@ function Row({ row }: { row: ApplicationRow }) {
         to="/applications/$applicationId"
         params={{ applicationId: row.id }}
         aria-label={`Open ${row.company}`}
-        className="flex items-center gap-12 px-10 py-12 rounded-control hover:bg-hover motion-surface"
+        className="flex items-center gap-12 max-phone:flex-col max-phone:items-stretch max-phone:gap-6 px-10 py-12 rounded-control hover:bg-hover motion-surface"
       >
         <span className="min-w-0 flex-1 grid gap-2">
           <span className={`text-row font-medium ${closed ? "text-text-muted" : "text-text-strong"}`}>
@@ -176,7 +176,7 @@ function Row({ row }: { row: ApplicationRow }) {
             ))}
           </span>
         </span>
-        <span className="ml-auto shrink-0 grid gap-4 justify-items-end">
+        <span className="ml-auto max-phone:ml-0 shrink-0 grid gap-4 justify-items-end max-phone:justify-items-start">
           <StatusLine standing={row} />
           {row.quietDays !== null ? (
             <QuietChip quietDays={row.quietDays} />
