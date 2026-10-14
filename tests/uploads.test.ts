@@ -17,7 +17,7 @@ import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { harness, stubModel, type Client, type Harness, type SeededUser } from "./helpers/harness";
 import { SECOND_EMAIL, seedAllowedUser } from "./helpers/seed";
-import { interviewRecordings } from "~/server/db/schema";
+import { applications, interviewRecordings } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { peekBody, putRecording, rangeOf, recordingObjectKey } from "~/server/services/recording-store";
 import { RECORDING_MAX_BYTES, audioTypeOf, keptFileName, type Recording } from "~/shared/recording";
@@ -330,6 +330,17 @@ describe("playing it back", () => {
     );
     await response.arrayBuffer();
   });
+  it("escapes what RFC 8187 leaves out of filename*, so the name survives", async () => {
+    const { id, interviewId } = await noted();
+    const after = (await (await upload(id, interviewId, mp3(1024), { name: "面接's call (1)*.mp3" })).json()) as Detail;
+    const recordingId = after.interviews[0]!.recordings[0]!.id;
+
+    const response = await client.get(`${audioOf(id, interviewId, recordingId)}?download`);
+    expect(response.headers.get("content-disposition")).toBe(
+      `attachment; filename="__'s call (1)*.mp3"; filename*=UTF-8''%E9%9D%A2%E6%8E%A5%27s%20call%20%281%29%2A.mp3`,
+    );
+    await response.arrayBuffer();
+  });
 });
 
 describe("only its owner reaches it", () => {
@@ -394,6 +405,41 @@ describe("removing it", () => {
     await expect(
       app.db.update(interviewRecordings).set({ removedAt: new Date() }).where(eq(interviewRecordings.id, recordingId)),
     ).rejects.toThrow();
+  });
+});
+
+describe("a removal refused because the application changed", () => {
+  it.each([
+    ["removing the recording", (id: string, interviewId: string, recordingId: string) => client.delete(`${base(id, interviewId)}/${recordingId}`)],
+    ["deleting its entry", (id: string, interviewId: string) => client.delete(`/api/applications/${id}/interviews/${interviewId}`)],
+  ])("leaves the file playable when %s is refused with 409", async (_, remove) => {
+    const bytes = mp3(2048);
+    const { id, interviewId, recordingId } = await uploaded(bytes);
+
+    // Another save lands after the removal read the application and before it writes.
+    let owner = app.db as object;
+    while (!Object.hasOwn(owner, "batch")) owner = Object.getPrototypeOf(owner) as object;
+    const holder = owner as { batch: (...args: unknown[]) => Promise<unknown> };
+    const original = holder.batch;
+    const spy = vi.spyOn(holder, "batch").mockImplementationOnce(async function (this: unknown, ...args: unknown[]) {
+      await app.db.update(applications).set({ lastActivityAt: new Date(DAY_ONE.getTime() + 60_000) }).where(eq(applications.id, id));
+      return original.apply(this, args);
+    });
+    try {
+      expect((await remove(id, interviewId, recordingId)).status).toBe(409);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(await bucket.head(recordingObjectKey(user.id, recordingId))).not.toBeNull();
+    const played = await client.get(audioOf(id, interviewId, recordingId));
+    expect(played.status).toBe(200);
+    expect(new Uint8Array(await played.arrayBuffer())).toEqual(bytes);
+    expect((await client.json<Detail>(`/api/applications/${id}`)).interviews[0]!.recordings[0]).toMatchObject({ kind: "upload" });
+
+    // Tried again on the application as it is now, it goes through and the file goes with it.
+    expect((await remove(id, interviewId, recordingId)).status).toBe(200);
+    expect(await bucket.head(recordingObjectKey(user.id, recordingId))).toBeNull();
   });
 });
 

@@ -8,7 +8,8 @@
  * `Upload audio` and `Add a link instead`.
  *
  * A file is checked here as the server checks it, its size and its first
- * bytes, so one that would be refused is refused before anything is sent. An
+ * bytes, so one that would be refused is refused before anything is sent. Here
+ * alone, a video in an MP4 or Ogg container is refused too. An
  * upload is one request whose progress is shown; one cut off says so with
  * `Try again`, and nothing is listed, since the server lists a recording only
  * once its whole file is stored.
@@ -32,6 +33,8 @@ import {
   UNLABELLED_LINK,
   audioTypeOf,
   emptyFile,
+  holdsVideo,
+  isVideo,
   isWebLink,
   megabytes,
   notAudio,
@@ -323,7 +326,9 @@ async function refusalOf(file: File): Promise<string | null> {
   if (file.size === 0) return emptyFile(file.name);
   if (file.size > RECORDING_MAX_BYTES) return tooLarge(file.name, file.size);
   const head = new Uint8Array(await file.slice(0, AUDIO_HEAD_BYTES).arrayBuffer());
-  return audioTypeOf(head) ? null : notAudio(file.name, file.type || undefined);
+  const type = audioTypeOf(head);
+  if (!type) return notAudio(file.name, file.type || undefined);
+  return (await holdsVideo(file, type)) ? isVideo(file.name) : null;
 }
 
 /**

@@ -76,8 +76,9 @@ const ascii = (head: Uint8Array, from: number, to: number) => String.fromCharCod
  * when it is not one of {@link AUDIO_KINDS}. The browser's claim is never
  * used: it is whatever the file's name says.
  *
- * It reads the container and not every track in it, so an M4A or Ogg file
- * holding a picture track as well passes (decision log, 2026-10-15).
+ * It reads the container and not every track in it, so an MP4 or Ogg video
+ * passes here; {@link holdsVideo} is what refuses one, in the browser
+ * (decision log, 2026-10-15).
  */
 export function audioTypeOf(head: Uint8Array): string | null {
   if (head.length < AUDIO_HEAD_BYTES) return null;
@@ -93,6 +94,66 @@ export function audioTypeOf(head: Uint8Array): string | null {
   if (ascii(head, 0, 4) === "fLaC") return "audio/flac";
   if (ascii(head, 0, 4) === "OggS") return "audio/ogg";
   return null;
+}
+
+const bytesOf = async (file: Blob, from: number, to: number) =>
+  new Uint8Array(await file.slice(from, Math.min(to, file.size)).arrayBuffer());
+
+/**
+ * The boxes of an MP4 file between `from` and `to`, read by their headers
+ * alone: a 32-bit size, the type, and a 64-bit size after it when the first is
+ * 1. A size of 0 runs to `to`. One that does not fit ends the walk.
+ */
+async function* boxesOf(file: Blob, from: number, to: number) {
+  let at = from;
+  while (at + 8 <= to) {
+    const header = await bytesOf(file, at, at + 16);
+    if (header.length < 8) return;
+    const view = new DataView(header.buffer, header.byteOffset, header.byteLength);
+    const small = view.getUint32(0);
+    let start = at + 8;
+    let end = at + small;
+    if (small === 1) {
+      if (header.length < 16) return;
+      start = at + 16;
+      end = at + Number(view.getBigUint64(8));
+    } else if (small === 0) {
+      end = to;
+    }
+    if (end < start || end > to) return;
+    yield { type: ascii(header, 4, 8), start, end };
+    at = end;
+  }
+}
+
+async function boxIn(file: Blob, from: number, to: number, type: string) {
+  for await (const box of boxesOf(file, from, to)) if (box.type === type) return box;
+  return null;
+}
+
+/**
+ * Whether a file {@link audioTypeOf} took for audio is a video: an MP4 with a
+ * track whose handler is `vide`, wherever its `moov` sits, or an Ogg file whose
+ * first stream is Theora. Only box headers, each track's `hdlr` and the first
+ * Ogg page are read, never the media. The browser asks this before sending; the
+ * server does not (decision log, 2026-10-15).
+ */
+export async function holdsVideo(file: Blob, type: string): Promise<boolean> {
+  if (type === "audio/ogg") {
+    const page = await bytesOf(file, 0, 27 + 255 + 7);
+    const packet = 27 + (page[26] ?? 0);
+    return page[packet] === 0x80 && ascii(page, packet + 1, packet + 7) === "theora";
+  }
+  if (type !== "audio/mp4") return false;
+  const moov = await boxIn(file, 0, file.size, "moov");
+  if (!moov) return false;
+  for await (const trak of boxesOf(file, moov.start, moov.end)) {
+    if (trak.type !== "trak") continue;
+    const mdia = await boxIn(file, trak.start, trak.end, "mdia");
+    const hdlr = mdia && (await boxIn(file, mdia.start, mdia.end, "hdlr"));
+    if (hdlr && ascii(await bytesOf(file, hdlr.start + 8, hdlr.start + 12), 0, 4) === "vide") return true;
+  }
+  return false;
 }
 
 /** A size as a row and a refusal read it: `46 MB`, `3.2 MB`, `0.4 MB`. */
@@ -113,6 +174,9 @@ export const tooLarge = (name: string, bytes: number) =>
 
 export const notAudio = (name: string, type?: string) =>
   `${name}${type ? `, ${type},` : ""} is not audio this app keeps. It takes ${AUDIO_KINDS}, up to ${RECORDING_MAX_MB} MB.`;
+
+export const isVideo = (name: string) =>
+  `${name} is a video. This app keeps audio only: ${AUDIO_KINDS}, up to ${RECORDING_MAX_MB} MB.`;
 
 export const emptyFile = (name: string) => `${name} is empty. Choose the recording itself.`;
 

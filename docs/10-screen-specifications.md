@@ -1711,7 +1711,9 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
   prototype's `Upload audio or video`, its `Video` chip and its `2 GB` are not the spec. The kinds
   are MP3, M4A, AAC, WAV, FLAC and Ogg, told apart by the file's first bytes, in the browser
   before anything is sent and again by the server; the limit is the platform's (decision log,
-  2026-10-15).
+  2026-10-15). An MP4 with a video track, or an Ogg file that is Theora video, is refused in the
+  browser before anything is sent; the server checks only the first bytes (decision log,
+  2026-10-15, the second entry).
 - **A link is `http` or `https`**, or it is refused: `That does not look like a link. It should
   start with https://` It is refused before anything is sent and again by the server, and `Open`
   is drawn only for an address that passes the same rule, so no other kind of address is ever
@@ -1725,7 +1727,7 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
 | State | Behaviour |
 |---|---|
 | **No entries** | `None yet. After each one, note the date, who you spoke with, how it went and the questions they asked.` |
-| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit: `<name> is 95.0 MB. A recording can be at most 90 MB.`, or `<name>, <type>, is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` An empty file: `<name> is empty. Choose the recording itself.` |
+| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit: `<name> is 95.0 MB. A recording can be at most 90 MB.`, or `<name>, <type>, is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` A video: `<name> is a video. This app keeps audio only: MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` An empty file: `<name> is empty. Choose the recording itself.` |
 | **Upload interrupted** | The row says so with `Try again`; nothing is listed as a recording |
 
 #### The job · #70

@@ -771,11 +771,12 @@ enum value cannot be used in the transaction that adds it.
   statement, so nothing that said what the recording was stays in the database and the entry can
   still say `A recording was removed on <date>`. The date shown is the day in Japan of
   `removed_at`. `removed_at` is not a soft delete: nothing of the recording is kept behind it.
-- **An upload's file is stored before its row and deleted before its row is emptied** (`06`,
-  2026-10-15), so a row never names a file that is not there. An upload cut off leaves no row; a
-  row that cannot be written takes the file just stored with it; a removal that fails after the
-  file is deleted is finished by trying again. The day an upload reads as uploaded is the day in
-  Japan of `created_at`.
+- **An upload's file is stored before its row and deleted after its row is emptied** (`06`,
+  2026-10-15, both entries), so a live row never names a file that is not there. An upload cut off
+  leaves no row; a row that cannot be written takes the file just stored with it; a removal refused
+  by the conflict guard leaves the file playable, and a file whose delete fails after its row is
+  emptied is left unnamed in the bucket and logged by id. The day an upload reads as uploaded is
+  the day in Japan of `created_at`.
 - **Adding and removing one are activity on the application.** Both are written in one `db.batch`
   with `applications.last_activity_at` and under its conflict guard (`07` §9b).
 - **Not in the export** (S24). The entry it hangs from is.

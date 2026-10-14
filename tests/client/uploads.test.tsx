@@ -123,6 +123,40 @@ function m4a(name = "fernhill-final.m4a", size?: number) {
   return file;
 }
 
+const text = (value: string) => [...new TextEncoder().encode(value)];
+const bigEndian = (value: number, bytes: number) =>
+  Array.from({ length: bytes }, (_, at) => Math.floor(value / 256 ** (bytes - 1 - at)) % 256);
+
+/** An MP4 box: its 32-bit size, its type and what it holds. */
+const box = (type: string, ...content: number[][]) => {
+  const body = content.flat();
+  return [...bigEndian(8 + body.length, 4), ...text(type), ...body];
+};
+const zeros = (length: number) => new Array<number>(length).fill(0);
+const track = (handler: string) =>
+  box("trak", box("tkhd", zeros(84)), box("mdia", box("mdhd", zeros(24)), box("hdlr", zeros(8), text(handler), zeros(13))));
+
+/**
+ * An invented MP4 with a generic brand and one track for each handler. Its
+ * `mdat` comes first with a 64-bit size when `moovLast`, and last with a size
+ * of 0, running to the end, otherwise.
+ */
+function mp4(name: string, brand: string, handlers: string[], { moovLast = false } = {}) {
+  const ftyp = box("ftyp", text(brand), zeros(4), text("isom"));
+  const moov = box("moov", box("mvhd", zeros(100)), ...handlers.map(track));
+  const media = zeros(4096);
+  const parts = moovLast
+    ? [ftyp, [...bigEndian(1, 4), ...text("mdat"), ...bigEndian(16 + media.length, 8), ...media], moov]
+    : [ftyp, moov, [...bigEndian(0, 4), ...text("mdat"), ...media]];
+  return new File([new Uint8Array(parts.flat())], name, { type: "audio/mp4" });
+}
+
+/** An invented Ogg file whose first page carries one packet. */
+function ogg(name: string, packet: number[]) {
+  const page = [...text("OggS"), 0, 0x02, ...zeros(8), 1, 0, 0, 0, ...zeros(4), ...zeros(4), 1, packet.length, ...packet];
+  return new File([new Uint8Array([...page, ...zeros(2048)])], name, { type: "audio/ogg" });
+}
+
 function open(start: Recording[] = [], routes: Routes = {}) {
   let recordings = start;
   return mount(`/applications/${ID}`, {
@@ -223,6 +257,34 @@ describe("uploading one", () => {
       "posting.mp3, audio/mpeg, is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.",
     );
     expect(FakeRequest.sent).toEqual([]);
+  });
+
+  // Each renamed as audio, which is how a video gets past the chooser's filter.
+  it.each([
+    ["an MP4 with a generic brand and a video track", mp4("fernhill-call.m4a", "isom", ["soun", "vide"])],
+    ["an MP4 branded mp42 whose moov comes after the media", mp4("fernhill-call.m4a", "mp42", ["vide", "soun"], { moovLast: true })],
+    ["an Ogg Theora file", ogg("fernhill-call.ogg", [0x80, ...text("theora"), ...zeros(34)])],
+  ])("refuses %s before sending it, saying it is a video", async (_, file) => {
+    const { user } = open();
+    await choose(user, file);
+
+    expect((await within(await card()).findByRole("alert")).textContent).toBe(
+      `${file.name} is a video. This app keeps audio only: MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.`,
+    );
+    expect(FakeRequest.sent).toEqual([]);
+  });
+
+  it.each([
+    ["an Android M4A with a generic brand and only a sound track", mp4("fernhill-call.m4a", "isom", ["soun"])],
+    ["one whose moov comes after the media", mp4("fernhill-call.m4a", "mp42", ["soun"], { moovLast: true })],
+    ["an Ogg Vorbis file", ogg("fernhill-call.ogg", [0x01, ...text("vorbis"), ...zeros(23)])],
+    ["an Ogg Opus file", ogg("fernhill-call.opus", [...text("OpusHead"), ...zeros(11)])],
+  ])("sends %s", async (_, file) => {
+    const { user } = open();
+    await choose(user, file);
+
+    await waitFor(() => expect(FakeRequest.sent).toHaveLength(1));
+    expect(FakeRequest.sent[0]!.body).toBe(file);
   });
 
   it("sends the file as the body with its name encoded, shows its progress, and lists it once the server has it", async () => {

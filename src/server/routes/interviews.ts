@@ -23,8 +23,8 @@
  * A recording on an entry is a link to one kept elsewhere (issue #74), of
  * which only the link is stored and nothing here fetches it, or an uploaded
  * audio file (#76, uploaded and played in `./recordings.ts`). It is the one
- * thing the author can remove: an upload's file is deleted from the bucket,
- * and then its row is emptied as a link's is. Adding and removing one are
+ * thing the author can remove: its row is emptied as a link's is, and then an
+ * upload's file is deleted from the bucket. Adding and removing one are
  * changes to the application, so both go through `saveStanding` with the
  * standing as it was, which marks the application as changed and refuses a
  * write over a newer one.
@@ -114,6 +114,20 @@ const EMPTIED = (now: Date) => ({
   removedAt: now,
   updatedAt: now,
 });
+
+/**
+ * Deletes the files of uploads whose rows were just emptied. The row went
+ * first, under the conflict guard, so a refused removal leaves the file
+ * playable. A file whose delete then fails is left in the bucket, where
+ * nothing names or serves it, and is logged by id.
+ */
+async function deleteFiles(bucket: R2Bucket, userId: string, applicationId: string, interviewId: string, recordingIds: string[]) {
+  try {
+    await deleteRecordings(bucket, recordingIds.map((recordingId) => recordingObjectKey(userId, recordingId)));
+  } catch {
+    console.log(JSON.stringify({ event: "recording_file_left", applicationId, interviewId, recordingIds }));
+  }
+}
 
 /** What every saved entry must satisfy, new or corrected. */
 function checkEntry(entry: { date: string; howItWent: string; questions: unknown[] }) {
@@ -331,8 +345,6 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
     const { row, steps, standing } = await readStanding(db, user.id, id);
     await requireInterview(db, user.id, id, interviewId);
 
-    // Its uploaded files go first, so a delete that fails after them is
-    // finished by trying again rather than leaving a row naming a file.
     const uploads = await db
       .select({ id: interviewRecordings.id })
       .from(interviewRecordings)
@@ -344,7 +356,6 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
           isNull(interviewRecordings.removedAt),
         ),
       );
-    await deleteRecordings(c.env.RECORDINGS, uploads.map((upload) => recordingObjectKey(user.id, upload.id)));
 
     const now = new Date();
     await saveStanding(db, user.id, id, row, steps, standing, [
@@ -363,6 +374,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
           ),
         ),
     ]);
+    await deleteFiles(c.env.RECORDINGS, user.id, id, interviewId, uploads.map((upload) => upload.id));
     console.log(JSON.stringify({ event: "interview_removed", applicationId: id, interviewId }));
 
     return c.json(await detail(db, user.id, id));
@@ -399,10 +411,9 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
   });
 
   /**
-   * Removes a recording for good. An upload's file is deleted from the bucket
-   * first; then the link and its label, or what described the file, are
-   * emptied and the row stays, so the entry keeps a line saying one was
-   * removed and when.
+   * Removes a recording for good. The link and its label, or what described
+   * the file, are emptied and the row stays, so the entry keeps a line saying
+   * one was removed and when; an upload's file is deleted from the bucket after.
    */
   api.delete("/api/applications/:id/interviews/:interviewId/recordings/:recordingId", async (c) => {
     const user = c.get("user");
@@ -426,13 +437,12 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
       .limit(1);
     // One already removed is a miss too: there is nothing left of it to remove.
     if (!recording) throw notFound("That recording");
-    // Deleting a file already gone is not an error, so a removal that failed after this is finished by trying again.
-    if (recording.kind === "upload") await deleteRecordings(c.env.RECORDINGS, [recordingObjectKey(user.id, recordingId)]);
 
     const now = new Date();
     await saveStanding(db, user.id, id, row, steps, standing, [
       db.update(interviewRecordings).set(EMPTIED(now)).where(live),
     ]);
+    if (recording.kind === "upload") await deleteFiles(c.env.RECORDINGS, user.id, id, interviewId, [recordingId]);
     console.log(
       JSON.stringify({ event: "recording_removed", applicationId: id, interviewId, recordingId, kind: recording.kind }),
     );

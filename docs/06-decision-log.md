@@ -6388,3 +6388,32 @@ buffering.
 
 **Revisit if:** the owner has a recording over 90 MB, most likely a long WAV, which is the day to
 build multipart upload; or the account moves to a plan with a larger request body limit.
+
+### [2026-10-15] A video in an MP4 or Ogg container is refused by the browser, and a removal empties the row before it deletes the file
+
+Issue #76, review of the entry above. Two of its statements are superseded.
+
+**A whole video is refused, not accepted as a container.** The generic MP4 brands `isom`, `mp42`,
+`mp41` and `iso2` stay accepted, because that is what an Android phone writes on an M4A; they are
+also what a phone camera writes on a video. So before anything is sent, the browser walks the MP4's
+boxes by their size headers alone (64-bit sizes and a size of 0 included) to `moov`, wherever it
+sits, and refuses the file when any `trak`'s `mdia/hdlr` names a `vide` handler. An Ogg file whose
+first stream begins with a Theora packet is refused the same way. The refusal names the file, says
+it is a video and that the app keeps audio only, with the kinds and the 90 MB limit.
+
+**The server does not re-inspect tracks.** It keeps the 12-byte check of the first bytes. The body
+is streamed straight to R2 and is never held, and an MP4's `moov` can sit at the end of the file,
+after the media, so reading the tracks on the server would mean buffering the file or reading it a
+second time from R2. The browser's check, with every file reachable only by its owner, is enough
+for an app with one owner.
+
+**Removing an upload empties its row first and deletes its file after.** The entry above deleted
+the file first so that a failed removal was finished by trying again; but the row is written under
+the application's conflict guard, and a removal refused with `409` then left a row naming a file
+that was gone. Now the row is emptied, under the guard, and only then is the file deleted, for one
+recording and for every upload on an entry being deleted alike. A refused removal leaves the file
+playable. A delete that fails after the row is emptied leaves a file nothing names or serves; it is
+logged by recording id, never by name.
+
+**Revisit if:** the app has a second user, or the server comes to read a whole upload for another
+reason, which is the day to check tracks there too.
