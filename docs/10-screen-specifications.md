@@ -1627,13 +1627,14 @@ saved (#81). Three things differ:
   can be put right where it stands. One emptied is dropped on save.
 - The line about recordings is absent: the card it came from carries them.
 - The primary button is **`Save changes`**. Saved, the card is drawn again and it says `Interview
-  saved.` `Cancel` puts the card back unchanged.
+  saved.` `Cancel` puts the card back unchanged. While the save is pending, `Cancel` and every
+  other card's `Edit` are disabled, `Saving…`, so the form cannot close on a write that still lands.
 
 **`Delete` asks once, in the card**, under its first line and with the rest of the card still
 there to read, as an alert dialog: `Delete this entry? Its notes and questions are taken off this
 application, and there is no undo.`, then `Its recording links are removed with it.` when it has
 one, then `The status and its dates stay as they are.` **`Delete it`** (secondary) and `Keep it`
-(bare), which has the focus. Deleted, it says `Interview deleted.` A delete the server refuses
+(bare), which has the focus and is disabled, `Deleting…`, while the delete is pending. Deleted, it says `Interview deleted.` A delete the server refuses
 keeps the card and says why in the dialog.
 
 **Rules**
