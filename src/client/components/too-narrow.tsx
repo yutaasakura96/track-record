@@ -1,5 +1,5 @@
 /**
- * Desktop only, minimum 1280px (`docs/10-screen-specifications.md`).
+ * The document review screens need a desktop window (`docs/10-screen-specifications.md`).
  *
  * The two core screens are irreducibly two-pane — source beside facts, current
  * beside proposed — and neither survives a phone. Below 1024px the app states
@@ -10,10 +10,12 @@
  * desktop gate is a product decision rather than a layout limitation.
  */
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouterState } from "@tanstack/react-router";
 
 const MINIMUM = 1024;
 
 export function TooNarrow({ children }: { children: ReactNode }) {
+  const path = useRouterState({ select: (state) => state.location.pathname });
   const [width, setWidth] = useState(() =>
     typeof window === "undefined" ? MINIMUM : window.innerWidth,
   );
@@ -24,7 +26,7 @@ export function TooNarrow({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  if (width >= MINIMUM) return <>{children}</>;
+  if (width >= MINIMUM || path === "/applications" || path.startsWith("/applications/")) return <>{children}</>;
 
   return (
     <div className="min-h-screen grid place-items-center px-20">

@@ -268,18 +268,20 @@ function Body({ application }: { application: Application }) {
 
       <Panel heading="Where it stands">
         <div className="grid gap-14">
-          <ol className="grid grid-cols-7">
-            {APPLICATION_STEPS.map((step, index) => (
-              <StepColumn
-                key={step}
-                step={step}
-                state={index === current && !application.closedAs ? "now" : index <= current ? "done" : "ahead"}
-                last={index === APPLICATION_STEPS.length - 1}
-              >
-                {index <= current ? dateControl(step, step === "not_applied" ? "added " : "") : null}
-              </StepColumn>
-            ))}
-          </ol>
+          <div className="overflow-x-auto">
+            <ol className="grid grid-cols-7 max-sm:min-w-measure">
+              {APPLICATION_STEPS.map((step, index) => (
+                <StepColumn
+                  key={step}
+                  step={step}
+                  state={index === current && !application.closedAs ? "now" : index <= current ? "done" : "ahead"}
+                  last={index === APPLICATION_STEPS.length - 1}
+                >
+                  {index <= current ? dateControl(step, step === "not_applied" ? "added " : "") : null}
+                </StepColumn>
+              ))}
+            </ol>
+          </div>
 
           {moved ? (
             <div
@@ -307,7 +309,7 @@ function Body({ application }: { application: Application }) {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-8">
             <Figure
               value={application.daysSinceResumePassed}
               label="since the résumé passed"

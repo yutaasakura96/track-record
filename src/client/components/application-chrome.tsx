@@ -44,9 +44,11 @@ export function ApplicationsFrame({
 
   return (
     <div className="h-screen flex">
-      <Sidebar name={profile.data?.nameLatin ?? ""} />
+      <div className="max-sm:hidden">
+        <Sidebar name={profile.data?.nameLatin ?? ""} />
+      </div>
       <div className="flex-1 min-w-0 flex flex-col">
-        <header className="h-header shrink-0 flex items-center gap-12 px-20 bg-surface border-b border-border">
+        <header className="min-h-header shrink-0 flex items-center gap-12 px-10 sm:px-20 bg-surface border-b border-border">
           <h1 className="min-w-0 truncate text-panel font-semibold tracking-snug text-text-strong">
             {crumb ? (
               <>
@@ -58,11 +60,11 @@ export function ApplicationsFrame({
             ) : null}
             {title}
           </h1>
-          {note ? <span className="min-w-0 truncate text-smaller text-text-dimmer">{note}</span> : null}
+          {note ? <span className="min-w-0 truncate text-smaller text-text-dimmer max-sm:hidden">{note}</span> : null}
           {action ? <span className="ml-auto shrink-0 flex gap-8">{action}</span> : null}
         </header>
 
-        <div className="flex-1 overflow-y-auto px-20 py-26">
+        <div className="flex-1 overflow-y-auto px-10 sm:px-20 py-26">
           <div className="mx-auto w-content max-w-full grid gap-20">{children}</div>
         </div>
       </div>

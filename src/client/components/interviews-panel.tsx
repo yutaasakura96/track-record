@@ -311,7 +311,7 @@ function InterviewForm({
   return (
     <div className="min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-12">
       <h3 className="text-row font-medium text-text-strong">{entry ? "Edit interview" : "New interview"}</h3>
-      <div className="grid grid-cols-2 gap-12">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-12">
         <label className="grid gap-4 min-w-0">
           <span className="text-small text-text-secondary">Date</span>
           <input
@@ -374,7 +374,7 @@ function InterviewForm({
               // Keyed by place unless it is saved: until then a question has no identity but its position in the list.
               return entry ? (
                 <li key={question.id ?? index}>
-                  <div className="flex items-center gap-6">
+                  <div className="flex min-w-0 items-center gap-6">
                     <input
                       name={`question${index + 1}`}
                       aria-label={`Question ${index + 1}`}
@@ -395,7 +395,7 @@ function InterviewForm({
             })}
           </ol>
         ) : null}
-        <div className="flex items-center gap-6">
+        <div className="flex min-w-0 items-center gap-6">
           <input
             ref={field}
             name="question"
