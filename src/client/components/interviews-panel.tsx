@@ -15,7 +15,14 @@
  * hands the change up rather than confirming it here.
  */
 import { useRef, useState, type ClipboardEvent, type KeyboardEvent } from "react";
-import { failureText, useAddInterview, useInterviewActions, type Application, type InterviewCorrection } from "../api";
+import {
+  failureText,
+  useAddInterview,
+  useCorrectInterview,
+  useDeleteInterview,
+  type Application,
+  type InterviewCorrection,
+} from "../api";
 import { useFlashStore } from "../stores/flash";
 import type { ApplicationStep, Standing } from "~/shared/application";
 import {
@@ -47,6 +54,7 @@ export function InterviewsPanel({
   const [adding, setAdding] = useState(false);
   /** The entry open for correction, by id. */
   const [editing, setEditing] = useState<string | null>(null);
+  const correct = useCorrectInterview(application.id);
   const flash = useFlashStore((state) => state.show);
   const entries = application.interviews;
 
@@ -94,10 +102,23 @@ export function InterviewsPanel({
           {entries.map((entry) =>
             editing === entry.id ? (
               <li key={entry.id} className="min-w-0">
-                <EditInterview application={application} entry={entry} onSaved={corrected} onCancel={() => setEditing(null)} />
+                <InterviewForm
+                  application={application}
+                  entry={entry}
+                  pending={correct.isPending}
+                  onSave={(fields) => correct.mutateAsync({ ...fields, interviewId: entry.id })}
+                  onSaved={corrected}
+                  onCancel={() => setEditing(null)}
+                />
               </li>
             ) : (
-              <InterviewCard key={entry.id} applicationId={application.id} entry={entry} onEdit={() => setEditing(entry.id)} />
+              <InterviewCard
+                key={entry.id}
+                applicationId={application.id}
+                entry={entry}
+                saving={correct.isPending}
+                onEdit={() => setEditing(entry.id)}
+              />
             ),
           )}
         </ul>
@@ -106,8 +127,19 @@ export function InterviewsPanel({
   );
 }
 
-function InterviewCard({ applicationId, entry, onEdit }: { applicationId: string; entry: Interview; onEdit: () => void }) {
-  const { remove } = useInterviewActions(applicationId, entry.id);
+function InterviewCard({
+  applicationId,
+  entry,
+  saving,
+  onEdit,
+}: {
+  applicationId: string;
+  entry: Interview;
+  /** Another entry's correction is pending. */
+  saving: boolean;
+  onEdit: () => void;
+}) {
+  const remove = useDeleteInterview(applicationId, entry.id);
   const flash = useFlashStore((state) => state.show);
   const [deleting, setDeleting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
@@ -132,7 +164,14 @@ function InterviewCard({ applicationId, entry, onEdit }: { applicationId: string
         {entry.who ? <span className="text-small text-text-muted">with {entry.who}</span> : null}
         {deleting ? null : (
           <span className="ml-auto flex items-baseline gap-12">
-            <button type="button" aria-label={`Edit ${name}`} onClick={onEdit} className={QUIET}>
+            <button
+              type="button"
+              aria-label={`Edit ${name}`}
+              onClick={onEdit}
+              disabled={saving}
+              title={saving ? "Saving…" : undefined}
+              className={`${QUIET} disabled:text-text-faint disabled:hover:text-text-faint`}
+            >
               Edit
             </button>
             <button type="button" aria-label={`Delete ${name}`} onClick={() => setDeleting(true)} className={QUIET}>
@@ -204,30 +243,6 @@ function NewInterview({
       application={application}
       pending={add.isPending}
       onSave={({ questions, ...fields }) => add.mutateAsync({ ...fields, questions: questions.map((question) => question.text) })}
-      onSaved={onSaved}
-      onCancel={onCancel}
-    />
-  );
-}
-
-function EditInterview({
-  application,
-  entry,
-  onSaved,
-  onCancel,
-}: {
-  application: Application;
-  entry: Interview;
-  onSaved: (next: Application, round: InterviewRound) => void;
-  onCancel: () => void;
-}) {
-  const { correct } = useInterviewActions(application.id, entry.id);
-  return (
-    <InterviewForm
-      application={application}
-      entry={entry}
-      pending={correct.isPending}
-      onSave={(fields) => correct.mutateAsync(fields)}
       onSaved={onSaved}
       onCancel={onCancel}
     />

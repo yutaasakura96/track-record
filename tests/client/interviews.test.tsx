@@ -500,6 +500,28 @@ describe("correcting a saved entry", () => {
     );
     expect((within(form).getByLabelText("How it went") as HTMLTextAreaElement).value).toBe(`${FIRST.howItWent} And long.`);
   });
+
+  it("keeps the form it was sent from, and every other entry closed, until a pending save answers", async () => {
+    let answer!: (refusal: Refusal) => void;
+    const { user } = open(FERNHILL, [SECOND, FIRST], {
+      [`PUT ${AT}/interviews/${FIRST.id}`]: () => new Promise<Refusal>((resolve) => (answer = resolve)),
+    });
+    const form = await openEdit(user);
+    await user.click(within(form).getByRole("button", { name: "Save changes" }));
+
+    const other = screen.getByRole("button", { name: "Edit the Second interview entry of 2026-10-02" }) as HTMLButtonElement;
+    expect(other.disabled).toBe(true);
+    expect(other.title).toBe("Saving…");
+    expect((within(form).getByRole("button", { name: "Cancel" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(other);
+    expect(screen.getAllByRole("heading", { name: "Edit interview" })).toHaveLength(1);
+
+    answer(new Refusal(409, "conflict", "This application was changed somewhere else. Reload it and try again."));
+    expect((await within(form).findByRole("alert")).textContent).toBe(
+      "This application was changed somewhere else. Reload it and try again.",
+    );
+    expect(other.disabled).toBe(false);
+  });
 });
 
 describe("deleting a saved entry", () => {

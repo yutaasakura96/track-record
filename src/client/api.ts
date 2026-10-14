@@ -1074,26 +1074,32 @@ export function useAddInterview(applicationId: string) {
 export type InterviewCorrection = Omit<InterviewFields, "questions"> & { questions: { id?: string; text: string }[] };
 
 /**
- * A saved interview entry corrected, or deleted (issue #81). Each answers with
- * the application afterwards; a corrected day or round can have changed where
- * it stands.
+ * A saved interview entry corrected (issue #81), named by `interviewId`. The
+ * answer is the application afterwards; a corrected day or round can have
+ * changed where it stands.
  */
-export function useInterviewActions(applicationId: string, interviewId: string) {
+export function useCorrectInterview(applicationId: string) {
   const queryClient = useQueryClient();
-  const at = `/api/applications/${applicationId}/interviews/${interviewId}`;
-  const settled = (next: Application) => {
-    queryClient.setQueryData(keys.application(applicationId), next);
-    void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
-  };
-  const correct = useMutation({
-    mutationFn: (body: InterviewCorrection) => api<Application>(at, { method: "PUT", ...json(body) }),
-    onSuccess: settled,
+  return useMutation({
+    mutationFn: ({ interviewId, ...body }: InterviewCorrection & { interviewId: string }) =>
+      api<Application>(`/api/applications/${applicationId}/interviews/${interviewId}`, { method: "PUT", ...json(body) }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.application(applicationId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    },
   });
-  const remove = useMutation({
-    mutationFn: () => api<Application>(at, { method: "DELETE" }),
-    onSuccess: settled,
+}
+
+/** A saved interview entry deleted (issue #81). The answer is the application afterwards. */
+export function useDeleteInterview(applicationId: string, interviewId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Application>(`/api/applications/${applicationId}/interviews/${interviewId}`, { method: "DELETE" }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.application(applicationId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.applications, exact: true });
+    },
   });
-  return { correct, remove };
 }
 export type DocumentChange =
   /** Before Applied: which of the three are on the application, whole. */
