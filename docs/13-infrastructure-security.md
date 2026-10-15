@@ -16,7 +16,8 @@ defended.** The security baseline in `03-technical-design.md` §8 still applies;
 |---|---|---|---|
 | **The Worker** — SPA assets, Hono API, Workflow definitions | Cloudflare edge | **Stateless** | Cloudflare restarts it. No state to recover |
 | **Workflow instances** — one per import, one per generation | Cloudflare Workflows | **Durable** | **Resumes from its last completed step.** A crash mid-import loses one chunk, not the import. Instance state and logs retained **30 days** on the paid plan |
-| **Neon Postgres** | Neon — **region recorded at provisioning; see §8** | **Stateful — the only one** | The app is unusable until it returns. Nothing is lost |
+| **Neon Postgres** | Neon — **region recorded at provisioning; see §8** | **Stateful — the record** | The app is unusable until it returns. Nothing is lost |
+| **R2 bucket `track-record-recordings`** — uploaded interview recordings (#76), binding `RECORDINGS` | Cloudflare R2, APAC | **Stateful — files only** | Recordings cannot be played or uploaded; everything else works. Private: no `r2.dev` address and no custom domain, so the Worker's own route, behind the session, is the only way to a file |
 
 There are no containers, no VMs, no cron jobs, no queues, no cache tier, and no build servers of our
 own. **The durable-execution property is doing real work here**: it is what lets a nine-step import
@@ -36,6 +37,7 @@ changes.
 | Cloudflare Workers Paid | **$5.00** | 10M requests, 30M CPU-ms included. Nowhere near the limits |
 | Cloudflare Workflows | **$0.00** | 500k steps included; **waiting on the model is not billed** |
 | Neon | **$0.00** | Free tier: 0.5 GB, 100 CU-hours, scale-to-zero |
+| Cloudflare R2 | **$0.00** | Free tier: 10 GB-month of storage, 1M writes and 10M reads a month, no egress charge (pricing read 2026-10-15). At 90 MB a file at most, that is over a hundred recordings |
 | Anthropic | **~$1–2** | Bursty. The whole 2.4 MB corpus extracts once for ~$3 |
 | Domain | ~$1 | Amortised, already owned |
 | **Total** | **≈ $6–8/month** | Flat, and does not expire after twelve months |

@@ -1599,7 +1599,7 @@ questions they asked.`
   empty.
 - `Questions asked`, then the questions as a numbered list. Left out when there are none.
 - Its recordings, a row each in the order attached, then **`Attach a recording`** (ghost). A link
-  is built (#74), with the form's line about recordings; uploading audio follows in #76.
+  (#74) and an uploaded audio file (#76) are both built.
 
 **The form**, a card titled `New interview`, opened at the top of the panel:
 
@@ -1632,8 +1632,9 @@ saved (#81). Three things differ:
 
 **`Delete` asks once, in the card**, under its first line and with the rest of the card still
 there to read, as an alert dialog: `Delete this entry? Its notes and questions are taken off this
-application, and there is no undo.`, then `Its recording links are removed with it.` when it has
-one, then `The status and its dates stay as they are.` **`Delete it`** (secondary) and `Keep it`
+application, and there is no undo.`, then `Its recordings are removed with it, and their files are
+deleted from storage.` when it has an uploaded one, or `Its recording links are removed with it.`
+when it has only links, then `The status and its dates stay as they are.` **`Delete it`** (secondary) and `Keep it`
 (bare), which has the focus and is disabled, `Deleting…`, while the delete is pending. Deleted, it says `Interview deleted.` A delete the server refuses
 keeps the card and says why in the dialog.
 
@@ -1669,24 +1670,34 @@ keeps the card and says why in the dialog.
 
 | Kind | Reads | Actions |
 |---|---|---|
-| Uploaded audio | chip `Audio`, the file's name, `46 MB · 52 min · uploaded <date> · only you can play it` | `Play` (ghost; plays in the page, with seeking), `Download`, `Remove` |
+| Uploaded audio | chip `Audio`, the file's name, `46 MB · 52 min · uploaded <date> · only you can play it`; the length is left out when the browser could not read it, and one of an hour or more reads `1 h 05 min` | `Play` (ghost), `Download` (a quiet link that saves the file under its own name), `Remove` |
 | Link | chip `Link`, its label or `Recording kept elsewhere`, the address under it, wrapping anywhere | `Open` (a new tab), `Remove` |
 | Removed | `A recording was removed on <date>.` in `text-muted` | None |
 
+**`Play`** puts the browser's own player under the row, playing, with seeking; the bytes come from
+the Worker, which answers the ranges a seek asks for. `Play` is gone while the player is there.
+
 **`Attach a recording`** opens a card in place:
 
-- **`Upload audio`** (secondary; #76), **`Add a link instead`** (ghost; #74) and `Cancel`. Under
-  them: `Audio, up to <the limit> a file. It is stored privately and only you, signed in, can play
-  it. Other people's voices are on it, so nothing here shares it or sends it anywhere.` **Until #76
-  the card is the link form alone.**
+- **`Upload audio`** (secondary, with the focus), **`Add a link instead`** (ghost) and `Cancel`.
+  Under them: `Audio (MP3, M4A, AAC, WAV, FLAC or Ogg), up to 90 MB a file. It is stored privately
+  and only you, signed in, can play it. Other people's voices are on it, so nothing here shares it
+  or sends it anywhere.` `Upload audio` opens the file chooser, narrowed to those kinds, and the
+  file chosen is checked and sent at once. A refusal is said under the sentence, and the card
+  stays.
 - **The link form:** `Link to the recording` (placeholder `https://`), `What it is, in a few words`
   (placeholder `Their recording of the call`), `Only the link is kept. If the recording is taken
   down where it lives, it is gone here too.`, **`Add the link`** (secondary) and `Cancel`. The
   card opens with the cursor in the link field, and Enter in either field adds the link. Saved,
   it says `Link added.` A link that is refused keeps the card and what was typed, and says why
   under the buttons.
-- **Uploading**, a `role="status"` row: `Uploading <name>`, the progress bar of `05` §7, and `N of
-  M MB. Keep this page open.` Done, it says `Recording uploaded.`
+- **Uploading**, a `role="status"` row in place of the card: `Uploading <name>`, the progress bar
+  of `05` §7, and `N of M MB. Keep this page open.` Leaving the page while it runs asks first.
+  Done, the row is listed and it says `Recording uploaded.`
+- **Cut off**, an alert row in place of the card: `The upload of <name> stopped before it
+  finished, so nothing was kept.`, **`Try again`** (secondary), which sends the same file again,
+  and `Cancel`. Before saying so, the page reads the application again: a connection that dropped
+  after the server stored the file and before its answer arrived lists it as uploaded instead.
 
 **`Remove` asks once, in place of the row**, as an alert dialog: `Remove <name> for good?`, a
 link's name being its label, or `this link` when it has none, then
@@ -1696,9 +1707,13 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
 
 **Recording rules**
 
-- **Audio only.** No video, and no transcript (decision log, 2026-10-11). The prototype's `Upload
-  audio or video`, its `Video` chip and its `2 GB` are not the spec; #76 sets the size and type
-  limits and writes them into the sentence above.
+- **Audio only, up to 90 MB a file.** No video, and no transcript (decision log, 2026-10-11). The
+  prototype's `Upload audio or video`, its `Video` chip and its `2 GB` are not the spec. The kinds
+  are MP3, M4A, AAC, WAV, FLAC and Ogg, told apart by the file's first bytes, in the browser
+  before anything is sent and again by the server; the limit is the platform's (decision log,
+  2026-10-15). An MP4 with a video track, or an Ogg file that is Theora video, is refused in the
+  browser before anything is sent; the server checks only the first bytes (decision log,
+  2026-10-15, the second entry).
 - **A link is `http` or `https`**, or it is refused: `That does not look like a link. It should
   start with https://` It is refused before anything is sent and again by the server, and `Open`
   is drawn only for an address that passes the same rule, so no other kind of address is ever
@@ -1712,7 +1727,7 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
 | State | Behaviour |
 |---|---|
 | **No entries** | `None yet. After each one, note the date, who you spoke with, how it went and the questions they asked.` |
-| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit |
+| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit: `<name> is 95.0 MB. A recording can be at most 90 MB.`, or `<name>, <type>, is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` A video: `<name> is a video. This app keeps audio only: MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` An empty file: `<name> is empty. Choose the recording itself.` |
 | **Upload interrupted** | The row says so with `Try again`; nothing is listed as a recording |
 
 #### The job · #70

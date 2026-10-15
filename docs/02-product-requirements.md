@@ -247,7 +247,7 @@ and neither does #60.
 **S24 · Keep a recording with its interview** — `MUST` · #60
 > As the Author, I want to keep the audio of an interview with my notes on it, whatever I have, so that I can hear what was actually said.
 
-**Acceptance:** On an interview entry the author adds **a link** to a recording kept elsewhere (http or https only; only the link is kept), or **uploads an audio file**. Audio only: no video, and **no transcript**. An uploaded recording is private: only its owner, signed in, can play or download it, and it plays with seeking. Size and type limits are enforced and explained. **A recording can be removed for good**, the one thing in the app that can be; removing asks once, and the interview keeps a line saying a recording was removed and when. A recording is never sent to an AI. Recordings are not in the exported record (S15), and the Backup panel says so. A link is available first; upload waits on file storage only the owner can set up.
+**Acceptance:** On an interview entry the author adds **a link** to a recording kept elsewhere (http or https only; only the link is kept), or **uploads an audio file**. Audio only: no video, and **no transcript**. An uploaded recording is private: only its owner, signed in, can play or download it, and it plays with seeking. Size and type limits are enforced and explained. **A recording can be removed for good**, the one thing in the app that can be; removing asks once, and the interview keeps a line saying a recording was removed and when. A recording is never sent to an AI. Recordings are not in the exported record (S15), and the Backup panel says so.
 
 ---
 

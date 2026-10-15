@@ -1,0 +1,7 @@
+ALTER TYPE "public"."recording_kind" ADD VALUE 'upload';--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD COLUMN "file_name" text;--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD COLUMN "byte_size" integer;--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD COLUMN "content_type" text;--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD COLUMN "duration_seconds" integer;--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD CONSTRAINT "interview_recordings_link_fields_ck" CHECK ("interview_recordings"."kind"::text <> 'link' or ("interview_recordings"."file_name" is null and "interview_recordings"."byte_size" is null and "interview_recordings"."content_type" is null and "interview_recordings"."duration_seconds" is null));--> statement-breakpoint
+ALTER TABLE "interview_recordings" ADD CONSTRAINT "interview_recordings_upload_ck" CHECK ("interview_recordings"."kind"::text <> 'upload' or ("interview_recordings"."url" is null and ("interview_recordings"."file_name" is null) = ("interview_recordings"."removed_at" is not null) and ("interview_recordings"."byte_size" is null) = ("interview_recordings"."removed_at" is not null) and ("interview_recordings"."content_type" is null) = ("interview_recordings"."removed_at" is not null) and ("interview_recordings"."removed_at" is null or "interview_recordings"."duration_seconds" is null)));

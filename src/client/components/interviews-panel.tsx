@@ -5,7 +5,7 @@
  * One card an interview entry, newest day first, and a form that adds one. The
  * questions asked are separate items in the order given: typed one at a time,
  * or pasted as several lines and split. A card ends with the entry's
- * recordings (`./interview-recordings`, issue #74).
+ * recordings (`./interview-recordings`, issues #74 and #76).
  *
  * A saved entry is corrected in the same form, opened in place of its card,
  * and deleted after one question asked in the card (issue #81). In the form a
@@ -145,6 +145,7 @@ function InterviewCard({
   const [failure, setFailure] = useState<string | null>(null);
   const name = `the ${ROUND_LABEL[entry.round]} entry of ${entry.date}`;
   const linked = entry.recordings.some((recording) => recording.kind === "link");
+  const uploaded = entry.recordings.some((recording) => recording.kind === "upload");
 
   const deleteIt = async () => {
     setFailure(null);
@@ -184,7 +185,12 @@ function InterviewCard({
         <div role="alertdialog" aria-label="Delete this interview" className={ROW}>
           <span className="basis-full text-small text-text-secondary break-words">
             Delete this entry? Its notes and questions are taken off this application, and there is no undo.
-            {linked ? " Its recording links are removed with it." : ""} The status and its dates stay as they are.
+            {uploaded
+              ? " Its recordings are removed with it, and their files are deleted from storage."
+              : linked
+                ? " Its recording links are removed with it."
+                : ""}{" "}
+            The status and its dates stay as they are.
           </span>
           <Button variant="secondary" onClick={() => void deleteIt()} disabled={remove.isPending} disabledReason="Deleting…">
             Delete it

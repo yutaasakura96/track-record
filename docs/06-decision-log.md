@@ -6334,3 +6334,86 @@ screen saying the window is too narrow, the failure the desktop gate exists to p
 controls with the reason in a tooltip**, which a phone has no way to show.
 
 **Revisit if:** Diff Review or version history is made to work at phone width.
+
+### [2026-10-15] An uploaded recording streams through the Worker, up to 90 MB, and the limits are the platform's
+
+Issue #76, the proof the issue asks for before any screen. The question was whether an audio file
+large enough for an hour-long interview can go in through the Worker to R2 and come back out with
+seeking, inside the Worker's limits, without the file ever being held in memory.
+
+**What was measured** (2026-10-15, `wrangler dev --local` 4.124.0 with R2 emulated on disk, an
+Apple-silicon laptop; invented files of random bytes behind an MP3 header):
+
+| | 95 MB file | 300 MB file |
+| --- | --- | --- |
+| Upload, body piped to `R2Bucket.put` through a `FixedLengthStream` | 200 in 3.0 s, size exact | 200 in 11.9 s, size exact |
+| Peak resident memory of the runtime during the upload (worker and emulated R2 together) | 132 MB | 133 MB |
+| Download, `object.body` returned as the response | 200, SHA-256 identical | 200, SHA-256 identical |
+| A ranged read 1 MB long at 90 MB (250 MB) in | 206, the bytes identical | 206, the bytes identical |
+
+Peak memory did not grow with the file: 300 MB went through with the same peak as 95 MB, and 300
+MB streamed into a digest in the Worker alone peaked at 69 MB. Nothing is buffered. A body whose
+first bytes are not audio was refused with a 422 before anything was stored. One finding shaped the
+code: **erroring a stream already piped into `put` crashed the local runtime**, so the format is
+checked by reading the first bytes off the body before the put starts, and those bytes are written
+back in front of the rest.
+
+**What the platform sets** (Cloudflare docs, Workers limits, read 2026-10-15): a request body is at
+most **100 MB on the Free and Pro account plans** and a larger one is refused at the edge with a 413,
+before the Worker runs; a response body has no limit; memory is 128 MB an isolate; CPU time on the
+paid plan is 30 s as `wrangler.toml` sets it, and waiting on R2 does not count towards it. The edge
+limit cannot be reached locally and was not measured; it is the documented figure.
+
+**So the limit is 90 MB a file**, sent as the raw body of one request, never as a form, which keeps
+the whole of the 100 MB to the file and leaves room under it whichever way the edge counts a
+megabyte. At the bitrates a phone records speech, 64 to 128 kbps, that is an hour and a half to
+three hours. **The types are MP3, M4A, AAC, WAV, FLAC and Ogg**, recognised by their first bytes on
+the server and by the file's name and type in the browser; the stored type is the one the server
+recognised, not the one the browser claimed. WebM is left out because what a browser records as
+WebM is as often video. An M4A or Ogg file can in principle hold a picture track; the check is of
+the container, not of every track inside it, which is accepted.
+
+**The file goes to R2 first and the row is written after**, so a row never names a file that is not
+there; an upload that fails or is cut off leaves no row, which is the state `10` asks for. If the
+row then cannot be written, the file just stored is deleted. Removing one deletes the file first and
+then empties the row, so a removal that fails half way is finished by trying again. The key is the
+owner's id and the recording's id, and never the file's name.
+
+Rejected: **multipart upload in parts under 100 MB each**, which would allow files of any size at
+the cost of a second kind of half-finished upload to clean up. Nothing measured so far needs it.
+**A presigned URL straight to R2**, which needs an R2 access key as a secret and a bucket CORS
+policy, both outside the Worker, for a file the Worker streams within its limits anyway.
+**`multipart/form-data`**, whose framing counts against the 100 MB and which Workers parses by
+buffering.
+
+**Revisit if:** the owner has a recording over 90 MB, most likely a long WAV, which is the day to
+build multipart upload; or the account moves to a plan with a larger request body limit.
+
+### [2026-10-15] A video in an MP4 or Ogg container is refused by the browser, and a removal empties the row before it deletes the file
+
+Issue #76, review of the entry above. Two of its statements are superseded.
+
+**A whole video is refused, not accepted as a container.** The generic MP4 brands `isom`, `mp42`,
+`mp41` and `iso2` stay accepted, because that is what an Android phone writes on an M4A; they are
+also what a phone camera writes on a video. So before anything is sent, the browser walks the MP4's
+boxes by their size headers alone (64-bit sizes and a size of 0 included) to `moov`, wherever it
+sits, and refuses the file when any `trak`'s `mdia/hdlr` names a `vide` handler. An Ogg file whose
+first stream begins with a Theora packet is refused the same way. The refusal names the file, says
+it is a video and that the app keeps audio only, with the kinds and the 90 MB limit.
+
+**The server does not re-inspect tracks.** It keeps the 12-byte check of the first bytes. The body
+is streamed straight to R2 and is never held, and an MP4's `moov` can sit at the end of the file,
+after the media, so reading the tracks on the server would mean buffering the file or reading it a
+second time from R2. The browser's check, with every file reachable only by its owner, is enough
+for an app with one owner.
+
+**Removing an upload empties its row first and deletes its file after.** The entry above deleted
+the file first so that a failed removal was finished by trying again; but the row is written under
+the application's conflict guard, and a removal refused with `409` then left a row naming a file
+that was gone. Now the row is emptied, under the guard, and only then is the file deleted, for one
+recording and for every upload on an entry being deleted alike. A refused removal leaves the file
+playable. A delete that fails after the row is emptied leaves a file nothing names or serves; it is
+logged by recording id, never by name.
+
+**Revisit if:** the app has a second user, or the server comes to read a whole upload for another
+reason, which is the day to check tracks there too.

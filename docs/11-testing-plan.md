@@ -475,6 +475,39 @@ And a link that is not one is refused without a request, with what was typed kep
 And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
 ```
 
+### 2.6k2 An uploaded recording is stored whole, plays by range, and reaches only its owner
+
+`tests/uploads.test.ts` and `tests/client/uploads.test.tsx` (#76). The bucket is Miniflare's,
+in memory; no test reaches R2.
+
+```
+Given an application with an interview entry
+When an audio file is uploaded as the body of one request
+Then the file is in the bucket under the owner's id and the recording's id, byte for byte, and the entry lists it
+And it is stored as the type its first bytes say, whatever the browser claimed
+And a file over 90 MB, an empty one, one with no name, and one that is not MP3, M4A, AAC, WAV, FLAC or Ogg are refused, and nothing is stored
+And a body that stops short of its declared length stores nothing
+
+When it is played
+Then the whole file is answered privately, uncached, saying it takes ranges
+And one range is answered 206 with exactly those bytes, a suffix and an open end included; one past the end is 416
+And ?download offers it as an attachment under its own name
+
+Then signed out it is a 401, and to another user, or through another entry or application, a 404, to play, remove or upload to
+And a link is never played as a file
+
+When it is removed, or its entry is deleted
+Then the file is gone from the bucket, the row keeps only a line with the day, and the table refuses a removed upload that keeps its name
+And a removal refused with 409 leaves the file playable
+And no log line carries the file's name
+
+On the screen
+Then an upload reads its name, size, length and day, with Play, Download and Remove
+And a file too large or not audio is refused before any request, with its name, its size or type and the limit
+And an MP4 with a video track, its moov before or after the media, or an Ogg Theora file is refused as a video; an M4A with a generic brand and only a sound track is not
+And an upload shows its progress, is listed only once the server answers, and one cut off says so with Try again
+```
+
 ### 2.6l A sent copy is the file of the day, and nothing later reaches it
 
 `tests/application-documents.test.ts`, `tests/applications-migration.test.ts` (0020) and
