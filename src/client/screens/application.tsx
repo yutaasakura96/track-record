@@ -16,6 +16,8 @@
  *
  * Moving out of Not applied also freezes the documents on the application as
  * sent (issue #71). The panel that chooses them is `../components/application-resume`.
+ *
+ * Last, the two hand-offs to Suburi (issue #77), `../components/practise-panel`.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
@@ -38,6 +40,7 @@ import {
 } from "../components/application-chrome";
 import { QUIET } from "../components/document-row";
 import { InterviewsPanel, type StandingChange } from "../components/interviews-panel";
+import { PractisePanel } from "../components/practise-panel";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { NextStep } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
@@ -442,6 +445,8 @@ function Body({ application }: { application: Application }) {
           </div>
         </details>
       </Panel>
+
+      <PractisePanel application={application} />
     </>
   );
 }
