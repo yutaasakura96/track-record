@@ -498,11 +498,13 @@ And a link is never played as a file
 
 When it is removed, or its entry is deleted
 Then the file is gone from the bucket, the row keeps only a line with the day, and the table refuses a removed upload that keeps its name
+And a removal refused with 409 leaves the file playable
 And no log line carries the file's name
 
 On the screen
 Then an upload reads its name, size, length and day, with Play, Download and Remove
 And a file too large or not audio is refused before any request, with its name, its size or type and the limit
+And an MP4 with a video track, its moov before or after the media, or an Ogg Theora file is refused as a video; an M4A with a generic brand and only a sound track is not
 And an upload shows its progress, is listed only once the server answers, and one cut off says so with Try again
 ```
 
