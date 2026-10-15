@@ -1,6 +1,6 @@
 /**
  * Practise for this job, the last panel of one application
- * (`docs/10-screen-specifications.md`, Screen 13; issue #77).
+ * (`docs/10-screen-specifications.md`, Screen 14; issue #77).
  *
  * Two things the author carries to Suburi by hand: the job description as a
  * text file, and the questions asked, copied one a line. Nothing is sent from

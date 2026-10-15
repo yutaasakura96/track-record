@@ -58,8 +58,9 @@ are marked as the owner's in each issue.
   streamed through the Worker to the private R2 bucket `track-record-recordings`, played in the
   page with seeking, downloaded, and removable for good (`04` §3.16, `07` §9b, `09` Flow 13b,
   `13` §1; decision log, that date, for the measured proof and the limits). The owner created the
-  bucket on 2026-10-13; the binding is in `wrangler.toml`. The rest of #75 to #77 follow in the
-  order their `Depends on` lines give; each writes its own part of `04`, `07` and `09`.
+  bucket on 2026-10-13; the binding is in `wrangler.toml`.
+  **#77, built 2026-10-15**: the application footer downloads the job description as a text file
+  and copies the interview questions as plain text (`10` Screen 14).
 
 ## Blocked
 
