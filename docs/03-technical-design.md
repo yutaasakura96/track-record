@@ -29,7 +29,8 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
 
-**Not used, deliberately:** object storage (the whole corpus is ~2.4 MB), a staging environment,
+**Not used, deliberately:** object storage for the record (the whole corpus is ~2.4 MB; uploaded
+interview recordings alone go to R2, `13` §1, decision log 2026-10-15), a staging environment,
 a vector database, Next.js, Cloudflare Access, any hyperscaler.
 
 ---
@@ -637,10 +638,10 @@ résumé** → diff → accept. One document, one employer, `.docx` out.
 **Not built for M1:** 履歴書 and its template, 職務経歴書, both career stories, skills curation,
 quick capture, version history UI, conflict detection, per-render inclusion rules.
 
-**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site, mobile layouts.
+**Not built at all in v1:** multi-user features, LinkedIn, the portfolio site.
 Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
 log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
 layout exists for its screens only.
 
-**Desktop only**, minimum 1280px — but built **fluid** (no fixed page widths, panes flex), so the
-M3 quick-capture screen can ship narrow without re-laying-out the app.
+The responsive boundary is specified in `10` Responsive behaviour. The desktop panes are built
+**fluid** (no fixed page widths, panes flex).

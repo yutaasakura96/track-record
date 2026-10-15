@@ -148,6 +148,20 @@
       "when": 1791841232709,
       "tag": "0020_application_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1791926153538,
+      "tag": "0021_interview_removed",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792015470831,
+      "tag": "0022_interview_uploads",
+      "breakpoints": true
     }
   ]
 }

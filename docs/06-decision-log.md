@@ -6234,3 +6234,186 @@ sentence after the entry's confirmation (`10`, Screen 14).
 
 Rejected: **freezing in the interview route as well**, a second copy of the rule to keep in step
 with the first.
+
+### [2026-10-14] An interview entry can be corrected and deleted: overwritten in place, kept when deleted
+
+Issue #81. Supersedes the paragraph **An entry is saved once: no edit and no removal** in the
+entry of 2026-10-12, "An interview entry: questions are rows, the move is part of the save, and an
+entry is saved once". That entry said to revisit when the owner first wanted to correct an entry,
+and named three questions to decide then. The owner asked for editing on 2026-10-12, and #81
+answers the second question. The build answered the other two, and they are the owner's to
+overrule.
+
+**The old wording is not kept as an earlier version.** `PUT …/interviews/:interviewId` overwrites
+the entry. A step's date is superseded and not overwritten because Undo has to put it back, and
+because it is a fact about the application. An entry is the owner's own note, and the note is what
+they last wrote; nothing reads an earlier draft of it, and the company and position on an
+application are already overwritten the same way. **A question that stays keeps its row and its
+id**, which is why the correction names each kept question by id. The 2026-10-12 entry made a
+question a row so that something could point at one, and a correction that deleted and re-made
+every row would break whatever pointed.
+
+**A corrected day is followed by its round's step date, when that date was the entry's.** #81:
+"the matching status step's date and the since-the-first-interview figure follow". The step's date
+moves only while it still equals the entry's old day. A date the owner has set by hand since is
+theirs, and so is one that came from another entry for the same round. In every other case a
+changed day or round does what saving the corrected entry new would do, so the two rules cannot
+drift: a later round moves the status forward, a reached round with no date takes the day, nothing
+moves back. **A correction of the words alone changes nothing about where the application
+stands**, including after an Undo: fixing a typo must not move the status a second time.
+
+**Deleting an entry stamps `removed_at` and keeps the row.** #81 asks for a delete with a
+confirmation, and that deleting does not move the status backwards. From the page the entry is
+gone and there is no way to bring it back. In the database it stays, with its questions, as a
+superseded step date and a document taken off an application stay. So `AGENTS.md` is still right
+that a recording is the one thing removed for good, and the decision of 2026-10-11 stands
+unchanged. The migration is one nullable column, 0021.
+
+**A deleted entry's recording links are removed with it**, emptied in the same batch as removing
+each would. The promise of 2026-10-11 is that a link can be removed for good; a link that could no
+longer be reached to remove, on an entry no page shows, would break it. The confirmation says so
+when the entry has one.
+
+**Both count as activity, and both go through `saveStanding`**, so each is one transaction under
+the conflict guard like every other write to an application. A correction that changes nothing
+writes nothing.
+
+Rejected: **deleting the rows**, which makes an entry the second thing in the product that is
+gone for good, for no reason the recording decision gave: it holds the owner's notes, not other
+people's voices, and it is not large. It can still be done later to rows already stamped; the
+reverse cannot. **Keeping each earlier wording as a version**, a history nobody asked to read.
+**Moving the status back when the entry that moved it is deleted**, which #81 rules out. **The
+step's date always following the entry's**, which overwrites a date the owner corrected by hand
+the next time they fix a typo in the entry. **Refusing to delete an entry that has a recording**,
+which makes the owner remove each link first to do one thing.
+
+**Revisit if:** the owner wants a deleted entry gone from the database and the export too, or
+wants to see or restore what an entry said before a correction.
+
+### [2026-10-14] A shared interview day leaves the step date in place
+
+Issue #81, review of the edit rule. Supersedes the claim above that equality alone establishes
+which entry supplied the step date. When another live entry on the same application and round
+has the edited entry's old day, correcting that entry's day leaves the step date as it is. A
+deleted entry does not count. This resolves the ambiguous shared day without tracking which
+entry first set the step date.
+
+When the owner set the step date by hand to the same day as the entry, and no other live entry
+shares it, the step date still follows the edit. That ambiguity is accepted without additional
+provenance or a migration.
+
+### [2026-10-14] Omitted interview questions remain in the record
+
+Issue #81. Supersedes the question deletion rule in the entry above, "An interview entry can be
+corrected and deleted". A question left out of an edit keeps its row, stamped `removed_at`.
+Only live questions appear on the application page, with positions from 0 without gaps. The
+export includes stamped questions. The unique position constraint covers live questions only,
+so a removed row can retain its former position without blocking another edit. This follows the
+standing rule that a recording is the only thing the author can remove for good.
+
+### [2026-10-14] Editing and deleting an interview entry wait for #82's revision precondition
+
+Issue #81, review. Correcting and deleting an interview entry carry no revision of what the
+owner was looking at. A stale edit form or delete confirmation left open in a second tab can
+therefore overwrite or delete an entry just corrected in the first. The fix is the revision
+precondition issue #82 adds for two-tab protection, and these two writes need it as well; it is
+not built here. While either write is pending, its Cancel or Keep it control is disabled, so the
+form cannot close on a write that still lands.
+
+### [2026-10-14] Applications holds back what leads to a desktop screen, rather than leading there
+
+Issue #75, settling the question `10` left open. In a window under 1024px, Résumé for this job does
+not offer `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it`, `History`
+or `Import a document`, and says once in the panel why. The threshold is the width gate's, 1024px,
+not the 720px phone layout's, because what decides is whether the screen behind the control would
+open; between 720 and 1024 the layout is the desktop one and those screens still ask for a wider
+window.
+
+**Rejected:** **Keeping the controls with a note beside them**, which leaves a tap that leads to a
+screen saying the window is too narrow, the failure the desktop gate exists to prevent. **Disabled
+controls with the reason in a tooltip**, which a phone has no way to show.
+
+**Revisit if:** Diff Review or version history is made to work at phone width.
+
+### [2026-10-15] An uploaded recording streams through the Worker, up to 90 MB, and the limits are the platform's
+
+Issue #76, the proof the issue asks for before any screen. The question was whether an audio file
+large enough for an hour-long interview can go in through the Worker to R2 and come back out with
+seeking, inside the Worker's limits, without the file ever being held in memory.
+
+**What was measured** (2026-10-15, `wrangler dev --local` 4.124.0 with R2 emulated on disk, an
+Apple-silicon laptop; invented files of random bytes behind an MP3 header):
+
+| | 95 MB file | 300 MB file |
+| --- | --- | --- |
+| Upload, body piped to `R2Bucket.put` through a `FixedLengthStream` | 200 in 3.0 s, size exact | 200 in 11.9 s, size exact |
+| Peak resident memory of the runtime during the upload (worker and emulated R2 together) | 132 MB | 133 MB |
+| Download, `object.body` returned as the response | 200, SHA-256 identical | 200, SHA-256 identical |
+| A ranged read 1 MB long at 90 MB (250 MB) in | 206, the bytes identical | 206, the bytes identical |
+
+Peak memory did not grow with the file: 300 MB went through with the same peak as 95 MB, and 300
+MB streamed into a digest in the Worker alone peaked at 69 MB. Nothing is buffered. A body whose
+first bytes are not audio was refused with a 422 before anything was stored. One finding shaped the
+code: **erroring a stream already piped into `put` crashed the local runtime**, so the format is
+checked by reading the first bytes off the body before the put starts, and those bytes are written
+back in front of the rest.
+
+**What the platform sets** (Cloudflare docs, Workers limits, read 2026-10-15): a request body is at
+most **100 MB on the Free and Pro account plans** and a larger one is refused at the edge with a 413,
+before the Worker runs; a response body has no limit; memory is 128 MB an isolate; CPU time on the
+paid plan is 30 s as `wrangler.toml` sets it, and waiting on R2 does not count towards it. The edge
+limit cannot be reached locally and was not measured; it is the documented figure.
+
+**So the limit is 90 MB a file**, sent as the raw body of one request, never as a form, which keeps
+the whole of the 100 MB to the file and leaves room under it whichever way the edge counts a
+megabyte. At the bitrates a phone records speech, 64 to 128 kbps, that is an hour and a half to
+three hours. **The types are MP3, M4A, AAC, WAV, FLAC and Ogg**, recognised by their first bytes on
+the server and by the file's name and type in the browser; the stored type is the one the server
+recognised, not the one the browser claimed. WebM is left out because what a browser records as
+WebM is as often video. An M4A or Ogg file can in principle hold a picture track; the check is of
+the container, not of every track inside it, which is accepted.
+
+**The file goes to R2 first and the row is written after**, so a row never names a file that is not
+there; an upload that fails or is cut off leaves no row, which is the state `10` asks for. If the
+row then cannot be written, the file just stored is deleted. Removing one deletes the file first and
+then empties the row, so a removal that fails half way is finished by trying again. The key is the
+owner's id and the recording's id, and never the file's name.
+
+Rejected: **multipart upload in parts under 100 MB each**, which would allow files of any size at
+the cost of a second kind of half-finished upload to clean up. Nothing measured so far needs it.
+**A presigned URL straight to R2**, which needs an R2 access key as a secret and a bucket CORS
+policy, both outside the Worker, for a file the Worker streams within its limits anyway.
+**`multipart/form-data`**, whose framing counts against the 100 MB and which Workers parses by
+buffering.
+
+**Revisit if:** the owner has a recording over 90 MB, most likely a long WAV, which is the day to
+build multipart upload; or the account moves to a plan with a larger request body limit.
+
+### [2026-10-15] A video in an MP4 or Ogg container is refused by the browser, and a removal empties the row before it deletes the file
+
+Issue #76, review of the entry above. Two of its statements are superseded.
+
+**A whole video is refused, not accepted as a container.** The generic MP4 brands `isom`, `mp42`,
+`mp41` and `iso2` stay accepted, because that is what an Android phone writes on an M4A; they are
+also what a phone camera writes on a video. So before anything is sent, the browser walks the MP4's
+boxes by their size headers alone (64-bit sizes and a size of 0 included) to `moov`, wherever it
+sits, and refuses the file when any `trak`'s `mdia/hdlr` names a `vide` handler. An Ogg file whose
+first stream begins with a Theora packet is refused the same way. The refusal names the file, says
+it is a video and that the app keeps audio only, with the kinds and the 90 MB limit.
+
+**The server does not re-inspect tracks.** It keeps the 12-byte check of the first bytes. The body
+is streamed straight to R2 and is never held, and an MP4's `moov` can sit at the end of the file,
+after the media, so reading the tracks on the server would mean buffering the file or reading it a
+second time from R2. The browser's check, with every file reachable only by its owner, is enough
+for an app with one owner.
+
+**Removing an upload empties its row first and deletes its file after.** The entry above deleted
+the file first so that a failed removal was finished by trying again; but the row is written under
+the application's conflict guard, and a removal refused with `409` then left a row naming a file
+that was gone. Now the row is emptied, under the guard, and only then is the file deleted, for one
+recording and for every upload on an entry being deleted alike. A refused removal leaves the file
+playable. A delete that fails after the row is emptied leaves a file nothing names or serves; it is
+logged by recording id, never by name.
+
+**Revisit if:** the app has a second user, or the server comes to read a whole upload for another
+reason, which is the day to check tracks there too.

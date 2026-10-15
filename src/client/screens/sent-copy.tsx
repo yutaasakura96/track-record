@@ -61,11 +61,11 @@ function Notice({ copy }: { copy: SentCopyPage }) {
     <div className="grid gap-6">
       <div className="flex flex-wrap items-center gap-x-12 gap-y-8 border border-border-control bg-surface-raised rounded-control px-10 py-8 text-small text-text-secondary">
         <Chip>v{copy.versionNo} · frozen</Chip>
-        <span className="min-w-0 flex-1">
+        <span className="min-w-0 flex-1 max-phone:basis-full">
           Sent to {copy.company} on <span className="font-mono">{copy.sentOn}</span>. This is the file as it was that
           day. It cannot be edited, and later changes to the résumé or to your record do not reach it.
         </span>
-        <span className="ml-auto flex items-center gap-8">
+        <span className="ml-auto max-phone:ml-0 flex items-center gap-8">
           <Button variant="ghost" onClick={() => void download()} disabled={busy} disabledReason="Preparing…">
             {busy ? "Preparing…" : "Download"}
           </Button>
@@ -94,7 +94,7 @@ function Document({ copy }: { copy: SentCopyPage }) {
   return (
     <article
       lang={japanese ? "ja" : "en"}
-      className={`mx-auto w-measure max-w-full px-20 py-40 ${japanese ? "tracking-ja" : ""}`}
+      className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
     >
       {page.stamp ? <p className="text-small text-text-muted">{page.stamp}</p> : null}
       <h2 className="text-doc-title font-semibold tracking-tight text-text-bright">{page.name}</h2>

@@ -24,6 +24,8 @@ import {
   E2E_ORIGIN,
   E2E_SECRET,
   E2E_SUITE,
+  INTERVIEW_IDENTITY,
+  INTERVIEW_STORAGE_STATE,
   STORAGE_STATE,
 } from "./env";
 
@@ -56,6 +58,15 @@ export default async function setup() {
 
   mkdirSync(dirname(STORAGE_STATE), { recursive: true });
   writeFileSync(STORAGE_STATE, `${JSON.stringify(storageState(cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const interviewSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    INTERVIEW_IDENTITY,
+  );
+  writeFileSync(INTERVIEW_STORAGE_STATE, `${JSON.stringify(storageState(interviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

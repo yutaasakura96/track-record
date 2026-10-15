@@ -11,10 +11,13 @@
  * with. Undo sends back the standing from before the last change.
  *
  * Under it, the interview entries (issue #72). Saving one for a later round is
- * a change to where it stands too, and is said and undone here like the rest.
+ * a change to where it stands too, and so is correcting the day of one (issue
+ * #81); both are said and undone here like the rest.
  *
  * Moving out of Not applied also freezes the documents on the application as
  * sent (issue #71). The panel that chooses them is `../components/application-resume`.
+ *
+ * Last, the two hand-offs to Suburi (issue #77), `../components/practise-panel`.
  */
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useParams } from "@tanstack/react-router";
@@ -36,7 +39,8 @@ import {
   days,
 } from "../components/application-chrome";
 import { QUIET } from "../components/document-row";
-import { InterviewsPanel } from "../components/interviews-panel";
+import { InterviewsPanel, type StandingChange } from "../components/interviews-panel";
+import { PractisePanel } from "../components/practise-panel";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { NextStep } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
@@ -172,16 +176,19 @@ function Body({ application }: { application: Application }) {
   const standingChangedByInterview = (
     before: Standing,
     step: ApplicationStep,
-    moved: boolean,
+    change: StandingChange,
     frozen: Application["frozen"],
   ) => {
     setFailure(null);
     setDating(null);
     setMoved({
       before,
-      text: moved
-        ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
-        : `Interview saved, and the ${STATUS_LABEL[step]} date was added.`,
+      text:
+        change === "moved"
+          ? `Interview saved, and the status moved to ${STATUS_LABEL[step]} to match.`
+          : change === "added"
+            ? `Interview saved, and the ${STATUS_LABEL[step]} date was added.`
+            : `Interview saved, and the ${STATUS_LABEL[step]} date was changed to match.`,
       dated: step,
       elsewhere: true,
       frozen: frozenText(frozen),
@@ -264,7 +271,7 @@ function Body({ application }: { application: Application }) {
 
       <Panel heading="Where it stands">
         <div className="grid gap-14">
-          <ol className="grid grid-cols-7">
+          <ol className="grid grid-cols-7 max-phone:grid-cols-1">
             {APPLICATION_STEPS.map((step, index) => (
               <StepColumn
                 key={step}
@@ -303,7 +310,7 @@ function Body({ application }: { application: Application }) {
             </div>
           ) : null}
 
-          <div className="grid grid-cols-3 gap-8">
+          <div className="grid grid-cols-3 max-phone:grid-cols-1 gap-8">
             <Figure
               value={application.daysSinceResumePassed}
               label="since the résumé passed"
@@ -438,6 +445,8 @@ function Body({ application }: { application: Application }) {
           </div>
         </details>
       </Panel>
+
+      <PractisePanel application={application} />
     </>
   );
 }
@@ -480,14 +489,24 @@ function StepColumn({
         : "bg-bg border-border-active";
   const name =
     state === "now" ? "text-text-bright font-semibold" : state === "done" ? "text-text-secondary" : "text-text-dim";
+  // At phone width the steps are a vertical list: the node and its line down the left, the name and date beside them.
   return (
-    <li aria-current={state === "now" ? "step" : undefined} className="min-w-0 pr-8 grid gap-4 content-start">
-      <div className="h-14 flex items-center" aria-hidden>
+    <li
+      aria-current={state === "now" ? "step" : undefined}
+      className="min-w-0 pr-8 grid gap-4 content-start max-phone:flex max-phone:gap-10 max-phone:pr-0 max-phone:pb-12 max-phone:last:pb-0"
+    >
+      <div className="h-14 flex items-center max-phone:w-14 max-phone:h-auto max-phone:shrink-0 max-phone:flex-col max-phone:pt-2" aria-hidden>
         <span className={`size-10 shrink-0 rounded-full border-2 ${node}`} />
-        {last ? null : <span className={`flex-1 h-2 ${state === "done" ? "bg-accent" : "bg-border-control"}`} />}
+        {last ? null : (
+          <span
+            className={`flex-1 h-2 max-phone:w-2 max-phone:h-auto max-phone:min-h-12 ${state === "done" ? "bg-accent" : "bg-border-control"}`}
+          />
+        )}
       </div>
-      <div className={`text-small ${name}`}>{STATUS_LABEL[step]}</div>
-      <div className="text-smaller text-text-muted">{children}</div>
+      <div className="min-w-0 grid gap-4">
+        <div className={`text-small ${name}`}>{STATUS_LABEL[step]}</div>
+        <div className="text-smaller text-text-muted">{children}</div>
+      </div>
     </li>
   );
 }
@@ -555,9 +574,9 @@ function Figure({ value, label, missing }: { value: number | null; label: string
 
 function Pair({ term, children }: { term: string; children: ReactNode }) {
   return (
-    <div className="flex gap-12">
-      <dt className="w-label shrink-0 pt-2 text-small text-text-muted">{term}</dt>
-      <dd className="min-w-0 flex-1 text-text-strong break-words">{children}</dd>
+    <div className="flex gap-12 max-phone:flex-col max-phone:gap-2">
+      <dt className="w-label max-phone:w-auto shrink-0 pt-2 text-small text-text-muted">{term}</dt>
+      <dd className="min-w-0 flex-1 text-text-strong wrap-anywhere max-phone:mb-6">{children}</dd>
     </div>
   );
 }

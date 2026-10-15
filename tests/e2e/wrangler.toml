@@ -36,6 +36,11 @@ run_worker_first = ["/api/*"]
 ANTHROPIC_API_KEY = "test-key-never-used"
 ANTHROPIC_MODEL = "claude-opus-5"
 
+# Emulated on disk under `--local`; the name is never reached.
+[[r2_buckets]]
+binding = "RECORDINGS"
+bucket_name = "track-record-e2e-recordings"
+
 [[rules]]
 type = "Data"
 globs = ["**/*.docx"]

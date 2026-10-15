@@ -11,6 +11,10 @@
  * moves the status to that round, with the entry's day as the step's date. One
  * for an EARLIER round that was skipped gives that step the entry's day and
  * leaves the status where it is.
+ *
+ * A saved entry can be corrected and deleted (issue #81). A corrected day
+ * can change the date of its round's step; deleting an entry leaves the status
+ * and every date as they are.
  */
 import { moveTo, stepIndex, type ApplicationStep, type Standing } from "./application";
 import type { Recording } from "./recording";
@@ -57,6 +61,33 @@ export function standingAfterInterview(standing: Standing, round: InterviewRound
   if (stepIndex(round) > stepIndex(standing.step)) return moveTo(standing, round, date);
   if (standing.dates[round]) return standing;
   return { ...standing, dates: { ...standing.dates, [round]: date } };
+}
+
+/**
+ * Where an application stands once an entry's round or day is corrected
+ * (issue #81). A corrected day replaces the date of its round while that date
+ * is still the entry's old day and no other live entry in the same round
+ * shares that day. A different step date is left as it is. A manually set
+ * date equal to the old day still follows the edit. Anything else is what
+ * saving the corrected entry new would do, so a round changed to a later one
+ * moves the status there, and nothing an edit
+ * does moves it back. An edit of the words alone changes nothing here.
+ */
+export function standingAfterEdit(
+  standing: Standing,
+  before: { round: InterviewRound; date: string },
+  after: { round: InterviewRound; date: string },
+  otherEntrySharesOldDate = false,
+): Standing {
+  if (after.round === before.round && after.date === before.date) return standing;
+  if (standing.closedAs || after.round === "other") return standing;
+  const follows =
+    after.round === before.round &&
+    stepIndex(after.round) <= stepIndex(standing.step) &&
+    standing.dates[after.round] === before.date &&
+    !otherEntrySharesOldDate;
+  if (follows) return { ...standing, dates: { ...standing.dates, [after.round]: after.date } };
+  return standingAfterInterview(standing, after.round, after.date);
 }
 
 /** The round a new entry starts on: the earliest at or after the status with no entry yet. */

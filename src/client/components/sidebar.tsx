@@ -56,8 +56,6 @@ export function Sidebar({ name }: { name: string }) {
   // Read where the list reads it, so the row and the list cannot disagree.
   const goneQuiet = useApplications().data?.items.filter((row) => row.quietDays !== null).length;
   const counts = { ...summary, goneQuiet };
-  const theme = useThemeStore((state) => state.theme);
-  const setTheme = useThemeStore((state) => state.setTheme);
 
   return (
     <nav className="w-sidebar shrink-0 bg-surface border-r border-border flex flex-col">
@@ -105,16 +103,67 @@ export function Sidebar({ name }: { name: string }) {
             <Mono className="block text-text-muted">Personal record</Mono>
           </span>
         </div>
-        {/* Light by default, dark as the author's choice, kept for this browser (`docs/05`). */}
-        <SegmentedControl<Theme>
-          label="Theme"
-          value={theme}
-          onChange={setTheme}
-          segments={[
-            { value: "light", label: "Light", tone: "neutral" },
-            { value: "dark", label: "Dark", tone: "neutral" },
-          ]}
-        />
+        <ThemeControl />
+      </div>
+    </nav>
+  );
+}
+
+/** Light by default, dark as the author's choice, kept for this browser (`docs/05`). */
+function ThemeControl() {
+  const theme = useThemeStore((state) => state.theme);
+  const setTheme = useThemeStore((state) => state.setTheme);
+  return (
+    <SegmentedControl<Theme>
+      label="Theme"
+      value={theme}
+      onChange={setTheme}
+      segments={[
+        { value: "light", label: "Light", tone: "neutral" },
+        { value: "dark", label: "Dark", tone: "neutral" },
+      ]}
+    />
+  );
+}
+
+/**
+ * The sidebar at phone width, under Applications only (`docs/10` Responsive
+ * behaviour, issue #75): a sheet under the header, opened by `Menu`.
+ * Applications leads because it is the part that works on a phone; the other
+ * rows still go where they go, and say so before they are followed.
+ */
+export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) {
+  const rows = [...NAV.filter((item) => item.to === "/applications"), ...NAV.filter((item) => item.to !== "/applications")];
+  return (
+    <nav
+      id={id}
+      aria-label="Menu"
+      className="phone:hidden absolute inset-x-0 top-header bottom-0 z-10 bg-surface flex flex-col overflow-y-auto"
+    >
+      <ul className="p-10 grid gap-2">
+        {rows.map((item) => {
+          const active = item.to === "/applications";
+          return (
+            <li key={item.label}>
+              <Link
+                to={item.to}
+                onClick={onClose}
+                aria-current={active ? "page" : undefined}
+                className={`block px-10 py-6 rounded-control text-row ${
+                  active ? "bg-hover text-text font-medium" : "text-text-muted hover:bg-hover"
+                }`}
+              >
+                {item.label}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="px-20 text-small text-text-muted">
+        On a phone, Applications is the part that works. The other screens still ask for a wider window.
+      </p>
+      <div className="mt-auto p-10 border-t border-border">
+        <ThemeControl />
       </div>
     </nav>
   );

@@ -22,7 +22,7 @@ test fixture containing a real client name would be committed to a public repo f
 | API integration | Vitest against the Hono app, with a real Postgres |
 | Server-side tests | **`@cloudflare/vitest-pool-workers`** — runs tests *inside* the Workers runtime via Miniflare, with bindings and isolated per-test-file storage |
 | Test database | **`track_record_test`, the suite's own** — Docker Postgres + a Neon HTTP proxy, see below |
-| Client screens | **A second Vitest project, `client`**: jsdom, React Testing Library and user-event. The real router mounts over a memory history and `fetch` is stubbed and recorded (`tests/client/harness.tsx`). No database. Fact Review, Diff Review, Version History, Version Edit, Documents, Your record, Overview and Skills, so far |
+| Client screens | **A second Vitest project, `client`**: jsdom, React Testing Library and user-event. The real router mounts over a memory history and `fetch` is stubbed and recorded (`tests/client/harness.tsx`). No database. See `tests/client/` for covered screens. |
 | Model calls | **Always stubbed.** No test ever calls Anthropic |
 | Sign-in | **A local OIDC issuer run as a fixture** (`tests/helpers/oidc-issuer.ts`, wired to the suite by `tests/helpers/oidc.ts`). Better Auth's own path runs end to end; there is no authentication bypass in `src/server` |
 | Coverage target | **None.** A percentage would be gamed; the must-have list below is the target |
@@ -418,6 +418,36 @@ And a move is said where a status change is said, with its Undo
 And another user cannot add an entry to an application, and reads none of its entries
 ```
 
+A saved entry corrected or deleted (#81), in the same three files:
+
+```
+Given an application with an interview entry
+When the entry is corrected
+Then its day, round, who and how it went are overwritten, at once and after a reload
+And a question that stays is the same row in its new place, one left out is stamped and hidden but kept in the export, and live questions including new ones are numbered from 0 with no gap
+And a correction that changes nothing writes nothing, and one that changes anything counts as a change
+And it is refused for what a new entry is refused for, for a question that is not the entry's, and for one given twice
+
+When its day is corrected and the step for its round still carried the old day, with no other live entry in that round sharing the day
+Then that step's date and the first-interview figure follow, and Undo puts the date back and keeps the correction
+And another live entry in that round sharing the old day leaves the step date unchanged; a deleted entry does not count
+And a date set by hand to a different day is left, but one set by hand to the same day follows the edit
+And words alone never move the status; a later round moves it on; a closed application stays
+
+When the entry is deleted
+Then it is off the application, at once and after a reload, and the status and its dates are as they were
+And its row and its questions are kept, and its recording links are emptied for good
+And it cannot be corrected, deleted again or given a recording
+
+On the screen
+Then Edit opens the form in place of the card with what was saved, each question in a field
+And saving is one write, a kept question under its id and a new one without
+And a followed date is said where a status change is said, with its Undo
+And Delete asks once in the card, writes nothing until answered, and says when recording links go with it
+
+And another user cannot correct or delete an entry, through its application or their own
+```
+
 ### 2.6k A recording is a link, only an http or https one, and can be removed for good
 
 `tests/recordings.test.ts` and `tests/client/recordings.test.tsx` (#74).
@@ -443,6 +473,39 @@ Then a link is drawn with its label or `Recording kept elsewhere`, its address, 
 And an address that is not http or https is never drawn as something to open
 And a link that is not one is refused without a request, with what was typed kept
 And Remove asks once in place of the row; Keep it writes nothing; Remove it makes one DELETE for that recording
+```
+
+### 2.6k2 An uploaded recording is stored whole, plays by range, and reaches only its owner
+
+`tests/uploads.test.ts` and `tests/client/uploads.test.tsx` (#76). The bucket is Miniflare's,
+in memory; no test reaches R2.
+
+```
+Given an application with an interview entry
+When an audio file is uploaded as the body of one request
+Then the file is in the bucket under the owner's id and the recording's id, byte for byte, and the entry lists it
+And it is stored as the type its first bytes say, whatever the browser claimed
+And a file over 90 MB, an empty one, one with no name, and one that is not MP3, M4A, AAC, WAV, FLAC or Ogg are refused, and nothing is stored
+And a body that stops short of its declared length stores nothing
+
+When it is played
+Then the whole file is answered privately, uncached, saying it takes ranges
+And one range is answered 206 with exactly those bytes, a suffix and an open end included; one past the end is 416
+And ?download offers it as an attachment under its own name
+
+Then signed out it is a 401, and to another user, or through another entry or application, a 404, to play, remove or upload to
+And a link is never played as a file
+
+When it is removed, or its entry is deleted
+Then the file is gone from the bucket, the row keeps only a line with the day, and the table refuses a removed upload that keeps its name
+And a removal refused with 409 leaves the file playable
+And no log line carries the file's name
+
+On the screen
+Then an upload reads its name, size, length and day, with Play, Download and Remove
+And a file too large or not audio is refused before any request, with its name, its size or type and the limit
+And an MP4 with a video track, its moov before or after the media, or an Ogg Theora file is refused as a video; an M4A with a generic brand and only a sound track is not
+And an upload shows its progress, is listed only once the server answers, and one cut off says so with Try again
 ```
 
 ### 2.6l A sent copy is the file of the day, and nothing later reaches it
@@ -654,7 +717,7 @@ in §2. Items 1–4 stay human — they are judgement calls about a document a p
 | Visual regression / screenshot diffing | One developer and two themes whose contrast `npm run lint` already holds to a number (`05` §8b). The setup cost exceeds the bugs it would catch |
 | Load and performance | One user. Revisit at the first invited second user |
 | Better Auth internals | Testing a maintained library's own behaviour. **Our allowlist and session middleware are tested; its storage, crypto and cookie attributes are not.** Since 2026-09-02 the sign-in *path* is walked end to end against a local issuer fixture (§2.9) — that asserts our wiring through Better Auth, not Better Auth |
-| Browser compatibility beyond current Chrome and Safari | Desktop only, one known user |
+| Browser compatibility beyond current Chrome and Safari | One known user on those browsers |
 | `.docx` byte-level output | Brittle and meaningless. Structure is asserted; fidelity is checklist item 1 |
 
 **One end-to-end test exists and no more** (§2.9). The flows in `09-user-flows.md` are otherwise

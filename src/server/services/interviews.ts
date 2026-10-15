@@ -1,13 +1,13 @@
 /**
  * Reading an application's interview entries (issue #72), each with its
- * recordings (issue #74).
+ * recordings (issues #74 and #76).
  *
  * Here and not beside the route that writes one, because the application's own
  * read carries them: `routes/applications.ts` reads through this and
  * `routes/interviews.ts` writes through that file's standing, and neither
  * imports the other's half.
  */
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, isNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { interviewQuestions, interviewRecordings, interviews } from "../db/schema";
 import { tokyoToday } from "~/render/rirekisho";
@@ -17,7 +17,8 @@ import type { Recording } from "~/shared/recording";
 /**
  * An application's entries, newest day first, each with its questions in the
  * order given and its recordings in the order attached. One round trip: the
- * three reads go out as one batch.
+ * three reads go out as one batch. An entry the author deleted (issue #81) is
+ * not among them, and neither is anything of it.
  */
 export async function interviewsOf(db: Db, userId: string, applicationId: string): Promise<Interview[]> {
   const [entries, questions, recordings] = await db.batch([
@@ -30,7 +31,7 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         howItWent: interviews.howItWent,
       })
       .from(interviews)
-      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(and(eq(interviews.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt)))
       .orderBy(desc(interviews.happenedOn), desc(interviews.createdAt), desc(interviews.id)),
     db
       .select({ id: interviewQuestions.id, interviewId: interviewQuestions.interviewId, text: interviewQuestions.text })
@@ -39,22 +40,31 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
         interviews,
         and(eq(interviews.id, interviewQuestions.interviewId), eq(interviews.userId, userId)),
       )
-      .where(and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(
+        and(eq(interviewQuestions.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt), isNull(interviewQuestions.removedAt)),
+      )
       .orderBy(asc(interviewQuestions.position)),
     db
       .select({
         id: interviewRecordings.id,
         interviewId: interviewRecordings.interviewId,
+        kind: interviewRecordings.kind,
         url: interviewRecordings.url,
         label: interviewRecordings.label,
+        fileName: interviewRecordings.fileName,
+        byteSize: interviewRecordings.byteSize,
+        durationSeconds: interviewRecordings.durationSeconds,
         removedAt: interviewRecordings.removedAt,
+        createdAt: interviewRecordings.createdAt,
       })
       .from(interviewRecordings)
       .innerJoin(
         interviews,
         and(eq(interviews.id, interviewRecordings.interviewId), eq(interviews.userId, userId)),
       )
-      .where(and(eq(interviewRecordings.userId, userId), eq(interviews.applicationId, applicationId)))
+      .where(
+        and(eq(interviewRecordings.userId, userId), eq(interviews.applicationId, applicationId), isNull(interviews.removedAt)),
+      )
       .orderBy(asc(interviewRecordings.createdAt), asc(interviewRecordings.id)),
   ]);
 
@@ -69,12 +79,32 @@ export async function interviewsOf(db: Db, userId: string, applicationId: string
 
 /**
  * A stored row as the page reads it. A removed one says only that it was
- * removed and on which day in Japan; the check on the table means a row that
- * is not removed has its link.
+ * removed and on which day in Japan; the checks on the table mean a row that
+ * is not removed has its link, or its file's name and size.
  */
-function recordingOf(row: { id: string; url: string | null; label: string; removedAt: Date | null }): Recording {
-  if (row.removedAt || row.url === null) {
-    return { id: row.id, kind: "removed", removedOn: tokyoToday(row.removedAt ?? undefined) };
+function recordingOf(row: {
+  id: string;
+  kind: "link" | "upload";
+  url: string | null;
+  label: string;
+  fileName: string | null;
+  byteSize: number | null;
+  durationSeconds: number | null;
+  removedAt: Date | null;
+  createdAt: Date;
+}): Recording {
+  if (!row.removedAt && row.kind === "upload" && row.fileName !== null && row.byteSize !== null) {
+    return {
+      id: row.id,
+      kind: "upload",
+      fileName: row.fileName,
+      byteSize: row.byteSize,
+      durationSeconds: row.durationSeconds,
+      uploadedOn: tokyoToday(row.createdAt),
+    };
   }
-  return { id: row.id, kind: "link", url: row.url, label: row.label };
+  if (!row.removedAt && row.kind === "link" && row.url !== null) {
+    return { id: row.id, kind: "link", url: row.url, label: row.label };
+  }
+  return { id: row.id, kind: "removed", removedOn: tokyoToday(row.removedAt ?? undefined) };
 }

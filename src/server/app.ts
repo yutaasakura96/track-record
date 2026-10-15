@@ -29,6 +29,7 @@ import { registerMasterRoutes } from "./routes/master";
 import { registerRenderRoutes } from "./routes/renders";
 import { registerApplicationRoutes } from "./routes/applications";
 import { registerInterviewRoutes } from "./routes/interviews";
+import { registerRecordingRoutes } from "./routes/recordings";
 import { registerApplicationDocumentRoutes } from "./routes/application-documents";
 import { registerOverviewRoutes } from "./routes/overview";
 
@@ -70,6 +71,7 @@ export function createApp(options: AppOptions = {}) {
   registerRenderRoutes(app);
   registerApplicationRoutes(app);
   registerInterviewRoutes(app);
+  registerRecordingRoutes(app);
   registerApplicationDocumentRoutes(app);
   registerOverviewRoutes(app);
 

@@ -8,12 +8,24 @@
  *
  * Between 1024 and 1280 the panes simply narrow: the layout is fluid, and the
  * desktop gate is a product decision rather than a layout limitation.
+ *
+ * Applications is the one exception (issue #75): everything under
+ * `/applications`, and nothing else, opens at any width and is laid out for a
+ * phone under 720px.
  */
 import { useEffect, useState, type ReactNode } from "react";
+import { useRouterState } from "@tanstack/react-router";
 
 const MINIMUM = 1024;
 
-export function TooNarrow({ children }: { children: ReactNode }) {
+/** Under `/applications`: the screens that work at phone width. */
+export const opensOnAPhone = (path: string) => path === "/applications" || path.startsWith("/applications/");
+
+/**
+ * Whether the window is wide enough for every screen. Where it is not, a control
+ * that leads out of Applications to a screen behind the message is held back.
+ */
+export function useWideEnough() {
   const [width, setWidth] = useState(() =>
     typeof window === "undefined" ? MINIMUM : window.innerWidth,
   );
@@ -24,7 +36,14 @@ export function TooNarrow({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
-  if (width >= MINIMUM) return <>{children}</>;
+  return width >= MINIMUM;
+}
+
+export function TooNarrow({ children }: { children: ReactNode }) {
+  const wide = useWideEnough();
+  const path = useRouterState({ select: (state) => state.location.pathname });
+
+  if (wide || opensOnAPhone(path)) return <>{children}</>;
 
   return (
     <div className="min-h-screen grid place-items-center px-20">

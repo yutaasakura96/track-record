@@ -28,6 +28,8 @@ export default defineConfig({
               compatibilityDate: "2026-08-12",
               modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }],
               compatibilityFlags: ["nodejs_compat"],
+              // Emulated in memory, one bucket a run: no test reaches R2.
+              r2Buckets: ["RECORDINGS"],
               bindings: {
                 DATABASE_URL: TEST_DATABASE_URL,
                 // Present so the environment resolves. Never reached: every test

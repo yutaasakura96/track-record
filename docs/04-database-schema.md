@@ -61,7 +61,7 @@ users (Better Auth)
  │    ├── application_steps      1:N   (the date of each status reached; superseded, never deleted)
  │    ├── interviews             1:N   (the author's note of one real interview)
  │    │    ├── interview_questions 1:N  (the questions asked, each a row, in order)
- │    │    └── interview_recordings 1:N (a link to a recording kept elsewhere; the one removable row)
+ │    │    └── interview_recordings 1:N (a link to a recording kept elsewhere, or an uploaded audio file; the one removable row)
  │    ├── renders                0:1   (the tailored résumé written for it)
  │    ├── application_documents  0:N   (the documents chosen for it; taken off, never deleted)
  │    └── application_sent_copies 0:N  (each document as it was sent: the file, kept whole)
@@ -104,7 +104,7 @@ create type application_status as enum ('not_applied', 'applied', 'resume_passed
                                          'interview_2', 'interview_final', 'offer',
                                          'rejected', 'withdrawn');
 create type interview_round as enum ('interview_1', 'interview_2', 'interview_final', 'other');
-create type recording_kind as enum ('link');
+create type recording_kind as enum ('link', 'upload');
 ```
 
 ---
@@ -644,7 +644,7 @@ the screens.
 | `requirements` | text[] | no | Default `{}`. The key requirements, as the author saved them: read from the job description and checked (#73), or typed |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
-| `last_activity_at` | timestamptz | no | When the author last changed where it stands: a step set, a date corrected or added, closed, reopened, undone, and an interview entry added (§3.15). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet. Correcting the company, position, link or requirements does not move it |
+| `last_activity_at` | timestamptz | no | Last change to the application's record (`07` §9b and §9c own which writes count). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `user_id`.
@@ -682,7 +682,7 @@ date. **Index:** `user_id`, over the live rows, which is the read behind the lis
   anything. `src/server/db/migrations/down/0017_applications.sql` reverses the migration; it is run
   by hand and `tests/applications-migration.test.ts` runs both directions.
 
-### 3.15 `interviews` and `interview_questions` · migration 0018, 2026-10-12 (#72)
+### 3.15 `interviews` and `interview_questions` · migration 0018, 2026-10-12 (#72); 0021, 2026-10-14 (#81)
 
 The author's note of one real interview, and the questions asked at it. Written by hand; no model
 reads or writes either table. Their rules are one module, `src/shared/interview.ts`, read by the
@@ -699,6 +699,7 @@ route and by the form.
 | `round` | interview_round | no | `interview_1`, `interview_2`, `interview_final`, under the names `application_status` gives those steps, or `other` for a conversation that is not a round |
 | `who` | text | no | Default `''`. Names or roles as typed, up to 200 characters. Other people's names: never logged |
 | `how_it_went` | text | no | Default `''`, up to 10,000 characters. Empty only when the entry has a question. Never logged |
+| `removed_at` | timestamptz | yes | When the author deleted the entry (#81). Null while it is there. **No read behind a page returns a row that has it** |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `(user_id, application_id)`, the read behind an application's page.
@@ -710,11 +711,12 @@ route and by the form.
 | `id` | text | no | PK, `ivq_…` |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `interview_id` | text | no | FK → `interviews.id` **cascade** |
-| `position` | integer | no | From 0 with no gap: the place of the question in its interview |
+| `position` | integer | no | Live questions run from 0 with no gap; a removed row keeps its former place |
 | `text` | text | no | Up to 1,000 characters, at most 100 an interview. Never logged |
+| `removed_at` | timestamptz | yes | Stamped when an edit leaves the question out. Null while visible |
 | `created_at`, `updated_at` | timestamptz | no | |
 
-**Unique:** `(interview_id, position)`. **Index:** `user_id`.
+**Unique:** `(interview_id, position) where removed_at is null`. **Index:** `user_id`.
 
 - **A question is a row, not an item in an array column**, so it has an id of its own. The
   hand-off of the questions asked (#77) and anything later that points at one question need it.
@@ -723,35 +725,58 @@ route and by the form.
   of it is saved or none is.
 - **The status an entry moved is not stored on the entry.** The move is an ordinary change to
   `application_steps`, so Undo puts the standing back and leaves the entry where it is.
-- **An entry is saved once.** No route edits or removes one (`06`, 2026-10-12). Both tables are in
-  the export.
+- **An entry can be corrected, in place** (#81; `06`, 2026-10-14). Its editable columns are
+  overwritten and no earlier wording is kept: the entry is the author's note, and the note is what
+  they last wrote. **A question that stays keeps its row and its id**, in its new place and with
+  its new words; one left out has its row stamped `removed_at`; a new one is a new row. Live `position` still runs
+  from 0 with no gap: a question changing place is parked at a negative position inside the batch,
+  because the unique index is checked a row at a time.
+- **A corrected step date supersedes its previous row**, as any corrected date does (§3.14).
+  `07` §9b owns when an interview edit changes the standing.
+- **A deleted entry keeps its row.** `removed_at` is stamped, its questions stay, and nothing
+  reads either on an application page again. Its recordings are removed in the same batch exactly as removing each would
+  (§3.16), so no link outlives the entry it hung from. The status and every step date stay as they
+  are. Both tables are in the export, a deleted entry included.
 
-### 3.16 `interview_recordings` · migration 0019, 2026-10-12 (#74)
+### 3.16 `interview_recordings` · migrations 0019, 2026-10-12 (#74), and 0022, 2026-10-15 (#76)
 
-A recording of an interview, on its entry. Today that is **a link to one kept somewhere else**:
-only the link is held, nothing fetches it, and no file is stored. Uploading an audio file (#76)
-adds a second `recording_kind` and its own columns to this table. The rules are
-`src/shared/recording.ts`, read by the route and by the form.
+A recording of an interview, on its entry: **a link to one kept somewhere else**, of which only the
+link is held and which nothing fetches, or **an uploaded audio file**, kept in the private R2
+bucket `track-record-recordings` (binding `RECORDINGS`) under the key `<user_id>/<id>`. The key
+names no file. The rules are `src/shared/recording.ts`, read by the routes and by the forms.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` | text | no | PK, `rec_…` |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `interview_id` | text | no | FK → `interviews.id` **cascade** |
-| `kind` | recording_kind | no | `link` |
-| `url` | text | yes | `http` or `https`, with a host and no whitespace, up to 2,000 characters. **Null once removed, and only then.** Never logged |
-| `label` | text | no | Default `''`. What it is, in a few words, up to 200 characters. Emptied on removal. Never logged |
+| `kind` | recording_kind | no | `link` or `upload` |
+| `url` | text | yes | A link's `http` or `https` address, with a host and no whitespace, up to 2,000 characters. **Null once removed, and only then**; always null for an upload. Never logged |
+| `label` | text | no | Default `''`. A link's few words, up to 200 characters. Emptied on removal. Never logged |
+| `file_name` | text | yes | An upload's name as the author's file had it, without a path, up to 200 characters. Null for a link, and once removed. Never logged |
+| `byte_size` | integer | yes | An upload's size, at most 90 MB (94,371,840 bytes). Null for a link, and once removed |
+| `content_type` | text | yes | The type the server recognised from the file's first bytes: `audio/mpeg`, `audio/aac`, `audio/mp4`, `audio/wav`, `audio/flac` or `audio/ogg`. Never the browser's claim. Null for a link, and once removed |
+| `duration_seconds` | integer | yes | How long an upload plays, as the browser read it before sending. Null when it could not, for a link, and once removed |
 | `removed_at` | timestamptz | yes | When the author removed it. Null while it is there |
 | `created_at`, `updated_at` | timestamptz | no | A card lists its recordings by `created_at` |
 
 **Index:** `(user_id, interview_id)`. **Checks:** a `link` has a `url` exactly when `removed_at` is
-null; a removed row has an empty `label`.
+null; a removed row has an empty `label`; a `link` has none of the four upload columns; an `upload`
+has no `url`, has `file_name`, `byte_size` and `content_type` exactly when `removed_at` is null,
+and has no `duration_seconds` once removed. The two added in 0022 compare `kind::text`, because an
+enum value cannot be used in the transaction that adds it.
 
 - **This is the one row the author can remove** (`06`, 2026-10-11). Removing does not delete the
-  row. It sets `removed_at` and empties `url` and `label` in the same statement, so the link is
-  gone from the database for good and the entry can still say `A recording was removed on <date>`.
-  The date shown is the day in Japan of `removed_at`. `removed_at` is not a soft delete: nothing
-  of the recording is kept behind it.
+  row. It sets `removed_at` and empties `url`, `label` and the upload columns in the same
+  statement, so nothing that said what the recording was stays in the database and the entry can
+  still say `A recording was removed on <date>`. The date shown is the day in Japan of
+  `removed_at`. `removed_at` is not a soft delete: nothing of the recording is kept behind it.
+- **An upload's file is stored before its row and deleted after its row is emptied** (`06`,
+  2026-10-15, both entries), so a live row never names a file that is not there. An upload cut off
+  leaves no row; a row that cannot be written takes the file just stored with it; a removal refused
+  by the conflict guard leaves the file playable, and a file whose delete fails after its row is
+  emptied is left unnamed in the bucket and logged by id. The day an upload reads as uploaded is
+  the day in Japan of `created_at`.
 - **Adding and removing one are activity on the application.** Both are written in one `db.batch`
   with `applications.last_activity_at` and under its conflict guard (`07` §9b).
 - **Not in the export** (S24). The entry it hangs from is.
@@ -1043,8 +1068,8 @@ technologies: {AWS, VPC, IAM}
 | `fact_flags` | **Never deleted.** A checked flag is stamped, not removed; a rejected fact's flags stay with it |
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
-| `interviews`, `interview_questions` | **Never deleted.** An entry is saved once |
-| `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). The link and its label are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
+| `interviews`, `interview_questions` | **Never deleted.** An entry or question the author removes is stamped `removed_at`; both remain in the export (#81) |
+| `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). An upload's file is deleted from R2; the link and its label, or the file's name, size, type and length, are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
@@ -1069,7 +1094,7 @@ the profile photo is not. Rows stamped `removed_at` or `undone_at` are exported 
 
 **Applications schema (#70–#76):** §3.14 owns the built application and step tables, including
 `last_activity_at` and the changes counted as activity, §3.15 the interview entries and their
-questions (#72), §3.16 a recording kept as a link (#74), and §3.17 the documents and sent copies
+questions (#72), §3.16 a recording kept as a link (#74) or uploaded (#76), and §3.17 the documents and sent copies
 (#71). Screen 12 in `10` specifies the later upload changes. Step, close, interview and
 sent-copy dates remain separate day-precision event dates; the closed-day figure uses the close
 date. Each sent copy is its own record with the document identity, version, frozen file, sent

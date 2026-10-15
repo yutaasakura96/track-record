@@ -51,10 +51,16 @@ are marked as the owner's in each issue.
   **#73, built 2026-10-12**: a pasted posting is read by a fifth model function into a company, a
   position and key requirements to check before saving (`03` §4, `07` §9b, `10` Screen 13).
   **#74, built 2026-10-12**: a link to a recording kept elsewhere on an interview entry, opened in
-  a new tab and removable for good (`04` §3.16, `07` §9b). No file is stored. The
-  rest of #75 to #77 follow in the order their `Depends on` lines give;
-  each writes its own part of `04`, `07` and `09`. **Owed by the owner:** the R2 bucket and its binding,
-  before #76.
+  a new tab and removable for good (`04` §3.16, `07` §9b). No file is stored.
+  **#81, built 2026-10-14**: a saved interview entry can be corrected and deleted (`04` §3.15,
+  `07` §9b, `09` Flow 12b; decision log, that date).
+  **#76, built 2026-10-15**: an audio recording uploaded to an interview entry, up to 90 MB,
+  streamed through the Worker to the private R2 bucket `track-record-recordings`, played in the
+  page with seeking, downloaded, and removable for good (`04` §3.16, `07` §9b, `09` Flow 13b,
+  `13` §1; decision log, that date, for the measured proof and the limits). The owner created the
+  bucket on 2026-10-13; the binding is in `wrangler.toml`.
+  **#77, built 2026-10-15**: the application footer downloads the job description as a text file
+  and copies the interview questions as plain text (`10` Screen 14).
 
 ## Blocked
 

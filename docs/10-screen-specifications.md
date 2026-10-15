@@ -1314,12 +1314,9 @@ description, the résumé sent, where it stands and how the interviews went (`02
   `text-muted` with a muted dot. No green, no amber, no red, anywhere on these screens.
 - **Dates are days**, written `2026-10-02`, in mono where they stand alone. A count is `1 day` or
   `N days`, of calendar days. This is the one place a day is shown (decision log, 2026-10-11).
-- **What a change is.** Each application keeps one last-activity timestamp, set when it is added
-  and when the owner changes its record: setting, closing, reopening or undoing a status; adding
-  or correcting a step or close date; adding an interview entry; choosing a document
-  or recording a sent copy; attaching or removing a recording. Editing the company, position,
-  link or requirements does not set it, and neither does a save that changes nothing. Event dates
-  do not stand in for this timestamp. The list order, last-change count and **gone quiet** use it.
+- **What a change is.** Each application keeps one last-activity timestamp; `07` §9b and §9c own which
+  writes set it. Event dates do not stand in for this timestamp. The list order, last-change count
+  and **gone quiet** use it.
   Gone quiet is 14 days or more since that activity while the status is Applied, Résumé passed or
   one of the three interviews and it is not closed. The mark is worked out on each read and stored
   nowhere. The résumé-passed and first-interview counts use their event dates. This specification
@@ -1588,19 +1585,21 @@ copy, earlier copies of the same document included, most recently recorded first
 | **Generating refused** (no usable fact, a missing profile field) | The reason Screen 3 gives, in the same words; the tailored résumé stays on the application to generate later |
 | **Freezing failed** | The change out of Not applied is not made, and the reason is said in the panel |
 
-#### Interviews · #72, recordings #74 and #76
+#### Interviews · #72 and #81, recordings #74 and #76
 
 Panel header **`Add an interview`** (ghost), absent while the form is open. One card an interview
 entry, newest date first, and of two on one day the one added later first. With no entry and the
 form closed: `None yet. After each one, note the date, who you spoke with, how it went and the
 questions they asked.`
 
-- One line: the round at the row-title size, the date in mono, and `with <who>` when given.
+- One line: the round at the row-title size, the date in mono, and `with <who>` when given. At its
+  end, `Edit` and `Delete` as quiet links, named for a screen reader `Edit the <round> entry of
+  <date>` and `Delete the <round> entry of <date>`. They wrap under the line at phone width.
 - How it went, as a paragraph in `text-body`, with the line breaks it was typed with. Left out when
   empty.
 - `Questions asked`, then the questions as a numbered list. Left out when there are none.
 - Its recordings, a row each in the order attached, then **`Attach a recording`** (ghost). A link
-  is built (#74), with the form's line about recordings; uploading audio follows in #76.
+  (#74) and an uploaded audio file (#76) are both built.
 
 **The form**, a card titled `New interview`, opened at the top of the panel:
 
@@ -1621,6 +1620,24 @@ questions they asked.`
   A save the server refuses keeps the form and everything typed in it, and says why under the
   buttons.
 
+**`Edit` opens the same form in place of the card**, titled `Edit interview`, holding what was
+saved (#81). Three things differ:
+
+- Each question in the list is a field, labelled `Question <n>`, with its `Remove`, so its words
+  can be put right where it stands. One emptied is dropped on save.
+- The line about recordings is absent: the card it came from carries them.
+- The primary button is **`Save changes`**. Saved, the card is drawn again and it says `Interview
+  saved.` `Cancel` puts the card back unchanged. While the save is pending, `Cancel` and every
+  other card's `Edit` are disabled, `Saving…`, so the form cannot close on a write that still lands.
+
+**`Delete` asks once, in the card**, under its first line and with the rest of the card still
+there to read, as an alert dialog: `Delete this entry? Its notes and questions are taken off this
+application, and there is no undo.`, then `Its recordings are removed with it, and their files are
+deleted from storage.` when it has an uploaded one, or `Its recording links are removed with it.`
+when it has only links, then `The status and its dates stay as they are.` **`Delete it`** (secondary) and `Keep it`
+(bare), which has the focus and is disabled, `Deleting…`, while the delete is pending. Deleted, it says `Interview deleted.` A delete the server refuses
+keeps the card and says why in the dialog.
+
 **Rules**
 
 - **An entry needs how it went or at least one question**: `Write how it went, or add at least one
@@ -1637,7 +1654,15 @@ questions they asked.`
   stands with `Change the date` and `Undo`; Undo restores the earlier standing and keeps the entry.
   A step that already has a date keeps it. `Other conversation` and entries on a closed application
   leave the standing alone and say `Interview saved.` Every entry still counts as activity (What a change is).
-- **An entry is saved once.** There is no edit and no removal of an entry (`06`, 2026-10-12).
+- **A corrected day follows the step-date rule in `07` §9b.** When the step date changes, it
+  is said in Where it stands: `Interview saved, and the <step> date was changed to match. Date saved as <date>.`
+  with `Change the date` and `Undo`; Undo puts the date
+  back and keeps the entry as corrected. When the date stays, the save says `Interview saved.`
+  A round changed to a later one moves the status, said as for a new entry.
+- **Deleting an entry moves nothing back.** The status it moved the application to and the date it
+  saved stay; they are changed in Where it stands if they are wrong.
+- **A correction or a delete counts as activity**, like the entry itself. A correction that
+  changed nothing writes nothing.
 - **Each question is its own item, in the order given.**
 - **No model reads an entry or writes one.**
 
@@ -1645,24 +1670,34 @@ questions they asked.`
 
 | Kind | Reads | Actions |
 |---|---|---|
-| Uploaded audio | chip `Audio`, the file's name, `46 MB · 52 min · uploaded <date> · only you can play it` | `Play` (ghost; plays in the page, with seeking), `Download`, `Remove` |
+| Uploaded audio | chip `Audio`, the file's name, `46 MB · 52 min · uploaded <date> · only you can play it`; the length is left out when the browser could not read it, and one of an hour or more reads `1 h 05 min` | `Play` (ghost), `Download` (a quiet link that saves the file under its own name), `Remove` |
 | Link | chip `Link`, its label or `Recording kept elsewhere`, the address under it, wrapping anywhere | `Open` (a new tab), `Remove` |
 | Removed | `A recording was removed on <date>.` in `text-muted` | None |
 
+**`Play`** puts the browser's own player under the row, playing, with seeking; the bytes come from
+the Worker, which answers the ranges a seek asks for. `Play` is gone while the player is there.
+
 **`Attach a recording`** opens a card in place:
 
-- **`Upload audio`** (secondary; #76), **`Add a link instead`** (ghost; #74) and `Cancel`. Under
-  them: `Audio, up to <the limit> a file. It is stored privately and only you, signed in, can play
-  it. Other people's voices are on it, so nothing here shares it or sends it anywhere.` **Until #76
-  the card is the link form alone.**
+- **`Upload audio`** (secondary, with the focus), **`Add a link instead`** (ghost) and `Cancel`.
+  Under them: `Audio (MP3, M4A, AAC, WAV, FLAC or Ogg), up to 90 MB a file. It is stored privately
+  and only you, signed in, can play it. Other people's voices are on it, so nothing here shares it
+  or sends it anywhere.` `Upload audio` opens the file chooser, narrowed to those kinds, and the
+  file chosen is checked and sent at once. A refusal is said under the sentence, and the card
+  stays.
 - **The link form:** `Link to the recording` (placeholder `https://`), `What it is, in a few words`
   (placeholder `Their recording of the call`), `Only the link is kept. If the recording is taken
   down where it lives, it is gone here too.`, **`Add the link`** (secondary) and `Cancel`. The
   card opens with the cursor in the link field, and Enter in either field adds the link. Saved,
   it says `Link added.` A link that is refused keeps the card and what was typed, and says why
   under the buttons.
-- **Uploading**, a `role="status"` row: `Uploading <name>`, the progress bar of `05` §7, and `N of
-  M MB. Keep this page open.` Done, it says `Recording uploaded.`
+- **Uploading**, a `role="status"` row in place of the card: `Uploading <name>`, the progress bar
+  of `05` §7, and `N of M MB. Keep this page open.` Leaving the page while it runs asks first.
+  Done, the row is listed and it says `Recording uploaded.`
+- **Cut off**, an alert row in place of the card: `The upload of <name> stopped before it
+  finished, so nothing was kept.`, **`Try again`** (secondary), which sends the same file again,
+  and `Cancel`. Before saying so, the page reads the application again: a connection that dropped
+  after the server stored the file and before its answer arrived lists it as uploaded instead.
 
 **`Remove` asks once, in place of the row**, as an alert dialog: `Remove <name> for good?`, a
 link's name being its label, or `this link` when it has none, then
@@ -1672,23 +1707,27 @@ was removed.` **`Remove it`** (secondary) and `Keep it` (bare). Removed, it says
 
 **Recording rules**
 
-- **Audio only.** No video, and no transcript (decision log, 2026-10-11). The prototype's `Upload
-  audio or video`, its `Video` chip and its `2 GB` are not the spec; #76 sets the size and type
-  limits and writes them into the sentence above.
+- **Audio only, up to 90 MB a file.** No video, and no transcript (decision log, 2026-10-11). The
+  prototype's `Upload audio or video`, its `Video` chip and its `2 GB` are not the spec. The kinds
+  are MP3, M4A, AAC, WAV, FLAC and Ogg, told apart by the file's first bytes, in the browser
+  before anything is sent and again by the server; the limit is the platform's (decision log,
+  2026-10-15). An MP4 with a video track, or an Ogg file that is Theora video, is refused in the
+  browser before anything is sent; the server checks only the first bytes (decision log,
+  2026-10-15, the second entry).
 - **A link is `http` or `https`**, or it is refused: `That does not look like a link. It should
   start with https://` It is refused before anything is sent and again by the server, and `Open`
   is drawn only for an address that passes the same rule, so no other kind of address is ever
   opened from this page. `Open` sends no referrer.
 - **Only the owner, signed in, can play or download an upload.** Nothing here shares one.
-- **A recording is the only thing on these screens that can be removed.** An entry cannot, and an
-  application cannot.
+- **A recording is the only thing on these screens that is removed for good.** A deleted entry
+  leaves the page and is kept (`04` §3.15); an application cannot be deleted.
 
 **States**
 
 | State | Behaviour |
 |---|---|
 | **No entries** | `None yet. After each one, note the date, who you spoke with, how it went and the questions they asked.` |
-| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit |
+| **File too large, or not audio** | Refused before anything is sent, with the file's name, its size or type, and the limit: `<name> is 95.0 MB. A recording can be at most 90 MB.`, or `<name>, <type>, is not audio this app keeps. It takes MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` A video: `<name> is a video. This app keeps audio only: MP3, M4A, AAC, WAV, FLAC or Ogg, up to 90 MB.` An empty file: `<name> is empty. Choose the recording itself.` |
 | **Upload interrupted** | The row says so with `Try again`; nothing is listed as a recording |
 
 #### The job · #70
@@ -1738,8 +1777,8 @@ Named so that nobody reads an unwired button as a decision.
   behaviour is what this document says.
 - **Its tailored-résumé screen is a stand-in for Screen 2**, and stacks the two columns at phone
   width. That is not a decision about Screen 2 (Responsive behaviour).
-- **Correcting an interview entry after saving** is not shown, and #72 built none: an entry is
-  saved once (`06`, 2026-10-12). Editing one is a decision still to make, not an oversight.
+- **Correcting or deleting an interview entry after saving** is not shown. #81 built both, to
+  this document (`06`, 2026-10-14).
 - **`Prototype only:` controls** (the sample postings, the sample file) and the bar above the frame
   are not part of any screen.
 
@@ -1758,15 +1797,15 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-**Desktop only in v1.** Minimum supported width **1280px**; designed at 1440×900.
+Outside Applications, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
-app shows a message stating that a wider window is required rather than degrading into an unusable
-single column.
+other screens show a message stating that a wider window is required rather than degrading into an
+unusable single column.
 
-The overview screen would adapt to narrow widths, but shipping one responsive screen out of three
-is worse than none: it invites use on a device where the next click fails.
+The overview screen would adapt to narrow widths, but opening it would invite a next click into a
+screen that still needs a wider window.
 
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
@@ -1795,7 +1834,10 @@ Under **720px** of width these screens change as follows, and above it they are 
 
 **Nothing scrolls sideways** at 390px, in either theme, with Japanese company and position names.
 
-**Screens 2, 5 and 6 are not Applications screens and keep the message.** So on a phone `Make a
-tailored résumé`, `Regenerate` and `History` lead to a screen that asks for a wider window. #75
-settles what those three controls do at phone width (say so beside them, or hold them back with the
-reason); it does not make Diff Review a phone screen.
+**Screens 2, 5 and 6 are not Applications screens and keep the message.** So in a window under
+1024px, where they ask for a wider one, Résumé for this job holds back every control that leads to
+them: `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it` and `History`,
+and the `Import a document` link. In their place the panel says once, in `text-muted`:
+`Making a tailored résumé, writing or reviewing a version and its history need a wider window, so
+they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
+since none of them leaves Applications (decision log, 2026-10-14). Diff Review is not a phone screen.
