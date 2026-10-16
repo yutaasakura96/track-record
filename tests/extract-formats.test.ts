@@ -107,6 +107,27 @@ describe("a Word document", () => {
     expect(upload.text).toBe("BeforeAfter");
   });
 
+  it("reads a tracked move once, where the text now stands", async () => {
+    const upload = await extractUpload(rawDocx([
+      `<w:p><w:pPr><w:rPr><w:moveFrom w:id="1" w:author="A" w:date="2026-10-01T00:00:00Z"/></w:rPr></w:pPr><w:moveFromRangeStart w:id="2" w:name="move1"/><w:moveFrom w:id="3"><w:r><w:t>Cut costs 30%</w:t></w:r></w:moveFrom><w:moveFromRangeEnd w:id="2"/></w:p>`,
+      `<w:p><w:r><w:t>Harbor ledger rebuild</w:t></w:r></w:p>`,
+      `<w:p><w:moveToRangeStart w:id="4" w:name="move1"/><w:moveTo w:id="5"><w:r><w:t>Cut costs 30%</w:t></w:r></w:moveTo><w:moveToRangeEnd w:id="4"/></w:p>`,
+    ].join("")));
+    expect(upload.text).toBe("Harbor ledger rebuild\nCut costs 30%");
+  });
+
+  it("reads a paragraph whose mark is deleted as joined to the next, and one deleted whole as nothing", async () => {
+    const deletedMark = `<w:pPr><w:rPr><w:del w:id="1" w:author="A" w:date="2026-10-01T00:00:00Z"/></w:rPr></w:pPr>`;
+    const upload = await extractUpload(rawDocx([
+      `<w:p><w:r><w:t>First</w:t></w:r></w:p>`,
+      `<w:p>${deletedMark}<w:del w:id="2"><w:r><w:delText>Gone entirely</w:delText></w:r></w:del></w:p>`,
+      `<w:p>${deletedMark}<w:r><w:t xml:space="preserve">Joined </w:t></w:r></w:p>`,
+      `<w:p><w:r><w:t>to this</w:t></w:r></w:p>`,
+      `<w:p><w:r><w:t>Last</w:t></w:r></w:p>`,
+    ].join("")));
+    expect(upload.text).toBe("First\nJoined to this\nLast");
+  });
+
   it("is refused as empty when no paragraph holds text", async () => {
     expect(await refusalOf(rawDocx("<w:p/><w:p><w:r><w:t> </w:t></w:r></w:p>"))).toBe("That file is empty.");
   });

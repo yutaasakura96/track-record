@@ -379,9 +379,13 @@ work. Each format stamps its own `extractor_version`.
 run it on workerd since 2026-09-08; `fflate` would have been a second zip library proved for the same
 job. **The `docx-1` rule:** every `w:p` in `word/document.xml` is one line, in document order and
 table cells included, and an empty paragraph is an empty line. `w:t` is the text, `w:tab` a tab,
-`w:br` a line break (a page or column break is nothing). Tracked deletions, field codes, paragraph
-and run properties, and the `mc:Fallback` copy of a text box are not read; nor are headers,
-footers, footnotes or comments.
+`w:br` a line break (a page or column break is nothing). Tracked deletions, the old location of a
+tracked move (`w:moveFrom`; its new location, `w:moveTo`, is read), field codes, paragraph and run
+properties, and the `mc:Fallback` copy of a text box are not read; nor are headers, footers,
+footnotes or comments. The text is the document with its tracked changes accepted: a paragraph
+whose mark is a tracked deletion or the old side of a move (`w:pPr/w:rPr/w:del`, `w:moveFrom`)
+ends no line of its own, what is left of its text joins the paragraph after it, and a paragraph
+deleted whole contributes nothing.
 
 **The `pdf-1` rule.** A PDF's line breaks are where the layout ran out of width, not paragraphs. A
 page's printed lines are read in content order; pieces on one baseline have a space when their

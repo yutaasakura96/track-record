@@ -11,9 +11,14 @@
  * table cells included, and an empty paragraph is an empty line. Inside a
  * paragraph, `w:t` is its text, `w:tab` a tab, and `w:br` or `w:cr` a line
  * break of its own, except a page or column break, which is nothing. Deleted
- * text (`w:delText`), field codes (`w:instrText`), paragraph and run
- * properties, and the `mc:Fallback` copy of a text box are not read. Changing
- * any of this is a new extractor version.
+ * text (`w:delText`), the old location of moved text (`w:moveFrom`), field
+ * codes (`w:instrText`), paragraph and run properties, and the `mc:Fallback`
+ * copy of a text box are not read: the text is the document with its tracked
+ * changes accepted. So a paragraph whose mark is a tracked deletion or the old
+ * side of a move (`w:pPr/w:rPr/w:del`, `w:moveFrom`) ends no line of its own;
+ * what is left of its text joins the paragraph after it, and a paragraph
+ * deleted whole contributes nothing. Changing any of this is a new extractor
+ * version.
  */
 import PizZip from "pizzip";
 import { UnreadableDocument } from "./unreadable";
@@ -26,7 +31,7 @@ const TOKEN = /<(\/?)([A-Za-z][\w.-]*:)?([\w.-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)(
  * Never read. The two property elements are here because a paragraph's tab
  * stops are `w:tab` elements too, and are not tabs in its text.
  */
-const SKIPPED = new Set(["mc:Fallback", "w:del", "w:delText", "w:instrText", "w:pPr", "w:rPr"]);
+const SKIPPED = new Set(["mc:Fallback", "w:del", "w:delText", "w:instrText", "w:moveFrom", "w:pPr", "w:rPr"]);
 const WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const COMPATIBILITY_NAMESPACE = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
@@ -54,9 +59,13 @@ export function paragraphsOf(xml: string): string[] {
   // A text box inside a paragraph holds paragraphs of its own: they close
   // before the one around them, and are emitted in that order.
   const open: string[] = [];
+  /** Per open paragraph: its mark is deleted, so it ends no line. */
+  const markDeleted: boolean[] = [];
+  /** Text of mark-deleted paragraphs, by depth, waiting for the next paragraph. */
+  const carried: string[] = [];
   let inText = false;
-  /** Depth inside an element whose content is never read. */
-  let skipping = 0;
+  /** The skipped elements open around this point, whose content is never read. */
+  const skipped: string[] = [];
   let wordPrefixes = new Set(["w"]);
   let compatibilityPrefixes = new Set(["mc"]);
   let rootRead = false;
@@ -64,7 +73,7 @@ export function paragraphsOf(xml: string): string[] {
   for (const match of xml.matchAll(TOKEN)) {
     const [, closing, prefix = "", name, attributes = "", selfClosing, cdata, chars] = match;
     if (chars !== undefined || cdata !== undefined) {
-      if (inText && !skipping && open.length) open[open.length - 1] += cdata ?? decode(chars!);
+      if (inText && !skipped.length && open.length) open[open.length - 1] += cdata ?? decode(chars!);
       continue;
     }
     if (name === undefined) continue; // a comment or a declaration
@@ -81,16 +90,30 @@ export function paragraphsOf(xml: string): string[] {
       : compatibilityPrefixes.has(namespace) ? `mc:${name}` : prefix + name;
 
     if (SKIPPED.has(tag)) {
+      if (!closing && (tag === "w:del" || tag === "w:moveFrom") && open.length
+        && skipped.length === 2 && skipped[0] === "w:pPr" && skipped[1] === "w:rPr") {
+        markDeleted[markDeleted.length - 1] = true;
+      }
       if (selfClosing) continue;
-      skipping += closing ? -1 : 1;
+      if (closing) skipped.pop();
+      else skipped.push(tag);
       continue;
     }
-    if (skipping) continue;
+    if (skipped.length) continue;
 
     if (tag === "w:p") {
-      if (selfClosing) lines.push("");
-      else if (closing) lines.push(open.pop() ?? "");
-      else open.push("");
+      const depth = open.length - (closing ? 1 : 0);
+      const before = carried[depth] ?? "";
+      if (!closing) carried[depth] = "";
+      if (selfClosing) lines.push(before);
+      else if (!closing) {
+        open.push(before);
+        markDeleted.push(false);
+      } else if (open.length) {
+        const text = open.pop()!;
+        if (markDeleted.pop()) carried[depth] = text;
+        else lines.push(text);
+      }
       continue;
     }
     if (tag === "w:t") {
@@ -105,5 +128,6 @@ export function paragraphsOf(xml: string): string[] {
       if (!pageOrColumn) open[open.length - 1] += "\n";
     } else if (tag === "w:noBreakHyphen") open[open.length - 1] += "-";
   }
+  if (carried[0]) lines.push(carried[0]);
   return lines;
 }
