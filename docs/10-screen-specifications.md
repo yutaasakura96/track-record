@@ -1852,14 +1852,6 @@ Under **720px** of width these screens change as follows, and above it they are 
 
 **Nothing scrolls sideways** at 390px, in either theme, with Japanese company and position names.
 
-### Quick capture at phone width · planned 2026-10-16, #95
-
-**The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
-interview note is. The Quick capture route is not behind the wider-window message and follows the
-table above under 720px: no sidebar, `Menu` first in the header, one column, buttons at least 36px
-tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
-capture as the parts that work there. Home and every other screen keep the message.
-
 **Screens 2, 5 and 6 are not Applications screens and keep the message.** So in a window under
 1024px, where they ask for a wider one, Résumé for this job holds back every control that leads to
 them: `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it` and `History`,
@@ -1867,3 +1859,11 @@ and the `Import a document` link. In their place the panel says once, in `text-m
 `Making a tailored résumé, writing or reviewing a version and its history need a wider window, so
 they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
 since none of them leaves Applications (decision log, 2026-10-14). Diff Review is not a phone screen.
+
+### Quick capture at phone width · planned 2026-10-16, #95
+
+**The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
+interview note is. The Quick capture route is not behind the wider-window message and follows the
+Applications table under 720px: no sidebar, `Menu` first in the header, one column, buttons at least
+36px tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
+capture as the parts that work there. Home and every other screen keep the message.
