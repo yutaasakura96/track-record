@@ -1174,7 +1174,7 @@ describe("an empty record", () => {
     await screen.findByRole("heading", { name: "Your record is empty" });
     expect(screen.getByRole("button", { name: "Choose a file" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Import a document" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Quick capture" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Quick capture" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
     for (const name of SECTIONS) expect(screen.queryByRole("heading", { name })).toBeNull();
     expect(screen.queryByRole("link", { name: "Export my record" })).toBeNull();

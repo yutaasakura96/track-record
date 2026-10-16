@@ -8,7 +8,7 @@
  * header. They are focused, full-width tasks, not navigation destinations.
  */
 import { Link, useRouterState } from "@tanstack/react-router";
-import { useApplications, useImportSummary } from "../api";
+import { useApplications, useImportSummary, useOverview } from "../api";
 import { useThemeStore, type Theme } from "../stores/theme";
 import { Mono, SegmentedControl } from "./ui";
 
@@ -127,13 +127,21 @@ function ThemeControl() {
 }
 
 /**
- * The sidebar at phone width, under Applications only (`docs/10` Responsive
- * behaviour, issue #75): a sheet under the header, opened by `Menu`.
- * Applications leads because it is the part that works on a phone; the other
- * rows still go where they go, and say so before they are followed.
+ * The sidebar at phone width, on the screens that work there (`docs/10`
+ * Responsive behaviour, issues #75 and #95): a sheet under the header, opened
+ * by `Menu`. Applications and Quick capture lead because they are the parts
+ * that work on a phone; the other rows still go where they go, and say so
+ * before they are followed. Quick capture is hidden while the record is empty,
+ * as it is on Home.
  */
 export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) {
-  const rows = [...NAV.filter((item) => item.to === "/applications"), ...NAV.filter((item) => item.to !== "/applications")];
+  const path = useRouterState({ select: (state) => state.location.pathname });
+  const capture = useOverview().data?.isEmpty === false;
+  const rows = [
+    ...NAV.filter((item) => item.to === "/applications"),
+    ...(capture ? [{ label: "Quick capture", to: "/capture" }] : []),
+    ...NAV.filter((item) => item.to !== "/applications"),
+  ];
   return (
     <nav
       id={id}
@@ -142,7 +150,7 @@ export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) 
     >
       <ul className="p-10 grid gap-2">
         {rows.map((item) => {
-          const active = item.to === "/applications";
+          const active = path === item.to || (item.to !== "/" && path.startsWith(`${item.to}/`));
           return (
             <li key={item.label}>
               <Link
@@ -160,7 +168,8 @@ export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) 
         })}
       </ul>
       <p className="px-20 text-small text-text-muted">
-        On a phone, Applications is the part that works. The other screens still ask for a wider window.
+        On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a
+        wider window.
       </p>
       <div className="mt-auto p-10 border-t border-border">
         <ThemeControl />

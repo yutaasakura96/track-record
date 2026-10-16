@@ -1,8 +1,9 @@
 /**
- * THE SEAM. Five functions, and nothing else: read a passage into facts, write
+ * THE SEAM. Six functions, and nothing else: read a passage into facts, write
  * a document from facts, grade facts extracted before grading existed,
- * explain one flag (`docs/06`, 2026-10-08), and read a pasted job posting
- * (`docs/06`, 2026-10-11).
+ * explain one flag (`docs/06`, 2026-10-08), read a pasted job posting
+ * (`docs/06`, 2026-10-11), and split a typed sentence or two into claims
+ * (`docs/06`, 2026-10-16).
  *
  * Nothing outside `src/model/` imports an SDK or knows a provider name
  * (`docs/03-technical-design.md` §4). Swapping providers is a configuration
@@ -255,9 +256,38 @@ export interface PostingReading {
   requirements: string[];
 }
 
+/** What quick capture asks about a claim when the text does not say it (`docs/09` Flow 6). */
+export type CaptureQuestion = "when" | "employer" | "change" | "proof";
+
+/**
+ * One claim split out of what the author typed (issue #95). A proposal they
+ * confirm or correct before it is saved: no quote, no grade, no disclosure.
+ */
+export interface CapturedClaim {
+  /** Stored plainly, as an imported claim is. */
+  claim: string;
+  /** `YYYY-MM` when the text says when; `null` when it does not. */
+  month: string | null;
+  /** An id from `CaptureContext.employers`, or `null`. Never both this and `projectId`. */
+  employerId: string | null;
+  /** An id from `CaptureContext.projects`, or `null`. */
+  projectId: string | null;
+  technologies: string[];
+  /** What the screen asks for, because the text does not say it. */
+  missing: CaptureQuestion[];
+}
+
+/** What a captured claim may be filed under, and the month "last month" is read against. */
+export interface CaptureContext {
+  /** `YYYY-MM`. */
+  today: string;
+  employers: { id: string; name: string }[];
+  projects: { id: string; name: string }[];
+}
+
 /**
  * Generation's counterpart to `ExtractionContext`, and what grading,
- * explaining and reading a posting report through too. It carries one field and is optional — this
+ * explaining, reading a posting and capturing report through too. It carries one field and is optional — this
  * is a reporting channel, not a capability of its own.
  */
 export interface GenerationContext {
@@ -288,6 +318,13 @@ export interface ModelSeam {
    * a proposal to check and is stored nowhere by this call.
    */
   readPosting(jobDescription: string, ctx?: GenerationContext): Promise<PostingReading>;
+  /**
+   * The claims a typed sentence or two makes, each worded plainly, with the
+   * month and the employer or project the text names and what it leaves out.
+   * Called only when the author presses `Read it` on Quick capture; what it
+   * returns is a proposal to confirm and is stored nowhere by this call.
+   */
+  captureClaims(text: string, context: CaptureContext, ctx?: GenerationContext): Promise<CapturedClaim[]>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

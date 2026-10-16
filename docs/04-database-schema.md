@@ -328,6 +328,11 @@ step ever carries text across a workflow step boundary — steps pass IDs, never
 **One table holds candidates, accepted facts and rejected facts.** `status` distinguishes them.
 Rejected rows are retained forever, because that is what stops a re-import re-offering them.
 
+**Quick capture writes its facts as `accepted` too** (#95, `07` §6): `attested`, `graded_at`
+stamped as the author's grade, `auto_accepted_at` null, no source version, no quote, and `restricted`
+unless the confidential-shape check makes them `private`. Undo on a rejected captured fact returns it
+to `accepted`, never to `candidate`.
+
 **Since migration 0015 an import writes its facts as `accepted`** (#57, `03` §5). `candidate` is the
 state of the facts imported before that, until they are sorted or reviewed, and of nothing new. The
 column defaults below are unchanged and are no longer what an import writes.
@@ -340,11 +345,12 @@ column defaults below are unchanged and are no longer what an import writes.
 | `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Holds only an employer set on the fact by hand, through its card. Null on every extracted fact: extraction never writes one, and the fact reads its document's employer, then its project's (§3.12) |
 | `employer_set_at` | timestamptz | yes | — | When the author last set the fact's employer by hand (`PATCH /api/facts/:id` with `employerId`, `null` included). A fact's employer is **hand set** when this is stamped **or** `employer_id` is not null; a hand set with `employer_id` null is a hand-set `No employer`. Every non-null `employer_id` was set on a card, since extraction never writes one, so the facts filed before this column existed need no backfill (§3.12, #35) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
+| `occurred_on` | date | yes | — | The month the work happened, day pinned to `01` (migration 0025, #95). Written only by quick capture, where the author says when; null on every imported fact, which reads its time from its employer and project |
 | `provenance` | provenance | no | `'generated'` | The importer's grade, judged against the quote (`03` §4.1). `generated` when it gave none. Until 2026-10-08 every extracted fact started Generated |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy.** An import writes `private` for a confidential fact and `restricted` for every other, never `public` |
 | `status` | fact_status | no | `'candidate'` | |
-| `source_document_version_id` | text | yes | — | FK **restrict**. Null only for manual capture (M3) |
-| `quote` | text | yes | — | The **verbatim** supporting span. Null only for manual capture |
+| `source_document_version_id` | text | yes | — | FK **restrict**. Null only for a fact saved by quick capture (#95) |
+| `quote` | text | yes | — | The **verbatim** supporting span. Null only for a fact saved by quick capture |
 | `quote_start` | integer | yes | — | Character offset into `extracted_text`, **verified by exact match** |
 | `quote_end` | integer | yes | — | Exclusive |
 | `line_number` | integer | yes | — | Derived. Rendered as the `L79` chip |

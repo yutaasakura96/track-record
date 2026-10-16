@@ -33,7 +33,13 @@ export const INTERVIEW_IDENTITY = {
   name: "Interview Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email}`;
+export const CAPTURE_IDENTITY = {
+  sub: "e2e-capture-local",
+  email: "e2e-capture@example.invalid",
+  name: "Capture Test",
+};
+
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -50,6 +56,14 @@ export const INTERVIEW_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-interview-storage-state.json",
+);
+
+export const CAPTURE_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-capture-storage-state.json",
 );
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */

@@ -6602,3 +6602,39 @@ server's refusal are built from one list, `IMPORT_FORMATS`.
 
 **Revisit if:** a real document of the owner's is refused at 10 MiB, or a PDF of theirs reads with
 its paragraphs joined wrongly — which would be `pdf-2`, a new version, never a change to `pdf-1`.
+
+---
+
+### [2026-10-16] Quick capture as built: a month column, the card on the capture screen, and no number flag
+
+Built by #95, under the 2026-10-16 entry that the model splits and words the claims and the owner
+confirms. What that entry left to the build:
+
+**A captured fact keeps its month in `facts.occurred_on`** (migration 0025), month precision like
+every calendar column. Imported facts read their time from their employer and project and leave it
+null; a captured fact has no document to date it, and the owner says when on the form. Rejected:
+writing the month into the claim, which a render would then repeat as prose, and dropping it, which
+makes `When was this?` a question whose answer goes nowhere. It is stored and shown on the card and
+editable there; no render reads it yet.
+
+**A captured fact's card is on the capture screen.** Every other card is beside the passage it was
+read from, and a captured fact has none, so the master document and the Flagged list open it at
+`/capture?fact=<id>`. Undo on a rejected one returns it to `accepted` with the owner's grade,
+never to `candidate`: it was never waiting to be sorted. Rejected: a pseudo-import holding every
+captured fact, which would put a two-pane screen with no source in front of them.
+
+**`what changed` and `what proves it` are asked beside the claim, and answered in it.** The month
+and the employer or project have fields; a result and its evidence are the claim itself, so the
+question tells the owner to say it there. Rejected: separate answer fields joined onto the claim on
+save, which saves a wording nobody confirmed.
+
+**No `number` flag on a captured fact.** It asks for a number to be checked against its passage,
+and there is none; the owner typed the number and confirmed it. The confidential-shape flag is kept,
+since it says why the fact is Private. A likely repeat is still flagged, as for an import.
+
+**The draft is kept in the browser's storage**, not on the server, so nothing is created before
+save and a reload opens it where it was left. It is the owner's own device, and it goes on save or
+`Discard`.
+
+**Revisit if:** a render needs a captured fact's month, which would add it to what generation is
+given (`03` §4.2).

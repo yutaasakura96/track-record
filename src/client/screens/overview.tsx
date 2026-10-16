@@ -237,9 +237,14 @@ function PopulatedRecord({
     <>
       <Header note={data.lastImportAt ? `Last import ${relative(data.lastImportAt)}` : null}>
         {importFile.control}
-        <Button variant="primary" onClick={importFile.choose}>
-          Import a document
-        </Button>
+        <span className="flex items-center gap-8">
+          <Link to="/capture" className={GHOST}>
+            Quick capture
+          </Link>
+          <Button variant="primary" onClick={importFile.choose}>
+            Import a document
+          </Button>
+        </span>
       </Header>
 
       <div className="flex-1 overflow-y-auto px-20 py-26">

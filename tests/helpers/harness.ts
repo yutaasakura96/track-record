@@ -15,6 +15,8 @@ import { createDb } from "~/server/db/client";
 import type { Bindings, SessionUser } from "~/server/env";
 import type {
   CandidateFact,
+  CaptureContext,
+  CapturedClaim,
   FactGrade,
   FlagToExplain,
   GradableFact,
@@ -62,6 +64,13 @@ export interface StubModel extends ModelSeam {
   /** Every job description the reading was actually given. */
   postingCalls: string[];
   /**
+   * Queued responses, one per `captureClaims` call, or a function of what the
+   * call was given. Unqueued, it finds nothing.
+   */
+  captures: (CapturedClaim[] | ((text: string, context: CaptureContext) => CapturedClaim[]) | Error)[];
+  /** Every text and context quick capture was actually given. */
+  captureCalls: { text: string; context: CaptureContext }[];
+  /**
    * Reported through `onUsage` on every call, extraction and generation alike.
    * Left unset to model a provider that reports nothing, which is what the
    * columns' nullability exists for.
@@ -81,6 +90,8 @@ export function stubModel(): StubModel {
     explainCalls: [],
     postings: [],
     postingCalls: [],
+    captures: [],
+    captureCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
       const next = await (stub.extractions.shift() ?? []);
@@ -118,6 +129,13 @@ export function stubModel(): StubModel {
       if (next instanceof Error) throw next;
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next;
+    },
+    async captureClaims(text, context, ctx) {
+      stub.captureCalls.push({ text, context });
+      const next = stub.captures.shift() ?? [];
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return typeof next === "function" ? next(text, context) : next;
     },
   };
   return stub;

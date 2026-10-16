@@ -280,3 +280,25 @@ describe("a run that flags, explains, sorts, tailors and downloads the master do
     expect(log).toMatch(/"event":"master_document_downloaded".*"language":"ja","facts":\d+/);
   });
 });
+
+describe("a run that captures work that left no document", () => {
+  it("logs counts for the reading, its failure and the save, and never the typed text or a claim", async () => {
+    const typed = "Last month the Halvard ledger close moved onto a queue, and finance signs off by Tuesday.";
+    const claim = "Moved the Halvard ledger close onto a queue.";
+    model.captures = [
+      [{ claim, month: null, employerId: null, projectId: null, technologies: [], missing: ["when", "employer"] }],
+      new ModelUnavailableError("The model service returned 529."),
+    ];
+    await client.post("/api/capture/read", { text: typed });
+    await client.post("/api/capture/read", { text: typed });
+    await client.post("/api/capture", { claims: [{ claim, month: "2026-09" }, { claim: "Finance signs off by Tuesday at 10.24.6.19.", month: null }] });
+
+    const log = captured.join("\n");
+    for (const needle of ["Halvard", "ledger", "finance", "Tuesday", "10.24.6.19"]) {
+      expect(log, `a log line contained "${needle}"`).not.toContain(needle);
+    }
+    expect(log).toMatch(/"event":"capture_read","characters":\d+,"claims":1,"missing":2/);
+    expect(log).toMatch(/"event":"capture_read_failed","characters":\d+/);
+    expect(log).toMatch(/"event":"facts_captured","facts":2,"private":1,"withMonth":1,"filed":0/);
+  });
+});

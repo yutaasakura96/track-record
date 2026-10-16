@@ -128,6 +128,10 @@ export interface Fact {
   /** True once set on the card; the fact then keeps it whatever its document does. */
   employerSetByHand: boolean;
   projectId: string | null;
+  /** `YYYY-MM`, when the author said when at quick capture. `null` on an imported fact. */
+  month: string | null;
+  /** When the fact entered the record, ISO 8601. */
+  createdAt: string;
   evidence: {
     sourceDocumentVersionId: string;
     lineNumber: number;
@@ -502,6 +506,8 @@ export const keys = {
   // come from other imports, so a decision on one screen changes another's.
   allFacts: ["facts"] as const,
   facts: (importId: string) => ["facts", importId] as const,
+  // Under `allFacts`, so a ruling on any card refreshes it.
+  capturedFacts: ["facts", "captured"] as const,
   // Under `allFacts`: a ruling on a fact changes what the list holds.
   flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
   masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
@@ -1007,6 +1013,67 @@ export const useReadPosting = () =>
       api<PostingProposal>("/api/applications/read-posting", { method: "POST", ...json({ jobDescription }) }),
   });
 
+/** What quick capture asks about a claim when the text does not say it. */
+export type CaptureQuestion = "when" | "employer" | "change" | "proof";
+
+/** One claim split out of what was typed: a proposal to confirm, and nothing saved (issue #95). */
+export interface CapturedClaim {
+  claim: string;
+  month: string | null;
+  employerId: string | null;
+  projectId: string | null;
+  technologies: string[];
+  missing: CaptureQuestion[];
+}
+
+/** A claim as it is saved. `employerId: null` is a chosen `No employer`; absent is not said. */
+export interface CaptureSave {
+  claim: string;
+  month: string | null;
+  employerId?: string | null;
+  projectId?: string;
+  technologies: string[];
+}
+
+/** Splits what was typed into claims. It writes nothing, so there is nothing to refresh afterwards. */
+export const useReadCapture = () =>
+  useMutation({
+    mutationFn: (input: { text: string; today: string }) =>
+      api<{ claims: CapturedClaim[] }>("/api/capture/read", { method: "POST", ...json(input) }),
+  });
+
+/** Saves confirmed claims into the record. Home counts them, and every list of facts may hold them. */
+export function useSaveCapture() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (claims: CaptureSave[]) =>
+      api<{ items: Fact[] }>("/api/capture", { method: "POST", ...json({ claims }) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.allFacts });
+    },
+  });
+}
+
+/** The facts quick capture saved, accepted and rejected alike, so each keeps a card to change it on. */
+export function useCapturedFacts() {
+  return useQuery({
+    queryKey: keys.capturedFacts,
+    queryFn: async () => {
+      const items: Fact[] = [];
+      let cursor: string | null = null;
+      do {
+        const page: { items: Fact[]; nextCursor: string | null } = await api(
+          `/api/facts?captured=true${cursor ? `&cursor=${cursor}` : ""}`,
+        );
+        items.push(...page.items);
+        cursor = page.nextCursor;
+      } while (cursor);
+      return { items };
+    },
+  });
+}
+
 /** One change to where an application stands. Each answers with the application as it is afterwards. */
 export type StandingChange =
   | { change: "set"; status: ApplicationStatus }
@@ -1386,7 +1453,7 @@ export function useFactAction(importId: string) {
   const patch = useMutation({
     mutationFn: (input: {
       id: string;
-      body: Partial<Pick<Fact, "claim" | "provenance" | "disclosure" | "employerId">>;
+      body: Partial<Pick<Fact, "claim" | "provenance" | "disclosure" | "employerId" | "month">>;
     }) =>
       api<Fact>(`/api/facts/${input.id}`, { method: "PATCH", ...json(input.body) }),
     onSuccess: () => void refresh(),

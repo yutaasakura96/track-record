@@ -301,7 +301,16 @@ function Facts({ facts }: { facts: MasterFact[] }) {
                   {fact.source.filename}
                   {fact.source.lineNumber === null ? "" : ` L${fact.source.lineNumber}`}
                 </Link>
-              ) : null}
+              ) : (
+                // No document: a fact saved by quick capture, whose card is there (issue #95).
+                <Link
+                  to="/capture"
+                  search={{ fact: fact.id }}
+                  className="text-smaller text-text-dimmer hover:text-text-secondary"
+                >
+                  Quick capture
+                </Link>
+              )}
             </p>
           </li>
         );
