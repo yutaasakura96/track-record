@@ -95,12 +95,14 @@ describe("the master document", () => {
     expect(screen.getAllByRole("button").map((b) => b.textContent)).not.toContain("Save");
   });
 
-  it("links each fact to its card in the document it was read from", async () => {
+  it("links each fact to its card: in the document it was read from, or on Quick capture", async () => {
     open(master());
     const link = within(await rowOf(USABLE.claim)).getByRole("link");
     expect(link.getAttribute("href")).toBe("/imports/sdv-test-1?fact=fct-test-1");
-    // A fact with no source document has nowhere to open.
-    expect(within(await rowOf(GENERATED.claim)).queryByRole("link")).toBeNull();
+    // A fact with no source document was saved by quick capture, and its card is there (issue #95).
+    expect(within(await rowOf(GENERATED.claim)).getByRole("link", { name: "Quick capture" }).getAttribute("href")).toBe(
+      `/capture?fact=${GENERATED.id}`,
+    );
   });
 
   it("says how many facts are still waiting to be sorted, and where to sort them", async () => {

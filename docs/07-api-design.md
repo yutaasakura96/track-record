@@ -185,7 +185,24 @@ document). → **`202 Accepted`**
 }
 ```
 
-Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
+**The version is `queued` and waits its turn: one document is read at a time, per user** (#93,
+`03` §5). Several files use one `POST /api/imports/batch` multipart request with repeated `file`
+and `filing` fields in listed order. Each `filing` is JSON with optional `projectId` and `employerId`.
+The server creates every accepted document and queued version in one transaction before answering
+`202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
+Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
+own size limit; a set over 20 MiB together (`MAX_BATCH_BYTES`,
+`src/shared/import-file.ts`) is refused by the picker before sending, and by the server as a whole
+(`422`) before anything is written. Every file of a set is written in one database request,
+which carries hex-encoded `original_bytes` and JSON-encoded `extracted_text`. The server limits their
+combined encoded size to 48 MiB per write, below Neon's 64 MB limit on a query over HTTP. A single
+file over this budget is refused before storage; in a set, each file that would exceed the running
+budget is refused on its own row and can be imported separately. The 95 MB this said before #94 was
+Cloudflare's request limit and could not have been stored in one write.
+
+Rejected before any work starts: unsupported type (`422`), over the size limit (`422`), or a file
+of a supported type that cannot be read as one — a damaged `.docx`, a PDF that will not open, a PDF
+with no text layer (a scan) — each `422` naming its reason. Nothing is stored and no model is called. A
 re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
 `extracting`: the diff baseline would still be incomplete. A `failed` newest version does not
 refuse, because its text was stored before extraction. A re-import may carry a different filename
@@ -198,11 +215,16 @@ for a new document: a re-import keeps the document's employer, which is changed 
 `PATCH /api/source-documents/:id`. An `employerId` sent with a re-import is checked for ownership
 and then ignored, as a `projectId` is.
 
-**Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
-supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
-type M1 never sees (`03-technical-design.md` §5.1). `.docx` arrives with the bootstrap flow in M2;
-`.pdf` is deferred indefinitely. The endpoint names the reason it rejected a type, so an author who
-tries a `.docx` is told it is not built yet rather than that it is wrong.
+**Accepted types: `.md`, `.markdown`, `.txt`, `.docx` and `.pdf`** (M1 took the first three; #94
+added Word and PDF, decision log 2026-10-16). Each is stored with its real `mime_type` and its own
+`extractor_version` (`plaintext-1`, `docx-1`, `pdf-1`); `original_bytes` keeps the file as uploaded.
+**Size limits: 2 MiB for Markdown and plain text, 10 MiB for Word and PDF.** A Word or PDF file can
+carry images and fonts the import never reads, so a document whose text is a few pages can be several
+megabytes; the text is what is read, and the file is what is kept. Any other type — `.doc`, `.rtf`,
+`.odt`, `.pages`, HTML, images — is refused with a reason naming the types that work
+(`Markdown, plain text, Word and PDF files are supported.`); a `.doc` is also told to be saved as
+`.docx`. The picker's `accept`, the copy that names the types and this refusal are built from one
+list, `IMPORT_FORMATS` in `src/shared/import-file.ts`.
 
 **`GET /api/imports/:id` → 200** — the polling target. Drives the progress bar and the incremental
 appearance of cards in the fact rail.
@@ -251,7 +273,7 @@ an empty success.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded |
+| `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded. Only a `failed` import is requeued (#93); one waiting or being read is left as it is, and the body is its status |
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
@@ -383,16 +405,18 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
+| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`, and `captured=true` for the facts with no document (quick capture, #95). Paginated |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`, and `month` (`YYYY-MM`, `null` clears it). Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
 | `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
-| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it |
+| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it, and so does a captured one, with the author's grade it was saved with |
 | `POST` | `/api/facts/:id/regrade` | `{ provenance }` on an accepted fact. M3, #37 |
 | `POST` | `/api/facts/sort` | Grades, accepts and flags the facts still waiting, a batch a call. #57, below |
 | `GET` | `/api/flags` | The Flagged list. `?state=checked` for the ones already marked. #57, below |
 | `POST` | `/api/flags/:id/explain` | `Explain this`. **The one route here that calls the model for a flag, and only when pressed** |
 | `POST` | `/api/flags/:id/check` · `/uncheck` | Takes a flag off the list, or puts it back. Idempotent |
+| `POST` | `/api/capture/read` | Quick capture's `Read it`: splits typed text into claims. **Stores nothing.** #95, below |
+| `POST` | `/api/capture` | Saves confirmed claims **into the record**, accepted and Attested. #95, below |
 
 **`GET /api/facts?importId=imp_4Tz8` → 200**
 
@@ -408,6 +432,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "employerId": "emp_2Kd9",
       "employerSetByHand": false,
       "projectId": null,
+      "month": null,
+      "createdAt": "2026-09-04T03:12:44.000Z",
       "evidence": {
         "sourceDocumentVersionId": "sdv_7Yh1",
         "lineNumber": 79,
@@ -589,6 +615,30 @@ same answer a missing employer gets, because a `403` would confirm it exists.
   }
 }
 ```
+
+### Quick capture · #95
+
+Work that left no document, typed in a sentence or two (`09` Flow 6, `06` 2026-10-16).
+
+**`POST /api/capture/read`** takes `{ text, today? }`: up to 2,000 characters, and the author's own
+month as `YYYY-MM` so `last month` is read where they are (the server's month when absent). **One
+model call, and nothing stored.** The call is given the text, the month, and the session's
+employers and projects by id and name only. **200** `{ claims: [{ claim, month, employerId,
+projectId, technologies, missing }] }`, where `month` is `YYYY-MM` or `null`, at most one of
+`employerId` and `projectId` is set, and `missing` lists what the text does not say, from `when`,
+`employer`, `change` and `proof`. An id the session does not own is dropped and its question asked.
+An empty `claims` is a text that makes no claim. **`503 upstream_unavailable`** when the model does
+not answer; the screen then opens the plain form with the text kept, as it does for an empty list.
+
+**`POST /api/capture`** takes `{ claims: [{ claim, month, employerId?, projectId?, technologies? }] }`,
+one to eight. **201** `{ items }`, each fact as `GET /api/facts` returns it. Every fact is written
+`accepted`, `attested`, graded by the author (`graded_at` stamped, `auto_accepted_at` null), with no
+source document version, no quote and no offsets, and `occurred_on` the month given. Disclosure is
+`restricted`, and `private` with a `confidential` flag when the claim has a confidential shape; no
+`number` flag is raised, since there is no passage to check a number against. `employerId` is a hand
+set, `null` a chosen `No employer`; `projectId` files the fact through its project; absent both, the
+fact is unfiled. **404** for an employer or a project the session does not own, and nothing is saved.
+**422** for an empty claim, a malformed month, or both an employer and a project on one claim.
 
 ---
 
@@ -843,6 +893,8 @@ and the home screen waited for all of them.
 {
   "lastImportAt": "2026-08-12T08:02:00Z",
   "activeImport": null,
+  "waitingImports": [],
+  "latestImportSet": [],
   "tiles": {
     "employers": { "count": 4, "note": "2 current, 2 past" },
     "roles":     { "count": 6, "note": null },
@@ -860,9 +912,14 @@ and the home screen waited for all of them.
 ```
 
 `tiles.credentials` sums `educations` and `certifications` — the split is storage, not interface.
-`activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
-is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
-home screen's progress panel shows.
+`activeImport` is `null` unless a version is `queued` or `extracting`. Otherwise it is the
+`GET /api/imports/:id` body for the version being read, or, between two, the next to be, plus
+`filename`, the document's name, which the home screen's progress panel shows.
+`waitingImports` (#93) is every other `queued` version as `{ importId, filename }`, in the order
+they will be read, and `[]` when none is waiting.
+`latestImportSet` (#93) is every version submitted with the newest one (same `batch_id`), in
+`batch_order`, as `{ importId, filename, status, chunksTotal, chunksDone, error }`; it stays after
+they finish, until the next set is submitted.
 While it is not `null` the request costs a second round trip, for that body.
 `factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
 screen's Not confirmed row amber.
@@ -1131,7 +1188,6 @@ other document.
 |---|---|---|---|
 | `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, stale }] }], candidates: [{ name, factCount, certificationCount, curated }] }`; `stale` is computed on the read. `PUT` takes `{ groups: [{ name, skills: string[] }] }` and replaces the whole list; `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
 | `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
-| `POST` | `/api/capture` | M3 | Free text in, a short interrogation, **Attested** facts out |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15). A sent copy is exported with its page and without its file |
 
 ---

@@ -17,8 +17,10 @@ import { requireOwnedEmployer } from "./record";
 import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
-import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
+import { extractUpload } from "~/pipeline/text";
+import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES, importRefusal, importWriteBytes } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
+import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
@@ -42,6 +44,7 @@ const refileBody = z
 
 /** How a document's employer is named: as Screen 1's employer picker names it. */
 const employerName = sql<string>`coalesce(${employers.nameLatin}, ${employers.nameJa})`;
+const TOO_LARGE_AFTER_EXTRACTION = "That file is too large to store after text extraction. Choose a smaller document.";
 
 export function registerImportRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -79,6 +82,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     // Type and size are rejected here, before storage and before a single model
     // token is spent — the author is never billed for a doomed import.
     const upload = await extractUpload(file);
+    if (importWriteBytes(upload.byteSize, upload.text) > MAX_IMPORT_WRITE_BYTES) {
+      throw validationFailed(TOO_LARGE_AFTER_EXTRACTION, ["file"]);
+    }
 
     let documentId = sourceDocumentId;
     let versionNo = 1;
@@ -125,9 +131,10 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       extractedText: upload.text,
       // A version is never re-extracted in place; a parser upgrade makes a NEW
       // version, because stale offsets still resolve to *some* text.
-      extractorVersion: EXTRACTOR_VERSION,
+      extractorVersion: upload.extractorVersion,
       byteSize: upload.byteSize,
       wordCount: upload.wordCount,
+      batchId: versionId,
       importStatus: "queued",
     });
 
@@ -160,7 +167,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       }
     }
 
-    await startImport(importStart(c, versionId));
+    await startImport(importStart(c));
 
     return c.json(
       {
@@ -174,12 +181,113 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     );
   });
 
+  api.post("/api/imports/batch", async (c) => {
+    const userId = c.get("user").id;
+    const db = c.get("db");
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    const files = form.getAll("file");
+    const filings = form.getAll("filing");
+    if (!files.length || files.length !== filings.length) {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    const uploads = files.filter((entry): entry is File => entry instanceof File);
+    if (uploads.length !== files.length) {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    if (uploads.reduce((total, entry) => total + entry.size, 0) > MAX_BATCH_BYTES) {
+      throw validationFailed(
+        `The files together exceed ${MAX_BATCH_BYTES / 1024 / 1024} MB, more than one import can store at once. Choose a smaller set and import the rest after.`,
+        ["file"],
+      );
+    }
+    const batchId = newId("importBatch");
+    const importedAt = new Date();
+    const results: { importId?: string; reason?: string }[] = [];
+    const writes: any[] = [];
+    let writeBytes = 0;
+    for (const [index, entry] of uploads.entries()) {
+      let filing: { projectId?: string; employerId?: string };
+      try {
+        filing = JSON.parse(String(filings[index]));
+        if (!filing || typeof filing !== "object" ||
+            (filing.projectId !== undefined && typeof filing.projectId !== "string") ||
+            (filing.employerId !== undefined && typeof filing.employerId !== "string")) throw new Error();
+      } catch {
+        results.push({ reason: "Choose a valid project and employer." });
+        continue;
+      }
+      const refusal = importRefusal(entry);
+      if (refusal) {
+        results.push({ reason: refusal });
+        continue;
+      }
+      if (filing.projectId) {
+        const [owned] = await db.select({ id: projects.id }).from(projects)
+          .where(and(eq(projects.userId, userId), eq(projects.id, filing.projectId))).limit(1);
+        if (!owned) {
+          results.push({ reason: "That project was not found." });
+          continue;
+        }
+      }
+      if (filing.employerId) {
+        const [owned] = await db.select({ id: employers.id }).from(employers)
+          .where(and(eq(employers.userId, userId), eq(employers.id, filing.employerId))).limit(1);
+        if (!owned) {
+          results.push({ reason: "That employer was not found." });
+          continue;
+        }
+      }
+      let upload;
+      try {
+        upload = await extractUpload(entry);
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        results.push({ reason: err.message });
+        continue;
+      }
+      const fileWriteBytes = importWriteBytes(upload.byteSize, upload.text);
+      if (fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: TOO_LARGE_AFTER_EXTRACTION });
+        continue;
+      }
+      if (writeBytes + fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: "That file would make this import too large. Import it separately." });
+        continue;
+      }
+      writeBytes += fileWriteBytes;
+      const documentId = newId("sourceDocument");
+      const versionId = newId("sourceDocumentVersion");
+      writes.push(db.insert(sourceDocuments).values({
+        id: documentId, userId, projectId: filing.projectId || null,
+        employerId: filing.employerId || null, filename: entry.name, mimeType: upload.mimeType,
+      }));
+      writes.push(db.insert(sourceDocumentVersions).values({
+        id: versionId, userId, sourceDocumentId: documentId, versionNo: 1,
+        originalBytes: Buffer.from(await entry.arrayBuffer()), extractedText: upload.text,
+        extractorVersion: upload.extractorVersion, byteSize: upload.byteSize, wordCount: upload.wordCount,
+        importStatus: "queued", batchId, batchOrder: index, importedAt,
+      }));
+      results.push({ importId: versionId });
+    }
+    if (writes.length) {
+      await db.batch(writes as [any, ...any[]]);
+      await startImport(importStart(c));
+    }
+    return c.json({ results }, 202);
+  });
+
   /**
    * Screen 8, Documents. Grouped by source document, because re-import acts on a
    * document. Filenames, counts and the stored failure reason only: no source
    * text, and no fact claim.
    */
   api.get("/api/imports", async (c) => {
+    if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const user = c.get("user");
     const db = c.get("db");
 
@@ -337,6 +445,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
   });
 
   api.get("/api/imports/:id", async (c) => {
+    if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const status = await importStatus(c.get("db"), c.get("user").id, pathParam(c, "id"));
     return c.json(status);
   });
@@ -367,12 +476,19 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       db
         .update(sourceDocumentVersions)
         .set({ importStatus: "queued", importError: null, updatedAt: now })
+        // Only a failed import goes back in the queue. One still waiting or
+        // being read is left as it is: requeued mid-read, it would be claimed
+        // and read a second time beside itself.
         .where(
-          and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.id, versionId)),
+          and(
+            eq(sourceDocumentVersions.userId, user.id),
+            eq(sourceDocumentVersions.id, versionId),
+            eq(sourceDocumentVersions.importStatus, "failed"),
+          ),
         ),
     ]);
 
-    await startImport(importStart(c, versionId));
+    await startImport(importStart(c));
     return c.json(await importStatus(db, user.id, versionId));
   });
 
@@ -578,6 +694,10 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
 /* ------------------------------------------------------------------ shared */
 
 /**
+ * The version is queued; start the next waiting import, which is this one
+ * unless another document is being read (`~/pipeline/queue.ts`, #93). One that
+ * waits is started when the one before it is done or has failed.
+ *
  * Hand the import to the Workflow when the binding exists; otherwise run the
  * same function behind `waitUntil`. Both paths checkpoint to the same rows,
  * which is why the resume guarantee holds either way (`docs/06`, 2026-08-30).
@@ -586,31 +706,45 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
  * and the cards appear as extraction progresses, rather than after one long
  * silence.
  */
-async function startImport(deps: ImportStart) {
-  if (deps.workflow) {
-    await deps.workflow.create({ params: { userId: deps.userId, versionId: deps.versionId } });
-    return;
-  }
-  const run = runImport({
-    db: deps.db,
-    model: deps.model,
-    userId: deps.userId,
-    versionId: deps.versionId,
-  }).catch((err: unknown) => {
+export async function startImport(deps: ImportStart) {
+  const started = await startNextImport(deps.db, deps.userId, launcher(deps));
+  if (started || !deps.workflow) return;
+  // Best effort: the next poll tries again, and a Workflow API error must not
+  // fail the status read or the request whose rows are already saved.
+  try {
+    await recoverActiveImport(deps.db, deps.userId, deps.workflow);
+  } catch (err) {
     // Ids only — never the document, the chunk or the model's response.
-    console.error(
-      JSON.stringify({ event: "import_run_failed", versionId: deps.versionId, name: (err as Error)?.name }),
-    );
-  });
-  if (deps.waitUntil) deps.waitUntil(run);
-  else await run;
+    console.error(JSON.stringify({ event: "import_recovery_failed", userId: deps.userId, name: (err as Error)?.name }));
+  }
+}
+
+function launcher(deps: ImportStart): LaunchImport {
+  if (deps.workflow) {
+    const workflow = deps.workflow;
+    return (versionId) => ensureWorkflow(workflow, deps.userId, versionId);
+  }
+  const launch: LaunchImport = async (versionId) => {
+    const run = runImport({
+      db: deps.db,
+      model: deps.model,
+      userId: deps.userId,
+      versionId,
+      next: () => startNextImport(deps.db, deps.userId, launch),
+    }).catch((err: unknown) => {
+      // Ids only — never the document, the chunk or the model's response.
+      console.error(JSON.stringify({ event: "import_run_failed", versionId, name: (err as Error)?.name }));
+    });
+    if (deps.waitUntil) deps.waitUntil(run);
+    else await run;
+  };
+  return launch;
 }
 
 interface ImportStart {
   db: Db;
   model: ModelSeam;
   userId: string;
-  versionId: string;
   workflow: Bindings["IMPORT_WORKFLOW"];
   waitUntil?: (promise: Promise<unknown>) => void;
 }
@@ -627,7 +761,8 @@ function importFailure(
 ): { code: "no_facts_extracted" | "extraction_failed"; message: string } | null {
   if (status !== "failed") return null;
   return {
-    code: extracted === 0 && !stoppedOnChunk ? "no_facts_extracted" : "extraction_failed",
+    code: reason === "No facts could be extracted from this document." && extracted === 0 && !stoppedOnChunk
+      ? "no_facts_extracted" : "extraction_failed",
     message: reason ?? "This import could not be completed.",
   };
 }
@@ -699,12 +834,11 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
   };
 }
 
-function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
+export function importStart(c: Context<AppEnv>): ImportStart {
   return {
     db: c.get("db"),
     model: c.get("model"),
     userId: c.get("user").id,
-    versionId,
     workflow: c.env.IMPORT_WORKFLOW,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
   };

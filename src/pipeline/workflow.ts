@@ -9,6 +9,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { createDb } from "~/server/db/client";
 import { createModelSeam } from "~/model";
 import { runImport, type StepRunner } from "./import";
+import { ensureWorkflow, recoverActiveImport, startNextImport } from "./queue";
 import type { Bindings } from "~/server/env";
 
 export interface ImportWorkflowParams {
@@ -24,12 +25,21 @@ export class ImportWorkflow extends WorkflowEntrypoint<Bindings, ImportWorkflowP
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       do: (name, fn) => step.do(name, fn as any) as any,
     };
+    const db = createDb(this.env.DATABASE_URL);
+    const { userId } = event.payload;
     await runImport({
-      db: createDb(this.env.DATABASE_URL),
+      db,
       model: createModelSeam(this.env),
-      userId: event.payload.userId,
+      userId,
       versionId: event.payload.versionId,
       step: runner,
+      // The next waiting document gets a Workflow of its own, started once this
+      // one is done or has failed (`./queue.ts`).
+      next: async () => {
+        const workflow = this.env.IMPORT_WORKFLOW!;
+        const started = await startNextImport(db, userId, (versionId) => ensureWorkflow(workflow, userId, versionId));
+        if (!started) await recoverActiveImport(db, userId, workflow);
+      },
     });
   }
 }

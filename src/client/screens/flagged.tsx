@@ -115,7 +115,12 @@ function FlaggedRow({ item }: { item: FlaggedItem }) {
             Open it in <MonoId>{fact.filename}</MonoId>
             {fact.lineNumber === null ? "" : `, line ${fact.lineNumber}`}
           </Link>
-        ) : null}
+        ) : (
+          // No document: a fact saved by quick capture, whose card is there (issue #95).
+          <Link to="/capture" search={{ fact: fact.id }} className="text-smaller text-text-dim hover:text-text-secondary">
+            Open it in Quick capture
+          </Link>
+        )}
       </div>
       <FlagLine flag={item} />
     </li>

@@ -36,11 +36,28 @@ export interface ImportDeps {
   /** The source document version. It IS the import — there is no separate row. */
   versionId: string;
   step?: StepRunner;
+  /**
+   * Starts the next waiting import (`./queue.ts`). Called once this one is
+   * done or has failed, never before, which is what keeps the reading to one
+   * document at a time.
+   */
+  next?: () => Promise<unknown>;
 }
 
 export async function runImport(deps: ImportDeps): Promise<void> {
   const step = deps.step ?? inlineStepRunner;
+  try {
+    await extract(deps, step);
+  } catch (err) {
+    // Left `extracting`, this version would hold every import queued behind it.
+    // Stated as failed, it is retried on its own like any other.
+    await step.do("stopped", () => stoppedStep(deps));
+    log({ event: "import_stopped", versionId: deps.versionId, name: (err as Error)?.name });
+  }
+  if (deps.next) await step.do("start-next", async () => (await deps.next!()) ?? null);
+}
 
+async function extract(deps: ImportDeps, step: StepRunner): Promise<void> {
   const planned = await step.do("plan-chunks", () => planChunksStep(deps));
   if (planned === "gone") return;
 
@@ -54,6 +71,24 @@ export async function runImport(deps: ImportDeps): Promise<void> {
   }
 
   await step.do("finish", () => finishStep(deps));
+}
+
+async function stoppedStep(deps: ImportDeps): Promise<void> {
+  const { db, userId, versionId } = deps;
+  await db
+    .update(sourceDocumentVersions)
+    .set({
+      importStatus: "failed",
+      importError: "Extraction stopped before it finished.",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(sourceDocumentVersions.userId, userId),
+        eq(sourceDocumentVersions.id, versionId),
+        eq(sourceDocumentVersions.importStatus, "extracting"),
+      ),
+    );
 }
 
 /* ------------------------------------------------------------------ step 1 */

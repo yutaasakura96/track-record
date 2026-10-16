@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { Employer, Overview, RenderRow } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
+import { IMPORT_FORMATS, importRefusal } from "~/shared/import-file";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -45,6 +46,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
 const overview = (documents: RenderRow[], canGenerate = true): Overview => ({
   lastImportAt: null,
   activeImport: null,
+  waitingImports: [],
   tiles: {
     employers: { count: 1, note: null },
     roles: { count: 1, note: null },
@@ -1172,7 +1174,7 @@ describe("an empty record", () => {
     await screen.findByRole("heading", { name: "Your record is empty" });
     expect(screen.getByRole("button", { name: "Choose a file" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Import a document" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Quick capture" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Quick capture" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Next step" })).toBeNull();
     for (const name of SECTIONS) expect(screen.queryByRole("heading", { name })).toBeNull();
     expect(screen.queryByRole("link", { name: "Export my record" })).toBeNull();
@@ -1190,10 +1192,19 @@ describe("an empty record", () => {
     ]);
   });
 
-  it("names only the types that import", async () => {
+  it("names only the types that import, and offers exactly the ones the server takes", async () => {
     open([], { "GET /api/overview": empty() });
 
-    expect(await screen.findByText("Choose a Markdown or plain text file.")).toBeTruthy();
+    expect(await screen.findByText("Choose a Markdown, plain text, Word or PDF file, or several, or drop them here.")).toBeTruthy();
+    const accept = document.querySelector<HTMLInputElement>('input[type="file"]')!.accept.split(",");
+    expect(accept).toEqual([".md", ".markdown", ".txt", ".docx", ".pdf"]);
+    // The rule the server refuses by (`POST /api/imports`) takes every type offered, and nothing else.
+    for (const ext of accept) expect(importRefusal({ name: `notes${ext}`, size: 1 })).toBeNull();
+    for (const ext of [".doc", ".rtf", ".odt", ".pages", ".html", ".png"]) {
+      expect(importRefusal({ name: `notes${ext}`, size: 1 })).toMatch(/Markdown, plain text, Word and PDF files are supported\.$/);
+    }
+    // And every format the copy names is one that is offered.
+    expect(IMPORT_FORMATS.flatMap((format) => format.extensions)).toEqual(accept);
   });
 
   it("says so beneath the picker when the upload never reaches the server", async () => {
@@ -1351,6 +1362,33 @@ describe("an import in progress", () => {
     expect(api.writes()).toEqual([]);
   });
 
+  it("names the documents waiting behind it, in the order they will be read (#93)", async () => {
+    open([], {
+      "GET /api/overview": {
+        ...importing(1, 5),
+        waitingImports: [
+          { importId: "imp-test-alder", filename: "alder-portfolio.md" },
+          { importId: "imp-test-birch", filename: "birch-portfolio.md" },
+        ],
+      },
+    });
+
+    const region = await panel();
+    expect(within(region).getByText("2 more are waiting, read one at a time after it:")).toBeTruthy();
+    const waiting = within(region).getByRole("list", { name: "Waiting to be read" });
+    expect(within(waiting).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "alder-portfolio.md",
+      "birch-portfolio.md",
+    ]);
+  });
+
+  it("says nothing is waiting when one document is being read alone", async () => {
+    open([], { "GET /api/overview": importing(1, 5) });
+
+    const region = await panel();
+    expect(within(region).queryByRole("list", { name: "Waiting to be read" })).toBeNull();
+  });
+
   it("says the document is being got ready before it has been split", async () => {
     open([], { "GET /api/overview": importing(0, 0) });
 
@@ -1373,6 +1411,62 @@ describe("an import in progress", () => {
     expect(screen.queryByRole("region", { name: "Import in progress" })).toBeNull();
     expect(screen.queryByText(/Still working/)).toBeNull();
   });
+});
+
+it("keeps the latest completed set on Home and retries its failed row", async () => {
+  const data = {
+    ...overview([row()]),
+    latestImportSet: [
+      { importId: "imp-test-a", filename: "alder.md", status: "ready" as const, chunksTotal: 1, chunksDone: 1, error: null },
+      { importId: "imp-test-b", filename: "birch.md", status: "failed" as const, chunksTotal: 0, chunksDone: 0, error: "Extraction could not start." },
+    ],
+  };
+  const { user, api } = open([], {
+    "GET /api/overview": data,
+    "POST /api/imports/imp-test-b/retry": { importId: "imp-test-b", status: "queued" },
+  });
+  const panel = await screen.findByRole("region", { name: "Latest imports" });
+  expect(within(panel).getByText("alder.md")).toBeTruthy();
+  expect(within(panel).getByText("Done")).toBeTruthy();
+  expect(within(panel).getByText("birch.md")).toBeTruthy();
+  expect(within(panel).getByText("Failed · Extraction could not start.")).toBeTruthy();
+  await user.click(within(panel).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(api.writes()).toContain("POST /api/imports/imp-test-b/retry"));
+});
+
+it("disables a Home retry with its reason while the request is pending", async () => {
+  const data = {
+    ...overview([row()]),
+    latestImportSet: [
+      { importId: "imp-test-b", filename: "birch.md", status: "failed" as const, chunksTotal: 0, chunksDone: 0, error: "Extraction could not start." },
+    ],
+  };
+  const { user } = open([], {
+    "GET /api/overview": data,
+    "POST /api/imports/imp-test-b/retry": () => new Promise(() => {}),
+  });
+  const panel = await screen.findByRole("region", { name: "Latest imports" });
+  await user.click(within(panel).getByRole("button", { name: "Retry" }));
+  const retry = within(panel).getByRole("button", { name: "Retry" });
+  await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(true));
+  expect(retry.getAttribute("title")).toBe("Retrying…");
+});
+
+it("shows a failed Home retry beside its import", async () => {
+  const data = {
+    ...overview([row()]),
+    latestImportSet: [
+      { importId: "imp-test-b", filename: "birch.md", status: "failed" as const, chunksTotal: 0, chunksDone: 0, error: "Extraction could not start." },
+    ],
+  };
+  const { user } = open([], {
+    "GET /api/overview": data,
+    "POST /api/imports/imp-test-b/retry": new Refusal(500, "internal", "Retry could not start. Try again."),
+  });
+  const panel = await screen.findByRole("region", { name: "Latest imports" });
+  await user.click(within(panel).getByRole("button", { name: "Retry" }));
+  expect((await within(panel).findByRole("alert")).textContent).toBe("Retry could not start. Try again.");
+  expect(within(panel).getByRole("button", { name: "Retry" })).toBeTruthy();
 });
 
 describe("the backup", () => {

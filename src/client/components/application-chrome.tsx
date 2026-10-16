@@ -1,6 +1,6 @@
 /**
  * What the three Applications screens share (`docs/10`, Applications; issue
- * #70): the frame, the status line, the gone-quiet mark and the fields of a
+ * #70): the frame, which Quick capture shares too (issue #95), the status line, the gone-quiet mark and the fields of a
  * job.
  *
  * No status carries green, amber or red. Those mean verified, not usable yet
@@ -39,9 +39,34 @@ export function ApplicationsFrame({
   action?: ReactNode;
   children: ReactNode;
 }) {
+  return (
+    <PhoneFrame title={title} back={crumb ? { to: "/applications", label: "Applications" } : undefined} note={note} action={action}>
+      {children}
+    </PhoneFrame>
+  );
+}
+
+/**
+ * The frame of a screen that works at phone width: Applications (issue #75)
+ * and Quick capture (issue #95). Under 720px the sidebar is a sheet under the
+ * header, opened by `Menu` (`docs/10`, Responsive behaviour).
+ */
+export function PhoneFrame({
+  title,
+  back,
+  note,
+  action,
+  children,
+}: {
+  title: string;
+  /** Where the header leads back to, before the title. */
+  back?: { to: "/applications" | "/"; label: string };
+  note?: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
   const profile = useProfile();
   const flash = useFlashStore((state) => state.text);
-  // At phone width the sidebar is a sheet under the header (`docs/10`, Applications at phone width).
   const [menu, setMenu] = useState(false);
   const sheet = useId();
   const toggle = useRef<HTMLButtonElement>(null);
@@ -75,10 +100,10 @@ export function ApplicationsFrame({
             Menu
           </Button>
           <h1 className="min-w-0 truncate text-panel font-semibold tracking-snug text-text-strong">
-            {crumb ? (
+            {back ? (
               <>
-                <Link to="/applications" className="text-accent-link hover:text-accent-link-hover motion-tone">
-                  Applications
+                <Link to={back.to} className="text-accent-link hover:text-accent-link-hover motion-tone">
+                  {back.label}
                 </Link>{" "}
                 <span className="font-normal text-text-dim">/</span>{" "}
               </>

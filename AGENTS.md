@@ -20,6 +20,7 @@ by hand**; that is what it is committed for, and it prints numbers and never ren
 the record — unknown fact ids, unfiled facts used under an employer, facts under a heading naming a
 different employer — and exits non-zero on a finding. It prints ids and counts and never render
 text, and it is not to be rebuilt by hand either.
+`npm run measure:import -- --latest` is the third: one import's chunks, token sums and estimated cost, beside the batch price, ids and numbers only.
 
 **A stalled run has two signatures, and only one is the proxy.** Read the failed-test durations
 before touching anything.
@@ -98,7 +99,7 @@ test it with a real table rather than prose.
 Cloudflare Workers (paid) · Hono API · React + Vite SPA · TanStack Router + Query · Zustand ·
 Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
 Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
-five-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
+six-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
 `docxtemplater` for Word output.
 
 **Rules that are easy to break and expensive to fix:**

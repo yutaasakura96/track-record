@@ -6417,3 +6417,225 @@ logged by recording id, never by name.
 
 **Revisit if:** the app has a second user, or the server comes to read a whole upload for another
 reason, which is the day to check tracks there too.
+
+---
+
+### [2026-10-16] Import helpers come first, then quick capture
+
+The planning of 2026-10-16 asked the owner seven questions about what to build next. The owner took
+the recommended option on six; on the Word question the owner chose to build it, and widened it to
+"different kinds of docs". This entry and the three after it record the answers. Supersedes, in the
+2026-09-28 entry "The back catalogue is the next feature", the sentence "Quick capture comes after
+that": quick capture is built now, not after #39.
+
+**Agents first make the owner's remaining imports quicker, then build quick capture**, so it is
+ready the day the import ends. M3 is the milestone that matters and its gap is the owner's import;
+quick capture is the one `MUST` story still unbuilt (S12). It was held back on 2026-09-28 for where
+the owner's attention goes, and building it costs the owner only these answers and one check. The
+work is four issues, in this order: #92 the cost readout, #93 the multi-file import, #94 Word and
+PDF, #95 quick capture.
+
+Rejected: **import helpers only**, which leaves the last `MUST` story waiting on the owner's
+import. **Quick capture only**, which leaves the import one file at a time. **A later item**, the
+LinkedIn text or a tailored 職務経歴書, while M3 is still open.
+
+The owner's import steps (#38, #39) stay the owner's. Fake or seeded data is fine in development
+until a feature is fully built (owner, 2026-10-16).
+
+---
+
+### [2026-10-16] Several documents are imported in one go, each filed under its own employer; cost is decided from a readout
+
+Supersedes the 2026-09-28 entry's "One document at a time, through today's Documents screen" for
+the queue, and keeps its rule that effort is measured before it is changed.
+
+**The import takes several files at once, and each file gets its own employer in the same step**
+(`09` Flow 8, `10` Screen 3, #93). The portfolios sit in four employer folders, so one employer per
+set would split one sitting into four. The queue does not change what a reading costs, only how
+often the owner comes back, and since #57 removed per-fact review, coming back is most of what is
+left. Extraction still runs one document at a time, never in parallel, and a failed document does
+not affect the others. Rejected: one employer for the whole set; keeping one file at a time.
+
+**Whether imports get cheaper is decided after a readout shows real numbers.** The token columns
+migration 0004 added to `import_chunks` have never been read, which is why the 2026-09-28
+measurement was never taken. #92 builds `npm run measure:import`, which prints one import's tokens
+and estimated cost, the batch price beside it, numbers only. The owner imports one more portfolio at
+today's setting (effort `high`) and reads it; lowering effort or building the Message Batches path is
+then decided in an entry of its own (`03` §12 row 4). Rejected: keeping today's setting without
+looking, the batch route now, and a lower effort now, which risks thinner facts, the project's named
+riskiest assumption (`docs/01`).
+
+**Revisit if:** the readout shows one import costs little enough that neither cheaper path is worth
+building, which closes row 4 with no code.
+
+---
+
+### [2026-10-16] The import reads Word and PDF as well as Markdown and plain text
+
+Supersedes the `.pdf` line of `03` §5.1 ("deferred, possibly permanently") and `03` §12 row 19b
+("deferred indefinitely"). Some of the owner's documents are Word. In the owner's words, the import
+"should accept different kinds of docs. mainly i think its markdown but to be sure lets make it
+accept different types."
+
+**In scope, built by #94:** `.md`, `.markdown` and `.txt` as today; **`.docx`**, by the OOXML walk
+`03` §5.1 already specifies, because it is the format the owner named and the one their work
+documents come back in; **`.pdf`**, through `unpdf`, because a document kept only as a PDF is the
+next most likely, and `unpdf` is a serverless build of PDF.js meant for edge runtimes. That it runs
+on workerd is **unverified** and is proved first, as `docx` was on 2026-09-08. A PDF's line breaks
+are layout rather than paragraphs, so its extractor states its own rule for joining them, and a PDF
+with no text layer is refused with that reason.
+
+**Out of scope, refused with a reason that names the types that work:** `.doc`, `.rtf`, `.odt`,
+`.pages`, HTML, and images or scans (no OCR). None is known to hold a document of the owner's, and
+each is a further extractor whose paragraph rules would have to be pinned like these.
+
+**Each format stamps its own `extractor_version`**, and no existing version is re-extracted (`03`
+§5.1). Rejected: converting by hand, which the owner declined; `mammoth` for `.docx`, for the
+paragraph-boundary reason in `03` §5.1.
+
+**Revisit if:** a real document of the owner's arrives in a type outside the list.
+
+---
+
+### [2026-10-16] Quick capture: the model splits and words the claims, the owner confirms, and it saves into the record
+
+S12, built by #95. `09` Flow 6 is rewritten to this; it predated #57 and had captured facts waiting
+for an accept press.
+
+**The model splits and words; the owner confirms.** A sentence or two becomes one or more claims
+worded like imported ones, plain, as the renders rely on (`02` §6.4), with month and employer or
+project filled in when the text says them. The screen asks only for what is missing: when, which
+employer, what changed, what proves it. This is a sixth model function; `03` §1 and §4 and
+`AGENTS.md` say five until #95 lands and corrects them. **If the call fails or finds nothing, a
+plain form opens instead** with the text kept, so adding never depends on the model, the rule the
+job-posting reader follows (2026-10-11). Rejected: a plain form alone, which leaves splitting and
+wording by hand; a back-and-forth chat, which cannot be kept under a minute.
+
+**A captured fact goes into the record on save.** The confirm step is the check, and a second press
+is the queue #57 removed; the fact can still be edited or rejected on its card (S2). It has no source
+passage and no quote (`04` §3.7) and is **Attested**, never Measured. The model words it but the
+owner's confirmation is the ruling, so the grade is recorded as the owner's. That meets the
+2026-08-11 rule, kept on 2026-10-08 for a fact captured without a passage, that a model's wording is
+promoted only by the author (`02` §5).
+Disclosure is **Restricted**, and the confidential-shape check still makes it **Private**, the floor
+imports have. Rejected: saving as a candidate to accept later.
+
+**Quick capture works at phone width, and the rest of Home stays desktop only.** A second exception
+to the 2026-08-12 desktop rule, argued on its own as the 2026-10-11 entry asks: a win is written down
+on the way home, as an interview note is. It is a single-column form laid out as Applications is at
+390px (`10` Responsive behaviour). It is reached from the menu on a phone. Rejected: desktop only,
+which makes capture wait for the laptop.
+
+**Revisit if:** the plain form turns out to be what the owner uses, which would make the model call
+cost without saving time.
+
+---
+
+### [2026-10-16] The import queue is the server's, held in `import_status`
+
+Built by #93, under the 2026-10-16 entry that several documents are imported in one go.
+
+**The server keeps the queue, not the page.** The set is sent in one `POST /api/imports/batch`, and
+every accepted file is stored `queued` in one transaction before it answers (`07` §5); the next
+waiting version is started by the upload, by a retry and by the end of every run, done or failed
+(`03` §5, `src/pipeline/queue.ts`). The owner can close the tab after `Import` and every
+document is still read, which is Flow 8's "every import survives independently". Rejected: the page
+sending each file only once the one before is read, which stops the rest the moment the tab closes.
+
+**No new table.** A claim is one conditional `update` of `import_status`, and a partial unique
+index, one `extracting` version per user, is what makes two racing claims safe on a driver with no
+interactive transactions (`03` §5). Rejected: a batch row, which would be a batch that can be half
+committed; the set is a `batch_id` on each version instead. **A retry requeues only a `failed`
+version**, because requeuing one being read would let it be claimed and read twice. **A run that
+throws past its steps is marked `failed`**: left `extracting`, it would now hold every import behind
+it, where before it held only its own document. **A claim whose Workflow never started is
+relaunched**: the Workflow instance ID is the version ID, so an upload, `start-next` or a Home or
+Documents read that finds the `extracting` version's instance missing creates it again, restarts
+one that is complete or errored, and leaves any other alone. Rejected: a timeout or cron that fails
+a stale claim.
+
+**Revisit if:** a version is ever found stuck `extracting` behind an instance in some other state.
+
+---
+
+### [2026-10-16] Word and PDF import: `unpdf` runs on workerd, PizZip unzips Word, and Word and PDF files may be 10 MiB
+
+Built by #94, under the 2026-10-16 entry that the import reads Word and PDF.
+
+**`unpdf` is proved on workerd, in both runtimes the 2026-09-08 spike named.** In the suite, which
+runs inside workerd (`tests/extract-formats.test.ts`, `tests/import-formats.test.ts`), a PDF built
+by the test is parsed through `POST /api/imports` and its quotes anchor. Under `wrangler dev`, the
+bundler the suite does not exercise, a PDF chosen in the browser was read by the dev Worker and its
+facts opened in Fact Review; a PDF with no text was refused on its row. `unpdf@1.8.1`, not the
+1.9.0 published the day before. The Worker upload is 7,394 KiB, 1,539 KiB gzipped, under the 10 MB
+paid limit; nothing of it reaches the client bundle, which imports only `src/shared/import-file.ts`.
+
+**PizZip unzips a `.docx`, not `fflate`** (`03` §5.1). It is a dependency already, and the 履歴書
+render has run it on workerd since 2026-09-08. Rejected: `fflate`, a second zip library proved for
+the same job.
+
+**Each format's rule is pinned and named** — `docx-1` and `pdf-1`, beside `plaintext-1`, which is
+unchanged (`03` §5.1 states both rules). A PDF's printed lines are joined into paragraphs, so a quote
+across a wrapped line anchors as the sentence reads, with a space at the break; a quote that keeps
+the printed break is discarded, as any other near miss is. A test asserts that no version is
+re-extracted: an older version keeps its text, extractor and file when its document is imported
+again in another format.
+
+**Word and PDF files may be 10 MiB; Markdown and plain text stay at 2 MiB.** A Word or PDF file
+carries images and fonts the import never reads, so a few pages of text can be several megabytes,
+and the 2 MiB limit would refuse documents for what is not read. The file is still kept whole in
+`original_bytes`. Rejected: one limit for every type, and limiting the extracted text instead of the
+file, which would mean storing a file of any size.
+
+**A set imported together is now 20 MiB, down from 95 MB.** All of a set is written in one database
+request (`07` §5, the 2026-10-16 queue entry), and that request carries each file as hex
+`original_bytes` and again as `extracted_text`, under Neon's 64 MB limit on a query over HTTP. 95 MB
+was Cloudflare's request limit, and a set that size could never have been written in one request;
+with 10 MiB files, three would have been enough to fail. The server also bounds each write's
+encoded size, which the 20 MiB of uploaded bytes alone does not (`07` §5). Rejected: writing each file of a set in its
+own request, which would let a set be half stored.
+
+**Refusals name the reason, before storage and before the model:** any other type names the four
+that import, and a `.doc` is told to be saved as `.docx`; a damaged `.docx`, a PDF that will not open
+and a PDF with no text each say so. The picker's `accept`, the copy that names the types and the
+server's refusal are built from one list, `IMPORT_FORMATS`.
+
+**Revisit if:** a real document of the owner's is refused at 10 MiB, or a PDF of theirs reads with
+its paragraphs joined wrongly — which would be `pdf-2`, a new version, never a change to `pdf-1`.
+
+---
+
+### [2026-10-16] Quick capture as built: a month column, the card on the capture screen, and no number flag
+
+Built by #95, under the 2026-10-16 entry that the model splits and words the claims and the owner
+confirms. What that entry left to the build:
+
+**A captured fact keeps its month in `facts.occurred_on`** (migration 0025), month precision like
+every calendar column. Imported facts read their time from their employer and project and leave it
+null; a captured fact has no document to date it, and the owner says when on the form. Rejected:
+writing the month into the claim, which a render would then repeat as prose, and dropping it, which
+makes `When was this?` a question whose answer goes nowhere. It is stored and shown on the card and
+editable there; no render reads it yet.
+
+**A captured fact's card is on the capture screen.** Every other card is beside the passage it was
+read from, and a captured fact has none, so the master document and the Flagged list open it at
+`/capture?fact=<id>`. Undo on a rejected one returns it to `accepted` with the owner's grade,
+never to `candidate`: it was never waiting to be sorted. Rejected: a pseudo-import holding every
+captured fact, which would put a two-pane screen with no source in front of them.
+
+**`what changed` and `what proves it` are asked beside the claim, and answered in it.** The month
+and the employer or project have fields; a result and its evidence are the claim itself, so the
+question tells the owner to say it there. Rejected: separate answer fields joined onto the claim on
+save, which saves a wording nobody confirmed.
+
+**No `number` flag on a captured fact.** It asks for a number to be checked against its passage,
+and there is none; the owner typed the number and confirmed it. The confidential-shape flag is kept,
+since it says why the fact is Private. A captured fact is not repeat-flagged: the repeat check
+looks only at facts the importer accepted and nobody has graded, and a captured fact is graded on save.
+
+**The draft is kept in the browser's storage**, not on the server, so nothing is created before
+save and a reload opens it where it was left. It is the owner's own device, and it goes on save or
+`Discard`.
+
+**Revisit if:** a render needs a captured fact's month, which would add it to what generation is
+given (`03` §4.2).

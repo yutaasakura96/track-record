@@ -13,7 +13,6 @@ import { useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   failureText,
-  isImportRunning,
   useDocuments,
   useEntitiesOnDemand,
   useProfile,
@@ -107,13 +106,18 @@ function Body({ listing }: { listing: ReturnType<typeof useDocuments> }) {
  * waiting, because it is the one the author is watching.
  */
 function Intro({ documents }: { documents: SourceDocumentRow[] }) {
-  const reading = documents.find((document) => document.versions.some((v) => isImportRunning(v.status)));
+  const reading = documents.find((document) => document.versions.some((v) => v.status === "extracting"));
+  // Read one at a time (#93): the rest wait their turn.
+  const queued = documents.filter((document) => document.versions.some((v) => v.status === "queued")).length;
+  const behind = queued === 0 ? "" : ` ${queued} more ${queued === 1 ? "is" : "are"} waiting to be read after it.`;
   const waiting = documents.reduce((sum, document) => sum + document.openCandidates, 0);
   const next =
     documents.length === 0
       ? "import your first document."
       : reading
-        ? `${reading.filename} is still being read. You can start reviewing the facts found so far.`
+        ? `${reading.filename} is still being read. You can start reviewing the facts found so far.${behind}`
+        : queued > 0
+          ? `${queued} ${queued === 1 ? "document is" : "documents are"} waiting to be read.`
         : waiting > 0
           ? `${waiting} fact${waiting === 1 ? " is" : "s are"} waiting for you. Press Review on a row marked to review.`
           : "nothing is waiting. Import another document, or go Home to generate a document from your record.";
@@ -428,7 +432,7 @@ function VersionRow({ version }: { version: DocumentVersion }) {
         </span>
       </div>
       {/* Under the row and across its width: the wait is the row's main fact while it lasts. */}
-      {isImportRunning(version.status) ? (
+      {version.status === "extracting" ? (
         <ExtractionProgress
           className="ml-40 mr-16 mb-12"
           status={version.status}
@@ -485,7 +489,11 @@ function Action({
 }
 
 function Outcome({ version, unchanged }: { version: DocumentVersion; unchanged: boolean }) {
-  if (isImportRunning(version.status)) {
+  // One document is read at a time (#93): the rest wait their turn, in order.
+  if (version.status === "queued") {
+    return <span className="text-small text-text-secondary">Waiting to be read</span>;
+  }
+  if (version.status === "extracting") {
     return <span className="text-small text-text-secondary">Reading…</span>;
   }
   if (version.status === "failed") {

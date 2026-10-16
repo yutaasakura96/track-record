@@ -1,5 +1,5 @@
 /**
- * THE SEAM. Five functions.
+ * THE SEAM. Six functions.
  *
  * **Nothing outside this directory imports an SDK or names a provider** — and
  * that includes the provider's environment variables, which is why the bindings
@@ -14,6 +14,9 @@ import type { ModelSeam } from "./types";
 
 export type {
   CandidateFact,
+  CaptureContext,
+  CaptureQuestion,
+  CapturedClaim,
   ExtractionContext,
   FactGrade,
   FlagToExplain,

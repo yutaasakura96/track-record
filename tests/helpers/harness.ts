@@ -15,6 +15,8 @@ import { createDb } from "~/server/db/client";
 import type { Bindings, SessionUser } from "~/server/env";
 import type {
   CandidateFact,
+  CaptureContext,
+  CapturedClaim,
   FactGrade,
   FlagToExplain,
   GradableFact,
@@ -41,8 +43,11 @@ const TEST_USER_HEADER = "x-test-user";
 const ORIGIN = new URL(bindings.BETTER_AUTH_URL).origin;
 
 export interface StubModel extends ModelSeam {
-  /** Queued responses, one per `extractFacts` call. */
-  extractions: (CandidateFact[] | Error)[];
+  /**
+   * Queued responses, one per `extractFacts` call. A promise holds that call
+   * open until the test settles it, which is how a test sees what waits.
+   */
+  extractions: (CandidateFact[] | Error | Promise<CandidateFact[] | Error>)[];
   generations: (RenderContent | Error)[];
   /** Every set of facts generation was actually given. */
   generationInputs: { facts: RenderFact[]; spec: RenderSpec }[];
@@ -58,6 +63,13 @@ export interface StubModel extends ModelSeam {
   postings: (PostingReading | Error)[];
   /** Every job description the reading was actually given. */
   postingCalls: string[];
+  /**
+   * Queued responses, one per `captureClaims` call, or a function of what the
+   * call was given. Unqueued, it finds nothing.
+   */
+  captures: (CapturedClaim[] | ((text: string, context: CaptureContext) => CapturedClaim[]) | Error)[];
+  /** Every text and context quick capture was actually given. */
+  captureCalls: { text: string; context: CaptureContext }[];
   /**
    * Reported through `onUsage` on every call, extraction and generation alike.
    * Left unset to model a provider that reports nothing, which is what the
@@ -78,9 +90,11 @@ export function stubModel(): StubModel {
     explainCalls: [],
     postings: [],
     postingCalls: [],
+    captures: [],
+    captureCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
-      const next = stub.extractions.shift() ?? [];
+      const next = await (stub.extractions.shift() ?? []);
       // Thrown BEFORE any usage is reported: a call that fails reports nothing,
       // which is what the real seam does.
       if (next instanceof Error) throw next;
@@ -116,11 +130,19 @@ export function stubModel(): StubModel {
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next;
     },
+    async captureClaims(text, context, ctx) {
+      stub.captureCalls.push({ text, context });
+      const next = stub.captures.shift() ?? [];
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return typeof next === "function" ? next(text, context) : next;
+    },
   };
   return stub;
 }
 
 export interface HarnessOptions {
+  workflow?: Bindings["IMPORT_WORKFLOW"];
   /**
    * Resolve sessions the way the deployment does — through Better Auth, from a
    * cookie. Requires the OIDC fixture to be installed, because the only way to
@@ -191,7 +213,7 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
       if (cookies) merged.set("cookie", cookies);
       const response = await app.fetch(
         new Request(`${ORIGIN}${path}`, { ...init, headers: merged }),
-        bindings,
+        options.workflow ? { ...bindings, IMPORT_WORKFLOW: options.workflow } : bindings,
         createExecutionContext(),
       );
       jar?.capture(response);

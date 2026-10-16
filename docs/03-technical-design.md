@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a five-function seam (§4) |
+| Model | **Anthropic `claude-opus-5`** | Behind a six-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -106,6 +106,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   │   ├── grade.ts            # the grading rules, stated once for extraction and the sort
 │   │   ├── explain.ts
 │   │   ├── posting.ts          # reading a pasted job posting (#73)
+│   │   ├── capture.ts          # splitting a typed sentence or two into claims (#95)
 │   │   └── providers/anthropic.ts
 │   ├── pipeline/               # Workflow definitions
 │   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
@@ -120,7 +121,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly five places**. Nothing outside `src/model/` imports an
+The application touches a model in **exactly six places**. Nothing outside `src/model/` imports an
 SDK or knows a provider name.
 
 ```ts
@@ -129,6 +130,7 @@ generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
 gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
 explainFlag(flag: FlagToExplain): Promise<string>
 readPosting(jobDescription: string): Promise<PostingReading>
+captureClaims(text: string, context: CaptureContext): Promise<CapturedClaim[]>
 ```
 
 It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
@@ -143,6 +145,17 @@ the company, the position and the key requirements, and is called only by
 proposal on a confirmation step and never a fact**: no quote, no grade, nothing stored by the call
 (`06`, 2026-10-11). It runs at low effort, and its tool is asked for by the prompt and not forced,
 so the call does not depend on a `tool_choice` the models after `claude-opus-5` refuse.
+
+`captureClaims` is the sixth, since 2026-10-16 (#95). It takes what the author typed on Quick capture,
+with their month and their employers and projects by id and name, and returns one plain claim per
+outcome with the month and the employer or project the text names and what it leaves out (`when`,
+`employer`, `change`, `proof`). It is called only by `POST /api/capture/read`, when the author
+presses `Read it`. **What it returns is a proposal the author confirms, never a fact by itself**: no
+quote and no grade, and nothing stored by the call. The author's save is what writes the facts,
+Attested and graded by the author (`06`, 2026-10-16). An id it was not given is dropped, and what is
+missing is worked out again from what survived. It runs at low effort with its tool asked for by the
+prompt, as `readPosting` does; when it fails or finds nothing, the screen opens a plain form, so a
+fact never waits on it.
 
 Swapping providers is a config value plus one adapter file. The M2 bake-off this was built for was
 dropped on 2026-09-21 (`docs/06`); the seam stays, so a model upgrade or a later swap stays cheap.
@@ -297,6 +310,21 @@ not duplicated, only genuinely new content is extracted, and rejected facts stay
 the app ever reasoning about fact identity. A 15%-changed document costs roughly 15% of a fresh
 extraction.
 
+**One document is read at a time, per user** (#93, `09` Flow 8). An upload stores its version as
+`queued` and asks the queue (`src/pipeline/queue.ts`) to start the next; so does a retry, and so
+does the end of every run, done or failed. The queue is the `import_status` column and nothing
+else: one conditional `update` claims the oldest `queued` version as `extracting` when none is,
+and the partial unique index `sdv_one_extracting_uq` refuses a second claim that races it. There
+is no batch row, so every import survives on its own. On the Workflow path the next document gets
+a Workflow of its own, started from a `start-next` step of the one before. Its instance ID is the
+version ID; uploads, `start-next`, Home and Documents reads attempt to restore a missing instance
+for an `extracting` row, and restart one that is complete or errored (`ensureWorkflow`). Recovery
+is best effort: a Workflow API error is logged without content and the next poll tries again. It
+does not fail a status read or an upload or retry whose rows are already saved. A launch that fails
+marks its version `failed` and advances the queue. A run that throws past its steps marks its
+version `failed` (`Extraction stopped before it finished.`) rather than leaving it `extracting`,
+which would hold every import behind it. A retry requeues only a `failed` version.
+
 **Zero facts extracted is a failure, not an empty success** (PRD §7). The document is retained and
 the author can retry or capture manually.
 
@@ -347,13 +375,40 @@ by #36 and the first by #35:
 
 | Format | How | Milestone |
 |---|---|---|
-| `.md`, `.txt` | `await file.text()` — **no library** | **M1** |
-| `.docx` | Unzip with `fflate`, read `word/document.xml`, walk `w:p` elements into paragraphs. ~50 lines, no Node dependencies | M2 |
-| `.pdf` | **Deferred, possibly permanently.** `unpdf` if ever needed | — |
+| `.md`, `.markdown`, `.txt` | `await file.text()` — **no library**. `plaintext-1` | **M1** |
+| `.docx` | Unzip with **PizZip**, read `word/document.xml`, walk `w:p` elements into paragraphs (`src/pipeline/docx.ts`). `docx-1` | M3, #94 |
+| `.pdf` | `unpdf`, a serverless build of PDF.js, **proved on workerd** (decision log, 2026-10-16). Printed lines are joined into paragraphs by the rule `src/pipeline/pdf.ts` states; a PDF with no text layer is refused. `pdf-1` | M3, #94 |
 
 **M1 needs `.md` and `.txt` only.** The author's case studies are Markdown, produced by a standing
 prompt inside each work repository. Supporting four formats in M1 would mean carrying three Workers
 compatibility risks for a document type M1 never sees.
+
+**Word and PDF are in scope from 2026-10-16** (decision log, that date): some of the author's
+documents are Word, and the author asked for the import to take more than one kind. Other types
+(`.doc`, `.rtf`, `.odt`, `.pages`, HTML, images) are refused with a reason naming the ones that
+work. Each format stamps its own `extractor_version`.
+
+**PizZip, not `fflate`, unzips a `.docx`.** It is already a dependency, and the 履歴書 render has
+run it on workerd since 2026-09-08; `fflate` would have been a second zip library proved for the same
+job. **The `docx-1` rule:** every `w:p` in `word/document.xml` is one line, in document order and
+table cells included, and an empty paragraph is an empty line. `w:t` is the text, `w:tab` a tab,
+`w:br` a line break (a page or column break is nothing). Tracked deletions, the old location of a
+tracked move (`w:moveFrom`; its new location, `w:moveTo`, is read), field codes, paragraph and run
+properties, and the `mc:Fallback` copy of a text box are not read; nor are headers, footers,
+footnotes or comments. The text is the document with its tracked changes accepted: a paragraph
+whose mark is a tracked deletion or the old side of a move (`w:pPr/w:rPr/w:del`, `w:moveFrom`)
+ends no line of its own, what is left of its text joins the paragraph after it, and a paragraph
+deleted whole contributes nothing.
+
+**The `pdf-1` rule.** A PDF's line breaks are where the layout ran out of width, not paragraphs. A
+page's printed lines are read in content order; pieces on one baseline have a space when their
+positions leave a gap wider than one fifth of the font size, and touching pieces join directly. A
+paragraph ends at a page end, at a blank line, or where the gap to the next baseline is more than
+1.5 times the larger font size of the two lines.
+Its lines are joined by one space, or by nothing beside Japanese or after a hyphen, which is kept.
+Each paragraph is one line of the text. **A quote across a wrapped line therefore anchors as the
+sentence reads**, with a space where the print broke; a quote that keeps the printed break is not
+verbatim and is discarded, as §4.1 says of any other near miss.
 
 **`.docx` is parsed directly rather than through `mammoth`.** The decisive reason is not dependency
 weight: parsing OOXML ourselves means **we control paragraph boundaries**, and paragraph boundaries
@@ -588,15 +643,15 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | # | Item | Trigger / note |
 |---|---|---|
 | 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | **Dropped 2026-09-21** (`docs/06`). Anthropic stays the only provider |
-| 4 | **Batch import** (`09` Flow 8) and the Message Batches path | Decided after the first portfolio's token usage is measured (`06`, 2026-09-28). Until then portfolios import one at a time through the Documents screen |
+| 4 | **The Message Batches path**, and a lower extraction effort | Decided from the numbers `npm run measure:import` prints for one portfolio imported at today's setting (#92; `06`, 2026-10-16), in an entry of its own. The multi-file queue (`09` Flow 8) left this row on 2026-10-16 and was built by #93 |
 | 5 | **`docx` / `docxtemplater` Workers spike** | **Done 2026-09-08** (`docs/06`). Both libraries run on workerd; 履歴書 work is no longer gated on it |
-| 5b | **`.docx` text extraction** via `fflate` + OOXML walk | With the first extractor change (`06`, 2026-09-15). **Unverified** whether any portfolio in the back catalogue is `.docx` |
+| 5b | **`.docx` text extraction** via `fflate` + OOXML walk | Built by #94 with `.pdf` (`06`, 2026-10-16): some of the author's documents are Word |
 
 ### Deferred to M3
 
 | # | Item | Trigger / note |
 |---|---|---|
-| 8 | **Quick capture** — free text in, Attested facts out | S12. The one screen that may justify a narrow mobile surface. Follows the back-catalogue import (`06`, 2026-09-28) |
+| 8 | **Quick capture** — free text in, Attested facts out | S12. **Built by #95** (`06`, 2026-10-16), at phone width as well as desktop: `captureClaims` (§4), `POST /api/capture` (`07` §6) |
 
 **Promoted out of M3 into M1:** `GET /api/export` (S15), formerly row 9. Neon's free plan retains a
 **6-hour** restore window, so the export is the disaster-recovery mechanism rather than a
@@ -621,7 +676,6 @@ convenience.
 | 17 | Broader E2E suite beyond the one smoke test | Second smoke path would be 履歴書 generation |
 | 18 | Visual regression testing | Manual checklist + agent-driven verification |
 | 19 | Object storage for source documents | One-table migration when `bytea` stops being appropriate |
-| 19b | **`.pdf` import** | `unpdf` if a document ever exists only as PDF. The author has `.docx` for everything |
 | 20 | Hyperdrive in front of Neon | Drop-in, if latency ever matters |
 | 21 | Tighter `DATABASE_URL` role (DML only, DDL for migrations) | Worth doing when convenient |
 
@@ -641,7 +695,7 @@ quick capture, version history UI, conflict detection, per-render inclusion rule
 **Not built at all in v1:** multi-user features, LinkedIn, the portfolio site.
 Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
 log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
-layout exists for its screens only.
+layout exists for its screens and, from #95, for Quick capture only.
 
 The responsive boundary is specified in `10` Responsive behaviour. The desktop panes are built
 **fluid** (no fixed page widths, panes flex).

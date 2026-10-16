@@ -9,7 +9,7 @@
  * restated, so the verbatim-quote rule (`src/pipeline/quote.ts`) is exercised
  * against the bytes the browser uploaded.
  */
-import type { ModelSeam } from "~/model";
+import { ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
 import { READING_EN, READING_JA } from "../fixtures/postings";
 
@@ -60,5 +60,31 @@ export const e2eModel: ModelSeam = {
   async readPosting(jobDescription) {
     const read = [READING_EN, READING_JA].find((reading) => jobDescription.includes(reading.company));
     return read ?? { company: "", position: "", requirements: [] };
+  },
+
+  /**
+   * One claim a sentence. An employer is matched when the sentence names it,
+   * the month when it says `last month` or `先月`, and the answer fails
+   * outright when the text says `unreadable`, which is how the browser reaches
+   * the plain form.
+   */
+  async captureClaims(text, context) {
+    if (text.includes("unreadable")) throw new ModelUnavailableError("The stub was asked to fail.");
+    const [year, month] = context.today.split("-").map(Number) as [number, number];
+    const lastMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;
+    return text
+      .split(/(?<=[.!?。])\s*/)
+      .map((sentence) => sentence.trim())
+      .filter(Boolean)
+      .map((claim) => {
+        const employer = context.employers.find((e) => e.name.split(" / ").some((name) => claim.includes(name)));
+        const when = /last month|先月/i.test(claim) ? lastMonth : null;
+        const missing: CaptureQuestion[] = [
+          ...(when ? [] : ["when" as const]),
+          ...(employer ? [] : ["employer" as const]),
+          ...(/\p{Nd}/u.test(claim) ? [] : ["proof" as const]),
+        ];
+        return { claim, month: when, employerId: employer?.id ?? null, projectId: null, technologies: [], missing };
+      });
   },
 };

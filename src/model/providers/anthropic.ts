@@ -8,6 +8,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import {
   ModelUnavailableError,
   type CandidateFact,
+  type CaptureContext,
+  type CapturedClaim,
   type ExtractionContext,
   type FactGrade,
   type FlagToExplain,
@@ -25,6 +27,7 @@ import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
 import { READ_POSTING_SYSTEM_PROMPT, READ_POSTING_TOOL, postingRequest, readPostingInput } from "../posting";
+import { CAPTURE_SYSTEM_PROMPT, CAPTURE_TOOL, captureRequest, readCaptureInput } from "../capture";
 
 /**
  * Thinking and effort are stated rather than inherited.
@@ -53,6 +56,12 @@ const EXPLAIN_OUTPUT_CONFIG = { effort: "low" } as const;
  * with the form open, so it runs at the effort `Explain this` does.
  */
 const READ_POSTING_OUTPUT_CONFIG = { effort: "low" } as const;
+/**
+ * Quick capture splits a sentence or two the author typed, and the author
+ * confirms every claim before it is saved. They are waiting on it with a
+ * minute as the target (S12), so it runs at the effort reading a posting does.
+ */
+const CAPTURE_OUTPUT_CONFIG = { effort: "low" } as const;
 
 export interface AnthropicSeamConfig {
   apiKey: string;
@@ -247,6 +256,29 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         const reading = block?.type === "tool_use" ? readPostingInput(block.input) : null;
         if (!reading) throw new ModelUnavailableError("The model did not return a reading.");
         return reading;
+      } catch (err) {
+        throw asModelError(err);
+      }
+    },
+
+    async captureClaims(text: string, context: CaptureContext, ctx?: GenerationContext): Promise<CapturedClaim[]> {
+      try {
+        // Asked for by the prompt, not forced, as reading a posting is.
+        const stream = client.messages.stream({
+          model: config.model,
+          max_tokens: 4000,
+          thinking: THINKING,
+          output_config: CAPTURE_OUTPUT_CONFIG,
+          system: [{ type: "text", text: CAPTURE_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          tools: [CAPTURE_TOOL],
+          messages: [{ role: "user", content: captureRequest(text, context) }],
+        });
+        const message = await stream.finalMessage();
+        ctx?.onUsage?.(readUsage(message.usage));
+        const block = message.content.find((b) => b.type === "tool_use" && b.name === CAPTURE_TOOL.name);
+        const claims = block?.type === "tool_use" ? readCaptureInput(block.input, context) : null;
+        if (!claims) throw new ModelUnavailableError("The model did not return any claims.");
+        return claims;
       } catch (err) {
         throw asModelError(err);
       }

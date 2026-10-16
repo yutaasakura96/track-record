@@ -321,7 +321,7 @@ async function countProjectReferences(db: Db, userId: string, projectId: string)
 }
 
 /** A miss is a 404, never a 403, which would confirm the row exists. */
-async function requireOwnedProject(db: Db, userId: string, projectId: string) {
+export async function requireOwnedProject(db: Db, userId: string, projectId: string) {
   const [row] = await db
     .select({ id: projects.id })
     .from(projects)

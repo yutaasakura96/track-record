@@ -277,7 +277,9 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `extractor_version` | text | no | Which parser produced `extracted_text`. **A version is never re-extracted in place** — a parser upgrade creates a new version with fresh offsets (`03` §5.1) |
 | `byte_size` | integer | no | |
 | `word_count` | integer | no | Shown in the source pane label strip |
-| `import_status` | import_status | no | |
+| `batch_id` | text | yes | Groups versions submitted together; legacy versions use their own `id` as the set ID |
+| `batch_order` | integer | no | Position within the submitted set, default `0`; orders the queue and Home's waiting list |
+| `import_status` | import_status | no | `queued` is waiting its turn: **one version is `extracting` at a time, per user** (#93, `03` §5) |
 | `import_error` | text | yes | Populated when `failed` — PRD §7 requires a *reason* |
 | `chunks_total` | integer | no | Default `0`. Drives the progress bar |
 | `chunks_done` | integer | no | Default `0` |
@@ -286,7 +288,9 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `changed_region_share` | double precision | yes | Fraction of the two versions' combined text that differs: added plus removed characters, over this version's length plus the removed characters. `0` only when the text is identical. `null` on a first import |
 | `imported_at` | timestamptz | no | |
 
-**Unique:** `(source_document_id, version_no)`.
+**Unique:** `(source_document_id, version_no)`, and `(user_id) where import_status = 'extracting'`
+(`sdv_one_extracting_uq`, #93): the import queue claims a version with one conditional `update`,
+and two claims racing each other could both see nobody reading; this lets one through.
 **Never deleted.** Deleting evidence would break every Measured fact that points at it.
 
 ---
@@ -307,6 +311,7 @@ failed chunk rather than at chunk 1 (`11-testing-plan.md` §2.7).
 | `end_offset` | integer | no | Exclusive |
 | `status` | chunk_status | no | Default `'pending'`. `pending` · `done` · `failed` |
 | `error` | text | yes | A reason. **Never a model response body and never source text** |
+| `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What this chunk's extraction call cost (migration 0004). Null means not recorded, not free: rows written before the columns existed stay null. Read by `npm run measure:import` (`src/pipeline/cost.ts`). An attempt that failed before finishing records nothing, and a retry overwrites, so the sums are a floor |
 
 **Unique:** `(source_document_version_id, chunk_index)`. **Index:** `(user_id)`.
 
@@ -323,6 +328,11 @@ step ever carries text across a workflow step boundary — steps pass IDs, never
 **One table holds candidates, accepted facts and rejected facts.** `status` distinguishes them.
 Rejected rows are retained forever, because that is what stops a re-import re-offering them.
 
+**Quick capture writes its facts as `accepted` too** (#95, `07` §6): `attested`, `graded_at`
+stamped as the author's grade, `auto_accepted_at` null, no source version, no quote, and `restricted`
+unless the confidential-shape check makes them `private`. Undo on a rejected captured fact returns it
+to `accepted`, never to `candidate`.
+
 **Since migration 0015 an import writes its facts as `accepted`** (#57, `03` §5). `candidate` is the
 state of the facts imported before that, until they are sorted or reviewed, and of nothing new. The
 column defaults below are unchanged and are no longer what an import writes.
@@ -335,11 +345,12 @@ column defaults below are unchanged and are no longer what an import writes.
 | `employer_id` | text | yes | — | FK → `employers.id` **restrict**. Holds only an employer set on the fact by hand, through its card. Null on every extracted fact: extraction never writes one, and the fact reads its document's employer, then its project's (§3.12) |
 | `employer_set_at` | timestamptz | yes | — | When the author last set the fact's employer by hand (`PATCH /api/facts/:id` with `employerId`, `null` included). A fact's employer is **hand set** when this is stamped **or** `employer_id` is not null; a hand set with `employer_id` null is a hand-set `No employer`. Every non-null `employer_id` was set on a card, since extraction never writes one, so the facts filed before this column existed need no backfill (§3.12, #35) |
 | `claim` | text | no | — | The fact, stored **plainly**. Impact framing is applied at render time |
+| `occurred_on` | date | yes | — | The month the work happened, day pinned to `01` (migration 0025, #95). Written only by quick capture, where the author says when; null on every imported fact, which reads its time from its employer and project |
 | `provenance` | provenance | no | `'generated'` | The importer's grade, judged against the quote (`03` §4.1). `generated` when it gave none. Until 2026-10-08 every extracted fact started Generated |
 | `disclosure` | disclosure | no | `'private'` | **Defaults point toward secrecy.** An import writes `private` for a confidential fact and `restricted` for every other, never `public` |
 | `status` | fact_status | no | `'candidate'` | |
-| `source_document_version_id` | text | yes | — | FK **restrict**. Null only for manual capture (M3) |
-| `quote` | text | yes | — | The **verbatim** supporting span. Null only for manual capture |
+| `source_document_version_id` | text | yes | — | FK **restrict**. Null only for a fact saved by quick capture (#95) |
+| `quote` | text | yes | — | The **verbatim** supporting span. Null only for a fact saved by quick capture |
 | `quote_start` | integer | yes | — | Character offset into `extracted_text`, **verified by exact match** |
 | `quote_end` | integer | yes | — | Exclusive |
 | `line_number` | integer | yes | — | Derived. Rendered as the `L79` chip |
@@ -602,7 +613,8 @@ full order above, the document included.
 
 Why a fact is worth a look. Written when the fact is accepted by the importer, for `repeat`
 also when a later write makes a pair (`03` §5), and for `confidential` and `number` also when the
-author's edit of a claim gives it a confidential shape or a number (`07` §6). **A flag gates nothing**: what keeps a fact out of a
+author's edit of a claim gives it a confidential shape or a number (`07` §6) — never `number` on a
+captured fact, which has no passage to check one against. **A flag gates nothing**: what keeps a fact out of a
 document is its own `disclosure` and `provenance`, which a flag only explains.
 
 | Column | Type | Null | Notes |

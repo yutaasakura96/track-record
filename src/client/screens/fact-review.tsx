@@ -1037,7 +1037,7 @@ function FactCard({
 }
 
 /** Inline editable, commits on blur — the record carries your phrasing. */
-function ClaimEditor({
+export function ClaimEditor({
   claim,
   onChange,
   className = "text-text-strong",
@@ -1063,7 +1063,7 @@ function ClaimEditor({
   );
 }
 
-function WorthControl({ value, onChange }: { value: Fact["provenance"]; onChange: (value: Fact["provenance"]) => void }) {
+export function WorthControl({ value, onChange }: { value: Fact["provenance"]; onChange: (value: Fact["provenance"]) => void }) {
   return (
     <SegmentedControl
       label="Worth"
@@ -1078,7 +1078,7 @@ function WorthControl({ value, onChange }: { value: Fact["provenance"]; onChange
   );
 }
 
-function WhoControl({ value, onChange }: { value: Fact["disclosure"]; onChange: (value: Fact["disclosure"]) => void }) {
+export function WhoControl({ value, onChange }: { value: Fact["disclosure"]; onChange: (value: Fact["disclosure"]) => void }) {
   return (
     <SegmentedControl
       label="Who"

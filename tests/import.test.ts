@@ -250,12 +250,12 @@ describe("what a candidate arrives as", () => {
 describe("rejecting an import before any work starts", () => {
   it("rejects an unsupported file type, naming the reason", async () => {
     const form = new FormData();
-    form.set("file", new File(["binary"], "resume.pdf", { type: "application/pdf" }));
+    form.set("file", new File(["binary"], "resume.pages"));
     const response = await client.request("/api/imports", { method: "POST", body: form });
     expect(response.status).toBe(422);
     const body = (await response.json()) as { error: { code: string; message: string } };
     expect(body.error.code).toBe("validation_failed");
-    expect(body.error.message).toMatch(/pdf/i);
+    expect(body.error.message).toBe("That file type cannot be imported. Markdown, plain text, Word and PDF files are supported.");
     // Nothing was sent to the model.
     expect(model.extractCalls).toHaveLength(0);
   });

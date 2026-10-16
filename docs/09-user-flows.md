@@ -143,19 +143,29 @@ diff-against-previous baseline is correct on the next import.
 
 ---
 
-## Flow 6 · Quick capture — work that left no document · M3
+## Flow 6 · Quick capture — work that left no document · M3 (#95)
+
+> **Rewritten 2026-10-16** (decision log, that date). It was written before #57 and had captured
+> facts reviewed and accepted in the Flow 2 card interface; a captured fact now goes into the record
+> on save.
 
 1. Overview → **Quick capture** (hidden entirely while the record is empty — there is nothing to
-   capture against yet).
-2. Author types two sentences.
-3. Short interrogation: when, which employer, what changed, what proves it.
-4. Facts are created with provenance **Attested** by default.
-5. Review and accept in the same card interface as Flow 2.
+   capture against yet). It works at phone width, where it is reached from the menu; Home itself
+   keeps the wider-window message.
+2. Author types a sentence or two.
+3. The model splits the text into one or more claims, worded plainly like imported ones, and fills
+   the month and the employer or project when the text says them.
+4. Short interrogation, **only for what is missing**: when, which employer, what changed, what
+   proves it.
+5. The author confirms or corrects each claim and saves. The facts go **into the record** as
+   accepted, provenance **Attested**, graded by the author, disclosure **Restricted** unless the
+   confidential-shape check makes them **Private**. Each can still be edited or rejected on its card.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 3 | Author abandons mid-interrogation | Draft retained. **No facts are created** until accepted |
-| 4 | A numeric claim with no source | Stays **Attested**, not Measured. There is no passage to point at |
+| 3 | The model call fails or finds nothing | The **plain form** opens with the typed text kept: one claim, a month, an employer or project, save. Adding never depends on the model |
+| 4 | Author abandons mid-interrogation | Draft retained. **No facts are created** until saved |
+| 5 | A numeric claim with no source | Stays **Attested**, not Measured. There is no passage to point at |
 
 **Target: under a minute for a simple entry** (S12).
 
@@ -203,23 +213,25 @@ resumes where it left off.
 
 ---
 
-## Flow 8 · Import several documents in one sitting · not built
+## Flow 8 · Import several documents in one sitting · M3 (#93, built 2026-10-16)
 
-> **Deferred, 2026-09-28.** The back-catalogue portfolios are imported one at a time through the
-> Documents screen. Whether this queue, or the Message Batches path behind it, is built for the rest
-> is decided once the first portfolio's token usage has been measured (decision log, 2026-09-28).
+> **Planned 2026-10-16** (decision log, that date), superseding the deferral of 2026-09-28. Whether
+> the Message Batches path is built behind it, or extraction effort lowered, is still decided from
+> the cost readout's numbers (#92, `03` §12 row 4).
 
 1. Author selects multiple files, or drops several onto the target.
-2. Each becomes its own import, queued. **Extraction runs one at a time**, not in parallel — the
-   author can only review one document at a time, and parallel extraction would just spend money
-   faster.
-3. The import list shows each document's status. The author reviews them in any order.
-4. Each document's review is Flow 2, unchanged.
+2. One row per file: its filename, the project and **the employer for that file**, each defaulted
+   and changeable, as the single-file row offers them (`10` Screen 3). One `Import` starts them all.
+3. Each becomes its own import, queued. **Extraction runs one at a time**, not in parallel —
+   parallel extraction would just spend money faster.
+4. The import list shows each document's status: waiting, reading, done or failed. Since #57 a
+   finished document's facts are already in the record, with the ones worth a look flagged
+   (Flow 9).
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
-| 2 | One document fails | The others are unaffected. Failure is per-import |
-| 3 | The author reviews only some | Perfectly normal. Unreviewed imports stay in the list indefinitely |
+| 2 | A file of a type that does not import, or over the size limit | Refused on its own row with the reason, before anything is sent. The others go ahead |
+| 3 | One document fails | The others are unaffected. Failure is per-import, and it is retried on its own |
 
 **If abandoned:** every import survives independently. There is no batch that can be half-committed.
 

@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-10-11
+**Updated:** 2026-10-16
 
 ## Done
 
@@ -61,6 +61,19 @@ are marked as the owner's in each issue.
   bucket on 2026-10-13; the binding is in `wrangler.toml`.
   **#77, built 2026-10-15**: the application footer downloads the job description as a text file
   and copies the interview questions as plain text (`10` Screen 14).
+- **Planned 2026-10-16** (decision log, that date): import helpers, then quick capture, as
+  #92 the import cost readout, #93 several documents at once with an employer per file, #94 Word
+  and PDF import, and #95 quick capture (S12) at phone width. Lowering effort or building the
+  Message Batches path is decided from #92's numbers. The owner's import steps (#38, #39) stay the
+  owner's.
+  **#92, built 2026-10-16**: `npm run measure:import` prints one import's chunks, token sums and
+  estimated cost beside the Message Batches price (`04` §3.6b, `src/pipeline/cost.ts`).
+  **#93, built 2026-10-16**: several documents chosen or dropped at once, each with its own project
+  and employer, read one at a time by a queue in `import_status` (`03` §5, `04` §3.6, `10` Screen 3).
+  **#95, built 2026-10-16**: Quick capture (S12), the last unbuilt `MUST` story. A sentence or two
+  is split into claims by `captureClaims`, the sixth seam function, confirmed and saved into the
+  record as accepted, Attested facts graded by the author; the plain form opens when the model fails.
+  Works at 390px from the menu (`03` §4, `07` §6, `10` Screen 16; decision log, that date).
 
 ## Blocked
 

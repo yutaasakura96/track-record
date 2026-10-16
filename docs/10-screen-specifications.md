@@ -407,7 +407,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
 (primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
-`Quick capture` (ghost) joins the header when it is built (M3). Content column: `max-width 940px`,
+`Quick capture` (ghost), before `Import a document`, since #95; it opens Quick capture. Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
 
@@ -571,6 +571,42 @@ The same row and the same rule serve the empty state's drop target and Screen 8'
 A re-import keeps the document's project and employer, which are stored on the document and not on
 the version (`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
 
+### Importing several documents · built 2026-10-16, #93
+
+The file picker and the drop target take **several files at once** (`09` Flow 8; decision log,
+2026-10-16). The confirmation row becomes a list with one row per file: the filename in a mono chip,
+then that file's project select and employer select, under the rules above, so a select with
+nothing to offer is left out and a record with neither shows no selects. Each file's employer is
+its own, because the portfolios are filed under four employers and one choice for the set would
+split a sitting into four. `Cancel` (bare) and `Import` (primary) appear once, under the list, and
+act on every row; a row can be taken out with its own `Remove`.
+
+- A file of a type that does not import, or over the size limit, shows the reason on its own row
+  and is not sent. `Import` starts the rest, and is disabled with `None of these files can be
+  imported.` when nothing is left to send. The rule is one module the server reads too
+  (`src/shared/import-file.ts`), so the row says what the server would. A file the server still
+  refuses (one that is only whitespace) says the server's reason on its row; the others proceed
+- `Import` sends one `POST /api/imports/batch` with the accepted files and each file's filing choice
+  in listed order. The server creates their queued rows in one transaction and returns one result per
+  file, including any server refusal. Each accepted file has its own import. They are read **one at a
+  time**, in that order; the import panel names the document being read and, under it, the
+  documents still waiting, in the order they will be read
+- **Once `Import` is pressed the list stays, and each row says where its file stands**: `Waiting`,
+  `Reading · N%`, `Done · N facts` with a `Review` link into Fact Review, or `Failed · <reason>
+  Retry it from Documents.` `Close` (bare) takes the list away; the imports carry on. One file
+  chosen alone still opens Fact Review on upload, as it always has
+- A failed document does not stop the next one. It is shown failed in Screen 8's list and is
+  retried there on its own
+- **Home's `Latest imports` panel lists the newest set**, in listed order, each row `Waiting`,
+  `Reading · N%`, `Done` or `Failed · <reason>` with its own `Retry` (a refused retry says why on
+  the row). It stays after the set finishes, until the next one is submitted
+- A set over 20 MB together is refused before anything is sent, because the set is stored in one
+  write (`07` §5); each file's own limit still applies
+- **The drop target takes dropped files** as well as `Choose a file`, several at once, and reads
+  `Choose a Markdown, plain text, Word or PDF file, or several, or drop them here.`
+- **Screen 8 marks a waiting version `Waiting to be read`**, with no progress block: the block is
+  for the one being read. Its next-step line adds `N more are waiting to be read after it.`
+
 ### Refiling a document
 
 **The project and the employer are the only things about a document that change after import**, so
@@ -621,9 +657,9 @@ so the frame does not change under a first-time author; it carries no note and n
   `the facts found in it, one at a time, and keep the ones you stand behind.`) **Generate** `your résumé, 履歴書 and 職務経歴書 from the facts you kept.`
   A paragraph said the same thing and was not read as an instruction
 - A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
-  **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
-  grows as `07-api-design.md` §5 grows. Offering Word or PDF here and rejecting them at upload is a
-  worse empty state than a narrower one
+  **The copy names only the types that actually import** — `Markdown, plain text, Word and PDF` since
+  #94 (M1 was `Markdown and plain text`); the line grows as `07-api-design.md` §5 grows. Offering a
+  type here and rejecting it at upload is a worse empty state than a narrower one
 - Footnote: `Document generation opens up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
 - The sections of the populated screen are absent entirely
@@ -1082,8 +1118,8 @@ the new version, as Flow 4 describes.
 
 ### Re-extract · specified, not built
 
-No button exists until a second extractor version does. The only extractor today is `plaintext-1`,
-and re-running it can only reproduce the same text. This section fixes the behaviour before anyone
+No button exists until a format's extractor is upgraded. Each format has one extractor today
+(`plaintext-1`, `docx-1`, `pdf-1`), and re-running it can only reproduce the same text. This section fixes the behaviour before anyone
 needs it.
 
 - `Re-extract` (ghost) appears beside `Re-import` only when the document's newest version carries an
@@ -1784,6 +1820,77 @@ Named so that nobody reads an unwired button as a decision.
 
 ---
 
+## Screen 16 — Quick capture · built by #95
+
+Work that left no document, typed in a sentence or two (S12, `09` Flow 6, decision log
+2026-10-16). Route `/capture`. Header `Home / Quick capture`, in the frame Applications uses, so it
+works at phone width (Responsive behaviour). Reached from `Quick capture` (ghost) in Home's header
+and, on a phone, from the menu; both are hidden while the record is empty. Two steps on one screen,
+as Screen 13 is. **Nothing is created until a save.**
+
+**Step 1, the text.** Intro: `Write down work that left no document, in a sentence or two. It is
+split into facts worded like the ones read from your documents, and you check each one before it
+is saved.` `Next:` `type what you did, then press Read it.` Panel `What did you do?`:
+
+- `In your own words`, a five-row text area with an invented example as its placeholder. At most
+  2,000 characters.
+- `Nothing is saved until you save it.`, then `Fill it in yourself` (bare), which opens the plain
+  form without a reading, and **`Read it`** (primary).
+- While it is read, the text is read-only and the actions give way to a `role="status"` line with
+  the working dot: `Reading what you typed. This takes a few seconds.`
+
+**Step 2, the check.** Intro: `This is what was read from what you typed. Correct anything that is
+wrong, then save.` `Next:` `check each claim, answer what it asks, then save.` Panel `Check the
+claim` or `Check the N claims`, with `Back to the text` (bare) in its header, which keeps what was
+typed. One group a claim, headed `Claim` or `Claim N`, with `Remove` (bare) when there is more than
+one:
+
+- The claim, a two-row text area, filled with the model's plain wording.
+- **What the text did not say is asked, and nothing else.** `What changed as a result? Say it in
+  the claim.` and `What shows it happened: a number, a before and after, someone who saw it? Add it
+  to the claim if you can.` appear under the claim only when it lacks them. The month field is
+  labelled `When was this?` when the text gave no month and `When` when it did; the filing select
+  `Which employer, or which project?` when it named neither and `Employer or project` when it did.
+- `When`, a month field, and `Employer or project`, a select of `Not said`, the employers, the
+  projects and `No employer`, side by side, one column at phone width.
+- **`Add a claim`** (ghost) under the groups, up to eight.
+- `Saved into your record as Attested, by you. You can change or reject each one below
+  afterwards.`, then `Discard` (bare), which empties the draft, and **`Save the fact`** or **`Save N
+  facts`** (primary). Saving says `Saved N facts into your record.` and returns to an empty Step 1.
+
+**Captured facts.** A panel under either step, once any exist: `The facts you saved here, newest
+first. They are in your record; open one to change or reject it.` Each card shows the claim, the
+mono line `status · provenance · disclosure`, the month and where it is filed. `Change` opens the
+claim editor, `Worth` and `Who` as on Screen 1, `When`, `Employer`, and `Reject`; a rejected card is
+struck through with `Undo`, which returns it to the record. **A captured fact has no document, so
+this is its card**: the master document's `Quick capture` link and the Flagged list's `Open it in
+Quick capture` open `/capture?fact=<id>` with that card's controls open.
+
+**Rules**
+
+- **What was read is a proposal.** Every claim is editable and removable, and only what the author
+  saves is written (decision log, 2026-10-16).
+- **A saved fact is in the record at once**: accepted, Attested, graded by the author, Restricted,
+  or Private when its claim has a confidential shape. There is no second press.
+- **The draft is kept in this browser** until it is saved or discarded: leaving the screen or
+  reloading it opens it where it was left. It is never sent to the server before a save.
+- **A failed or empty reading is the plain form**, not a dead end: one claim holding the typed
+  text, with `When was this?` and `Which employer, or which project?` asked. Its intro is `Saving
+  puts the fact straight into your record.` and `Next:` `fill in the claim, when it was and where,
+  then save.`
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **Text missing** | `Type what you did first. A sentence or two is enough.` under the actions, `role="alert"`, in the `removed` tone |
+| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` |
+| **The reading found nothing** | The same, with `No claim could be found in what you typed. Fill it in yourself; your text is kept.` |
+| **A claim emptied** | `A claim cannot be empty. Fill it in, or remove it.` on save |
+| **Save failed** | The reason under the actions; the draft is kept |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -1791,13 +1898,13 @@ Needed before their milestones; not blocking M1.
 | Screen | Milestone | Note |
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
-| Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
+| Quick capture | M3 (#95) | **Built**, and specified under Screen 16 below |
 
 ---
 
 ## Responsive behaviour
 
-Outside Applications, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications and Quick capture, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -1813,8 +1920,9 @@ surface without re-laying-out the application.
 
 ### Applications at phone width · specified 2026-10-11, built by #75
 
-**The one exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
-`/applications`, are not behind the wider-window message. Every other route keeps it under 1024px.
+**The first exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
+`/applications`, are not behind the wider-window message. Every other route except Quick capture
+keeps it under 1024px.
 Designed at **390px**; the prototype's `Phone` width is the reference.
 
 Under **720px** of width these screens change as follows, and above it they are the desktop layout:
@@ -1822,7 +1930,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Part | At phone width |
 |---|---|
 | Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
-| Menu | A sheet under the header: `Applications` first and active, then the other rows; the sentence `On a phone, Applications is the part that works. The other screens still ask for a wider window.`; then the Theme control |
+| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; the sentence `On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.`; then the Theme control |
 | Header | 12px side padding; the contextual note is not shown |
 | Content column | `16px 12px` padding, 16px between blocks |
 | List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
@@ -1841,3 +1949,12 @@ and the `Import a document` link. In their place the panel says once, in `text-m
 `Making a tailored résumé, writing or reviewing a version and its history need a wider window, so
 they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
 since none of them leaves Applications (decision log, 2026-10-14). Diff Review is not a phone screen.
+
+### Quick capture at phone width · planned 2026-10-16, built by #95
+
+**The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
+interview note is. The Quick capture route is not behind the wider-window message and follows the
+Applications table under 720px: no sidebar, `Menu` first in the header, one column, buttons at least
+36px tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
+capture as the parts that work there. Home and every other screen keep the message. Built by #95
+(Screen 16); nothing scrolls sideways at 390px, in either theme, with Japanese text.

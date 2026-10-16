@@ -33,6 +33,8 @@ function fact(id: string, quote: string, overrides: Partial<Fact> = {}): Fact {
     employerId: null,
     employerSetByHand: false,
     projectId: null,
+    month: null,
+    createdAt: "2026-10-01T00:00:00.000Z",
     evidence: {
       sourceDocumentVersionId: "dv-test-1",
       lineNumber: SOURCE.slice(0, start).split("\n").length,
