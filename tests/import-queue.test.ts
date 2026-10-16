@@ -173,6 +173,36 @@ describe("several documents chosen at once", () => {
     expect(await statuses(ids)).toEqual(["extracting", "queued"]);
   });
 
+  it("keeps an already saved retry accepted during Workflow recovery failure", async () => {
+    let broken = true;
+    const workflow = {
+      async get() { throw new Error("Workflow API unavailable"); },
+      async create() {
+        if (broken) throw new Error("Workflow API unavailable");
+        return { status: async () => ({ status: "running" }), restart: async () => {} };
+      },
+    } as unknown as NonNullable<Bindings["IMPORT_WORKFLOW"]>;
+    app = harness(model, { workflow });
+    client = app.as(await seedAllowedUser());
+
+    const failedId = await send(0);
+    expect((await statusOf(failedId)).status).toBe("failed");
+    broken = false;
+    const activeId = await send(1);
+    expect((await statusOf(activeId)).status).toBe("extracting");
+
+    broken = true;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await client.post(`/api/imports/${failedId}/retry`)).status).toBe(200);
+      expect((await statusOf(failedId)).status).toBe("queued");
+      expect((await statusOf(activeId)).status).toBe("extracting");
+      expect(logged).toHaveBeenCalled();
+    } finally {
+      logged.mockRestore();
+    }
+  });
+
   it("shows waiting files in the same order the queue will read them", async () => {
     const first = held();
     model.extractions = [first.promise, found(1), found(2), found(0), found(1), found(2)];
