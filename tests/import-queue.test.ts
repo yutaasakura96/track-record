@@ -83,11 +83,71 @@ async function send(index: number, fields: Record<string, string> = {}, as = cli
   return ((await response.json()) as { importId: string }).importId;
 }
 
+async function sendBatch(indices: number[], employers: (string | null)[] = []) {
+  const form = new FormData();
+  for (const [position, index] of indices.entries()) {
+    const document = DOCUMENTS[index]!;
+    form.append("file", new File([document.text], document.filename, { type: "text/markdown" }));
+    form.append("filing", JSON.stringify({ employerId: employers[position] ?? undefined }));
+  }
+  const response = await client.request("/api/imports/batch", { method: "POST", body: form });
+  expect(response.status).toBe(202);
+  return (await response.json()) as { results: { importId?: string; reason?: string }[] };
+}
+
 const statusOf = (importId: string, as = client) => as.json<Status>(`/api/imports/${importId}`);
 const statuses = (ids: string[]) => Promise.all(ids.map(async (id) => (await statusOf(id)).status));
 const readCalls = () => model.extractCalls.length;
 
 describe("several documents chosen at once", () => {
+  it("stores the whole set before answering and keeps completed results on Home", async () => {
+    const harbor = await employer(client, "Harbor Freight Systems");
+    const meadow = await employer(client, "Meadow Utilities");
+    const first = held();
+    model.extractions = [first.promise, new ModelUnavailableError("Anthropic is unavailable."), found(2)];
+    const answer = await sendBatch([0, 1, 2], [harbor, meadow, harbor]);
+    const ids = answer.results.map((row) => row.importId!);
+    expect(ids).toHaveLength(3);
+    await until(() => readCalls() === 1);
+    expect(await statuses(ids)).toEqual(["extracting", "queued", "queued"]);
+    first.answer(found(0));
+    await settle();
+    expect(await statuses(ids)).toEqual(["ready", "failed", "ready"]);
+    const home = await client.json<{ latestImportSet: { importId: string; status: string }[] }>("/api/overview");
+    expect(home.latestImportSet.map(({ importId, status }) => [importId, status])).toEqual([
+      [ids[0], "ready"], [ids[1], "failed"], [ids[2], "ready"],
+    ]);
+    const listing = await client.json<{ documents: { filename: string; employer: { id: string } | null }[] }>("/api/imports");
+    expect(Object.fromEntries(listing.documents.map((row) => [row.filename, row.employer?.id]))).toEqual({
+      "harbor-portfolio.md": harbor, "meadow-portfolio.md": meadow, "quarry-portfolio.md": harbor,
+    });
+    model.extractions = [found(1)];
+    expect((await client.post(`/api/imports/${ids[1]}/retry`)).status).toBe(200);
+    await settle();
+    const retried = await client.json<{ latestImportSet: { status: string }[] }>("/api/overview");
+    expect(retried.latestImportSet.map((row) => row.status)).toEqual(["ready", "ready", "ready"]);
+    await sendBatch([0]);
+    const next = await client.json<{ latestImportSet: { importId: string }[] }>("/api/overview");
+    expect(next.latestImportSet).toHaveLength(1);
+  });
+
+  it("refuses one invalid file without losing the accepted rows", async () => {
+    const form = new FormData();
+    form.append("file", new File([DOCUMENTS[0].text], DOCUMENTS[0].filename));
+    form.append("filing", "{}");
+    form.append("file", new File(["pdf"], "unsupported.pdf"));
+    form.append("filing", "{}");
+    form.append("file", new File([DOCUMENTS[2].text], DOCUMENTS[2].filename));
+    form.append("filing", "{}");
+    model.extractions = [found(0), found(2)];
+    const response = await client.request("/api/imports/batch", { method: "POST", body: form });
+    expect(response.status).toBe(202);
+    const answer = (await response.json()) as { results: { importId?: string; reason?: string }[] };
+    expect(answer.results.map((row) => Boolean(row.importId))).toEqual([true, false, true]);
+    expect(answer.results[1]?.reason).toContain(".pdf import is not built yet");
+    await settle();
+    expect(await statuses([answer.results[0]!.importId!, answer.results[2]!.importId!])).toEqual(["ready", "ready"]);
+  });
   it("become one import each, every one under the employer chosen for it", async () => {
     const harbor = await employer(client, "Harbor Freight Systems");
     const meadow = await employer(client, "Meadow Utilities");

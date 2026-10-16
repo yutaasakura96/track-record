@@ -76,6 +76,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         [provenance = { measured: 0, attested: 0, generated: 0 }],
         [latestImport],
         inQueue,
+        latestSet,
         [measured],
         [usable],
         waiting,
@@ -93,7 +94,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         provenanceCounts(db, userId),
         // The newest version: when the header says the last import was.
         db
-          .select({ importedAt: sourceDocumentVersions.importedAt })
+          .select({ importedAt: sourceDocumentVersions.importedAt, batchId: sourceDocumentVersions.batchId })
           .from(sourceDocumentVersions)
           .where(eq(sourceDocumentVersions.userId, userId))
           .orderBy(desc(sourceDocumentVersions.importedAt))
@@ -117,6 +118,23 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
             asc(sourceDocumentVersions.importedAt),
             asc(sourceDocumentVersions.id),
           ),
+        db
+          .select({
+            importId: sourceDocumentVersions.id,
+            filename: sourceDocuments.filename,
+            status: sourceDocumentVersions.importStatus,
+            chunksTotal: sourceDocumentVersions.chunksTotal,
+            chunksDone: sourceDocumentVersions.chunksDone,
+            error: sourceDocumentVersions.importError,
+          })
+          .from(sourceDocumentVersions)
+          .innerJoin(sourceDocuments, documentOfVersion)
+          .where(and(
+            eq(sourceDocumentVersions.userId, userId),
+            eq(sql`coalesce(${sourceDocumentVersions.batchId}, ${sourceDocumentVersions.id})`, sql`(select coalesce(batch_id, id) from source_document_versions
+              where user_id = ${userId} order by imported_at desc, id desc limit 1)`),
+          ))
+          .orderBy(asc(sourceDocumentVersions.batchOrder)),
         db
           .select({ n: sql<number>`count(distinct ${facts.projectId})::int` })
           .from(facts)
@@ -182,6 +200,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       lastImportAt: latestImport?.importedAt.toISOString() ?? null,
       activeImport: active,
       waitingImports: behind.map((row) => ({ importId: row.id, filename: row.filename })),
+      latestImportSet: latestSet,
       tiles: {
         employers: {
           count: employerRows.length,

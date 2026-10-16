@@ -362,6 +362,7 @@ export interface Overview {
    * read at a time (#93).
    */
   waitingImports: { importId: string; filename: string }[];
+  latestImportSet?: { importId: string; filename: string; status: "queued" | "extracting" | "ready" | "failed"; chunksTotal: number; chunksDone: number; error: string | null }[];
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
   /** Flags not yet marked checked. Advice, never a block. */
@@ -708,6 +709,7 @@ export const useOverview = () =>
     queryFn: () => api<Overview>("/api/overview"),
     refetchInterval: (query) =>
       isImportRunning(query.state.data?.activeImport?.status) ||
+      (query.state.data?.latestImportSet ?? []).some((row) => isImportRunning(row.status)) ||
       (query.state.data?.documents ?? []).some((row) => row.status === "proposal_generating")
         ? POLL_MS
         : false,
@@ -1295,6 +1297,26 @@ export function useStartImport() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.overview }),
     // A refused re-import re-reads the list as well: the 409 means it was stale.
     onSettled: () => void queryClient.invalidateQueries({ queryKey: keys.documents }),
+  });
+}
+
+export function useStartImportBatch() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (rows: { file: File; projectId?: string; employerId?: string }[]) => {
+      const form = new FormData();
+      for (const row of rows) {
+        form.append("file", row.file);
+        form.append("filing", JSON.stringify({ projectId: row.projectId, employerId: row.employerId }));
+      }
+      return api<{ results: { importId?: string; reason?: string }[] }>("/api/imports/batch", {
+        method: "POST", body: form,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.documents });
+    },
   });
 }
 

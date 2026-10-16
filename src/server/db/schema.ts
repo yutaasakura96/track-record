@@ -275,6 +275,8 @@ export const sourceDocumentVersions = pgTable("source_document_versions", {
   extractorVersion: text("extractor_version").notNull(),
   byteSize: integer("byte_size").notNull(),
   wordCount: integer("word_count").notNull(),
+  batchId: text("batch_id"),
+  batchOrder: integer("batch_order").notNull().default(0),
   importStatus: importStatus("import_status").notNull().default("queued"),
   /** Populated when failed — PRD §7 requires a stated reason, not an empty success. */
   importError: text("import_error"),

@@ -9,6 +9,7 @@
 
 /** 2 MiB. The author's whole corpus is ~2.4 MB; one case study is far smaller. */
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
+export const MAX_BATCH_BYTES = 95_000_000;
 
 /** The types that import today, as the file picker's `accept` names them. */
 export const IMPORT_ACCEPT = ".md,.markdown,.txt";

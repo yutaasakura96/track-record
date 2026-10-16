@@ -18,6 +18,7 @@ import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
+import { importRefusal } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
 import { startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
@@ -129,6 +130,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       extractorVersion: EXTRACTOR_VERSION,
       byteSize: upload.byteSize,
       wordCount: upload.wordCount,
+      batchId: versionId,
       importStatus: "queued",
     });
 
@@ -173,6 +175,86 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       },
       202,
     );
+  });
+
+  api.post("/api/imports/batch", async (c) => {
+    const userId = c.get("user").id;
+    const db = c.get("db");
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    const files = form.getAll("file");
+    const filings = form.getAll("filing");
+    if (!files.length || files.length !== filings.length) {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    const batchId = newId("importBatch");
+    const importedAt = new Date();
+    const results: { importId?: string; reason?: string }[] = [];
+    const writes: any[] = [];
+    for (const [index, entry] of files.entries()) {
+      if (!(entry instanceof File)) throw validationFailed("Choose files to import.", ["file"]);
+      let filing: { projectId?: string; employerId?: string };
+      try {
+        filing = JSON.parse(String(filings[index]));
+        if (!filing || typeof filing !== "object" ||
+            (filing.projectId !== undefined && typeof filing.projectId !== "string") ||
+            (filing.employerId !== undefined && typeof filing.employerId !== "string")) throw new Error();
+      } catch {
+        results.push({ reason: "Choose a valid project and employer." });
+        continue;
+      }
+      const refusal = importRefusal(entry);
+      if (refusal) {
+        results.push({ reason: refusal });
+        continue;
+      }
+      if (filing.projectId) {
+        const [owned] = await db.select({ id: projects.id }).from(projects)
+          .where(and(eq(projects.userId, userId), eq(projects.id, filing.projectId))).limit(1);
+        if (!owned) {
+          results.push({ reason: "That project was not found." });
+          continue;
+        }
+      }
+      if (filing.employerId) {
+        const [owned] = await db.select({ id: employers.id }).from(employers)
+          .where(and(eq(employers.userId, userId), eq(employers.id, filing.employerId))).limit(1);
+        if (!owned) {
+          results.push({ reason: "That employer was not found." });
+          continue;
+        }
+      }
+      let upload;
+      try {
+        upload = await extractUpload(entry);
+      } catch (err) {
+        if (!(err instanceof ApiError)) throw err;
+        results.push({ reason: err.message });
+        continue;
+      }
+      const documentId = newId("sourceDocument");
+      const versionId = newId("sourceDocumentVersion");
+      writes.push(db.insert(sourceDocuments).values({
+        id: documentId, userId, projectId: filing.projectId || null,
+        employerId: filing.employerId || null, filename: entry.name, mimeType: upload.mimeType,
+      }));
+      writes.push(db.insert(sourceDocumentVersions).values({
+        id: versionId, userId, sourceDocumentId: documentId, versionNo: 1,
+        originalBytes: Buffer.from(await entry.arrayBuffer()), extractedText: upload.text,
+        extractorVersion: EXTRACTOR_VERSION, byteSize: upload.byteSize, wordCount: upload.wordCount,
+        importStatus: "queued", batchId, batchOrder: index, importedAt,
+      }));
+      results.push({ importId: versionId });
+    }
+    if (writes.length) {
+      await db.batch(writes as [any, ...any[]]);
+      await startImport(importStart(c));
+    }
+    return c.json({ results }, 202);
   });
 
   /**
@@ -644,7 +726,8 @@ function importFailure(
 ): { code: "no_facts_extracted" | "extraction_failed"; message: string } | null {
   if (status !== "failed") return null;
   return {
-    code: extracted === 0 && !stoppedOnChunk ? "no_facts_extracted" : "extraction_failed",
+    code: reason === "No facts could be extracted from this document." && extracted === 0 && !stoppedOnChunk
+      ? "no_facts_extracted" : "extraction_failed",
     message: reason ?? "This import could not be completed.",
   };
 }

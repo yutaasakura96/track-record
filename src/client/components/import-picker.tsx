@@ -13,10 +13,11 @@ import {
   useEntitiesOnDemand,
   useImportStatus,
   useStartImport,
+  useStartImportBatch,
   type Employer,
   type Project,
 } from "../api";
-import { IMPORT_ACCEPT, importRefusal } from "~/shared/import-file";
+import { IMPORT_ACCEPT, MAX_BATCH_BYTES, importRefusal } from "~/shared/import-file";
 import { Button, Chip, Dot } from "./ui";
 
 export { IMPORT_ACCEPT };
@@ -75,6 +76,7 @@ let nextKey = 0;
 export function useImportPicker() {
   const input = useRef<HTMLInputElement>(null);
   const start = useStartImport();
+  const startBatch = useStartImportBatch();
   const navigate = useNavigate();
   const readProjects = useEntitiesOnDemand<Project>("projects");
   const readEmployers = useEntitiesOnDemand<Employer>("employers");
@@ -144,21 +146,23 @@ export function useImportPicker() {
     employerId: row.employerId || undefined,
   });
 
-  // One at a time and in the listed order: the server reads them in the order
-  // they arrive. A file the server refuses says so on its row and stops none
-  // of the others.
   const sendAll = async (rows: Row[]) => {
     const going = rows.filter((row) => !row.refusal);
     if (rows.length === 1 && going.length === 1) return sendOne(going[0]!.file, filing(going[0]!));
+    if (going.reduce((total, row) => total + row.file.size, 0) > MAX_BATCH_BYTES) {
+      setError("The files together exceed 95 MB. Cloudflare allows a 100 MB request on Free and Pro accounts; choose a smaller set.");
+      return;
+    }
     setChosen((current) => (current ? { ...current, sent: true } : null));
-    for (const row of going) {
-      update(row.key, { sending: true });
-      try {
-        const created = await start.mutateAsync({ file: row.file, ...filing(row) });
-        update(row.key, { sending: false, importId: created.importId });
-      } catch (caught) {
-        update(row.key, { sending: false, refusal: failureText(caught) });
+    for (const row of going) update(row.key, { sending: true });
+    try {
+      const answer = await startBatch.mutateAsync(going.map((row) => ({ file: row.file, ...filing(row) })));
+      for (const [index, row] of going.entries()) {
+        const result = answer.results[index]!;
+        update(row.key, { sending: false, importId: result.importId ?? null, refusal: result.reason ?? null });
       }
+    } catch (caught) {
+      for (const row of going) update(row.key, { sending: false, refusal: failureText(caught) });
     }
   };
 

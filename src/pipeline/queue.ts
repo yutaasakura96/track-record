@@ -30,12 +30,10 @@ export async function startNextImport(db: Db, userId: string, launch: LaunchImpo
   if (!versionId) return null;
   try {
     await launch(versionId);
-  } catch (err) {
-    // Claimed and never started would read as `extracting` for good, and hold
-    // the queue behind it. Put it back to wait, and let the caller say why.
+  } catch {
     await db
       .update(sourceDocumentVersions)
-      .set({ importStatus: "queued", updatedAt: new Date() })
+      .set({ importStatus: "failed", importError: "Extraction could not start.", updatedAt: new Date() })
       .where(
         and(
           eq(sourceDocumentVersions.userId, userId),
@@ -43,7 +41,7 @@ export async function startNextImport(db: Db, userId: string, launch: LaunchImpo
           eq(sourceDocumentVersions.importStatus, "extracting"),
         ),
       );
-    throw err;
+    return startNextImport(db, userId, launch);
   }
   return versionId;
 }
@@ -69,7 +67,7 @@ async function claimNext(db: Db, userId: string): Promise<string | null> {
             sourceDocumentVersions.id,
             sql`(select id from source_document_versions
                  where user_id = ${userId} and import_status = 'queued'
-                 order by imported_at, id limit 1)`,
+                 order by imported_at, batch_order, id limit 1)`,
           ),
           sql`not exists (select 1 from source_document_versions
                           where user_id = ${userId} and import_status = 'extracting')`,

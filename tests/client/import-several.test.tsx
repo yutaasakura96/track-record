@@ -67,14 +67,10 @@ const status = (importId: string, over: Partial<ImportStatus> = {}): ImportStatu
   ...over,
 });
 
-/** Each upload answers with the next id, in the order sent. */
-function uploads(...ids: (string | Refusal)[]) {
-  let n = 0;
-  return () => {
-    const next = ids[n++]!;
-    return next instanceof Refusal ? next : { importId: next, sourceDocumentId: `src-${next}`, versionNo: 1 };
-  };
-}
+const batch = (...ids: (string | Refusal)[]) => ({
+  results: ids.map((id) => id instanceof Refusal ? { reason: id.message } : { importId: id }),
+});
+const single = (id: string) => ({ importId: id, sourceDocumentId: `src-${id}`, versionNo: 1 });
 
 function open(routes: Routes = {}, listing: DocumentsListing = EMPTY) {
   return mount("/documents", {
@@ -95,11 +91,11 @@ async function choose(files: File[]) {
 
 const list = () => screen.findByRole("region", { name: "Import documents" });
 const row = (name: string) => within(screen.getByRole("region", { name: "Import documents" })).getByRole("listitem", { name });
-const posts = (calls: Call[]) => calls.filter((c) => c.method === "POST" && c.path === "/api/imports");
+const posts = (calls: Call[]) => calls.filter((c) => c.method === "POST" && c.path === "/api/imports/batch");
 
 describe("choosing several files at once", () => {
   it("gives each file its own row, and files each under the employer chosen for it", async () => {
-    const { api, user } = open({ "POST /api/imports": uploads("imp-a", "imp-b", "imp-c") });
+    const { api, user } = open({ "POST /api/imports/batch": batch("imp-a", "imp-b", "imp-c") });
     await choose([file("alder.md"), file("birch.md"), file("cedar.txt")]);
     await list();
 
@@ -116,12 +112,11 @@ describe("choosing several files at once", () => {
     await user.selectOptions(within(row("cedar.txt")).getByRole("combobox", { name: "Employer" }), QORVANE.id);
     await user.click(screen.getByRole("button", { name: "Import" }));
 
-    await waitFor(() => expect(posts(api.calls)).toHaveLength(3));
-    // In the order listed, which is the order they are read.
-    const sent = posts(api.calls).map((c) => c.body as Record<string, unknown>);
-    expect(sent.map((b) => (b.file as File).name)).toEqual(["alder.md", "birch.md", "cedar.txt"]);
-    expect(sent.map((b) => b.employerId)).toEqual([QORVANE.id, TALLOW.id, QORVANE.id]);
-    expect(sent.map((b) => b.projectId)).toEqual([undefined, PLINTH.id, undefined]);
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
+    const sent = posts(api.calls)[0]!.body as { file: File[]; filing: string[] };
+    expect(sent.file.map((file) => file.name)).toEqual(["alder.md", "birch.md", "cedar.txt"]);
+    expect(sent.filing.map((value) => JSON.parse(value).employerId)).toEqual([QORVANE.id, TALLOW.id, QORVANE.id]);
+    expect(sent.filing.map((value) => JSON.parse(value).projectId)).toEqual([undefined, PLINTH.id, undefined]);
   });
 
   it("leaves out a select with nothing to offer, on every row", async () => {
@@ -139,7 +134,7 @@ describe("choosing several files at once", () => {
     const { api, user } = open({
       "GET /api/projects": { items: [] },
       "GET /api/employers": { items: [] },
-      "POST /api/imports": uploads("imp-a", "imp-b"),
+      "POST /api/imports/batch": batch("imp-a", "imp-b"),
     });
     await choose([file("alder.md"), file("birch.md")]);
     await list();
@@ -147,11 +142,11 @@ describe("choosing several files at once", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(api.writes()).toEqual([]);
     await user.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(posts(api.calls)).toHaveLength(2));
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
   });
 
   it("takes a row out with its own Remove", async () => {
-    const { api, user } = open({ "POST /api/imports": uploads("imp-a") });
+    const { api, user } = open({ "POST /api/imports": single("imp-a") });
     await choose([file("alder.md"), file("birch.md")]);
     await list();
 
@@ -159,14 +154,13 @@ describe("choosing several files at once", () => {
     expect(screen.queryByRole("listitem", { name: "birch.md" })).toBeNull();
     await user.click(screen.getByRole("button", { name: "Import" }));
 
-    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
-    expect(((posts(api.calls)[0]!.body as Record<string, unknown>).file as File).name).toBe("alder.md");
+    await waitFor(() => expect(api.calls.filter((call) => call.method === "POST" && call.path === "/api/imports")).toHaveLength(1));
   });
 });
 
 describe("a file that cannot be imported", () => {
   it("is refused on its own row with the reason before anything is sent, and the rest go ahead", async () => {
-    const { api, user } = open({ "POST /api/imports": uploads("imp-a", "imp-b") });
+    const { api, user } = open({ "POST /api/imports/batch": batch("imp-a", "imp-b") });
     await choose([file("alder.md"), file("brief.pdf"), file("huge.md", MAX_UPLOAD_BYTES + 1), file("cedar.md")]);
     await list();
 
@@ -175,8 +169,8 @@ describe("a file that cannot be imported", () => {
     expect(within(row("brief.pdf")).queryByRole("combobox")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Import" }));
-    await waitFor(() => expect(posts(api.calls)).toHaveLength(2));
-    expect(posts(api.calls).map((c) => ((c.body as Record<string, unknown>).file as File).name)).toEqual([
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
+    expect(((posts(api.calls)[0]!.body as { file: File[] }).file).map((file) => file.name)).toEqual([
       "alder.md",
       "cedar.md",
     ]);
@@ -192,9 +186,9 @@ describe("a file that cannot be imported", () => {
     expect(button.title).toBe("None of these files can be imported.");
   });
 
-  it("says the server's reason on its row when the server refuses it, and sends the next", async () => {
+  it("says the server's reason on its row while the others start", async () => {
     const { api, user } = open({
-      "POST /api/imports": uploads("imp-a", new Refusal(422, "validation_failed", "That file is empty."), "imp-c"),
+      "POST /api/imports/batch": batch("imp-a", new Refusal(422, "validation_failed", "That file is empty."), "imp-c"),
       "GET /api/imports/imp-a": status("imp-a"),
       "GET /api/imports/imp-c": status("imp-c"),
     });
@@ -202,7 +196,7 @@ describe("a file that cannot be imported", () => {
     await list();
     await user.click(screen.getByRole("button", { name: "Import" }));
 
-    await waitFor(() => expect(posts(api.calls)).toHaveLength(3));
+    await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
     expect(await within(row("blank.md")).findByText("That file is empty.")).toBeTruthy();
   });
 });
@@ -210,7 +204,7 @@ describe("a file that cannot be imported", () => {
 describe("once imported", () => {
   it("says where each one stands: waiting, reading, done or failed, and stays on the page", async () => {
     const { user, pathname } = open({
-      "POST /api/imports": uploads("imp-a", "imp-b", "imp-c", "imp-d"),
+      "POST /api/imports/batch": batch("imp-a", "imp-b", "imp-c", "imp-d"),
       "GET /api/imports/imp-a": status("imp-a", { status: "ready", candidatesExtracted: 7 }),
       "GET /api/imports/imp-b": status("imp-b", {
         status: "failed",
@@ -239,7 +233,7 @@ describe("once imported", () => {
 
   it("opens Fact Review on a single file, as it always has", async () => {
     const { user, pathname } = open({
-      "POST /api/imports": uploads("imp-a"),
+      "POST /api/imports": single("imp-a"),
       "GET /api/imports/imp-a": status("imp-a"),
     });
     await choose([file("alder.md")]);

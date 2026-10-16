@@ -23,6 +23,7 @@ import {
   useGenerate,
   useOverview,
   useProfile,
+  useRetryImport,
   useSession,
   useSortFacts,
   type SortProgress,
@@ -256,6 +257,7 @@ function PopulatedRecord({
           ) : (
             <>
               {data.activeImport ? <ImportProgress active={data.activeImport} waiting={data.waitingImports} /> : null}
+              {data.latestImportSet?.length ? <LatestImports rows={data.latestImportSet} /> : null}
               <NextStep
                 steps={nextSteps(data)}
                 busy={generate.isPending}
@@ -281,6 +283,30 @@ function PopulatedRecord({
         </div>
       </div>
     </>
+  );
+}
+
+function LatestImports({ rows }: { rows: NonNullable<OverviewData["latestImportSet"]> }) {
+  const retry = useRetryImport();
+  return (
+    <section aria-label="Latest imports" className="bg-surface-raised border border-border rounded-panel px-16 py-14">
+      <h2 className="text-row font-medium text-text-strong">Latest imports</h2>
+      <ul className="mt-8 grid gap-8">
+        {rows.map((row) => (
+          <li key={row.importId} className="flex flex-wrap items-center gap-8 text-small text-text-secondary">
+            <span className="font-mono">{row.filename}</span>
+            <span>{row.status === "queued" ? "Waiting" : row.status === "extracting"
+              ? `Reading${row.chunksTotal ? ` · ${Math.floor(row.chunksDone / row.chunksTotal * 100)}%` : ""}`
+              : row.status === "ready" ? "Done" : `Failed · ${row.error ?? "This import could not be completed."}`}</span>
+            {row.status === "failed" ? (
+              <Button variant="ghost" onClick={() => void retry.mutateAsync(row.importId)} disabled={retry.isPending}>
+                Retry
+              </Button>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

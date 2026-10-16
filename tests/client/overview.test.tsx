@@ -1403,6 +1403,27 @@ describe("an import in progress", () => {
   });
 });
 
+it("keeps the latest completed set on Home and retries its failed row", async () => {
+  const data = {
+    ...overview([row()]),
+    latestImportSet: [
+      { importId: "imp-test-a", filename: "alder.md", status: "ready" as const, chunksTotal: 1, chunksDone: 1, error: null },
+      { importId: "imp-test-b", filename: "birch.md", status: "failed" as const, chunksTotal: 0, chunksDone: 0, error: "Extraction could not start." },
+    ],
+  };
+  const { user, api } = open([], {
+    "GET /api/overview": data,
+    "POST /api/imports/imp-test-b/retry": { importId: "imp-test-b", status: "queued" },
+  });
+  const panel = await screen.findByRole("region", { name: "Latest imports" });
+  expect(within(panel).getByText("alder.md")).toBeTruthy();
+  expect(within(panel).getByText("Done")).toBeTruthy();
+  expect(within(panel).getByText("birch.md")).toBeTruthy();
+  expect(within(panel).getByText("Failed · Extraction could not start.")).toBeTruthy();
+  await user.click(within(panel).getByRole("button", { name: "Retry" }));
+  await waitFor(() => expect(api.writes()).toContain("POST /api/imports/imp-test-b/retry"));
+});
+
 describe("the backup", () => {
   it("is one link to the export", async () => {
     open([row()]);
