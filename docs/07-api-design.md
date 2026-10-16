@@ -193,9 +193,11 @@ The server creates every accepted document and queued version in one transaction
 Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
 own size limit; the picker refuses a set over 20 MiB together (`MAX_BATCH_BYTES`,
 `src/shared/import-file.ts`) before sending. Every file of a set is written in one database request,
-which carries each file twice (hex-encoded `original_bytes` and its `extracted_text`) under Neon's
-64 MB limit on a query over HTTP; the 95 MB this said before #94 was Cloudflare's request limit and
-could not have been stored in one write.
+which carries hex-encoded `original_bytes` and JSON-encoded `extracted_text`. The server limits their
+combined encoded size to 48 MiB per write, below Neon's 64 MB limit on a query over HTTP. A single
+file over this budget is refused before storage; in a set, each file that would exceed the running
+budget is refused on its own row and can be imported separately. The 95 MB this said before #94 was
+Cloudflare's request limit and could not have been stored in one write.
 
 Rejected before any work starts: unsupported type (`422`), over the size limit (`422`), or a file
 of a supported type that cannot be read as one — a damaged `.docx`, a PDF that will not open, a PDF

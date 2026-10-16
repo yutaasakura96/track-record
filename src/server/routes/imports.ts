@@ -18,7 +18,7 @@ import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload } from "~/pipeline/text";
-import { MAX_BATCH_BYTES, importRefusal } from "~/shared/import-file";
+import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES, importRefusal, importWriteBytes } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
 import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
@@ -44,6 +44,7 @@ const refileBody = z
 
 /** How a document's employer is named: as Screen 1's employer picker names it. */
 const employerName = sql<string>`coalesce(${employers.nameLatin}, ${employers.nameJa})`;
+const TOO_LARGE_AFTER_EXTRACTION = "That file is too large to store after text extraction. Choose a smaller document.";
 
 export function registerImportRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -81,6 +82,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     // Type and size are rejected here, before storage and before a single model
     // token is spent — the author is never billed for a doomed import.
     const upload = await extractUpload(file);
+    if (importWriteBytes(upload.byteSize, upload.text) > MAX_IMPORT_WRITE_BYTES) {
+      throw validationFailed(TOO_LARGE_AFTER_EXTRACTION, ["file"]);
+    }
 
     let documentId = sourceDocumentId;
     let versionNo = 1;
@@ -204,6 +208,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     const importedAt = new Date();
     const results: { importId?: string; reason?: string }[] = [];
     const writes: any[] = [];
+    let writeBytes = 0;
     for (const [index, entry] of files.entries()) {
       let filing: { projectId?: string; employerId?: string };
       try {
@@ -244,6 +249,16 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         results.push({ reason: err.message });
         continue;
       }
+      const fileWriteBytes = importWriteBytes(upload.byteSize, upload.text);
+      if (fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: TOO_LARGE_AFTER_EXTRACTION });
+        continue;
+      }
+      if (writeBytes + fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: "That file would make this import too large. Import it separately." });
+        continue;
+      }
+      writeBytes += fileWriteBytes;
       const documentId = newId("sourceDocument");
       const versionId = newId("sourceDocumentVersion");
       writes.push(db.insert(sourceDocuments).values({

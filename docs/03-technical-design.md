@@ -384,8 +384,10 @@ and run properties, and the `mc:Fallback` copy of a text box are not read; nor a
 footers, footnotes or comments.
 
 **The `pdf-1` rule.** A PDF's line breaks are where the layout ran out of width, not paragraphs. A
-page's printed lines are read in content order; a paragraph ends at a page end, at a blank line, or
-where the gap to the next baseline is more than 1.5 times the larger font size of the two lines.
+page's printed lines are read in content order; pieces on one baseline have a space when their
+positions leave a gap wider than one fifth of the font size, and touching pieces join directly. A
+paragraph ends at a page end, at a blank line, or where the gap to the next baseline is more than
+1.5 times the larger font size of the two lines.
 Its lines are joined by one space, or by nothing beside Japanese or after a hyphen, which is kept.
 Each paragraph is one line of the text. **A quote across a wrapped line therefore anchors as the
 sentence reads**, with a space where the print broke; a quote that keeps the printed break is not

@@ -8,8 +8,10 @@
  * and changing any of it is a new extractor version:
  *
  * 1. A page's text is read in content order. A line ends where PDF.js marks
- *    one, or where the next piece of text sits on another baseline. Runs of
- *    spaces and tabs become one space, and each line is trimmed.
+ *    one, or where the next piece of text sits on another baseline. Pieces on
+ *    one baseline get a space where their positions leave a gap
+ *    wider than one fifth of the font size; touching pieces join directly.
+ *    Runs of spaces and tabs become one space, and each line is trimmed.
  * 2. A paragraph ends at the end of a page, at a blank line, and where the gap
  *    to the next baseline is more than 1.5 times the larger font size of the
  *    two lines — wider than a line of the same paragraph sits.
@@ -57,17 +59,24 @@ export async function extractPdf(bytes: ArrayBuffer): Promise<string> {
 export function linesOf(items: StructuredTextItem[]): Line[] {
   const lines: Line[] = [];
   let current: Line | null = null;
+  let previousEndX: number | null = null;
   for (const item of items) {
     if (current && Math.abs(item.y - current.y) > Math.max(item.fontSize, current.size) / 2) {
       lines.push(current);
       current = null;
+      previousEndX = null;
     }
     current ??= { text: "", y: item.y, size: 0 };
+    if (previousEndX !== null && item.x - previousEndX > Math.max(item.fontSize, current.size) / 5) {
+      current.text += " ";
+    }
     current.text += item.str;
+    previousEndX = item.x + item.width;
     if (item.str.trim()) current.size = Math.max(current.size, item.fontSize);
     if (item.hasEOL) {
       lines.push(current);
       current = null;
+      previousEndX = null;
     }
   }
   if (current) lines.push(current);

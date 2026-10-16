@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 import PizZip from "pizzip";
 import { extractUpload } from "~/pipeline/text";
 import { paragraphsOf } from "~/pipeline/docx";
+import { linesOf } from "~/pipeline/pdf";
 import { anchorQuote } from "~/pipeline/quote";
 import { ApiError } from "~/server/http/errors";
 import { docxFile, laidOut, pdfFile } from "./helpers/documents";
@@ -119,6 +120,22 @@ describe("a PDF", () => {
     );
     expect(upload.extractorVersion).toBe("pdf-1");
     expect(upload.mimeType).toBe("application/pdf");
+  });
+
+  it("preserves spacing between separately positioned words on one baseline", async () => {
+    const { text } = await extractUpload(pdfFile([[
+      { text: "Senior", x: 72, y: 720 },
+      { text: "Engineer", x: 130, y: 720 },
+    ]]));
+    expect(text).toBe("Senior Engineer");
+  });
+
+  it("joins touching text items without adding a space", () => {
+    const item = { y: 720, height: 12, fontSize: 12, fontFamily: "Helvetica", dir: "ltr", hasEOL: false };
+    expect(linesOf([
+      { ...item, str: "Eng", x: 72, width: 20 },
+      { ...item, str: "ineer", x: 92, width: 32 },
+    ])).toMatchObject([{ text: "Engineer" }]);
   });
 
   it("anchors a quote across a wrapped line as it reads, and not as it was printed", async () => {

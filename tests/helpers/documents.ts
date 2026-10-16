@@ -19,6 +19,7 @@ export interface PdfLine {
   text: string;
   y: number;
   size?: number;
+  x?: number;
 }
 
 const escape = (text: string) => text.replace(/[\\()]/g, (char) => `\\${char}`);
@@ -43,7 +44,7 @@ export function pdfBytes(pages: PdfLine[][]): Uint8Array<ArrayBuffer> {
     pageIds.push(pageId);
     const stream = lines.length
       ? lines
-          .map(({ text, y, size = 12 }) => `BT /F1 ${size} Tf 1 0 0 1 72 ${y} Tm (${escape(text)}) Tj ET`)
+          .map(({ text, y, size = 12, x = 72 }) => `BT /F1 ${size} Tf 1 0 0 1 ${x} ${y} Tm (${escape(text)}) Tj ET`)
           .join("\n")
       : "0.5 g 72 72 468 648 re f";
     objects[pageId] =

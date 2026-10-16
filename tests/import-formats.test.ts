@@ -15,9 +15,10 @@ import { asc, eq } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import { seedAllowedUser } from "./helpers/seed";
 import { docxFile, laidOut, pdfFile } from "./helpers/documents";
+import PizZip from "pizzip";
 import { createDb } from "~/server/db/client";
 import { sourceDocuments, sourceDocumentVersions } from "~/server/db/schema";
-import { MAX_BATCH_BYTES } from "~/shared/import-file";
+import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES } from "~/shared/import-file";
 import type { Bindings } from "~/server/env";
 
 const db = createDb((env as unknown as Bindings).DATABASE_URL);
@@ -181,6 +182,20 @@ describe("refused before storage and before the model", () => {
     expect(body.error).toMatchObject({
       code: "validation_failed",
       message: "The files together exceed 20 MB, more than one import can store at once. Choose a smaller set and import the rest after.",
+    });
+    expect(await storedForUser()).toEqual([]);
+    expect(model.extractCalls).toHaveLength(0);
+  });
+
+  it("refuses a compressed Word file whose extracted text exceeds the write budget", async () => {
+    const zip = new PizZip();
+    zip.file("word/document.xml", `<w:document><w:body><w:p><w:r><w:t>${"\\".repeat(MAX_IMPORT_WRITE_BYTES / 2 + 1)}</w:t></w:r></w:p></w:body></w:document>`);
+    const response = await send(new File([zip.generate({ type: "arraybuffer", compression: "DEFLATE" })], "large.docx"));
+    expect(response.status).toBe(422);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    expect(body.error).toMatchObject({
+      code: "validation_failed",
+      message: "That file is too large to store after text extraction. Choose a smaller document.",
     });
     expect(await storedForUser()).toEqual([]);
     expect(model.extractCalls).toHaveLength(0);

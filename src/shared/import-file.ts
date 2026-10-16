@@ -33,11 +33,15 @@ export type ImportFormat = (typeof IMPORT_FORMATS)[number];
 export const MAX_UPLOAD_BYTES = Math.max(...IMPORT_FORMATS.map((format) => format.maxBytes));
 
 /**
- * A set sent together. Every file in it is written in one database request,
- * and that request carries each file twice over, once as hex and once as its
- * text, under Neon's 64 MB limit on a query over HTTP (`docs/07` §5).
+ * A set sent together can hold up to 20 MiB of uploaded files. The server also
+ * bounds the encoded database write below Neon's 64 MB HTTP query limit.
  */
 export const MAX_BATCH_BYTES = 20 * MiB;
+
+export const MAX_IMPORT_WRITE_BYTES = 48 * MiB;
+
+export const importWriteBytes = (originalBytes: number, text: string) =>
+  2 * originalBytes + new TextEncoder().encode(JSON.stringify(text)).byteLength;
 
 /** The types that import, as the file picker's `accept` names them. */
 export const IMPORT_ACCEPT = IMPORT_FORMATS.flatMap((format) => format.extensions).join(",");
