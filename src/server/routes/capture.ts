@@ -21,7 +21,7 @@ import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
 import { factWithEmployer } from "../services/employer";
-import { flagRepeats, settleRepeats } from "../services/repeats";
+import { settleRepeats } from "../services/repeats";
 import { flagsOf } from "./flags";
 import { requireOwnedEmployer, requireOwnedProject } from "./record";
 import { toResponse } from "./facts";
@@ -187,8 +187,6 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
     ] as any);
 
     const ids = rows.map((row) => row.fact.id);
-    // A captured fact can restate one already in the record, as an imported one can.
-    await flagRepeats(db, user.id, inArray(facts.id, ids));
     await settleRepeats(db, user.id);
 
     const saved = await db

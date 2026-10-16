@@ -140,7 +140,8 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     if (classified) {
       const old = classifyClaim(fact);
       const oldShapeReason = old.flags.find((flag) => flag.kind === "confidential")?.reason;
-      for (const kind of ["confidential", "number"] as const) {
+      const kinds = fact.sourceDocumentVersionId === null ? (["confidential"] as const) : (["confidential", "number"] as const);
+      for (const kind of kinds) {
         const flag = classified.flags.find((item) => item.kind === kind);
         if (flag) {
           writes.push(db.insert(factFlags).values({ id: newId("factFlag"), userId: user.id, factId: fact.id, ...flag })
@@ -358,7 +359,6 @@ async function resolve(
       .update(facts)
       .set({ status: "accepted", resolvedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-    await flagRepeats(db, user.id, eq(facts.id, fact.id));
     await settleRepeats(db, user.id);
     return c.json(await withMatches(db, user.id, fact.id));
   }

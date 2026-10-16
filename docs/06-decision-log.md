@@ -6630,7 +6630,8 @@ save, which saves a wording nobody confirmed.
 
 **No `number` flag on a captured fact.** It asks for a number to be checked against its passage,
 and there is none; the owner typed the number and confirmed it. The confidential-shape flag is kept,
-since it says why the fact is Private. A likely repeat is still flagged, as for an import.
+since it says why the fact is Private. A captured fact is not repeat-flagged: the repeat check
+looks only at facts the importer accepted and nobody has graded, and a captured fact is graded on save.
 
 **The draft is kept in the browser's storage**, not on the server, so nothing is created before
 save and a reload opens it where it was left. It is the owner's own device, and it goes on save or

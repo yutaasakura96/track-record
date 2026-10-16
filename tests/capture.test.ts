@@ -225,4 +225,15 @@ describe("a captured fact on its card", () => {
     const undone = (await (await client.post(`/api/facts/${fact!.id}/undo`)).json()) as Saved;
     expect(undone).toMatchObject({ status: "accepted", provenance: "attested", gradedBy: "author" });
   });
+
+  it("raises no number flag when reworded with a number, and still flags a confidential shape", async () => {
+    const [fact] = (await saveIt([{ claim: "Moved the nightly export onto a queue.", month: null }])).body.items;
+
+    const reworded = (await (await client.patch(`/api/facts/${fact!.id}`, { claim: "Cut the nightly batch from 6 hours to 90 minutes." })).json()) as Saved;
+    expect(reworded.flags).toEqual([]);
+
+    const shaped = (await (await client.patch(`/api/facts/${fact!.id}`, { claim: "Cut the batch on host 10.24.6.19 from 6 hours to 90 minutes." })).json()) as Saved;
+    expect(shaped.flags.map((flag) => flag.kind)).toEqual(["confidential"]);
+    expect(shaped.disclosure).toBe("private");
+  });
 });
