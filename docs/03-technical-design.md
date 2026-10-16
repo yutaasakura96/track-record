@@ -305,7 +305,7 @@ and the partial unique index `sdv_one_extracting_uq` refuses a second claim that
 is no batch row, so every import survives on its own. On the Workflow path the next document gets
 a Workflow of its own, started from a `start-next` step of the one before. Its instance ID is the
 version ID; uploads, `start-next`, Home and Documents reads restore a missing instance for an
-`extracting` row. A launch that fails marks its version `failed` and advances the queue. A run that throws past its steps marks its version `failed`
+`extracting` row, and restart one that is complete or errored (`ensureWorkflow`). A launch that fails marks its version `failed` and advances the queue. A run that throws past its steps marks its version `failed`
 (`Extraction stopped before it finished.`) rather than leaving it `extracting`, which would hold
 every import behind it. A retry requeues only a `failed` version.
 

@@ -190,7 +190,9 @@ document). → **`202 Accepted`**
 and `filing` fields in listed order. Each `filing` is JSON with optional `projectId` and `employerId`.
 The server creates every accepted document and queued version in one transaction before answering
 `202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
-Accepted files read in listed order; one that fails stops none of the others.
+Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
+own size limit; the picker refuses a set over 95 MB together (`MAX_BATCH_BYTES`,
+`src/shared/import-file.ts`) before sending, under Cloudflare's 100 MB request body limit.
 
 Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
 re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
@@ -852,6 +854,7 @@ and the home screen waited for all of them.
   "lastImportAt": "2026-08-12T08:02:00Z",
   "activeImport": null,
   "waitingImports": [],
+  "latestImportSet": [],
   "tiles": {
     "employers": { "count": 4, "note": "2 current, 2 past" },
     "roles":     { "count": 6, "note": null },
@@ -874,6 +877,9 @@ and the home screen waited for all of them.
 `filename`, the document's name, which the home screen's progress panel shows.
 `waitingImports` (#93) is every other `queued` version as `{ importId, filename }`, in the order
 they will be read, and `[]` when none is waiting.
+`latestImportSet` (#93) is every version submitted with the newest one (same `batch_id`), in
+`batch_order`, as `{ importId, filename, status, chunksTotal, chunksDone, error }`; it stays after
+they finish, until the next set is submitted.
 While it is not `null` the request costs a second round trip, for that body.
 `factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
 screen's Not confirmed row amber.

@@ -6535,19 +6535,23 @@ cost without saving time.
 
 Built by #93, under the 2026-10-16 entry that several documents are imported in one go.
 
-**The server keeps the queue, not the page.** Each file is uploaded at once and stored `queued`; the
-next waiting version is started by the upload, by a retry and by the end of every run, done or
-failed (`03` §5, `src/pipeline/queue.ts`). The owner can close the tab after `Import` and every
+**The server keeps the queue, not the page.** The set is sent in one `POST /api/imports/batch`, and
+every accepted file is stored `queued` in one transaction before it answers (`07` §5); the next
+waiting version is started by the upload, by a retry and by the end of every run, done or failed
+(`03` §5, `src/pipeline/queue.ts`). The owner can close the tab after `Import` and every
 document is still read, which is Flow 8's "every import survives independently". Rejected: the page
 sending each file only once the one before is read, which stops the rest the moment the tab closes.
 
 **No new table.** A claim is one conditional `update` of `import_status`, and a partial unique
 index, one `extracting` version per user, is what makes two racing claims safe on a driver with no
 interactive transactions (`03` §5). Rejected: a batch row, which would be a batch that can be half
-committed. **A retry requeues only a `failed` version**, because requeuing one being read would let
-it be claimed and read twice. **A run that throws past its steps is marked `failed`**: left
-`extracting`, it would now hold every import behind it, where before it held only its own document.
+committed; the set is a `batch_id` on each version instead. **A retry requeues only a `failed`
+version**, because requeuing one being read would let it be claimed and read twice. **A run that
+throws past its steps is marked `failed`**: left `extracting`, it would now hold every import behind
+it, where before it held only its own document. **A claim whose Workflow never started is
+relaunched**: the Workflow instance ID is the version ID, so an upload, `start-next` or a Home or
+Documents read that finds the `extracting` version's instance missing creates it again, restarts
+one that is complete or errored, and leaves any other alone. Rejected: a timeout or cron that fails
+a stale claim.
 
-**Revisit if:** a version is ever found stuck `extracting` with no run behind it. It holds the
-owner's queue until retried, and the retry cannot see it, so a timeout that fails a stale one would
-then be the fix.
+**Revisit if:** a version is ever found stuck `extracting` behind an instance in some other state.

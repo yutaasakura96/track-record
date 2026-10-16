@@ -597,6 +597,11 @@ act on every row; a row can be taken out with its own `Remove`.
   chosen alone still opens Fact Review on upload, as it always has
 - A failed document does not stop the next one. It is shown failed in Screen 8's list and is
   retried there on its own
+- **Home's `Latest imports` panel lists the newest set**, in listed order, each row `Waiting`,
+  `Reading · N%`, `Done` or `Failed · <reason>` with its own `Retry` (a refused retry says why on
+  the row). It stays after the set finishes, until the next one is submitted
+- A set over 95 MB together is refused before anything is sent, naming Cloudflare's 100 MB request
+  limit; each file's own limit still applies
 - **The drop target takes dropped files** as well as `Choose a file`, several at once, and reads
   `Choose a Markdown or plain text file, or several, or drop them here.`
 - **Screen 8 marks a waiting version `Waiting to be read`**, with no progress block: the block is
