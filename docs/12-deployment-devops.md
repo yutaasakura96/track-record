@@ -93,6 +93,11 @@ matching known key prefixes.
 
 **Trigger:** a merge to `main` on GitHub. **Actor:** GitHub Actions.
 
+**Release precondition for #93:** confirm no import is `extracting` before merging to `main` or
+deploying manually. Migration 0023 refuses with the count if any are reading and leaves their
+rows untouched. Wait for them to finish, then retry the release. Include this precondition in
+the release PR body.
+
 ```
 1. Type check + lint
 2. Full test suite against Docker Postgres      ← a red suite stops here
