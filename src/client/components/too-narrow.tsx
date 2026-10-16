@@ -9,17 +9,21 @@
  * Between 1024 and 1280 the panes simply narrow: the layout is fluid, and the
  * desktop gate is a product decision rather than a layout limitation.
  *
- * Applications is the one exception (issue #75): everything under
- * `/applications`, and nothing else, opens at any width and is laid out for a
- * phone under 720px.
+ * Two exceptions open at any width and are laid out for a phone under 720px:
+ * everything under `/applications` (issue #75), and Quick capture (issue #95).
+ * Nothing else does.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
 
 const MINIMUM = 1024;
 
-/** Under `/applications`: the screens that work at phone width. */
-export const opensOnAPhone = (path: string) => path === "/applications" || path.startsWith("/applications/");
+/** Quick capture's route (issue #95). */
+export const CAPTURE_PATH = "/capture";
+
+/** The screens that work at phone width: under `/applications`, and Quick capture. */
+export const opensOnAPhone = (path: string) =>
+  path === "/applications" || path.startsWith("/applications/") || path === CAPTURE_PATH;
 
 /**
  * Whether the window is wide enough for every screen. Where it is not, a control

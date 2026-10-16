@@ -24,6 +24,8 @@ import {
   E2E_ORIGIN,
   E2E_SECRET,
   E2E_SUITE,
+  CAPTURE_IDENTITY,
+  CAPTURE_STORAGE_STATE,
   INTERVIEW_IDENTITY,
   INTERVIEW_STORAGE_STATE,
   STORAGE_STATE,
@@ -67,6 +69,16 @@ export default async function setup() {
     INTERVIEW_IDENTITY,
   );
   writeFileSync(INTERVIEW_STORAGE_STATE, `${JSON.stringify(storageState(interviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // Quick capture's own author (issue #95), so its record starts empty and leaves the others' alone.
+  const captureSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    CAPTURE_IDENTITY,
+  );
+  writeFileSync(CAPTURE_STORAGE_STATE, `${JSON.stringify(storageState(captureSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

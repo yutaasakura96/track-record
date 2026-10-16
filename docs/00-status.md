@@ -70,6 +70,10 @@ are marked as the owner's in each issue.
   estimated cost beside the Message Batches price (`04` §3.6b, `src/pipeline/cost.ts`).
   **#93, built 2026-10-16**: several documents chosen or dropped at once, each with its own project
   and employer, read one at a time by a queue in `import_status` (`03` §5, `04` §3.6, `10` Screen 3).
+  **#95, built 2026-10-16**: Quick capture (S12), the last unbuilt `MUST` story. A sentence or two
+  is split into claims by `captureClaims`, the sixth seam function, confirmed and saved into the
+  record as accepted, Attested facts graded by the author; the plain form opens when the model fails.
+  Works at 390px from the menu (`03` §4, `07` §6, `10` Screen 16; decision log, that date).
 
 ## Blocked
 

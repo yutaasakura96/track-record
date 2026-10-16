@@ -405,16 +405,18 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`. Paginated |
-| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`. Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
+| `GET` | `/api/facts` | Filters: `importId`, `status`, `employerId`, `projectId`, `graded`, and `captured=true` for the facts with no document (quick capture, #95). Paginated |
+| `PATCH` | `/api/facts/:id` | Edit `claim`, `provenance`, `disclosure`, `employerId`, and `month` (`YYYY-MM`, `null` clears it). Commits on blur in the UI. A changed claim rechecks number and confidential shapes; a matching shape makes the fact Private. A later disclosure-only edit is the author's deliberate choice until the claim changes again. `employerId`, `null` included, is a hand set |
 | `POST` | `/api/facts/:id/accept` | Also records the grade (`graded: true`) |
 | `POST` | `/api/facts/:id/reject` | |
-| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it |
+| `POST` | `/api/facts/:id/undo` | Returns the fact to `candidate`, and clears the grade. A fact the importer accepted goes back to `accepted`, as it left it, and so does a captured one, with the author's grade it was saved with |
 | `POST` | `/api/facts/:id/regrade` | `{ provenance }` on an accepted fact. M3, #37 |
 | `POST` | `/api/facts/sort` | Grades, accepts and flags the facts still waiting, a batch a call. #57, below |
 | `GET` | `/api/flags` | The Flagged list. `?state=checked` for the ones already marked. #57, below |
 | `POST` | `/api/flags/:id/explain` | `Explain this`. **The one route here that calls the model for a flag, and only when pressed** |
 | `POST` | `/api/flags/:id/check` · `/uncheck` | Takes a flag off the list, or puts it back. Idempotent |
+| `POST` | `/api/capture/read` | Quick capture's `Read it`: splits typed text into claims. **Stores nothing.** #95, below |
+| `POST` | `/api/capture` | Saves confirmed claims **into the record**, accepted and Attested. #95, below |
 
 **`GET /api/facts?importId=imp_4Tz8` → 200**
 
@@ -430,6 +432,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
       "employerId": "emp_2Kd9",
       "employerSetByHand": false,
       "projectId": null,
+      "month": null,
+      "createdAt": "2026-09-04T03:12:44.000Z",
       "evidence": {
         "sourceDocumentVersionId": "sdv_7Yh1",
         "lineNumber": 79,
@@ -611,6 +615,30 @@ same answer a missing employer gets, because a `403` would confirm it exists.
   }
 }
 ```
+
+### Quick capture · #95
+
+Work that left no document, typed in a sentence or two (`09` Flow 6, `06` 2026-10-16).
+
+**`POST /api/capture/read`** takes `{ text, today? }`: up to 2,000 characters, and the author's own
+month as `YYYY-MM` so `last month` is read where they are (the server's month when absent). **One
+model call, and nothing stored.** The call is given the text, the month, and the session's
+employers and projects by id and name only. **200** `{ claims: [{ claim, month, employerId,
+projectId, technologies, missing }] }`, where `month` is `YYYY-MM` or `null`, at most one of
+`employerId` and `projectId` is set, and `missing` lists what the text does not say, from `when`,
+`employer`, `change` and `proof`. An id the session does not own is dropped and its question asked.
+An empty `claims` is a text that makes no claim. **`503 upstream_unavailable`** when the model does
+not answer; the screen then opens the plain form with the text kept, as it does for an empty list.
+
+**`POST /api/capture`** takes `{ claims: [{ claim, month, employerId?, projectId?, technologies? }] }`,
+one to eight. **201** `{ items }`, each fact as `GET /api/facts` returns it. Every fact is written
+`accepted`, `attested`, graded by the author (`graded_at` stamped, `auto_accepted_at` null), with no
+source document version, no quote and no offsets, and `occurred_on` the month given. Disclosure is
+`restricted`, and `private` with a `confidential` flag when the claim has a confidential shape; no
+`number` flag is raised, since there is no passage to check a number against. `employerId` is a hand
+set, `null` a chosen `No employer`; `projectId` files the fact through its project; absent both, the
+fact is unfiled. **404** for an employer or a project the session does not own, and nothing is saved.
+**422** for an empty claim, a malformed month, or both an employer and a project on one claim.
 
 ---
 
@@ -1160,7 +1188,6 @@ other document.
 |---|---|---|---|
 | `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, stale }] }], candidates: [{ name, factCount, certificationCount, curated }] }`; `stale` is computed on the read. `PUT` takes `{ groups: [{ name, skills: string[] }] }` and replaces the whole list; `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
 | `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
-| `POST` | `/api/capture` | M3 | Free text in, a short interrogation, **Attested** facts out |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15). A sent copy is exported with its page and without its file |
 
 ---

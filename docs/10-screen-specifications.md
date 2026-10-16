@@ -407,7 +407,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
 (primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
-`Quick capture` (ghost) joins the header when it is built (M3, #95). Content column: `max-width 940px`,
+`Quick capture` (ghost), before `Import a document`, since #95; it opens Quick capture. Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
 
@@ -1820,6 +1820,77 @@ Named so that nobody reads an unwired button as a decision.
 
 ---
 
+## Screen 16 — Quick capture · built by #95
+
+Work that left no document, typed in a sentence or two (S12, `09` Flow 6, decision log
+2026-10-16). Route `/capture`. Header `Home / Quick capture`, in the frame Applications uses, so it
+works at phone width (Responsive behaviour). Reached from `Quick capture` (ghost) in Home's header
+and, on a phone, from the menu; both are hidden while the record is empty. Two steps on one screen,
+as Screen 13 is. **Nothing is created until a save.**
+
+**Step 1, the text.** Intro: `Write down work that left no document, in a sentence or two. It is
+split into facts worded like the ones read from your documents, and you check each one before it
+is saved.` `Next:` `type what you did, then press Read it.` Panel `What did you do?`:
+
+- `In your own words`, a five-row text area with an invented example as its placeholder. At most
+  2,000 characters.
+- `Nothing is saved until you save it.`, then `Fill it in yourself` (bare), which opens the plain
+  form without a reading, and **`Read it`** (primary).
+- While it is read, the text is read-only and the actions give way to a `role="status"` line with
+  the working dot: `Reading what you typed. This takes a few seconds.`
+
+**Step 2, the check.** Intro: `This is what was read from what you typed. Correct anything that is
+wrong, then save.` `Next:` `check each claim, answer what it asks, then save.` Panel `Check the
+claim` or `Check the N claims`, with `Back to the text` (bare) in its header, which keeps what was
+typed. One group a claim, headed `Claim` or `Claim N`, with `Remove` (bare) when there is more than
+one:
+
+- The claim, a two-row text area, filled with the model's plain wording.
+- **What the text did not say is asked, and nothing else.** `What changed as a result? Say it in
+  the claim.` and `What shows it happened: a number, a before and after, someone who saw it? Add it
+  to the claim if you can.` appear under the claim only when it lacks them. The month field is
+  labelled `When was this?` when the text gave no month and `When` when it did; the filing select
+  `Which employer, or which project?` when it named neither and `Employer or project` when it did.
+- `When`, a month field, and `Employer or project`, a select of `Not said`, the employers, the
+  projects and `No employer`, side by side, one column at phone width.
+- **`Add a claim`** (ghost) under the groups, up to eight.
+- `Saved into your record as Attested, by you. You can change or reject each one below
+  afterwards.`, then `Discard` (bare), which empties the draft, and **`Save the fact`** or **`Save N
+  facts`** (primary). Saving says `Saved N facts into your record.` and returns to an empty Step 1.
+
+**Captured facts.** A panel under either step, once any exist: `The facts you saved here, newest
+first. They are in your record; open one to change or reject it.` Each card shows the claim, the
+mono line `status · provenance · disclosure`, the month and where it is filed. `Change` opens the
+claim editor, `Worth` and `Who` as on Screen 1, `When`, `Employer`, and `Reject`; a rejected card is
+struck through with `Undo`, which returns it to the record. **A captured fact has no document, so
+this is its card**: the master document's `Quick capture` link and the Flagged list's `Open it in
+Quick capture` open `/capture?fact=<id>` with that card's controls open.
+
+**Rules**
+
+- **What was read is a proposal.** Every claim is editable and removable, and only what the author
+  saves is written (decision log, 2026-10-16).
+- **A saved fact is in the record at once**: accepted, Attested, graded by the author, Restricted,
+  or Private when its claim has a confidential shape. There is no second press.
+- **The draft is kept in this browser** until it is saved or discarded: leaving the screen or
+  reloading it opens it where it was left. It is never sent to the server before a save.
+- **A failed or empty reading is the plain form**, not a dead end: one claim holding the typed
+  text, with `When was this?` and `Which employer, or which project?` asked. Its intro is `Saving
+  puts the fact straight into your record.` and `Next:` `fill in the claim, when it was and where,
+  then save.`
+
+**States**
+
+| State | Behaviour |
+|---|---|
+| **Text missing** | `Type what you did first. A sentence or two is enough.` under the actions, `role="alert"`, in the `removed` tone |
+| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` |
+| **The reading found nothing** | The same, with `No claim could be found in what you typed. Fill it in yourself; your text is kept.` |
+| **A claim emptied** | `A claim cannot be empty. Fill it in, or remove it.` on save |
+| **Save failed** | The reason under the actions; the draft is kept |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -1827,7 +1898,7 @@ Needed before their milestones; not blocking M1.
 | Screen | Milestone | Note |
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
-| Quick capture | M3 (#95) | A sentence or two in; the model splits and words the claims and asks only for what is missing (when, which employer, what changed, what proves it); the author confirms and the facts go into the record, Attested. The plain form is the fallback when the model fails. Works at phone width (Responsive behaviour). Specified by `09` Flow 6 and the decision log, 2026-10-16; #95 designs the screen |
+| Quick capture | M3 (#95) | **Built**, and specified under Screen 16 below |
 
 ---
 
@@ -1859,7 +1930,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Part | At phone width |
 |---|---|
 | Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
-| Menu | A sheet under the header: `Applications` first and active, then the other rows; the sentence `On a phone, Applications is the part that works. The other screens still ask for a wider window.`; then the Theme control |
+| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; the sentence `On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.`; then the Theme control |
 | Header | 12px side padding; the contextual note is not shown |
 | Content column | `16px 12px` padding, 16px between blocks |
 | List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
@@ -1879,10 +1950,11 @@ and the `Import a document` link. In their place the panel says once, in `text-m
 they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
 since none of them leaves Applications (decision log, 2026-10-14). Diff Review is not a phone screen.
 
-### Quick capture at phone width · planned 2026-10-16, #95
+### Quick capture at phone width · planned 2026-10-16, built by #95
 
 **The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
 interview note is. The Quick capture route is not behind the wider-window message and follows the
 Applications table under 720px: no sidebar, `Menu` first in the header, one column, buttons at least
 36px tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
-capture as the parts that work there. Home and every other screen keep the message.
+capture as the parts that work there. Home and every other screen keep the message. Built by #95
+(Screen 16); nothing scrolls sideways at 390px, in either theme, with Japanese text.

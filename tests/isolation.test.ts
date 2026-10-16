@@ -110,6 +110,8 @@ async function populate(app: ReturnType<typeof harness>, user: SeededUser, marke
     })
   ).json()) as { id: string };
   await client.post(`/api/applications/${application.id}/steps`, { status: "applied" });
+  // Issue #95: a fact with no document, saved by quick capture under the project.
+  await client.post("/api/capture", { claims: [{ claim: `${marker} captured claim`, month: "2026-09", projectId: project.id }] });
 
   return {
     client,
@@ -159,6 +161,7 @@ describe("one user's record is unreachable from another's session", () => {
       "/api/master-document?language=ja",
       "/api/master-document/download?language=ja",
       "/api/applications",
+      "/api/facts?captured=true",
     ];
     for (const path of collections) {
       const body = await (await a.client.get(path)).text();
@@ -279,6 +282,19 @@ describe("one user's record is unreachable from another's session", () => {
       employerId: a.employerId,
       employerSetByHand: false,
     });
+  });
+
+  it("cannot capture a fact under another user's employer or project, and offers the model only its own", async () => {
+    for (const filing of [{ employerId: b.employerId }, { projectId: b.projectId }]) {
+      const response = await a.client.post("/api/capture", { claims: [{ claim: "A claim.", month: null, ...filing }] });
+      expect(response.status).toBe(404);
+    }
+    model.captures = [[]];
+    await a.client.post("/api/capture/read", { text: "Moved the export onto a queue." });
+    const offered = JSON.stringify(model.captureCalls.at(-1)!.context);
+    expect(offered).toContain(a.employerId);
+    expect(offered).not.toContain(b.employerId);
+    expect(offered).not.toContain("Bravo");
   });
 
   it("cannot attach a role to another user's employer", async () => {

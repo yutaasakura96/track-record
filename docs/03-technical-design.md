@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a five-function seam (§4) |
+| Model | **Anthropic `claude-opus-5`** | Behind a six-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -106,6 +106,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 │   │   ├── grade.ts            # the grading rules, stated once for extraction and the sort
 │   │   ├── explain.ts
 │   │   ├── posting.ts          # reading a pasted job posting (#73)
+│   │   ├── capture.ts          # splitting a typed sentence or two into claims (#95)
 │   │   └── providers/anthropic.ts
 │   ├── pipeline/               # Workflow definitions
 │   ├── render/                 # docx builders, markdown builder, 履歴書 template seam
@@ -120,7 +121,7 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly five places**. Nothing outside `src/model/` imports an
+The application touches a model in **exactly six places**. Nothing outside `src/model/` imports an
 SDK or knows a provider name.
 
 ```ts
@@ -129,6 +130,7 @@ generateRender(facts: Fact[], spec: RenderSpec): Promise<RenderContent>
 gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
 explainFlag(flag: FlagToExplain): Promise<string>
 readPosting(jobDescription: string): Promise<PostingReading>
+captureClaims(text: string, context: CaptureContext): Promise<CapturedClaim[]>
 ```
 
 It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
@@ -143,6 +145,17 @@ the company, the position and the key requirements, and is called only by
 proposal on a confirmation step and never a fact**: no quote, no grade, nothing stored by the call
 (`06`, 2026-10-11). It runs at low effort, and its tool is asked for by the prompt and not forced,
 so the call does not depend on a `tool_choice` the models after `claude-opus-5` refuse.
+
+`captureClaims` is the sixth, since 2026-10-16 (#95). It takes what the author typed on Quick capture,
+with their month and their employers and projects by id and name, and returns one plain claim per
+outcome with the month and the employer or project the text names and what it leaves out (`when`,
+`employer`, `change`, `proof`). It is called only by `POST /api/capture/read`, when the author
+presses `Read it`. **What it returns is a proposal the author confirms, never a fact by itself**: no
+quote and no grade, and nothing stored by the call. The author's save is what writes the facts,
+Attested and graded by the author (`06`, 2026-10-16). An id it was not given is dropped, and what is
+missing is worked out again from what survived. It runs at low effort with its tool asked for by the
+prompt, as `readPosting` does; when it fails or finds nothing, the screen opens a plain form, so a
+fact never waits on it.
 
 Swapping providers is a config value plus one adapter file. The M2 bake-off this was built for was
 dropped on 2026-09-21 (`docs/06`); the seam stays, so a model upgrade or a later swap stays cheap.
@@ -638,7 +651,7 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 
 | # | Item | Trigger / note |
 |---|---|---|
-| 8 | **Quick capture** — free text in, Attested facts out | S12, built by #95 after the import helpers (`06`, 2026-10-16), at phone width as well as desktop |
+| 8 | **Quick capture** — free text in, Attested facts out | S12. **Built by #95** (`06`, 2026-10-16), at phone width as well as desktop: `captureClaims` (§4), `POST /api/capture` (`07` §6) |
 
 **Promoted out of M3 into M1:** `GET /api/export` (S15), formerly row 9. Neon's free plan retains a
 **6-hour** restore window, so the export is the disaster-recovery mechanism rather than a

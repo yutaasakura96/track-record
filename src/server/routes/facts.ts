@@ -49,6 +49,8 @@ const patchBody = z.object({
    * decision already made against it.
    */
   employerId: z.string().trim().min(1).nullish(),
+  /** The month the work happened, `YYYY-MM`; `null` clears it. Set at quick capture (issue #95). */
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "A month is a year and a month.").nullish(),
 });
 
 const regradeBody = z.object({
@@ -82,6 +84,8 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     if (employerId) filters.push(eq(effectiveEmployerId, employerId));
     const projectId = c.req.query("projectId");
     if (projectId) filters.push(eq(facts.projectId, projectId));
+    // `captured=true`: the facts quick capture saved, which have no document (issue #95).
+    if (c.req.query("captured") === "true") filters.push(isNull(facts.sourceDocumentVersionId));
     // `graded=false` with `status=accepted` is the listing of what is still to
     // re-grade (`docs/07` §6); any other value is ignored, as an unknown status is.
     const graded = c.req.query("graded");
@@ -129,13 +133,15 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
         ...(body.provenance === undefined ? {} : { provenance: body.provenance }),
         ...(classified?.shape ? { disclosure: "private" as const, isClientIdentifying: true } : body.disclosure === undefined ? {} : { disclosure: body.disclosure }),
         ...(body.employerId === undefined ? {} : { employerId: body.employerId, employerSetAt: now }),
+        ...(body.month === undefined ? {} : { occurredOn: body.month === null ? null : `${body.month}-01` }),
         updatedAt: now,
       })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)))];
     if (classified) {
       const old = classifyClaim(fact);
       const oldShapeReason = old.flags.find((flag) => flag.kind === "confidential")?.reason;
-      for (const kind of ["confidential", "number"] as const) {
+      const kinds = fact.sourceDocumentVersionId === null ? (["confidential"] as const) : (["confidential", "number"] as const);
+      for (const kind of kinds) {
         const flag = classified.flags.find((item) => item.kind === kind);
         if (flag) {
           writes.push(db.insert(factFlags).values({ id: newId("factFlag"), userId: user.id, factId: fact.id, ...flag })
@@ -345,6 +351,18 @@ async function resolve(
     return c.json(await withMatches(db, user.id, fact.id));
   }
 
+  // A captured fact was never a candidate: it went into the record on the
+  // author's own confirmation (issue #95). Undoing a rejection of it puts it
+  // back there, with the grade it was saved with.
+  if (status === "candidate" && fact.sourceDocumentVersionId === null && fact.gradedAt !== null) {
+    await db
+      .update(facts)
+      .set({ status: "accepted", resolvedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
+    await settleRepeats(db, user.id);
+    return c.json(await withMatches(db, user.id, fact.id));
+  }
+
   // Accepting is the author grading the fact; a candidate carries no decision.
   // A rejection leaves the grade as it was (`docs/04` §3.7).
   await db
@@ -414,6 +432,10 @@ export function toResponse(
     /** True once the card set it; the fact then keeps it whatever its document does. */
     employerSetByHand: employerSetByHand(fact),
     projectId: fact.projectId,
+    /** `YYYY-MM`, when the author said when (quick capture). `null` on an imported fact. */
+    month: fact.occurredOn ? fact.occurredOn.slice(0, 7) : null,
+    /** When the fact entered the record. Quick capture lists its facts newest first by it. */
+    createdAt: fact.createdAt.toISOString(),
     evidence: hasEvidence(fact)
       ? {
           sourceDocumentVersionId: fact.sourceDocumentVersionId,

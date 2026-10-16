@@ -32,6 +32,7 @@ import { registerInterviewRoutes } from "./routes/interviews";
 import { registerRecordingRoutes } from "./routes/recordings";
 import { registerApplicationDocumentRoutes } from "./routes/application-documents";
 import { registerOverviewRoutes } from "./routes/overview";
+import { registerCaptureRoutes } from "./routes/capture";
 
 export interface AppOptions {
   /** Overridden in tests. No test ever calls a real model (`docs/11` §1). */
@@ -74,6 +75,7 @@ export function createApp(options: AppOptions = {}) {
   registerRecordingRoutes(app);
   registerApplicationDocumentRoutes(app);
   registerOverviewRoutes(app);
+  registerCaptureRoutes(app);
 
   return app;
 }

@@ -33,6 +33,7 @@ import { ApplicationsScreen } from "./screens/applications";
 import { SentCopyScreen } from "./screens/sent-copy";
 import { NewApplicationScreen } from "./screens/application-new";
 import { ApplicationScreen } from "./screens/application";
+import { CaptureScreen } from "./screens/capture";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -151,6 +152,19 @@ const sentCopyRoute = createRoute({
 });
 
 /**
+ * Quick capture (issue #95). `?fact=` opens one captured fact's card: a fact
+ * with no document has its card here, where the master document and the
+ * Flagged list send the author.
+ */
+const captureRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/capture",
+  component: CaptureScreen,
+  validateSearch: (search: Record<string, unknown>): { fact?: string } =>
+    typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {},
+});
+
+/**
  * Where the Tailored résumés screen was (issue #70). Each of those résumés is
  * an application now, so a bookmark to the old screen lands on the list that
  * holds them.
@@ -203,6 +217,7 @@ const routeTree = rootRoute.addChildren([
   newApplicationRoute,
   applicationRoute,
   sentCopyRoute,
+  captureRoute,
   tailoredRoute,
   factReviewRoute,
   diffReviewRoute,

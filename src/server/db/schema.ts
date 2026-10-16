@@ -378,6 +378,12 @@ export const facts = pgTable("facts", {
   employerSetAt: timestamp("employer_set_at", { withTimezone: true }),
   /** Stored PLAINLY. Impact framing is applied at render time, never here. */
   claim: text("claim").notNull(),
+  /**
+   * The month the work happened, day pinned to `01`. Written only by quick
+   * capture (issue #95), where the author says when; an imported fact reads
+   * its time from its employer and project and leaves this null.
+   */
+  occurredOn: date("occurred_on", { mode: "string" }),
   /** Anything a model produces starts Generated. */
   provenance: provenance("provenance").notNull().default("generated"),
   /** Defaults point toward secrecy. */
