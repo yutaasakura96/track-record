@@ -30,7 +30,7 @@ import {
 } from "../db/schema";
 import { routes } from "../http/registry";
 import { renderState, usableFacts } from "./renders";
-import { importStatus } from "./imports";
+import { importStart, importStatus, startImport } from "./imports";
 import { provenanceCounts } from "./facts";
 import { factOfFlag, openFlags } from "./flags";
 import type { AppEnv } from "../env";
@@ -52,6 +52,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
    * it are all true at the same instant.
    */
   api.get("/api/overview", async (c) => {
+    if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const userId = c.get("user").id;
     const db = c.get("db");
     const count = sql<number>`count(*)::int`;

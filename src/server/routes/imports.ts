@@ -20,7 +20,7 @@ import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
 import { importRefusal } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
-import { startNextImport, type LaunchImport } from "~/pipeline/queue";
+import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
@@ -263,6 +263,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
    * text, and no fact claim.
    */
   api.get("/api/imports", async (c) => {
+    if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const user = c.get("user");
     const db = c.get("db");
 
@@ -420,6 +421,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
   });
 
   api.get("/api/imports/:id", async (c) => {
+    if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const status = await importStatus(c.get("db"), c.get("user").id, pathParam(c, "id"));
     return c.json(status);
   });
@@ -680,14 +682,15 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
  * and the cards appear as extraction progresses, rather than after one long
  * silence.
  */
-async function startImport(deps: ImportStart) {
-  await startNextImport(deps.db, deps.userId, launcher(deps));
+export async function startImport(deps: ImportStart) {
+  const started = await startNextImport(deps.db, deps.userId, launcher(deps));
+  if (!started && deps.workflow) await recoverActiveImport(deps.db, deps.userId, deps.workflow);
 }
 
 function launcher(deps: ImportStart): LaunchImport {
   if (deps.workflow) {
     const workflow = deps.workflow;
-    return (versionId) => workflow.create({ params: { userId: deps.userId, versionId } });
+    return (versionId) => ensureWorkflow(workflow, deps.userId, versionId);
   }
   const launch: LaunchImport = async (versionId) => {
     const run = runImport({
@@ -799,7 +802,7 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
   };
 }
 
-function importStart(c: Context<AppEnv>): ImportStart {
+export function importStart(c: Context<AppEnv>): ImportStart {
   return {
     db: c.get("db"),
     model: c.get("model"),

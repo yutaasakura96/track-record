@@ -124,6 +124,7 @@ export function stubModel(): StubModel {
 }
 
 export interface HarnessOptions {
+  workflow?: Bindings["IMPORT_WORKFLOW"];
   /**
    * Resolve sessions the way the deployment does — through Better Auth, from a
    * cookie. Requires the OIDC fixture to be installed, because the only way to
@@ -194,7 +195,7 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
       if (cookies) merged.set("cookie", cookies);
       const response = await app.fetch(
         new Request(`${ORIGIN}${path}`, { ...init, headers: merged }),
-        bindings,
+        options.workflow ? { ...bindings, IMPORT_WORKFLOW: options.workflow } : bindings,
         createExecutionContext(),
       );
       jar?.capture(response);

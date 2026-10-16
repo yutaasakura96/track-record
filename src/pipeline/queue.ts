@@ -15,9 +15,41 @@ import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import { sourceDocumentVersions } from "~/server/db/schema";
 import { violatesUnique } from "~/server/http/errors";
+import type { Bindings } from "~/server/env";
 
 /** Starts reading a version the queue has already claimed. */
 export type LaunchImport = (versionId: string) => Promise<unknown>;
+
+export async function ensureWorkflow(
+  workflow: NonNullable<Bindings["IMPORT_WORKFLOW"]>, userId: string, versionId: string,
+): Promise<void> {
+  let instance;
+  try {
+    instance = await workflow.get(versionId);
+  } catch {
+    try {
+      await workflow.create({ id: versionId, params: { userId, versionId } });
+      return;
+    } catch (error) {
+      try {
+        instance = await workflow.get(versionId);
+      } catch {
+        throw error;
+      }
+    }
+  }
+  const status = await instance.status();
+  if (status.status === "complete" || status.status === "errored") await instance.restart();
+}
+
+export async function recoverActiveImport(
+  db: Db, userId: string, workflow: NonNullable<Bindings["IMPORT_WORKFLOW"]>,
+): Promise<void> {
+  const [active] = await db.select({ id: sourceDocumentVersions.id }).from(sourceDocumentVersions)
+    .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.importStatus, "extracting")))
+    .limit(1);
+  if (active) await ensureWorkflow(workflow, userId, active.id);
+}
 
 /**
  * Claims the oldest waiting version and starts it, unless one is being read.

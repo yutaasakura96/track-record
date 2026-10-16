@@ -9,7 +9,7 @@ import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloud
 import { createDb } from "~/server/db/client";
 import { createModelSeam } from "~/model";
 import { runImport, type StepRunner } from "./import";
-import { startNextImport } from "./queue";
+import { ensureWorkflow, recoverActiveImport, startNextImport } from "./queue";
 import type { Bindings } from "~/server/env";
 
 export interface ImportWorkflowParams {
@@ -35,10 +35,11 @@ export class ImportWorkflow extends WorkflowEntrypoint<Bindings, ImportWorkflowP
       step: runner,
       // The next waiting document gets a Workflow of its own, started once this
       // one is done or has failed (`./queue.ts`).
-      next: () =>
-        startNextImport(db, userId, (versionId) =>
-          this.env.IMPORT_WORKFLOW!.create({ params: { userId, versionId } }),
-        ),
+      next: async () => {
+        const workflow = this.env.IMPORT_WORKFLOW!;
+        const started = await startNextImport(db, userId, (versionId) => ensureWorkflow(workflow, userId, versionId));
+        if (!started) await recoverActiveImport(db, userId, workflow);
+      },
     });
   }
 }

@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { EMPLOYER_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { ModelUnavailableError, type CandidateFact } from "~/model/types";
+import type { Bindings } from "~/server/env";
 
 interface Status {
   importId: string;
@@ -100,6 +101,36 @@ const statuses = (ids: string[]) => Promise.all(ids.map(async (id) => (await sta
 const readCalls = () => model.extractCalls.length;
 
 describe("several documents chosen at once", () => {
+  it("relaunches a claimed import whose Workflow was lost before it began", async () => {
+    const instances = new Map<string, { status: () => Promise<{ status: string }>; restart: () => Promise<void> }>();
+    const launched: string[] = [];
+    const workflow = {
+      async get(id: string) {
+        const instance = instances.get(id);
+        if (!instance) throw new Error("Instance missing");
+        return instance;
+      },
+      async create(options: { id: string }) {
+        if (instances.has(options.id)) throw new Error("Instance exists");
+        launched.push(options.id);
+        const instance = { status: async () => ({ status: "running" }), restart: async () => {} };
+        instances.set(options.id, instance);
+        return instance;
+      },
+    } as unknown as NonNullable<Bindings["IMPORT_WORKFLOW"]>;
+    app = harness(model, { workflow });
+    client = app.as(await seedAllowedUser());
+    const answer = await sendBatch([0, 1]);
+    const ids = answer.results.map((row) => row.importId!);
+    expect(await statuses(ids)).toEqual(["extracting", "queued"]);
+    instances.delete(ids[0]!);
+    await client.json("/api/overview");
+    expect(launched).toEqual([ids[0], ids[0]]);
+    await client.json("/api/imports");
+    expect(launched).toEqual([ids[0], ids[0]]);
+    expect(await statuses(ids)).toEqual(["extracting", "queued"]);
+  });
+
   it("shows waiting files in the same order the queue will read them", async () => {
     const first = held();
     model.extractions = [first.promise, found(1), found(2), found(0), found(1), found(2)];

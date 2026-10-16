@@ -277,6 +277,8 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `extractor_version` | text | no | Which parser produced `extracted_text`. **A version is never re-extracted in place** — a parser upgrade creates a new version with fresh offsets (`03` §5.1) |
 | `byte_size` | integer | no | |
 | `word_count` | integer | no | Shown in the source pane label strip |
+| `batch_id` | text | yes | Groups versions submitted together; legacy versions use their own `id` as the set ID |
+| `batch_order` | integer | no | Position within the submitted set, default `0`; orders the queue and Home's waiting list |
 | `import_status` | import_status | no | `queued` is waiting its turn: **one version is `extracting` at a time, per user** (#93, `03` §5) |
 | `import_error` | text | yes | Populated when `failed` — PRD §7 requires a *reason* |
 | `chunks_total` | integer | no | Default `0`. Drives the progress bar |
