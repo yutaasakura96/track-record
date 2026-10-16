@@ -407,7 +407,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
 (primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
-`Quick capture` (ghost) joins the header when it is built (M3). Content column: `max-width 940px`,
+`Quick capture` (ghost) joins the header when it is built (M3, #95). Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
 
@@ -571,6 +571,23 @@ The same row and the same rule serve the empty state's drop target and Screen 8'
 A re-import keeps the document's project and employer, which are stored on the document and not on
 the version (`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
 
+### Importing several documents · planned 2026-10-16, #93
+
+The file picker and the drop target take **several files at once** (`09` Flow 8; decision log,
+2026-10-16). The confirmation row becomes a list with one row per file: the filename in a mono chip,
+then that file's project select and employer select, under the rules above, so a select with
+nothing to offer is left out and a record with neither shows no selects. Each file's employer is
+its own, because the portfolios are filed under four employers and one choice for the set would
+split a sitting into four. `Cancel` (bare) and `Import` (primary) appear once, under the list, and
+act on every row; a row can be taken out with its own `Remove`.
+
+- A file of a type that does not import, or over the size limit, shows the reason on its own row
+  and is not sent. `Import` starts the rest
+- Each file becomes its own `POST /api/imports`. They are read **one at a time**, in the order
+  listed; the import panel names the document being read and the number still waiting
+- A failed document does not stop the next one. It is shown failed in Screen 8's list and is
+  retried there on its own
+
 ### Refiling a document
 
 **The project and the employer are the only things about a document that change after import**, so
@@ -622,7 +639,7 @@ so the frame does not change under a first-time author; it carries no note and n
   A paragraph said the same thing and was not read as an instruction
 - A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
   **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
-  grows as `07-api-design.md` §5 grows. Offering Word or PDF here and rejecting them at upload is a
+  grows as `07-api-design.md` §5 grows, to `Markdown, plain text, Word and PDF` when #94 lands. Offering Word or PDF here and rejecting them at upload is a
   worse empty state than a narrower one
 - Footnote: `Document generation opens up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
@@ -1791,13 +1808,13 @@ Needed before their milestones; not blocking M1.
 | Screen | Milestone | Note |
 |---|---|---|
 | Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
-| Quick capture | M3 | Two sentences in, short interrogation, Attested facts out |
+| Quick capture | M3 (#95) | A sentence or two in; the model splits and words the claims and asks only for what is missing (when, which employer, what changed, what proves it); the author confirms and the facts go into the record, Attested. The plain form is the fallback when the model fails. Works at phone width (Responsive behaviour). Specified by `09` Flow 6 and the decision log, 2026-10-16; #95 designs the screen |
 
 ---
 
 ## Responsive behaviour
 
-Outside Applications, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications and Quick capture, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -1813,8 +1830,9 @@ surface without re-laying-out the application.
 
 ### Applications at phone width · specified 2026-10-11, built by #75
 
-**The one exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
-`/applications`, are not behind the wider-window message. Every other route keeps it under 1024px.
+**The first exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
+`/applications`, are not behind the wider-window message. Every other route except Quick capture
+keeps it under 1024px.
 Designed at **390px**; the prototype's `Phone` width is the reference.
 
 Under **720px** of width these screens change as follows, and above it they are the desktop layout:
@@ -1833,6 +1851,14 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Buttons | Primary, secondary and ghost are at least 36px tall |
 
 **Nothing scrolls sideways** at 390px, in either theme, with Japanese company and position names.
+
+### Quick capture at phone width · planned 2026-10-16, #95
+
+**The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
+interview note is. The Quick capture route is not behind the wider-window message and follows the
+table above under 720px: no sidebar, `Menu` first in the header, one column, buttons at least 36px
+tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
+capture as the parts that work there. Home and every other screen keep the message.
 
 **Screens 2, 5 and 6 are not Applications screens and keep the message.** So in a window under
 1024px, where they ask for a wider one, Résumé for this job holds back every control that leads to

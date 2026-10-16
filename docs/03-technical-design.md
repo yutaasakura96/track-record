@@ -348,12 +348,17 @@ by #36 and the first by #35:
 | Format | How | Milestone |
 |---|---|---|
 | `.md`, `.txt` | `await file.text()` — **no library** | **M1** |
-| `.docx` | Unzip with `fflate`, read `word/document.xml`, walk `w:p` elements into paragraphs. ~50 lines, no Node dependencies | M2 |
-| `.pdf` | **Deferred, possibly permanently.** `unpdf` if ever needed | — |
+| `.docx` | Unzip with `fflate`, read `word/document.xml`, walk `w:p` elements into paragraphs. ~50 lines, no Node dependencies | M3, #94 |
+| `.pdf` | `unpdf`, a serverless build of PDF.js. Runs on workerd: **unverified**, proved before it is built on. Lines are joined into paragraphs by a rule the extractor states; a PDF with no text layer is refused | M3, #94 |
 
 **M1 needs `.md` and `.txt` only.** The author's case studies are Markdown, produced by a standing
 prompt inside each work repository. Supporting four formats in M1 would mean carrying three Workers
 compatibility risks for a document type M1 never sees.
+
+**Word and PDF are in scope from 2026-10-16** (decision log, that date): some of the author's
+documents are Word, and the author asked for the import to take more than one kind. Other types
+(`.doc`, `.rtf`, `.odt`, `.pages`, HTML, images) are refused with a reason naming the ones that
+work. Each format stamps its own `extractor_version`.
 
 **`.docx` is parsed directly rather than through `mammoth`.** The decisive reason is not dependency
 weight: parsing OOXML ourselves means **we control paragraph boundaries**, and paragraph boundaries
@@ -588,15 +593,15 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | # | Item | Trigger / note |
 |---|---|---|
 | 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | **Dropped 2026-09-21** (`docs/06`). Anthropic stays the only provider |
-| 4 | **Batch import** (`09` Flow 8) and the Message Batches path | Decided after the first portfolio's token usage is measured (`06`, 2026-09-28). Until then portfolios import one at a time through the Documents screen |
+| 4 | **The Message Batches path**, and a lower extraction effort | Decided from the numbers `npm run measure:import` prints for one portfolio imported at today's setting (#92; `06`, 2026-10-16), in an entry of its own. The multi-file queue (`09` Flow 8) left this row on 2026-10-16 and is built by #93 |
 | 5 | **`docx` / `docxtemplater` Workers spike** | **Done 2026-09-08** (`docs/06`). Both libraries run on workerd; 履歴書 work is no longer gated on it |
-| 5b | **`.docx` text extraction** via `fflate` + OOXML walk | With the first extractor change (`06`, 2026-09-15). **Unverified** whether any portfolio in the back catalogue is `.docx` |
+| 5b | **`.docx` text extraction** via `fflate` + OOXML walk | Built by #94 with `.pdf` (`06`, 2026-10-16): some of the author's documents are Word |
 
 ### Deferred to M3
 
 | # | Item | Trigger / note |
 |---|---|---|
-| 8 | **Quick capture** — free text in, Attested facts out | S12. The one screen that may justify a narrow mobile surface. Follows the back-catalogue import (`06`, 2026-09-28) |
+| 8 | **Quick capture** — free text in, Attested facts out | S12, built by #95 after the import helpers (`06`, 2026-10-16), at phone width as well as desktop |
 
 **Promoted out of M3 into M1:** `GET /api/export` (S15), formerly row 9. Neon's free plan retains a
 **6-hour** restore window, so the export is the disaster-recovery mechanism rather than a
@@ -621,7 +626,6 @@ convenience.
 | 17 | Broader E2E suite beyond the one smoke test | Second smoke path would be 履歴書 generation |
 | 18 | Visual regression testing | Manual checklist + agent-driven verification |
 | 19 | Object storage for source documents | One-table migration when `bytea` stops being appropriate |
-| 19b | **`.pdf` import** | `unpdf` if a document ever exists only as PDF. The author has `.docx` for everything |
 | 20 | Hyperdrive in front of Neon | Drop-in, if latency ever matters |
 | 21 | Tighter `DATABASE_URL` role (DML only, DDL for migrations) | Worth doing when convenient |
 
@@ -641,7 +645,7 @@ quick capture, version history UI, conflict detection, per-render inclusion rule
 **Not built at all in v1:** multi-user features, LinkedIn, the portfolio site.
 Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
 log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
-layout exists for its screens only.
+layout exists for its screens and, from #95, for Quick capture only.
 
 The responsive boundary is specified in `10` Responsive behaviour. The desktop panes are built
 **fluid** (no fixed page widths, panes flex).

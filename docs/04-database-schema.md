@@ -307,6 +307,7 @@ failed chunk rather than at chunk 1 (`11-testing-plan.md` §2.7).
 | `end_offset` | integer | no | Exclusive |
 | `status` | chunk_status | no | Default `'pending'`. `pending` · `done` · `failed` |
 | `error` | text | yes | A reason. **Never a model response body and never source text** |
+| `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What this chunk's extraction call cost (migration 0004). Null means not recorded, not free: rows written before the columns existed stay null. Read by `npm run measure:import` once #92 builds it |
 
 **Unique:** `(source_document_version_id, chunk_index)`. **Index:** `(user_id)`.
 
