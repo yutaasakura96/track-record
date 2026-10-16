@@ -191,8 +191,9 @@ and `filing` fields in listed order. Each `filing` is JSON with optional `projec
 The server creates every accepted document and queued version in one transaction before answering
 `202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
 Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
-own size limit; the picker refuses a set over 20 MiB together (`MAX_BATCH_BYTES`,
-`src/shared/import-file.ts`) before sending. Every file of a set is written in one database request,
+own size limit; a set over 20 MiB together (`MAX_BATCH_BYTES`,
+`src/shared/import-file.ts`) is refused by the picker before sending, and by the server as a whole
+(`422`) before anything is written. Every file of a set is written in one database request,
 which carries hex-encoded `original_bytes` and JSON-encoded `extracted_text`. The server limits their
 combined encoded size to 48 MiB per write, below Neon's 64 MB limit on a query over HTTP. A single
 file over this budget is refused before storage; in a set, each file that would exceed the running

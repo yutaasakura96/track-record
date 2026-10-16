@@ -6579,8 +6579,7 @@ unchanged (`03` §5.1 states both rules). A PDF's printed lines are joined into 
 across a wrapped line anchors as the sentence reads, with a space at the break; a quote that keeps
 the printed break is discarded, as any other near miss is. A test asserts that no version is
 re-extracted: an older version keeps its text, extractor and file when its document is imported
-again in another format, and no `update` of `source_document_versions` in `src` sets
-`extracted_text`, `extractor_version` or `original_bytes`.
+again in another format.
 
 **Word and PDF files may be 10 MiB; Markdown and plain text stay at 2 MiB.** A Word or PDF file
 carries images and fonts the import never reads, so a few pages of text can be several megabytes,
@@ -6592,7 +6591,8 @@ file, which would mean storing a file of any size.
 request (`07` §5, the 2026-10-16 queue entry), and that request carries each file as hex
 `original_bytes` and again as `extracted_text`, under Neon's 64 MB limit on a query over HTTP. 95 MB
 was Cloudflare's request limit, and a set that size could never have been written in one request;
-with 10 MiB files, three would have been enough to fail. Rejected: writing each file of a set in its
+with 10 MiB files, three would have been enough to fail. The server also bounds each write's
+encoded size, which the 20 MiB of uploaded bytes alone does not (`07` §5). Rejected: writing each file of a set in its
 own request, which would let a set be half stored.
 
 **Refusals name the reason, before storage and before the model:** any other type names the four
