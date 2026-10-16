@@ -66,6 +66,8 @@ are marked as the owner's in each issue.
   and PDF import, and #95 quick capture (S12) at phone width. Lowering effort or building the
   Message Batches path is decided from #92's numbers. The owner's import steps (#38, #39) stay the
   owner's.
+  **#92, built 2026-10-16**: `npm run measure:import` prints one import's chunks, token sums and
+  estimated cost beside the Message Batches price (`04` §3.6b, `src/pipeline/cost.ts`).
 
 ## Blocked
 

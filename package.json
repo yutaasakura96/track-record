@@ -22,6 +22,7 @@
     "lint": "node scripts/check-design-tokens.mjs",
     "measure": "node scripts/measure-render.mjs",
     "check:attribution": "node scripts/check-attribution.mjs",
+    "measure:import": "node scripts/measure-import.mjs",
     "capture:proxy": "node scripts/capture-proxy-state.mjs",
     "typecheck": "tsc --noEmit",
     "restore:drill": "node scripts/restore-drill.mjs"
