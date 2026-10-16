@@ -308,7 +308,8 @@ function LatestImports({ rows }: { rows: NonNullable<OverviewData["latestImportS
               ? `Reading${row.chunksTotal ? ` · ${Math.floor(row.chunksDone / row.chunksTotal * 100)}%` : ""}`
               : row.status === "ready" ? "Done" : `Failed · ${row.error ?? "This import could not be completed."}`}</span>
             {row.status === "failed" ? (
-              <Button variant="ghost" onClick={() => void onRetry(row.importId)} disabled={retry.isPending}>
+              <Button variant="ghost" onClick={() => void onRetry(row.importId)} disabled={retry.isPending}
+                disabledReason={retry.isPending ? "Retrying…" : undefined}>
                 Retry
               </Button>
             ) : null}

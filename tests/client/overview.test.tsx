@@ -1424,6 +1424,24 @@ it("keeps the latest completed set on Home and retries its failed row", async ()
   await waitFor(() => expect(api.writes()).toContain("POST /api/imports/imp-test-b/retry"));
 });
 
+it("disables a Home retry with its reason while the request is pending", async () => {
+  const data = {
+    ...overview([row()]),
+    latestImportSet: [
+      { importId: "imp-test-b", filename: "birch.md", status: "failed" as const, chunksTotal: 0, chunksDone: 0, error: "Extraction could not start." },
+    ],
+  };
+  const { user } = open([], {
+    "GET /api/overview": data,
+    "POST /api/imports/imp-test-b/retry": () => new Promise(() => {}),
+  });
+  const panel = await screen.findByRole("region", { name: "Latest imports" });
+  await user.click(within(panel).getByRole("button", { name: "Retry" }));
+  const retry = within(panel).getByRole("button", { name: "Retry" });
+  await waitFor(() => expect((retry as HTMLButtonElement).disabled).toBe(true));
+  expect(retry.getAttribute("title")).toBe("Retrying…");
+});
+
 it("shows a failed Home retry beside its import", async () => {
   const data = {
     ...overview([row()]),
