@@ -613,7 +613,8 @@ full order above, the document included.
 
 Why a fact is worth a look. Written when the fact is accepted by the importer, for `repeat`
 also when a later write makes a pair (`03` §5), and for `confidential` and `number` also when the
-author's edit of a claim gives it a confidential shape or a number (`07` §6). **A flag gates nothing**: what keeps a fact out of a
+author's edit of a claim gives it a confidential shape or a number (`07` §6) — never `number` on a
+captured fact, which has no passage to check one against. **A flag gates nothing**: what keeps a fact out of a
 document is its own `disclosure` and `provenance`, which a flag only explains.
 
 | Column | Type | Null | Notes |
