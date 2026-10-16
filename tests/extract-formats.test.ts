@@ -26,11 +26,11 @@ const refusalOf = async (file: File) => {
 };
 
 /** A `.docx` holding exactly the `word/document.xml` body given. */
-function rawDocx(body: string, filename = "orchard-log.docx") {
+function rawDocx(body: string, filename = "orchard-log.docx", wordPrefix = "w", compatibilityPrefix = "mc") {
   const zip = new PizZip();
   zip.file(
     "word/document.xml",
-    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="w" xmlns:mc="mc"><w:body>${body}</w:body></w:document>`,
+    `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><${wordPrefix}:document xmlns:${wordPrefix}="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:${compatibilityPrefix}="http://schemas.openxmlformats.org/markup-compatibility/2006"><${wordPrefix}:body>${body}</${wordPrefix}:body></${wordPrefix}:document>`,
   );
   return new File([zip.generate({ type: "arraybuffer" })], filename);
 }
@@ -70,6 +70,16 @@ describe("a Word document", () => {
       "",
       "東京 <east>",
     ]);
+  });
+
+  it("reads Word and compatibility elements with alternate namespace prefixes", async () => {
+    const file = rawDocx(
+      `<x:p><x:r><x:t>Before</x:t><x:tab/><x:t>After</x:t><x:br x:type="page"/><x:br/><x:noBreakHyphen/></x:r><x:del><x:r><x:t>removed</x:t><x:tab/></x:r></x:del><alt:Fallback><x:p><x:r><x:t>duplicate</x:t></x:r></x:p></alt:Fallback></x:p>`,
+      "alternate.docx", "x", "alt",
+    );
+    const upload = await extractUpload(file);
+    expect(upload.text).toBe("Before\tAfter\n-");
+    expect(upload.extractorVersion).toBe("docx-1");
   });
 
   it("is refused, with the reason, when it is damaged", async () => {

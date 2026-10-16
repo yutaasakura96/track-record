@@ -27,6 +27,8 @@ const TOKEN = /<(\/?)([A-Za-z][\w.-]*:)?([\w.-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)(
  * stops are `w:tab` elements too, and are not tabs in its text.
  */
 const SKIPPED = new Set(["mc:Fallback", "w:del", "w:delText", "w:instrText", "w:pPr", "w:rPr"]);
+const WORD_NAMESPACE = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
+const COMPATIBILITY_NAMESPACE = "http://schemas.openxmlformats.org/markup-compatibility/2006";
 
 const ENTITY = /&(?:#(\d+)|#x([0-9A-Fa-f]+)|(amp|lt|gt|quot|apos));/g;
 const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
@@ -55,6 +57,9 @@ export function paragraphsOf(xml: string): string[] {
   let inText = false;
   /** Depth inside an element whose content is never read. */
   let skipping = 0;
+  let wordPrefixes = new Set(["w"]);
+  let compatibilityPrefixes = new Set(["mc"]);
+  let rootRead = false;
 
   for (const match of xml.matchAll(TOKEN)) {
     const [, closing, prefix = "", name, attributes = "", selfClosing, cdata, chars] = match;
@@ -63,7 +68,17 @@ export function paragraphsOf(xml: string): string[] {
       continue;
     }
     if (name === undefined) continue; // a comment or a declaration
-    const tag = prefix + name;
+    if (!rootRead && !closing) {
+      rootRead = true;
+      const declarations = [...attributes.matchAll(/\bxmlns:([A-Za-z][\w.-]*)\s*=\s*(["'])(.*?)\2/g)];
+      const word = declarations.filter((declaration) => declaration[3] === WORD_NAMESPACE).map((declaration) => declaration[1]!);
+      const compatibility = declarations.filter((declaration) => declaration[3] === COMPATIBILITY_NAMESPACE).map((declaration) => declaration[1]!);
+      if (word.length) wordPrefixes = new Set(word);
+      if (compatibility.length) compatibilityPrefixes = new Set(compatibility);
+    }
+    const namespace = prefix.slice(0, -1);
+    const tag = wordPrefixes.has(namespace) ? `w:${name}`
+      : compatibilityPrefixes.has(namespace) ? `mc:${name}` : prefix + name;
 
     if (SKIPPED.has(tag)) {
       if (selfClosing) continue;
@@ -85,7 +100,9 @@ export function paragraphsOf(xml: string): string[] {
     if (!open.length || closing) continue;
     if (tag === "w:tab") open[open.length - 1] += "\t";
     else if (tag === "w:br" || tag === "w:cr") {
-      if (!/w:type\s*=\s*["'](page|column)["']/.test(attributes)) open[open.length - 1] += "\n";
+      const pageOrColumn = [...attributes.matchAll(/\b([A-Za-z][\w.-]*):type\s*=\s*["'](page|column)["']/g)]
+        .some((attribute) => wordPrefixes.has(attribute[1]!));
+      if (!pageOrColumn) open[open.length - 1] += "\n";
     } else if (tag === "w:noBreakHyphen") open[open.length - 1] += "-";
   }
   return lines;
