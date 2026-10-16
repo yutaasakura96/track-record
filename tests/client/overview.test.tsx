@@ -45,6 +45,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
 const overview = (documents: RenderRow[], canGenerate = true): Overview => ({
   lastImportAt: null,
   activeImport: null,
+  waitingImports: [],
   tiles: {
     employers: { count: 1, note: null },
     roles: { count: 1, note: null },
@@ -1193,7 +1194,7 @@ describe("an empty record", () => {
   it("names only the types that import", async () => {
     open([], { "GET /api/overview": empty() });
 
-    expect(await screen.findByText("Choose a Markdown or plain text file.")).toBeTruthy();
+    expect(await screen.findByText("Choose a Markdown or plain text file, or several, or drop them here.")).toBeTruthy();
   });
 
   it("says so beneath the picker when the upload never reaches the server", async () => {
@@ -1349,6 +1350,33 @@ describe("an import in progress", () => {
 
     await waitFor(() => expect(pathname()).toBe("/imports/imp-test-vorbit"));
     expect(api.writes()).toEqual([]);
+  });
+
+  it("names the documents waiting behind it, in the order they will be read (#93)", async () => {
+    open([], {
+      "GET /api/overview": {
+        ...importing(1, 5),
+        waitingImports: [
+          { importId: "imp-test-alder", filename: "alder-portfolio.md" },
+          { importId: "imp-test-birch", filename: "birch-portfolio.md" },
+        ],
+      },
+    });
+
+    const region = await panel();
+    expect(within(region).getByText("2 more are waiting, read one at a time after it:")).toBeTruthy();
+    const waiting = within(region).getByRole("list", { name: "Waiting to be read" });
+    expect(within(waiting).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
+      "alder-portfolio.md",
+      "birch-portfolio.md",
+    ]);
+  });
+
+  it("says nothing is waiting when one document is being read alone", async () => {
+    open([], { "GET /api/overview": importing(1, 5) });
+
+    const region = await panel();
+    expect(within(region).queryByRole("list", { name: "Waiting to be read" })).toBeNull();
   });
 
   it("says the document is being got ready before it has been split", async () => {

@@ -19,6 +19,7 @@ import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
 import { runImport } from "~/pipeline/import";
+import { startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
@@ -160,7 +161,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       }
     }
 
-    await startImport(importStart(c, versionId));
+    await startImport(importStart(c));
 
     return c.json(
       {
@@ -367,12 +368,19 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       db
         .update(sourceDocumentVersions)
         .set({ importStatus: "queued", importError: null, updatedAt: now })
+        // Only a failed import goes back in the queue. One still waiting or
+        // being read is left as it is: requeued mid-read, it would be claimed
+        // and read a second time beside itself.
         .where(
-          and(eq(sourceDocumentVersions.userId, user.id), eq(sourceDocumentVersions.id, versionId)),
+          and(
+            eq(sourceDocumentVersions.userId, user.id),
+            eq(sourceDocumentVersions.id, versionId),
+            eq(sourceDocumentVersions.importStatus, "failed"),
+          ),
         ),
     ]);
 
-    await startImport(importStart(c, versionId));
+    await startImport(importStart(c));
     return c.json(await importStatus(db, user.id, versionId));
   });
 
@@ -578,6 +586,10 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
 /* ------------------------------------------------------------------ shared */
 
 /**
+ * The version is queued; start the next waiting import, which is this one
+ * unless another document is being read (`~/pipeline/queue.ts`, #93). One that
+ * waits is started when the one before it is done or has failed.
+ *
  * Hand the import to the Workflow when the binding exists; otherwise run the
  * same function behind `waitUntil`. Both paths checkpoint to the same rows,
  * which is why the resume guarantee holds either way (`docs/06`, 2026-08-30).
@@ -587,30 +599,35 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
  * silence.
  */
 async function startImport(deps: ImportStart) {
+  await startNextImport(deps.db, deps.userId, launcher(deps));
+}
+
+function launcher(deps: ImportStart): LaunchImport {
   if (deps.workflow) {
-    await deps.workflow.create({ params: { userId: deps.userId, versionId: deps.versionId } });
-    return;
+    const workflow = deps.workflow;
+    return (versionId) => workflow.create({ params: { userId: deps.userId, versionId } });
   }
-  const run = runImport({
-    db: deps.db,
-    model: deps.model,
-    userId: deps.userId,
-    versionId: deps.versionId,
-  }).catch((err: unknown) => {
-    // Ids only — never the document, the chunk or the model's response.
-    console.error(
-      JSON.stringify({ event: "import_run_failed", versionId: deps.versionId, name: (err as Error)?.name }),
-    );
-  });
-  if (deps.waitUntil) deps.waitUntil(run);
-  else await run;
+  const launch: LaunchImport = async (versionId) => {
+    const run = runImport({
+      db: deps.db,
+      model: deps.model,
+      userId: deps.userId,
+      versionId,
+      next: () => startNextImport(deps.db, deps.userId, launch),
+    }).catch((err: unknown) => {
+      // Ids only — never the document, the chunk or the model's response.
+      console.error(JSON.stringify({ event: "import_run_failed", versionId, name: (err as Error)?.name }));
+    });
+    if (deps.waitUntil) deps.waitUntil(run);
+    else await run;
+  };
+  return launch;
 }
 
 interface ImportStart {
   db: Db;
   model: ModelSeam;
   userId: string;
-  versionId: string;
   workflow: Bindings["IMPORT_WORKFLOW"];
   waitUntil?: (promise: Promise<unknown>) => void;
 }
@@ -699,12 +716,11 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
   };
 }
 
-function importStart(c: Context<AppEnv>, versionId: string): ImportStart {
+function importStart(c: Context<AppEnv>): ImportStart {
   return {
     db: c.get("db"),
     model: c.get("model"),
     userId: c.get("user").id,
-    versionId,
     workflow: c.env.IMPORT_WORKFLOW,
     waitUntil: (promise) => c.executionCtx.waitUntil(promise),
   };

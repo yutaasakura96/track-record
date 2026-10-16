@@ -355,8 +355,13 @@ export interface RenderRow {
 
 export interface Overview {
   lastImportAt: string | null;
-  /** The version still extracting, and the document it is a version of. */
+  /** The version being read, or the next to be, and the document it is a version of. */
   activeImport: (ImportStatus & { filename: string }) | null;
+  /**
+   * Imports waiting behind it, in the order they will be read: one document is
+   * read at a time (#93).
+   */
+  waitingImports: { importId: string; filename: string }[];
   tiles: Record<"employers" | "roles" | "projects" | "credentials", { count: number; note: string | null }>;
   factsByProvenance: { measured: number; attested: number; generated: number };
   /** Flags not yet marked checked. Advice, never a block. */

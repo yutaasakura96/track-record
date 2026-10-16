@@ -571,7 +571,7 @@ The same row and the same rule serve the empty state's drop target and Screen 8'
 A re-import keeps the document's project and employer, which are stored on the document and not on
 the version (`04-database-schema.md` §3.6), so Screen 8's re-import row carries no select.
 
-### Importing several documents · planned 2026-10-16, #93
+### Importing several documents · built 2026-10-16, #93
 
 The file picker and the drop target take **several files at once** (`09` Flow 8; decision log,
 2026-10-16). The confirmation row becomes a list with one row per file: the filename in a mono chip,
@@ -582,11 +582,23 @@ split a sitting into four. `Cancel` (bare) and `Import` (primary) appear once, u
 act on every row; a row can be taken out with its own `Remove`.
 
 - A file of a type that does not import, or over the size limit, shows the reason on its own row
-  and is not sent. `Import` starts the rest
-- Each file becomes its own `POST /api/imports`. They are read **one at a time**, in the order
-  listed; the import panel names the document being read and the number still waiting
+  and is not sent. `Import` starts the rest, and is disabled with `None of these files can be
+  imported.` when nothing is left to send. The rule is one module the server reads too
+  (`src/shared/import-file.ts`), so the row says what the server would. A file the server still
+  refuses (one that is only whitespace) says the server's reason on its row, and the next is sent
+- Each file becomes its own `POST /api/imports`, sent in the order listed. They are read **one at a
+  time**, in that order; the import panel names the document being read and, under it, the
+  documents still waiting, in the order they will be read
+- **Once `Import` is pressed the list stays, and each row says where its file stands**: `Waiting`,
+  `Reading · N%`, `Done · N facts` with a `Review` link into Fact Review, or `Failed · <reason>
+  Retry it from Documents.` `Close` (bare) takes the list away; the imports carry on. One file
+  chosen alone still opens Fact Review on upload, as it always has
 - A failed document does not stop the next one. It is shown failed in Screen 8's list and is
   retried there on its own
+- **The drop target takes dropped files** as well as `Choose a file`, several at once, and reads
+  `Choose a Markdown or plain text file, or several, or drop them here.`
+- **Screen 8 marks a waiting version `Waiting to be read`**, with no progress block: the block is
+  for the one being read. Its next-step line adds `N more are waiting to be read after it.`
 
 ### Refiling a document
 

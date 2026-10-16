@@ -6,6 +6,7 @@
  * paragraph boundaries are what line numbering is built on.
  */
 import { ApiError, validationFailed } from "~/server/http/errors";
+import { MAX_UPLOAD_BYTES, importMimeType, importRefusal } from "~/shared/import-file";
 
 /**
  * Stamped onto every version alongside the text it produced.
@@ -18,18 +19,6 @@ import { ApiError, validationFailed } from "~/server/http/errors";
  */
 export const EXTRACTOR_VERSION = "plaintext-1";
 
-/** 2 MiB. The author's whole corpus is ~2.4 MB; one case study is far smaller. */
-export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-
-const ACCEPTED = new Map<string, string>([
-  [".md", "text/markdown"],
-  [".markdown", "text/markdown"],
-  [".txt", "text/plain"],
-]);
-
-/** M1 rejects these before any work starts, naming the reason (`docs/07` §5). */
-const KNOWN_BUT_UNSUPPORTED = new Set([".docx", ".pdf"]);
-
 export interface ExtractedUpload {
   mimeType: string;
   text: string;
@@ -38,23 +27,11 @@ export interface ExtractedUpload {
 }
 
 export async function extractUpload(file: File): Promise<ExtractedUpload> {
-  const dot = file.name.lastIndexOf(".");
-  const ext = dot === -1 ? "" : file.name.slice(dot).toLowerCase();
-  const mimeType = ACCEPTED.get(ext);
-
-  if (!mimeType) {
-    // Rejected before storage and before a single model token is spent.
-    const reason = KNOWN_BUT_UNSUPPORTED.has(ext)
-      ? `${ext} import is not built yet. Markdown and plain text are supported.`
-      : "That file type cannot be imported. Markdown and plain text are supported.";
-    throw validationFailed(reason, ["file"]);
-  }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    throw validationFailed(
-      `That file is larger than the ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`,
-      ["file"],
-    );
-  }
+  // Rejected before storage and before a single model token is spent. The
+  // rule is shared with the import picker, which refuses the same file first.
+  const refusal = importRefusal(file);
+  if (refusal) throw validationFailed(refusal, ["file"]);
+  const mimeType = importMimeType(file.name)!;
 
   const raw = await file.text();
   // Line endings are normalised ONCE, here, before anything indexes into the

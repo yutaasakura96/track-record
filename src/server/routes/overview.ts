@@ -6,7 +6,7 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, desc, eq, getTableColumns, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
 import {
   applicationDocuments,
   applicationSentCopies,
@@ -75,6 +75,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         [certificationCount],
         [provenance = { measured: 0, attested: 0, generated: 0 }],
         [latestImport],
+        inQueue,
         [measured],
         [usable],
         waiting,
@@ -90,20 +91,32 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         db.select({ n: count }).from(educations).where(eq(educations.userId, userId)),
         db.select({ n: count }).from(certifications).where(eq(certifications.userId, userId)),
         provenanceCounts(db, userId),
-        // The newest version, and the document it is a version of: the progress
-        // panel names it, which `importStatus` does not.
+        // The newest version: when the header says the last import was.
         db
-          .select({
-            id: sourceDocumentVersions.id,
-            importStatus: sourceDocumentVersions.importStatus,
-            importedAt: sourceDocumentVersions.importedAt,
-            filename: sourceDocuments.filename,
-          })
+          .select({ importedAt: sourceDocumentVersions.importedAt })
           .from(sourceDocumentVersions)
-          .innerJoin(sourceDocuments, documentOfVersion)
           .where(eq(sourceDocumentVersions.userId, userId))
           .orderBy(desc(sourceDocumentVersions.importedAt))
           .limit(1),
+        // The import queue (#93): the version being read, then the ones waiting,
+        // in the order they will be read (`~/pipeline/queue.ts`), each with the
+        // document it is a version of. The progress panel names them, which
+        // `importStatus` does not.
+        db
+          .select({ id: sourceDocumentVersions.id, filename: sourceDocuments.filename })
+          .from(sourceDocumentVersions)
+          .innerJoin(sourceDocuments, documentOfVersion)
+          .where(
+            and(
+              eq(sourceDocumentVersions.userId, userId),
+              inArray(sourceDocumentVersions.importStatus, ["queued", "extracting"]),
+            ),
+          )
+          .orderBy(
+            sql`${sourceDocumentVersions.importStatus} = 'extracting' desc`,
+            asc(sourceDocumentVersions.importedAt),
+            asc(sourceDocumentVersions.id),
+          ),
         db
           .select({ n: sql<number>`count(distinct ${facts.projectId})::int` })
           .from(facts)
@@ -155,11 +168,10 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
     ]);
 
     // Read only while an import runs, so the usual visit stays at one round trip.
-    const running =
-      latestImport && (latestImport.importStatus === "queued" || latestImport.importStatus === "extracting")
-        ? await importStatus(db, userId, latestImport.id)
-        : null;
-    const active = running && latestImport ? { ...running, filename: latestImport.filename } : null;
+    // The one being read, or, between two, the next to be.
+    const [first, ...behind] = inQueue;
+    const running = first ? await importStatus(db, userId, first.id) : null;
+    const active = running && first ? { ...running, filename: first.filename } : null;
 
     const currentEmployers = employerRows.filter((e) => e.endedOn === null).length;
     const measuredProjects = measured?.n ?? 0;
@@ -169,6 +181,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
     return c.json({
       lastImportAt: latestImport?.importedAt.toISOString() ?? null,
       activeImport: active,
+      waitingImports: behind.map((row) => ({ importId: row.id, filename: row.filename })),
       tiles: {
         employers: {
           count: employerRows.length,

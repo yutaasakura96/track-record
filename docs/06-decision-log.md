@@ -6528,3 +6528,26 @@ which makes capture wait for the laptop.
 
 **Revisit if:** the plain form turns out to be what the owner uses, which would make the model call
 cost without saving time.
+
+---
+
+### [2026-10-16] The import queue is the server's, held in `import_status`
+
+Built by #93, under the 2026-10-16 entry that several documents are imported in one go.
+
+**The server keeps the queue, not the page.** Each file is uploaded at once and stored `queued`; the
+next waiting version is started by the upload, by a retry and by the end of every run, done or
+failed (`03` §5, `src/pipeline/queue.ts`). The owner can close the tab after `Import` and every
+document is still read, which is Flow 8's "every import survives independently". Rejected: the page
+sending each file only once the one before is read, which stops the rest the moment the tab closes.
+
+**No new table.** A claim is one conditional `update` of `import_status`, and a partial unique
+index, one `extracting` version per user, is what makes two racing claims safe on a driver with no
+interactive transactions (`03` §5). Rejected: a batch row, which would be a batch that can be half
+committed. **A retry requeues only a `failed` version**, because requeuing one being read would let
+it be claimed and read twice. **A run that throws past its steps is marked `failed`**: left
+`extracting`, it would now hold every import behind it, where before it held only its own document.
+
+**Revisit if:** a version is ever found stuck `extracting` with no run behind it. It holds the
+owner's queue until retried, and the retry cannot see it, so a timeout that fails a stale one would
+then be the fix.

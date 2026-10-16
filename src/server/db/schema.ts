@@ -304,6 +304,12 @@ export const sourceDocumentVersions = pgTable("source_document_versions", {
 }, (t) => [
   uniqueIndex("sdv_document_version_uq").on(t.sourceDocumentId, t.versionNo),
   index("sdv_user_idx").on(t.userId),
+  /**
+   * One document is read at a time, per author (`docs/09` Flow 8, #93). The
+   * queue's claim is one conditional UPDATE, and two claims racing each other
+   * could both see nobody reading; this index is what lets only one through.
+   */
+  uniqueIndex("sdv_one_extracting_uq").on(t.userId).where(sql`${t.importStatus} = 'extracting'`),
 ]);
 
 /**
