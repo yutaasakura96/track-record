@@ -7,7 +7,7 @@
  * its own import, and they are read one at a time. Every document, employer and
  * claim here is invented.
  */
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { EMPLOYER_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { ModelUnavailableError, type CandidateFact } from "~/model/types";
@@ -128,6 +128,48 @@ describe("several documents chosen at once", () => {
     expect(launched).toEqual([ids[0], ids[0]]);
     await client.json("/api/imports");
     expect(launched).toEqual([ids[0], ids[0]]);
+    expect(await statuses(ids)).toEqual(["extracting", "queued"]);
+  });
+
+  it("keeps answering when the Workflow API throws while an import is extracting", async () => {
+    let broken = false;
+    const workflow = {
+      async get() {
+        if (broken) throw new Error("Workflow API unavailable");
+        throw new Error("Instance missing");
+      },
+      async create() {
+        if (broken) throw new Error("Workflow API unavailable");
+        return { status: async () => ({ status: "running" }), restart: async () => {} };
+      },
+    } as unknown as NonNullable<Bindings["IMPORT_WORKFLOW"]>;
+    app = harness(model, { workflow });
+    client = app.as(await seedAllowedUser());
+    const answer = await sendBatch([0, 1]);
+    const ids = answer.results.map((row) => row.importId!);
+    expect(await statuses(ids)).toEqual(["extracting", "queued"]);
+    broken = true;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect((await client.request("/api/overview")).status).toBe(200);
+      expect((await client.request("/api/imports")).status).toBe(200);
+      expect((await client.request(`/api/imports/${ids[0]}`)).status).toBe(200);
+
+      const more = await sendBatch([2]);
+      expect(more.results.map((row) => Boolean(row.importId))).toEqual([true]);
+
+      const form = uploadForm(DOCUMENTS[0].text, DOCUMENTS[0].filename);
+      expect((await client.request("/api/imports", { method: "POST", body: form })).status).toBe(202);
+
+      expect(logged).toHaveBeenCalled();
+      for (const call of logged.mock.calls) {
+        const line = String(call[0]);
+        expect(line).toContain("import_recovery_failed");
+        expect(line).not.toContain("Workflow API unavailable");
+      }
+    } finally {
+      logged.mockRestore();
+    }
     expect(await statuses(ids)).toEqual(["extracting", "queued"]);
   });
 
