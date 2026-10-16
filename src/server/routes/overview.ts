@@ -116,6 +116,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
           .orderBy(
             sql`${sourceDocumentVersions.importStatus} = 'extracting' desc`,
             asc(sourceDocumentVersions.importedAt),
+            asc(sourceDocumentVersions.batchOrder),
             asc(sourceDocumentVersions.id),
           ),
         db

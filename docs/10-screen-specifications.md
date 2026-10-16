@@ -585,8 +585,10 @@ act on every row; a row can be taken out with its own `Remove`.
   and is not sent. `Import` starts the rest, and is disabled with `None of these files can be
   imported.` when nothing is left to send. The rule is one module the server reads too
   (`src/shared/import-file.ts`), so the row says what the server would. A file the server still
-  refuses (one that is only whitespace) says the server's reason on its row, and the next is sent
-- Each file becomes its own `POST /api/imports`, sent in the order listed. They are read **one at a
+  refuses (one that is only whitespace) says the server's reason on its row; the others proceed
+- `Import` sends one `POST /api/imports/batch` with the accepted files and each file's filing choice
+  in listed order. The server creates their queued rows in one transaction and returns one result per
+  file, including any server refusal. Each accepted file has its own import. They are read **one at a
   time**, in that order; the import panel names the document being read and, under it, the
   documents still waiting, in the order they will be read
 - **Once `Import` is pressed the list stays, and each row says where its file stands**: `Waiting`,

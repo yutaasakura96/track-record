@@ -100,6 +100,19 @@ const statuses = (ids: string[]) => Promise.all(ids.map(async (id) => (await sta
 const readCalls = () => model.extractCalls.length;
 
 describe("several documents chosen at once", () => {
+  it("shows waiting files in the same order the queue will read them", async () => {
+    const first = held();
+    model.extractions = [first.promise, found(1), found(2), found(0), found(1), found(2)];
+    const answer = await sendBatch([0, 1, 2, 0, 1, 2]);
+    const ids = answer.results.map((row) => row.importId!);
+    await until(() => readCalls() === 1);
+    const home = await client.json<{ waitingImports: { importId: string }[] }>("/api/overview");
+    expect(home.waitingImports.map((row) => row.importId)).toEqual(ids.slice(1));
+    first.answer(found(0));
+    await settle();
+    expect(await statuses(ids)).toEqual(Array(6).fill("ready"));
+  });
+
   it("stores the whole set before answering and keeps completed results on Home", async () => {
     const harbor = await employer(client, "Harbor Freight Systems");
     const meadow = await employer(client, "Meadow Utilities");

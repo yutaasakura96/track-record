@@ -288,6 +288,15 @@ function PopulatedRecord({
 
 function LatestImports({ rows }: { rows: NonNullable<OverviewData["latestImportSet"]> }) {
   const retry = useRetryImport();
+  const [refusal, setRefusal] = useState<{ importId: string; message: string } | null>(null);
+  const onRetry = async (importId: string) => {
+    setRefusal(null);
+    try {
+      await retry.mutateAsync(importId);
+    } catch (caught) {
+      setRefusal({ importId, message: failureText(caught) });
+    }
+  };
   return (
     <section aria-label="Latest imports" className="bg-surface-raised border border-border rounded-panel px-16 py-14">
       <h2 className="text-row font-medium text-text-strong">Latest imports</h2>
@@ -299,10 +308,11 @@ function LatestImports({ rows }: { rows: NonNullable<OverviewData["latestImportS
               ? `Reading${row.chunksTotal ? ` · ${Math.floor(row.chunksDone / row.chunksTotal * 100)}%` : ""}`
               : row.status === "ready" ? "Done" : `Failed · ${row.error ?? "This import could not be completed."}`}</span>
             {row.status === "failed" ? (
-              <Button variant="ghost" onClick={() => void retry.mutateAsync(row.importId)} disabled={retry.isPending}>
+              <Button variant="ghost" onClick={() => void onRetry(row.importId)} disabled={retry.isPending}>
                 Retry
               </Button>
             ) : null}
+            {refusal?.importId === row.importId ? <span role="alert" className="text-removed">{refusal.message}</span> : null}
           </li>
         ))}
       </ul>

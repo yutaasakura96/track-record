@@ -186,8 +186,11 @@ document). → **`202 Accepted`**
 ```
 
 **The version is `queued` and waits its turn: one document is read at a time, per user** (#93,
-`03` §5). Several files are several requests, sent in the order they are listed, and they are read
-in the order they arrive. Each is its own import, and one that fails stops none of the others.
+`03` §5). Several files use one `POST /api/imports/batch` multipart request with repeated `file`
+and `filing` fields in listed order. Each `filing` is JSON with optional `projectId` and `employerId`.
+The server creates every accepted document and queued version in one transaction before answering
+`202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
+Accepted files read in listed order; one that fails stops none of the others.
 
 Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
 re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
