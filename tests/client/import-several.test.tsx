@@ -161,12 +161,14 @@ describe("choosing several files at once", () => {
 describe("a file that cannot be imported", () => {
   it("is refused on its own row with the reason before anything is sent, and the rest go ahead", async () => {
     const { api, user } = open({ "POST /api/imports/batch": batch("imp-a", "imp-b") });
-    await choose([file("alder.md"), file("brief.pdf"), file("huge.md", MAX_UPLOAD_BYTES + 1), file("cedar.md")]);
+    await choose([file("alder.md"), file("brief.rtf"), file("huge.md", MAX_UPLOAD_BYTES + 1), file("cedar.md")]);
     await list();
 
-    expect(within(row("brief.pdf")).getByText(".pdf import is not built yet. Markdown and plain text are supported.")).toBeTruthy();
-    expect(within(row("huge.md")).getByText("That file is larger than the 2 MB limit.")).toBeTruthy();
-    expect(within(row("brief.pdf")).queryByRole("combobox")).toBeNull();
+    expect(
+      within(row("brief.rtf")).getByText("That file type cannot be imported. Markdown, plain text, Word and PDF files are supported."),
+    ).toBeTruthy();
+    expect(within(row("huge.md")).getByText("That file is larger than the 2 MB limit for Markdown files.")).toBeTruthy();
+    expect(within(row("brief.rtf")).queryByRole("combobox")).toBeNull();
 
     await user.click(screen.getByRole("button", { name: "Import" }));
     await waitFor(() => expect(posts(api.calls)).toHaveLength(1));
@@ -178,7 +180,7 @@ describe("a file that cannot be imported", () => {
 
   it("offers no Import when none of the files can be", async () => {
     open();
-    await choose([file("brief.pdf"), file("deck.pptx")]);
+    await choose([file("brief.rtf"), file("deck.pptx")]);
     await list();
 
     const button = screen.getByRole("button", { name: "Import" }) as HTMLButtonElement;

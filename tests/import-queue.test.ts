@@ -251,7 +251,7 @@ describe("several documents chosen at once", () => {
     const form = new FormData();
     form.append("file", new File([DOCUMENTS[0].text], DOCUMENTS[0].filename));
     form.append("filing", "{}");
-    form.append("file", new File(["pdf"], "unsupported.pdf"));
+    form.append("file", new File(["slides"], "unsupported.pptx"));
     form.append("filing", "{}");
     form.append("file", new File([DOCUMENTS[2].text], DOCUMENTS[2].filename));
     form.append("filing", "{}");
@@ -260,7 +260,7 @@ describe("several documents chosen at once", () => {
     expect(response.status).toBe(202);
     const answer = (await response.json()) as { results: { importId?: string; reason?: string }[] };
     expect(answer.results.map((row) => Boolean(row.importId))).toEqual([true, false, true]);
-    expect(answer.results[1]?.reason).toContain(".pdf import is not built yet");
+    expect(answer.results[1]?.reason).toContain("That file type cannot be imported.");
     await settle();
     expect(await statuses([answer.results[0]!.importId!, answer.results[2]!.importId!])).toEqual(["ready", "ready"]);
   });

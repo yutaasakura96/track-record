@@ -362,9 +362,9 @@ by #36 and the first by #35:
 
 | Format | How | Milestone |
 |---|---|---|
-| `.md`, `.txt` | `await file.text()` — **no library** | **M1** |
-| `.docx` | Unzip with `fflate`, read `word/document.xml`, walk `w:p` elements into paragraphs. ~50 lines, no Node dependencies | M3, #94 |
-| `.pdf` | `unpdf`, a serverless build of PDF.js. Runs on workerd: **unverified**, proved before it is built on. Lines are joined into paragraphs by a rule the extractor states; a PDF with no text layer is refused | M3, #94 |
+| `.md`, `.markdown`, `.txt` | `await file.text()` — **no library**. `plaintext-1` | **M1** |
+| `.docx` | Unzip with **PizZip**, read `word/document.xml`, walk `w:p` elements into paragraphs (`src/pipeline/docx.ts`). `docx-1` | M3, #94 |
+| `.pdf` | `unpdf`, a serverless build of PDF.js, **proved on workerd** (decision log, 2026-10-16). Printed lines are joined into paragraphs by the rule `src/pipeline/pdf.ts` states; a PDF with no text layer is refused. `pdf-1` | M3, #94 |
 
 **M1 needs `.md` and `.txt` only.** The author's case studies are Markdown, produced by a standing
 prompt inside each work repository. Supporting four formats in M1 would mean carrying three Workers
@@ -374,6 +374,22 @@ compatibility risks for a document type M1 never sees.
 documents are Word, and the author asked for the import to take more than one kind. Other types
 (`.doc`, `.rtf`, `.odt`, `.pages`, HTML, images) are refused with a reason naming the ones that
 work. Each format stamps its own `extractor_version`.
+
+**PizZip, not `fflate`, unzips a `.docx`.** It is already a dependency, and the 履歴書 render has
+run it on workerd since 2026-09-08; `fflate` would have been a second zip library proved for the same
+job. **The `docx-1` rule:** every `w:p` in `word/document.xml` is one line, in document order and
+table cells included, and an empty paragraph is an empty line. `w:t` is the text, `w:tab` a tab,
+`w:br` a line break (a page or column break is nothing). Tracked deletions, field codes, paragraph
+and run properties, and the `mc:Fallback` copy of a text box are not read; nor are headers,
+footers, footnotes or comments.
+
+**The `pdf-1` rule.** A PDF's line breaks are where the layout ran out of width, not paragraphs. A
+page's printed lines are read in content order; a paragraph ends at a page end, at a blank line, or
+where the gap to the next baseline is more than 1.5 times the larger font size of the two lines.
+Its lines are joined by one space, or by nothing beside Japanese or after a hyphen, which is kept.
+Each paragraph is one line of the text. **A quote across a wrapped line therefore anchors as the
+sentence reads**, with a space where the print broke; a quote that keeps the printed break is not
+verbatim and is discarded, as §4.1 says of any other near miss.
 
 **`.docx` is parsed directly rather than through `mammoth`.** The decisive reason is not dependency
 weight: parsing OOXML ourselves means **we control paragraph boundaries**, and paragraph boundaries

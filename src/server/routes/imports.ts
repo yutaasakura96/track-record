@@ -17,7 +17,7 @@ import { requireOwnedEmployer } from "./record";
 import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
-import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
+import { extractUpload } from "~/pipeline/text";
 import { importRefusal } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
 import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
@@ -127,7 +127,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       extractedText: upload.text,
       // A version is never re-extracted in place; a parser upgrade makes a NEW
       // version, because stale offsets still resolve to *some* text.
-      extractorVersion: EXTRACTOR_VERSION,
+      extractorVersion: upload.extractorVersion,
       byteSize: upload.byteSize,
       wordCount: upload.wordCount,
       batchId: versionId,
@@ -245,7 +245,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       writes.push(db.insert(sourceDocumentVersions).values({
         id: versionId, userId, sourceDocumentId: documentId, versionNo: 1,
         originalBytes: Buffer.from(await entry.arrayBuffer()), extractedText: upload.text,
-        extractorVersion: EXTRACTOR_VERSION, byteSize: upload.byteSize, wordCount: upload.wordCount,
+        extractorVersion: upload.extractorVersion, byteSize: upload.byteSize, wordCount: upload.wordCount,
         importStatus: "queued", batchId, batchOrder: index, importedAt,
       }));
       results.push({ importId: versionId });
