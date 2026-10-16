@@ -195,10 +195,11 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     if (!files.length || files.length !== filings.length) {
       throw validationFailed("Choose files to import.", ["file"]);
     }
-    if (files.some((entry) => !(entry instanceof File))) {
+    const uploads = files.filter((entry): entry is File => entry instanceof File);
+    if (uploads.length !== files.length) {
       throw validationFailed("Choose files to import.", ["file"]);
     }
-    if (files.reduce((total, entry) => total + (entry as File).size, 0) > MAX_BATCH_BYTES) {
+    if (uploads.reduce((total, entry) => total + entry.size, 0) > MAX_BATCH_BYTES) {
       throw validationFailed(
         `The files together exceed ${MAX_BATCH_BYTES / 1024 / 1024} MB, more than one import can store at once. Choose a smaller set and import the rest after.`,
         ["file"],
@@ -209,7 +210,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     const results: { importId?: string; reason?: string }[] = [];
     const writes: any[] = [];
     let writeBytes = 0;
-    for (const [index, entry] of files.entries()) {
+    for (const [index, entry] of uploads.entries()) {
       let filing: { projectId?: string; employerId?: string };
       try {
         filing = JSON.parse(String(filings[index]));
