@@ -83,6 +83,19 @@ describe("a Word document", () => {
     );
   });
 
+  it("refuses a Word file with an invalid numeric entity", async () => {
+    expect(await refusalOf(rawDocx("<w:p><w:r><w:t>&#x110000;</w:t></w:r></w:p>"))).toBe(
+      "That Word file could not be read. It may be damaged, or not a .docx.",
+    );
+  });
+
+  it("omits text and controls inside tracked deletions", async () => {
+    const upload = await extractUpload(rawDocx(
+      "<w:p><w:r><w:t>Before</w:t></w:r><w:del><w:r><w:delText>gone</w:delText><w:tab/><w:br/><w:cr/><w:noBreakHyphen/></w:r></w:del><w:r><w:t>After</w:t></w:r></w:p>",
+    ));
+    expect(upload.text).toBe("BeforeAfter");
+  });
+
   it("is refused as empty when no paragraph holds text", async () => {
     expect(await refusalOf(rawDocx("<w:p/><w:p><w:r><w:t> </w:t></w:r></w:p>"))).toBe("That file is empty.");
   });

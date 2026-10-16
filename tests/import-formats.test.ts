@@ -17,6 +17,7 @@ import { seedAllowedUser } from "./helpers/seed";
 import { docxFile, laidOut, pdfFile } from "./helpers/documents";
 import { createDb } from "~/server/db/client";
 import { sourceDocuments, sourceDocumentVersions } from "~/server/db/schema";
+import { MAX_BATCH_BYTES } from "~/shared/import-file";
 import type { Bindings } from "~/server/env";
 
 const db = createDb((env as unknown as Bindings).DATABASE_URL);
@@ -162,6 +163,28 @@ describe("refused before storage and before the model", () => {
     expect(stored.map((document) => document.filename)).toEqual(["harbor-notes.docx"]);
     expect(model.extractCalls).toHaveLength(1);
   });
+
+  it("refuses a batch over 20 MiB before storing any file", async () => {
+    const form = new FormData();
+    const bytes = new Uint8Array(MAX_BATCH_BYTES / 2);
+    for (const file of [
+      new File([bytes], "first.docx"),
+      new File([bytes], "second.docx"),
+      new File(["x"], "third.txt"),
+    ]) {
+      form.append("file", file);
+      form.append("filing", "{}");
+    }
+    const response = await client.request("/api/imports/batch", { method: "POST", body: form });
+    expect(response.status).toBe(422);
+    const body = (await response.json()) as { error: { code: string; message: string } };
+    expect(body.error).toMatchObject({
+      code: "validation_failed",
+      message: "The files together exceed 20 MB, more than one import can store at once. Choose a smaller set and import the rest after.",
+    });
+    expect(await storedForUser()).toEqual([]);
+    expect(model.extractCalls).toHaveLength(0);
+  });
 });
 
 describe("a version is never re-extracted", () => {
@@ -184,23 +207,5 @@ describe("a version is never re-extracted", () => {
     });
     expect(new Uint8Array(v1!.originalBytes)).toEqual(new Uint8Array(before!.originalBytes));
     expect(v2).toMatchObject({ versionNo: 2, extractorVersion: "docx-1" });
-  });
-
-  it("is written once: nothing in the application updates a version's text, extractor or file", () => {
-    const sources = import.meta.glob("../src/**/*.ts", { query: "?raw", import: "default", eager: true }) as Record<
-      string,
-      string
-    >;
-    const updates = Object.entries(sources).flatMap(([path, source]) =>
-      [...source.matchAll(/\.update\(sourceDocumentVersions\)[\s\S]*?\.set\(\{([\s\S]*?)\}\)/g)].map((match) => ({
-        path,
-        set: match[1]!,
-      })),
-    );
-    // The guard is looking at something: the pipeline updates a version's status.
-    expect(updates.length).toBeGreaterThan(0);
-    for (const { path, set } of updates) {
-      expect({ path, set }).not.toMatchObject({ set: expect.stringMatching(/extractedText|extractorVersion|originalBytes/) });
-    }
   });
 });

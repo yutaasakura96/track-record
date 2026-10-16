@@ -18,7 +18,7 @@ import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
 import { extractUpload } from "~/pipeline/text";
-import { importRefusal } from "~/shared/import-file";
+import { MAX_BATCH_BYTES, importRefusal } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
 import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
@@ -191,12 +191,20 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     if (!files.length || files.length !== filings.length) {
       throw validationFailed("Choose files to import.", ["file"]);
     }
+    if (files.some((entry) => !(entry instanceof File))) {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    if (files.reduce((total, entry) => total + (entry as File).size, 0) > MAX_BATCH_BYTES) {
+      throw validationFailed(
+        `The files together exceed ${MAX_BATCH_BYTES / 1024 / 1024} MB, more than one import can store at once. Choose a smaller set and import the rest after.`,
+        ["file"],
+      );
+    }
     const batchId = newId("importBatch");
     const importedAt = new Date();
     const results: { importId?: string; reason?: string }[] = [];
     const writes: any[] = [];
     for (const [index, entry] of files.entries()) {
-      if (!(entry instanceof File)) throw validationFailed("Choose files to import.", ["file"]);
       let filing: { projectId?: string; employerId?: string };
       try {
         filing = JSON.parse(String(filings[index]));

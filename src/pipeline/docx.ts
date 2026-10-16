@@ -26,7 +26,7 @@ const TOKEN = /<(\/?)([A-Za-z][\w.-]*:)?([\w.-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)(
  * Never read. The two property elements are here because a paragraph's tab
  * stops are `w:tab` elements too, and are not tabs in its text.
  */
-const SKIPPED = new Set(["mc:Fallback", "w:delText", "w:instrText", "w:pPr", "w:rPr"]);
+const SKIPPED = new Set(["mc:Fallback", "w:del", "w:delText", "w:instrText", "w:pPr", "w:rPr"]);
 
 const ENTITY = /&(?:#(\d+)|#x([0-9A-Fa-f]+)|(amp|lt|gt|quot|apos));/g;
 const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
@@ -37,15 +37,13 @@ const decode = (text: string) =>
   );
 
 export function extractDocx(bytes: ArrayBuffer): string {
-  let xml: string;
   try {
     const document = new PizZip(bytes).file("word/document.xml");
     if (!document) throw new Error("no document part");
-    xml = document.asText();
+    return paragraphsOf(document.asText()).join("\n");
   } catch {
     throw new UnreadableDocument("That Word file could not be read. It may be damaged, or not a .docx.");
   }
-  return paragraphsOf(xml).join("\n");
 }
 
 /** The `w:p` elements of `word/document.xml`, each as one line. */
