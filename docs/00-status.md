@@ -2,7 +2,7 @@
 
 **Project:** track-record
 **Phase:** 7 — Build
-**Updated:** 2026-10-11
+**Updated:** 2026-10-16
 
 ## Done
 
@@ -61,6 +61,11 @@ are marked as the owner's in each issue.
   bucket on 2026-10-13; the binding is in `wrangler.toml`.
   **#77, built 2026-10-15**: the application footer downloads the job description as a text file
   and copies the interview questions as plain text (`10` Screen 14).
+- **Planned 2026-10-16** (decision log, that date): import helpers, then quick capture, as
+  #92 the import cost readout, #93 several documents at once with an employer per file, #94 Word
+  and PDF import, and #95 quick capture (S12) at phone width. Lowering effort or building the
+  Message Batches path is decided from #92's numbers. The owner's import steps (#38, #39) stay the
+  owner's.
 
 ## Blocked
 

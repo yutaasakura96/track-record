@@ -360,4 +360,4 @@ The ugliest case per feature, and what happens.
 6. **Multi-user anything** — accounts, sharing, roles, permission surfaces.
 7. **Consistency checking as a goal.** Welcome as a side effect of provenance; not a target.
 8. **A hand-maintained skills taxonomy.** Skills are derived and curated, never authored from scratch.
-9. **Mobile-first design.** Capture is the only plausibly mobile activity, and it is not the bottleneck. **One exception since 2026-10-11:** the Applications screens work at phone width, because noting an interview straight after it is a phone job (S20). Nothing else does.
+9. **Mobile-first design.** Capture is the only plausibly mobile activity, and it is not the bottleneck. **One exception since 2026-10-11:** the Applications screens work at phone width, because noting an interview straight after it is a phone job (S20). **A second since 2026-10-16:** Quick capture (S12, #95), because a win is written down on the way home. Nothing else does.
