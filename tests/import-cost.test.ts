@@ -155,6 +155,20 @@ describe("reading an import", () => {
     expect(formatReport(id, usage)).toContain("2 chunk(s) carry no usage");
   });
 
+  it("always says the cost is a floor, even when every chunk has usage", async () => {
+    const id = await seedImport([
+      { status: "done", usage: [1200, 340, 933, 0] },
+      { status: "done", usage: [800, 100, 0, 872] },
+    ]);
+    const { usage } = await readUsage(id);
+    const output = formatReport(id, usage);
+
+    expect(usage.chunksWithoutUsage).toBe(0);
+    expect(output).toContain("The cost above is a floor");
+    expect(output).toContain("the real bill can be higher");
+    expect(output).not.toContain("chunk(s) carry no usage");
+  });
+
   it("picks the newest import when none is named", async () => {
     await seedImport([{ status: "done", usage: [1, 1, 1, 1] }], "2020-01-01T00:00:00Z");
     const newest = await seedImport([{ status: "done", usage: [7, 7, 7, 7] }], "2099-01-01T00:00:00Z");

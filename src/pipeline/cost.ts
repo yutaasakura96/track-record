@@ -118,10 +118,13 @@ export function formatReport(versionId: string, usage: ImportUsage): string {
     row("output", usage.outputTokens, real.output, batch.output),
     row("cache write (1h)", usage.cacheCreationInputTokens, real.cacheWrite, batch.cacheWrite),
     row("cache read", usage.cacheReadInputTokens, real.cacheRead, batch.cacheRead),
-    row("total", 0, real.total, batch.total).replace(/ {11}0/, " ".repeat(12)),
+    `${"total".padEnd(22)}${"".padStart(12)}${dollars(real.total).padStart(12)}${dollars(batch.total).padStart(12)}`,
     "",
     `rates for ${RATES_MODEL}, read ${RATES_READ_ON} from ${RATES_SOURCE}`,
     `($/MTok: input ${RATES.input}, output ${RATES.output}, cache write ${RATES.cacheWrite}, cache read ${RATES.cacheRead}; batch x${BATCH_FACTOR})`,
+    "",
+    "The cost above is a floor: usage from an attempt that failed before finishing, including one later retried",
+    "successfully, is not recorded, so the real bill can be higher.",
   ];
   if (usage.chunksWithoutUsage > 0) {
     lines.push(
