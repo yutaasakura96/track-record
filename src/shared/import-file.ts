@@ -4,46 +4,88 @@
  * Read by `POST /api/imports`, which refuses a file before storage and before
  * a single model token is spent, and by the import picker, which refuses the
  * same file on its own row before anything is sent (#93). One rule in one
- * place, so the browser refuses what the server would, in the same words.
+ * place, so the browser refuses what the server would, in the same words, and
+ * the copy that names the types is built from the list that accepts them.
  */
 
-/** 2 MiB. The author's whole corpus is ~2.4 MB; one case study is far smaller. */
-export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024;
-export const MAX_BATCH_BYTES = 95_000_000;
+const MiB = 1024 * 1024;
 
-/** The types that import today, as the file picker's `accept` names them. */
-export const IMPORT_ACCEPT = ".md,.markdown,.txt";
+/**
+ * The formats that import, in the order the copy names them. A Word or PDF
+ * file can carry images the import never reads, so its limit is the larger:
+ * the text is what is read, the file is what is kept (`docs/07` §5).
+ */
+export const IMPORT_FORMATS = [
+  { name: "Markdown", extensions: [".md", ".markdown"], mimeType: "text/markdown", maxBytes: 2 * MiB },
+  { name: "plain text", extensions: [".txt"], mimeType: "text/plain", maxBytes: 2 * MiB },
+  {
+    name: "Word",
+    extensions: [".docx"],
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    maxBytes: 10 * MiB,
+  },
+  { name: "PDF", extensions: [".pdf"], mimeType: "application/pdf", maxBytes: 10 * MiB },
+] as const;
 
-const ACCEPTED = new Map<string, string>([
-  [".md", "text/markdown"],
-  [".markdown", "text/markdown"],
-  [".txt", "text/plain"],
-]);
+export type ImportFormat = (typeof IMPORT_FORMATS)[number];
 
-/** Refused before any work starts, naming the reason (`docs/07` §5). */
-const KNOWN_BUT_UNSUPPORTED = new Set([".docx", ".pdf"]);
+/** The largest file of any type that imports. */
+export const MAX_UPLOAD_BYTES = Math.max(...IMPORT_FORMATS.map((format) => format.maxBytes));
+
+/**
+ * A set sent together can hold up to 20 MiB of uploaded files. The server also
+ * bounds the encoded database write below Neon's 64 MB HTTP query limit.
+ */
+export const MAX_BATCH_BYTES = 20 * MiB;
+
+export const MAX_IMPORT_WRITE_BYTES = 48 * MiB;
+
+export const importWriteBytes = (originalBytes: number, text: string) =>
+  2 * originalBytes + new TextEncoder().encode(JSON.stringify(text)).byteLength;
+
+/** The types that import, as the file picker's `accept` names them. */
+export const IMPORT_ACCEPT = IMPORT_FORMATS.flatMap((format) => format.extensions).join(",");
+
+const typeNames = (conjunction: "and" | "or") => {
+  const names = IMPORT_FORMATS.map((format) => format.name);
+  return `${names.slice(0, -1).join(", ")} ${conjunction} ${names.at(-1)}`;
+};
+
+/** `Markdown, plain text, Word and PDF`: the types that import, as copy names them. */
+export const IMPORT_TYPES_LABEL = typeNames("and");
+
+/** `Markdown, plain text, Word or PDF`: the same, as one to choose. */
+export const IMPORT_TYPES_CHOICE = typeNames("or");
 
 const extensionOf = (filename: string) => {
   const dot = filename.lastIndexOf(".");
   return dot === -1 ? "" : filename.slice(dot).toLowerCase();
 };
 
-/** The stored type of a file that imports, or `null` for one that does not. */
-export const importMimeType = (filename: string) => ACCEPTED.get(extensionOf(filename)) ?? null;
+/** The format a filename imports as, or `null` for one that does not. */
+export const importFormat = (filename: string): ImportFormat | null => {
+  const ext = extensionOf(filename);
+  return IMPORT_FORMATS.find((format) => (format.extensions as readonly string[]).includes(ext)) ?? null;
+};
+
+const megabytes = (bytes: number) => `${Math.round(bytes / MiB)} MB`;
 
 /**
- * Why a file cannot be imported, or `null` when it can be sent. Text that is
- * only whitespace is the server's to find: the browser does not read the file.
+ * Why a file cannot be imported, or `null` when it can be sent. What is inside
+ * it is the server's to find: an empty text, a damaged `.docx`, a scanned PDF.
+ * The browser does not read the file.
  */
 export function importRefusal(file: { name: string; size: number }): string | null {
-  const ext = extensionOf(file.name);
-  if (!ACCEPTED.has(ext)) {
-    return KNOWN_BUT_UNSUPPORTED.has(ext)
-      ? `${ext} import is not built yet. Markdown and plain text are supported.`
-      : "That file type cannot be imported. Markdown and plain text are supported.";
+  const format = importFormat(file.name);
+  if (!format) {
+    const ext = extensionOf(file.name);
+    // The one near miss worth naming: an older Word file is saved as .docx in one step.
+    return ext === ".doc"
+      ? `A .doc file cannot be imported. Save it as .docx first. ${IMPORT_TYPES_LABEL} files are supported.`
+      : `That file type cannot be imported. ${IMPORT_TYPES_LABEL} files are supported.`;
   }
-  if (file.size > MAX_UPLOAD_BYTES) {
-    return `That file is larger than the ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB limit.`;
+  if (file.size > format.maxBytes) {
+    return `That file is larger than the ${megabytes(format.maxBytes)} limit for ${format.name} files.`;
   }
   if (file.size === 0) return "That file is empty.";
   return null;

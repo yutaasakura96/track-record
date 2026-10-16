@@ -6555,3 +6555,50 @@ one that is complete or errored, and leaves any other alone. Rejected: a timeout
 a stale claim.
 
 **Revisit if:** a version is ever found stuck `extracting` behind an instance in some other state.
+
+---
+
+### [2026-10-16] Word and PDF import: `unpdf` runs on workerd, PizZip unzips Word, and Word and PDF files may be 10 MiB
+
+Built by #94, under the 2026-10-16 entry that the import reads Word and PDF.
+
+**`unpdf` is proved on workerd, in both runtimes the 2026-09-08 spike named.** In the suite, which
+runs inside workerd (`tests/extract-formats.test.ts`, `tests/import-formats.test.ts`), a PDF built
+by the test is parsed through `POST /api/imports` and its quotes anchor. Under `wrangler dev`, the
+bundler the suite does not exercise, a PDF chosen in the browser was read by the dev Worker and its
+facts opened in Fact Review; a PDF with no text was refused on its row. `unpdf@1.8.1`, not the
+1.9.0 published the day before. The Worker upload is 7,394 KiB, 1,539 KiB gzipped, under the 10 MB
+paid limit; nothing of it reaches the client bundle, which imports only `src/shared/import-file.ts`.
+
+**PizZip unzips a `.docx`, not `fflate`** (`03` §5.1). It is a dependency already, and the 履歴書
+render has run it on workerd since 2026-09-08. Rejected: `fflate`, a second zip library proved for
+the same job.
+
+**Each format's rule is pinned and named** — `docx-1` and `pdf-1`, beside `plaintext-1`, which is
+unchanged (`03` §5.1 states both rules). A PDF's printed lines are joined into paragraphs, so a quote
+across a wrapped line anchors as the sentence reads, with a space at the break; a quote that keeps
+the printed break is discarded, as any other near miss is. A test asserts that no version is
+re-extracted: an older version keeps its text, extractor and file when its document is imported
+again in another format.
+
+**Word and PDF files may be 10 MiB; Markdown and plain text stay at 2 MiB.** A Word or PDF file
+carries images and fonts the import never reads, so a few pages of text can be several megabytes,
+and the 2 MiB limit would refuse documents for what is not read. The file is still kept whole in
+`original_bytes`. Rejected: one limit for every type, and limiting the extracted text instead of the
+file, which would mean storing a file of any size.
+
+**A set imported together is now 20 MiB, down from 95 MB.** All of a set is written in one database
+request (`07` §5, the 2026-10-16 queue entry), and that request carries each file as hex
+`original_bytes` and again as `extracted_text`, under Neon's 64 MB limit on a query over HTTP. 95 MB
+was Cloudflare's request limit, and a set that size could never have been written in one request;
+with 10 MiB files, three would have been enough to fail. The server also bounds each write's
+encoded size, which the 20 MiB of uploaded bytes alone does not (`07` §5). Rejected: writing each file of a set in its
+own request, which would let a set be half stored.
+
+**Refusals name the reason, before storage and before the model:** any other type names the four
+that import, and a `.doc` is told to be saved as `.docx`; a damaged `.docx`, a PDF that will not open
+and a PDF with no text each say so. The picker's `accept`, the copy that names the types and the
+server's refusal are built from one list, `IMPORT_FORMATS`.
+
+**Revisit if:** a real document of the owner's is refused at 10 MiB, or a PDF of theirs reads with
+its paragraphs joined wrongly — which would be `pdf-2`, a new version, never a change to `pdf-1`.

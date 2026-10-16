@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { Employer, Overview, RenderRow } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
+import { IMPORT_FORMATS, importRefusal } from "~/shared/import-file";
 
 const UNREACHABLE = () => {
   throw new TypeError("Failed to fetch");
@@ -1191,10 +1192,19 @@ describe("an empty record", () => {
     ]);
   });
 
-  it("names only the types that import", async () => {
+  it("names only the types that import, and offers exactly the ones the server takes", async () => {
     open([], { "GET /api/overview": empty() });
 
-    expect(await screen.findByText("Choose a Markdown or plain text file, or several, or drop them here.")).toBeTruthy();
+    expect(await screen.findByText("Choose a Markdown, plain text, Word or PDF file, or several, or drop them here.")).toBeTruthy();
+    const accept = document.querySelector<HTMLInputElement>('input[type="file"]')!.accept.split(",");
+    expect(accept).toEqual([".md", ".markdown", ".txt", ".docx", ".pdf"]);
+    // The rule the server refuses by (`POST /api/imports`) takes every type offered, and nothing else.
+    for (const ext of accept) expect(importRefusal({ name: `notes${ext}`, size: 1 })).toBeNull();
+    for (const ext of [".doc", ".rtf", ".odt", ".pages", ".html", ".png"]) {
+      expect(importRefusal({ name: `notes${ext}`, size: 1 })).toMatch(/Markdown, plain text, Word and PDF files are supported\.$/);
+    }
+    // And every format the copy names is one that is offered.
+    expect(IMPORT_FORMATS.flatMap((format) => format.extensions)).toEqual(accept);
   });
 
   it("says so beneath the picker when the upload never reaches the server", async () => {

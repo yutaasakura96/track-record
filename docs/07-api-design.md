@@ -191,10 +191,18 @@ and `filing` fields in listed order. Each `filing` is JSON with optional `projec
 The server creates every accepted document and queued version in one transaction before answering
 `202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
 Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
-own size limit; the picker refuses a set over 95 MB together (`MAX_BATCH_BYTES`,
-`src/shared/import-file.ts`) before sending, under Cloudflare's 100 MB request body limit.
+own size limit; a set over 20 MiB together (`MAX_BATCH_BYTES`,
+`src/shared/import-file.ts`) is refused by the picker before sending, and by the server as a whole
+(`422`) before anything is written. Every file of a set is written in one database request,
+which carries hex-encoded `original_bytes` and JSON-encoded `extracted_text`. The server limits their
+combined encoded size to 48 MiB per write, below Neon's 64 MB limit on a query over HTTP. A single
+file over this budget is refused before storage; in a set, each file that would exceed the running
+budget is refused on its own row and can be imported separately. The 95 MB this said before #94 was
+Cloudflare's request limit and could not have been stored in one write.
 
-Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
+Rejected before any work starts: unsupported type (`422`), over the size limit (`422`), or a file
+of a supported type that cannot be read as one — a damaged `.docx`, a PDF that will not open, a PDF
+with no text layer (a scan) — each `422` naming its reason. Nothing is stored and no model is called. A
 re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
 `extracting`: the diff baseline would still be incomplete. A `failed` newest version does not
 refuse, because its text was stored before extraction. A re-import may carry a different filename
@@ -207,12 +215,16 @@ for a new document: a re-import keeps the document's employer, which is changed 
 `PATCH /api/source-documents/:id`. An `employerId` sent with a re-import is checked for ownership
 and then ignored, as a `projectId` is.
 
-**Accepted types in M1: `.md` and `.txt` only** — the author's case studies are Markdown, and
-supporting four formats in M1 would mean carrying three Workers compatibility risks for a document
-type M1 never sees (`03-technical-design.md` §5.1). **`.docx` and `.pdf` are planned for M3 (#94;
-decision log, 2026-10-16)**, which states the size limit that applies to them. Until then the endpoint
-names the reason it rejected a type, so an author who tries a `.docx` is told it is not built yet
-rather than that it is wrong.
+**Accepted types: `.md`, `.markdown`, `.txt`, `.docx` and `.pdf`** (M1 took the first three; #94
+added Word and PDF, decision log 2026-10-16). Each is stored with its real `mime_type` and its own
+`extractor_version` (`plaintext-1`, `docx-1`, `pdf-1`); `original_bytes` keeps the file as uploaded.
+**Size limits: 2 MiB for Markdown and plain text, 10 MiB for Word and PDF.** A Word or PDF file can
+carry images and fonts the import never reads, so a document whose text is a few pages can be several
+megabytes; the text is what is read, and the file is what is kept. Any other type — `.doc`, `.rtf`,
+`.odt`, `.pages`, HTML, images — is refused with a reason naming the types that work
+(`Markdown, plain text, Word and PDF files are supported.`); a `.doc` is also told to be saved as
+`.docx`. The picker's `accept`, the copy that names the types and this refusal are built from one
+list, `IMPORT_FORMATS` in `src/shared/import-file.ts`.
 
 **`GET /api/imports/:id` → 200** — the polling target. Drives the progress bar and the incremental
 appearance of cards in the fact rail.

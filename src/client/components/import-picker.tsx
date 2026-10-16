@@ -17,7 +17,7 @@ import {
   type Employer,
   type Project,
 } from "../api";
-import { IMPORT_ACCEPT, MAX_BATCH_BYTES, importRefusal } from "~/shared/import-file";
+import { IMPORT_ACCEPT, IMPORT_TYPES_CHOICE, MAX_BATCH_BYTES, importRefusal } from "~/shared/import-file";
 import { Button, Chip, Dot } from "./ui";
 
 export { IMPORT_ACCEPT };
@@ -150,7 +150,9 @@ export function useImportPicker() {
     const going = rows.filter((row) => !row.refusal);
     if (rows.length === 1 && going.length === 1) return sendOne(going[0]!.file, filing(going[0]!));
     if (going.reduce((total, row) => total + row.file.size, 0) > MAX_BATCH_BYTES) {
-      setError("The files together exceed 95 MB. Cloudflare allows a 100 MB request on Free and Pro accounts; choose a smaller set.");
+      setError(
+        `The files together exceed ${MAX_BATCH_BYTES / 1024 / 1024} MB, more than one import can store at once. Choose a smaller set and import the rest after.`,
+      );
       return;
     }
     setChosen((current) => (current ? { ...current, sent: true } : null));
@@ -404,7 +406,7 @@ export function ImportDropTarget({ className = "" }: { className?: string }) {
       <div className="mx-auto size-32 rounded-tile bg-chip" aria-hidden />
       <p className="mt-14 text-row font-medium text-text-strong">Import your first document</p>
       <p className="mt-6 text-smaller text-text-dim">
-        Choose a Markdown or plain text file, or several, or drop them here.
+        Choose a {IMPORT_TYPES_CHOICE} file, or several, or drop them here.
       </p>
       {importFile.control}
       <div className="mt-16">

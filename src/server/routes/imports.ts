@@ -17,8 +17,8 @@ import { requireOwnedEmployer } from "./record";
 import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
-import { extractUpload, EXTRACTOR_VERSION } from "~/pipeline/text";
-import { importRefusal } from "~/shared/import-file";
+import { extractUpload } from "~/pipeline/text";
+import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES, importRefusal, importWriteBytes } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
 import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
@@ -44,6 +44,7 @@ const refileBody = z
 
 /** How a document's employer is named: as Screen 1's employer picker names it. */
 const employerName = sql<string>`coalesce(${employers.nameLatin}, ${employers.nameJa})`;
+const TOO_LARGE_AFTER_EXTRACTION = "That file is too large to store after text extraction. Choose a smaller document.";
 
 export function registerImportRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -81,6 +82,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     // Type and size are rejected here, before storage and before a single model
     // token is spent — the author is never billed for a doomed import.
     const upload = await extractUpload(file);
+    if (importWriteBytes(upload.byteSize, upload.text) > MAX_IMPORT_WRITE_BYTES) {
+      throw validationFailed(TOO_LARGE_AFTER_EXTRACTION, ["file"]);
+    }
 
     let documentId = sourceDocumentId;
     let versionNo = 1;
@@ -127,7 +131,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       extractedText: upload.text,
       // A version is never re-extracted in place; a parser upgrade makes a NEW
       // version, because stale offsets still resolve to *some* text.
-      extractorVersion: EXTRACTOR_VERSION,
+      extractorVersion: upload.extractorVersion,
       byteSize: upload.byteSize,
       wordCount: upload.wordCount,
       batchId: versionId,
@@ -191,12 +195,22 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     if (!files.length || files.length !== filings.length) {
       throw validationFailed("Choose files to import.", ["file"]);
     }
+    const uploads = files.filter((entry): entry is File => entry instanceof File);
+    if (uploads.length !== files.length) {
+      throw validationFailed("Choose files to import.", ["file"]);
+    }
+    if (uploads.reduce((total, entry) => total + entry.size, 0) > MAX_BATCH_BYTES) {
+      throw validationFailed(
+        `The files together exceed ${MAX_BATCH_BYTES / 1024 / 1024} MB, more than one import can store at once. Choose a smaller set and import the rest after.`,
+        ["file"],
+      );
+    }
     const batchId = newId("importBatch");
     const importedAt = new Date();
     const results: { importId?: string; reason?: string }[] = [];
     const writes: any[] = [];
-    for (const [index, entry] of files.entries()) {
-      if (!(entry instanceof File)) throw validationFailed("Choose files to import.", ["file"]);
+    let writeBytes = 0;
+    for (const [index, entry] of uploads.entries()) {
       let filing: { projectId?: string; employerId?: string };
       try {
         filing = JSON.parse(String(filings[index]));
@@ -236,6 +250,16 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         results.push({ reason: err.message });
         continue;
       }
+      const fileWriteBytes = importWriteBytes(upload.byteSize, upload.text);
+      if (fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: TOO_LARGE_AFTER_EXTRACTION });
+        continue;
+      }
+      if (writeBytes + fileWriteBytes > MAX_IMPORT_WRITE_BYTES) {
+        results.push({ reason: "That file would make this import too large. Import it separately." });
+        continue;
+      }
+      writeBytes += fileWriteBytes;
       const documentId = newId("sourceDocument");
       const versionId = newId("sourceDocumentVersion");
       writes.push(db.insert(sourceDocuments).values({
@@ -245,7 +269,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
       writes.push(db.insert(sourceDocumentVersions).values({
         id: versionId, userId, sourceDocumentId: documentId, versionNo: 1,
         originalBytes: Buffer.from(await entry.arrayBuffer()), extractedText: upload.text,
-        extractorVersion: EXTRACTOR_VERSION, byteSize: upload.byteSize, wordCount: upload.wordCount,
+        extractorVersion: upload.extractorVersion, byteSize: upload.byteSize, wordCount: upload.wordCount,
         importStatus: "queued", batchId, batchOrder: index, importedAt,
       }));
       results.push({ importId: versionId });

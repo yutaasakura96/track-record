@@ -600,10 +600,10 @@ act on every row; a row can be taken out with its own `Remove`.
 - **Home's `Latest imports` panel lists the newest set**, in listed order, each row `Waiting`,
   `Reading · N%`, `Done` or `Failed · <reason>` with its own `Retry` (a refused retry says why on
   the row). It stays after the set finishes, until the next one is submitted
-- A set over 95 MB together is refused before anything is sent, naming Cloudflare's 100 MB request
-  limit; each file's own limit still applies
+- A set over 20 MB together is refused before anything is sent, because the set is stored in one
+  write (`07` §5); each file's own limit still applies
 - **The drop target takes dropped files** as well as `Choose a file`, several at once, and reads
-  `Choose a Markdown or plain text file, or several, or drop them here.`
+  `Choose a Markdown, plain text, Word or PDF file, or several, or drop them here.`
 - **Screen 8 marks a waiting version `Waiting to be read`**, with no progress block: the block is
   for the one being read. Its next-step line adds `N more are waiting to be read after it.`
 
@@ -657,9 +657,9 @@ so the frame does not change under a first-time author; it carries no note and n
   `the facts found in it, one at a time, and keep the ones you stand behind.`) **Generate** `your résumé, 履歴書 and 職務経歴書 from the facts you kept.`
   A paragraph said the same thing and was not read as an instruction
 - A dashed drop target: icon tile, `Import your first document`, and a `Choose a file` primary button.
-  **The copy names only the types that actually import** — M1 is `Markdown and plain text`; the line
-  grows as `07-api-design.md` §5 grows, to `Markdown, plain text, Word and PDF` when #94 lands. Offering Word or PDF here and rejecting them at upload is a
-  worse empty state than a narrower one
+  **The copy names only the types that actually import** — `Markdown, plain text, Word and PDF` since
+  #94 (M1 was `Markdown and plain text`); the line grows as `07-api-design.md` §5 grows. Offering a
+  type here and rejecting it at upload is a worse empty state than a narrower one
 - Footnote: `Document generation opens up once your record holds its first facts.`
 - `Quick capture` is **hidden**, not disabled — there is nothing to capture against yet
 - The sections of the populated screen are absent entirely
@@ -1118,8 +1118,8 @@ the new version, as Flow 4 describes.
 
 ### Re-extract · specified, not built
 
-No button exists until a second extractor version does. The only extractor today is `plaintext-1`,
-and re-running it can only reproduce the same text. This section fixes the behaviour before anyone
+No button exists until a format's extractor is upgraded. Each format has one extractor today
+(`plaintext-1`, `docx-1`, `pdf-1`), and re-running it can only reproduce the same text. This section fixes the behaviour before anyone
 needs it.
 
 - `Re-extract` (ghost) appears beside `Re-import` only when the document's newest version carries an
