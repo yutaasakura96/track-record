@@ -23,6 +23,7 @@ import {
   useGenerate,
   useOverview,
   useProfile,
+  useRetryImport,
   useSession,
   useSortFacts,
   type SortProgress,
@@ -255,7 +256,8 @@ function PopulatedRecord({
             <NextStepFrame about={<span role="status">Checking what is waiting for you now…</span>} />
           ) : (
             <>
-              {data.activeImport ? <ImportProgress active={data.activeImport} /> : null}
+              {data.activeImport ? <ImportProgress active={data.activeImport} waiting={data.waitingImports} /> : null}
+              {data.latestImportSet?.length ? <LatestImports rows={data.latestImportSet} /> : null}
               <NextStep
                 steps={nextSteps(data)}
                 busy={generate.isPending}
@@ -284,12 +286,53 @@ function PopulatedRecord({
   );
 }
 
+function LatestImports({ rows }: { rows: NonNullable<OverviewData["latestImportSet"]> }) {
+  const retry = useRetryImport();
+  const [refusal, setRefusal] = useState<{ importId: string; message: string } | null>(null);
+  const onRetry = async (importId: string) => {
+    setRefusal(null);
+    try {
+      await retry.mutateAsync(importId);
+    } catch (caught) {
+      setRefusal({ importId, message: failureText(caught) });
+    }
+  };
+  return (
+    <section aria-label="Latest imports" className="bg-surface-raised border border-border rounded-panel px-16 py-14">
+      <h2 className="text-row font-medium text-text-strong">Latest imports</h2>
+      <ul className="mt-8 grid gap-8">
+        {rows.map((row) => (
+          <li key={row.importId} className="flex flex-wrap items-center gap-8 text-small text-text-secondary">
+            <span className="font-mono">{row.filename}</span>
+            <span>{row.status === "queued" ? "Waiting" : row.status === "extracting"
+              ? `Reading${row.chunksTotal ? ` · ${Math.floor(row.chunksDone / row.chunksTotal * 100)}%` : ""}`
+              : row.status === "ready" ? "Done" : `Failed · ${row.error ?? "This import could not be completed."}`}</span>
+            {row.status === "failed" ? (
+              <Button variant="ghost" onClick={() => void onRetry(row.importId)} disabled={retry.isPending}
+                disabledReason={retry.isPending ? "Retrying…" : undefined}>
+                Retry
+              </Button>
+            ) : null}
+            {refusal?.importId === row.importId ? <span role="alert" className="text-removed">{refusal.message}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 /**
  * An import that is still running, said so that it cannot be missed: the share
  * done, a bar twice the control's height, and a sentence that it is still
  * working. The Next step under it carries the way into the review.
  */
-function ImportProgress({ active }: { active: NonNullable<OverviewData["activeImport"]> }) {
+function ImportProgress({
+  active,
+  waiting,
+}: {
+  active: NonNullable<OverviewData["activeImport"]>;
+  waiting: OverviewData["waitingImports"];
+}) {
   const { chunksDone, chunksTotal, filename } = active;
   const percent = chunksTotal ? Math.round(Math.min(1, chunksDone / chunksTotal) * 100) : 0;
 
@@ -330,6 +373,28 @@ function ImportProgress({ active }: { active: NonNullable<OverviewData["activeIm
       <p className="mt-4 text-small text-text-muted">
         A long document takes several minutes. You can leave this page and it carries on.
       </p>
+      {/* One document is read at a time (#93). The rest are named, in the
+          order they will be read, so a set imported together is seen whole. */}
+      {waiting.length > 0 ? (
+        <div className="mt-12 pt-12 border-t border-border-inner">
+          <p className="text-small text-text-secondary">
+            {waiting.length === 1 ? "1 more is waiting" : `${number(waiting.length)} more are waiting`}, read one at a
+            time after it:
+          </p>
+          <ul aria-label="Waiting to be read" className="mt-8 flex flex-wrap gap-8">
+            {waiting.map((item) => (
+              <li
+                key={item.importId}
+                className="min-w-0 inline-flex items-center bg-chip border border-border-control rounded-chip px-6 py-2 font-mono text-small text-text-secondary"
+              >
+                <span className="truncate" title={item.filename}>
+                  {item.filename}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
     </section>
   );
 }

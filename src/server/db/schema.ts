@@ -275,6 +275,8 @@ export const sourceDocumentVersions = pgTable("source_document_versions", {
   extractorVersion: text("extractor_version").notNull(),
   byteSize: integer("byte_size").notNull(),
   wordCount: integer("word_count").notNull(),
+  batchId: text("batch_id"),
+  batchOrder: integer("batch_order").notNull().default(0),
   importStatus: importStatus("import_status").notNull().default("queued"),
   /** Populated when failed — PRD §7 requires a stated reason, not an empty success. */
   importError: text("import_error"),
@@ -304,6 +306,12 @@ export const sourceDocumentVersions = pgTable("source_document_versions", {
 }, (t) => [
   uniqueIndex("sdv_document_version_uq").on(t.sourceDocumentId, t.versionNo),
   index("sdv_user_idx").on(t.userId),
+  /**
+   * One document is read at a time, per author (`docs/09` Flow 8, #93). The
+   * queue's claim is one conditional UPDATE, and two claims racing each other
+   * could both see nobody reading; this index is what lets only one through.
+   */
+  uniqueIndex("sdv_one_extracting_uq").on(t.userId).where(sql`${t.importStatus} = 'extracting'`),
 ]);
 
 /**

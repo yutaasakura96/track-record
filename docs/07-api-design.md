@@ -185,6 +185,15 @@ document). → **`202 Accepted`**
 }
 ```
 
+**The version is `queued` and waits its turn: one document is read at a time, per user** (#93,
+`03` §5). Several files use one `POST /api/imports/batch` multipart request with repeated `file`
+and `filing` fields in listed order. Each `filing` is JSON with optional `projectId` and `employerId`.
+The server creates every accepted document and queued version in one transaction before answering
+`202 Accepted` with `results` in the same order: each row has an `importId` or a refusal `reason`.
+Accepted files read in listed order; one that fails stops none of the others. Each file keeps its
+own size limit; the picker refuses a set over 95 MB together (`MAX_BATCH_BYTES`,
+`src/shared/import-file.ts`) before sending, under Cloudflare's 100 MB request body limit.
+
 Rejected before any work starts: unsupported type (`422`), or over the size limit (`422`). A
 re-import is also refused at **`409 conflict`** while the document's newest version is `queued` or
 `extracting`: the diff baseline would still be incomplete. A `failed` newest version does not
@@ -252,7 +261,7 @@ an empty success.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded |
+| `POST` | `/api/imports/:id/retry` | M1 | Re-runs from the first failed step. The document is not re-uploaded. Only a `failed` import is requeued (#93); one waiting or being read is left as it is, and the body is its status |
 | `POST` | `/api/imports/:id/finish` | M1 | Ends the review. Backs both `Finish review` (header) and `Add N facts to record` (footer) — **one action, two affordances** |
 | `GET` | `/api/imports` | M2 | Screen 8, Documents. Shape below |
 | `GET` | `/api/imports/summary` | M2 | The sidebar's badge alone. Shape below. **Registered before `/api/imports/:id`** |
@@ -844,6 +853,8 @@ and the home screen waited for all of them.
 {
   "lastImportAt": "2026-08-12T08:02:00Z",
   "activeImport": null,
+  "waitingImports": [],
+  "latestImportSet": [],
   "tiles": {
     "employers": { "count": 4, "note": "2 current, 2 past" },
     "roles":     { "count": 6, "note": null },
@@ -861,9 +872,14 @@ and the home screen waited for all of them.
 ```
 
 `tiles.credentials` sums `educations` and `certifications` — the split is storage, not interface.
-`activeImport` is `null` unless the newest version is `queued` or `extracting`. Otherwise it
-is the `GET /api/imports/:id` body for that version plus `filename`, the document's name, which the
-home screen's progress panel shows.
+`activeImport` is `null` unless a version is `queued` or `extracting`. Otherwise it is the
+`GET /api/imports/:id` body for the version being read, or, between two, the next to be, plus
+`filename`, the document's name, which the home screen's progress panel shows.
+`waitingImports` (#93) is every other `queued` version as `{ importId, filename }`, in the order
+they will be read, and `[]` when none is waiting.
+`latestImportSet` (#93) is every version submitted with the newest one (same `batch_id`), in
+`batch_order`, as `{ importId, filename, status, chunksTotal, chunksDone, error }`; it stays after
+they finish, until the next set is submitted.
 While it is not `null` the request costs a second round trip, for that body.
 `factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
 screen's Not confirmed row amber.

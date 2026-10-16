@@ -530,6 +530,33 @@ describe("saying what the screen is for and what to do next", () => {
     );
   });
 
+  it("says how many wait to be read after it, and marks each waiting one so (#93)", async () => {
+    const queued = (id: string, filename: string) =>
+      document({
+        sourceDocumentId: id,
+        filename,
+        reimportable: false,
+        versions: [version(1, { importId: `imp-${id}`, status: "queued", chunksTotal: 0, chunksDone: 0 })],
+      });
+    open({}, [
+      document({
+        reimportable: false,
+        versions: [version(1, { status: "extracting", chunksTotal: 150, chunksDone: 9 })],
+      }),
+      queued("src-test-2", "zentrel-portfolio.md"),
+      queued("src-test-3", "plinth-portfolio.md"),
+    ]);
+
+    expect(await next()).toBe(
+      "Next: qorvane-notes.md is still being read. You can start reviewing the facts found so far. 2 more are waiting to be read after it.",
+    );
+    const waiting = await block("zentrel-portfolio.md");
+    expect(within(waiting).getByText("Waiting to be read")).toBeTruthy();
+    // Only the one being read has a bar: the rest have not started.
+    expect(within(waiting).queryByRole("progressbar")).toBeNull();
+    expect(within(await block()).getByRole("progressbar")).toBeTruthy();
+  });
+
   it("says to import the first document, and explains no counts, when there are none", async () => {
     open({}, []);
 

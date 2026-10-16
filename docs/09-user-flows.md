@@ -213,7 +213,7 @@ resumes where it left off.
 
 ---
 
-## Flow 8 · Import several documents in one sitting · M3 (#93)
+## Flow 8 · Import several documents in one sitting · M3 (#93, built 2026-10-16)
 
 > **Planned 2026-10-16** (decision log, that date), superseding the deferral of 2026-09-28. Whether
 > the Message Batches path is built behind it, or extraction effort lowered, is still decided from

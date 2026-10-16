@@ -17,6 +17,8 @@ export const ID_PREFIXES = {
   /** A source document version IS an import — there is no separate table. */
   sourceDocumentVersion: "sdv",
   importChunk: "chk",
+  /** The several files one Import sent together; a column, not a table. */
+  importBatch: "imb",
   fact: "fct",
   education: "edu",
   certification: "crt",

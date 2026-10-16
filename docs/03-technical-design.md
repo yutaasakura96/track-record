@@ -297,6 +297,18 @@ not duplicated, only genuinely new content is extracted, and rejected facts stay
 the app ever reasoning about fact identity. A 15%-changed document costs roughly 15% of a fresh
 extraction.
 
+**One document is read at a time, per user** (#93, `09` Flow 8). An upload stores its version as
+`queued` and asks the queue (`src/pipeline/queue.ts`) to start the next; so does a retry, and so
+does the end of every run, done or failed. The queue is the `import_status` column and nothing
+else: one conditional `update` claims the oldest `queued` version as `extracting` when none is,
+and the partial unique index `sdv_one_extracting_uq` refuses a second claim that races it. There
+is no batch row, so every import survives on its own. On the Workflow path the next document gets
+a Workflow of its own, started from a `start-next` step of the one before. Its instance ID is the
+version ID; uploads, `start-next`, Home and Documents reads restore a missing instance for an
+`extracting` row, and restart one that is complete or errored (`ensureWorkflow`). A launch that fails marks its version `failed` and advances the queue. A run that throws past its steps marks its version `failed`
+(`Extraction stopped before it finished.`) rather than leaving it `extracting`, which would hold
+every import behind it. A retry requeues only a `failed` version.
+
 **Zero facts extracted is a failure, not an empty success** (PRD §7). The document is retained and
 the author can retry or capture manually.
 
@@ -593,7 +605,7 @@ than a vague "later". Scattered deferrals get forgotten; a register gets read.
 | # | Item | Trigger / note |
 |---|---|---|
 | 2 | **Provider bake-off** — Opus 5 vs Kimi K3 vs GPT-5.6 Terra on Japanese renders | **Dropped 2026-09-21** (`docs/06`). Anthropic stays the only provider |
-| 4 | **The Message Batches path**, and a lower extraction effort | Decided from the numbers `npm run measure:import` prints for one portfolio imported at today's setting (#92; `06`, 2026-10-16), in an entry of its own. The multi-file queue (`09` Flow 8) left this row on 2026-10-16 and is built by #93 |
+| 4 | **The Message Batches path**, and a lower extraction effort | Decided from the numbers `npm run measure:import` prints for one portfolio imported at today's setting (#92; `06`, 2026-10-16), in an entry of its own. The multi-file queue (`09` Flow 8) left this row on 2026-10-16 and was built by #93 |
 | 5 | **`docx` / `docxtemplater` Workers spike** | **Done 2026-09-08** (`docs/06`). Both libraries run on workerd; 履歴書 work is no longer gated on it |
 | 5b | **`.docx` text extraction** via `fflate` + OOXML walk | Built by #94 with `.pdf` (`06`, 2026-10-16): some of the author's documents are Word |
 

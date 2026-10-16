@@ -64,7 +64,10 @@ function stubFetch(routes: Routes) {
       typeof init?.body === "string"
         ? JSON.parse(init.body)
         : init?.body instanceof FormData
-          ? Object.fromEntries(init.body)
+          ? Object.fromEntries(Array.from(new Set(init.body.keys())).map((key) => {
+              const values = init.body instanceof FormData ? init.body.getAll(key) : [];
+              return [key, values.length === 1 ? values[0] : values];
+            }))
           : undefined;
     const call = { method, path, body };
     calls.push(call);

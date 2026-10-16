@@ -27,7 +27,7 @@ export interface Bindings extends ModelBindings {
    */
   RECORDINGS: R2Bucket;
   /** Absent in tests and in local dev; see src/pipeline/workflow.ts. */
-  IMPORT_WORKFLOW?: { create(options: { params: unknown }): Promise<unknown> };
+  IMPORT_WORKFLOW?: Pick<Workflow, "create" | "get">;
 }
 
 /** Established by the session middleware. Never optional downstream of it. */

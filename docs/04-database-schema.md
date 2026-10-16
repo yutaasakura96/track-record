@@ -277,7 +277,9 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `extractor_version` | text | no | Which parser produced `extracted_text`. **A version is never re-extracted in place** — a parser upgrade creates a new version with fresh offsets (`03` §5.1) |
 | `byte_size` | integer | no | |
 | `word_count` | integer | no | Shown in the source pane label strip |
-| `import_status` | import_status | no | |
+| `batch_id` | text | yes | Groups versions submitted together; legacy versions use their own `id` as the set ID |
+| `batch_order` | integer | no | Position within the submitted set, default `0`; orders the queue and Home's waiting list |
+| `import_status` | import_status | no | `queued` is waiting its turn: **one version is `extracting` at a time, per user** (#93, `03` §5) |
 | `import_error` | text | yes | Populated when `failed` — PRD §7 requires a *reason* |
 | `chunks_total` | integer | no | Default `0`. Drives the progress bar |
 | `chunks_done` | integer | no | Default `0` |
@@ -286,7 +288,9 @@ Source documents **never render, export, or appear in any output.** They exist t
 | `changed_region_share` | double precision | yes | Fraction of the two versions' combined text that differs: added plus removed characters, over this version's length plus the removed characters. `0` only when the text is identical. `null` on a first import |
 | `imported_at` | timestamptz | no | |
 
-**Unique:** `(source_document_id, version_no)`.
+**Unique:** `(source_document_id, version_no)`, and `(user_id) where import_status = 'extracting'`
+(`sdv_one_extracting_uq`, #93): the import queue claims a version with one conditional `update`,
+and two claims racing each other could both see nobody reading; this lets one through.
 **Never deleted.** Deleting evidence would break every Measured fact that points at it.
 
 ---

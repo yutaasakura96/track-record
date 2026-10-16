@@ -68,6 +68,8 @@ are marked as the owner's in each issue.
   owner's.
   **#92, built 2026-10-16**: `npm run measure:import` prints one import's chunks, token sums and
   estimated cost beside the Message Batches price (`04` §3.6b, `src/pipeline/cost.ts`).
+  **#93, built 2026-10-16**: several documents chosen or dropped at once, each with its own project
+  and employer, read one at a time by a queue in `import_status` (`03` §5, `04` §3.6, `10` Screen 3).
 
 ## Blocked
 

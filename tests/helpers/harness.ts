@@ -41,8 +41,11 @@ const TEST_USER_HEADER = "x-test-user";
 const ORIGIN = new URL(bindings.BETTER_AUTH_URL).origin;
 
 export interface StubModel extends ModelSeam {
-  /** Queued responses, one per `extractFacts` call. */
-  extractions: (CandidateFact[] | Error)[];
+  /**
+   * Queued responses, one per `extractFacts` call. A promise holds that call
+   * open until the test settles it, which is how a test sees what waits.
+   */
+  extractions: (CandidateFact[] | Error | Promise<CandidateFact[] | Error>)[];
   generations: (RenderContent | Error)[];
   /** Every set of facts generation was actually given. */
   generationInputs: { facts: RenderFact[]; spec: RenderSpec }[];
@@ -80,7 +83,7 @@ export function stubModel(): StubModel {
     postingCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
-      const next = stub.extractions.shift() ?? [];
+      const next = await (stub.extractions.shift() ?? []);
       // Thrown BEFORE any usage is reported: a call that fails reports nothing,
       // which is what the real seam does.
       if (next instanceof Error) throw next;
@@ -121,6 +124,7 @@ export function stubModel(): StubModel {
 }
 
 export interface HarnessOptions {
+  workflow?: Bindings["IMPORT_WORKFLOW"];
   /**
    * Resolve sessions the way the deployment does — through Better Auth, from a
    * cookie. Requires the OIDC fixture to be installed, because the only way to
@@ -191,7 +195,7 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
       if (cookies) merged.set("cookie", cookies);
       const response = await app.fetch(
         new Request(`${ORIGIN}${path}`, { ...init, headers: merged }),
-        bindings,
+        options.workflow ? { ...bindings, IMPORT_WORKFLOW: options.workflow } : bindings,
         createExecutionContext(),
       );
       jar?.capture(response);
