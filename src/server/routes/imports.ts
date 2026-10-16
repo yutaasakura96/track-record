@@ -684,7 +684,15 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
  */
 export async function startImport(deps: ImportStart) {
   const started = await startNextImport(deps.db, deps.userId, launcher(deps));
-  if (!started && deps.workflow) await recoverActiveImport(deps.db, deps.userId, deps.workflow);
+  if (started || !deps.workflow) return;
+  // Best effort: the next poll tries again, and a Workflow API error must not
+  // fail the status read or the request whose rows are already saved.
+  try {
+    await recoverActiveImport(deps.db, deps.userId, deps.workflow);
+  } catch (err) {
+    // Ids only — never the document, the chunk or the model's response.
+    console.error(JSON.stringify({ event: "import_recovery_failed", userId: deps.userId, name: (err as Error)?.name }));
+  }
 }
 
 function launcher(deps: ImportStart): LaunchImport {
