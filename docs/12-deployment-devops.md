@@ -353,6 +353,7 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
 
    `--recordings-deleted` only when step 3 had objects to delete; without it the command stops while
    upload rows remain.
+   A run that fails partway is recovered by running the same command again: it resets first.
 5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 34
    flags, 21 skills, 4 applications, 2 interviews. Then, on the production database:
 

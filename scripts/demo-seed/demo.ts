@@ -258,9 +258,11 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
   // Quick capture's save, as `POST /api/capture` writes it.
   const now = new Date();
   for (const captured of CAPTURED) {
-    const { shape } = classifyClaim({ claim: captured.claim, quote: null, technologies: captured.technologies });
+    const technologies = [...new Set(captured.technologies)];
+    const { shape, flags } = classifyClaim({ claim: captured.claim, quote: null, technologies });
+    const factId = newId("fact");
     await db.insert(s.facts).values({
-      id: newId("fact"),
+      id: factId,
       userId,
       claim: captured.claim,
       occurredOn: month(captured.month),
@@ -270,10 +272,13 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
       disclosure: shape ? "private" : "restricted",
       isClientIdentifying: shape !== null,
       status: "accepted",
-      technologies: captured.technologies,
+      technologies,
       resolvedAt: now,
       gradedAt: now,
     });
+    for (const flag of flags.filter((flag) => flag.kind === "confidential")) {
+      await db.insert(s.factFlags).values({ id: newId("factFlag"), userId, factId, ...flag });
+    }
   }
   await settleRepeats(db, userId);
 
@@ -291,12 +296,17 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
   }
 
   const today = new Date();
+  const ago = (days: number) => new Date(today.getTime() - days * 86_400_000);
+  const dayInTokyo = (days: number) => new Date(ago(days).getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
   for (const application of APPLICATIONS) {
     const id = newId("application");
     const reached = application.steps.filter((step) => step.status !== "rejected" && step.status !== "withdrawn");
     const closed = application.steps.find((step) => step.status === "rejected" || step.status === "withdrawn");
-    const lastActivity = new Date(today.getTime() - application.lastActivityDaysAgo * 86_400_000);
-    const added = application.steps[0]?.on ?? lastActivity.toISOString().slice(0, 10);
+    const lastActivityDaysAgo = Math.min(
+      application.addedDaysAgo,
+      ...application.steps.map((step) => step.daysAgo),
+      ...application.interviews.map((interview) => interview.daysAgo),
+    );
     await db.insert(s.applications).values({
       id,
       userId,
@@ -307,17 +317,17 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
       requirements: application.requirements,
       currentStep: reached.at(-1)?.status ?? "not_applied",
       closedAs: closed?.status ?? null,
-      lastActivityAt: lastActivity,
-      createdAt: new Date(`${added}T09:00:00+09:00`),
+      lastActivityAt: ago(lastActivityDaysAgo),
+      createdAt: ago(application.addedDaysAgo),
     });
-    const steps = [{ status: "not_applied" as const, on: added }, ...application.steps];
+    const steps = [{ status: "not_applied" as const, daysAgo: application.addedDaysAgo }, ...application.steps];
     for (const step of steps) {
       await db.insert(s.applicationSteps).values({
         id: newId("applicationStep"),
         userId,
         applicationId: id,
         status: step.status,
-        happenedOn: step.on,
+        happenedOn: dayInTokyo(step.daysAgo),
       });
     }
     for (const interview of application.interviews) {
@@ -326,7 +336,7 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
         id: interviewId,
         userId,
         applicationId: id,
-        happenedOn: interview.on,
+        happenedOn: dayInTokyo(interview.daysAgo),
         round: interview.round,
         who: interview.who,
         howItWent: interview.howItWent,

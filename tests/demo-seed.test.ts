@@ -93,9 +93,18 @@ describe("seeding a user", () => {
     const second = await seedDemo(db, user.id);
 
     expect(second).toEqual(first);
-    expect(first).toMatchObject({ employers: 4, projects: 5, documents: 7, applications: 4 });
-    expect(first.facts).toBeGreaterThan(50);
-    expect(first.flags).toBeGreaterThan(0);
+    // The counts the production runbook checks a reset against (`docs/12` §5a step 5).
+    expect(first).toEqual({
+      user: user.id,
+      employers: 4,
+      projects: 5,
+      documents: 7,
+      facts: 59,
+      flags: 34,
+      skills: 21,
+      applications: 4,
+      interviews: 2,
+    });
 
     const [kept] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.id, user.id));
     expect(kept?.id).toBe(user.id);

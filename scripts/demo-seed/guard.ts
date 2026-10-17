@@ -8,9 +8,6 @@ import { SUITE_DATABASE, databaseTarget } from "../../tests/database-guard";
 export const REMOTE_FLAG = "--remote-after-backup";
 export const RECORDINGS_FLAG = "--recordings-deleted";
 
-/** The hosts `dev-session-core.ts` and `src/server/db/client.ts` treat as this machine. */
-const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]", "db.localtest.me"]);
-
 /** Throws, naming the reason, unless the reset may run against `url`. */
 export function assertSeedTarget(url: string, flags: readonly string[]): void {
   const target = databaseTarget(url);
@@ -18,10 +15,9 @@ export function assertSeedTarget(url: string, flags: readonly string[]): void {
   if (target.database === SUITE_DATABASE) {
     throw new Error(`Refusing ${SUITE_DATABASE}: the suite drops it on every run.`);
   }
-  const host = new URL(url).hostname;
-  if (!LOCAL_HOSTS.has(host) && !flags.includes(REMOTE_FLAG)) {
+  if (target.host !== "localhost" && !flags.includes(REMOTE_FLAG)) {
     throw new Error(
-      `DATABASE_URL points at ${host}. A remote reset needs a database backup first (docs/12 §5), then ${REMOTE_FLAG}.`,
+      `DATABASE_URL points at ${target.host}. A remote reset needs a database backup first (docs/12 §5), then ${REMOTE_FLAG}.`,
     );
   }
 }

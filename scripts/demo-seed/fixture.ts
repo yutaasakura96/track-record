@@ -273,11 +273,14 @@ export interface DemoApplication {
   postingUrl: string | null;
   jobDescription: string;
   requirements: string[];
+  /**
+   * Days before the run that it was added. Every day here counts back from the
+   * run, so a reset in any month shows the same timeline, list order and `gone quiet`.
+   */
+  addedDaysAgo: number;
   /** Steps reached, in order, with the day each happened (days, not months). */
-  steps: { status: "applied" | "resume_passed" | "interview_1" | "interview_2" | "interview_final" | "offer" | "rejected" | "withdrawn"; on: string }[];
-  interviews: { on: string; round: "interview_1" | "interview_2" | "interview_final" | "other"; who: string; howItWent: string; questions: string[] }[];
-  /** Days before today of the last activity, for the list order and `gone quiet`. */
-  lastActivityDaysAgo: number;
+  steps: { status: "applied" | "resume_passed" | "interview_1" | "interview_2" | "interview_final" | "offer" | "rejected" | "withdrawn"; daysAgo: number }[];
+  interviews: { daysAgo: number; round: "interview_1" | "interview_2" | "interview_final" | "other"; who: string; howItWent: string; questions: string[] }[];
 }
 
 export const APPLICATIONS: DemoApplication[] = [
@@ -287,14 +290,15 @@ export const APPLICATIONS: DemoApplication[] = [
     postingUrl: "https://careers.example.com/northwind/staff-platform",
     jobDescription: PLATFORM_JD,
     requirements: ["8+ years in production systems", "Kubernetes, Terraform, Azure", "Led a migration end to end", "Business English and Japanese"],
+    addedDaysAgo: 25,
     steps: [
-      { status: "applied", on: "2026-09-22" },
-      { status: "resume_passed", on: "2026-09-29" },
-      { status: "interview_1", on: "2026-10-06" },
+      { status: "applied", daysAgo: 25 },
+      { status: "resume_passed", daysAgo: 18 },
+      { status: "interview_1", daysAgo: 11 },
     ],
     interviews: [
       {
-        on: "2026-10-06",
+        daysAgo: 11,
         round: "interview_1",
         who: "Engineering manager, platform",
         howItWent: "Good. Most of the hour was on the AKS migration: how I sequenced services and why the booking API went last. They pushed on the rollback-rate number and I could explain how we measured it. Weaker on the cost question — I said 28% without the before figure to hand.",
@@ -307,7 +311,6 @@ export const APPLICATIONS: DemoApplication[] = [
         ],
       },
     ],
-    lastActivityDaysAgo: 11,
   },
   {
     company: "Harbor Ledger",
@@ -315,9 +318,9 @@ export const APPLICATIONS: DemoApplication[] = [
     postingUrl: null,
     jobDescription: FINTECH_JD,
     requirements: ["5+ years backend, payments or fintech", "Go or Kotlin, PostgreSQL, Kafka", "Double-entry ledgers"],
-    steps: [{ status: "applied", on: "2026-09-25" }],
+    addedDaysAgo: 22,
+    steps: [{ status: "applied", daysAgo: 22 }],
     interviews: [],
-    lastActivityDaysAgo: 22,
   },
   {
     company: "Kumo Market",
@@ -325,15 +328,16 @@ export const APPLICATIONS: DemoApplication[] = [
     postingUrl: "https://jobs.example.com/kumo/em-web-platform",
     jobDescription: ECOMMERCE_JD,
     requirements: ["Led a frontend or full-stack team", "React and TypeScript", "Web performance results", "Business Japanese"],
+    addedDaysAgo: 60,
     steps: [
-      { status: "applied", on: "2026-08-18" },
-      { status: "resume_passed", on: "2026-08-25" },
-      { status: "interview_1", on: "2026-09-02" },
-      { status: "rejected", on: "2026-09-10" },
+      { status: "applied", daysAgo: 60 },
+      { status: "resume_passed", daysAgo: 53 },
+      { status: "interview_1", daysAgo: 45 },
+      { status: "rejected", daysAgo: 37 },
     ],
     interviews: [
       {
-        on: "2026-09-02",
+        daysAgo: 45,
         round: "interview_1",
         who: "VP Engineering",
         howItWent: "They wanted more people-management depth than I have; the checkout story landed, the hiring questions did not.",
@@ -344,7 +348,6 @@ export const APPLICATIONS: DemoApplication[] = [
         ],
       },
     ],
-    lastActivityDaysAgo: 37,
   },
   {
     company: "Aozora Analytics",
@@ -352,8 +355,8 @@ export const APPLICATIONS: DemoApplication[] = [
     postingUrl: null,
     jobDescription: DATA_JD,
     requirements: ["Python, SQL, dbt", "Azure or GCP data lake", "Healthcare data"],
+    addedDaysAgo: 2,
     steps: [],
     interviews: [],
-    lastActivityDaysAgo: 2,
   },
 ];
