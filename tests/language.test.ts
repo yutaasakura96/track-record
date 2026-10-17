@@ -125,6 +125,46 @@ describe("an English document", () => {
     expect(englishDefect(respelt, spec())).toBe("record_names");
   });
 
+  it("checks a short project name in a story heading and a short school name in a story row", () => {
+    const named = spec({
+      employers: [],
+      projects: [{ id: "project", name: "Mira", employerId: null, summary: null }],
+      educations: [{ id: "school", institution: "Aoi", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+    });
+    expect(englishDefect(content([{ key: "opening", heading: "Miro project", text: PROSE }]), named)).toBe("record_names");
+    const school = content([{ key: "anchors", heading: "Figures", text: "Aoi — graduated" }]);
+    school.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(school, named)).toBeNull();
+    school.sections[0]!.blocks[0]!.text = "Aui — graduated";
+    expect(englishDefect(school, named)).toBe("record_names");
+  });
+
+  it("limits free-text near misses to longer names used as names", () => {
+    const named = spec({ employers: [], projects: [{ id: "project", name: "Ledger", employerId: null, summary: null }] });
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The ledgers reconciled nightly." }]), named)).toBeNull();
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "I worked at Ledgr." }]), named)).toBe("record_names");
+    const short = spec({ employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null }] });
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The team called it Miro." }]), short)).toBeNull();
+  });
+
+  it("accepts a résumé that omits vocational education but keeps an unclassified school", () => {
+    const education = (id: string, institution: string, level: RenderSpec["educations"][number]["level"]): RenderSpec["educations"][number] =>
+      ({ id, institution, faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level });
+    const named = spec({ kind: "english_resume", employers: [], educations: [education("v", "Mizuki Vocational School", "vocational"), education("u", "Aoi", null)] });
+    const output = content([{ key: "education", heading: "Education", text: "Aoi — graduated" }]);
+    output.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(output, named)).toBeNull();
+  });
+
+  it("checks a short project name in a résumé project header", () => {
+    const named = spec({ kind: "english_resume", employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null }] });
+    const output = content([{ key: "projects", heading: "Projects", text: "Mira — built a service" }]);
+    output.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(output, named)).toBeNull();
+    output.sections[0]!.blocks[0]!.text = "Miro — built a service";
+    expect(englishDefect(output, named)).toBe("record_names");
+  });
+
   it("checks résumé employer headings, education rows and project lines against record names", () => {
     const resumeSpec = spec({
       kind: "english_resume",

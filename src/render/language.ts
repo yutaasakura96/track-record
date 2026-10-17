@@ -89,15 +89,21 @@ function distanceWithin(a: string, b: string, limit: number): boolean {
   return previous[b.length]! <= limit;
 }
 
-function hasRespeltName(text: string, names: readonly string[]): boolean {
+function hasRespeltName(text: string, names: readonly string[], header: boolean): boolean {
   for (const name of names) {
-    if (name.length < 6) continue;
+    // Free prose needs a six-character floor; short ordinary words resemble short names too often.
+    if (!header && name.length < 6) continue;
     const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
     if (words.length === 0) continue;
     const withoutExact = text.split(name).join(" ");
     const tokens = withoutExact.match(/[\p{L}\p{N}]+/gu) ?? [];
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
+      const first = tokens[i]!;
+      if (header && /\p{Script=Latin}/u.test(first) && !/^\p{Lu}/u.test(first)) continue;
+      if (!header && !/^[\p{Lu}\p{Script=Han}\p{Script=Katakana}]/u.test(first)) continue;
+      if (!header && words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(first) &&
+          !/^(?:at|for|from|with|project|school|employer|called|named)$/iu.test(tokens[i - 1] ?? "")) continue;
       const candidate = tokens.slice(i, i + words.length).join(" ").toLocaleLowerCase();
       if (distanceWithin(candidate, expected, name.length >= 12 ? 2 : 1)) return true;
     }
@@ -132,11 +138,12 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
   if (japaneseShare(blocks, exempt) > MAX_JAPANESE_SHARE) return "blocks";
 
   const names = [...spec.employers.map((e) => e.name), ...spec.educations.map((e) => e.institution), ...spec.projects.map((p) => p.name)];
-  if (content.sections.some((s) => hasRespeltName([s.heading, ...s.blocks.map((b) => b.text)].join("\n"), names))) {
+  if (content.sections.some((s) => s.blocks.some((b) => b.kind !== "row" && hasRespeltName(b.text, names, false)))) {
     return "record_names";
   }
-  if (content.sections.some((s) => hasChangedHeaderName(s.heading, names) ||
-      s.blocks.some((b) => b.kind === "row" && hasChangedHeaderName(b.text, names)))) return "record_names";
+  if (content.sections.some((s) => hasRespeltName(s.heading, names, true) || hasChangedHeaderName(s.heading, names) ||
+      s.blocks.some((b) => b.kind === "row" &&
+        (hasRespeltName(b.text, names, true) || hasChangedHeaderName(b.text, names))))) return "record_names";
   const nameOf = new Map(spec.employers.map((e) => [e.id, e.name]));
   for (const section of content.sections) {
     const employerId = employerIdOfChapter(section.key);
@@ -150,7 +157,7 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
     if (experience.length !== spec.employers.length) return "record_names";
     if (experience.some((s, i) => !s.heading.includes(spec.employers[i]!.name))) return "record_names";
     const educationRows = content.sections.filter((s) => s.key === "education").flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
-    const expectedSchools = spec.educations.filter((e) => e.level !== "secondary_lower" && e.level !== "secondary_upper");
+    const expectedSchools = spec.educations.filter((e) => e.level === null || e.level === "tertiary" || e.level === "postgraduate");
     if (educationRows.length !== expectedSchools.length) return "record_names";
     if (educationRows.some((row, i) => !row.text.includes(expectedSchools[i]!.institution))) return "record_names";
     const projects = content.sections.filter((s) => s.key === "projects").flatMap((s) => s.blocks.map((b) => b.text)).join("\n");

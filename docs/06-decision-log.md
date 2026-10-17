@@ -6829,3 +6829,20 @@ résumé section to one employer by key, so it would be a match on prose).
 
 **Revisit if:** a legitimate English document trips the 5% line, or Japanese documents are given an
 equivalent check (out of scope here).
+
+---
+
+### [2026-10-18] English renders check record names before review
+
+This supersedes the 2026-10-17 decision to leave résumé employer names unchecked. An English
+résumé's employer sections follow the Employers list in order, so their headings can be checked
+against that list without guessing from prose. Its education rows follow the eligible Education
+entries in order; entries below university level are omitted, while an entry with no recorded
+level is kept. Independent projects in its project section also keep their recorded names.
+
+Both English renders check headings and rows for altered employer, school and project names,
+including short names. Career-story employer chapters additionally use their employer ids to
+require the recorded name in the chapter. A near-miss scan of paragraphs and bullets uses only
+names of at least six characters and name-like context, to avoid treating ordinary word forms as
+misspelt short names. A name failure follows the same retry-once refusal path as a language
+failure. Japanese renders are outside this check.

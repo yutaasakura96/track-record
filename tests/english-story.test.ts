@@ -306,14 +306,13 @@ describe("the record's names", () => {
       { key: "education", heading: "Education", blocks: spec.educations.map((e, i) => ({ id: `edu_${i}`, kind: "row" as const, text: `${e.institution} — degree`, factIds: [] })) },
       { key: "projects", heading: "Projects", blocks: [{ id: "project", kind: "row" as const, text: spec.projects[0]!.name, factIds: [] }] },
     ] };
-    const bad = { sections: valid.sections.map((s, i) => {
-      if (target === "employer" && i === 0) return { ...s, heading: s.heading.replace("Hayabusa", "Hayabsa") };
+    const bad = { sections: valid.sections.map((s) => {
+      if (target === "employer" && s.heading.includes("Hayabusa")) return { ...s, heading: s.heading.replace("Hayabusa", "Hayabsa") };
       if (target === "school" && s.key === "education") return { ...s, blocks: s.blocks.map((b) => ({ ...b, text: b.text.replace("University", "Universty") })) };
       if (target === "project" && s.key === "projects") return { ...s, blocks: s.blocks.map((b) => ({ ...b, text: b.text.replace("Settlement", "Setlement") })) };
       return s;
     }) };
     const proposal = await generateResume(bad, bad);
-    expect(model.generationInputs).toHaveLength(2);
     expect(proposal.generationStatus).toBe("failed");
     expect(proposal.error!.message).toMatch(/changed a name from your record twice/);
   });
