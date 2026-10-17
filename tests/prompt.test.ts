@@ -290,10 +290,10 @@ describe("a Japanese field in an English prompt", () => {
 
   it("is what both English registers say to write in English or leave out", () => {
     for (const kind of ["english_resume", "career_story_en"] as const) {
-      const register = RENDER_DEFINITIONS[kind].register;
-      expect(register.split("\n")[0]).toContain("in English");
-      expect(register).toContain("Every heading, paragraph, bullet and row is written in English.");
-      expect(register).toContain(
+      const prompt = buildGenerationPrompt(spec([education()], { kind, register: RENDER_DEFINITIONS[kind].register }));
+      expect(prompt).toContain("Language — English, throughout:");
+      expect(prompt).toContain("Every heading, paragraph, bullet and row is written in English.");
+      expect(prompt).toContain(
         `opens with ${JAPANESE_ONLY_LABEL} is held only in Japanese. Write what it says in English, or leave it out.`,
       );
     }

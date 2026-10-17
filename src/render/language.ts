@@ -74,16 +74,56 @@ export function japaneseShare(texts: readonly string[], exempt: readonly string[
   return total === 0 ? 0 : japanese / total;
 }
 
-export type EnglishDefect = "headings" | "blocks" | "employer_names";
+export type EnglishDefect = "headings" | "blocks" | "record_names";
+
+function distanceWithin(a: string, b: string, limit: number): boolean {
+  if (Math.abs(a.length - b.length) > limit) return false;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++) {
+      next[j] = Math.min(previous[j]! + 1, next[j - 1]! + 1, previous[j - 1]! + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous = next;
+  }
+  return previous[b.length]! <= limit;
+}
+
+function hasRespeltName(text: string, names: readonly string[]): boolean {
+  for (const name of names) {
+    if (name.length < 6) continue;
+    const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+    if (words.length === 0) continue;
+    const withoutExact = text.split(name).join(" ");
+    const tokens = withoutExact.match(/[\p{L}\p{N}]+/gu) ?? [];
+    const expected = words.join(" ").toLocaleLowerCase();
+    for (let i = 0; i <= tokens.length - words.length; i++) {
+      const candidate = tokens.slice(i, i + words.length).join(" ").toLocaleLowerCase();
+      if (distanceWithin(candidate, expected, name.length >= 12 ? 2 : 1)) return true;
+    }
+  }
+  return false;
+}
+
+function hasChangedHeaderName(text: string, names: readonly string[]): boolean {
+  const tokens = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  for (const name of names) {
+    if (text.includes(name)) continue;
+    const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+    if (words.length < 2 || words[0]!.length < 5) continue;
+    for (let i = 0; i < tokens.length - 1; i++) {
+      if (distanceWithin(tokens[i]!.toLocaleLowerCase(), words[0]!.toLocaleLowerCase(), 1) &&
+          distanceWithin(tokens[i + 1]!.toLocaleLowerCase(), words[1]!.toLocaleLowerCase(), 1)) return true;
+    }
+  }
+  return false;
+}
 
 /**
  * What is wrong with an English document, or null when nothing this checks is.
  *
- * `employer_names` is the second half of the same failure: the story that came
- * back in Japanese also respelt three of the record's names. An employer's
- * chapter is keyed by that employer's id, so whether it names its employer as
- * the record writes it is a lookup rather than a guess. The other renders are
- * not checked for it here: nothing ties a résumé section to one employer.
+ * Names in record-backed locations and near-miss spellings in any output text
+ * are checked against the same spec supplied to the model.
  */
 export function englishDefect(content: RenderContent, spec: RenderSpec): EnglishDefect | null {
   const exempt = japaneseOnlyNames(spec);
@@ -91,13 +131,30 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
   const blocks = content.sections.flatMap((s) => s.blocks.map((b) => b.text));
   if (japaneseShare(blocks, exempt) > MAX_JAPANESE_SHARE) return "blocks";
 
+  const names = [...spec.employers.map((e) => e.name), ...spec.educations.map((e) => e.institution), ...spec.projects.map((p) => p.name)];
+  if (content.sections.some((s) => hasRespeltName([s.heading, ...s.blocks.map((b) => b.text)].join("\n"), names))) {
+    return "record_names";
+  }
+  if (content.sections.some((s) => hasChangedHeaderName(s.heading, names) ||
+      s.blocks.some((b) => b.kind === "row" && hasChangedHeaderName(b.text, names)))) return "record_names";
   const nameOf = new Map(spec.employers.map((e) => [e.id, e.name]));
   for (const section of content.sections) {
     const employerId = employerIdOfChapter(section.key);
     const name = employerId === null ? undefined : nameOf.get(employerId);
     if (name === undefined) continue;
     const said = [section.heading, ...section.blocks.map((b) => b.text)].join("\n");
-    if (!said.includes(name)) return "employer_names";
+    if (!said.includes(name)) return "record_names";
+  }
+  if (spec.kind === "english_resume") {
+    const experience = content.sections.filter((s) => s.key === "experience");
+    if (experience.length !== spec.employers.length) return "record_names";
+    if (experience.some((s, i) => !s.heading.includes(spec.employers[i]!.name))) return "record_names";
+    const educationRows = content.sections.filter((s) => s.key === "education").flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
+    const expectedSchools = spec.educations.filter((e) => e.level !== "secondary_lower" && e.level !== "secondary_upper");
+    if (educationRows.length !== expectedSchools.length) return "record_names";
+    if (educationRows.some((row, i) => !row.text.includes(expectedSchools[i]!.institution))) return "record_names";
+    const projects = content.sections.filter((s) => s.key === "projects").flatMap((s) => s.blocks.map((b) => b.text)).join("\n");
+    if (spec.projects.some((p) => p.employerId === null && !projects.includes(p.name))) return "record_names";
   }
   return null;
 }
@@ -112,6 +169,9 @@ export const ENGLISH_DEFECT_REASON: Record<EnglishDefect, string> = {
     "The model wrote this English document's headings in Japanese, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
   blocks:
     "The model wrote this English document partly in Japanese, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
-  employer_names:
-    "The model did not name every employer the way your record writes it, twice, so this document was not offered for review. Your current version is unchanged; generate again to retry.",
+  record_names:
+    "The model changed a name from your record twice, so this document was not offered for review. Your current version is unchanged; generate again to retry.",
 };
+
+export const MIXED_ENGLISH_DEFECT_REASON =
+  "The model returned two English documents with different language or record name errors, so neither was offered for review. Your current version is unchanged; generate again to retry.";

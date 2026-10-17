@@ -28,7 +28,7 @@ import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
-import { ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
+import { ENGLISH_DEFECT_REASON, MIXED_ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { curatedGroups, curationForRender } from "./skills";
@@ -422,7 +422,9 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
       console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
       content = await generate();
       const second = englishDefect(content, inputs.spec);
-      if (second !== null) throw new ModelUnavailableError(ENGLISH_DEFECT_REASON[second], second);
+      if (second !== null) {
+        throw new ModelUnavailableError(first === second ? ENGLISH_DEFECT_REASON[second] : MIXED_ENGLISH_DEFECT_REASON, second);
+      }
     }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db

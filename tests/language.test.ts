@@ -113,7 +113,36 @@ describe("an English document", () => {
         s.key === employerChapterKey("emp_a") ? { ...s, heading: "Four years at Hayabusa Computing" } : s,
       ),
     };
-    expect(englishDefect(respelt, spec())).toBe("employer_names");
+    expect(englishDefect(respelt, spec())).toBe("record_names");
+  });
+
+  it("rejects a misspelt story heading even when its paragraph has the exact name", () => {
+    const respelt = {
+      sections: english.sections.map((s) =>
+        s.key === employerChapterKey("emp_a") ? { ...s, heading: "Four years at Hayabsa Computing Co., Ltd." } : s,
+      ),
+    };
+    expect(englishDefect(respelt, spec())).toBe("record_names");
+  });
+
+  it("checks résumé employer headings, education rows and project lines against record names", () => {
+    const resumeSpec = spec({
+      kind: "english_resume",
+      employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")],
+      educations: [{ id: "school", institution: "Shirasagi University", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+      projects: [{ id: "project", name: "Settlement ledger rebuild", employerId: null, summary: null }],
+    });
+    const resume = content([
+      { key: "experience", heading: "Hayabusa Computing Co., Ltd. — Engineer", text: PROSE },
+      { key: "education", heading: "Education", text: "Shirasagi University — B.Eng." },
+      { key: "projects", heading: "Projects", text: "Settlement ledger rebuild — improved reconciliation." },
+    ]);
+    resume.sections[1]!.blocks[0]!.kind = "row";
+    expect(englishDefect(resume, resumeSpec)).toBeNull();
+    for (const [index, replacement] of [[0, "Hayabsa Computing Co., Ltd. — Engineer"], [1, "Shirasagi Universty — B.Eng."], [2, "Settlement ledgr rebuild — improved reconciliation."]] as const) {
+      const changed = { sections: resume.sections.map((s, i) => i === index ? { ...s, ...(index === 0 ? { heading: replacement } : { blocks: [{ ...s.blocks[0]!, text: replacement }] }) } : s) };
+      expect(englishDefect(changed, resumeSpec)).toBe("record_names");
+    }
   });
 
   it("does not look for an employer name in a chapter keyed to no employer the spec holds", () => {
