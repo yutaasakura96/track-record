@@ -28,6 +28,7 @@ import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
+import { ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { curatedGroups, curationForRender } from "./skills";
@@ -212,6 +213,13 @@ export async function collectRenderInputs(
     ...usable.flatMap((f) => f.technologies),
     ...certificationRows.flatMap((c) => c.technologies),
   ]);
+  // A fact repeats its employer's industry and its project's summary, and an
+  // English prompt can label neither inside the facts' JSON. Repeated once per
+  // fact, an unlabelled Japanese industry was the commonest Japanese in the
+  // prompt of the English story that came back in Japanese (issue #104). The
+  // Employers and Projects lists still carry both, labelled.
+  const carried = (value: string | null) =>
+    definition.language === "en" && value !== null && hasJapaneseScript(value) ? null : value;
   const renderFacts: RenderFact[] = usable.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
@@ -228,12 +236,17 @@ export async function collectRenderInputs(
               name: nameInLanguage(definition.language, employer.nameJa, employer.nameLatin),
               startedOn: employer.startedOn,
               endedOn: employer.endedOn,
-              industry: employer.industryJa,
+              industry: carried(employer.industryJa),
             },
           }
         : {}),
       ...(project
-        ? { project: { name: nameInLanguage(definition.language, project.nameJa, project.name), summary: project.summary } }
+        ? {
+            project: {
+              name: nameInLanguage(definition.language, project.nameJa, project.name),
+              summary: carried(project.summary),
+            },
+          }
         : {}),
     };
   });
@@ -386,13 +399,31 @@ export interface GenerateArgs {
  */
 export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
   const { db, model, userId, proposalId, inputs } = args;
+  // Summed across attempts: a retried generation is two billed calls, and the
+  // row reporting one of them would understate what the document cost. Kept
+  // outside the `try` so a generation refused after its retry still records
+  // the two calls it spent.
+  let usage: ModelUsage | null = null;
   try {
-    let usage: ModelUsage | null = null;
-    const content = await model.generateRender(inputs.facts, inputs.spec, {
-      onUsage: (u) => {
-        usage = u;
-      },
-    });
+    const generate = () =>
+      model.generateRender(inputs.facts, inputs.spec, {
+        onUsage: (u) => {
+          usage = usage === null ? u : addUsage(usage, u);
+        },
+      });
+    let content = await generate();
+    // Issue #104. An English document that comes back in Japanese, or with a
+    // chapter that respells its employer, is retried once and then refused —
+    // never landed as a proposal, because the review screen cannot show a
+    // heading change and the author would accept what they could not see.
+    const first = inputs.spec.language === "en" ? englishDefect(content, inputs.spec) : null;
+    if (first !== null) {
+      // Ids and the defect's name only.
+      console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
+      content = await generate();
+      const second = englishDefect(content, inputs.spec);
+      if (second !== null) throw new ModelUnavailableError(ENGLISH_DEFECT_REASON[second], second);
+    }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
@@ -412,9 +443,18 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         : "This document could not be generated. Your current version is unchanged.";
     await db
       .update(renderProposals)
-      .set({ generationStatus: "failed", generationError: reason, updatedAt: new Date() })
+      .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
       .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
     // Ids only. Never the facts sent, never the content returned.
     console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
+}
+
+function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheCreationInputTokens: a.cacheCreationInputTokens + b.cacheCreationInputTokens,
+    cacheReadInputTokens: a.cacheReadInputTokens + b.cacheReadInputTokens,
+  };
 }

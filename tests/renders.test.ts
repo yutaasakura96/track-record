@@ -2060,7 +2060,7 @@ describe("a version is read as its download would hold it", () => {
 describe("a career story is planned from the record before it is written", () => {
   const STORY: RenderContent = {
     sections: [
-      { key: "opening", heading: "How it started", blocks: [{ id: "blk_1", kind: "paragraph", text: "架空の導入。", factIds: [] }] },
+      { key: "opening", heading: "How it started", blocks: [{ id: "blk_1", kind: "paragraph", text: "An invented opening.", factIds: [] }] },
     ],
   };
 
