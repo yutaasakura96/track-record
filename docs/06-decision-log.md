@@ -6639,3 +6639,33 @@ save and a reload opens it where it was left. It is the owner's own device, and 
 
 **Revisit if:** a render needs a captured fact's month, which would add it to what generation is
 given (`03` §4.2).
+
+---
+
+### [2026-10-17] A demo seed resets one user to a complete invented record
+
+The owner, looking at the live site, asked for fake data so the screens are not blank, and then
+said to delete what is in there and recreate it from scratch so nothing is inconsistent. The
+product and UX evaluation of the same day wrote and tested the seed; it is committed as
+`scripts/demo-seed/` and run as `npm run db:seed:demo` (`docs/12` §5a).
+
+**Documents go through `runImport` with a scripted model.** Chunking, quote anchoring, the
+confidential-shape scrub, grading, flags and repeat detection run as they do for an upload, so the
+demo cannot drift from the app's invariants, and a reset needs no API key. Rejected: inserting facts
+directly, which skips every rule the import enforces.
+
+**The reset is one user's, in foreign-key order, in one transaction, and keeps the sign-in.** It
+deletes everything the user owns except `users`, `sessions`, `accounts` and `verifications`. A test
+compares the order with every table that has a `user_id` column, so a table added later fails the
+suite until it is listed. Rejected: deleting the user, which signs the owner out and re-keys the
+Google account link.
+
+**Refusals, all before a write:** `track_record_test`; a remote host without `--remote-after-backup`;
+a user with an uploaded recording not yet removed, without `--recordings-deleted`, because R2 is
+outside the script's reach and the objects are keyed by the user id. Production is run only on the
+owner's instruction, after a backup.
+
+**Renders are not seeded.** A résumé is the model's work, and Generate is the step a demo is for.
+
+**Revisit if:** a stored render fixture is wanted so Home shows documents straight after a reset (it
+needs stable fact ids or a fixture that names facts by claim), or a second persona is wanted.

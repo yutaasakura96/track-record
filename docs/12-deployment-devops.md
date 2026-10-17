@@ -317,6 +317,55 @@ try to create every table again.
 
 ---
 
+## 5a. Resetting a record to the demo record
+
+`npm run db:seed:demo [-- --email <address>]` replaces one user's whole record with an invented one
+(Kenji Moriyama, four employers, seven documents, 59 facts, four applications) so every screen has
+something on it. Decision log, 2026-10-17. Renders are not seeded; press Generate afterwards.
+
+**Locally**, against `track_record_dev` (`DATABASE_URL` from `.dev.vars`, user `dev-session@example.invalid`
+unless `--email` says otherwise): run `npm run dev:session` once so the user exists, then the command.
+Documents go through `runImport` with a scripted model, so it needs no API key. Two runs in a row print
+identical counts. It refuses `track_record_test`, a remote host without `--remote-after-backup`, and a
+user with uploaded recordings unless `--recordings-deleted` is passed.
+
+**What it deletes**, children first, for that user only (`RESET_ORDER` in `scripts/demo-seed/demo.ts`):
+`interview_recordings`, `interview_questions`, `interviews`; `application_sent_copies`,
+`application_documents`, `application_steps`; `render_proposals`, `render_versions`, `renders`;
+`applications`; `fact_flags`, `facts`; `import_chunks`, `source_document_versions`,
+`source_documents`; `skill_curations`, `render_inclusions`; `certifications`, `educations`; `projects`,
+`roles`, `employers`; `profiles`. Several foreign keys are `RESTRICT`, so the order is not optional.
+It keeps `users`, `sessions`, `accounts` and `verifications`: the owner stays signed in with the same
+Google account. Uploaded documents and sent copies live in Postgres columns; only recordings are in R2.
+
+**Production** is a deliberate, owner-approved step, because it replaces the real record:
+
+1. **Back up.** Take `GET /api/export` and note the Neon restore point (§5). The reset cannot be undone
+   by the app.
+2. **Sign in once** with the owner's Google account, so the user row exists and is the one to keep.
+3. **Delete the R2 objects** under `<userId>/` in the `track-record-recordings` bucket. Objects only,
+   never the bucket (`recordingObjectKey` in `src/server/services/recording-store.ts`).
+4. **Run it**, from a checkout of the deployed commit:
+
+   ```sh
+   DATABASE_URL='<production connection string>' npm run db:seed:demo -- --email <owner email> --remote-after-backup --recordings-deleted
+   ```
+
+   `--recordings-deleted` only when step 3 had objects to delete; without it the command stops while
+   upload rows remain.
+5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 34
+   flags, 21 skills, 4 applications, 2 interviews. Then, on the production database:
+
+   ```sql
+   select count(*) from facts where user_id <> '<userId>';   -- 0 on a one-user database
+   ```
+
+   Listing `<userId>/` in the bucket returns nothing. In the app, Home offers Generate for the résumé,
+   Flagged shows 34, Applications shows 4 with one gone quiet, and the sidebar shows Kenji Moriyama.
+   After generating a résumé, `npm run check:attribution -- --latest` exits 0.
+
+---
+
 ## 6. Incident: a leaked key
 
 First three steps, written now rather than during the fire.
