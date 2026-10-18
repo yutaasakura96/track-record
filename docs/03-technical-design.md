@@ -540,7 +540,8 @@ facts.
 
 **The author's own PII** — home address, phone, date of birth — is a **per-render field rule**, not
 a disclosure tier. It populates 履歴書 and appears in no other render. This is enforced in the
-render spec, not by fact disclosure.
+render spec, not by fact disclosure. The English résumé may use only its separate, opt-in
+`resume_phone` field; it never reads the 履歴書 `phone` (`docs/04` §3.2).
 
 ---
 
