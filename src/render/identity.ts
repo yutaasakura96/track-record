@@ -75,13 +75,8 @@ export interface ResumeHeader {
   portfolioUrl: string | null;
 }
 
-/** A link as a reader types it: no scheme, no `www.`, no trailing slash. */
 export function displayAddress(url: string): string {
-  return url
-    .trim()
-    .replace(/^https?:\/\//i, "")
-    .replace(/^www\./i, "")
-    .replace(/\/+$/, "");
+  return url.replace(/^https?:\/\//i, "");
 }
 
 /**

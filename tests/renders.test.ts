@@ -1056,13 +1056,14 @@ describe("documents and downloads", () => {
       resumeCountry: "Japan",
       resumePhone: "+81 90-0000-9999",
       resumeLinkedinUrl: "https://www.linkedin.com/in/yosuke-aoki-example/",
-      resumeGithubUrl: "github.com/yosuke-example",
+      resumeGithubUrl: "github.com/yosuke-example/",
+      resumePortfolioUrl: "http://www.example.invalid/work/",
     });
     const filled = await header();
     expect(filled.split("\n")).toEqual([
       "**Yosuke Aoki**",
       "Backend Engineer",
-      `Tokyo, Japan · ${PROFILE_FIXTURE.email} · +81 90-0000-9999 · linkedin.com/in/yosuke-aoki-example · github.com/yosuke-example`,
+      `Tokyo, Japan · ${PROFILE_FIXTURE.email} · +81 90-0000-9999 · www.linkedin.com/in/yosuke-aoki-example/ · github.com/yosuke-example/ · www.example.invalid/work/`,
     ]);
     expect(filled).not.toContain(PROFILE_FIXTURE.phone);
     expect(filled).not.toContain(PROFILE_FIXTURE.address);
