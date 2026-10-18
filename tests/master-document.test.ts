@@ -128,7 +128,6 @@ describe("the master document", () => {
       private: 1,
       generated: 1,
       keptOut: 2,
-      unused: 2,
       flags: 3,
       waiting: 0,
       // 2022-04 to 2024-09, the one employment.
@@ -217,7 +216,6 @@ describe("the master document", () => {
       private: 0,
       generated: 0,
       keptOut: 0,
-      unused: 0,
       flags: 0,
       waiting: 0,
       years: null,
@@ -248,7 +246,7 @@ describe("the master document", () => {
     expect((await master()).counts.flags).toBe(summary.openFlags);
   });
 
-  it("marks the facts the current version of a document cites, and counts the usable ones none cites", async () => {
+  it("marks the facts the current version of a document cites", async () => {
     await seedRecord();
     const usable = everyFact(await master()).find((fact) => fact.claim === USABLE.claim)!;
 
@@ -262,7 +260,6 @@ describe("the master document", () => {
 
     let doc = await master();
     expect(everyFact(doc).filter((fact) => fact.used).map((fact) => fact.claim)).toEqual([USABLE.claim]);
-    expect(doc.counts.unused).toBe(1);
 
     // A later version that cites nothing: the fact is not used any more.
     model.generations = [cites([])];
@@ -271,7 +268,6 @@ describe("the master document", () => {
     expect((await client.post(`/api/proposals/${next.proposalId}/accept`)).status).toBe(200);
     doc = await master();
     expect(everyFact(doc).some((fact) => fact.used)).toBe(false);
-    expect(doc.counts.unused).toBe(2);
   });
 });
 

@@ -12,7 +12,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { screen, within } from "@testing-library/react";
-import type { MasterDocument, MasterFact } from "~/shared/master-document";
+import { figures, type MasterDocument, type MasterFact } from "~/shared/master-document";
 import { useDocumentLanguageStore } from "~/client/stores/document-language";
 import { mount, Refusal, type Routes } from "./harness";
 
@@ -32,12 +32,13 @@ const USABLE = fact();
 const PRIVATE = fact({ id: "fct-test-2", claim: "Rebuilt the zentrel ledger", provenance: "attested", disclosure: "private", flags: ["confidential"] });
 const GENERATED = fact({ id: "fct-test-3", claim: "Improved delivery confidence", provenance: "generated", flags: ["unsure"], source: null });
 const SIDE = fact({ id: "fct-test-4", claim: "Published a tide-table tool", provenance: "attested" });
+const UNNUMBERED = fact({ id: "fct-test-5", claim: "Halved processing time" });
 
 const master = (over: Partial<MasterDocument> = {}): MasterDocument => ({
   language: "en",
   builtAt: "2026-10-08T03:00:00.000Z",
   subjectName: "Test Author",
-  counts: { facts: 4, usable: 2, private: 1, generated: 1, keptOut: 2, unused: 2, flags: 2, waiting: 0, years: 4 },
+  counts: { facts: 4, usable: 2, private: 1, generated: 1, keptOut: 2, flags: 2, waiting: 0, years: 4 },
   employers: [
     {
       id: "emp-test-1",
@@ -152,15 +153,20 @@ describe("the career record", () => {
   });
 
   it("filters to Results with a number, to what is kept out, and to what no document uses yet", async () => {
-    const { user } = open(master({ employers: [{ ...master().employers[0]!, projects: [{ ...master().employers[0]!.projects[0]!, facts: [{ ...USABLE, used: true }, PRIVATE] }] }] }));
+    const { user } = open(master({
+      counts: { ...master().counts, facts: 5, usable: 3 },
+      employers: [{ ...master().employers[0]!, projects: [{ ...master().employers[0]!.projects[0]!, facts: [{ ...USABLE, used: true }, UNNUMBERED, PRIVATE] }] }],
+    }));
     await rowOf(USABLE.claim);
     const pill = (name: RegExp) => within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name });
+    const project = screen.getByRole("region", { name: "Plinth build" });
+    expect(within(within(project).getByRole("list", { name: "Results" })).getAllByRole("link").map((link) => link.textContent)).toEqual([USABLE.claim, UNNUMBERED.claim]);
 
     expect(within(screen.getByRole("group", { name: "Show" })).getAllByRole("button").map((b) => b.textContent)).toEqual([
       "Everything",
       "Results with a number 1",
       "Kept out of documents 2",
-      "Not used in any document yet 1",
+      "Not used in any document yet 2",
     ]);
 
     await user.click(pill(/^Results with a number/));
@@ -178,10 +184,18 @@ describe("the career record", () => {
     ]);
 
     await user.click(pill(/^Not used in any document yet/));
-    expect(claims()).toEqual([SIDE.claim]);
+    expect(claims()).toEqual([UNNUMBERED.claim, SIDE.claim]);
 
     await user.click(pill(/^Everything/));
-    expect(claims()).toEqual([USABLE.claim, PRIVATE.claim, GENERATED.claim, SIDE.claim]);
+    expect(claims()).toEqual([USABLE.claim, UNNUMBERED.claim, PRIVATE.claim, GENERATED.claim, SIDE.claim]);
+  });
+
+  it("recognizes written figures with units without marking one of", () => {
+    for (const word of ["one", "thirteen", "fourteen", "sixteen", "seventeen", "eighteen", "nineteen"]) {
+      expect(figures(`Supported ${word} teams`).filter((part) => part.figure).map((part) => part.text)).toEqual([`${word} teams`]);
+    }
+    expect(figures("One of the teams").some((part) => part.figure)).toBe(false);
+    expect(figures("Migrated to Java 17", ["Java 17"]).some((part) => part.figure)).toBe(false);
   });
 
   it("shows what is kept out from the count line, and opens on the filter in the address", async () => {
@@ -229,7 +243,7 @@ describe("the career record", () => {
   it("offers no download and says what to do while the record holds no fact", async () => {
     open(
       master({
-        counts: { facts: 0, usable: 0, private: 0, generated: 0, keptOut: 0, unused: 0, flags: 0, waiting: 0, years: null },
+        counts: { facts: 0, usable: 0, private: 0, generated: 0, keptOut: 0, flags: 0, waiting: 0, years: null },
         employers: [],
         independent: { projects: [], facts: [] },
         educations: [],
@@ -242,7 +256,7 @@ describe("the career record", () => {
 
   it("downloads roles, education and certifications even without an accepted fact", async () => {
     const { api, user } = open(master({
-      counts: { facts: 0, usable: 0, private: 0, generated: 0, keptOut: 0, unused: 0, flags: 0, waiting: 0, years: 4 },
+      counts: { facts: 0, usable: 0, private: 0, generated: 0, keptOut: 0, flags: 0, waiting: 0, years: 4 },
       employers: [{ ...master().employers[0]!, projects: [], facts: [] }],
       independent: { projects: [], facts: [] },
     }), {

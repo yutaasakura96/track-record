@@ -55,7 +55,7 @@ export const MASTER_FILTERS = ["results", "kept-out", "unused"] as const;
 export type MasterFilter = (typeof MASTER_FILTERS)[number];
 
 const FILTER: Record<MasterFilter, { label: string; matches: (fact: MasterFact) => boolean }> = {
-  results: { label: "Results with a number", matches: (fact) => fact.provenance === "measured" },
+  results: { label: "Results with a number", matches: (fact) => fact.provenance === "measured" && figures(fact.claim, fact.technologies).some((part) => part.figure) },
   "kept-out": { label: "Kept out of documents", matches: keptOut },
   unused: { label: "Not used in any document yet", matches: (fact) => !keptOut(fact) && !fact.used },
 };

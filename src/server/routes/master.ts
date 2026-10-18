@@ -229,7 +229,6 @@ export async function buildMasterDocument(
       private: factRows.filter((f) => f.disclosure === "private").length,
       generated: factRows.filter((f) => f.provenance === "generated").length,
       keptOut: factRows.filter((f) => keptOut(f)).length,
-      unused: factRows.filter((f) => !keptOut(f) && !cited.has(f.id)).length,
       // Every open flag, as the sidebar counts them, not the facts carrying one.
       flags: flagRows.length,
       waiting: waiting?.n ?? 0,

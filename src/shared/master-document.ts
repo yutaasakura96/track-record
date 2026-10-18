@@ -71,8 +71,6 @@ export interface MasterDocument {
     generated: number;
     /** Private or Generated, or both: what no document may use. */
     keptOut: number;
-    /** Usable, and cited by the current version of no document. */
-    unused: number;
     /**
      * Flags not marked checked, on facts not rejected: the number beside
      * `Flagged` in the sidebar, in the same unit (issue #112). It counted facts
@@ -229,8 +227,8 @@ const UNIT =
   "customers?|participants?|countries|languages|releases?|times)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const WORD_NUMBER =
-  `(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
-  `twelve|fifteen|${TENS}|hundreds|thousands|millions)`;
+  `(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
+  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS}|hundreds|thousands|millions)`;
 /** The counters a Japanese figure is written with: 30%, 3倍, 5名, 2年. */
 const COUNTER = "(?:%|％|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 // Thousands commas, and at most one decimal point: `1,200`, `0.42`.

@@ -1276,7 +1276,7 @@ page lists, the note `The file includes Private facts. It is your copy.` and **`
    sidebar counts them**, open flags rather than facts with a flag, so the two numbers agree.
    `across N years` runs from the first employment or project to the last, or to today.
 4. **The filters**, filter pills in a group named `Show`: `Everything`, `Results with a number N`
-   (Measured), `Kept out of documents N` (Private or Generated), and `Not used in any document yet N`
+   (Measured facts whose claim contains a figure, using the same rule as highlighted numbers), `Kept out of documents N` (Private or Generated), and `Not used in any document yet N`
    (usable, and cited by the current version of no document, tailored résumés included). The one on
    is kept in the address as `?show=results`, `kept-out` or `unused`. Under a filter, a project or a
    chapter with nothing to show is left out, with its contents line, and so is `Education and

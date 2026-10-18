@@ -968,7 +968,7 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
   "builtAt": "2026-10-08T03:00:00Z",
   "subjectName": "Yosuke Aoki",
   "counts": {
-    "facts": 214, "usable": 180, "private": 22, "generated": 12, "keptOut": 34, "unused": 41,
+    "facts": 214, "usable": 180, "private": 22, "generated": 12, "keptOut": 34,
     "flags": 17, "waiting": 0, "years": 11
   },
   "employers": [
@@ -989,7 +989,7 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 - A fact is `{ id, claim, provenance, disclosure, technologies, flags, source, used }`. `flags` is
   the kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null` (added by
   hand); `used` is whether the current version of any document, tailored résumés included, cites it.
-- `counts.keptOut` is Private or Generated; `counts.unused` is usable and not `used`. **`counts.flags`
+- `counts.keptOut` is Private or Generated. **`counts.flags`
   is open flags, in the unit `GET /api/imports/summary`'s `openFlags` counts** (#112): it counted
   facts with a flag, and the page and the sidebar disagreed. `counts.years` is whole years from the
   first employment or project to the last, or to today, and `null` with no dates.
