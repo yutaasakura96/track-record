@@ -19,7 +19,7 @@
  */
 import { diffArrays } from "diff";
 import { segmentJapanese } from "~/segment";
-import type { Block, RenderContent } from "~/shared/render-content";
+import type { Block, RenderContent, RenderSection } from "~/shared/render-content";
 
 /**
  * Which tokenizer the two passes run on. It comes from the render kind
@@ -37,6 +37,7 @@ export interface DiffToken {
 }
 
 export type RationaleKind =
+  | "heading_changed"
   | "from_facts"
   | "removed_no_support"
   | "removed_unverified"
@@ -49,8 +50,17 @@ export interface Rationale {
   factIds: string[];
 }
 
+/**
+ * What a change is a change to. A section's heading is not a block: it has no
+ * id, no facts behind it and nothing aligns it, but a regeneration can rewrite
+ * every one of them, and a review that cannot show that is not a review.
+ */
+export type ChangeTarget = "block" | "heading";
+
 export interface DiffChange {
   changeId: string;
+  /** `heading` changes carry null block ids and read the heading's own tokens. */
+  target: ChangeTarget;
   sectionKey: string;
   currentBlockId: string | null;
   proposedBlockId: string | null;
@@ -96,7 +106,16 @@ export function diffRenders(
 
   for (const section of proposed.sections) {
     seenSections.add(section.key);
-    const before = currentSections.get(section.key)?.blocks ?? [];
+    const currentSection = currentSections.get(section.key);
+    const before = currentSection?.blocks ?? [];
+
+    const heading = headingChange(currentSection, section, options.language);
+    if (heading) {
+      if (heading.some((t) => t.op === "add")) additions++;
+      if (heading.some((t) => t.op === "remove")) removals++;
+      changes.push(headingEntry(++n, section.key, heading, currentSection, section));
+    }
+
     for (const pair of alignBlocks(before, section.blocks, options.language)) {
       const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
@@ -110,6 +129,7 @@ export function diffRenders(
 
       changes.push({
         changeId: `chg_${++n}`,
+        target: "block",
         sectionKey: section.key,
         currentBlockId: pair.current?.id ?? null,
         proposedBlockId: pair.proposed?.id ?? null,
@@ -123,10 +143,16 @@ export function diffRenders(
   // wholesale removal, and each of its blocks still needs its own explanation.
   for (const [key, section] of currentSections) {
     if (seenSections.has(key)) continue;
+    const heading = headingChange(section, undefined, options.language);
+    if (heading) {
+      removals++;
+      changes.push(headingEntry(++n, key, heading, section, undefined));
+    }
     for (const block of section.blocks) {
       removals++;
       changes.push({
         changeId: `chg_${++n}`,
+        target: "block",
         sectionKey: key,
         currentBlockId: block.id,
         proposedBlockId: null,
@@ -137,6 +163,62 @@ export function diffRenders(
   }
 
   return { additions, removals, changes };
+}
+
+/* ------------------------------------------------------------- headings */
+
+/**
+ * The tokens of a heading change, or null when there is none to show.
+ *
+ * A section with no blocks is not in the document (`docs/10` Screen 9: it
+ * "disappears from the document and keeps its heading"), so a heading nobody
+ * would read is not a change anybody can review.
+ */
+function headingChange(
+  current: RenderSection | undefined,
+  proposed: RenderSection | undefined,
+  language: DiffLanguage,
+): DiffToken[] | null {
+  const shown = (s: RenderSection | undefined) => (s && s.blocks.length > 0 ? s.heading : null);
+  const before = shown(current);
+  const after = shown(proposed);
+  if (before === after) return null;
+  if (before === null) return [{ op: "add", text: after! }];
+  if (after === null) return [{ op: "remove", text: before }];
+  return diffArrays(tokensFor(before, language), tokensFor(after, language)).map((part) => ({
+    op: part.added ? "add" : part.removed ? "remove" : "equal",
+    text: part.value.join(""),
+  }));
+}
+
+function headingEntry(
+  n: number,
+  sectionKey: string,
+  tokens: DiffToken[],
+  current: RenderSection | undefined,
+  proposed: RenderSection | undefined,
+): DiffChange {
+  const shownBefore = current !== undefined && current.blocks.length > 0;
+  const shownAfter = proposed !== undefined && proposed.blocks.length > 0;
+  return {
+    changeId: `chg_${n}`,
+    target: "heading",
+    sectionKey,
+    currentBlockId: null,
+    proposedBlockId: null,
+    tokens,
+    rationale: {
+      kind: "heading_changed",
+      // A heading is written with its section, not from a fact, so there is no
+      // source to cite. Saying so is the rationale; an empty one is a defect.
+      text: !shownBefore
+        ? "Heading of a new section · written with the section, not from a fact"
+        : !shownAfter
+          ? "Heading removed with its section"
+          : "Heading rewritten · headings are written with the section, not from a fact",
+      factIds: [],
+    },
+  };
 }
 
 /* -------------------------------------------------------- pass 1: alignment */

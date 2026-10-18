@@ -58,6 +58,7 @@ const DIFF: RenderDiff = {
   changes: [
     {
       changeId: "chg-test-1",
+      target: "block",
       sectionKey: "experience",
       currentBlockId: "blk-test-3",
       proposedBlockId: "blk-test-1",

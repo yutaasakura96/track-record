@@ -350,6 +350,7 @@ generation safe.
 - An addition with no counterpart shows `no matching line` in the opposite column, on a hatched empty cell; a removal shows `removed`.
 - Changed rows carry a 5%-opacity tone tint; the marks themselves carry 11% idle / 26% selected.
 - Clicking any mark selects that change and updates the rationale bar. Prev/next cycles in document order.
+- **A section heading is a change like any block.** It is set at the heading size, labelled `Heading`, and carries its own rationale (`Heading rewritten · headings are written with the section, not from a fact`): a heading cites no fact. It comes before the changes to its section's blocks, counts in the additions and removals, and a heading that only exists on one side shows `no matching line` opposite. A section with no blocks is not in the document, so its heading is not diffed. Without this a regeneration could retitle every chapter of a career story and the review showed nothing (#105).
 
 ### The rationale bar — required, not decorative
 
@@ -369,6 +370,17 @@ A change with no explanation is a defect.
 - `v<n-1> and every earlier version stay restorable from version history.`
 - A withholding notice when applicable: `N private facts in your record were not used.` — states that something was withheld, never what.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
+
+### First version (v0 → v1)
+
+When the render has no current version there is nothing to compare, and two columns against
+nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
+measure, with its headings, under the strip `This is the first version of your <render>. Read it
+through, then accept it or discard it.` No toolbar, no change navigation, no rationale bar. The
+footer reads `Accepting saves this as v1 of your <render>.` and `Nothing is saved until you accept
+it.`, with `Discard draft` (secondary, dismisses the proposal) and `Accept as v1` (primary). There
+is no current version for a button to keep, so it does not say `Keep current version`. Once
+discarded, the result bar reads `Draft discarded — nothing was saved`.
 
 ### Decided state
 

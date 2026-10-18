@@ -139,7 +139,14 @@ function Column({
       <div className="flex-1 overflow-y-auto px-20 py-32">
         <div className="mx-auto w-measure max-w-full grid gap-14">
           {changes.map((change) => {
-            const absent = side === "current" ? change.currentBlockId === null : change.proposedBlockId === null;
+            const heading = change.target === "heading";
+            // A heading has no block id on either side; it is absent from the
+            // side its tokens never touch.
+            const absent = heading
+              ? !change.tokens.some((t) => t.op === "equal" || t.op === keep)
+              : side === "current"
+                ? change.currentBlockId === null
+                : change.proposedBlockId === null;
             const selected = change.changeId === selectedChangeId;
             if (absent) {
               return (
@@ -156,10 +163,17 @@ function Column({
               <p
                 key={change.changeId}
                 onClick={() => onSelect(change.changeId)}
-                className={`text-render-body text-text-body px-12 py-10 rounded-control cursor-pointer ${
+                className={`${
+                  heading
+                    ? "text-render-heading font-semibold uppercase tracking-heading text-text-dim"
+                    : "text-render-body text-text-body"
+                } px-12 py-10 rounded-control cursor-pointer ${
                   side === "current" ? "bg-remove-row" : "bg-add-row"
                 } ${selected ? "shadow-ring" : ""}`}
               >
+                {heading ? (
+                  <span className="block text-micro normal-case text-text-dimmer">Heading</span>
+                ) : null}
                 {change.tokens
                   .filter((token) => token.op === "equal" || token.op === keep)
                   .map((token, i) =>

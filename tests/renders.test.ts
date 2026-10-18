@@ -504,6 +504,30 @@ describe("the proposal", () => {
     }
   });
 
+  it("sends the document itself with a first version's diff, and only then", async () => {
+    const record = await seedRecord();
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 3 hours", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const firstDiff = await client.json<{
+      preview: { sections: { heading: string; blocks: { text: string }[] }[] } | null;
+      changes: { target: string }[];
+    }>(`/api/proposals/${first.proposalId}/diff`);
+    expect(firstDiff.preview?.sections.flatMap((s) => s.blocks.map((b) => b.text))).toContain(
+      "Reduced nightly batch runtime to 3 hours",
+    );
+    // Its headings are changes too, so a screen that did read them would see them.
+    expect(firstDiff.changes.some((c) => c.target === "heading")).toBe(true);
+
+    await client.post(`/api/proposals/${first.proposalId}/accept`);
+    const second = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 90 minutes", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    const secondDiff = await client.json<{ preview: unknown }>(`/api/proposals/${second.proposalId}/diff`);
+    expect(secondDiff.preview).toBeNull();
+  });
+
   it("cites the facts and the source line behind a change", async () => {
     const record = await seedRecord();
     const created = (await (

@@ -6669,3 +6669,31 @@ owner's instruction, after a backup.
 
 **Revisit if:** a stored render fixture is wanted so Home shows documents straight after a reset (it
 needs stable fact ids or a fixture that names facts by claim), or a second persona is wanted.
+
+---
+
+### [2026-10-18] A heading is a change in the diff, and a first version is read, not compared
+
+The hands-on evaluation of 2026-10-17 regenerated the English career story and every chapter title
+changed. The review screen showed none of it, because the diff engine aligned and compared blocks
+and never read `heading` (issue #105). It also showed a first version as two columns, the left a
+wall of `no matching line` boxes.
+
+**A heading is a `DiffChange` with `target: "heading"`**, not a special panel: it takes the same
+selection, navigation, counts and rationale bar as a block. Its rationale is its own kind,
+`heading_changed`, and says that a heading is written with its section and not from a fact, because
+there is no fact to cite and an empty rationale is a defect. Rejected: a separate "headings" strip
+above the columns, which would have been a second place to read a change and a second thing to keep
+in step with the navigation.
+
+**A section with no blocks is not diffed.** It is not in the document (`docs/10` Screen 9), so a
+change to its heading is not one the author could ever read.
+
+**A first version is shown as the document.** The diff response carries `preview`, the proposed
+content, only when there is no current version. The footer's `Keep current version` becomes `Discard
+draft` there, since nothing exists to keep; dismissing is unchanged and the proposal is retained
+as dismissed. The old `v1 kept` result line, which was wrong for a first version, now says nothing
+was saved.
+
+**Revisit if:** a heading's rationale should say who set it (a fixed scaffolding heading against a
+model-written one), which needs the generator to mark them.

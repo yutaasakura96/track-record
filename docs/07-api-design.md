@@ -775,9 +775,11 @@ have already run server-side: paragraphs aligned, then tokens diffed
 {
   "additions": 4,
   "removals": 1,
+  "preview": null,
   "changes": [
     {
       "changeId": "chg_1",
+      "target": "block",
       "sectionKey": "experience",
       "currentBlockId": "blk_88",
       "proposedBlockId": "blk_91",
@@ -810,8 +812,14 @@ have already run server-side: paragraphs aligned, then tokens diffed
 
 - `op` ∈ `equal` · `add` · `remove`. For Japanese renders, each token is a **BudouX phrase**; for
   English, a word or punctuation run.
-- `rationale.kind` ∈ `from_facts` · `removed_no_support` · `removed_unverified` ·
-  `from_restricted`.
+- `target` ∈ `block` · `heading`. A `heading` change is a section's heading rewritten, added with a
+  new section or removed with one: `currentBlockId` and `proposedBlockId` are null, `tokens` diff
+  the heading text, and it comes before the changes to that section's blocks. A section with no
+  blocks is not in the document, so its heading is not diffed.
+- `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
+  `removed_unverified` · `from_restricted`.
+- `preview` is the proposed document (`RenderContent`) when the render has no current version, and
+  null otherwise. The first-version screen reads it; every other review reads `changes`.
 - **A change with no `rationale` is a defect**, not a tolerable gap
   (`10-screen-specifications.md`).
 

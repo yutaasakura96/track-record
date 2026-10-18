@@ -226,7 +226,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       language: RENDER_LANGUAGE[render.kind as RenderKind],
       explain,
     });
-    return c.json(diff);
+    // A first version has nothing to be a diff against, so the screen shows the
+    // document itself. Sent only then: every other review reads the changes.
+    return c.json({ ...diff, preview: current ? null : proposed });
   });
 
   api.post("/api/proposals/:id/accept", async (c) => {
