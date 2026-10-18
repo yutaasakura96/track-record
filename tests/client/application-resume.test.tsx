@@ -13,6 +13,7 @@ import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Application, ApplicationDocument, DocumentChoice, Proposal, SentCopy, SentCopyPage } from "~/client/api";
 import { figures, moveTo, type Standing } from "~/shared/application";
+import { rirekishoSentPage } from "~/render/sent-page";
 import { mount, Refusal, type Call, type Routes } from "./harness";
 
 const TODAY = "2026-10-10";
@@ -403,16 +404,18 @@ describe("a sent copy", () => {
     sentOn: "2026-10-06",
     recordedAt: "2026-10-06T03:00:00.000Z",
     filename: "rirekisho-2026-10-01.docx",
-    page: {
-      title: "履歴書",
-      stamp: "2026年10月6日現在",
-      name: "架空　花子",
-      contact: ["〒000-0000 架空県架空市0-0-0", "000-0000-0000 · hanako@example.invalid"],
-      sections: [
-        { heading: "学歴", blocks: [{ kind: "row", text: "2017年3月　架空大学　架空学部　卒業" }] },
-        { heading: "志望の動機", blocks: [{ kind: "paragraph", text: "架空の志望動機です。" }] },
-      ],
-    },
+    page: rirekishoSentPage({
+      submitYear: "2026", submitMonth: "10", submitDay: "6",
+      nameKana: "かくう　はなこ", nameKanji: "架空　花子",
+      birthYear: "1995", birthMonth: "2", birthDay: "3", age: "31", gender: "女",
+      phone: "000-0000-0000", email: "hanako@example.invalid",
+      addressKana: "かくうけんかくうし", postalCode: "000-0000", address: "架空県架空市0-0-0",
+      contactPostalCode: "", contactLine: "同上",
+      gakureki: [{ year: "2017", month: "3", text: "架空大学　架空学部　卒業" }],
+      shokureki: [{ year: "2020", month: "4", text: "架空商事　入社" }],
+      shikaku: [{ year: "2018", month: "6", text: "架空資格　取得" }],
+      motivation: "架空の志望動機です。", kibou: "貴社規定に従います。",
+    }, { sections: [{ key: "motivation", heading: "志望の動機", blocks: [] }] }),
   };
   const openCopy = (routes: Routes = {}) =>
     mount(`/applications/${ID}/sent/${SENT.id}`, {
@@ -437,11 +440,19 @@ describe("a sent copy", () => {
 
     const page = screen.getByRole("article");
     expect(page.getAttribute("lang")).toBe("ja");
-    expect(within(page).getByRole("heading", { name: "履歴書" })).toBeTruthy();
+    expect(within(page).getByRole("heading", { name: "履 歴 書" })).toBeTruthy();
     expect(page.textContent).toContain("架空　花子");
     expect(page.textContent).toContain("〒000-0000 架空県架空市0-0-0");
-    // Matched on the text itself: the row is spaced with ideographic spaces, which a text matcher folds.
-    expect(page.textContent).toContain("2017年3月　架空大学　架空学部　卒業");
+    expect(page.textContent).toContain("かくう　はなこ");
+    expect(within(page).getByText("女")).toBeTruthy();
+    for (const label of ["氏名", "ふりがな", "性別", "生年月日", "現住所", "電話", "メール", "連絡先"]) {
+      expect(within(page).getAllByText(label).length).toBeGreaterThan(0);
+    }
+    const tables = within(page).getAllByRole("table");
+    expect(tables).toHaveLength(2);
+    expect(within(tables[0]!).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["年", "月", "学歴・職歴"]);
+    expect(within(tables[0]!).getAllByRole("row")[2]!.textContent).toContain("20173架空大学　架空学部　卒業");
+    expect(within(tables[1]!).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["年", "月", "免許・資格"]);
     expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();
 
     // No edit, no history, no regenerate: one download and the way back.
@@ -451,6 +462,16 @@ describe("a sent copy", () => {
 
     await user.click(screen.getByRole("link", { name: "Back to the application" }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
+  });
+
+  it("uses the printed kind title for an older sent page without a title", async () => {
+    const { title: _title, form: _form, ...legacyPage } = SENT.page;
+    openCopy({ [`GET ${AT}/sent-copies/${SENT.id}`]: {
+      ...SENT, kind: "english_resume", title: "Main résumé", language: "en", page: legacyPage,
+    } });
+    const page = await screen.findByRole("article");
+    expect(within(page).getByRole("heading", { name: "Résumé (English)" })).toBeTruthy();
+    expect(within(page).queryByRole("heading", { name: "Main résumé" })).toBeNull();
   });
 
   it("shows the corrected date when the copy is opened again after the Applied date was corrected", async () => {

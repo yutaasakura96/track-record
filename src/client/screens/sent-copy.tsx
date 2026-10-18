@@ -15,6 +15,7 @@ import { ApplicationsFrame } from "../components/application-chrome";
 import { DocumentPage } from "../components/document-page";
 import { ReadFailure } from "../components/read-failure";
 import { Button, Chip } from "../components/ui";
+import { RENDER_TITLE } from "~/shared/render-content";
 
 export function SentCopyScreen() {
   const { applicationId, copyId } = useParams({ from: "/applications/$applicationId/sent/$copyId" });
@@ -37,7 +38,7 @@ export function SentCopyScreen() {
   return (
     <ApplicationsFrame title={`${data.company} / ${data.title} as sent`} crumb>
       <Notice copy={data} />
-      <DocumentPage page={{ ...data.page, title: data.page.title ?? data.title }} language={data.language} />
+      <DocumentPage page={{ ...data.page, title: data.page.title ?? RENDER_TITLE[data.kind] }} language={data.language} />
     </ApplicationsFrame>
   );
 }

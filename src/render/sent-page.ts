@@ -21,6 +21,11 @@ export interface SentPage {
   /** The lines under the name, as the file carried them. */
   contact: string[];
   sections: { heading: string; blocks: { kind: BlockKind; text: string }[] }[];
+  form?: {
+    cells: { label: string; value: string }[];
+    tables: { heading: string; rows: RirekishoRow[] }[];
+    prose: { heading: string; text: string }[];
+  };
 }
 
 const sectionsOf = (content: RenderContent): SentPage["sections"] =>
@@ -55,7 +60,7 @@ export function rirekishoSentPage(data: RirekishoTemplateData, content: RenderCo
     rows.length === 0 ? [] : [{ heading, blocks: rows.map(tableRow) }];
 
   return {
-    title: RENDER_TITLE.rirekisho,
+    title: "履 歴 書",
     stamp: `${data.submitYear}年${data.submitMonth}月${data.submitDay}日現在`,
     name: data.nameKanji,
     contact: [
@@ -76,5 +81,32 @@ export function rirekishoSentPage(data: RirekishoTemplateData, content: RenderCo
       ...prose("motivation", data.motivation, "志望の動機、特技、アピールポイントなど"),
       ...prose("kibou", data.kibou, "本人希望記入欄"),
     ],
+    form: {
+      cells: [
+        { label: "ふりがな", value: data.nameKana },
+        { label: "氏名", value: data.nameKanji },
+        { label: "性別", value: data.gender },
+        { label: "生年月日", value: `${data.birthYear}年${data.birthMonth}月${data.birthDay}日生（満${data.age}歳）` },
+        { label: "現住所 ふりがな", value: data.addressKana },
+        { label: "現住所", value: `〒${data.postalCode} ${data.address}` },
+        { label: "電話", value: data.phone },
+        { label: "メール", value: data.email },
+        { label: "連絡先", value: `${data.contactPostalCode ? `〒${data.contactPostalCode} ` : ""}${data.contactLine}` },
+      ],
+      tables: [
+        { heading: "学歴・職歴", rows: [
+          { year: "", month: "", text: "学歴" },
+          ...data.gakureki,
+          { year: "", month: "", text: "職歴" },
+          ...data.shokureki,
+          { year: "", month: "", text: "以上" },
+        ] },
+        { heading: "免許・資格", rows: data.shikaku },
+      ],
+      prose: [
+        { heading: "志望動機・特技・アピールポイントなど", text: data.motivation },
+        { heading: "本人希望欄", text: data.kibou },
+      ],
+    },
   };
 }

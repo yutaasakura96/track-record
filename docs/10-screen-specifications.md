@@ -1856,8 +1856,10 @@ Header `Applications / <company> / <title> as sent`. Read-only.
    it was that day. It cannot be edited, and later changes to the résumé or to your record do not
    reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
    (bare).
-2. **The document**, as it was sent, at the reading measure: the name and contact line it carried
-   that day, then its sections. A 履歴書 or 職務経歴書 is set with the Japanese stack.
+2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
+   sections in file order. A 履歴書 shows labelled identity cells (including ふりがな and 性別),
+   学歴・職歴 and 免許・資格 tables with 年 / 月 / 内容 columns, then its prose cells. Tables scroll
+   within their own box at phone width. A 履歴書 or 職務経歴書 uses the Japanese stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
 another application, is a 404.
@@ -1969,9 +1971,11 @@ Read-only.
    accept it.`
 2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
    filled from your record as it is now, as the download is.`
-3. **The document**, on a `card` at the reading measure: the page its download would hold today,
-   with the printed title above the identity block, today's name and contact lines and, for a 履歴書, today's tables and date. A 履歴書 or
-   職務経歴書 is set with the Japanese stack. Both themes, from the theme's tokens.
+3. **The document**, on a `card` at the reading measure: the page its download would hold today.
+   Built documents show the printed title above the centered identity block, then sections in file
+   order. A 履歴書 shows today's date, labelled identity cells, 学歴・職歴 and 免許・資格 tables, then
+   prose cells, as in Screen 15. Tables scroll within their own box at phone width. Both themes use
+   the theme's tokens.
 
 | State | Behaviour |
 |---|---|
