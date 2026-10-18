@@ -32,7 +32,10 @@
  * `postal_code`, `address`, `contact_*` and `photo` are readable only by the
  * 履歴書 spec. `name_latin`, the kanji name and `email` are not on that list,
  * which is what `HEADER_FIELDS` below encodes — read the other way, it is why
- * the English résumé may carry an email and may not carry a phone number.
+ * the English résumé may carry an email and may not carry the 履歴書 phone
+ * number. The phone it may carry is `resume_phone`, a separate column the
+ * author fills only to put a number on the résumé (issue #108, `docs/06`
+ * 2026-10-18).
  */
 import type { RenderKind } from "~/shared/render-content";
 
@@ -54,12 +57,55 @@ export interface RenderIdentity {
   /** `family_name_kanji` + `given_name_kanji`, spaced as Japanese convention. */
   nameKanji: string;
   email: string;
+  /**
+   * The English résumé's own header fields (issue #108), null when not filled.
+   * `phone` here is `resume_phone`, a number the author opts into for the
+   * résumé — never the 履歴書 `phone`, which this type still cannot carry.
+   */
+  resume: ResumeHeader;
 }
 
+export interface ResumeHeader {
+  headline: string | null;
+  city: string | null;
+  country: string | null;
+  phone: string | null;
+  linkedinUrl: string | null;
+  githubUrl: string | null;
+  portfolioUrl: string | null;
+}
+
+/** A link as a reader types it: no scheme, no `www.`, no trailing slash. */
+export function displayAddress(url: string): string {
+  return url
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/^www\./i, "")
+    .replace(/\/+$/, "");
+}
+
+/**
+ * One header line. A line given as a list is its parts joined with ` · `, so a
+ * contact line reads `Tokyo, Japan · a@example.com · …` and drops what is blank.
+ */
+type HeaderLine = string | (string | null)[];
+
 /** What each render kind's header states, and in what order. */
-const HEADER_FIELDS: Record<RenderKind, (id: RenderIdentity) => string[]> = {
-  // A résumé is read by someone who may want to reply to it.
-  english_resume: (id) => [id.nameLatin, id.email],
+const HEADER_FIELDS: Record<RenderKind, (id: RenderIdentity) => HeaderLine[]> = {
+  // A résumé is read by someone who may want to reply to it: the name, the
+  // headline, then one contact line (the evaluation's §4.3 target).
+  english_resume: (id) => [
+    id.nameLatin,
+    id.resume.headline ?? "",
+    [
+      [id.resume.city, id.resume.country].map((part) => part?.trim()).filter(Boolean).join(", "),
+      id.email,
+      id.resume.phone,
+      ...[id.resume.linkedinUrl, id.resume.githubUrl, id.resume.portfolioUrl].map((url) =>
+        url ? displayAddress(url) : null,
+      ),
+    ],
+  ],
   // Unused by the 履歴書 itself, which fills a template rather than composing a
   // header (`src/render/rirekisho.ts`). This entry exists because the map is
   // total over `RenderKind`; the name alone would be nowhere near sufficient.
@@ -76,7 +122,14 @@ const HEADER_FIELDS: Record<RenderKind, (id: RenderIdentity) => string[]> = {
  */
 export function identityLines(kind: RenderKind, identity: RenderIdentity): string[] {
   return HEADER_FIELDS[kind](identity)
-    .map((value) => value.trim())
+    .map((line) =>
+      typeof line === "string"
+        ? line.trim()
+        : line
+            .map((part) => part?.trim() ?? "")
+            .filter((part) => part !== "")
+            .join(" · "),
+    )
     .filter((value) => value !== "");
 }
 

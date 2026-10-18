@@ -1991,7 +1991,7 @@ Needed before their milestones; not blocking M1.
 
 | Screen | Milestone | Note |
 |---|---|---|
-| Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
+| Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4. A third panel, `On your English résumé`, holds the résumé header fields (#108, `04` §3.2), all optional, with the note that the 履歴書 address, phone and date of birth never appear on the résumé |
 | Quick capture | M3 (#95) | **Built**, and specified under Screen 16 below |
 
 ---

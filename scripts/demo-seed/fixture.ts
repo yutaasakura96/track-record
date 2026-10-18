@@ -19,6 +19,16 @@ export const PROFILE = {
   address: "東京都千代田区デモ町1-2-3 サンプルハイツ101",
   addressKana: "とうきょうとちよだくでもちょう1-2-3 さんぷるはいつ101",
   desiredRoleNote: "バックエンドまたはプラットフォーム領域のスタッフエンジニア職を希望します。",
+  // The English résumé's header (issue #108). Its phone is a second invented
+  // number, so a résumé showing the 履歴書 one is visibly wrong. Links stay
+  // under example.com, like every other address here.
+  resumeHeadline: "Staff Backend and Platform Engineer",
+  resumeCity: "Tokyo",
+  resumeCountry: "Japan",
+  resumePhone: "+81 90-0000-5678",
+  resumeLinkedinUrl: "https://linkedin.example.com/in/kenji-moriyama",
+  resumeGithubUrl: "https://github.example.com/kenji-moriyama",
+  resumePortfolioUrl: "https://kenji-moriyama.example.com",
 };
 
 export interface DemoEmployer {

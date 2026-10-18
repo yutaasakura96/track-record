@@ -6770,3 +6770,27 @@ screens retain the desktop width gate.
 
 **Revisit if:** the "show where each line comes from" rail is built (evaluation proposal 8), which
 needs block ids on the page and so a page built from the version rather than from `SentPage`.
+---
+
+### [2026-10-18] The English résumé's header has fields of its own, and its phone is opt-in
+
+The 2026-10-17 evaluation found the English résumé carried a name and an email and nothing else: no
+headline, no city, no phone, no links (issue #108). The 履歴書 phone could not fill the gap, because
+`docs/02` §6.2 keeps address, phone and date of birth in the 履歴書 alone, and `RenderIdentity`
+encodes that by not carrying them.
+
+**The owner chose separate, opt-in résumé fields** (option (a) of the evaluation's Q1): headline,
+city, country, LinkedIn, GitHub, portfolio and a résumé phone, seven nullable `resume_*` columns
+on `profiles`. Each prints in the English résumé's header only when filled: the name, the headline
+under it, then one contact line, `City, Country · email · phone · links`, with links printed without
+their scheme. Rejected: reusing the 履歴書 phone (option (c)), which would put a restricted column on
+the identity projection and is how a phone eventually reaches a render it should not; and a
+checkbox to "show my phone on the résumé", which is the same thing with a switch on it.
+
+**The fields are composed by the renderer, like the name.** They are not sent to the model, and
+the career stories and the Japanese renders print none of them. A link without a scheme is saved
+with `https://`; anything else that is not an http(s) address is refused, since the résumé prints it
+as a link.
+
+**Revisit if:** the career story or a tailored cover note wants a headline, or the layout of the
+header (issue #107) wants the links as hyperlinks rather than text.

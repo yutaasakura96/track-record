@@ -144,8 +144,9 @@ async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): P
 }
 
 /**
- * The identity block's source, narrowed to the three fields a header may read.
- * The restricted PII columns are never selected, so they cannot reach a render
+ * The identity block's source, narrowed to the fields a header may read: the
+ * names, the email and the résumé's own header columns (issue #108). The
+ * restricted PII columns are never selected, so they cannot reach a render
  * by accident — `src/render/identity.ts` and `docs/04` §3.2.
  *
  * A missing profile is a precondition failure, not a nameless document: nothing
@@ -159,6 +160,15 @@ export async function renderIdentity(db: Db, userId: string): Promise<RenderIden
       familyNameKanji: profiles.familyNameKanji,
       givenNameKanji: profiles.givenNameKanji,
       email: profiles.email,
+      resume: {
+        headline: profiles.resumeHeadline,
+        city: profiles.resumeCity,
+        country: profiles.resumeCountry,
+        phone: profiles.resumePhone,
+        linkedinUrl: profiles.resumeLinkedinUrl,
+        githubUrl: profiles.resumeGithubUrl,
+        portfolioUrl: profiles.resumePortfolioUrl,
+      },
     })
     .from(profiles)
     .where(eq(profiles.userId, userId))
@@ -175,5 +185,6 @@ export async function renderIdentity(db: Db, userId: string): Promise<RenderIden
     nameLatin: profile.nameLatin,
     nameKanji: `${profile.familyNameKanji} ${profile.givenNameKanji}`.trim(),
     email: profile.email,
+    resume: profile.resume,
   };
 }

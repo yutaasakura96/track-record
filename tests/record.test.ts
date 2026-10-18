@@ -107,6 +107,45 @@ describe("the profile form", () => {
   });
 });
 
+describe("résumé header fields (issue #108)", () => {
+  it("are optional, and a blank one is stored as null", async () => {
+    const saved = await (await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeHeadline: "  " })).json() as Record<string, unknown>;
+    for (const field of ["resumeHeadline", "resumeCity", "resumeCountry", "resumePhone", "resumeLinkedinUrl", "resumeGithubUrl", "resumePortfolioUrl"]) {
+      expect(saved[field]).toBeNull();
+    }
+  });
+
+  it("supplies the scheme a copied link leaves off", async () => {
+    const saved = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeLinkedinUrl: "linkedin.com/in/yosuke-aoki-example",
+      resumeGithubUrl: "https://github.com/yosuke-example",
+    });
+    expect(saved.status).toBe(200);
+    const profile = await client.json<{ resumeLinkedinUrl: string; resumeGithubUrl: string }>("/api/profile");
+    expect(profile.resumeLinkedinUrl).toBe("https://linkedin.com/in/yosuke-aoki-example");
+    expect(profile.resumeGithubUrl).toBe("https://github.com/yosuke-example");
+  });
+
+  it("refuses a link that is not a web address and saves nothing", async () => {
+    for (const bad of ["javascript:alert(1)", "not a link", "ftp://example.com/x"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: bad });
+      expect(response.status).toBe(422);
+      const body = (await response.json()) as { error: { message: string; details: { fields: string[] } } };
+      expect(body.error.details.fields).toEqual(["resumePortfolioUrl"]);
+      expect(body.error.message).toBe("Portfolio is not a web address.");
+    }
+    expect((await client.get("/api/profile")).status).toBe(404);
+  });
+
+  it("keeps the résumé phone apart from the 履歴書 phone", async () => {
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePhone: "+81 90-0000-9999" });
+    const profile = await client.json<{ phone: string; resumePhone: string }>("/api/profile");
+    expect(profile.phone).toBe(PROFILE_FIXTURE.phone);
+    expect(profile.resumePhone).toBe("+81 90-0000-9999");
+  });
+});
+
 describe("employers and projects", () => {
   beforeEach(async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
