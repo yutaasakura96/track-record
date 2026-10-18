@@ -539,10 +539,10 @@ describe("the proposal", () => {
     ).json()) as { proposalId: string };
 
     const diff = await client.json<{
-      changes: { rationale: { kind: string; text: string; factIds: string[] } }[];
+      changes: { target: string; rationale: { kind: string; text: string; factIds: string[] } }[];
     }>(`/api/proposals/${created.proposalId}/diff`);
 
-    const rationale = diff.changes[0]!.rationale;
+    const rationale = diff.changes.find((change) => change.target === "block")!.rationale;
     expect(rationale.kind).toBe("from_facts");
     expect(rationale.factIds).toContain(record.measuredPublic.id);
     expect(rationale.text).toMatch(/L\d+/);
