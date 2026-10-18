@@ -951,10 +951,12 @@ fact is both not Private and not Generated, and the home screen then offers no G
 
 ## 9. The master document · M3 (#57)
 
+Shown as the **Career record** since #112 (`10` Screen 10); the routes keep their names.
+
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
-| `GET` | `/api/master-document/download` | The same structure as Markdown, `master-document-<language>-<date>.md`, `cache-control: no-store` |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `career-record-<language>-<date>.md`, `cache-control: no-store` |
 
 Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
 value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
@@ -965,7 +967,10 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
   "language": "en",
   "builtAt": "2026-10-08T03:00:00Z",
   "subjectName": "Yosuke Aoki",
-  "counts": { "facts": 214, "usable": 180, "private": 22, "generated": 12, "flagged": 14, "waiting": 0 },
+  "counts": {
+    "facts": 214, "usable": 180, "private": 22, "generated": 12, "keptOut": 34,
+    "flags": 17, "waiting": 0, "years": 11
+  },
   "employers": [
     {
       "id": "emp_2Kd9", "name": "Aozora Logistics K.K.", "alternateName": "株式会社アオゾラ物流",
@@ -981,8 +986,15 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 }
 ```
 
-- A fact is `{ id, claim, provenance, disclosure, technologies, flags, source }`. `flags` is the
-  kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null`.
+- A fact is `{ id, claim, provenance, disclosure, technologies, flags, source, used }`. `flags` is
+  the kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null` (added by
+  hand); `used` is whether the current version of any document, tailored résumés included, cites it.
+- `counts.keptOut` is Private or Generated. Its reasons partition the total: `counts.private`
+  includes Private facts even when Generated, and `counts.generated` includes only Generated facts
+  that are not Private. **`counts.flags`
+  is open flags, in the unit `GET /api/imports/summary`'s `openFlags` counts** (#112): it counted
+  facts with a flag, and the page and the sidebar disagreed. `counts.years` is whole years from the
+  first employment or project to the last, or to today, and `null` with no dates.
 - **Every accepted fact is in it, Private and Generated included.** A rejected fact is not, and a
   fact still waiting to be sorted is not; `counts.waiting` says how many those are.
 - A fact sits under the employer it resolves to (`04` §3.12), then under its project. A project is

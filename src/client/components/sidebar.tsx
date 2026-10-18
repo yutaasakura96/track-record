@@ -29,7 +29,8 @@ const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" 
   { label: "Documents", to: "/documents", counts: "openCandidates" },
   // Issue #57: what the importer flagged, and everything it accepted.
   { label: "Flagged", to: "/flagged", counts: "openFlags" },
-  { label: "Master document", to: "/master" },
+  // Issue #112 renamed the master document; its path stays.
+  { label: "Career record", to: "/master" },
   // Issue #70: the jobs applied for. It took the Tailored résumés row, and
   // each of those résumés is inside its application.
   { label: "Applications", to: "/applications", counts: "goneQuiet" },

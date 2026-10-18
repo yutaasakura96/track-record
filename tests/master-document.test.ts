@@ -1,5 +1,6 @@
 /**
- * The master document, through the API (`docs/07` §9, issue #57).
+ * The career record, through the API (`docs/07` §9, issue #57). It was called
+ * the master document until issue #112, and its routes still are.
  *
  * It is a view of the record, built on the read by no model and stored
  * nowhere. What is pinned here is what it is for: it holds everything accepted,
@@ -7,7 +8,7 @@
  * entry here is INVENTED.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
+import { harness, settle, stubModel, type Client, type Harness, type SeededUser, type StubModel } from "./helpers/harness";
 import {
   asCandidates,
   CERTIFICATION_FIXTURE,
@@ -19,8 +20,10 @@ import {
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
+import { factFlags } from "~/server/db/schema";
 import type { CandidateFact } from "~/model/types";
 import type { MasterDocument, MasterFact } from "~/shared/master-document";
+import type { RenderContent } from "~/shared/render-content";
 
 const USABLE: CandidateFact = {
   claim: "Cut the nightly settlement run from 6 hours to 90 minutes",
@@ -57,12 +60,14 @@ const SIDE: CandidateFact = {
 
 let model: StubModel;
 let app: Harness;
+let author: SeededUser;
 let client: Client;
 
 beforeEach(async () => {
   model = stubModel();
   app = harness(model);
-  client = app.as(await seedAllowedUser());
+  author = await seedAllowedUser();
+  client = app.as(author);
 });
 
 const created = async (path: string, body: unknown, as: Client = client) =>
@@ -117,8 +122,34 @@ describe("the master document", () => {
     expect(byClaim.get(USABLE.claim)).toMatchObject({ provenance: "measured", disclosure: "restricted", technologies: ["Airflow"], flags: ["number"] });
     expect(byClaim.get(PRIVATE.claim)).toMatchObject({ provenance: "attested", disclosure: "private", flags: ["confidential"] });
     expect(byClaim.get(GENERATED.claim)).toMatchObject({ provenance: "generated", disclosure: "restricted", flags: ["unsure"] });
-    expect(doc.counts).toEqual({ facts: 4, usable: 2, private: 1, generated: 1, flagged: 3, waiting: 0 });
+    expect(doc.counts).toEqual({
+      facts: 4,
+      usable: 2,
+      private: 1,
+      generated: 1,
+      keptOut: 2,
+      flags: 3,
+      waiting: 0,
+      // 2022-04 to 2024-09, the one employment.
+      years: 2,
+    });
     expect(doc.subjectName).toBe(PROFILE_FIXTURE.nameLatin);
+  });
+
+  it("counts a Private and Generated fact once under Private in both languages", async () => {
+    await seedRecord();
+    const privateFact = everyFact(await master()).find((fact) => fact.claim === PRIVATE.claim)!;
+    expect((await client.patch(`/api/facts/${privateFact.id}`, { provenance: "generated" })).status).toBe(200);
+
+    const doc = await master();
+    expect(everyFact(doc).find((fact) => fact.id === privateFact.id)).toMatchObject({ provenance: "generated", disclosure: "private" });
+    expect(doc.counts).toMatchObject({ private: 1, generated: 1, keptOut: 2 });
+    expect(doc.counts.private + doc.counts.generated).toBe(doc.counts.keptOut);
+
+    const english = await (await client.get("/api/master-document/download")).text();
+    const japanese = await (await client.get("/api/master-document/download?language=ja")).text();
+    expect(english.split("\n")[4]).toContain("1 is kept private, and 1 is not confirmed yet.");
+    expect(japanese.split("\n")[4]).toContain("Private 1 件、Not confirmed 1 件は書類に使われません。");
   });
 
   it("leaves out a rejected fact, and a fact still waiting to be sorted, and counts the second", async () => {
@@ -171,7 +202,7 @@ describe("the master document", () => {
 
     const doc = await master();
     expect(everyFact(doc).find((fact) => fact.claim === USABLE.claim)!.flags).toEqual([]);
-    expect(doc.counts.flagged).toBe(2);
+    expect(doc.counts.flags).toBe(2);
   });
 
   it("carries no passage from any source document, and is built without a model call", async () => {
@@ -195,13 +226,64 @@ describe("the master document", () => {
     const other = app.as(await seedAllowedUser(SECOND_EMAIL));
 
     const theirs = await master(other);
-    expect(theirs.counts).toEqual({ facts: 0, usable: 0, private: 0, generated: 0, flagged: 0, waiting: 0 });
+    expect(theirs.counts).toEqual({
+      facts: 0,
+      usable: 0,
+      private: 0,
+      generated: 0,
+      keptOut: 0,
+      flags: 0,
+      waiting: 0,
+      years: null,
+    });
     expect(theirs).toMatchObject({ subjectName: null, employers: [], educations: [], certifications: [] });
     expect(theirs.independent).toEqual({ projects: [], facts: [] });
 
     const file = await (await other.get("/api/master-document/download")).text();
     expect(file).not.toContain(USABLE.claim);
     expect(file).not.toContain(EMPLOYER_FIXTURE.nameLatin);
+  });
+
+  it("counts flags as the sidebar counts them, not the facts that carry one (B7)", async () => {
+    await seedRecord();
+    // A second flag on a fact that already has one: the sidebar counts both.
+    const { items } = await client.json<{ items: { id: string; fact: { id: string; claim: string } }[] }>("/api/flags");
+    const usable = items.find((item) => item.fact.claim === USABLE.claim)!.fact.id;
+    await app.db.insert(factFlags).values({
+      id: "flg_second",
+      userId: author.id,
+      factId: usable,
+      kind: "repeat",
+      reason: "It likely restates a fact already in your record.",
+    });
+
+    const summary = await client.json<{ openFlags: number }>("/api/imports/summary");
+    expect(summary.openFlags).toBe(4);
+    expect((await master()).counts.flags).toBe(summary.openFlags);
+  });
+
+  it("marks the facts the current version of a document cites", async () => {
+    await seedRecord();
+    const usable = everyFact(await master()).find((fact) => fact.claim === USABLE.claim)!;
+
+    const cites = (factIds: string[]): RenderContent => ({
+      sections: [{ key: "experience", heading: "Experience", blocks: [{ id: "blk_1", kind: "bullet", text: "A bullet", factIds }] }],
+    });
+    model.generations = [cites([usable.id])];
+    const { proposalId } = (await (await client.post("/api/renders/english_resume/generate")).json()) as { proposalId: string };
+    await settle();
+    expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
+
+    let doc = await master();
+    expect(everyFact(doc).filter((fact) => fact.used).map((fact) => fact.claim)).toEqual([USABLE.claim]);
+
+    // A later version that cites nothing: the fact is not used any more.
+    model.generations = [cites([])];
+    const next = (await (await client.post("/api/renders/english_resume/generate")).json()) as { proposalId: string };
+    await settle();
+    expect((await client.post(`/api/proposals/${next.proposalId}/accept`)).status).toBe(200);
+    doc = await master();
+    expect(everyFact(doc).some((fact) => fact.used)).toBe(false);
   });
 });
 
@@ -276,32 +358,62 @@ describe("the master document of each language", () => {
   });
 });
 
-describe("the master document as a file", () => {
+describe("the career record as a file", () => {
   it("downloads as Markdown, in full, Private facts included, and says so in its first lines", async () => {
     await seedRecord();
     const response = await client.get("/api/master-document/download");
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="master-document-en-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="career-record-en-\d{4}-\d{2}-\d{2}\.md"$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const file = await response.text();
     const [title, , notice, , counts] = file.split("\n");
-    expect(title).toBe(`# Master document: ${PROFILE_FIXTURE.nameLatin}`);
-    expect(notice).toContain("including Private facts");
+    expect(title).toBe(`# Career record: ${PROFILE_FIXTURE.nameLatin}`);
+    expect(notice).toContain("including Private ones");
     expect(notice).toContain("Do not send it to an employer or a recruiter.");
-    expect(counts).toBe("4 facts: 2 a document may use, 1 Private, 1 Generated.");
+    expect(counts).toBe(
+      "4 achievements across 2 years. 2 can go into a document. 1 is kept private, and 1 is not confirmed yet. 3 flags to check.",
+    );
 
+    expect(file).toContain(
+      ["## Contents", "", `- ${EMPLOYER_FIXTURE.nameLatin} · 2022 – 2024 · 3`, "- Work outside employment · 1", "- Education and certifications"].join("\n"),
+    );
     expect(file).toContain(`## ${EMPLOYER_FIXTURE.nameLatin} (${EMPLOYER_FIXTURE.nameJa})`);
-    expect(file).toContain("### Settlement batch");
-    expect(file).toContain(`- ${PRIVATE.claim} [Attested · Private · flagged] kestrel-notes.md L`);
-    expect(file).toContain(`- ${GENERATED.claim} [Generated · Restricted · flagged]`);
+    // Results, then What I did; the figures set in bold; a mark only where a
+    // fact is unusual; the document and line out of the reading.
+    expect(file).toContain(
+      [
+        "### Settlement batch",
+        "",
+        "The nightly run.",
+        "",
+        "**Results**",
+        "",
+        "- Cut the nightly settlement run from **6 hours** to **90 minutes** <!-- kestrel-notes.md L3 -->",
+        "",
+        "**What I did**",
+        "",
+        `- ${PRIVATE.claim} *(Private)* <!-- kestrel-notes.md L5 -->`,
+        `- ${GENERATED.claim} *(Not confirmed)* <!-- kestrel-notes.md L7 -->`,
+      ].join("\n"),
+    );
+    expect(file).not.toMatch(/Restricted|Attested|Measured|flagged/);
     expect(file).toContain("## Work outside employment");
-    expect(file).toContain(`- ${SIDE.claim} [Attested · Restricted] side-notes.md L`);
+    expect(file).toContain(`- ${SIDE.claim} <!-- side-notes.md L3 -->`);
     expect(file).toContain("## Education");
     expect(file).toContain("## Certifications");
     expect(file).not.toContain(REJECTED.claim);
+  });
+
+  it("marks a fact added by hand, which names no document", async () => {
+    const captured = await client.post("/api/capture", {
+      claims: [{ claim: "Organised the first internal hackathon, with 60 participants" }],
+    });
+    expect(captured.status).toBe(201);
+    const file = await (await client.get("/api/master-document/download")).text();
+    expect(file).toContain("- Organised the first internal hackathon, with **60 participants** *(Added by hand)*\n");
   });
 
   it("downloads the Japanese one as a file of its own, headed and dated in Japanese", async () => {
@@ -309,17 +421,17 @@ describe("the master document as a file", () => {
     const response = await client.get("/api/master-document/download?language=ja");
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="master-document-ja-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="career-record-ja-\d{4}-\d{2}-\d{2}\.md"$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const file = await response.text();
     const [title, , notice, , counts] = file.split("\n");
-    expect(title).toBe(`# マスタードキュメント：${PROFILE_FIXTURE.familyNameKanji}　${PROFILE_FIXTURE.givenNameKanji}`);
+    expect(title).toBe(`# キャリア記録：${PROFILE_FIXTURE.familyNameKanji}　${PROFILE_FIXTURE.givenNameKanji}`);
     // The same two warnings the English file opens with, and that nothing was translated.
-    expect(notice).toContain("Private（非公開）の事実");
+    expect(notice).toContain("Private（非公開）のもの");
     expect(notice).toContain("企業や採用担当者には送らないでください。");
     expect(notice).toContain("翻訳していません。");
-    expect(counts).toBe("事実 4 件：書類に使用可 2 件、Private 1 件、Generated 1 件。");
+    expect(counts).toBe("実績 4 件（2年間）。書類に使えるもの 2 件。Private 1 件、Not confirmed 1 件は書類に使われません。確認待ちのフラグ 3 件。");
 
     expect(file).toContain(`## ${EMPLOYER_FIXTURE.nameJa} (${EMPLOYER_FIXTURE.nameLatin})`);
     expect(file).toContain("2022年4月〜2024年9月 · 運輸業");
@@ -330,8 +442,11 @@ describe("the master document as a file", () => {
     expect(file).toContain("2013年4月〜2017年3月、卒業)");
     expect(file).toContain("## 資格");
     expect(file).toContain(`- ${CERTIFICATION_FIXTURE.nameJa}、${CERTIFICATION_FIXTURE.issuingOrganization} (2019年6月取得)`);
-    // The claims are the ones that were read, under the product's own labels.
-    expect(file).toContain(`- ${PRIVATE.claim} [Attested · Private · flagged] kestrel-notes.md L`);
+    expect(file).toContain(["## 目次", "", `- ${EMPLOYER_FIXTURE.nameJa} · 2022年〜2024年 · 3`, "- 雇用外の活動 · 1", "- 学歴・資格"].join("\n"));
+    expect(file).toContain("**成果**");
+    expect(file).toContain("**取り組み**");
+    // The claims are the ones that were read, under the product's own marks.
+    expect(file).toContain(`- ${PRIVATE.claim} *(Private)* <!-- kestrel-notes.md L5 -->`);
     expect(file).not.toContain("## Education");
     expect(file).not.toContain(REJECTED.claim);
     for (const candidate of [USABLE, PRIVATE, GENERATED, REJECTED, SIDE]) expect(file).not.toContain(candidate.quote);
@@ -341,13 +456,13 @@ describe("the master document as a file", () => {
     const { importId } = await seedRecord();
     await asCandidates(importId);
     const file = await (await client.get("/api/master-document/download?language=ja")).text();
-    expect(file).toContain("事実 1 件：書類に使用可 1 件、Private 0 件、Generated 0 件。ほかに 4 件が仕分け待ちで、掲載されていません。");
+    expect(file).toContain("実績 1 件（2年間）。書類に使えるもの 1 件。ほかに 4 件が仕分け待ちで、掲載されていません。");
   });
 
   it("says how many facts are waiting and not listed", async () => {
     const { importId } = await seedRecord();
     await asCandidates(importId);
     const file = await (await client.get("/api/master-document/download")).text();
-    expect(file).toContain("1 fact: 1 a document may use, 0 Private, 0 Generated. 4 more are waiting to be sorted and are not listed.");
+    expect(file).toContain("1 achievement across 2 years. 1 can go into a document. 4 more are waiting to be sorted and are not listed yet.");
   });
 });

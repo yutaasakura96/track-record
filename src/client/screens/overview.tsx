@@ -651,7 +651,7 @@ function Facts({
       action={
         total > 0 ? (
           <Link to="/master" className={`shrink-0 ${QUIET}`}>
-            Open master document
+            Open career record
           </Link>
         ) : undefined
       }
@@ -763,11 +763,11 @@ function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
 const MASTER_ROW: Record<DocumentLanguage, { note: string; open: string }> = {
   en: {
     note: "English · everything in your record, and what every English document is written from",
-    open: "Open the English master document",
+    open: "Open the English career record",
   },
   ja: {
     note: "Japanese · everything in your record, and what every Japanese document is written from",
-    open: "Open the Japanese master document",
+    open: "Open the Japanese career record",
   },
 };
 

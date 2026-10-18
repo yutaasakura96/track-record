@@ -6697,3 +6697,48 @@ was saved.
 
 **Revisit if:** a heading's rationale should say who set it (a fixed scaffolding heading against a
 model-written one), which needs the generator to mark them.
+
+---
+
+### [2026-10-18] The master document becomes the career record, and reads like a CV
+
+The owner, on the live site: "not really human readable … it looks like just a bunch of random
+words." The evaluation of 2026-10-17 traced it to the page printing every fact's storage labels at
+one weight (`MEASURED RESTRICTED FLAGGED file.md L13`, with Restricted on 55 of 59 lines because it
+is the importer's default), to no order inside an employer, and to figures that did not stand out.
+Issue #112; the owner chose the name.
+
+**Renamed Career record**, on the page, the sidebar, Home and the file (`career-record-<language>-<date>.md`,
+`キャリア記録` under 日本語). The path `/master`, the API routes and the code's names stay, so no
+link and no other lane's work breaks. Record keeps its name here; the owner's rename of it to Career
+timeline belongs to the issue that redesigns that page.
+
+**A CV's structure.** Contents down the side, an employer a chapter, a project a section, and each
+split into **Results** (Measured, including claims with no written number) and **What I did** (the
+rest). Figures
+are found by rule, not by a model, and skip what the number flag skips: a digit inside a word, a
+year, a version or address, a technology's own digits (`figures` in `src/shared/master-document.ts`).
+
+**A mark only where a fact is unusual:** `Private`, `Not confirmed` (Generated, Home's word for it)
+and `Added by hand` (quick capture). The rest of what the old line said is one hover away: the claim
+links to its card and its title names the document and line. Rejected: a hidden link revealed on
+hover, which still took a line's room and left rows uneven; and keeping the labels in a lighter tone,
+which keeps the rule printed on every line.
+
+**One sentence of counts, and flags in the sidebar's unit.** The page said `29 flagged to check`
+(facts with a flag) beside the sidebar's `34 to check` (flags). Both were true and the pair read as
+a bug; the page now counts open flags, as the sidebar and the Flagged screen do (`34 flags to check`).
+
+**Three filters**, kept in `?show=`: Results with a number (Measured facts whose claim has a figure
+found by `figures()` with the fact's technologies; an Attested What I did fact stays out even if its
+number is highlighted), Kept out of documents (Private or Generated), and Not used in any document
+yet: usable, and cited by the current version of no
+document, tailored résumés included. Rejected: counting any version ever accepted as use, which
+would keep a fact the author dropped from the résumé off this list for good.
+
+**The file follows the page.** The same contents, chapters, Results and What I did, figures in
+bold and the same marks; a fact's document and line go in an HTML comment at the end of its line,
+the file's version of a hover. Nothing is translated, as before.
+
+**Revisit if:** the rule that finds figures misses or over-reaches on the owner's real record, or
+the Results split needs facts the provenance does not separate.
