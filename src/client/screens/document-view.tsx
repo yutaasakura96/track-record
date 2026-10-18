@@ -3,7 +3,7 @@
  * #106).
  *
  * The sent-copy reader (Screen 15), for a version: the page its download would
- * hold today, read without downloading it. Read-only, so it opens at any width,
+ * hold today, read without downloading it. Read-only, so it opens at any width.
  *
  * The page is assembled by the server from the inputs the download uses, and
  * refused on the facts the download refuses. What is read here is what would
