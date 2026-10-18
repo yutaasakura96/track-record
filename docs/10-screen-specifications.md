@@ -1917,7 +1917,7 @@ first. They are in your record; open one to change or reject it.` Each card show
 mono line `status · provenance · disclosure`, the month and where it is filed. `Change` opens the
 claim editor, `Worth` and `Who` as on Screen 1, `When`, `Employer`, and `Reject`; a rejected card is
 struck through with `Undo`, which returns it to the record. **A captured fact has no document, so
-this is its card**: the master document's `Quick capture` link and the Flagged list's `Open it in
+this is its card**: the career record's link on the claim (Screen 10) and the Flagged list's `Open it in
 Quick capture` open `/capture?fact=<id>` with that card's controls open.
 
 **Rules**
