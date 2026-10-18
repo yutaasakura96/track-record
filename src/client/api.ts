@@ -1722,19 +1722,19 @@ export function useSortFacts(importId?: string) {
 /** English is the route with nothing asked of it; 日本語 is asked for (`docs/07` §9). */
 const masterQuery = (language: MasterLanguage) => (language === "ja" ? "?language=ja" : "");
 
-/** One language's master document: built from the record on each read, by no model. */
+/** One language's career record (the master document): built from the record on each read, by no model. */
 export const useMasterDocument = (language: MasterLanguage) =>
   useQuery({
     queryKey: keys.masterDocument(language),
     queryFn: () => api<MasterDocument>(`/api/master-document${masterQuery(language)}`),
   });
 
-/** The master document as a file. It contains Private facts; the screen says so beside the button. */
+/** The career record as a file. It contains Private facts; the screen says so beside the button. */
 export const downloadMasterDocument = (language: MasterLanguage) =>
   saveResponse(
     `/api/master-document/download${masterQuery(language)}`,
-    `master-document-${language}.md`,
-    "The master document could not be downloaded.",
+    `career-record-${language}.md`,
+    "The career record could not be downloaded.",
   );
 
 export type { RenderContent };

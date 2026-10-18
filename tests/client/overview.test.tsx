@@ -576,7 +576,7 @@ describe("the English documents and the Japanese ones, apart", () => {
     row({ kind: "career_story_en", title: "Career story" }),
     row({ kind: "career_story_ja", language: "ja", title: "職務経歴ストーリー" }),
   ];
-  // `Master document` is a sidebar row too; this is the one that leads a tab.
+  // `Career record` is a sidebar row too; this is the one that leads a tab.
   const masterRow = async (title: string) => {
     return (await within(await screen.findByRole("tabpanel")).findByText(title)).closest("li")!;
   };
@@ -593,7 +593,7 @@ describe("the English documents and the Japanese ones, apart", () => {
       ["English", "true"],
       ["日本語", "false"],
     ]);
-    expect(titles()).toEqual(["Master document", "English résumé", "Career story"]);
+    expect(titles()).toEqual(["Career record", "English résumé", "Career story"]);
     expect(screen.queryByText("履歴書")).toBeNull();
     // The panel is named by the tab that is open.
     expect(screen.getByRole("tabpanel", { name: "English" })).toBeTruthy();
@@ -604,7 +604,7 @@ describe("the English documents and the Japanese ones, apart", () => {
     await documentRow();
     await user.click(screen.getByRole("tab", { name: "日本語" }));
 
-    expect(titles()).toEqual(["マスタードキュメント", "履歴書", "職務経歴書", "職務経歴ストーリー"]);
+    expect(titles()).toEqual(["キャリア記録", "履歴書", "職務経歴書", "職務経歴ストーリー"]);
     expect(screen.queryByText("English résumé")).toBeNull();
     expect(screen.getByRole("tabpanel", { name: "日本語" })).toBeTruthy();
     expect(within(await documentRow("履歴書")).getByRole("button", { name: "Generate" })).toBeTruthy();
@@ -620,7 +620,7 @@ describe("the English documents and the Japanese ones, apart", () => {
     await user.keyboard("{ArrowRight}");
     expect(japanese!.getAttribute("aria-selected")).toBe("true");
     expect(document.activeElement).toBe(japanese);
-    expect(titles()[0]).toBe("マスタードキュメント");
+    expect(titles()[0]).toBe("キャリア記録");
 
     await user.keyboard("{ArrowRight}");
     expect(english!.getAttribute("aria-selected")).toBe("true");
@@ -636,17 +636,17 @@ describe("the English documents and the Japanese ones, apart", () => {
 
   it("leads each tab with a master document row: how many facts it lists, and one way in", async () => {
     const { user } = open(ROWS);
-    const english = await masterRow("Master document");
+    const english = await masterRow("Career record");
 
     expect(within(english).getByText("4 facts")).toBeTruthy();
     expect(within(english).getByText(/^English · everything in your record/)).toBeTruthy();
-    expect(within(english).getByRole("link", { name: "Open the English master document" }).getAttribute("href")).toBe("/master");
+    expect(within(english).getByRole("link", { name: "Open the English career record" }).getAttribute("href")).toBe("/master");
     // Not a generated document: nothing to generate, no history, and no download from here.
     expect(within(english).queryAllByRole("button")).toEqual([]);
 
     await user.click(screen.getByRole("tab", { name: "日本語" }));
-    const japanese = await masterRow("マスタードキュメント");
-    expect(within(japanese).getByRole("link", { name: "Open the Japanese master document" }).getAttribute("href")).toBe("/master");
+    const japanese = await masterRow("キャリア記録");
+    expect(within(japanese).getByRole("link", { name: "Open the Japanese career record" }).getAttribute("href")).toBe("/master");
   });
 
   it("opens the master document of the tab it was opened from", async () => {
@@ -664,7 +664,7 @@ describe("the English documents and the Japanese ones, apart", () => {
     });
     await documentRow();
     await user.click(screen.getByRole("tab", { name: "日本語" }));
-    await user.click(screen.getByRole("link", { name: "Open the Japanese master document" }));
+    await user.click(screen.getByRole("link", { name: "Open the Japanese career record" }));
 
     await waitFor(() => expect(pathname()).toBe("/master"));
     await waitFor(() => expect(api.calls.map((call) => call.path)).toContain("/api/master-document?language=ja"));
@@ -675,7 +675,7 @@ describe("the English documents and the Japanese ones, apart", () => {
   it("says the master document has no facts yet rather than a zero", async () => {
     open([], { "GET /api/overview": { ...overview(ROWS), factsByProvenance: { measured: 0, attested: 0, generated: 0 } } });
 
-    expect(within(await masterRow("Master document")).getByText("No facts yet")).toBeTruthy();
+    expect(within(await masterRow("Career record")).getByText("No facts yet")).toBeTruthy();
   });
 });
 
@@ -718,7 +718,7 @@ describe("what automatic acceptance adds to Home", () => {
 
   it("opens the master document from the facts it lists", async () => {
     open([], with57({}));
-    expect((await screen.findByRole("link", { name: "Open master document" })).getAttribute("href")).toBe("/master");
+    expect((await screen.findByRole("link", { name: "Open career record" })).getAttribute("href")).toBe("/master");
   });
 
   it("names the main résumé as the one tailored to no job", async () => {
@@ -728,7 +728,7 @@ describe("what automatic acceptance adds to Home", () => {
 
   it("has no section for tailored résumés: each one is an application now", async () => {
     open([], with57({}));
-    await screen.findByRole("link", { name: "Open master document" });
+    await screen.findByRole("link", { name: "Open career record" });
     expect(screen.queryByText(/Tailored résumés/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Make one" })).toBeNull();
   });
@@ -762,7 +762,7 @@ describe("the sidebar", () => {
       "Skills",
       "Documents",
       "Flagged",
-      "Master document",
+      "Career record",
       "Applications",
     ]);
     expect(within(nav).queryByText("Facts")).toBeNull();

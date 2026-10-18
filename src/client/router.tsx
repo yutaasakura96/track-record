@@ -28,7 +28,7 @@ import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
 import { VersionEditScreen } from "./screens/version-edit";
 import { FlaggedScreen } from "./screens/flagged";
-import { MasterDocumentScreen } from "./screens/master-document";
+import { MASTER_FILTERS, MasterDocumentScreen, type MasterFilter } from "./screens/master-document";
 import { ApplicationsScreen } from "./screens/applications";
 import { SentCopyScreen } from "./screens/sent-copy";
 import { NewApplicationScreen } from "./screens/application-new";
@@ -121,10 +121,17 @@ const flaggedRoute = createRoute({
   component: FlaggedScreen,
 });
 
+/**
+ * The career record (issue #112 renamed the master document; the path stays).
+ * `?show=` is the filter that is on, so `Show those 6` and the back button
+ * both land where the author was.
+ */
 const masterDocumentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/master",
   component: MasterDocumentScreen,
+  validateSearch: (search: Record<string, unknown>): { show?: MasterFilter } =>
+    MASTER_FILTERS.includes(search.show as MasterFilter) ? { show: search.show as MasterFilter } : {},
 });
 
 const applicationsRoute = createRoute({

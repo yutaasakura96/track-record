@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -15,7 +15,7 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Record, Skills, Documents, Flagged, Master document, Applications. Applications
+rows: Home, Record, Skills, Documents, Flagged, Career record, Applications. Applications
 replaced Tailored résumés in #70. There is no separate Imports row: imports are versions of a
 document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
@@ -483,7 +483,7 @@ leads with plain words and names the product's term second**, because `Measured`
 
 **Flags are a line under the rows, not a row and not a step** (#57). While any flag is open:
 `N are flagged for you to check when you want. Each says why.` and a ghost `Open the list` to Screen
-9. The section's heading carries a quiet `Open master document` link to Screen 10 once the record
+9. The section's heading carries a quiet `Open career record` link to Screen 10 once the record
 holds an accepted fact.
 
 Each row: dot, the plain words, the term in a chip, the description, and the count at the row-title
@@ -506,8 +506,8 @@ language, and one panel under it:
 
 | Tab | Rows, in order |
 |---|---|
-| `English` | The English master document, Résumé (English), the English career story |
-| `日本語` | The 日本語 master document, 履歴書, 職務経歴書, 職務経歴ストーリー |
+| `English` | The English career record, Résumé (English), the English career story |
+| `日本語` | The 日本語 career record, 履歴書, 職務経歴書, 職務経歴ストーリー |
 
 - **The tab list is a WAI-ARIA tab list**: one tab stop, the arrow keys, Home and End inside it,
   selection following focus, and the panel named by the tab that is open. It is drawn as the
@@ -516,8 +516,8 @@ language, and one panel under it:
   `localStorage` key `track-record:document-language`, as the theme is. It is not a column: it says
   which tab is open, and nothing about the record. **Screen 10 reads the same choice**, so the
   language open here is the language of the master document that opens.
-- **The first row of each tab is that language's master document** (Screen 10). Title
-  `Master document` or `マスタードキュメント`, note `English · everything in your record, and what
+- **The first row of each tab is that language's career record** (Screen 10; the master document
+  until #112). Title `Career record` or `キャリア記録`, note `English · everything in your record, and what
   every English document is written from` (or `Japanese · … every Japanese document …`), the count
   `N facts` (`No facts yet` at zero) and one secondary `Open`. It is not generated and has no
   versions, so it has no status dot, no `History`, no button and no `Download`: the file is
@@ -1230,11 +1230,12 @@ reason`. Content column as Screen 3.
 
 ---
 
-## Screen 10 — Master document
+## Screen 10 — Career record
 
-Added 2026-10-08 (issue #57). Everything in the record in one long readable piece: every accepted
-fact from every imported document, **Private and Generated ones included**, under the employer and
-project it belongs to. Every résumé is written from this.
+Added 2026-10-08 (issue #57) as the master document; renamed and laid out as a CV on 2026-10-18
+(#112, `06` 2026-10-18). Everything in the record in one long readable piece: every accepted fact
+from every imported document and every one added by hand, **Private and Generated ones included**,
+under the employer and project it belongs to. Every résumé is written from this.
 
 **There is one per language** (2026-10-10, #59), and both are this one view. The language decides
 what the record is *called*: an employer, a role, a project, a school and a certification each by
@@ -1247,82 +1248,119 @@ is a model's work and no model writes this.
 nowhere (`07` §9). It cannot be edited here, and there is no second copy to fall out of step: a fact
 is changed on its own card.
 
-Sidebar chrome, at `/master`. Header title `Master document`, note `Everything in your record, in
-one place`, and on the right, once the record holds anything the page lists, the note `The file includes
-Private facts. It is your copy.` and **`Download .md`**.
+Sidebar chrome, at `/master` (the path kept its old name). Header title `Career record`, note
+`Everything you have done, from every source`, and on the right, once the record holds anything the
+page lists, the note `The file includes Private facts. It is your copy.` and **`Download .md`**.
 
 ### Layout
 
 0. **The tabs `English` and `日本語`**, the tab list of Screen 3's documents section and the same
    stored choice: the one open on Home is the one open here, and choosing here changes it there.
    Everything under the intro is the tab's panel.
-1. **The screen intro.** Body: `Every fact you have accepted, from every document you imported,
-   including the ones a résumé leaves out. Your résumé and your career story are written from this.`
-   (under `日本語`: `Your 履歴書, 職務経歴書 and 職務経歴ストーリー are written from this.`) `It is
-   built from your record each time you open it, so it cannot be edited here: change a fact on its
-   own card. The tabs change the names and headings to the ones a document of that language uses;
-   each fact reads as it was written, and none is translated.`
-   Legend: `Private facts and Generated facts are listed here and marked. No résumé uses them.`
-2. **One line of counts:** `N facts: N a document may use, N Private, N Generated.` Then, when any,
-   `N flagged to check` as a link to Screen 9, and `N more are waiting to be sorted and are not
-   listed yet. Sort them from Home.`
-3. **One panel an employer**, headed with its name in the document's language, and its name in the
-   other language in brackets when the record holds both. Under it: its period to the month and its industry, its roles with
-   their periods, then each project as a sub-heading with its summary and its facts, then the facts
-   filed under the employer and no project, under `Other work here` when there are projects above.
-4. **`Work outside employment`**, for projects and facts under no employer.
-5. **`Education`** and **`Certifications`**, each a list, when the record holds any.
+1. **The screen intro.** Body: `Everything you have done, from every document you imported and
+   everything you added by hand, including what a résumé leaves out. Your résumé and your career
+   story are written from this.` (under `日本語`: `Your 履歴書, 職務経歴書 and 職務経歴ストーリー are
+   written from this.`) `It is built from your record each time you open it, so it cannot be edited
+   here: change an achievement on its own card. The tabs change the names and headings to the ones a
+   document of that language uses; each achievement reads as it was written, and none is
+   translated.` Legend: `A line marked Private or Not confirmed is kept out of every document. Point
+   at a line to see the document it came from, and open it to see its card.`
+2. **Contents**, a column on the left that stays in view as the page scrolls (above the record, as
+   one wrapped row, under the `wide` breakpoint): each employer by name with its years and the number
+   of achievements under it (`2024 – now · 15`), then `Work outside employment` and `Education and
+   certifications` when there are any. A line scrolls to its chapter.
+3. **One sentence of counts**, in a raised box: `59 achievements across 11 years. 53 can go into a
+   document. 4 are kept private, and 2 are not confirmed yet.` then **`Show those 6`**, which turns
+   on `Kept out of documents`; then, when any, `34 flags to check.` as a link to Screen 9, and `N more
+   are waiting to be sorted and are not listed yet. Sort them from Home.` **Flags are counted as the
+   sidebar counts them**, open flags rather than facts with a flag, so the two numbers agree.
+   `across N years` runs from the first employment or project to the last, or to today.
+4. **The filters**, filter pills in a group named `Show`: `Everything`, `Results with a number N`
+   (Measured), `Kept out of documents N` (Private or Generated), and `Not used in any document yet N`
+   (usable, and cited by the current version of no document, tailored résumés included). The one on
+   is kept in the address as `?show=results`, `kept-out` or `unused`. Under a filter, a project or a
+   chapter with nothing to show is left out, with its contents line, and so is `Education and
+   certifications`; when nothing is left, `Nothing in your record matches this.`
+5. **A chapter an employer**, headed with its name in the document's language at the page size, and
+   its name in the other language in brackets when the record holds both. Under it: its period to
+   the month and its industry, its roles as chips with their periods, then each project as a section
+   with its summary and its facts, then the facts filed under the employer and no project, under
+   `Other work here` when there are projects above.
+6. **`Work outside employment`**, a chapter for projects and facts under no employer; facts under no
+   project there sit under `Not filed under a project`.
+7. **`Education and certifications`**, a chapter with `Education` and `Certifications`, each a list,
+   when the record holds any.
+
+**Within a project, or a chapter's other work, the facts split in two**, each under a mono label:
+**`Results`**, the Measured facts, and **`What I did`**, the rest.
 
 **Under `日本語` the document's own words are Japanese**, on the page and in the file, from one
 table (`MASTER_WORDS` in `src/shared/master-document.ts`):
 
 | English | 日本語 |
 |---|---|
+| `Career record` | `キャリア記録` |
+| `Contents` | `目次` |
+| `Results` | `成果` |
+| `What I did` | `取り組み` |
 | `Work outside employment` | `雇用外の活動` |
 | `Other work here` | `その他の業務` |
 | `Not filed under a project` | `プロジェクト未分類` |
+| `Education and certifications` | `学歴・資格` |
 | `Education` | `学歴` |
 | `Certifications` | `資格` |
-| `No facts filed here yet.` | `まだ事実がありません。` |
+| `Nothing filed here yet.` | `まだ何もありません。` |
 | `2022-04 to present` | `2022年4月〜現在` |
+| `2024 – now` (contents) | `2024年〜現在` |
 | `graduated`, `completed`, `withdrawn`, `expected` | `卒業`, `修了`, `中退`, `卒業見込み` |
 | `issued 2019-06` | `2019年6月取得` |
 
-The intro, the count line and the header stay English, as the application's own chrome is on every
-screen. `Measured`, `Attested`, `Generated`, `Public`, `Restricted`, `Private` and `Flagged` stay as
-they are in both: they are the words on the fact card, and a second word for each would be a second
-vocabulary.
+The intro, the count sentence, the filters and the header stay English, as the application's own
+chrome is on every screen. The marks `Private`, `Not confirmed` and `Added by hand` stay as they are
+in both: they are the product's words, and a second word for each would be a second vocabulary.
 
 ### The fact
 
-The claim, then one mono line: its Worth (`Measured` in the measured tone, `Generated` in the
-generated tone), its Who (`Private` in the private tone), `Flagged` when a flag is open on it, and
-its document and line as a link to that fact on Screen 1. **A Private or Generated fact's claim is
-set in `text-dim`**: it is here, and it is not what a résumé is written from.
+One line with a bullet. **The claim is the link to its card**, on Screen 1 beside its passage, or on
+Screen 16 for a fact added by hand, and its title names where it came from, shown on hover: `From
+quillset-notes.md, line 12`, or `Added by hand, on Quick capture`. **Figures are set apart**, in
+`measured-text` at the semibold weight: a number with its unit (`23 services`, `28%`, `6.8 s`, `¥140
+million`, `3日`), a written-out one with its unit (`nine months`), and a rate (`one in five`). A year
+alone, a digit inside a word (`EC2`, `2FA`), an address or version (`10.20.4.15`) and a technology's
+own digits are not figures.
+
+**A mark appears only where a fact is unusual**, after the claim: `Private` in the private tones,
+`Not confirmed` (Generated) in the generated tones, `Added by hand` (no source document) as a plain
+chip. Worth, Who and open flags are not printed on each line; `Restricted` stood on almost every one.
+**A Private or Generated fact's claim is set in `text-dim`**, and its figures are not coloured: it is
+here, and it is not what a résumé is written from.
 
 ### Rules
 
 - **Everything accepted is listed, and nothing else.** A rejected fact is not, and a fact still
-  waiting to be sorted is not yet; the count line says how many.
+  waiting to be sorted is not yet; the count sentence says how many.
 - **The download is the page**, as Markdown, **Private facts included**, by the owner's decision
   (`docs/06`, 2026-10-08). The page says so beside the button and the file says so in its first
-  lines, with an instruction not to send it to an employer.
+  lines, with an instruction not to send it to an employer. The file has the same contents,
+  chapters, `Results` and `What I did` (in bold), figures in bold and marks in brackets
+  (`*(Private)*`); a fact's document and line are an HTML comment at the end of its line.
 - **No source text**, on the page or in the file. A fact names its document and line.
 - **Month precision.** A period is `2022-04 to 2024-09`, or `2022年4月〜2024年9月`; the day is never
   shown.
 - **Nothing is translated.** The two documents hold the same facts with the same claims. Only the
   record's names, the headings and the dates differ.
-- **`Download .md` saves the file of the tab that is open**, `master-document-en-<date>.md` or
-  `master-document-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
+- **`Download .md` saves the file of the tab that is open**, `career-record-en-<date>.md` or
+  `career-record-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
   says that the claims are in the language they were written in.
 
 ### States
 
 | State | Behaviour |
 |---|---|
-| **Loading** | `Building the master document…`, again on the first visit to the other tab |
-| **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
-| **An employer or project with no fact** | Listed, with `No facts filed here yet.` |
+| **Loading** | `Building the career record…`, again on the first visit to the other tab |
+| **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its achievements appear here.` No Download |
+| **An employer or project with no fact** | Listed under `Everything`, with `Nothing filed here yet.` |
+| **Nothing matches a filter** | `Nothing in your record matches this.` |
 | **Download failed** | The reason replaces the note beside the button; the button stays |
 
 ---

@@ -106,7 +106,7 @@ describe("the menu at phone width", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const menu = within(screen.getByRole("navigation", { name: "Menu" }));
     const rows = menu.getAllByRole("link").map((link) => link.textContent);
-    expect(rows).toEqual(["Applications", "Home", "Record", "Skills", "Documents", "Flagged", "Master document"]);
+    expect(rows).toEqual(["Applications", "Home", "Record", "Skills", "Documents", "Flagged", "Career record"]);
     expect(menu.getByRole("link", { name: "Applications" }).getAttribute("aria-current")).toBe("page");
     expect(
       menu.getByText(
