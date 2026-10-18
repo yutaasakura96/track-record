@@ -1858,6 +1858,125 @@ describe("a fact withheld after acceptance stops the download", () => {
 });
 
 /**
+ * Issue #106: a version is read in the app. The page is what its download
+ * would hold today, from the same inputs and refused on the same facts, so a
+ * screen never shows a document that would not leave the tool.
+ */
+describe("a version is read as its download would hold it", () => {
+  interface Page {
+    renderRef: string;
+    title: string;
+    language: string;
+    tailored: boolean;
+    document: { status: string; pendingProposalId: string | null };
+    canGenerate: boolean;
+    version: { id: string; versionNo: number; origin: string; isCurrent: boolean };
+    page: {
+      stamp: string | null;
+      name: string;
+      contact: string[];
+      sections: { heading: string; blocks: { kind: string; text: string }[] }[];
+    };
+  }
+
+  const texts = (page: Page) => page.page.sections.flatMap((section) => section.blocks.map((block) => block.text));
+
+  async function acceptedResume() {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/renders/english_resume/versions");
+    return { record, versionId: items[0]!.id };
+  }
+
+  it("serves the current version with the name, contact and text the download carries", async () => {
+    const { versionId } = await acceptedResume();
+    const view = await client.json<Page>("/api/renders/english_resume/page");
+
+    expect(view.renderRef).toBe("english_resume");
+    expect(view.language).toBe("en");
+    expect(view.tailored).toBe(false);
+    expect(view.version).toMatchObject({ id: versionId, versionNo: 1, origin: "accepted", isCurrent: true });
+    expect(view.document.status).toBe("up_to_date");
+    expect(view.canGenerate).toBe(true);
+    expect(view.page.name).toBe(PROFILE_FIXTURE.nameLatin);
+    expect(view.page.contact.join("\n")).toContain(PROFILE_FIXTURE.email);
+
+    const markdown = await (await client.get("/api/renders/english_resume/download?format=md")).text();
+    expect(texts(view)).toEqual([
+      "Cut nightly batch runtime from six hours to ninety minutes",
+      "Introduced trunk-based development",
+    ]);
+    for (const text of texts(view)) expect(markdown).toContain(text);
+    for (const section of view.page.sections) expect(markdown).toContain(section.heading);
+  });
+
+  it("serves an earlier version by id, and the current one without it", async () => {
+    const { versionId } = await acceptedResume();
+    const stored = await client.json<{ content: RenderContent }>(`/api/renders/english_resume/versions/${versionId}`);
+    const edited = await client.post("/api/renders/english_resume/versions", {
+      basedOnVersionId: versionId,
+      content: { sections: stored.content.sections.map((s) => ({ ...s, blocks: s.blocks.slice(0, 1) })) },
+    });
+    expect(edited.status).toBe(201);
+
+    const current = await client.json<Page>("/api/renders/english_resume/page");
+    expect(current.version).toMatchObject({ versionNo: 2, origin: "edited", isCurrent: true });
+    expect(texts(current)).not.toContain("Introduced trunk-based development");
+
+    const earlier = await client.json<Page>(`/api/renders/english_resume/page?versionId=${versionId}`);
+    expect(earlier.version).toMatchObject({ id: versionId, versionNo: 1, isCurrent: false });
+    expect(texts(earlier)).toContain("Introduced trunk-based development");
+  });
+
+  it("refuses on a withheld fact exactly as the download does", async () => {
+    const { record, versionId } = await acceptedResume();
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+
+    for (const url of ["/api/renders/english_resume/page", `/api/renders/english_resume/page?versionId=${versionId}`]) {
+      const response = await client.get(url);
+      expect(response.status, url).toBe(409);
+      const body = (await response.json()) as {
+        error: { message: string; details: { facts: { factId: string; problem: string }[] } };
+      };
+      expect(body.error.details.facts).toEqual([{ factId: record.measuredPublic.id, problem: "private" }]);
+      expect(body.error.message).not.toContain("nightly batch");
+    }
+  });
+
+  it("is a 404 for a document never generated, and for a version of another document", async () => {
+    const { versionId } = await acceptedResume();
+    expect((await client.get("/api/renders/shokumu_keirekisho/page")).status).toBe(404);
+    expect((await client.get(`/api/renders/shokumu_keirekisho/page?versionId=${versionId}`)).status).toBe(404);
+    expect((await client.get("/api/renders/english_resume/page?versionId=rv_missing")).status).toBe(404);
+  });
+
+  it("reads a 履歴書 out with its tables filled from the record and today's date", async () => {
+    const record = await seedRecord();
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("貴社の基盤刷新に携わりたいと考えております。", [record.measuredPublic.id]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const view = await client.json<Page>("/api/renders/rirekisho/page");
+    expect(view.language).toBe("ja");
+    expect(view.page.stamp).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日現在$/);
+    const headings = view.page.sections.map((section) => section.heading);
+    expect(headings).toContain("学歴");
+    expect(headings).toContain("職歴");
+    expect(texts(view)).toContain("貴社の基盤刷新に携わりたいと考えております。");
+  });
+});
+
+/**
  * The half of S11 the payload decides.
  *
  * `chapterPlan` is a pure function and is tested as one in

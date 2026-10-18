@@ -536,7 +536,8 @@ said nothing about where to start, and the honest answer is that they do not dep
 - Otherwise → `Every document you have generated is up to date with your record.`
 
 Each row: name, `<language> · generated <relative time>`, status dot + text, then the quiet links
-`History` (Screen 5) and `Download`, offered once a version exists, and **one** button.
+`View` (Screen 17, since #106), `History` (Screen 5) and `Download`, offered once a version exists,
+and **one** button.
 
 | Status | Dot and text | Button |
 |---|---|---|
@@ -786,7 +787,9 @@ already spoken for (`05-design-system.md` §1).
 4. **Ancestry line** — present whenever `source_version_id` is set: `Restored from v2` /
    `Edited from v4`. A history that shows the origin but not the parent says an edit happened
    without saying to what.
-5. **Actions**, right-aligned — `Download` (ghost), `Compare` (ghost) and `Edit` (ghost).
+5. **Actions**, right-aligned — `View` (ghost), `Download` (ghost), `Compare` (ghost) and `Edit` (ghost).
+   `View` opens Screen 17 on that version; on the current version it names none, so the page follows
+   the document when a newer version is accepted (#106).
    `Compare` opens the restore preview; it is absent on the current version, which has nothing to
    be restored from. `Edit` opens Screen 6 and is present **only** on the current version, because
    the route refuses an edit made against any other and a control that is refused is not offered.
@@ -1619,8 +1622,8 @@ says `Reopened at <step>.`
 
 - The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
   this job`, or `Version N · the same document as on Home`.
-- `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
-  tailored one; and before Applied, `Take off` (bare), which removes the document from the
+- `View` (Screen 17), `History` (Screen 5) and `Download` (the current version), as links;
+  `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
   was taken off and generates only when it has neither a version nor a proposal waiting, and `Add a document you
@@ -1945,6 +1948,39 @@ Quick capture` open `/capture?fact=<id>` with that card's controls open.
 
 ---
 
+## Screen 17 — Reading a document · built by #106
+
+The sent-copy reader (Screen 15) for a version (decision log, 2026-10-18). Route
+`/renders/<ref>/view`, a kind or a tailored résumé's id; `?version=<id>` names an earlier version,
+and without it the page is the current one. Reached by `View` on Home's document rows, on every
+version in Screen 5, and on each document in Résumé for this job. Header `Home / <document>`, or
+`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses.
+Read-only.
+
+1. **One notice:** the chip `vN`, the `measured` dot and `Current` on the current version, then
+   `Accepted|Restored|Edited by hand <date>.` and `This is the document as its download holds it
+   today.`, or on an earlier version `An earlier version, as its download holds it today.` with the
+   link `Read the current version`. On its right `Download` (that version), `History`, `Edit` (the
+   current version only, as on Screen 5), and on the current version the one button Home's row
+   would have: `Regenerate` (ghost), `Update` (secondary) when out of date, `Review changes` or
+   `Open it` when a proposal is waiting or being written, and none when the document is not built
+   or no fact can be used. A tailored résumé also has `Back to the application` (bare). While a
+   proposal is waiting: `A new version is waiting for you. This page stays as it is until you
+   accept it.`
+2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
+   filled from your record as it is now, as the download is.`
+3. **The document**, on a `card` at the reading measure: the page its download would hold today,
+   with today's name and contact lines and, for a 履歴書, today's tables and date. A 履歴書 or
+   職務経歴書 is set with the Japanese stack. Both themes, from the theme's tokens.
+
+| State | Behaviour |
+|---|---|
+| **A fact it cites is withheld** | The download's refusal in place of the page: the server's sentence (`removed`), the ids when more than one, then `A document obeys your record as it is today, not as it was when this version was accepted. Change the fact in your record, or edit the block out into a new version.` and, on the current version, `Edit` |
+| **No version, or a version of another document** | `That document or version was not found.` |
+| **Under 1024px** | `History`, `Edit` and the button are held back, and under the notice: `The history, editing and writing a new version need a wider window, so they are not shown here.` |
+
+---
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.
@@ -1958,7 +1994,7 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-Outside Applications and Quick capture, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications, Quick capture and reading a document, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -1968,6 +2004,10 @@ unusable single column.
 The overview screen would adapt to narrow widths, but opening it would invite a next click into a
 screen that still needs a wider window.
 
+**Reading a document (Screen 17) is the third exception** (decision log, 2026-10-18). It opens at
+any width and follows the Applications table under 720px; Screens 2, 5 and 6 keep the message, so
+its `History`, `Edit` and new-version button are held back under 1024px.
+
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
 surface without re-laying-out the application.
@@ -1975,7 +2015,7 @@ surface without re-laying-out the application.
 ### Applications at phone width · specified 2026-10-11, built by #75
 
 **The first exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
-`/applications`, are not behind the wider-window message. Every other route except Quick capture
+`/applications`, are not behind the wider-window message. Every other route except Quick capture and reading a document (Screen 17)
 keeps it under 1024px.
 Designed at **390px**; the prototype's `Phone` width is the reference.
 

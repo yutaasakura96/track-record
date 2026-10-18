@@ -35,7 +35,7 @@ import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
-import { buildDocumentFile, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -735,6 +735,48 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       },
       201,
     );
+  });
+
+  /**
+   * One version to read on a screen (issue #106): the page its download would
+   * hold today, assembled from the same inputs and refused on the same facts
+   * (`409`, the ids named). Like the download, it is never stored, so a read
+   * after the profile changes shows the new contact line. A sent copy keeps
+   * its own page; this is not that.
+   */
+  api.get("/api/renders/:ref/page", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
+
+    const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
+    if (!versionId) throw notFound("A version of that document");
+    const version = await requireVersion(db, user.id, target, versionId);
+    const page = await buildDocumentPage(db, user.id, kind, version);
+    // Where it stands, for the header's one button: the row Home or the
+    // application would show for it, by the same query.
+    const state = await renderState(db, user.id);
+    const document = [...state.documents, ...state.tailored].find((row) => row.ref === target.ref)!;
+
+    return c.json({
+      renderKind: kind,
+      renderRef: target.ref,
+      title: target.title,
+      language: RENDER_LANGUAGE[kind],
+      tailored: target.jobDescription !== null,
+      applicationId: render?.applicationId ?? null,
+      document,
+      canGenerate: state.usableFacts > 0,
+      version: {
+        id: version.id,
+        versionNo: version.versionNo,
+        origin: version.origin,
+        acceptedAt: version.acceptedAt.toISOString(),
+        isCurrent: version.id === render?.currentVersionId,
+      },
+      page,
+    });
   });
 
   /** Assembled from the stored content on each request. NEVER stored. */

@@ -456,6 +456,10 @@ describe("which document to act on", () => {
     expect(within(item).getByRole("link", { name: "History" }).getAttribute("href")).toBe(
       "/renders/english_resume/history",
     );
+    // Read in the app without downloading it (issue #106).
+    expect(within(item).getByRole("link", { name: "View" }).getAttribute("href")).toBe(
+      "/renders/english_resume/view",
+    );
   });
 
   it("says to wait for a proposal still being written, then to check it once it is ready", async () => {

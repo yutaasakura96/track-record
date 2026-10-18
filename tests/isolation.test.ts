@@ -183,6 +183,7 @@ describe("one user's record is unreachable from another's session", () => {
       ["POST", `/api/imports/${b.importId}/retry`],
       ["POST", `/api/imports/${b.importId}/finish`],
       ["GET", `/api/renders/english_resume/download?versionId=${b.renderVersionId}`],
+      ["GET", `/api/renders/english_resume/page?versionId=${b.renderVersionId}`],
       ["POST", `/api/flags/${b.flagId}/explain`],
       ["POST", `/api/flags/${b.flagId}/check`],
       ["POST", `/api/flags/${b.flagId}/uncheck`],
@@ -192,6 +193,7 @@ describe("one user's record is unreachable from another's session", () => {
       ["POST", `/api/renders/${b.tailoredId}/generate`],
       ["GET", `/api/renders/${b.tailoredId}/versions`],
       ["GET", `/api/renders/${b.tailoredId}/download`],
+      ["GET", `/api/renders/${b.tailoredId}/page`],
     ];
 
     for (const [method, path] of byId) {

@@ -224,6 +224,7 @@ describe("choosing a résumé, before Applied", () => {
     const resume = await panel();
 
     expect(resume.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${TAILORED}/history`);
+    expect(resume.getByRole("link", { name: "View" }).getAttribute("href")).toBe(`/renders/${TAILORED}/view`);
     await user.click(resume.getByRole("button", { name: "Regenerate" }));
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-own-2"));

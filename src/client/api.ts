@@ -523,6 +523,8 @@ export const keys = {
   // otherwise invalidate the immutable version the editor is holding.
   version: (ref: string, id: string) => ["renders", ref, "version", id] as const,
   proposals: (ref: string) => ["renders", ref, "proposals"] as const,
+  // Under `renders`: a new version or a proposal arriving changes what the page says.
+  page: (ref: string, versionId: string) => ["renders", ref, "page", versionId] as const,
   versionDiff: (ref: string, from: string, to: string) =>
     ["renders", ref, "diff", from, to] as const,
   // Under `renders`: an application shows its résumé's version and status, so
@@ -861,6 +863,32 @@ export const useStoredVersion = (ref: string, versionId: string | null) =>
     // the document under an editor that has unsaved work in it.
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+
+/** One version as it would print today (`docs/10` Screen 17, issue #106). */
+export interface RenderPage {
+  renderKind: RenderKind;
+  renderRef: string;
+  title: string;
+  language: "en" | "ja";
+  tailored: boolean;
+  /** The application a tailored résumé belongs to. `null` on a main document. */
+  applicationId: string | null;
+  /** The document's row, as Home or its application shows it. */
+  document: RenderRow;
+  canGenerate: boolean;
+  version: Pick<RenderVersion, "id" | "versionNo" | "origin" | "acceptedAt" | "isCurrent">;
+  page: SentPage;
+}
+
+/** `versionId` absent reads the current version. A refusal is an answer, not a blip to retry. */
+export const useRenderPage = (ref: string, versionId: string | undefined) =>
+  useQuery({
+    queryKey: keys.page(ref, versionId ?? "current"),
+    queryFn: () =>
+      api<RenderPage>(`/api/renders/${ref}/page${versionId ? `?versionId=${encodeURIComponent(versionId)}` : ""}`),
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 409)) && count < 3,
+    refetchInterval: (query) => (query.state.data?.document.status === "proposal_generating" ? POLL_MS : false),
   });
 
 export const useRenderProposals = (ref: string) =>

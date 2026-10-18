@@ -12,7 +12,7 @@ import { useState } from "react";
 import { Link, useParams } from "@tanstack/react-router";
 import { ApiError, downloadSentCopy, failureText, useSentCopy, type SentCopyPage } from "../api";
 import { ApplicationsFrame } from "../components/application-chrome";
-import { DocumentBlocks } from "../components/document-blocks";
+import { DocumentPage } from "../components/document-page";
 import { ReadFailure } from "../components/read-failure";
 import { Button, Chip } from "../components/ui";
 
@@ -37,7 +37,7 @@ export function SentCopyScreen() {
   return (
     <ApplicationsFrame title={`${data.company} / ${data.title} as sent`} crumb>
       <Notice copy={data} />
-      <Document copy={data} />
+      <DocumentPage page={data.page} language={data.language} />
     </ApplicationsFrame>
   );
 }
@@ -85,33 +85,5 @@ function Notice({ copy }: { copy: SentCopyPage }) {
         </p>
       ) : null}
     </div>
-  );
-}
-
-/** The document at the reading measure. A 履歴書 or 職務経歴書 is set with the Japanese stack. */
-function Document({ copy }: { copy: SentCopyPage }) {
-  const { page } = copy;
-  const japanese = copy.language === "ja";
-  return (
-    <article
-      lang={japanese ? "ja" : "en"}
-      className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
-    >
-      {page.stamp ? <p className="text-small text-text-muted">{page.stamp}</p> : null}
-      <h2 className="text-doc-title font-semibold tracking-tight text-text-bright">{page.name}</h2>
-      {page.contact.map((line) => (
-        <p key={line} className="text-ui text-text-secondary whitespace-pre-line">
-          {line}
-        </p>
-      ))}
-      {page.sections.map((section, index) => (
-        <section key={index}>
-          <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
-            {section.heading}
-          </h3>
-          <DocumentBlocks blocks={section.blocks} />
-        </section>
-      ))}
-    </article>
   );
 }

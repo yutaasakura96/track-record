@@ -27,6 +27,7 @@ import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
 import { VersionEditScreen } from "./screens/version-edit";
+import { DocumentViewScreen } from "./screens/document-view";
 import { FlaggedScreen } from "./screens/flagged";
 import { MASTER_FILTERS, MasterDocumentScreen, type MasterFilter } from "./screens/master-document";
 import { ApplicationsScreen } from "./screens/applications";
@@ -206,6 +207,18 @@ const versionHistoryRoute = createRoute({
   component: VersionHistoryScreen,
 });
 
+/**
+ * Reading one version (issue #106). `?version=` names an earlier one; without
+ * it the page is the current version, and follows it when a new one is accepted.
+ */
+const documentViewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/renders/$ref/view",
+  component: DocumentViewScreen,
+  validateSearch: (search: Record<string, unknown>): { version?: string } =>
+    typeof search.version === "string" && search.version !== "" ? { version: search.version } : {},
+});
+
 const versionEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/renders/$ref/edit",
@@ -229,6 +242,7 @@ const routeTree = rootRoute.addChildren([
   factReviewRoute,
   diffReviewRoute,
   versionHistoryRoute,
+  documentViewRoute,
   versionEditRoute,
 ]);
 

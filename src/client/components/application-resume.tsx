@@ -243,6 +243,10 @@ function DocumentLine({
       <div className={LINKS}>
         {document.currentVersionId ? (
           <>
+            {/* Reading opens at any width (issue #106), so it is not held back. */}
+            <Link to="/renders/$ref/view" params={{ ref: document.ref }} className={QUIET}>
+              View
+            </Link>
             {canOpen ? (
               <Link to="/renders/$ref/history" params={{ ref: document.ref }} className={QUIET}>
                 History
