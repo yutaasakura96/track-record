@@ -136,6 +136,22 @@ describe("the master document", () => {
     expect(doc.subjectName).toBe(PROFILE_FIXTURE.nameLatin);
   });
 
+  it("counts a Private and Generated fact once under Private in both languages", async () => {
+    await seedRecord();
+    const privateFact = everyFact(await master()).find((fact) => fact.claim === PRIVATE.claim)!;
+    expect((await client.patch(`/api/facts/${privateFact.id}`, { provenance: "generated" })).status).toBe(200);
+
+    const doc = await master();
+    expect(everyFact(doc).find((fact) => fact.id === privateFact.id)).toMatchObject({ provenance: "generated", disclosure: "private" });
+    expect(doc.counts).toMatchObject({ private: 1, generated: 1, keptOut: 2 });
+    expect(doc.counts.private + doc.counts.generated).toBe(doc.counts.keptOut);
+
+    const english = await (await client.get("/api/master-document/download")).text();
+    const japanese = await (await client.get("/api/master-document/download?language=ja")).text();
+    expect(english.split("\n")[4]).toContain("1 is kept private, and 1 is not confirmed yet.");
+    expect(japanese.split("\n")[4]).toContain("Private 1 件、Not confirmed 1 件は書類に使われません。");
+  });
+
   it("leaves out a rejected fact, and a fact still waiting to be sorted, and counts the second", async () => {
     const { importId } = await seedRecord();
     expect(everyFact(await master()).map((fact) => fact.claim)).not.toContain(REJECTED.claim);

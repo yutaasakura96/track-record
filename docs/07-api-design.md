@@ -989,7 +989,9 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 - A fact is `{ id, claim, provenance, disclosure, technologies, flags, source, used }`. `flags` is
   the kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null` (added by
   hand); `used` is whether the current version of any document, tailored résumés included, cites it.
-- `counts.keptOut` is Private or Generated. **`counts.flags`
+- `counts.keptOut` is Private or Generated. Its reasons partition the total: `counts.private`
+  includes Private facts even when Generated, and `counts.generated` includes only Generated facts
+  that are not Private. **`counts.flags`
   is open flags, in the unit `GET /api/imports/summary`'s `openFlags` counts** (#112): it counted
   facts with a flag, and the page and the sidebar disagreed. `counts.years` is whole years from the
   first employment or project to the last, or to today, and `null` with no dates.

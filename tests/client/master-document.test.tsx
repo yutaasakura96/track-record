@@ -204,6 +204,21 @@ describe("the career record", () => {
     expect(claims()).toEqual([PRIVATE.claim, GENERATED.claim]);
   });
 
+  it("shows one Private and Generated fact once under its Private reason", async () => {
+    const overlapping = { ...GENERATED, disclosure: "private" as const };
+    const { user } = open(master({
+      counts: { facts: 1, usable: 0, private: 1, generated: 0, keptOut: 1, flags: 0, waiting: 0, years: null },
+      employers: [],
+      independent: { projects: [], facts: [overlapping] },
+      educations: [],
+      certifications: [],
+    }));
+    expect(await screen.findByText(/1 is kept private\./)).toBeTruthy();
+    expect(within(screen.getByRole("group", { name: "Show" })).getByRole("button", { name: "Kept out of documents 1" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Show it" }));
+    expect(claims()).toEqual([overlapping.claim]);
+  });
+
   it("opens on the filter named in the address", async () => {
     open(master(), {}, "/master?show=results");
     await rowOf(USABLE.claim);
