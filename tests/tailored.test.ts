@@ -177,6 +177,19 @@ describe("generating a tailored résumé", () => {
     expect(await shown(row)).toMatchObject({ status: "up_to_date", currentVersionNo: 1 });
   });
 
+  it("is not refused for a generic Experience heading, which names no employer", async () => {
+    const { usable } = await seedRecord();
+    const row = await createdRow();
+    const { proposalId } = (await (
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+    ).json()) as { proposalId: string };
+
+    // One call: the English check found nothing to retry.
+    expect(model.generationInputs).toHaveLength(1);
+    const proposal = await client.json<{ generationStatus: string }>(`/api/proposals/${proposalId}`);
+    expect(proposal.generationStatus).toBe("ready");
+  });
+
   it("refuses a second proposal while one waits, and holds only its own document", async () => {
     await seedRecord();
     const row = await createdRow();

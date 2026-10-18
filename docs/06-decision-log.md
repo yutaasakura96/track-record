@@ -6835,10 +6835,11 @@ equivalent check (out of scope here).
 ### [2026-10-18] English renders check record names before review
 
 This supersedes the 2026-10-17 decision to leave résumé employer names unchecked. An English
-résumé's employer sections follow the Employers list in order, so their headings can be checked
-against that list without guessing from prose. Its education rows follow the eligible Education
-entries in order; entries below university level are omitted, while an entry with no recorded
-level is kept. Independent projects in its project section also keep their recorded names.
+résumé's employer-section heading, education row or project row that names an employer, school
+or project must carry one of the record's names exactly. A generic section title — "Experience",
+"Education", "Skills", 職務経歴 and the like — names none of them and is not held to it: a
+tailored résumé with one "Experience" section was being refused as a changed name. Which entries
+appear, and in what order, is left to the register and is not checked here.
 
 Both English renders check headings and rows for altered employer, school and project names,
 including short names. Career-story employer chapters additionally use their employer ids to

@@ -185,6 +185,19 @@ describe("an English document", () => {
     }
   });
 
+  it("passes over a generic section title, which names no employer, school or project", () => {
+    const resumeSpec = spec({ kind: "english_resume", employers: [employer("emp_a", "Hayabusa Computing Co., Ltd."), employer("emp_b", "Kawasemi Pay Inc.")] });
+    for (const heading of ["Experience", "Work Experience", "Skills", "Projects", "Summary", "Certifications", "Languages", "Education", "職務経歴", "スキル"]) {
+      const output = content([{ key: "experience", heading, text: "Cut the nightly batch from 6 hours to 90 minutes." }]);
+      expect(englishDefect(output, resumeSpec), heading).toBeNull();
+    }
+    // A heading that is more than a title names somebody, and must name them exactly.
+    const named = content([{ key: "experience", heading: "Experience at Hayabsa Computing Co., Ltd.", text: "Cut the nightly batch." }]);
+    expect(englishDefect(named, resumeSpec)).toBe("record_names");
+    const translated = content([{ key: "experience", heading: "Hayabusa Keisanki — Engineer", text: "Cut the nightly batch." }]);
+    expect(englishDefect(translated, resumeSpec)).toBe("record_names");
+  });
+
   it("does not look for an employer name in a chapter keyed to no employer the spec holds", () => {
     const unknown = content([{ key: employerChapterKey("emp_gone"), heading: "Elsewhere", text: PROSE }]);
     expect(englishDefect(unknown, spec())).toBeNull();

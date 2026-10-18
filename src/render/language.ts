@@ -126,6 +126,21 @@ function hasChangedHeaderName(text: string, names: readonly string[]): boolean {
 }
 
 /**
+ * The generic titles a résumé or story gives its sections — "Experience",
+ * 職務経歴 — which name no employer, school or project, so the record-name
+ * checks pass over them. A heading that adds anything to one of these is not a
+ * bare title and is checked like any other.
+ */
+const SECTION_TITLES = new Set([
+  "summary", "profile", "experience", "work experience", "professional experience", "employment",
+  "education", "skills", "technical skills", "projects", "certifications", "languages",
+  "職務要約", "職務経歴", "学歴", "スキル", "技術スキル", "プロジェクト", "資格", "免許・資格", "語学", "自己pr",
+]);
+
+const isSectionTitle = (heading: string): boolean =>
+  SECTION_TITLES.has(heading.normalize("NFKC").trim().replace(/[:：]$/u, "").toLocaleLowerCase());
+
+/**
  * What is wrong with an English document, or null when nothing this checks is.
  *
  * Names in record-backed locations and near-miss spellings in any output text
@@ -141,7 +156,7 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
   if (content.sections.some((s) => s.blocks.some((b) => b.kind !== "row" && hasRespeltName(b.text, names, false)))) {
     return "record_names";
   }
-  if (content.sections.some((s) => hasRespeltName(s.heading, names, true) || hasChangedHeaderName(s.heading, names) ||
+  if (content.sections.some((s) => (!isSectionTitle(s.heading) && (hasRespeltName(s.heading, names, true) || hasChangedHeaderName(s.heading, names))) ||
       s.blocks.some((b) => b.kind === "row" &&
         (hasRespeltName(b.text, names, true) || hasChangedHeaderName(b.text, names))))) return "record_names";
   const nameOf = new Map(spec.employers.map((e) => [e.id, e.name]));
@@ -153,15 +168,16 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
     if (!said.includes(name)) return "record_names";
   }
   if (spec.kind === "english_resume") {
-    const experience = content.sections.filter((s) => s.key === "experience");
-    if (experience.length !== spec.employers.length) return "record_names";
-    if (experience.some((s, i) => !s.heading.includes(spec.employers[i]!.name))) return "record_names";
-    const educationRows = content.sections.filter((s) => s.key === "education").flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
-    const expectedSchools = spec.educations.filter((e) => e.level === null || e.level === "tertiary" || e.level === "postgraduate");
-    if (educationRows.length !== expectedSchools.length) return "record_names";
-    if (educationRows.some((row, i) => !row.text.includes(expectedSchools[i]!.institution))) return "record_names";
-    const projects = content.sections.filter((s) => s.key === "projects").flatMap((s) => s.blocks.map((b) => b.text)).join("\n");
-    if (spec.projects.some((p) => p.employerId === null && !projects.includes(p.name))) return "record_names";
+    // A line that names an employer, a school or a project names one of the
+    // record's, exactly. A section title names none of them and is not held to it.
+    const employers = spec.employers.map((e) => e.name);
+    const experience = content.sections.filter((s) => s.key === "experience" && !isSectionTitle(s.heading));
+    if (experience.some((s) => !employers.some((name) => s.heading.includes(name)))) return "record_names";
+    const rowsOf = (key: string) => content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
+    const schools = spec.educations.map((e) => e.institution);
+    if (rowsOf("education").some((row) => !schools.some((name) => row.text.includes(name)))) return "record_names";
+    const projects = spec.projects.filter((p) => p.employerId === null).map((p) => p.name);
+    if (rowsOf("projects").some((row) => !projects.some((name) => row.text.includes(name)))) return "record_names";
   }
   return null;
 }
