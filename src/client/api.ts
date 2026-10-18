@@ -1373,6 +1373,7 @@ export function useSaveProfile() {
       // the gate correct on the very next render.
       queryClient.setQueryData(keys.profile, saved);
       void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
     },
   });
 }
@@ -1478,6 +1479,7 @@ export function useFactAction(importId: string) {
   // Home counts these facts, and holds its Next step back only once told.
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.overview });
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
     return queryClient.invalidateQueries({ queryKey: keys.allFacts });
   };
 

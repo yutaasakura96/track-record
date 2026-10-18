@@ -1,6 +1,5 @@
 /**
- * A document's page as its file carries it: the date above the name where its
- * kind is dated, the name and contact lines, then its sections in order.
+ * A document's page as its file carries it.
  *
  * Two readers show it. A sent copy (`docs/10` Screen 15) shows the page stored
  * with the file that day; a version (Screen 17) shows the page its download
@@ -16,13 +15,14 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
       lang={japanese ? "ja" : "en"}
       className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
     >
-      {page.stamp ? <p className="text-small text-text-muted">{page.stamp}</p> : null}
-      <h2 className="text-doc-title font-semibold tracking-tight text-text-bright">{page.name}</h2>
-      {page.contact.map((line) => (
-        <p key={line} className="text-ui text-text-secondary whitespace-pre-line">
-          {line}
-        </p>
-      ))}
+      <h2 className="text-doc-title text-center font-semibold tracking-tight text-text-bright">{page.title}</h2>
+      <div className={`${page.stamp ? "text-right" : "text-center"} mt-8`}>
+        {page.stamp ? <p className="text-small text-text-muted">{page.stamp}</p> : null}
+        <p className="text-render-heading font-semibold text-text-bright">{page.name}</p>
+        {page.contact.length > 0 ? (
+          <p className="text-ui text-text-secondary whitespace-pre-line">{page.contact.join(" · ")}</p>
+        ) : null}
+      </div>
       {page.sections.map((section, index) => (
         <section key={index}>
           <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">

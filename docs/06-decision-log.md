@@ -6761,14 +6761,12 @@ accepted, which would show a document that will not leave the tool, or a contact
 longer carries.
 
 **The reader is the sent-copy reader's**, with the page set on a card at the reading measure in
-the theme's own tokens. No paper colour is added: the forbidden list allows no colour that is not a
-token in both themes (`05` §9), and what is "as it will print" is the content and its order, which
-are the file's.
+the theme's own tokens. The printed title, identity block and sections follow the file's structure.
 
 **It opens at any width, the third exception** after Applications and Quick capture. A tailored
 résumé is read from its application, which works on a phone, and reading needs no second pane.
-History, Edit and a new version open desktop screens, so in a window under 1024px they are held
-back and the header says so once, as Résumé for this job does (2026-10-14).
+History, Edit and a new version remain reachable in the header at every width; their destination
+screens retain the desktop width gate.
 
 **Revisit if:** the "show where each line comes from" rail is built (evaluation proposal 8), which
 needs block ids on the page and so a page built from the version rather than from `SentPage`.

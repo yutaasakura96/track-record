@@ -4,8 +4,6 @@
  *
  * The sent-copy reader (Screen 15), for a version: the page its download would
  * hold today, read without downloading it. Read-only, so it opens at any width,
- * and the controls that lead to a desktop screen (History, Edit, a new version)
- * are held back in a window too narrow for those screens.
  *
  * The page is assembled by the server from the inputs the download uses, and
  * refused on the facts the download refuses. What is read here is what would
@@ -19,13 +17,8 @@ import { DocumentPage } from "../components/document-page";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
-import { useWideEnough } from "../components/too-narrow";
 import { Button, Chip, Dot } from "../components/ui";
 import { absolute } from "../format";
-
-/** Why History, Edit and a new version are not offered here, in a window too narrow for their screens. */
-export const VIEW_HELD_BACK =
-  "The history, editing and writing a new version need a wider window, so they are not shown here.";
 
 export function DocumentViewScreen() {
   const { ref } = useParams({ from: "/renders/$ref/view" });
@@ -33,7 +26,7 @@ export function DocumentViewScreen() {
   const read = useRenderPage(ref, version);
   const data = read.data;
 
-  if (!data) {
+  if ((read.error instanceof ApiError && read.error.status === 409) || !data) {
     const status = read.error instanceof ApiError ? read.error.status : null;
     return (
       <PhoneFrame title={status === 404 ? "Not found" : "Document"} back={{ to: "/", label: "Home" }}>
@@ -80,7 +73,6 @@ const ORIGIN: Record<RenderPage["version"]["origin"], string> = {
 /** The version, its date, and what can be done with it. */
 function Notice({ view }: { view: RenderPage }) {
   const { version, document } = view;
-  const wide = useWideEnough();
 
   return (
     <div className="grid gap-6">
@@ -109,21 +101,15 @@ function Notice({ view }: { view: RenderPage }) {
         </span>
         <span className="ml-auto max-phone:ml-0 flex flex-wrap items-center gap-12">
           <DownloadButton kind={view.renderKind} docRef={view.renderRef} versionId={version.id} label="Download" className={QUIET} />
-          {wide ? (
-            <>
-              <Link to="/renders/$ref/history" params={{ ref: view.renderRef }} className={QUIET}>
-                History
-              </Link>
-              {/* Only on the current version: the route refuses an edit made
-                  against any other, and a refused control is not offered. */}
-              {version.isCurrent ? (
-                <Link to="/renders/$ref/edit" params={{ ref: view.renderRef }} className={QUIET}>
-                  Edit
-                </Link>
-              ) : null}
-              {version.isCurrent ? <NewVersion view={view} /> : null}
-            </>
+          <Link to="/renders/$ref/history" params={{ ref: view.renderRef }} className={QUIET}>
+            History
+          </Link>
+          {version.isCurrent ? (
+            <Link to="/renders/$ref/edit" params={{ ref: view.renderRef }} className={QUIET}>
+              Edit
+            </Link>
           ) : null}
+          {version.isCurrent ? <NewVersion view={view} /> : null}
           {view.tailored && view.applicationId ? (
             <Link
               to="/applications/$applicationId"
@@ -135,7 +121,6 @@ function Notice({ view }: { view: RenderPage }) {
           ) : null}
         </span>
       </div>
-      {wide ? null : <p className="text-small text-text-muted">{VIEW_HELD_BACK}</p>}
       {document.status === "proposal_pending" || document.status === "proposal_generating" ? (
         <p className="text-small text-text-muted">
           A new version is {document.status === "proposal_generating" ? "being written" : "waiting for you"}. This page
@@ -203,7 +188,6 @@ function NewVersion({ view }: { view: RenderPage }) {
  * download's dialog says.
  */
 function Withheld({ docRef, current, error }: { docRef: string; current: boolean; error: ApiError }) {
-  const wide = useWideEnough();
   return (
     <div className="grid gap-6 text-small text-text-secondary">
       <p role="alert" className="text-removed">
@@ -214,7 +198,7 @@ function Withheld({ docRef, current, error }: { docRef: string; current: boolean
         A document obeys your record as it is today, not as it was when this version was accepted. Change the
         fact in your record, or edit the block out into a new version.
         {/* An edit is made from the current version, so it is the way out only for that one. */}
-        {wide && current ? (
+        {current ? (
           <>
             {" "}
             <Link to="/renders/$ref/edit" params={{ ref: docRef }} className={QUIET}>

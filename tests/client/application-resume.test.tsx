@@ -404,6 +404,7 @@ describe("a sent copy", () => {
     recordedAt: "2026-10-06T03:00:00.000Z",
     filename: "rirekisho-2026-10-01.docx",
     page: {
+      title: "履歴書",
       stamp: "2026年10月6日現在",
       name: "架空　花子",
       contact: ["〒000-0000 架空県架空市0-0-0", "000-0000-0000 · hanako@example.invalid"],
@@ -436,8 +437,9 @@ describe("a sent copy", () => {
 
     const page = screen.getByRole("article");
     expect(page.getAttribute("lang")).toBe("ja");
-    expect(within(page).getByRole("heading", { name: "架空　花子" })).toBeTruthy();
-    expect(within(page).getByText("〒000-0000 架空県架空市0-0-0")).toBeTruthy();
+    expect(within(page).getByRole("heading", { name: "履歴書" })).toBeTruthy();
+    expect(page.textContent).toContain("架空　花子");
+    expect(page.textContent).toContain("〒000-0000 架空県架空市0-0-0");
     // Matched on the text itself: the row is spaced with ideographic spaces, which a text matcher folds.
     expect(page.textContent).toContain("2017年3月　架空大学　架空学部　卒業");
     expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();

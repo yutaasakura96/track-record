@@ -3,18 +3,18 @@
  *
  * A sent copy is a `.docx`, and a `.docx` is not read on a page. So the text
  * the file was assembled from is kept beside it, taken at the same moment from
- * the same inputs: the name and contact lines the file carried that day, then
- * its sections. For a 履歴書 that includes the three tables, which a version
+ * the same inputs. For a 履歴書 that includes the three tables, which a version
  * does not store and a later read would fill from a later record.
  *
  * The page is stored, never rebuilt. Rebuilding it would read today's profile
  * and today's record, which is the one thing a sent copy must not do.
  */
-import type { BlockKind, RenderContent, RenderKind } from "~/shared/render-content";
+import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind } from "~/shared/render-content";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
 import type { RirekishoRow, RirekishoTemplateData } from "./rirekisho-template";
 
 export interface SentPage {
+  title: string;
   /** The date the file carries above its name. Null where its kind is not dated. */
   stamp: string | null;
   name: string;
@@ -34,7 +34,7 @@ const sectionsOf = (content: RenderContent): SentPage["sections"] =>
 /** The page of a document `toDocx` assembles, from what `toDocx` is given. */
 export function sentPage(kind: RenderKind, content: RenderContent, identity: RenderIdentity, today: string): SentPage {
   const [name = "", ...contact] = identityLines(kind, identity);
-  return { stamp: documentDate(kind, today), name, contact, sections: sectionsOf(content) };
+  return { title: RENDER_TITLE[kind], stamp: documentDate(kind, today), name, contact, sections: sectionsOf(content) };
 }
 
 const tableRow = (row: RirekishoRow) => ({
@@ -55,6 +55,7 @@ export function rirekishoSentPage(data: RirekishoTemplateData, content: RenderCo
     rows.length === 0 ? [] : [{ heading, blocks: rows.map(tableRow) }];
 
   return {
+    title: RENDER_TITLE.rirekisho,
     stamp: `${data.submitYear}年${data.submitMonth}月${data.submitDay}日現在`,
     name: data.nameKanji,
     contact: [

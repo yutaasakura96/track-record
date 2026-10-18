@@ -43,6 +43,7 @@ const view = (over: Partial<RenderPage> = {}): RenderPage => ({
   canGenerate: true,
   version: { id: "ver-test-3", versionNo: 3, origin: "accepted", acceptedAt: "2026-09-03T00:00:00.000Z", isCurrent: true },
   page: {
+    title: "Résumé (English)",
     stamp: null,
     name: "Ryo Tanabe",
     contact: ["ryo@example.invalid"],
@@ -69,7 +70,11 @@ describe("the page", () => {
     open();
 
     const page = await screen.findByRole("article");
-    expect(within(page).getByRole("heading", { name: "Ryo Tanabe" })).toBeTruthy();
+    const title = within(page).getByRole("heading", { name: "Résumé (English)" });
+    const name = within(page).getByText("Ryo Tanabe");
+    const section = within(page).getByRole("heading", { name: "Experience" });
+    expect(title.compareDocumentPosition(name) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(name.compareDocumentPosition(section) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(within(page).getByText("ryo@example.invalid")).toBeTruthy();
     expect(within(page).getByRole("heading", { name: "Experience" })).toBeTruthy();
     expect(within(page).getAllByRole("listitem").map((item) => item.textContent)).toEqual([
@@ -142,6 +147,22 @@ describe("the page", () => {
     expect(screen.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(`/renders/${KIND}/edit`);
   });
 
+  it("replaces a cached page when a later read is refused", async () => {
+    let withheld = false;
+    const { queryClient } = open(undefined, {
+      [PAGE]: () => withheld
+        ? new Refusal(409, "conflict", "A cited fact is Private.")
+        : view(),
+    });
+    expect(await screen.findByRole("article")).toBeTruthy();
+
+    withheld = true;
+    await queryClient.invalidateQueries({ queryKey: ["renders", KIND] });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("A cited fact is Private.");
+    expect(screen.queryByRole("article")).toBeNull();
+  });
+
   it("is not found for a document with no version", async () => {
     open(undefined, { [PAGE]: new Refusal(404, "not_found", "A version of that document was not found.") });
     expect(await screen.findByText("That document or version was not found.")).toBeTruthy();
@@ -174,7 +195,7 @@ describe("at phone width", () => {
     Object.defineProperty(window, "innerWidth", { value: next, configurable: true, writable: true });
   afterEach(() => setWidth(width));
 
-  it("opens, keeps Download, and holds back what leads to a desktop screen", async () => {
+  it("keeps all reader header actions available at 390px", async () => {
     setWidth(390);
     open();
     const bar = await notice();
@@ -182,12 +203,9 @@ describe("at phone width", () => {
     expect(screen.queryByText(WIDER)).toBeNull();
     expect(screen.getByRole("article")).toBeTruthy();
     expect(bar.getByRole("button", { name: "Download" })).toBeTruthy();
-    expect(bar.queryByRole("link", { name: "History" })).toBeNull();
-    expect(bar.queryByRole("link", { name: "Edit" })).toBeNull();
-    expect(bar.queryByRole("button", { name: "Regenerate" })).toBeNull();
-    expect(
-      screen.getByText("The history, editing and writing a new version need a wider window, so they are not shown here."),
-    ).toBeTruthy();
+    expect(bar.getByRole("link", { name: "History" })).toBeTruthy();
+    expect(bar.getByRole("link", { name: "Edit" })).toBeTruthy();
+    expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();
   });
 
   it("still shows the message on the document's other screens", async () => {

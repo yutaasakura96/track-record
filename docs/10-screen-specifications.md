@@ -1970,14 +1970,14 @@ Read-only.
 2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
    filled from your record as it is now, as the download is.`
 3. **The document**, on a `card` at the reading measure: the page its download would hold today,
-   with today's name and contact lines and, for a 履歴書, today's tables and date. A 履歴書 or
+   with the printed title above the identity block, today's name and contact lines and, for a 履歴書, today's tables and date. A 履歴書 or
    職務経歴書 is set with the Japanese stack. Both themes, from the theme's tokens.
 
 | State | Behaviour |
 |---|---|
 | **A fact it cites is withheld** | The download's refusal in place of the page: the server's sentence (`removed`), the ids when more than one, then `A document obeys your record as it is today, not as it was when this version was accepted. Change the fact in your record, or edit the block out into a new version.` and, on the current version, `Edit` |
 | **No version, or a version of another document** | `That document or version was not found.` |
-| **Under 1024px** | `History`, `Edit` and the button are held back, and under the notice: `The history, editing and writing a new version need a wider window, so they are not shown here.` |
+| **Under 1024px** | The notice wraps and keeps `Download`, `History`, `Edit` and the new-version action reachable; destination screens retain their own width gate. |
 
 ---
 
@@ -2006,7 +2006,7 @@ screen that still needs a wider window.
 
 **Reading a document (Screen 17) is the third exception** (decision log, 2026-10-18). It opens at
 any width and follows the Applications table under 720px; Screens 2, 5 and 6 keep the message, so
-its `History`, `Edit` and new-version button are held back under 1024px.
+its header actions remain reachable under 1024px; the destination screens retain their own width gate.
 
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
