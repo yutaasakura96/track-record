@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { STORAGE_STATE } from "./env";
+import { DIFF_REVIEW_STORAGE_STATE } from "./env";
 
 const evidence = process.env.TEST_EVIDENCE_DIR;
 async function screenshot(page: Page, name: string) {
@@ -8,7 +8,7 @@ async function screenshot(page: Page, name: string) {
 }
 
 test("first proposal previews the document; regeneration shows a heading change", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: DIFF_REVIEW_STORAGE_STATE });
   const page = await context.newPage();
   await page.goto("/");
   for (const [label, value] of Object.entries(PROFILE)) await page.getByLabel(label).fill(value);
