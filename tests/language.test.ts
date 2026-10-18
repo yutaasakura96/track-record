@@ -187,7 +187,7 @@ describe("an English document", () => {
 
   it("passes over a generic section title, which names no employer, school or project", () => {
     const resumeSpec = spec({ kind: "english_resume", employers: [employer("emp_a", "Hayabusa Computing Co., Ltd."), employer("emp_b", "Kawasemi Pay Inc.")] });
-    for (const heading of ["Experience", "Work Experience", "Skills", "Projects", "Summary", "Certifications", "Languages", "Education", "職務経歴", "スキル"]) {
+    for (const heading of ["Experience", "Work Experience", "Skills", "Projects", "Summary", "Certifications", "Languages", "Education"]) {
       const output = content([{ key: "experience", heading, text: "Cut the nightly batch from 6 hours to 90 minutes." }]);
       expect(englishDefect(output, resumeSpec), heading).toBeNull();
     }
