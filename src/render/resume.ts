@@ -1,0 +1,447 @@
+/**
+ * The English résumé, laid out from the record with the model's prose set into
+ * it (issue #107).
+ *
+ * Until this module the résumé went through the generic `toDocx` path every
+ * flowing document takes, and everything on the page was written by the model:
+ * the employer, title and date line of each job, the skills, the education and
+ * the certifications. The wording of the bullets held up; the document around
+ * them did not — a run-on job line with each date printed twice in ISO form, a
+ * Japanese faculty name, an expired certification, a language score inside the
+ * summary. None of that is prose, and none of it should have been asked for.
+ *
+ * **The model now writes the summary and the bullets, and nothing else.** The
+ * 履歴書 settled the same split first (`src/render/rirekisho.ts`): what is data
+ * is read from the record when the file is built, and only what has to be
+ * written is generated. Each employer's bullets are stored under a section
+ * keyed by that employer's id — the key the career stories already use — so
+ * the job header is joined to them by id, never matched on a heading.
+ *
+ * Three things live here, all pure:
+ *   - the bullet budget, computed per employer and printed into the prompt;
+ *   - the shaping of what the model returned into exactly the sections the
+ *     register asks for;
+ *   - the assembly of a stored version and today's record into the document a
+ *     file, a Markdown download and a sent copy's page are all written from,
+ *     so the three cannot disagree.
+ */
+import type { RenderSpec } from "~/model/types";
+import { RENDER_TITLE, type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
+import { experienceGroups } from "./attribution";
+import { employerChapterKey, employerIdOfChapter } from "./chapters";
+import { identityLines, type RenderIdentity } from "./identity";
+import type { SentPage } from "./sent-page";
+
+/* ------------------------------------------------------------ section keys */
+
+export const SUMMARY_KEY = "summary";
+
+export const PROJECT_KEY_PREFIX = "project:";
+
+export const projectKey = (projectId: string): string => `${PROJECT_KEY_PREFIX}${projectId}`;
+
+/**
+ * Independent work the record holds as facts with no project row. A career
+ * story met this first: a personal project recorded as seven facts and no row
+ * had no chapter to land in (`docs/06`, 2026-09-13).
+ */
+export const OTHER_PROJECTS_KEY = "projects";
+
+/* ----------------------------------------------------------- bullet budget */
+
+/** The current and the previous employer: §4.3's "recent roles". */
+const RECENT_EMPLOYERS = 2;
+
+/** "Roles over about 8 years old", counted from the month the job ended. */
+const OLD_ROLE_MONTHS = 8 * 12;
+
+export interface BulletBudget {
+  min: number;
+  max: number;
+}
+
+const monthIndex = (isoDate: string) => Number(isoDate.slice(0, 4)) * 12 + Number(isoDate.slice(5, 7)) - 1;
+
+/**
+ * How many bullets one employer gets, by its position in the newest-first list
+ * and how long ago it ended. Four or five for the two most recent, one or two
+ * for a job that ended more than eight years ago, and two or three for the
+ * ones between — which is what keeps a long career to two pages with the
+ * strongest material on the first.
+ *
+ * Age wins over position: a second employer that ended ten years ago, before a
+ * gap, is old work whatever its place in the list.
+ */
+export function bulletBudget(position: number, endedOn: string | null, today: string): BulletBudget {
+  if (endedOn !== null && monthIndex(today) - monthIndex(endedOn) > OLD_ROLE_MONTHS) return { min: 1, max: 2 };
+  if (position < RECENT_EMPLOYERS) return { min: 4, max: 5 };
+  return { min: 2, max: 3 };
+}
+
+/* ----------------------------------------------------- shaping a generation */
+
+const asKind = (blocks: Block[], kind: Block["kind"]): Block[] => blocks.map((block) => ({ ...block, kind }));
+
+/**
+ * What the model returned, reduced to the sections the register asks for.
+ *
+ * Every heading is replaced by the record's: the summary is "Summary", an
+ * employer's section is headed with its name, a project's with its name. The
+ * heading is what the diff and the edit screens show; the file prints the
+ * record's job header and never reads it.
+ *
+ * A section under any other key is dropped rather than refused. An education
+ * section the model wrote anyway is a section the file would not print, and a
+ * generation spent is not worth refusing over text that goes nowhere. A key
+ * returned twice is one section, in the order its blocks came.
+ */
+export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
+  const planned: { key: string; heading: string; kind: Block["kind"] }[] = [
+    { key: SUMMARY_KEY, heading: "Summary", kind: "paragraph" },
+    ...spec.employers.map((e) => ({ key: employerChapterKey(e.id), heading: e.name, kind: "bullet" as const })),
+    ...spec.projects
+      .filter((p) => p.employerId === null)
+      .map((p) => ({ key: projectKey(p.id), heading: p.name, kind: "bullet" as const })),
+    { key: OTHER_PROJECTS_KEY, heading: "Projects", kind: "bullet" },
+  ];
+
+  const blocksByKey = new Map<string, Block[]>();
+  for (const section of content.sections) {
+    blocksByKey.set(section.key, [...(blocksByKey.get(section.key) ?? []), ...section.blocks]);
+  }
+
+  const sections: RenderSection[] = planned.flatMap(({ key, heading, kind }) => {
+    const blocks = blocksByKey.get(key) ?? [];
+    return blocks.length === 0 ? [] : [{ key, heading, blocks: asKind(blocks, kind) }];
+  });
+  return { sections };
+}
+
+/* ------------------------------------------------------------- the document */
+
+/**
+ * What the file is built from besides the version: today's record, already
+ * narrowed to this render — Private and Generated facts gone, entries left out
+ * of the résumé gone, names in their English form (`collectRenderInputs`).
+ */
+export interface ResumeRecord {
+  /** Newest first. */
+  employers: RenderSpec["employers"];
+  projects: RenderSpec["projects"];
+  educations: RenderSpec["educations"];
+  /** Newest first, undated last. */
+  certifications: RenderSpec["certifications"];
+  /** A group with an empty name is a list nobody grouped. Empty is no skills section. */
+  skills: { name: string; skills: string[] }[];
+}
+
+export type ResumeBlock =
+  /** A plain paragraph: the summary, a project's own summary, a list run together. */
+  | { kind: "paragraph"; text: string }
+  /** A job, a project or a school: bold lead, a detail after it, the dates right-aligned. */
+  | { kind: "entry"; lead: string; detail: string | null; dates: string | null }
+  /** The titles held, in italic under the job. */
+  | { kind: "subtitle"; text: string }
+  | { kind: "bullet"; text: string }
+  /** One skills group: its name in bold, then the skills. */
+  | { kind: "labelled"; label: string; text: string };
+
+export interface ResumeSection {
+  key: string;
+  heading: string;
+  blocks: ResumeBlock[];
+}
+
+export interface ResumeDocument {
+  name: string;
+  /** The line under the name. Name and email today; issue #108 adds to it. */
+  contact: string[];
+  sections: ResumeSection[];
+}
+
+/**
+ * Japanese script, and the full-width punctuation that travels with it. An
+ * English résumé carries none (§4.3): a field holding some is left out where
+ * the line reads without it.
+ */
+const JAPANESE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　-〿！-｠]/u;
+
+export const hasJapaneseScript = (text: string): boolean => JAPANESE_SCRIPT.test(text);
+
+const english = (value: string | null | undefined): string | null => {
+  const trimmed = value?.trim() ?? "";
+  return trimmed === "" || hasJapaneseScript(trimmed) ? null : trimmed;
+};
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** `2024-01-01` → `Jan 2024`. Never numeric: a reader abroad cannot tell 01/02 from 02/01. */
+export const monthYear = (isoDate: string): string =>
+  `${MONTHS[Number(isoDate.slice(5, 7)) - 1] ?? ""} ${isoDate.slice(0, 4)}`.trim();
+
+/** `Jan 2024 – Present`. */
+export const monthSpan = (startedOn: string, endedOn: string | null): string =>
+  `${monthYear(startedOn)} – ${endedOn ? monthYear(endedOn) : "Present"}`;
+
+const yearOf = (isoDate: string) => isoDate.slice(0, 4);
+
+/**
+ * A certification whose expiry month has passed is left out. One expiring this
+ * month is still held this month.
+ */
+const isExpired = (expiresOn: string | null, today: string) =>
+  expiresOn !== null && expiresOn.slice(0, 7) < today.slice(0, 7);
+
+/** Below university level: the two secondary rungs. An unstated level prints. */
+const BELOW_UNIVERSITY = new Set(["secondary_lower", "secondary_upper"]);
+
+export interface AssembleArgs {
+  content: RenderContent;
+  record: ResumeRecord;
+  identity: RenderIdentity;
+  /** `YYYY-MM-DD`, Tokyo. */
+  today: string;
+}
+
+/** One stored version and today's record, as the document an employer is sent. */
+export function assembleResume({ content, record, identity, today }: AssembleArgs): ResumeDocument {
+  const [name = "", ...contact] = identityLines("english_resume", identity);
+  const sections: ResumeSection[] = [
+    section(SUMMARY_KEY, "Summary", summaryBlocks(content)),
+    section("skills", "Skills", skillsBlocks(record)),
+    section("experience", "Experience", experienceBlocks(content, record)),
+    section("projects", "Projects", projectBlocks(content, record)),
+    section("education", "Education", educationBlocks(record)),
+    section("certifications", "Certifications", certificationBlocks(record, today, "technical")),
+    section("languages", "Languages", certificationBlocks(record, today, "language")),
+  ].filter((s) => s.blocks.length > 0);
+  return { name, contact, sections };
+}
+
+const section = (key: string, heading: string, blocks: ResumeBlock[]): ResumeSection => ({ key, heading, blocks });
+
+const textsOf = (content: RenderContent, key: string): string[] =>
+  content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.map((b) => b.text));
+
+function summaryBlocks(content: RenderContent): ResumeBlock[] {
+  return textsOf(content, SUMMARY_KEY).map((text) => ({ kind: "paragraph", text }));
+}
+
+function skillsBlocks(record: ResumeRecord): ResumeBlock[] {
+  return record.skills.flatMap((group): ResumeBlock[] => {
+    const skills = group.skills.filter((s) => english(s) !== null);
+    if (skills.length === 0) return [];
+    const label = english(group.name);
+    return label
+      ? [{ kind: "labelled", label, text: skills.join(", ") }]
+      : [{ kind: "paragraph", text: skills.join(", ") }];
+  });
+}
+
+/**
+ * The titles under a job. One title stands alone; a promotion is a second role
+ * (`docs/04` §3.4), and two or more are each dated so the promotion reads as
+ * one: `Tech Lead (Apr 2021 – Dec 2023) · Senior Engineer (Jul 2020 – Mar 2021)`.
+ */
+function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | null {
+  const titled = roles.flatMap((r) => {
+    const title = english(r.title);
+    return title ? [{ ...r, title }] : [];
+  });
+  if (titled.length === 0) return null;
+  if (titled.length === 1) return titled[0]!.title;
+  return titled.map((r) => `${r.title} (${monthSpan(r.startedOn, r.endedOn)})`).join(" · ");
+}
+
+/**
+ * Every employer the résumé includes, with its header from the record and its
+ * bullets from the version. An employer the version wrote nothing for still
+ * prints its header: a gap in the history is the first thing a reader asks
+ * about, and the dates are true whether or not a bullet is.
+ *
+ * A version generated before this layout holds one `experience` section in
+ * which a paragraph opens each employer. Its groups are joined to the record by
+ * the attribution check's own name resolution, so an old version downloads in
+ * the new layout with its bullets under the right job. A group whose heading
+ * names nobody keeps that heading as its lead rather than losing its bullets.
+ */
+function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
+  const bulletsByEmployer = new Map<string, string[]>();
+  const add = (employerId: string, texts: string[]) =>
+    bulletsByEmployer.set(employerId, [...(bulletsByEmployer.get(employerId) ?? []), ...texts]);
+
+  for (const s of content.sections) {
+    const employerId = employerIdOfChapter(s.key);
+    if (employerId !== null) add(employerId, s.blocks.map((b) => b.text));
+  }
+
+  const unresolved: ResumeBlock[] = [];
+  const named = record.employers.map((e) => ({ id: e.id, names: [e.name], copy: [] }));
+  const headingText = new Map(content.sections.flatMap((s) => s.blocks.map((b) => [b.id, b.text] as const)));
+  for (const group of experienceGroups(content, named)) {
+    const texts = group.blocks.map((b) => b.text);
+    if (group.employerId !== null) {
+      add(group.employerId, texts);
+      continue;
+    }
+    const lead = group.headingBlockId ? headingText.get(group.headingBlockId) : undefined;
+    if (lead) unresolved.push({ kind: "entry", lead, detail: null, dates: null });
+    unresolved.push(...texts.map((text): ResumeBlock => ({ kind: "bullet", text })));
+  }
+
+  return [
+    ...record.employers.flatMap((e): ResumeBlock[] => {
+      const titles = rolesLine(e.roles);
+      return [
+        { kind: "entry", lead: e.name, detail: english(e.city), dates: monthSpan(e.startedOn, e.endedOn) },
+        ...(titles ? [{ kind: "subtitle" as const, text: titles }] : []),
+        ...(bulletsByEmployer.get(e.id) ?? []).map((text): ResumeBlock => ({ kind: "bullet", text })),
+      ];
+    }),
+    ...unresolved,
+  ];
+}
+
+/**
+ * Independent projects — those with no employer — each under its own header,
+ * then any independent work the record holds as facts alone. A project the
+ * version wrote nothing for falls back to the summary the author wrote for it.
+ */
+function projectBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
+  const entries = record.projects
+    .filter((p) => p.employerId === null)
+    .flatMap((p): ResumeBlock[] => {
+      const bullets = textsOf(content, projectKey(p.id));
+      const summary = english(p.summary);
+      return [
+        { kind: "entry", lead: p.name, detail: null, dates: p.startedOn ? monthSpan(p.startedOn, p.endedOn) : null },
+        ...(bullets.length > 0
+          ? bullets.map((text): ResumeBlock => ({ kind: "bullet", text }))
+          : summary
+            ? [{ kind: "paragraph" as const, text: summary }]
+            : []),
+      ];
+    });
+  const other = textsOf(content, OTHER_PROJECTS_KEY).map((text): ResumeBlock => ({ kind: "bullet", text }));
+  return [...entries, ...other];
+}
+
+/**
+ * University level and above, newest first. The degree and field are the
+ * English fields; the 学部・学科 is the 履歴書's and is never read here. An
+ * entry left unfinished says so, and one still in progress says when it is
+ * expected — a withdrawal printed as a degree is a misrepresentation
+ * (`docs/04` §3.8).
+ */
+function educationBlocks(record: ResumeRecord): ResumeBlock[] {
+  return record.educations
+    .filter((e) => e.level === null || !BELOW_UNIVERSITY.has(e.level))
+    .map((e): ResumeBlock => {
+      const studied = [english(e.degree), english(e.fieldOfStudy)].filter((v): v is string => v !== null).join(", ");
+      const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;
+      return { kind: "entry", lead: e.institution, detail: detail || null, dates: educationDates(e) };
+    });
+}
+
+function educationDates(e: RenderSpec["educations"][number]): string | null {
+  if (e.outcome === "expected") return e.endedOn ? `Expected ${monthYear(e.endedOn)}` : "In progress";
+  if (e.outcome === "withdrawn" && e.startedOn && e.endedOn) return `${yearOf(e.startedOn)} – ${yearOf(e.endedOn)}`;
+  const end = e.endedOn ?? e.startedOn;
+  return end ? yearOf(end) : null;
+}
+
+/**
+ * Current certifications of one kind, run together on one line. An
+ * unclassified row is a technical one. `other` — a driving licence — is
+ * nobody's line on an English résumé.
+ */
+function certificationBlocks(record: ResumeRecord, today: string, kind: "technical" | "language"): ResumeBlock[] {
+  const items = record.certifications
+    .filter((c) => (c.kind ?? "technical") === kind && !isExpired(c.expiresOn, today))
+    .flatMap((c) => {
+      const name = english(c.name);
+      if (!name) return [];
+      if (!c.issuedOn) return [name];
+      return [kind === "language" ? `${name} (${yearOf(c.issuedOn)})` : `${name}, ${yearOf(c.issuedOn)}`];
+    });
+  return items.length === 0 ? [] : [{ kind: "paragraph", text: items.join(" · ") }];
+}
+
+/* -------------------------------------------------------- the other formats */
+
+const entryText = (block: Extract<ResumeBlock, { kind: "entry" }>) =>
+  [block.lead, block.detail, block.dates].filter((v): v is string => v !== null).join(" · ");
+
+/** The `?format=md` download. Same document, same order, no title above the name. */
+export function resumeMarkdown(doc: ResumeDocument): string {
+  const lines: string[] = [`# ${doc.name}`, ...(doc.contact.length > 0 ? ["", doc.contact.join(" · ")] : []), ""];
+  for (const s of doc.sections) {
+    lines.push(`## ${s.heading}`, "");
+    for (const block of s.blocks) {
+      switch (block.kind) {
+        case "entry":
+          lines.push(
+            `**${block.lead}**${block.detail ? ` · ${block.detail}` : ""}${block.dates ? ` — ${block.dates}` : ""}`,
+            "",
+          );
+          break;
+        case "subtitle":
+          lines.push(`*${block.text}*`, "");
+          break;
+        case "bullet":
+          lines.push(`- ${block.text}`, "");
+          break;
+        case "labelled":
+          lines.push(`**${block.label}:** ${block.text}`, "");
+          break;
+        case "paragraph":
+          lines.push(block.text, "");
+          break;
+      }
+    }
+  }
+  return `${lines.join("\n").trimEnd()}\n`;
+}
+
+/** What a sent copy's screen shows: the file's text, in its order. Headers and titles read as rows. */
+export function resumeSentPage(doc: ResumeDocument): SentPage {
+  return {
+    title: RENDER_TITLE.english_resume,
+    stamp: null,
+    name: doc.name,
+    contact: doc.contact.length > 0 ? [doc.contact.join(" · ")] : [],
+    sections: doc.sections.map((s) => ({
+      heading: s.heading,
+      blocks: s.blocks.map((block) => {
+        switch (block.kind) {
+          case "entry":
+            return { kind: "row" as const, text: entryText(block) };
+          case "subtitle":
+            return { kind: "row" as const, text: block.text };
+          case "labelled":
+            return { kind: "row" as const, text: `${block.label}: ${block.text}` };
+          default:
+            return { kind: block.kind, text: block.text };
+        }
+      }),
+    })),
+  };
+}
+
+/**
+ * `Kenji-Moriyama-Resume-2026-10.docx` — the name a recruiter's downloads
+ * folder can tell apart from the dozen others, and the month the version was
+ * accepted, in Tokyo. ASCII only: it goes in a `content-disposition` header, so
+ * accents are folded and anything else outside it is dropped.
+ */
+export function resumeFilename(nameLatin: string, extension: string, accepted: Date): string {
+  const name = nameLatin
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .split(/[\s-]+/)
+    .map((part) => part.replace(/[^A-Za-z0-9]/g, ""))
+    .filter(Boolean)
+    .join("-");
+  const month = new Date(accepted.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
+  return `${name ? `${name}-` : ""}Resume-${month}.${extension}`;
+}

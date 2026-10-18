@@ -486,7 +486,7 @@ describe("a sent copy", () => {
 
     const response = await client.get(`${path}/download`);
     expect(response.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     for (const method of ["PUT", "PATCH", "DELETE", "POST"]) {
       expect((await client.request(path, { method, body: "{}", headers: { "content-type": "application/json" } })).status).toBe(404);

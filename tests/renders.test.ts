@@ -974,7 +974,7 @@ describe("documents and downloads", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(1000);

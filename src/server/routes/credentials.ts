@@ -114,6 +114,8 @@ const certificationBody = z.object({
   issuingOrganization: z.string().trim().min(1, "An issuing organization is required."),
   issuedOn: monthDate.nullish(),
   expiresOn: monthDate.nullish(),
+  /** Where the English résumé puts it. Unset is unclassified, and prints as technical. */
+  kind: z.enum(["technical", "language", "other"]).nullish(),
   /** Not rendered in v1 — for the author's own reference at renewal. */
   credentialId: z.string().trim().nullish(),
   credentialUrl: z.string().trim().url("That is not a URL.").nullish(),

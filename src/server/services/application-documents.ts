@@ -287,7 +287,7 @@ export async function freezeDocuments(
     if (!version) continue;
     const kind = render.kind as RenderKind;
     // One at a time: each is a build, and a second's failure should name itself.
-    const file = await buildDocumentFile(db, userId, kind, render, version);
+    const file = await buildDocumentFile(db, userId, kind, version);
     rows.push({
       id: newId("applicationSentCopy"),
       userId,

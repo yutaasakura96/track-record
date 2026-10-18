@@ -222,12 +222,12 @@ describe("generating a tailored résumé", () => {
 
     const tailoredFile = await client.get(`/api/renders/${row.id}/download?format=md`);
     expect(await tailoredFile.text()).toContain("Tailored bullet about the batch platform.");
-    expect(tailoredFile.headers.get("content-disposition")).toMatch(
-      new RegExp(`filename="resume-kestrel-platform-engineer-${row.id}-\\d{4}-\\d{2}-\\d{2}\\.md"`),
-    );
+    // The file an employer receives carries the author's name, not the
+    // author's label for the job or the app's id for it (issue #107).
+    expect(tailoredFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
     const mainFile = await client.get("/api/renders/english_resume/download?format=md");
     expect(await mainFile.text()).toContain("Main bullet about the settlement run.");
-    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="resume-\d{4}-\d{2}-\d{2}\.md"/);
+    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
 
     // Neither document serves the other's version.
     expect((await client.get(`/api/renders/${row.id}/versions/${mainVersion!.id}`)).status).toBe(404);
@@ -236,18 +236,6 @@ describe("generating a tailored résumé", () => {
     expect(
       (await client.get(`/api/renders/english_resume/download?format=md&versionId=${tailoredVersion!.id}`)).status,
     ).toBe(404);
-  });
-
-  it("gives distinct filenames to Japanese labels and labels sharing a long prefix", async () => {
-    const date = new Date("2026-10-10T00:00:00.000Z");
-    const { downloadFilename } = await import("~/render/docx");
-    for (const labels of [["開発職", "技術職"], ["a".repeat(40) + "one", "a".repeat(40) + "two"]]) {
-      const first = downloadFilename("english_resume", "docx", date, { label: labels[0]!, id: "rnd_first" });
-      const second = downloadFilename("english_resume", "docx", date, { label: labels[1]!, id: "rnd_second" });
-      expect(first).not.toBe(second);
-      expect(first).toMatch(/rnd_first-2026-10-10\.docx$/);
-      expect(second).toMatch(/rnd_second-2026-10-10\.docx$/);
-    }
   });
 
   it("records the facts its version could use, and is out of date once one of them is withdrawn", async () => {

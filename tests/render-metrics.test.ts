@@ -11,7 +11,8 @@
  * career record, and test fixtures are never sampled from it (CLAUDE.md).
  */
 import { describe, expect, it } from "vitest";
-import { bulletsFromLines, experienceBullets, measureBullets } from "~/render/metrics";
+import { bulletsFromLines, EMPLOYER_SECTION_PREFIX, experienceBullets, measureBullets } from "~/render/metrics";
+import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
 import type { RenderContent } from "~/shared/render-content";
 
 /** Lengths are exact and distinct, so a wrong figure cannot look plausible. */
@@ -52,6 +53,22 @@ const CONTENT: RenderContent = {
 describe("measuring a render's experience section", () => {
   it("counts the bullets of the experience section and nothing else", () => {
     expect(experienceBullets(CONTENT).map((b) => b.text.length)).toEqual([100, 200, 300]);
+  });
+
+  it("counts the bullets of a résumé's per-employer sections, and not a story chapter's paragraphs (issue #107)", () => {
+    const content = {
+      sections: [
+        { key: "summary", blocks: [{ kind: "paragraph", text: "Not a bullet.", factIds: [] }] },
+        { key: `${EMPLOYER_SECTION_PREFIX}emp_a`, blocks: [{ kind: "bullet", text: "First.", factIds: [] }] },
+        { key: `${EMPLOYER_SECTION_PREFIX}emp_b`, blocks: [{ kind: "paragraph", text: "A chapter.", factIds: [] }] },
+        { key: `${EMPLOYER_SECTION_PREFIX}emp_c`, blocks: [{ kind: "bullet", text: "Second.", factIds: [] }] },
+      ],
+    };
+    expect(experienceBullets(content).map((b) => b.text)).toEqual(["First.", "Second."]);
+  });
+
+  it("keeps its employer prefix in step with the chapter plan's", () => {
+    expect(EMPLOYER_SECTION_PREFIX).toBe(EMPLOYER_CHAPTER_PREFIX);
   });
 
   it("reads nothing from a document with no experience section", () => {

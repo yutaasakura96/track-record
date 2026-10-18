@@ -30,12 +30,14 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
+import { assembleResume, resumeMarkdown } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import { collectResumeRecord } from "../services/resume";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -805,15 +807,22 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       // is not a claim about a career, and an accepted version must not go stale
       // because a phone number changed (`src/render/identity.ts`).
       const identity = await renderIdentity(db, user.id);
-      return new Response(toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday()), {
+      // The résumé's Markdown is the same document its `.docx` is (issue #107).
+      const markdown =
+        kind === "english_resume"
+          ? resumeMarkdown(
+              assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today: tokyoToday() }),
+            )
+          : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
+      return new Response(markdown, {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filenameFor(render, kind, format, version)}"`,
+          "content-disposition": `attachment; filename="${filenameFor(kind, format, version, identity)}"`,
         },
       });
     }
 
-    const file = await buildDocumentFile(db, user.id, kind, render, version);
+    const file = await buildDocumentFile(db, user.id, kind, version);
     return new Response(file.bytes as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,

@@ -54,6 +54,7 @@ const employer = (over: Partial<Employer> = {}): Employer => ({
   capitalYen: null,
   headcount: null,
   roles: [],
+  city: null,
   ...over,
 });
 

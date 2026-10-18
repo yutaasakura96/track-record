@@ -150,6 +150,7 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
       nameLatin: employer.nameLatin,
       businessDescription: employer.businessDescription,
       industryJa: employer.industryJa,
+      city: employer.city,
       capitalYen: employer.capitalYen,
       headcount: employer.headcount,
       employmentType: employer.employmentType,

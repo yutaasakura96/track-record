@@ -69,11 +69,23 @@ export const LONG_BULLET_CHARACTERS = 250;
  */
 const CARRIES_A_NUMBER = /\d/;
 
-/** The `bullet` blocks of the experience section, in document order. */
+/**
+ * The section key prefix of one employer's own section. Duplicated from
+ * `src/render/chapters.ts` rather than imported, so that this module keeps no
+ * imports; a test asserts the two stay in step.
+ */
+export const EMPLOYER_SECTION_PREFIX = "employer:";
+
+/**
+ * The `bullet` blocks written under employers, in document order: the
+ * `experience` section of a 職務経歴書 or of a résumé generated before issue
+ * #107, and the per-employer sections a résumé has carried since. A career
+ * story's employer chapters hold paragraphs, so they contribute nothing.
+ */
 export function experienceBullets(content: MeasuredContent): MeasuredBlock[] {
-  const section = content.sections.find((s) => s.key === EXPERIENCE_SECTION);
-  if (!section) return [];
-  return section.blocks.filter((b) => b.kind === "bullet");
+  return content.sections
+    .filter((s) => s.key === EXPERIENCE_SECTION || s.key.startsWith(EMPLOYER_SECTION_PREFIX))
+    .flatMap((s) => s.blocks.filter((b) => b.kind === "bullet"));
 }
 
 const EMPTY: BulletMeasurement = {

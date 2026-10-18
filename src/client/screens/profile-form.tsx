@@ -56,6 +56,12 @@ const RESUME: FieldSpec[] = [
   { name: "resumePortfolioUrl", label: "Portfolio or website", type: "url", optional: true },
 ];
 
+/** The English résumé's page (issue #107). A4 is the default; a reader in the US expects Letter. */
+const PAPER_SIZES = [
+  { value: "a4", label: "A4" },
+  { value: "letter", label: "US Letter" },
+];
+
 export function ProfileForm() {
   const existing = useProfile();
   const save = useSaveProfile();
@@ -83,6 +89,7 @@ export function ProfileForm() {
       body[field.name] = field.type === "month" ? fromMonth(raw) || null : raw || null;
     }
     body.contactSameAsAddress = true;
+    body.paperSize = String(form.get("paperSize") ?? "a4");
     try {
       await save.mutateAsync(body);
       await navigate({ to: "/" });
@@ -137,6 +144,22 @@ export function ProfileForm() {
               {RESUME.map((field) => (
                 <Field key={field.name} spec={field} value={valueOf(field)} invalid={invalid.has(field.name)} onChange={(v) => setValues((s) => ({ ...s, [field.name]: v }))} />
               ))}
+              <label className="grid gap-6">
+                <span className="text-smaller text-text-dim">Paper size</span>
+                <select
+                  name="paperSize"
+                  value={values.paperSize ?? current?.paperSize ?? "a4"}
+                  onChange={(event) => setValues((s) => ({ ...s, paperSize: event.target.value }))}
+                  className="bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring"
+                >
+                  {PAPER_SIZES.map((size) => (
+                    <option key={size.value} value={size.value}>
+                      {size.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-smaller text-text-faint">The page the downloaded résumé is laid out on.</span>
+              </label>
             </div>
           </Panel>
 
