@@ -6908,3 +6908,54 @@ count as achievements. Inclusion lines always list every excluded document, even
 document remains included. An upper-secondary education chip names the English résumé as excluded;
 a lower-secondary chip also names the 職務経歴書. The 履歴書 gap warning remains visible with education
 but no employers.
+
+---
+
+### [2026-10-18] The English résumé is laid out from the record; the model writes the summary and the bullets
+
+The owner, on the downloaded English résumé: "It's not something I would submit to an employer." The
+2026-10-17 evaluation found the bullets sound and everything around them wrong: the app's title
+"Résumé (English)" above the name, each job as one run-on line with its dates printed twice in ISO
+form, Skills last, a Japanese faculty name, an expired certification, a TOEIC score inside the
+summary, Word's default look and a file called `resume-2026-10-17.docx`. Every one of those came from
+asking the model to write data (#107).
+
+**The 履歴書's split, applied to the résumé.** The model writes the summary and the bullets, and the
+file is assembled on download from the version and the record (`src/render/resume.ts`): job headers
+(company, city, `Mon YYYY – Present`, every title held with its dates when there is more than one),
+the skills curation, education at university level and above, current technical certifications and
+a Languages line, in the order Summary, Skills, Experience, Projects, Education, Certifications,
+Languages. Rejected: keeping the model on the job line with a stricter format, which is a hope, and
+storing the record-derived sections in the version, which would go stale on the first correction to
+the record, the reason the 履歴書's tables are read at download (`docs/03` §6).
+
+**Bullets are keyed by employer id**, `employer:<id>`, the key the career stories already use, so a
+header is joined to its bullets exactly and the attribution check resolves the employer from the key.
+After parsing, a section under any other key is dropped and the headings are replaced by the
+record's. A version from before this one keeps its single `experience` section; its groups are
+joined to employers by the attribution check's name resolution and it downloads in the new layout.
+`npm run measure` counts the bullets of both shapes.
+
+**The bullet budget is computed, not left to the model.** Four or five for the two most recent
+employers, one or two for an employer that ended more than eight years ago, two or three between;
+age wins over position. It is printed on each employer's line in the prompt. With the demo record a
+real generation came back at 5, 5, 3 and 2.
+
+**Three columns.** `employers.city` (English, for the header); `certifications.kind` (`technical`,
+`language`, `other`; null prints as technical, because a migration cannot classify an existing row);
+`profiles.paper_size` (A4 by default, Letter on request, the owner's choice of 2026-10-17).
+
+**The file is built to be parsed**: one column, no tables, nothing in Word headers or footers, real
+list paragraphs, dates on a right tab stop, Calibri throughout (Carlito substitutes for it metrically),
+body 10pt, name 20pt, headings 10.5pt small capitals in one navy with a rule, 15.5 mm margins. Any
+field holding Japanese script is left out where the line reads without it.
+
+**The file is `<First>-<Last>-Resume-<YYYY-MM>.docx`, tailored or not.** The month is the month the
+version was accepted, in Tokyo. A tailored résumé's file used to carry its label and render id; the
+file is what an employer receives, and the label is the author's note to themselves.
+
+**Not yet:** the headline, location, phone and links (#108) and the PDF download (#109). The header
+carries the name and email the profile already has, and the contact line is a list they extend.
+
+**Revisit if:** an employer the record names only in Japanese reaches the résumé, which still falls
+back to 会社名 rather than dropping the job.

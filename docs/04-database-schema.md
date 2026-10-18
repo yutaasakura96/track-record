@@ -179,6 +179,7 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `resume_linkedin_url` | text | yes | `null` | " — stored with its scheme, printed without it |
 | `resume_github_url` | text | yes | `null` | " |
 | `resume_portfolio_url` | text | yes | `null` | " |
+| `paper_size` | `paper_size` enum (`a4`, `letter`) | no | `'a4'` | The English résumé's page (#107). Not PII; read by that render alone. A profile save that does not send it leaves it as it is |
 
 **Constraint:** `check (contact_same_as_address or (contact_postal_code is not null and contact_address is not null))`.
 
@@ -200,6 +201,7 @@ each only when filled (decision log, 2026-10-18).
 | `name_latin` | text | yes | `null` | For the English résumé |
 | `business_description` | text | yes | `null` | 事業内容 — the 職務経歴書 paragraph |
 | `industry_ja` | text | yes | `null` | e.g. 小売業 — appears in the 履歴書 職歴 line |
+| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it; a value in Japanese script is left out (#107) |
 | `capital_yen` | bigint | yes | `null` | **資本金**, in yen |
 | `headcount` | integer | yes | `null` | **従業員数** |
 | `employment_type` | employment_type | no | — | |
@@ -455,7 +457,8 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 | `name_ja` | text | yes | e.g. 普通自動車第一種運転免許 |
 | `issuing_organization` | text | no | Required |
 | `issued_on` | date | yes | Month precision. Null is legal — some licences have no meaningful issue date |
-| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note |
+| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé leaves out a certification whose expiry month has passed |
+| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | yes | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Null is unclassified and prints as `technical`: a migration cannot classify an existing row, and guessing from the name is what `educations.level` was added to end. The Japanese documents print every kind |
 | `credential_id` | text | yes | **Not rendered in v1.** For the author's own reference at renewal |
 | `credential_url` | text | yes | **Not rendered in v1.** Same |
 | `technologies` | text[] | no | Default `'{}'`. Feeds the **same** skill-candidate pool as `facts.technologies` |

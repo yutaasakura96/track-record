@@ -155,6 +155,7 @@ rejected with `403 forbidden` — the only 403 in the API.
   "nameJa": "株式会社アオゾラ物流",
   "nameLatin": "Aozora Logistics K.K.",
   "industryJa": "運輸業",
+  "city": "Yokohama",
   "businessDescription": "中堅の国内向け物流事業者。",
   "capitalYen": 50000000,
   "headcount": 320,
@@ -854,9 +855,11 @@ Accepting an already-decided proposal → `409 conflict`.
 
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
-`Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
-For a tailored résumé, the filename also includes an ASCII label slug when nonempty and its render ID before the date; the ID keeps Japanese labels and shared slug prefixes distinct.
-Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.docx"`: the profile's Latin
+name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
+the same way (#107). Every other kind is `<kind>-<YYYY-MM-DD>.docx`, e.g. `shokumu-keirekisho-2026-08-12.docx`.
+Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
+certifications and languages are read from the record at the same time (`docs/03` §6). Failure → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
 **A download obeys today's record, not the day the version was accepted.** Every download

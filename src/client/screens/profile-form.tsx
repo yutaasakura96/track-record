@@ -150,7 +150,7 @@ export function ProfileForm() {
                   name="paperSize"
                   value={values.paperSize ?? current?.paperSize ?? "a4"}
                   onChange={(event) => setValues((s) => ({ ...s, paperSize: event.target.value }))}
-                  className="bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring"
+                  className="min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring"
                 >
                   {PAPER_SIZES.map((size) => (
                     <option key={size.value} value={size.value}>
