@@ -313,6 +313,33 @@ describe("a first version", () => {
     expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
   });
 
+  it("shows the 履歴書 identity cells and address lines", async () => {
+    const address = "〒150-0001 東京都渋谷区神宮前0-0-0\n架空ビル404号室";
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: proposal({ basedOnVersionNo: null, proposedVersionNo: 1, renderKind: "rirekisho", title: "履歴書" }),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          title: "履歴書",
+          page: {
+            stamp: "2026年10月18日現在",
+            name: "青木　陽介",
+            contact: ["ふりがな あおき　ようすけ", "性別 男", "現住所ふりがな とうきょうと しぶやく", address, "連絡先 同上"],
+            sections: [],
+          },
+        },
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "履歴書" })).toBeTruthy();
+    expect(screen.getByText("ふりがな あおき　ようすけ")).toBeTruthy();
+    expect(screen.getByText("性別 男")).toBeTruthy();
+    expect(screen.getByText("現住所ふりがな とうきょうと しぶやく")).toBeTruthy();
+    expect(screen.getByText("連絡先 同上")).toBeTruthy();
+    const addressLine = screen.getByText((_, element) => element?.textContent === address);
+    expect(addressLine.classList.contains("whitespace-pre-line")).toBe(true);
+  });
+
   it("blocks acceptance until the document loads", async () => {
     let finish!: (value: typeof FIRST_DIFF) => void;
     const pending = new Promise<typeof FIRST_DIFF>((resolve) => { finish = resolve; });

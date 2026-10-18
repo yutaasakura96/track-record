@@ -1092,6 +1092,26 @@ describe("export", () => {
  * rules — not the prose itself, which is the model's to write.
  */
 describe("the 履歴書 is generable, and is generated in Japanese", () => {
+  it("includes the template identity cells in a first-version preview", async () => {
+    const address = "東京都渋谷区神宮前0-0-0\n架空ビル404号室";
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, gender: "男", address });
+    await seedRecord();
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []))
+    ).json()) as { proposalId: string };
+
+    const { preview } = await client.json<{
+      preview: { title: string; page: { name: string; contact: string[] } };
+    }>(`/api/proposals/${created.proposalId}/diff`);
+    expect(preview.title).toBe("履歴書");
+    expect(preview.page.name).toBe("青木　陽介");
+    expect(preview.page.contact).toContain("ふりがな あおき　ようすけ");
+    expect(preview.page.contact).toContain("性別 男");
+    expect(preview.page.contact).toContain(`現住所ふりがな ${PROFILE_FIXTURE.addressKana}`);
+    expect(preview.page.contact).toContain(`〒${PROFILE_FIXTURE.postalCode} ${address}`);
+    expect(preview.page.contact).toContain("連絡先 同上");
+  });
+
   it("hands the model the 履歴書 register rather than the résumé's", async () => {
     await seedRecord();
     const response = await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));

@@ -818,8 +818,10 @@ have already run server-side: paragraphs aligned, then tokens diffed
   blocks is not in the document, so its heading is not diffed.
 - `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
   `removed_unverified` · `from_restricted`.
-- `preview` is the proposed document (`RenderContent`) when the render has no current version, and
-  null otherwise. The first-version screen reads it; every other review reads `changes`.
+- `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,
+  and null otherwise. `SentPage` carries `stamp`, `name`, `contact` lines and nonempty `sections`
+  with their headings and blocks. A 履歴書 page includes its template fields and tables. The
+  first-version screen reads `preview`; every other review reads `changes`.
 - **A change with no `rationale` is a defect**, not a tolerable gap
   (`10-screen-specifications.md`).
 

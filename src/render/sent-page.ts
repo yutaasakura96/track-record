@@ -58,12 +58,15 @@ export function rirekishoSentPage(data: RirekishoTemplateData, content: RenderCo
     stamp: `${data.submitYear}年${data.submitMonth}月${data.submitDay}日現在`,
     name: data.nameKanji,
     contact: [
+      data.nameKana ? `ふりがな ${data.nameKana}` : "",
       `${data.birthYear}年${data.birthMonth}月${data.birthDay}日生（満${data.age}歳）`,
+      data.gender ? `性別 ${data.gender}` : "",
+      data.addressKana ? `現住所ふりがな ${data.addressKana}` : "",
       `〒${data.postalCode} ${data.address}`,
       [data.phone, data.email].filter((value) => value !== "").join(" · "),
-      ...(data.contactLine && data.contactLine !== "同上"
-        ? [`連絡先 ${data.contactPostalCode ? `〒${data.contactPostalCode} ` : ""}${data.contactLine}`]
-        : []),
+      data.contactLine
+        ? `連絡先 ${data.contactPostalCode ? `〒${data.contactPostalCode} ` : ""}${data.contactLine}`
+        : "",
     ].filter((line) => line.trim() !== ""),
     sections: [
       ...table("学歴", data.gakureki),
