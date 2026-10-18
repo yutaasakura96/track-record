@@ -6714,7 +6714,8 @@ link and no other lane's work breaks. Record keeps its name here; the owner's re
 timeline belongs to the issue that redesigns that page.
 
 **A CV's structure.** Contents down the side, an employer a chapter, a project a section, and each
-split into **Results** (Measured: a figure stands behind it) and **What I did** (the rest). Figures
+split into **Results** (Measured, including claims with no written number) and **What I did** (the
+rest). Figures
 are found by rule, not by a model, and skip what the number flag skips: a digit inside a word, a
 year, a version or address, a technology's own digits (`figures` in `src/shared/master-document.ts`).
 
@@ -6728,8 +6729,10 @@ which keeps the rule printed on every line.
 (facts with a flag) beside the sidebar's `34 to check` (flags). Both were true and the pair read as
 a bug; the page now counts open flags, as the sidebar and the Flagged screen do (`34 flags to check`).
 
-**Three filters**, kept in `?show=`: Results with a number, Kept out of documents (Private or
-Generated), and Not used in any document yet: usable, and cited by the current version of no
+**Three filters**, kept in `?show=`: Results with a number (Measured facts whose claim has a figure
+found by `figures()` with the fact's technologies; an Attested What I did fact stays out even if its
+number is highlighted), Kept out of documents (Private or Generated), and Not used in any document
+yet: usable, and cited by the current version of no
 document, tailored résumés included. Rejected: counting any version ever accepted as use, which
 would keep a fact the author dropped from the résumé off this list for good.
 
