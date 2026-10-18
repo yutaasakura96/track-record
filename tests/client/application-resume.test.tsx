@@ -517,7 +517,7 @@ describe("the review of a tailored résumé", () => {
   const review = (decision: "accept" | "dismiss") =>
     mount(`/proposals/${proposal.id}`, {
       [`GET /api/proposals/${proposal.id}`]: proposal,
-      [`GET /api/proposals/${proposal.id}/diff`]: { additions: 0, removals: 0, changes: [], preview: { sections: [] } },
+      [`GET /api/proposals/${proposal.id}/diff`]: { additions: 0, removals: 0, changes: [], preview: { title: "Résumé (English)", page: { stamp: null, name: "Mika Tanaka", contact: ["mika@example.invalid"], sections: [] } } },
       [`POST /api/proposals/${proposal.id}/${decision}`]: decision === "accept" ? { newVersionNo: 1 } : { status: "dismissed" },
       [`GET ${AT}`]: application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) }),
       ...SUMMARY,
@@ -528,6 +528,7 @@ describe("the review of a tailored résumé", () => {
     ["Discard draft", "dismiss"],
   ] as const)("returns to its application after %s", async (name, decision) => {
     const { user, pathname } = review(decision);
+    await screen.findByText("Mika Tanaka");
     await user.click(await screen.findByRole("button", { name }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
   });

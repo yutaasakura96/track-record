@@ -511,10 +511,14 @@ describe("the proposal", () => {
     ).json()) as { proposalId: string };
 
     const firstDiff = await client.json<{
-      preview: { sections: { heading: string; blocks: { text: string }[] }[] } | null;
+      preview: { title: string; page: { stamp: string | null; name: string; contact: string[]; sections: { heading: string; blocks: { text: string }[] }[] } } | null;
       changes: { target: string }[];
     }>(`/api/proposals/${first.proposalId}/diff`);
-    expect(firstDiff.preview?.sections.flatMap((s) => s.blocks.map((b) => b.text))).toContain(
+    expect(firstDiff.preview?.title).toBe("Résumé (English)");
+    expect(firstDiff.preview?.page.name).toBe(PROFILE_FIXTURE.nameLatin);
+    expect(firstDiff.preview?.page.contact).toContain(PROFILE_FIXTURE.email);
+    expect(firstDiff.preview?.page.stamp).toBeNull();
+    expect(firstDiff.preview?.page.sections.flatMap((s) => s.blocks.map((b) => b.text))).toContain(
       "Reduced nightly batch runtime to 3 hours",
     );
     // Its headings are changes too, so a screen that did read them would see them.

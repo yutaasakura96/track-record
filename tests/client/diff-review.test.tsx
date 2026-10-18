@@ -61,13 +61,18 @@ const FIRST_DIFF = {
   removals: 0,
   changes: [],
   preview: {
-    sections: [
-      {
-        key: "experience",
-        heading: "Experience",
-        blocks: [{ id: "blk-test-9", kind: "paragraph", text: "Cut the zentrel batch to nine minutes.", factIds: [] }],
-      },
-    ],
+    title: "Résumé (English)",
+    page: {
+      stamp: null,
+      name: "Mika Tanaka",
+      contact: ["mika@example.invalid"],
+      sections: [
+        {
+          heading: "Experience",
+          blocks: [{ kind: "paragraph", text: "Cut the zentrel batch to nine minutes." }],
+        },
+      ],
+    },
   },
 };
 
@@ -298,6 +303,9 @@ describe("a first version", () => {
 
     expect(await screen.findByText("Cut the zentrel batch to nine minutes.")).toBeTruthy();
     expect(screen.getByText("Experience")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Résumé (English)" })).toBeTruthy();
+    expect(screen.getByText("Mika Tanaka")).toBeTruthy();
+    expect(screen.getByText("mika@example.invalid")).toBeTruthy();
     expect(screen.getByText("Accepting saves this as v1 of your Résumé (English).")).toBeTruthy();
     expect(screen.queryByText("Current")).toBeNull();
     expect(screen.queryByText("no matching line")).toBeNull();
@@ -305,11 +313,41 @@ describe("a first version", () => {
     expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
   });
 
+  it("blocks acceptance until the document loads", async () => {
+    let finish!: (value: typeof FIRST_DIFF) => void;
+    const pending = new Promise<typeof FIRST_DIFF>((resolve) => { finish = resolve; });
+    const { api } = openFirst({ [`GET /api/proposals/${PROPOSAL}/diff`]: () => pending });
+
+    const accept = await screen.findByRole("button", { name: "Accept as v1" });
+    expect((accept as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Loading the document…")).toBeTruthy();
+    expect(api.writes()).toEqual([]);
+
+    finish(FIRST_DIFF);
+    await waitFor(() => expect((accept as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("shows a failed document read and lets the author retry", async () => {
+    let attempts = 0;
+    const { api, user } = openFirst({
+      [`GET /api/proposals/${PROPOSAL}/diff`]: () =>
+        ++attempts === 1 ? new Refusal(503, "unavailable", "The document could not be loaded.") : FIRST_DIFF,
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("The document could not be loaded.");
+    expect((screen.getByRole("button", { name: "Accept as v1" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Mika Tanaka")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Accept as v1" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(api.writes()).toEqual([]);
+  });
+
   it("accepts, and sends nothing else", async () => {
     const { api, user, pathname } = openFirst({
       [`POST /api/proposals/${PROPOSAL}/accept`]: { newVersionNo: 1 },
     });
 
+    await screen.findByText("Mika Tanaka");
     await user.click(await screen.findByRole("button", { name: "Accept as v1" }));
 
     await waitFor(() => expect(pathname()).toBe("/"));

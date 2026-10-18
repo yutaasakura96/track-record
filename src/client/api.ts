@@ -1325,7 +1325,7 @@ export const useDiff = (proposalId: string, enabled: boolean) =>
   useQuery({
     queryKey: keys.diff(proposalId),
     queryFn: () =>
-      api<RenderDiff & { preview: RenderContent | null }>(`/api/proposals/${proposalId}/diff`),
+      api<RenderDiff & { preview: { title: string; page: SentPage } | null }>(`/api/proposals/${proposalId}/diff`),
     enabled,
   });
 

@@ -10,7 +10,7 @@
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
@@ -26,7 +26,11 @@ import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { DocumentBlocks } from "../components/document-blocks";
 import { DownloadButton } from "../components/download-button";
-import { RENDER_LANGUAGE, type RenderContent } from "~/shared/render-content";
+import { ReadFailure } from "../components/read-failure";
+import { RENDER_LANGUAGE } from "~/shared/render-content";
+import type { SentPage } from "~/render/sent-page";
+
+type FirstPreview = { title: string; page: SentPage };
 
 export function DiffReview() {
   const { proposalId } = useParams({ from: "/proposals/$proposalId" });
@@ -51,7 +55,7 @@ export function DiffReview() {
       ) : proposal.data.unchanged ? (
         <Unchanged proposal={proposal.data} />
       ) : (
-        <Review proposalId={proposalId} proposal={proposal.data} changes={changes} preview={diff.data?.preview} additions={diff.data?.additions ?? 0} removals={diff.data?.removals ?? 0} />
+        <Review proposalId={proposalId} proposal={proposal.data} changes={changes} preview={diff.data?.preview} diffFailure={diff.isError ? <ReadFailure query={diff} /> : null} additions={diff.data?.additions ?? 0} removals={diff.data?.removals ?? 0} />
       )}
     </div>
   );
@@ -278,6 +282,7 @@ function Review({
   proposal,
   changes,
   preview,
+  diffFailure,
   additions,
   removals,
 }: {
@@ -285,7 +290,8 @@ function Review({
   proposal: Proposal;
   changes: DiffChange[];
   /** The proposed document itself, sent only for a first version. Undefined until the read answers. */
-  preview: RenderContent | null | undefined;
+  preview: FirstPreview | null | undefined;
+  diffFailure: ReactNode;
   additions: number;
   removals: number;
 }) {
@@ -312,22 +318,25 @@ function Review({
   return (
     <>
       {first ? (
-        <FirstVersion proposal={proposal} preview={preview} />
+        <FirstVersion proposal={proposal} preview={preview} diffFailure={diffFailure} />
       ) : (
-        <DiffPanes
-          guide="Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one."
-          before={{
-            title: "Current",
-            badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo}</Mono>,
-          }}
-          after={{
-            title: "Proposed",
-            badge: <Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>,
-          }}
-          changes={changes}
-          additions={additions}
-          removals={removals}
-        />
+        <>
+          {diffFailure ? <div className="px-20 py-8">{diffFailure}</div> : null}
+          <DiffPanes
+            guide="Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one."
+            before={{
+              title: "Current",
+              badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo}</Mono>,
+            }}
+            after={{
+              title: "Proposed",
+              badge: <Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>,
+            }}
+            changes={changes}
+            additions={additions}
+            removals={removals}
+          />
+        </>
       )}
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
@@ -367,7 +376,7 @@ function Review({
           <Button onClick={() => void decide(dismiss)}>
             {first ? "Discard draft" : "Keep current version"}
           </Button>
-          <Button variant="primary" onClick={() => void decide(accept)}>
+          <Button variant="primary" onClick={() => void decide(accept)} disabled={first && !preview} disabledReason={first && !preview ? "Read the proposed document before accepting it." : undefined}>
             {first ? `Accept as v${proposal.proposedVersionNo}` : "Accept proposed version"}
           </Button>
         </div>
@@ -384,9 +393,11 @@ function Review({
 function FirstVersion({
   proposal,
   preview,
+  diffFailure,
 }: {
   proposal: Proposal;
-  preview: RenderContent | null | undefined;
+  preview: FirstPreview | null | undefined;
+  diffFailure: ReactNode;
 }) {
   const japanese = RENDER_LANGUAGE[proposal.renderKind] === "ja";
   return (
@@ -399,17 +410,21 @@ function FirstVersion({
           lang={japanese ? "ja" : "en"}
           className={`mx-auto w-measure max-w-full px-20 py-32 ${japanese ? "tracking-ja" : ""}`}
         >
-          {preview.sections
-            .filter((section) => section.blocks.length > 0)
-            .map((section) => (
-              <section key={section.key}>
-                <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
-                  {section.heading}
-                </h3>
-                <DocumentBlocks blocks={section.blocks} />
-              </section>
-            ))}
+          <h1 className="text-render-heading font-semibold text-text-strong">{preview.title}</h1>
+          {preview.page.stamp ? <p className="mt-8 text-render-body text-text-body">{preview.page.stamp}</p> : null}
+          {preview.page.name ? <p className="mt-8 text-render-body font-semibold text-text-body">{preview.page.name}</p> : null}
+          {preview.page.contact.map((line) => <p key={line} className="text-render-body text-text-body">{line}</p>)}
+          {preview.page.sections.map((section, index) => (
+            <section key={index}>
+              <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
+                {section.heading}
+              </h3>
+              <DocumentBlocks blocks={section.blocks} />
+            </section>
+          ))}
         </article>
+      ) : diffFailure ? (
+        <div className="px-20 py-32">{diffFailure}</div>
       ) : (
         <p className="px-20 py-32 text-small text-text-dim">Loading the document…</p>
       )}
