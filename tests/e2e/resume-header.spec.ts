@@ -1,10 +1,10 @@
 import { writeFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { STORAGE_STATE } from "./env";
+import { RESUME_HEADER_STORAGE_STATE } from "./env";
 
 test("résumé header fields are opt-in and never copy 履歴書 PII", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: RESUME_HEADER_STORAGE_STATE });
   const page = await context.newPage();
   const consoleErrors: string[] = [];
   page.on("console", (message) => {

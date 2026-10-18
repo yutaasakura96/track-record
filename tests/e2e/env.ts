@@ -51,7 +51,13 @@ export const DOCUMENT_VIEW_IDENTITY = {
   name: "Document View Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email}`;
+export const RESUME_HEADER_IDENTITY = {
+  sub: "e2e-resume-header-local",
+  email: "e2e-resume-header@example.invalid",
+  name: "Resume Header Test",
+};
+
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -92,6 +98,14 @@ export const DOCUMENT_VIEW_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-document-view-storage-state.json",
+);
+
+export const RESUME_HEADER_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-resume-header-storage-state.json",
 );
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */
