@@ -375,8 +375,12 @@ A change with no explanation is a defect.
 
 When the render has no current version there is nothing to compare, and two columns against
 nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
-measure, with its headings, under the strip `This is the first version of your <render>. Read it
-through, then accept it or discard it.` No toolbar, no change navigation, no rationale bar. The
+measure: title, document date where applicable, identity and contact lines, then its nonempty
+sections and headings. A 履歴書 includes the template's ふりがな, 性別, 現住所ふりがな, 連絡先 (including
+`同上`) and 学歴・職歴・免許・資格 rows. Address line breaks remain visible. The strip says `This is the
+first version of your <render>. Read it through, then accept it or discard it.` No toolbar, no
+change navigation, no rationale bar. While the preview loads, the body says `Loading the
+document…`; a failed read shows its error. **Accept stays unavailable until the preview arrives.** The
 footer reads `Accepting saves this as v1 of your <render>.` and `Nothing is saved until you accept
 it.`, with `Discard draft` (secondary, dismisses the proposal) and `Accept as v1` (primary). There
 is no current version for a button to keep, so it does not say `Keep current version`. Once

@@ -332,7 +332,7 @@ describe("a first version", () => {
     });
 
     expect(await screen.findByRole("heading", { name: "履歴書" })).toBeTruthy();
-    expect(screen.getByText("ふりがな あおき　ようすけ")).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.textContent === "ふりがな あおき　ようすけ")).toBeTruthy();
     expect(screen.getByText("性別 男")).toBeTruthy();
     expect(screen.getByText("現住所ふりがな とうきょうと しぶやく")).toBeTruthy();
     expect(screen.getByText("連絡先 同上")).toBeTruthy();

@@ -34,7 +34,7 @@ export const e2eModel: ModelSeam = {
       sections: [
         {
           key: "experience",
-          heading: "Experience",
+          heading: facts.some((fact) => fact.claim.includes("revised")) ? "Selected Experience" : "Experience",
           blocks: facts.map((fact, index) => ({
             id: `blk_${index + 1}`,
             kind: "bullet" as const,

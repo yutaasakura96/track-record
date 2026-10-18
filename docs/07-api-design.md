@@ -662,7 +662,7 @@ back to the application it came from.
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
-| `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
+| `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
@@ -767,8 +767,8 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 **`withheld.privateFactCount` is a count and nothing else.** The footer states that something was
 withheld, never what.
 
-**`GET /api/proposals/:id/diff` → 200** — the exact structure the split view renders. Two passes
-have already run server-side: paragraphs aligned, then tokens diffed
+**`GET /api/proposals/:id/diff` → 200** — changes for the split view and a preview for a first
+version. Two passes have already run server-side: paragraphs aligned, then tokens diffed
 (`03-technical-design.md` §6.1).
 
 ```json
@@ -796,6 +796,7 @@ have already run server-side: paragraphs aligned, then tokens diffed
     },
     {
       "changeId": "chg_2",
+      "target": "block",
       "sectionKey": "experience",
       "currentBlockId": "blk_90",
       "proposedBlockId": null,
