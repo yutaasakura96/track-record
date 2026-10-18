@@ -662,7 +662,7 @@ back to the application it came from.
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
-| `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
+| `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
@@ -767,17 +767,19 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 **`withheld.privateFactCount` is a count and nothing else.** The footer states that something was
 withheld, never what.
 
-**`GET /api/proposals/:id/diff` → 200** — the exact structure the split view renders. Two passes
-have already run server-side: paragraphs aligned, then tokens diffed
+**`GET /api/proposals/:id/diff` → 200** — changes for the split view and a preview for a first
+version. Two passes have already run server-side: paragraphs aligned, then tokens diffed
 (`03-technical-design.md` §6.1).
 
 ```json
 {
   "additions": 4,
   "removals": 1,
+  "preview": null,
   "changes": [
     {
       "changeId": "chg_1",
+      "target": "block",
       "sectionKey": "experience",
       "currentBlockId": "blk_88",
       "proposedBlockId": "blk_91",
@@ -794,6 +796,7 @@ have already run server-side: paragraphs aligned, then tokens diffed
     },
     {
       "changeId": "chg_2",
+      "target": "block",
       "sectionKey": "experience",
       "currentBlockId": "blk_90",
       "proposedBlockId": null,
@@ -810,8 +813,16 @@ have already run server-side: paragraphs aligned, then tokens diffed
 
 - `op` ∈ `equal` · `add` · `remove`. For Japanese renders, each token is a **BudouX phrase**; for
   English, a word or punctuation run.
-- `rationale.kind` ∈ `from_facts` · `removed_no_support` · `removed_unverified` ·
-  `from_restricted`.
+- `target` ∈ `block` · `heading`. A `heading` change is a section's heading rewritten, added with a
+  new section or removed with one: `currentBlockId` and `proposedBlockId` are null, `tokens` diff
+  the heading text, and it comes before the changes to that section's blocks. A section with no
+  blocks is not in the document, so its heading is not diffed.
+- `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
+  `removed_unverified` · `from_restricted`.
+- `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,
+  and null otherwise. `SentPage` carries `stamp`, `name`, `contact` lines and nonempty `sections`
+  with their headings and blocks. A 履歴書 page includes its template fields and tables. The
+  first-version screen reads `preview`; every other review reads `changes`.
 - **A change with no `rationale` is a defect**, not a tolerable gap
   (`10-screen-specifications.md`).
 

@@ -32,6 +32,9 @@ import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
+import { rirekishoTemplateData } from "~/render/rirekisho";
+import { rirekishoSentPage, sentPage } from "~/render/sent-page";
+import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import { buildDocumentFile, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
 import {
   RENDER_KINDS,
@@ -226,7 +229,23 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       language: RENDER_LANGUAGE[render.kind as RenderKind],
       explain,
     });
-    return c.json(diff);
+    // A first version has nothing to be a diff against, so the screen shows the
+    // document itself. Sent only then: every other review reads the changes.
+    if (current) return c.json({ ...diff, preview: null });
+    const kind = render.kind as RenderKind;
+    const today = tokyoToday();
+    const page = kind === "rirekisho"
+      ? rirekishoSentPage(
+          rirekishoTemplateData({
+            profile: await collectRirekishoProfile(db, user.id),
+            record: await collectRirekishoRecord(db, user.id),
+            submittedOn: today,
+            content: proposed,
+          }),
+          proposed,
+        )
+      : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
+    return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
   });
 
   api.post("/api/proposals/:id/accept", async (c) => {

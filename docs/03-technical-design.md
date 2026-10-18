@@ -467,6 +467,9 @@ Two passes, because one pass is unreadable:
 2. **Diff tokens inside each matched pair** using jsdiff `diffArrays` — Myers, the same algorithm
    git uses, at word granularity instead of line granularity.
 
+Visible section headings are compared by section key before that section's blocks. A changed,
+added or removed heading becomes its own change; headings of sections with no blocks are omitted.
+
 **Tokens:** words and punctuation for English; **BudouX phrases** for Japanese.
 
 Verified end to end on the author's real 職務経歴書 prose:
@@ -478,8 +481,9 @@ DX推進に従事し、レイテンシを[-40%削減しました。][+55%削減�
 
 Marks land on phrase spans. A changed figure is one phrase replaced, not a scatter of characters.
 
-**Every change must carry a rationale** (`10-screen-specifications.md`): the `factIds` on each block
-resolve to the facts and source passages behind it. A change with no explanation is a defect.
+**Every change must carry a rationale** (`10-screen-specifications.md`): block changes use their
+`factIds` to explain the supporting facts or removal; heading changes explain that the heading is
+written with its section and has no fact to cite. A change with no explanation is a defect.
 
 ### 6.2 How the 履歴書 template reaches the runtime
 

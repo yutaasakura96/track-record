@@ -80,19 +80,20 @@ keeps reading. Returning shows the same cards.
 1. Home → the Next step reads `Update your Résumé (English)`, and the Résumé row shows `3 new facts`
    → **Update**, on either.
 2. `POST /api/renders/english_resume/generate` → `202`.
-3. Diff Review screen opens. **The current version is fully readable throughout**; the proposed
-   column shows a skeleton while generating.
-4. Proposal ready → `GET /api/proposals/:id/diff` renders the split view.
-5. Author steps through changes with prev/next. **Each change shows its rationale** — which facts
-   produced it, or why a line was removed.
-6. **Accept proposed version** → new version, dated. Or **Keep current version** → the proposal is
-   retained as dismissed and the stored version is left byte-identical.
+3. Diff Review screen opens. If there is a current version, it stays readable while the proposed
+   column shows a skeleton during generation.
+4. Proposal ready → `GET /api/proposals/:id/diff` opens the split view for an update, or the
+   document preview for a first version (`10-screen-specifications.md` Screen 2).
+5. For an update, the author steps through changes with prev/next. **Each change shows its
+   rationale** — supporting facts, why a line was removed, or why a heading changed.
+6. **Accept** → new version, dated. Or **Keep current version** for an update / **Discard draft**
+   for a first version → the proposal is retained as dismissed; any stored version is unchanged.
 7. Result bar confirms, with **Undo**.
 
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 2 | No accepted fact a document may use | No Generate or Update is offered, and one line above the documents **states the reason**. Never a silently empty document (PRD §7, `10-screen-specifications.md` Screen 3) |
-| 3 | Generation fails or returns nothing usable | Error with the reason and a retry. **The current version is untouched and still readable.** Never a blank proposed column with no explanation |
+| 3 | Generation fails or returns nothing usable | Error with the reason and a retry. Any current version stays untouched and readable; the proposal area is not left blank without explanation |
 | 4 | **Nothing changed** | The diff does not open. The overview reports `Already up to date with your record` |
 | 4 | Nearly every line changed | Renders normally. Rejecting the whole thing remains **one action** |
 | 5 | A change has no rationale | **A defect**, not a tolerated gap |
@@ -100,7 +101,8 @@ keeps reading. Returning shows the same cards.
 | 6 | Private facts were excluded | Footer states `N private facts in your record were not used` — that something was withheld, **never what** |
 
 **If abandoned before deciding:** the proposal stays `pending`. The overview shows the render as
-`proposal_pending` (`proposal_generating` while it is still being written). The current version is unchanged. Re-entering resumes at the diff.
+`proposal_pending` (`proposal_generating` while it is still being written). Any current version is
+unchanged. Re-entering resumes at the review screen.
 
 ---
 

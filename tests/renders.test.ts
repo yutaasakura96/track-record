@@ -504,6 +504,34 @@ describe("the proposal", () => {
     }
   });
 
+  it("sends the document itself with a first version's diff, and only then", async () => {
+    const record = await seedRecord();
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 3 hours", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const firstDiff = await client.json<{
+      preview: { title: string; page: { stamp: string | null; name: string; contact: string[]; sections: { heading: string; blocks: { text: string }[] }[] } } | null;
+      changes: { target: string }[];
+    }>(`/api/proposals/${first.proposalId}/diff`);
+    expect(firstDiff.preview?.title).toBe("Résumé (English)");
+    expect(firstDiff.preview?.page.name).toBe(PROFILE_FIXTURE.nameLatin);
+    expect(firstDiff.preview?.page.contact).toContain(PROFILE_FIXTURE.email);
+    expect(firstDiff.preview?.page.stamp).toBeNull();
+    expect(firstDiff.preview?.page.sections.flatMap((s) => s.blocks.map((b) => b.text))).toContain(
+      "Reduced nightly batch runtime to 3 hours",
+    );
+    // Its headings are changes too, so a screen that did read them would see them.
+    expect(firstDiff.changes.some((c) => c.target === "heading")).toBe(true);
+
+    await client.post(`/api/proposals/${first.proposalId}/accept`);
+    const second = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 90 minutes", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    const secondDiff = await client.json<{ preview: unknown }>(`/api/proposals/${second.proposalId}/diff`);
+    expect(secondDiff.preview).toBeNull();
+  });
+
   it("cites the facts and the source line behind a change", async () => {
     const record = await seedRecord();
     const created = (await (
@@ -511,10 +539,10 @@ describe("the proposal", () => {
     ).json()) as { proposalId: string };
 
     const diff = await client.json<{
-      changes: { rationale: { kind: string; text: string; factIds: string[] } }[];
+      changes: { target: string; rationale: { kind: string; text: string; factIds: string[] } }[];
     }>(`/api/proposals/${created.proposalId}/diff`);
 
-    const rationale = diff.changes[0]!.rationale;
+    const rationale = diff.changes.find((change) => change.target === "block")!.rationale;
     expect(rationale.kind).toBe("from_facts");
     expect(rationale.factIds).toContain(record.measuredPublic.id);
     expect(rationale.text).toMatch(/L\d+/);
@@ -1064,6 +1092,26 @@ describe("export", () => {
  * rules — not the prose itself, which is the model's to write.
  */
 describe("the 履歴書 is generable, and is generated in Japanese", () => {
+  it("includes the template identity cells in a first-version preview", async () => {
+    const address = "東京都渋谷区神宮前0-0-0\n架空ビル404号室";
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, gender: "男", address });
+    await seedRecord();
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []))
+    ).json()) as { proposalId: string };
+
+    const { preview } = await client.json<{
+      preview: { title: string; page: { name: string; contact: string[] } };
+    }>(`/api/proposals/${created.proposalId}/diff`);
+    expect(preview.title).toBe("履歴書");
+    expect(preview.page.name).toBe("青木　陽介");
+    expect(preview.page.contact).toContain("ふりがな あおき　ようすけ");
+    expect(preview.page.contact).toContain("性別 男");
+    expect(preview.page.contact).toContain(`現住所ふりがな ${PROFILE_FIXTURE.addressKana}`);
+    expect(preview.page.contact).toContain(`〒${PROFILE_FIXTURE.postalCode} ${address}`);
+    expect(preview.page.contact).toContain("連絡先 同上");
+  });
+
   it("hands the model the 履歴書 register rather than the résumé's", async () => {
     await seedRecord();
     const response = await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));

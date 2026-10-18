@@ -473,6 +473,8 @@ export interface ProposalRow {
 
 export interface DiffChange {
   changeId: string;
+  /** A section heading is a change of its own, with no blocks behind it. */
+  target: "block" | "heading";
   sectionKey: string;
   currentBlockId: string | null;
   proposedBlockId: string | null;
@@ -1322,7 +1324,8 @@ export const useVersionDiff = (ref: string, from: string | null, to: string | nu
 export const useDiff = (proposalId: string, enabled: boolean) =>
   useQuery({
     queryKey: keys.diff(proposalId),
-    queryFn: () => api<RenderDiff>(`/api/proposals/${proposalId}/diff`),
+    queryFn: () =>
+      api<RenderDiff & { preview: { title: string; page: SentPage } | null }>(`/api/proposals/${proposalId}/diff`),
     enabled,
   });
 

@@ -74,7 +74,7 @@ test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) 
   await expect(app.getByText(CLAIM).first()).toBeVisible();
 
   // 6 · Accept it.
-  await app.getByRole("button", { name: "Accept proposed version" }).click();
+  await app.getByRole("button", { name: "Accept as v1" }).click();
   await expect(home).toBeVisible();
   const row = app.getByRole("listitem").filter({ hasText: "Résumé (English)" });
   await expect(row).toContainText("Up to date");

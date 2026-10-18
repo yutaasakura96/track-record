@@ -151,3 +151,66 @@ describe("Japanese tokens", () => {
     expect(result.changes[0]!.tokens.some((t) => t.op === "equal")).toBe(true);
   });
 });
+
+describe("section headings", () => {
+  const block = (id: string, text: string): Block => ({ id, kind: "paragraph", text, factIds: [] });
+  const doc = (...sections: [key: string, heading: string, blocks: Block[]][]): RenderContent => ({
+    sections: sections.map(([key, heading, blocks]) => ({ key, heading, blocks })),
+  });
+  const run = (before: RenderContent | null, after: RenderContent) =>
+    diffRenders(before, after, { language: "en", explain: rationale });
+
+  const body = block("blk_1", "The nightly settlement batch had grown to six hours.");
+
+  it("reports a rewritten heading as a change of its own, with its own rationale", () => {
+    const result = run(doc(["ch1", "Where it started", [body]]), doc(["ch1", "Building the ledger", [body]]));
+    expect(result.changes).toHaveLength(1);
+    const [change] = result.changes;
+    expect(change!.target).toBe("heading");
+    expect(change!.currentBlockId).toBeNull();
+    expect(change!.proposedBlockId).toBeNull();
+    expect(change!.rationale.kind).toBe("heading_changed");
+    expect(change!.rationale.text).toMatch(/heading rewritten/i);
+    expect(change!.tokens.some((t) => t.op === "remove")).toBe(true);
+    expect(change!.tokens.some((t) => t.op === "add")).toBe(true);
+    expect(result.additions).toBe(1);
+    expect(result.removals).toBe(1);
+  });
+
+  it("reports every chapter title when all of them change, ahead of that chapter's blocks", () => {
+    const other = block("blk_2", "A later pass added partition pruning.");
+    const result = run(
+      doc(["ch1", "One", [body]], ["ch2", "Two", [other]]),
+      doc(["ch1", "Uno", [body, block("blk_3", "A brand new paragraph about tracing.")]], ["ch2", "Dos", [other]]),
+    );
+    expect(result.changes.map((c) => c.target)).toEqual(["heading", "block", "heading"]);
+    expect(result.changes.map((c) => c.sectionKey)).toEqual(["ch1", "ch1", "ch2"]);
+  });
+
+  it("reports nothing when a heading is unchanged", () => {
+    expect(run(doc(["ch1", "Same", [body]]), doc(["ch1", "Same", [body]])).changes).toEqual([]);
+  });
+
+  it("explains a new section's heading and a removed section's heading", () => {
+    const added = run(doc(["a", "Kept", [body]]), doc(["a", "Kept", [body]], ["b", "New", [block("blk_9", "Fresh.")]]));
+    expect(added.changes.map((c) => [c.target, c.rationale.kind])).toEqual([
+      ["heading", "heading_changed"],
+      ["block", "from_facts"],
+    ]);
+    expect(added.changes[0]!.tokens).toEqual([{ op: "add", text: "New" }]);
+
+    const removed = run(doc(["a", "Kept", [body]], ["b", "Gone", [block("blk_9", "Fresh.")]]), doc(["a", "Kept", [body]]));
+    expect(removed.changes[0]!.target).toBe("heading");
+    expect(removed.changes[0]!.tokens).toEqual([{ op: "remove", text: "Gone" }]);
+    expect(removed.changes[0]!.rationale.text).toMatch(/removed with its section/i);
+  });
+
+  it("ignores the heading of a section with no blocks, which is not in the document", () => {
+    expect(run(doc(["a", "Old", []]), doc(["a", "New", []])).changes).toEqual([]);
+  });
+
+  it("shows a first version's headings as additions", () => {
+    const result = run(null, doc(["ch1", "Building the ledger", [body]]));
+    expect(result.changes.map((c) => c.target)).toEqual(["heading", "block"]);
+  });
+});

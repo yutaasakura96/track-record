@@ -147,7 +147,7 @@ describe("sign-in through an accepted résumé version", () => {
     const { proposalId } = (await generation.json()) as { proposalId: string };
     await settle();
 
-    // 9 · Read it as a diff against nothing, with a rationale on every change.
+    // 9 · Read the first-version preview and its heading and block changes.
     const proposal = await client.json<{ generationStatus: string; unchanged: boolean }>(
       `/api/proposals/${proposalId}`,
     );
@@ -156,10 +156,12 @@ describe("sign-in through an accepted résumé version", () => {
 
     const diff = await client.json<{
       additions: number;
-      changes: { rationale: { text: string; factIds: string[] } }[];
+      preview: { page: { sections: { heading: string }[] } };
+      changes: { target: string; rationale: { text: string; factIds: string[] } }[];
     }>(`/api/proposals/${proposalId}/diff`);
-    expect(diff.additions).toBe(1);
-    expect(diff.changes[0]!.rationale.factIds).toContain(fact.id);
+    expect(diff.preview.page.sections[0]!.heading).toBe("Experience");
+    expect(diff.additions).toBe(2);
+    expect(diff.changes.find((change) => change.target === "block")!.rationale.factIds).toContain(fact.id);
 
     // 10 · Accept it.
     const accepted = (await (
