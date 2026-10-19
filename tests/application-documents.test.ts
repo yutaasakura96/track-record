@@ -24,7 +24,10 @@ import {
   seedTailoredResume,
   uploadForm,
 } from "./helpers/seed";
+import { eq } from "drizzle-orm";
+import { applicationSentCopies } from "~/server/db/schema";
 import type { CandidateFact } from "~/model/types";
+import type { Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 
 interface Document {
@@ -57,6 +60,7 @@ interface Page {
   name: string;
   contact: string[];
   sections: { heading: string; blocks: { kind: string; text: string }[] }[];
+  sheet?: Sheet;
 }
 interface CopyPage {
   id: string;
@@ -89,6 +93,13 @@ let app: Harness;
 let user: SeededUser;
 let client: Client;
 let factId: string;
+
+/** Every line of a sheet, tables included, in the file's order. */
+const sheetText = (sheet: Sheet | undefined) =>
+  (sheet?.blocks ?? [])
+    .flatMap((block) => (block.kind === "line" ? [block.line] : block.rows.flat().flatMap((cell) => cell.lines)))
+    .map((line) => line.text)
+    .join("\n");
 
 beforeEach(async () => {
   // Only `Date`: the database is real and its requests keep their real timers.
@@ -459,10 +470,35 @@ describe("a sent copy", () => {
     expect(form.page.sections.map((section) => section.heading)).toEqual(["学歴", "職歴", "志望の動機"]);
     expect(JSON.stringify(form.page)).not.toContain("白波大学院大学");
     expect(JSON.stringify(form.page)).toContain("海事システムの保守経験を活かしたい。");
+    // The form as the file lays it out, read out of the file that was sent.
+    expect(sheetText(form.page.sheet)).toContain("履 歴 書");
+    expect(sheetText(form.page.sheet)).toContain("東京都渋谷区神宮前0-0-0");
+    expect(sheetText(form.page.sheet)).not.toContain("白波大学院大学");
 
     // And the application still names what was sent, not what is current.
     expect((await read(made.id)).sentCopies.map((copy) => copy.versionNo)).toEqual([1, 1]);
     expect((await listed(made.id)).documents.map((document) => document.versionNo)).toEqual([1, 1]);
+  });
+
+  it("reads a 履歴書 stored before its page carried the form out of the file that was sent", async () => {
+    const made = await add();
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+    const url = `/api/applications/${made.id}/sent-copies/${copy!.id}`;
+    const current = await client.json<CopyPage>(url);
+
+    // What a copy stored before the form existed holds: the text alone, under the old title.
+    const { sheet: _sheet, ...text } = current.page;
+    await app.db.update(applicationSentCopies).set({ page: { ...text, title: "履歴書" } }).where(eq(applicationSentCopies.id, copy!.id));
+    // And the record moves on, which the stored file has not.
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, address: "大阪府大阪市北区0-0-0" });
+
+    const legacy = await client.json<CopyPage>(url);
+    expect(legacy.page.sheet).toEqual(current.page.sheet);
+    expect(sheetText(legacy.page.sheet)).toContain("履 歴 書");
+    expect(sheetText(legacy.page.sheet)).toContain("東京都渋谷区神宮前0-0-0");
+    expect(sheetText(legacy.page.sheet)).not.toContain("大阪府");
   });
 
   it("keeps the name it was sent under when the company is corrected later", async () => {

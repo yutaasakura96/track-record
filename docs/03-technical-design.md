@@ -449,7 +449,9 @@ offered for review. Japanese renders do not use this check (`src/render/language
 
 Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled from the stored
 `RenderContent` **on download**, never stored. The document reader uses the same inputs as that
-version's download to assemble its page without building the file (`10` Screen 17).
+version's download to assemble its page without building the file (`10` Screen 17), except a
+履歴書's: its template is filled and the page's form read back out of the filled file
+(`src/render/sheet.ts`), so the screen cannot set out a form the file does not.
 
 **A tailored résumé runs through this pipeline unchanged** (2026-10-08, #57). It is a `renders` row
 of kind `english_resume` carrying a job description, addressed by its own id where a main document

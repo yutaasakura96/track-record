@@ -6908,3 +6908,28 @@ count as achievements. Inclusion lines always list every excluded document, even
 document remains included. An upper-secondary education chip names the English résumé as excluded;
 a lower-secondary chip also names the 職務経歴書. The 履歴書 gap warning remains visible with education
 but no employers.
+
+---
+
+### [2026-10-19] A 履歴書 is read on the screen out of its own file
+
+Issue #106 asked for the page to show a document "as it will print, in both themes". For a 履歴書 it did
+not: the page joined the identity fields into one paragraph, read the 学歴・職歴 rows out as prose
+or as a table without its full-width 学歴, 職歴 and 以上 rows, and spaced the title differently from
+the file. A sent copy stored before the page carried form cells had only that prose. A downloaded
+履歴書 is a filled form with cells and tables.
+
+**The page's form is read back out of the filled `.docx`** (`src/render/sheet.ts`): its lines and
+tables cell for cell, with column spans, the vertically merged 写真 cell, column proportions,
+alignment, and each run's size and weight bucketed into title, large, body and small. The screen
+draws that and knows no field names. A version's page fills the template to read it, and a sent
+copy stores what it read from the file it stores; a copy stored before this is read from its own
+stored file when it is opened, which is the form as it was sent, not one rebuilt from today's record.
+
+Rejected: a hand-built layout from `RirekishoTemplateData`, which is the duplicate that drifted —
+the template is the authority on layout (`docs/04` §4) and a second description of it is a second
+thing to keep in step. The reader is not a general `.docx` reader: it reads what the template uses,
+and `src/pipeline/docx.ts` stays the one for files the author brings, sharing only its tokenizer.
+
+**Revisit if:** the template gains an image, a nested table or a text box, none of which the reader
+draws, or the English résumé moves to a template too and could be read the same way.

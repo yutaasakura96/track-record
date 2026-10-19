@@ -1897,9 +1897,14 @@ Header `Applications / <company> / <title> as sent`. Read-only.
    reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
    (bare).
 2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
-   sections in file order. A 履歴書 shows labelled identity cells (including ふりがな and 性別),
-   学歴・職歴 and 免許・資格 tables with 年 / 月 / 内容 columns, then its prose cells. Tables scroll
-   within their own box at phone width. A 履歴書 or 職務経歴書 uses the Japanese stack.
+   sections in file order. A 履歴書 is the filled form read back out of the stored file (decision
+   log, 2026-10-19): the spaced title `履 歴 書`, the date on the right, then the file's tables cell for
+   cell — ふりがな and 名前 beside the empty 写真 cell three rows tall, 生年月日 and 性別, 電話 and
+   Email, 現住所 and 連絡先; the 年 / 月 / 学歴・職歴 table with 学歴, 職歴 and 以上 across the whole
+   row; 年 / 月 / 免許・資格; then the two prose cells. A copy stored before the page carried the form
+   is read the same way, from its file. Tables keep the file's column proportions and fit the
+   width; a table that cannot scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese
+   stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
 another application, is a 404.
@@ -2013,9 +2018,8 @@ Read-only.
    filled from your record as it is now, as the download is.`
 3. **The document**, on a `card` at the reading measure: the page its download would hold today.
    Built documents show the printed title above the centered identity block, then sections in file
-   order. A 履歴書 shows today's date, labelled identity cells, 学歴・職歴 and 免許・資格 tables, then
-   prose cells, as in Screen 15. Tables scroll within their own box at phone width. Both themes use
-   the theme's tokens.
+   order. A 履歴書 is the form its download would hold today, read back out of that file, as in
+   Screen 15. Both themes use the theme's tokens.
 
 | State | Behaviour |
 |---|---|
