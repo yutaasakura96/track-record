@@ -14,7 +14,7 @@ import type { SuiteOwner } from "../database-guard";
  * Not 8787, which `npm run dev:worker` uses, so a developer's dev server and
  * this one can run together.
  */
-export const E2E_PORT = 8788;
+export const E2E_PORT = Number(process.env.E2E_PORT ?? 8788);
 export const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
 
 /** The suite's own database. `track_record_dev` is refused (`global-setup.ts`). */

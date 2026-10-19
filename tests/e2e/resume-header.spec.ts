@@ -10,7 +10,10 @@ test("résumé header fields are opt-in and never copy 履歴書 PII", async ({ 
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
-  await page.goto("/");
+  await Promise.all([
+    page.waitForResponse((response) => response.url().endsWith("/api/profile") && response.status() === 404),
+    page.goto("/profile"),
+  ]);
 
   for (const [label, value] of Object.entries(PROFILE)) await page.getByLabel(label).fill(value);
   await expect(page.getByText("On your English résumé")).toBeVisible();
