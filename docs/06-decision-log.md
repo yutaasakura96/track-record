@@ -6931,24 +6931,25 @@ the record, the reason the 履歴書's tables are read at download (`docs/03` §
 
 **Bullets are keyed by employer id**, `employer:<id>`, the key the career stories already use, so a
 header is joined to its bullets exactly and the attribution check resolves the employer from the key.
-After parsing, a section under any other key is dropped and the headings are replaced by the
-record's. A version from before this one keeps its single `experience` section; its groups are
+After parsing, unknown or duplicate keys and wrong block kinds are refused, while headings are
+replaced by the record's. A version from before this one keeps its single `experience` section; its groups are
 joined to employers by the attribution check's name resolution and it downloads in the new layout.
 `npm run measure` counts the bullets of both shapes.
 
 **The bullet budget is computed, not left to the model.** Four or five for the two most recent
 employers, one or two for an employer that ended more than eight years ago, two or three between;
-age wins over position. It is printed on each employer's line in the prompt. With the demo record a
+age wins over position. The maximum, summary length and bullet length are checked after generation
+and on edits. It is printed on each employer's line in the prompt. With the demo record a
 real generation came back at 5, 5, 3 and 2.
 
 **Three columns.** `employers.city` (English, for the header); `certifications.kind` (`technical`,
-`language`, `other`; null prints as technical, because a migration cannot classify an existing row);
+`language`, `other`; the migration classifies existing language tests, and a remaining null prints as technical);
 `profiles.paper_size` (A4 by default, Letter on request, the owner's choice of 2026-10-17).
 
 **The file is built to be parsed**: one column, no tables, nothing in Word headers or footers, real
 list paragraphs, dates on a right tab stop, Calibri throughout (Carlito substitutes for it metrically),
-body 10pt, name 20pt, headings 10.5pt small capitals in one navy with a rule, 15.5 mm margins. Any
-field holding Japanese script is left out where the line reads without it.
+body 10pt, name 20pt, headings 10.5pt small capitals in one navy with a rule, 15.5 mm margins. An
+English résumé is refused if an assembled field contains Japanese script.
 
 **The file is `<First>-<Last>-Resume-<YYYY-MM>.docx`, tailored or not.** The month is the month the
 version was accepted, in Tokyo. A tailored résumé's file used to carry its label and render id; the
@@ -6957,5 +6958,7 @@ file is what an employer receives, and the label is the author's note to themsel
 **Not yet:** the headline, location, phone and links (#108) and the PDF download (#109). The header
 carries the name and email the profile already has, and the contact line is a list they extend.
 
-**Revisit if:** an employer the record names only in Japanese reaches the résumé, which still falls
-back to 会社名 rather than dropping the job.
+**Opening check:** firstmate imported the demo-record file `Kenji-Moriyama-Resume-2026-10.docx`
+into Google Docs on 2026-10-18 without an error. Every section, job header, bullet list and the
+Languages line (`TOEIC Listening & Reading 865`) remained intact. The real Microsoft Word check is
+pending the owner (`docs/11` §3 item 1).

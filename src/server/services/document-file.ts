@@ -22,7 +22,7 @@ import { downloadFilename, toDocx } from "~/render/docx";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
 import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
-import { assembleResume, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
+import { assembleResume, ResumeLanguageError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
 import { resumeDocx, type PaperSize } from "~/render/resume-docx";
 import { collectResumeRecord } from "./resume";
 import type { RenderIdentity } from "~/render/identity";
@@ -184,6 +184,7 @@ async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): P
   } catch (error) {
     // A refusal with words for the author is passed on as it is.
     if (error instanceof ApiError) throw error;
+    if (error instanceof ResumeLanguageError) throw new ApiError("conflict", error.message);
     // The build fails; the stored content is untouched and the next one can succeed.
     console.error(JSON.stringify({ event: "docx_build_failed", versionId: version.id }));
     throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");

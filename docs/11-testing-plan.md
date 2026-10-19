@@ -653,6 +653,12 @@ For signed-in local browser checks, follow `docs/12-deployment-devops.md` §8.
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
 
+For the English résumé, firstmate imported the demo-record file
+`Kenji-Moriyama-Resume-2026-10.docx` into Google Docs on 2026-10-18 without an
+import error. Every section, job header, bullet list and the Languages line
+(`TOEIC Listening & Reading 865`) remained intact. The real Microsoft Word
+opening check is pending the owner; item 1 is not yet complete.
+
 **Item 4 is runnable, and its structural half was run on 2026-09-13** against the first generated
 pair. Both stories became `buildable` that day. The structure is not a judgement and is not read by
 hand: both are generated from one computed chapter plan and a generation whose chapters do not match

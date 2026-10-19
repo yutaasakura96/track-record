@@ -138,6 +138,23 @@ describe("the English résumé document", () => {
     expect(resumeMarkdown(doc)).not.toContain("Résumé (English)");
   });
 
+  it("refuses Japanese script in record names and generated prose", () => {
+    expect(() => assembled(CONTENT, { ...RECORD, employers: [employer({ name: "架空株式会社" })] })).toThrow(/employer 架空株式会社 name/);
+    expect(() => assembled({ sections: [{ key: "summary", heading: "Summary", blocks: [block("j1", "日本語", "paragraph")] }] })).toThrow(/summary/);
+  });
+
+  it("prints an unmatched legacy heading as plain text", () => {
+    const content: RenderContent = {
+      sections: [{ key: "experience", heading: "Experience", blocks: [
+        block("h1", "Unknown company · Jan 2020 – Present", "paragraph"),
+        block("b1", "Built a service."),
+      ] }],
+    };
+    const blocks = assembled(content).sections.find((section) => section.key === "experience")!.blocks;
+    expect(blocks).toContainEqual({ kind: "paragraph", text: "Unknown company · Jan 2020 – Present" });
+    expect(blocks).not.toContainEqual(expect.objectContaining({ kind: "entry", lead: "Unknown company · Jan 2020 – Present" }));
+  });
+
   it("heads each job from the record: company, city, Mon YYYY dates, and every title held there", () => {
     const experience = assembled().sections.find((s) => s.key === "experience")!.blocks;
     expect(experience).toEqual([
@@ -290,33 +307,40 @@ describe("what the model returned", () => {
     jobDescription: null,
   } satisfies RenderSpec;
 
-  it("is reduced to the summary, the employers' and independent projects' bullets, under the record's headings", () => {
+  it("uses the record's headings for valid model sections", () => {
     const shaped = shapeResumeContent(
       {
         sections: [
-          { key: "education", heading: "Education", blocks: [block("x1", "Seaside, 2015", "paragraph")] },
-          { key: employerChapterKey("emp_before"), heading: "Pinecrest · Tech Lead · 2019 – 2023", blocks: [block("x2", "Raised conversion 9%.", "paragraph")] },
-          { key: "summary", heading: "Profile", blocks: [block("x3", "Platform engineer.", "bullet")] },
-          { key: employerChapterKey("emp_unknown"), heading: "Nobody", blocks: [block("x4", "Invented.")] },
-          { key: projectKey("prj_work"), heading: "Ledger", blocks: [block("x5", "Belongs to an employer.")] },
-          { key: employerChapterKey("emp_before"), heading: "again", blocks: [block("x6", "Second bullet.")] },
+          { key: employerChapterKey("emp_before"), heading: "Invented header", blocks: [block("x2", "Raised conversion 9%.")] },
+          { key: "summary", heading: "Profile", blocks: [block("x3", "Platform engineer.", "paragraph")] },
+          { key: projectKey("prj_oss"), heading: "Project", blocks: [block("x4", "Built a library.")] },
         ],
       },
       spec,
     );
     expect(shaped.sections.map((s) => [s.key, s.heading, s.blocks.map((b) => `${b.kind}:${b.text}`)])).toEqual([
       ["summary", "Summary", ["paragraph:Platform engineer."]],
-      [employerChapterKey("emp_before"), "Pinecrest Retail K.K.", ["bullet:Raised conversion 9%.", "bullet:Second bullet."]],
+      [employerChapterKey("emp_before"), "Pinecrest Retail K.K.", ["bullet:Raised conversion 9%."]],
+      [projectKey("prj_oss"), "tategaki-js", ["bullet:Built a library."]],
     ]);
   });
 
-  it("is refused when nothing the résumé prints is left", () => {
-    expect(() =>
-      parseGeneratedRender(
-        { sections: [{ key: "education", heading: "Education", blocks: [{ kind: "row", text: "Seaside", factIds: [] }] }] },
-        spec,
-      ),
-    ).toThrow(/no summary and no bullets/);
+  it("refuses unexpected, duplicate, wrongly typed, and over-bound model sections", () => {
+    const valid = [
+      { key: "summary", heading: "Summary", blocks: [{ kind: "paragraph", text: "Platform engineer.", factIds: [] }] },
+      { key: projectKey("prj_oss"), heading: "Project", blocks: [{ kind: "bullet", text: "Built a library.", factIds: [] }] },
+    ];
+    const invalid = [
+      [...valid, { key: "education", heading: "Education", blocks: [{ kind: "row", text: "School", factIds: [] }] }],
+      [...valid, valid[0]!],
+      [{ ...valid[0]!, blocks: [{ kind: "bullet", text: "Wrong kind.", factIds: [] }] }, valid[1]!],
+      [valid[0]!],
+      [{ ...valid[0]!, blocks: [{ kind: "paragraph", text: Array(50).fill("word").join(" "), factIds: [] }] }, valid[1]!],
+      [valid[0]!, { ...valid[1]!, blocks: [{ kind: "bullet", text: "x".repeat(241), factIds: [] }] }],
+    ];
+    for (const sections of invalid) {
+      expect(() => parseGeneratedRender({ sections }, spec)).toThrow();
+    }
   });
 });
 

@@ -80,8 +80,6 @@ export function bulletBudget(position: number, endedOn: string | null, today: st
 
 /* ----------------------------------------------------- shaping a generation */
 
-const asKind = (blocks: Block[], kind: Block["kind"]): Block[] => blocks.map((block) => ({ ...block, kind }));
-
 /**
  * What the model returned, reduced to the sections the register asks for.
  *
@@ -90,10 +88,6 @@ const asKind = (blocks: Block[], kind: Block["kind"]): Block[] => blocks.map((bl
  * heading is what the diff and the edit screens show; the file prints the
  * record's job header and never reads it.
  *
- * A section under any other key is dropped rather than refused. An education
- * section the model wrote anyway is a section the file would not print, and a
- * generation spent is not worth refusing over text that goes nowhere. A key
- * returned twice is one section, in the order its blocks came.
  */
 export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
   const planned: { key: string; heading: string; kind: Block["kind"] }[] = [
@@ -105,16 +99,40 @@ export function shapeResumeContent(content: RenderContent, spec: RenderSpec): Re
     { key: OTHER_PROJECTS_KEY, heading: "Projects", kind: "bullet" },
   ];
 
+  const byKey = new Map(planned.map((section) => [section.key, section]));
   const blocksByKey = new Map<string, Block[]>();
   for (const section of content.sections) {
-    blocksByKey.set(section.key, [...(blocksByKey.get(section.key) ?? []), ...section.blocks]);
+    const expected = byKey.get(section.key);
+    if (!expected || blocksByKey.has(section.key) || section.blocks.some((block) => block.kind !== expected.kind)) {
+      throw new Error(`Invalid résumé section ${section.key}.`);
+    }
+    blocksByKey.set(section.key, section.blocks);
   }
 
-  const sections: RenderSection[] = planned.flatMap(({ key, heading, kind }) => {
+  const sections: RenderSection[] = planned.flatMap(({ key, heading }) => {
     const blocks = blocksByKey.get(key) ?? [];
-    return blocks.length === 0 ? [] : [{ key, heading, blocks: asKind(blocks, kind) }];
+    return blocks.length === 0 ? [] : [{ key, heading, blocks }];
   });
+  validateResumeBounds({ sections }, spec.employers);
+  for (const project of spec.projects.filter((p) => p.employerId === null)) {
+    if (!blocksByKey.get(projectKey(project.id))?.length) throw new Error(`Project ${project.id} needs bullets.`);
+  }
   return { sections };
+}
+
+export function validateResumeBounds(content: RenderContent, employers: RenderSpec["employers"]): void {
+  for (const section of content.sections) {
+    if (section.key === SUMMARY_KEY && section.blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length >= 50) {
+      throw new Error("The résumé summary must be under 50 words.");
+    }
+    if (section.blocks.some((block) => [...block.text].length > 240 && (block.kind === "bullet" || section.key !== SUMMARY_KEY))) {
+      throw new Error(`Résumé section ${section.key} has a bullet over 240 characters.`);
+    }
+    const employer = employers.find((row) => employerChapterKey(row.id) === section.key);
+    if (employer?.bullets && section.blocks.length > employer.bullets.max) {
+      throw new Error(`Résumé employer ${employer.id} exceeds its bullet budget.`);
+    }
+  }
 }
 
 /* ------------------------------------------------------------- the document */
@@ -160,18 +178,11 @@ export interface ResumeDocument {
 }
 
 /**
- * Japanese script, and the full-width punctuation that travels with it. An
- * English résumé carries none (§4.3): a field holding some is left out where
- * the line reads without it.
+ * Japanese script, and the full-width punctuation that travels with it.
  */
 const JAPANESE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　-〿！-｠]/u;
 
 export const hasJapaneseScript = (text: string): boolean => JAPANESE_SCRIPT.test(text);
-
-const english = (value: string | null | undefined): string | null => {
-  const trimmed = value?.trim() ?? "";
-  return trimmed === "" || hasJapaneseScript(trimmed) ? null : trimmed;
-};
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -215,7 +226,31 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
     section("certifications", "Certifications", certificationBlocks(record, today, "technical")),
     section("languages", "Languages", certificationBlocks(record, today, "language")),
   ].filter((s) => s.blocks.length > 0);
-  return { name, contact, sections };
+  const document = { name, contact, sections };
+  assertEnglishResume(document);
+  return document;
+}
+
+export class ResumeLanguageError extends Error {}
+
+export function assertEnglishResume(document: ResumeDocument): void {
+  const fields: [string, string][] = [["profile name", document.name], ...document.contact.map((value) => ["contact", value] as [string, string])];
+  for (const section of document.sections) {
+    const type = section.key === "experience" ? "employer" : section.key === "projects" ? "project" : section.key;
+    let entry = type;
+    for (const block of section.blocks) {
+      if (block.kind === "entry") {
+        entry = `${type} ${block.lead}`;
+        fields.push([`${entry} name`, block.lead], [`${entry} detail`, block.detail ?? ""]);
+      } else if (block.kind === "labelled") {
+        fields.push([`${type} label`, block.label], [`${type} value`, block.text]);
+      } else {
+        fields.push([block.kind === "subtitle" ? `${entry} title` : type, block.text]);
+      }
+    }
+  }
+  const invalid = fields.find(([, value]) => hasJapaneseScript(value));
+  if (invalid) throw new ResumeLanguageError(`The English résumé needs an English value for ${invalid[0]}.`);
 }
 
 const section = (key: string, heading: string, blocks: ResumeBlock[]): ResumeSection => ({ key, heading, blocks });
@@ -229,9 +264,9 @@ function summaryBlocks(content: RenderContent): ResumeBlock[] {
 
 function skillsBlocks(record: ResumeRecord): ResumeBlock[] {
   return record.skills.flatMap((group): ResumeBlock[] => {
-    const skills = group.skills.filter((s) => english(s) !== null);
+    const skills = group.skills;
     if (skills.length === 0) return [];
-    const label = english(group.name);
+    const label = group.name.trim();
     return label
       ? [{ kind: "labelled", label, text: skills.join(", ") }]
       : [{ kind: "paragraph", text: skills.join(", ") }];
@@ -244,10 +279,7 @@ function skillsBlocks(record: ResumeRecord): ResumeBlock[] {
  * one: `Tech Lead (Apr 2021 – Dec 2023) · Senior Engineer (Jul 2020 – Mar 2021)`.
  */
 function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | null {
-  const titled = roles.flatMap((r) => {
-    const title = english(r.title);
-    return title ? [{ ...r, title }] : [];
-  });
+  const titled = roles.filter((r) => r.title.trim());
   if (titled.length === 0) return null;
   if (titled.length === 1) return titled[0]!.title;
   return titled.map((r) => `${r.title} (${monthSpan(r.startedOn, r.endedOn)})`).join(" · ");
@@ -263,7 +295,7 @@ function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | nu
  * which a paragraph opens each employer. Its groups are joined to the record by
  * the attribution check's own name resolution, so an old version downloads in
  * the new layout with its bullets under the right job. A group whose heading
- * names nobody keeps that heading as its lead rather than losing its bullets.
+ * names nobody keeps that heading as plain text rather than losing its bullets.
  */
 function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
   const bulletsByEmployer = new Map<string, string[]>();
@@ -285,7 +317,7 @@ function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeB
       continue;
     }
     const lead = group.headingBlockId ? headingText.get(group.headingBlockId) : undefined;
-    if (lead) unresolved.push({ kind: "entry", lead, detail: null, dates: null });
+    if (lead) unresolved.push({ kind: "paragraph", text: lead });
     unresolved.push(...texts.map((text): ResumeBlock => ({ kind: "bullet", text })));
   }
 
@@ -293,7 +325,7 @@ function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeB
     ...record.employers.flatMap((e): ResumeBlock[] => {
       const titles = rolesLine(e.roles);
       return [
-        { kind: "entry", lead: e.name, detail: english(e.city), dates: monthSpan(e.startedOn, e.endedOn) },
+        { kind: "entry", lead: e.name, detail: e.city, dates: monthSpan(e.startedOn, e.endedOn) },
         ...(titles ? [{ kind: "subtitle" as const, text: titles }] : []),
         ...(bulletsByEmployer.get(e.id) ?? []).map((text): ResumeBlock => ({ kind: "bullet", text })),
       ];
@@ -304,22 +336,16 @@ function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeB
 
 /**
  * Independent projects — those with no employer — each under its own header,
- * then any independent work the record holds as facts alone. A project the
- * version wrote nothing for falls back to the summary the author wrote for it.
+ * then any independent work the record holds as facts alone.
  */
 function projectBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
   const entries = record.projects
     .filter((p) => p.employerId === null)
     .flatMap((p): ResumeBlock[] => {
       const bullets = textsOf(content, projectKey(p.id));
-      const summary = english(p.summary);
       return [
         { kind: "entry", lead: p.name, detail: null, dates: p.startedOn ? monthSpan(p.startedOn, p.endedOn) : null },
-        ...(bullets.length > 0
-          ? bullets.map((text): ResumeBlock => ({ kind: "bullet", text }))
-          : summary
-            ? [{ kind: "paragraph" as const, text: summary }]
-            : []),
+        ...bullets.map((text): ResumeBlock => ({ kind: "bullet", text })),
       ];
     });
   const other = textsOf(content, OTHER_PROJECTS_KEY).map((text): ResumeBlock => ({ kind: "bullet", text }));
@@ -337,7 +363,7 @@ function educationBlocks(record: ResumeRecord): ResumeBlock[] {
   return record.educations
     .filter((e) => e.level === null || !BELOW_UNIVERSITY.has(e.level))
     .map((e): ResumeBlock => {
-      const studied = [english(e.degree), english(e.fieldOfStudy)].filter((v): v is string => v !== null).join(", ");
+      const studied = [e.degree, e.fieldOfStudy].filter((v): v is string => Boolean(v)).join(", ");
       const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;
       return { kind: "entry", lead: e.institution, detail: detail || null, dates: educationDates(e) };
     });
@@ -359,8 +385,7 @@ function certificationBlocks(record: ResumeRecord, today: string, kind: "technic
   const items = record.certifications
     .filter((c) => (c.kind ?? "technical") === kind && !isExpired(c.expiresOn, today))
     .flatMap((c) => {
-      const name = english(c.name);
-      if (!name) return [];
+      const name = c.name;
       if (!c.issuedOn) return [name];
       return [kind === "language" ? `${name} (${yearOf(c.issuedOn)})` : `${name}, ${yearOf(c.issuedOn)}`];
     });

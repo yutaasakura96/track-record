@@ -20,7 +20,7 @@ import {
 } from "~/render/chapters";
 
 export { capitalInJapanese };
-import { shapeResumeContent } from "~/render/resume";
+import { hasJapaneseScript, shapeResumeContent } from "~/render/resume";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export const EMIT_RENDER_TOOL = {
@@ -214,9 +214,25 @@ const bulletsOf = (e: RenderSpec["employers"][number]) =>
  * sections its register asks for (`src/render/resume.ts`).
  */
 export function parseGeneratedRender(input: unknown, spec: RenderSpec): RenderContent {
+  if (spec.kind === "english_resume" && typeof input === "object" && input !== null &&
+    Array.isArray((input as { sections?: unknown }).sections) &&
+    (input as { sections: unknown[] }).sections.some((section) =>
+      typeof section === "object" && section !== null && Array.isArray((section as { blocks?: unknown }).blocks) &&
+      (section as { blocks: unknown[] }).blocks.some((block) =>
+        typeof block === "object" && block !== null && !KINDS.has((block as { kind?: BlockKind }).kind as BlockKind)))) {
+    throw new ModelUnavailableError("The model returned an unknown résumé block kind.");
+  }
   const content = parseRenderContent(input, chaptersOf(spec));
   if (spec.kind !== "english_resume") return content;
-  const shaped = shapeResumeContent(content, spec);
+  let shaped: RenderContent;
+  try {
+    shaped = shapeResumeContent(content, spec);
+  } catch (error) {
+    throw new ModelUnavailableError(error instanceof Error ? error.message : "The résumé is invalid.");
+  }
+  if (shaped.sections.some((section) => section.blocks.some((block) => hasJapaneseScript(block.text)))) {
+    throw new ModelUnavailableError("The English résumé contains Japanese script.");
+  }
   if (shaped.sections.length === 0) {
     throw new ModelUnavailableError("The model returned no summary and no bullets.");
   }

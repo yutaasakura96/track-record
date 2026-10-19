@@ -30,7 +30,7 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, resumeMarkdown } from "~/render/resume";
+import { assembleResume, ResumeLanguageError, resumeMarkdown, validateResumeBounds } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
@@ -95,6 +95,19 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
+    if (kind === "english_resume") {
+      try {
+        assembleResume({
+          content: { sections: [] },
+          record: await collectResumeRecord(db, user.id),
+          identity: await renderIdentity(db, user.id),
+          today: tokyoToday(),
+        });
+      } catch (error) {
+        if (error instanceof ResumeLanguageError) throw preconditionFailed(error.message, ["english_resume"]);
+        throw error;
+      }
+    }
     // The tool never silently produces an empty document, and the reason is
     // stated rather than left to the author to work out.
     if (inputs.facts.length === 0) {
@@ -677,6 +690,15 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
       throw err;
     }
+    if (target.kind === "english_resume") {
+      const record = await collectResumeRecord(db, user.id);
+      try {
+        validateResumeBounds(content, record.employers);
+      } catch (error) {
+        if (error instanceof Error) throw validationFailed(error.message, ["content"]);
+        throw error;
+      }
+    }
     if (sameContent(content, current.content as RenderContent)) {
       throw new ApiError("conflict", "That edit changes nothing.");
     }
@@ -808,12 +830,17 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       // because a phone number changed (`src/render/identity.ts`).
       const identity = await renderIdentity(db, user.id);
       // The résumé's Markdown is the same document its `.docx` is (issue #107).
-      const markdown =
-        kind === "english_resume"
+      let markdown: string;
+      try {
+        markdown = kind === "english_resume"
           ? resumeMarkdown(
               assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today: tokyoToday() }),
             )
           : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
+      } catch (error) {
+        if (error instanceof ResumeLanguageError) throw new ApiError("conflict", error.message);
+        throw error;
+      }
       return new Response(markdown, {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
