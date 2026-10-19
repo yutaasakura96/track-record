@@ -138,8 +138,18 @@ describe("résumé header fields (issue #108)", () => {
     }
   });
 
+  it("supplies HTTPS to a domain with a port", async () => {
+    const response = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumePortfolioUrl: "portfolio.example.com:8443/work",
+    });
+    expect(response.status).toBe(200);
+    const profile = await client.json<{ resumePortfolioUrl: string }>("/api/profile");
+    expect(profile.resumePortfolioUrl).toBe("https://portfolio.example.com:8443/work");
+  });
+
   it("refuses a link that is not a web address and saves nothing", async () => {
-    for (const bad of ["javascript:alert(1)", "not a link", "ftp://example.com/x"]) {
+    for (const bad of ["javascript:alert(1)", "not a link", "ftp://example.com/x", "foo.bar://example.com", "https:example.com", "https://exa\nmple.com", "https://example.com/a b"]) {
       const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: bad });
       expect(response.status).toBe(422);
       const body = (await response.json()) as { error: { message: string; details: { fields: string[] } } };

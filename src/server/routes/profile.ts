@@ -57,10 +57,13 @@ const optional = z
 const webAddress = (label: string) =>
   optional.transform((value, ctx) => {
     if (!value) return null;
-    const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
+    const hasWebScheme = /^https?:\/\//i.test(value);
+    const withScheme = hasWebScheme ? value : `https://${value}`;
     try {
-      const url = new URL(withScheme);
-      if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return withScheme;
+      if (!/[\s\p{Cc}]/u.test(value) && (hasWebScheme || !/^[a-z][a-z0-9+.-]*:\/\//i.test(value))) {
+        const url = new URL(withScheme);
+        if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return withScheme;
+      }
     } catch {
       // Falls through to the refusal below.
     }
