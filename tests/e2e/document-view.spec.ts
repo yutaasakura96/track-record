@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
-import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { STORAGE_STATE } from "./env";
+import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
+import { DOCUMENT_VIEW_STORAGE_STATE } from "./env";
 
 const ready = expect.configure({ timeout: 20_000 });
 const screenshot = async (page: Page, name: string) => {
@@ -11,7 +11,7 @@ const screenshot = async (page: Page, name: string) => {
 
 test("accepted résumé opens from Home and History, then refuses a Private cited fact", async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: DOCUMENT_VIEW_STORAGE_STATE });
   const page = await context.newPage();
   await page.goto("/");
   for (const [label, value] of Object.entries(PROFILE)) await page.getByLabel(label).fill(value);
@@ -32,7 +32,7 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await page.getByRole("button", { name: "Done", exact: true }).first().click();
   await page.getByRole("region", { name: "Next step" }).getByRole("button", { name: "Generate" }).click();
   await ready(page.getByText(CLAIM).first()).toBeVisible();
-  await page.getByRole("button", { name: "Accept proposed version" }).click();
+  await page.getByRole("button", { name: "Accept as v1" }).click();
   await ready(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
 
   const row = page.getByRole("listitem").filter({ hasText: "Résumé (English)" });
@@ -42,7 +42,7 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await ready(page).toHaveURL(/\/renders\/english_resume\/view$/);
   const article = page.getByRole("article");
   await ready(article.getByRole("heading", { name: "Résumé (English)" })).toBeVisible();
-  await expect(article.getByText("Yosuke Aoki")).toBeVisible();
+  await expect(article.getByText(PROFILE["Name in Latin script"])).toBeVisible();
   await ready(article.getByText(CLAIM, { exact: false })).toBeVisible();
   await expect(page.getByText("v1", { exact: true })).toBeVisible();
   for (const name of ["Download", "History", "Edit", "Regenerate"]) {
