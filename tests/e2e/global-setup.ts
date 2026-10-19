@@ -28,6 +28,8 @@ import {
   CAPTURE_STORAGE_STATE,
   DIFF_REVIEW_IDENTITY,
   DIFF_REVIEW_STORAGE_STATE,
+  DOCUMENT_VIEW_IDENTITY,
+  DOCUMENT_VIEW_STORAGE_STATE,
   INTERVIEW_IDENTITY,
   INTERVIEW_STORAGE_STATE,
   STORAGE_STATE,
@@ -90,6 +92,16 @@ export default async function setup() {
     DIFF_REVIEW_IDENTITY,
   );
   writeFileSync(DIFF_REVIEW_STORAGE_STATE, `${JSON.stringify(storageState(diffReviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The reader's own author (issue #106), so the smoke test's record still starts with no profile.
+  const documentViewSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    DOCUMENT_VIEW_IDENTITY,
+  );
+  writeFileSync(DOCUMENT_VIEW_STORAGE_STATE, `${JSON.stringify(storageState(documentViewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

@@ -4,7 +4,8 @@
  * Two callers, one assembly: a download hands the file to the browser and
  * keeps nothing, and a sent copy stores it (`docs/06`, 2026-10-11). They must
  * not differ, because the copy is "the file as it was that day" only if it is
- * the file a download would have produced that day.
+ * the file a download would have produced that day. Reading a version on a
+ * screen (issue #106) takes the same inputs and builds only the page.
  *
  * The name and contact lines come from the profile and a 履歴書's tables from
  * the record, both read here and now. That is why a version alone cannot stand
@@ -19,7 +20,7 @@ import { collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
 import { citedFactIds } from "~/render/edit";
 import { downloadFilename, toDocx } from "~/render/docx";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
-import { fillRirekishoTemplate } from "~/render/rirekisho-template";
+import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import type { RenderIdentity } from "~/render/identity";
 import { RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
@@ -70,10 +71,41 @@ export async function buildDocumentFile(
   render: RenderRow | null,
   version: VersionRow,
 ): Promise<DocumentFile> {
+  const filename = filenameFor(render, kind, "docx", version);
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  return assembled(version, async () =>
+    inputs.kind === "rirekisho"
+      ? { bytes: fillRirekishoTemplate(inputs.data), filename, page: rirekishoSentPage(inputs.data, inputs.content) }
+      : {
+          bytes: await toDocx(inputs.content, RENDER_TITLE[kind], kind, inputs.identity, inputs.today),
+          filename,
+          page: sentPage(kind, inputs.content, inputs.identity, inputs.today),
+        },
+  );
+}
+
+/**
+ * The page of one version, as a download would assemble it today (issue #106).
+ * The same inputs and the same refusal as `buildDocumentFile`, so what is read
+ * on the screen is what the file would hold; only the `.docx` is not built.
+ */
+export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<SentPage> {
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  return assembled(version, () =>
+    inputs.kind === "rirekisho"
+      ? rirekishoSentPage(inputs.data, inputs.content)
+      : sentPage(kind, inputs.content, inputs.identity, inputs.today),
+  );
+}
+
+type AssemblyInputs =
+  | { kind: "rirekisho"; content: RenderContent; data: RirekishoTemplateData }
+  | { kind: "built"; content: RenderContent; identity: RenderIdentity; today: string };
+
+/** What a file is assembled from today, read once for the file and the page alike. */
+async function assemblyInputs(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<AssemblyInputs> {
   const content = version.content as RenderContent;
   await refuseWithheldCitations(db, userId, content);
-
-  const filename = filenameFor(render, kind, "docx", version);
   const today = tokyoToday();
 
   // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
@@ -84,25 +116,22 @@ export async function buildDocumentFile(
   if (kind === "rirekisho") {
     const profile = await collectRirekishoProfile(db, userId);
     const record = await collectRirekishoRecord(db, userId);
-    return assembled(version, () => {
-      const data = rirekishoTemplateData({ profile, record, submittedOn: today, content });
-      return { bytes: fillRirekishoTemplate(data), filename, page: rirekishoSentPage(data, content) };
-    });
+    return assembled(version, () => ({
+      kind: "rirekisho" as const,
+      content,
+      data: rirekishoTemplateData({ profile, record, submittedOn: today, content }),
+    }));
   }
 
   // Read now rather than stored with the version: the identity block is not
   // a claim about a career, and an accepted version must not go stale because
   // a phone number changed (`src/render/identity.ts`).
   const identity = await renderIdentity(db, userId);
-  return assembled(version, async () => ({
-    bytes: await toDocx(content, RENDER_TITLE[kind], kind, identity, today),
-    filename,
-    page: sentPage(kind, content, identity, today),
-  }));
+  return { kind: "built", content, identity, today };
 }
 
 /** Runs the build alone, so a read that fails before it is not reported as a file that could not be assembled. */
-async function assembled(version: VersionRow, build: () => DocumentFile | Promise<DocumentFile>): Promise<DocumentFile> {
+async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): Promise<T> {
   try {
     return await build();
   } catch (error) {

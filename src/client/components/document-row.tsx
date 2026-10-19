@@ -51,6 +51,10 @@ export function DocumentRow({
             the row already says `Not generated yet`. */}
         {row.currentVersionId ? (
           <>
+            {/* Read in the app, as the download would hold it (issue #106). */}
+            <Link to="/renders/$ref/view" params={{ ref: row.ref }} className={QUIET}>
+              View
+            </Link>
             <Link to="/renders/$ref/history" params={{ ref: row.ref }} className={QUIET}>
               History
             </Link>
@@ -117,7 +121,7 @@ function StatusText({ row }: { row: RenderRow }) {
   );
 }
 
-/** The row's ONE button. History and Download are links beside it. */
+/** The row's ONE button. View, History and Download are links beside it. */
 function Action({
   row,
   canGenerate,

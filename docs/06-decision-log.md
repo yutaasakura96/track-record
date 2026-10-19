@@ -6742,3 +6742,31 @@ the file's version of a hover. Nothing is translated, as before.
 
 **Revisit if:** the rule that finds figures misses or over-reaches on the owner's real record, or
 the Results split needs facts the provenance does not separate.
+
+---
+
+### [2026-10-18] A document is read in the app, as its download would hold it
+
+The owner, on the live site: Home offers History, Download and Regenerate for each document, "but
+there's no way to view it. the user has to download it to see the document." Issue #106 adds
+**View** to every generated document on Home, every row of the version history and every document
+on an application, opening Screen 17.
+
+**The page is the download's, assembled today and never stored.** `GET /api/renders/:ref/page`
+reads the same inputs `buildDocumentFile` reads (the profile's identity lines, a 履歴書's tables from
+the record, today's date) through one shared step, and returns the page a sent copy stores beside its
+file, without building the `.docx`. It refuses on the same withheld facts with the same `409`, and
+the screen says that refusal where the page would be. Rejected: showing the stored content as it was
+accepted, which would show a document that will not leave the tool, or a contact line the file no
+longer carries.
+
+**The reader is the sent-copy reader's**, with the page set on a card at the reading measure in
+the theme's own tokens. The printed title, identity block and sections follow the file's structure.
+
+**It opens at any width, the third exception** after Applications and Quick capture. A tailored
+résumé is read from its application, which works on a phone, and reading needs no second pane.
+History, Edit and a new version remain reachable in the header at every width; their destination
+screens retain the desktop width gate.
+
+**Revisit if:** the "show where each line comes from" rail is built (evaluation proposal 8), which
+needs block ids on the page and so a page built from the version rather than from `SentPage`.

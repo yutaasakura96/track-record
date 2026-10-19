@@ -122,6 +122,17 @@ describe("the history", () => {
     }
   });
 
+  it("offers View on every version: the current one unnamed, an earlier one by its id", async () => {
+    open();
+
+    const current = await row("v3, accepted · from a proposal");
+    expect(within(current).getByRole("link", { name: "View" }).getAttribute("href")).toBe(`/renders/${KIND}/view`);
+    const earlier = await row("v1, accepted · from a proposal");
+    expect(within(earlier).getByRole("link", { name: "View" }).getAttribute("href")).toBe(
+      `/renders/${KIND}/view?version=${V1.id}`,
+    );
+  });
+
   it("says what an edited version came from, and lists a dismissed proposal as not a version", async () => {
     open();
 

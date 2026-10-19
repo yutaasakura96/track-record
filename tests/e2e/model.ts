@@ -11,14 +11,20 @@
  */
 import { ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
+import { CLAIM as DOCUMENT_VIEW_CLAIM, CLAIM_SENTENCE as DOCUMENT_VIEW_SENTENCE } from "./document-view-fixture";
 import { READING_EN, READING_JA } from "../fixtures/postings";
 
 export const e2eModel: ModelSeam = {
   async extractFacts(sourceText, ctx) {
-    if (!sourceText.includes(CLAIM_SENTENCE)) return [];
+    const fixture = sourceText.includes(CLAIM_SENTENCE)
+      ? { claim: CLAIM, sentence: CLAIM_SENTENCE }
+      : sourceText.includes(DOCUMENT_VIEW_SENTENCE)
+        ? { claim: DOCUMENT_VIEW_CLAIM, sentence: DOCUMENT_VIEW_SENTENCE }
+        : null;
+    if (!fixture) return [];
     const candidate = {
-      claim: CLAIM,
-      quote: CLAIM_SENTENCE,
+      claim: fixture.claim,
+      quote: fixture.sentence,
       technologies: ["PostgreSQL"],
       provenance: "measured" as const,
       confidential: false,

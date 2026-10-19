@@ -222,7 +222,8 @@ Common applications:
 - Reading-pane padding: `40px 20px`
 - Gap between cards: `8px`
 - Header height: **46px**. Sub-toolbar height: **38px**. Pane label strip: **34px**
-- Phone width, Applications only: under **720px** (`--breakpoint-phone`, `10` Responsive behaviour)
+- Phone breakpoint: under **720px** (`--breakpoint-phone`); supported screens are specified in `10`
+  Responsive behaviour
 - Sidebar width: **212px**. Fact rail width: **412px** comfortable / **380px** compact
 - Contents column, beside a rendered document: **212px**, the sidebar's width and the same token
 - Label column, where a row aligns its notes behind a word: **80px**. The longest label

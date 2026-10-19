@@ -439,8 +439,8 @@ generate → RenderContent → stored as a PROPOSAL (never as the current versio
 ```
 
 Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled from the stored
-`RenderContent` **on download**, never stored. Markdown is generated from the same structure for
-on-screen reading.
+`RenderContent` **on download**, never stored. The document reader uses the same inputs as that
+version's download to assemble its page without building the file (`10` Screen 17).
 
 **A tailored résumé runs through this pipeline unchanged** (2026-10-08, #57). It is a `renders` row
 of kind `english_resume` carrying a job description, addressed by its own id where a main document
@@ -699,7 +699,8 @@ quick capture, version history UI, conflict detection, per-render inclusion rule
 **Not built at all in v1:** multi-user features, LinkedIn, the portfolio site.
 Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
 log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
-layout exists for its screens and, from #95, for Quick capture only.
+layout exists for its screens and, from #95, for Quick capture. The document reader also opens at
+phone width (`10` Screen 17).
 
 The responsive boundary is specified in `10` Responsive behaviour. The desktop panes are built
 **fluid** (no fixed page widths, panes flex).

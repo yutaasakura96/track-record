@@ -666,6 +666,7 @@ back to the application it came from.
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
+| `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Refused at `409` on a withheld fact exactly as the download is |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
 | `GET` | `/api/renders/:kind/versions` | M1 | The version history. **Versions only** — the screen merges the dismissed proposals in, and a merged payload would hand every consumer a discriminated union to unpack (decision log, 2026-09-12) |
