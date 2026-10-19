@@ -762,7 +762,7 @@ describe("the sidebar", () => {
     const nav = screen.getByRole("navigation");
     expect(within(nav).getAllByRole("link").map((a) => a.textContent)).toEqual([
       "Home",
-      "Record",
+      "Career timeline",
       "Skills",
       "Documents",
       "Flagged",
@@ -885,7 +885,7 @@ describe("an overview that could not be read", () => {
 
     await screen.findByRole("alert");
     const nav = screen.getByRole("navigation");
-    expect(within(nav).getByRole("link", { name: "Record" }).getAttribute("href")).toBe("/record");
+    expect(within(nav).getByRole("link", { name: "Career timeline" }).getAttribute("href")).toBe("/record");
   });
 
   it("keeps the sidebar while the overview is loading", async () => {

@@ -24,7 +24,8 @@ import { Mono, SegmentedControl } from "./ui";
  */
 const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" | "goneQuiet" }[] = [
   { label: "Home", to: "/" },
-  { label: "Record", to: "/record" },
+  // Issue #113 renamed the record screen; its path stays.
+  { label: "Career timeline", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
   // Issue #57: what the importer flagged, and everything it accepted.

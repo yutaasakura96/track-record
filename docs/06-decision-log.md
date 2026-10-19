@@ -6850,6 +6850,46 @@ failure. Japanese renders are outside this check.
 
 ---
 
+### [2026-10-19] Record becomes the career timeline: one card per employer, counts from their own route
+
+The evaluation of 2026-10-17 found the record screen read as five unrelated lists: roles apart from
+their employer, projects apart from both, 60 ticked `Appears in` boxes on the demo record, and none
+of how long a job lasted, how much backs it, where the profile is edited, or that a certification
+has lapsed. Issue #113; the owner chose the name on 2026-10-17.
+
+**Renamed Career timeline** on the page, the sidebar and Home's link. The path `/record` and the
+code's names stay, as `/master` did for the career record.
+
+**One card per employer, newest first,** with its roles and projects inside it, so a promotion and a
+project are read under the job they belong to. `Add a role` and `Add a project` inside a card start
+the form under that employer; the form keeps the Employer select, so a row can still be moved.
+Projects with no employer keep a section of their own, as the English résumé gives them one.
+
+**Counts come from a route of their own,** `GET /api/career-timeline`, ids, counts and months only.
+Rejected: adding counts to the five collections, which would make a plain list read facts for every
+caller; and reading the career record's payload, which carries every claim to show five numbers. An
+employer counts what `effectiveEmployerId` resolves to it, so a fact filed through its project or
+its document counts where every render files it.
+
+**The gap warning is the 履歴書's own,** `unexplainedGaps` over `collectRirekishoRecord`, so a row left
+out of the 履歴書 is a row the warning no longer counts and the screen cannot disagree with the
+download. A gap sits above the first card that started before it ended; one before every job sits
+after the oldest card.
+
+**Inclusion is one line naming only the exceptions,** with the five boxes behind `Change`. The
+setting and its rules are unchanged (2026-09-13).
+
+**Expiry chips say only what is true.** The mockup's `expired · hidden on résumé` is not: an expired
+certification still prints. The chip reads `expired YYYY-MM`, or `expires in N months` up to three
+months ahead, neutral, since green, amber and red are not decoration (`05`). The profile card shows
+what the résumé header shows; birth date, phone and address are named as 履歴書 only and not shown.
+
+**Revisit if:** the author wants an expired certification left off the résumé, which is a render
+rule and not this screen's; or a career long enough that a card per employer stops fitting on a
+screen.
+
+---
+
 ### [2026-10-21] Clarify the English prompt and failed proposal contract
 
 This corrects the 2026-10-17 entry's scope: Japanese free-text fields in the prompt's record lists

@@ -27,37 +27,38 @@ export function registerCareerTimelineRoutes(app: Hono<AppEnv>) {
     // and nothing waits as a candidate once it is imported (issue #57).
     const accepted = and(eq(facts.userId, userId), eq(facts.status, "accepted"));
 
-    const [byEmployer, byProject] = await db.batch([
-      db
-        .select({
-          id: effectiveEmployerId,
-          achievements: n,
-          unfiled: sql<number>`(count(*) filter (where ${facts.projectId} is null))::int`,
-          documents: sql<number>`count(distinct ${sourceDocumentVersions.sourceDocumentId})::int`,
-          captures: sql<number>`(count(*) filter (where ${facts.sourceDocumentVersionId} is null))::int`,
-        })
-        .from(facts)
-        .leftJoin(
-          sourceDocumentVersions,
-          and(eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId), eq(sourceDocumentVersions.userId, userId)),
-        )
-        .where(and(accepted, isNotNull(effectiveEmployerId)))
-        .groupBy(effectiveEmployerId),
-      db
-        .select({ id: facts.projectId, achievements: n })
-        .from(facts)
-        .where(and(accepted, isNotNull(facts.projectId)))
-        .groupBy(facts.projectId),
-    ]);
-
     // The rows the 履歴書 prints, its exclusions applied, so the warning here
-    // is the one its download would carry.
-    const gaps = unexplainedGaps(await collectRirekishoRecord(db, userId));
+    // is the one its download would carry. Read beside the counts, not after.
+    const [[byEmployer, byProject], rirekisho] = await Promise.all([
+      db.batch([
+        db
+          .select({
+            id: effectiveEmployerId,
+            achievements: n,
+            unfiled: sql<number>`(count(*) filter (where ${facts.projectId} is null))::int`,
+            documents: sql<number>`count(distinct ${sourceDocumentVersions.sourceDocumentId})::int`,
+            captures: sql<number>`(count(*) filter (where ${facts.sourceDocumentVersionId} is null))::int`,
+          })
+          .from(facts)
+          .leftJoin(
+            sourceDocumentVersions,
+            and(eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId), eq(sourceDocumentVersions.userId, userId)),
+          )
+          .where(and(accepted, isNotNull(effectiveEmployerId)))
+          .groupBy(effectiveEmployerId),
+        db
+          .select({ id: facts.projectId, achievements: n })
+          .from(facts)
+          .where(and(accepted, isNotNull(facts.projectId)))
+          .groupBy(facts.projectId),
+      ]),
+      collectRirekishoRecord(db, userId),
+    ]);
 
     const body: CareerTimeline = {
       employers: byEmployer.map((row) => ({ ...row, id: row.id! })),
       projects: byProject.map((row) => ({ ...row, id: row.id! })),
-      gaps,
+      gaps: unexplainedGaps(rirekisho),
     };
     return c.json(body);
   });

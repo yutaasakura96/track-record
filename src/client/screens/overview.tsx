@@ -570,7 +570,7 @@ function YourRecord({ tiles }: { tiles: OverviewData["tiles"] }) {
       about={RECORD.about}
       action={
         <Link to="/record" className={`shrink-0 ${QUIET}`}>
-          Open Record
+          Open career timeline
         </Link>
       }
     >
