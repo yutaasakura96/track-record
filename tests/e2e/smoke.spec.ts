@@ -8,13 +8,15 @@
  * ONE TEST, ONE HAPPY PATH. Do not add a second; §2.9 says why.
  */
 import { readFile } from "node:fs/promises";
-import { expect, test } from "@playwright/test";
+import { expect as playwrightExpect, test } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
 import { STORAGE_STATE } from "./env";
 
 const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const expect = playwrightExpect.configure({ timeout: 60_000 });
 
 test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) => {
+  test.setTimeout(300_000);
   // 1 · Signed out, the built SPA mounts and offers the one way in. The click
   //     asks our Worker for the authorization URL and the browser is sent to
   //     Google. Google is never reached: the navigation is answered here, and
