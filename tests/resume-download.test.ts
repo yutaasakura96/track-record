@@ -158,4 +158,28 @@ describe("the English résumé download", () => {
     const after = await client.json<{ items: { kind: string; currentVersionId: string }[] }>("/api/renders");
     expect(after.items.find((item) => item.kind === "english_resume")!.currentVersionId).toBe(versionId);
   });
+
+  it("still saves a summary edit after the record has moved a project under an employer", async () => {
+    const { employerId, factId } = await seedRecord();
+    const project = (await (await client.post("/api/projects", { name: "Route planner" })).json()) as { id: string };
+    const base = contentFor(employerId, factId);
+    await accepted("english_resume", {
+      sections: [
+        ...base.sections,
+        { key: `project:${project.id}`, heading: "Route planner", blocks: [{ id: "blk_3", kind: "bullet", text: "Built a route planner.", factIds: [] }] },
+      ],
+    });
+    const { items } = await client.json<{ items: { kind: string; currentVersionId: string }[] }>("/api/renders");
+    const versionId = items.find((item) => item.kind === "english_resume")!.currentVersionId;
+    await client.patch(`/api/projects/${project.id}`, { employerId });
+
+    const version = await client.json<{ content: RenderContent }>(`/api/renders/english_resume/versions/${versionId}`);
+    const content = {
+      sections: version.content.sections.map((section) => section.key === "summary"
+        ? { ...section, blocks: section.blocks.map((block) => ({ ...block, text: "Backend engineer for freight logistics." })) }
+        : section),
+    };
+    const response = await client.post("/api/renders/english_resume/versions", { basedOnVersionId: versionId, content });
+    expect(response.status).toBe(201);
+  });
 });

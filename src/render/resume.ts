@@ -122,15 +122,24 @@ function validateResumeSectionShape(
   }
 }
 
-export function validateResumeEditShape(
-  content: RenderContent,
-  record: Pick<ResumeRecord, "employers" | "projects">,
-  previous: RenderContent,
-): void {
-  const legacyKeys = previous.sections.some((section) => section.key === "experience")
-    ? new Set(previous.sections.map((section) => section.key))
-    : new Set<string>();
-  validateResumeSectionShape(content, resumeSectionPlan(record), legacyKeys);
+const sectionKind = (key: string): Block["kind"] =>
+  key === SUMMARY_KEY ? "paragraph" : "bullet";
+
+/**
+ * An edit is checked against the version it was made from, not today's
+ * record: an employer left out or a project reassigned since must not lock the
+ * author out of fixing a word.
+ */
+export function validateResumeEditShape(content: RenderContent, previous: RenderContent): void {
+  const previousKeys = new Set(previous.sections.map((section) => section.key));
+  if (previousKeys.has("experience")) {
+    validateResumeSectionShape(content, [], previousKeys);
+    return;
+  }
+  validateResumeSectionShape(
+    content,
+    [...previousKeys].map((key) => ({ key, heading: "", kind: sectionKind(key) })),
+  );
 }
 
 export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
@@ -149,8 +158,17 @@ export function shapeResumeContent(content: RenderContent, spec: RenderSpec): Re
   return { sections };
 }
 
-export function validateResumeBounds(content: RenderContent, employers: RenderSpec["employers"]): void {
+/**
+ * With `previous`, the budget binds only a section the edit grew: a stored
+ * version stays editable after the record has moved its employers around.
+ */
+export function validateResumeBounds(
+  content: RenderContent,
+  employers: RenderSpec["employers"],
+  previous?: RenderContent,
+): void {
   for (const section of content.sections) {
+    const before = previous?.sections.find((row) => row.key === section.key)?.blocks.length;
     if (section.key === SUMMARY_KEY && section.blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length >= 50) {
       throw new Error("The résumé summary must be under 50 words.");
     }
@@ -158,7 +176,7 @@ export function validateResumeBounds(content: RenderContent, employers: RenderSp
       throw new Error(`Résumé section ${section.key} has a bullet over 240 characters.`);
     }
     const employer = employers.find((row) => employerChapterKey(row.id) === section.key);
-    if (employer?.bullets && section.blocks.length > employer.bullets.max) {
+    if (employer?.bullets && section.blocks.length > employer.bullets.max && (before === undefined || section.blocks.length > before)) {
       throw new Error(`Résumé employer ${employer.id} exceeds its bullet budget.`);
     }
   }

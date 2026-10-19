@@ -693,8 +693,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (target.kind === "english_resume") {
       const record = await collectResumeRecord(db, user.id);
       try {
-        validateResumeEditShape(content, record, current.content as RenderContent);
-        validateResumeBounds(content, record.employers);
+        validateResumeEditShape(content, current.content as RenderContent);
+        validateResumeBounds(content, record.employers, current.content as RenderContent);
       } catch (error) {
         if (error instanceof Error) throw validationFailed(error.message, ["content"]);
         throw error;

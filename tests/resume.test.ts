@@ -356,16 +356,15 @@ describe("what the model returned", () => {
       { key: "summary", heading: "Summary", blocks: [block("s1", "Platform engineer.", "paragraph")] },
       { key: employerChapterKey("emp_before"), heading: "Employer", blocks: [block("e1", "Improved delivery.")] },
     ] } satisfies RenderContent;
-    const record = { employers: RECORD.employers, projects: RECORD.projects };
     const invalid = [
       { ...current, sections: [current.sections[0]!, { ...current.sections[1]!, blocks: [block("e1", "Improved delivery.", "paragraph")] }] },
       { ...current, sections: [{ ...current.sections[0]!, blocks: [block("s1", "Platform engineer.")] }, current.sections[1]!] },
       { ...current, sections: [...current.sections, current.sections[1]!] },
       { ...current, sections: [...current.sections, { key: "education", heading: "Education", blocks: [block("x1", "School")] }] },
     ];
-    for (const content of invalid) expect(() => validateResumeEditShape(content, record, current)).toThrow();
+    for (const content of invalid) expect(() => validateResumeEditShape(content, current)).toThrow();
     const legacy = { sections: [{ key: "experience", heading: "Experience", blocks: [block("h1", "Old heading", "paragraph"), block("b1", "Old bullet")] }] } satisfies RenderContent;
-    expect(() => validateResumeEditShape({ sections: [{ ...legacy.sections[0]!, blocks: [block("h1", "Revised heading", "paragraph"), block("b1", "Revised bullet")] }] }, record, legacy)).not.toThrow();
+    expect(() => validateResumeEditShape({ sections: [{ ...legacy.sections[0]!, blocks: [block("h1", "Revised heading", "paragraph"), block("b1", "Revised bullet")] }] }, legacy)).not.toThrow();
   });
 });
 
