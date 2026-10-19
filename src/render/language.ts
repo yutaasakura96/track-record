@@ -89,6 +89,8 @@ function distanceWithin(a: string, b: string, limit: number): boolean {
   return previous[b.length]! <= limit;
 }
 
+const WORD = /[\p{L}\p{N}'’]+/gu;
+
 /**
  * A mention of a name keeps the name's capitals: "Payment gateways" at the
  * start of a sentence is prose, not a respelling of the project "Payment Gateway".
@@ -100,10 +102,11 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
   for (const name of names) {
     // Free prose needs a six-character floor; short ordinary words resemble short names too often.
     if (!header && name.length < 6) continue;
-    const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+    const words = name.match(WORD) ?? [];
     if (words.length === 0) continue;
-    const withoutExact = text.split(name).join(" ");
-    const tokens = withoutExact.match(/[\p{L}\p{N}]+/gu) ?? [];
+    // In prose a name differing from the record only in letter case is the name.
+    const exact = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), header ? "gu" : "giu");
+    const tokens = text.replace(exact, " ").match(WORD) ?? [];
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
       const found = tokens.slice(i, i + words.length);
@@ -111,8 +114,6 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
       if (!header && words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) &&
           !/^(?:at|for|from|with|project|school|employer|called|named)$/iu.test(tokens[i - 1] ?? "")) continue;
       const candidate = found.join(" ").toLocaleLowerCase();
-      // A difference of case alone in prose is not a respelling.
-      if (!header && candidate === expected) continue;
       if (distanceWithin(candidate, expected, name.length >= 12 ? 2 : 1)) return true;
     }
   }
@@ -120,10 +121,10 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
 }
 
 function hasChangedHeaderName(text: string, names: readonly string[]): boolean {
-  const tokens = text.match(/[\p{L}\p{N}]+/gu) ?? [];
+  const tokens = text.match(WORD) ?? [];
   for (const name of names) {
     if (text.includes(name)) continue;
-    const words = name.match(/[\p{L}\p{N}]+/gu) ?? [];
+    const words = name.match(WORD) ?? [];
     if (words.length < 2 || words[0]!.length < 5) continue;
     for (let i = 0; i < tokens.length - 1; i++) {
       if (!casedLike(tokens.slice(i, i + 2), words.slice(0, 2))) continue;

@@ -162,6 +162,19 @@ describe("an English document", () => {
     expect(englishDefect(story("Work", "I led the Payment Gatway build."), named)).toBe("record_names");
   });
 
+  it("exempts only letter case in prose, not dropped punctuation or spacing", () => {
+    const named = spec({
+      employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")],
+      educations: [{ id: "school", institution: "St. Mary's College", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+      projects: [{ id: "platform", name: "Data-Platform", employerId: null, summary: null }],
+    });
+    const story = (text: string) => content([{ key: "opening", heading: "Work", text }]);
+    expect(englishDefect(story("I joined hayabusa computing co., ltd. in 2019."), named)).toBeNull();
+    expect(englishDefect(story("I joined Hayabusa Computing Co Ltd in 2019."), named)).toBe("record_names");
+    expect(englishDefect(story("I studied at St Marys College."), named)).toBe("record_names");
+    expect(englishDefect(story("I rebuilt the Data Platform."), named)).toBe("record_names");
+  });
+
   it("accepts a résumé that omits vocational education but keeps an unclassified school", () => {
     const education = (id: string, institution: string, level: RenderSpec["educations"][number]["level"]): RenderSpec["educations"][number] =>
       ({ id, institution, faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level });
