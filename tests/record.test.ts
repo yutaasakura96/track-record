@@ -118,13 +118,24 @@ describe("résumé header fields (issue #108)", () => {
   it("supplies the scheme a copied link leaves off", async () => {
     const saved = await client.put("/api/profile", {
       ...PROFILE_FIXTURE,
-      resumeLinkedinUrl: "linkedin.com/in/yosuke-aoki-example",
-      resumeGithubUrl: "https://github.com/yosuke-example",
+      resumeLinkedinUrl: "LinkedIn.com/in/Yosuke-Example",
+      resumeGithubUrl: "https://GitHub.com/Yosuke-Example",
+      resumePortfolioUrl: "kenji.example.com",
     });
     expect(saved.status).toBe(200);
-    const profile = await client.json<{ resumeLinkedinUrl: string; resumeGithubUrl: string }>("/api/profile");
-    expect(profile.resumeLinkedinUrl).toBe("https://linkedin.com/in/yosuke-aoki-example");
-    expect(profile.resumeGithubUrl).toBe("https://github.com/yosuke-example");
+    const profile = await client.json<{ resumeLinkedinUrl: string; resumeGithubUrl: string; resumePortfolioUrl: string }>("/api/profile");
+    expect(profile.resumeLinkedinUrl).toBe("https://LinkedIn.com/in/Yosuke-Example");
+    expect(profile.resumeGithubUrl).toBe("https://GitHub.com/Yosuke-Example");
+    expect(profile.resumePortfolioUrl).toBe("https://kenji.example.com");
+  });
+
+  it("preserves a supplied web address after validation", async () => {
+    for (const address of ["http://WWW.Example.com/Work/", "https://例え.テスト/作品"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: address });
+      expect(response.status).toBe(200);
+      const profile = await client.json<{ resumePortfolioUrl: string }>("/api/profile");
+      expect(profile.resumePortfolioUrl).toBe(address);
+    }
   });
 
   it("refuses a link that is not a web address and saves nothing", async () => {

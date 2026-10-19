@@ -60,7 +60,7 @@ const webAddress = (label: string) =>
     const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(value) ? value : `https://${value}`;
     try {
       const url = new URL(withScheme);
-      if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return url.href;
+      if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return withScheme;
     } catch {
       // Falls through to the refusal below.
     }
