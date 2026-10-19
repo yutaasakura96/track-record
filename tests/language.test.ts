@@ -147,6 +147,21 @@ describe("an English document", () => {
     expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The team called it Miro." }]), short)).toBeNull();
   });
 
+  it("reads a multi-word name built from common words as prose unless it keeps the name's capitals", () => {
+    const named = spec({
+      employers: [],
+      projects: [
+        { id: "gateway", name: "Payment Gateway", employerId: null, summary: null },
+        { id: "platform", name: "Data Platform", employerId: null, summary: null },
+      ],
+    });
+    const story = (heading: string, text: string) => content([{ key: "opening", heading, text }]);
+    expect(englishDefect(story("Work", "Payment gateways were the hard part of the year."), named)).toBeNull();
+    expect(englishDefect(story("Work", "Data platform work began in April."), named)).toBeNull();
+    expect(englishDefect(story("Payment gateways and the cutover", PROSE), named)).toBeNull();
+    expect(englishDefect(story("Work", "I led the Payment Gatway build."), named)).toBe("record_names");
+  });
+
   it("accepts a résumé that omits vocational education but keeps an unclassified school", () => {
     const education = (id: string, institution: string, level: RenderSpec["educations"][number]["level"]): RenderSpec["educations"][number] =>
       ({ id, institution, faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level });
