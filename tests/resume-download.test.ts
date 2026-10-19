@@ -141,4 +141,21 @@ describe("the English résumé download", () => {
     expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
     expect(await response.text()).toContain("**Aozora Logistics K.K.** · Yokohama — Apr 2022 – Sep 2024");
   });
+
+  it("refuses a hand edit that changes a résumé bullet into a paragraph", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+    const { items } = await client.json<{ items: { kind: string; currentVersionId: string }[] }>("/api/renders");
+    const versionId = items.find((item) => item.kind === "english_resume")!.currentVersionId;
+    const version = await client.json<{ content: RenderContent }>(`/api/renders/english_resume/versions/${versionId}`);
+    const content = {
+      sections: version.content.sections.map((section) => section.key === `employer:${employerId}`
+        ? { ...section, blocks: section.blocks.map((block) => ({ ...block, kind: "paragraph" as const })) }
+        : section),
+    };
+    const response = await client.post("/api/renders/english_resume/versions", { basedOnVersionId: versionId, content });
+    expect(response.status).toBe(422);
+    const after = await client.json<{ items: { kind: string; currentVersionId: string }[] }>("/api/renders");
+    expect(after.items.find((item) => item.kind === "english_resume")!.currentVersionId).toBe(versionId);
+  });
 });

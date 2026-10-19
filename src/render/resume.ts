@@ -89,7 +89,7 @@ export function bulletBudget(position: number, endedOn: string | null, today: st
  * record's job header and never reads it.
  *
  */
-export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
+function resumeSectionPlan(spec: Pick<RenderSpec, "employers" | "projects">) {
   const planned: { key: string; heading: string; kind: Block["kind"] }[] = [
     { key: SUMMARY_KEY, heading: "Summary", kind: "paragraph" },
     ...spec.employers.map((e) => ({ key: employerChapterKey(e.id), heading: e.name, kind: "bullet" as const })),
@@ -98,16 +98,45 @@ export function shapeResumeContent(content: RenderContent, spec: RenderSpec): Re
       .map((p) => ({ key: projectKey(p.id), heading: p.name, kind: "bullet" as const })),
     { key: OTHER_PROJECTS_KEY, heading: "Projects", kind: "bullet" },
   ];
+  return planned;
+}
 
+function validateResumeSectionShape(
+  content: RenderContent,
+  planned: ReturnType<typeof resumeSectionPlan>,
+  legacyKeys: Set<string> = new Set(),
+): void {
   const byKey = new Map(planned.map((section) => [section.key, section]));
-  const blocksByKey = new Map<string, Block[]>();
+  const seen = new Set<string>();
   for (const section of content.sections) {
     const expected = byKey.get(section.key);
-    if (!expected || blocksByKey.has(section.key) || section.blocks.some((block) => block.kind !== expected.kind)) {
+    if (seen.has(section.key) || (!expected && !legacyKeys.has(section.key)) ||
+      (expected && section.blocks.some((block) => block.kind !== expected.kind)) ||
+      (section.key === "experience" && section.blocks.some((block) => block.kind === "row"))) {
       throw new Error(`Invalid résumé section ${section.key}.`);
     }
-    blocksByKey.set(section.key, section.blocks);
+    seen.add(section.key);
   }
+  if (!legacyKeys.size && !content.sections.some((section) => section.key === SUMMARY_KEY && section.blocks.length > 0)) {
+    throw new Error("The résumé needs a Summary paragraph.");
+  }
+}
+
+export function validateResumeEditShape(
+  content: RenderContent,
+  record: Pick<ResumeRecord, "employers" | "projects">,
+  previous: RenderContent,
+): void {
+  const legacyKeys = previous.sections.some((section) => section.key === "experience")
+    ? new Set(previous.sections.map((section) => section.key))
+    : new Set<string>();
+  validateResumeSectionShape(content, resumeSectionPlan(record), legacyKeys);
+}
+
+export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
+  const planned = resumeSectionPlan(spec);
+  validateResumeSectionShape(content, planned);
+  const blocksByKey = new Map(content.sections.map((section) => [section.key, section.blocks]));
 
   const sections: RenderSection[] = planned.flatMap(({ key, heading }) => {
     const blocks = blocksByKey.get(key) ?? [];
@@ -241,7 +270,7 @@ export function assertEnglishResume(document: ResumeDocument): void {
     for (const block of section.blocks) {
       if (block.kind === "entry") {
         entry = `${type} ${block.lead}`;
-        fields.push([`${entry} name`, block.lead], [`${entry} detail`, block.detail ?? ""]);
+        fields.push([`${entry} name`, block.lead], [`${entry} ${type === "employer" ? "city" : "detail"}`, block.detail ?? ""]);
       } else if (block.kind === "labelled") {
         fields.push([`${type} label`, block.label], [`${type} value`, block.text]);
       } else {

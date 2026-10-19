@@ -13,13 +13,14 @@ import type { RenderSpec } from "~/model/types";
 import {
   assembleResume,
   bulletBudget,
-  hasJapaneseScript,
   monthSpan,
   projectKey,
   resumeFilename,
   resumeMarkdown,
   resumeSentPage,
   shapeResumeContent,
+  ResumeLanguageError,
+  validateResumeEditShape,
   type ResumeRecord,
 } from "~/render/resume";
 import { resumeDocx } from "~/render/resume-docx";
@@ -196,9 +197,10 @@ describe("the English résumé document", () => {
     expect(experience[pinecrest + 2]).toEqual({ kind: "bullet", text: "Raised conversion 9%." });
     // A heading naming nobody keeps its bullets, under its own words.
     expect(experience.slice(-2)).toEqual([
-      { kind: "entry", lead: "Somebody Unknown Ltd · 2010", detail: null, dates: null },
+      { kind: "paragraph", text: "Somebody Unknown Ltd · 2010" },
       { kind: "bullet", text: "Did a thing." },
     ]);
+    expect(resumeMarkdown(assembled(legacy))).toContain("Somebody Unknown Ltd · 2010");
   });
 
   it("lists independent projects only, with their bullets", () => {
@@ -237,13 +239,12 @@ describe("the English résumé document", () => {
     ]);
   });
 
-  it("carries no Japanese script, whatever the record holds in Japanese", () => {
-    const doc = assembled(CONTENT, {
+  it("refuses a Japanese-script field that would reach the English résumé", () => {
+    expect(() => assembled(CONTENT, {
       ...RECORD,
       employers: [employer({ city: "大阪", roles: [{ title: "主任", startedOn: "2024-01-01", endedOn: null }] })],
       skills: [{ name: "言語", skills: ["Go", "日本語組版"] }],
-    });
-    expect(hasJapaneseScript(resumeMarkdown(doc))).toBe(false);
+    })).toThrow(ResumeLanguageError);
   });
 
   it("writes the skills groups with their names, and an ungrouped list without one", () => {
@@ -341,6 +342,30 @@ describe("what the model returned", () => {
     for (const sections of invalid) {
       expect(() => parseGeneratedRender({ sections }, spec)).toThrow();
     }
+  });
+
+  it("requires a nonempty Summary paragraph", () => {
+    expect(() => parseGeneratedRender({ sections: [
+      { key: employerChapterKey("emp_before"), heading: "Employer", blocks: [{ kind: "bullet", text: "Improved delivery.", factIds: [] }] },
+      { key: projectKey("prj_oss"), heading: "Project", blocks: [{ kind: "bullet", text: "Built a library.", factIds: [] }] },
+    ] }, spec)).toThrow(/Summary/);
+  });
+
+  it("rejects edited section conversions while preserving legacy experience edits", () => {
+    const current = { sections: [
+      { key: "summary", heading: "Summary", blocks: [block("s1", "Platform engineer.", "paragraph")] },
+      { key: employerChapterKey("emp_before"), heading: "Employer", blocks: [block("e1", "Improved delivery.")] },
+    ] } satisfies RenderContent;
+    const record = { employers: RECORD.employers, projects: RECORD.projects };
+    const invalid = [
+      { ...current, sections: [current.sections[0]!, { ...current.sections[1]!, blocks: [block("e1", "Improved delivery.", "paragraph")] }] },
+      { ...current, sections: [{ ...current.sections[0]!, blocks: [block("s1", "Platform engineer.")] }, current.sections[1]!] },
+      { ...current, sections: [...current.sections, current.sections[1]!] },
+      { ...current, sections: [...current.sections, { key: "education", heading: "Education", blocks: [block("x1", "School")] }] },
+    ];
+    for (const content of invalid) expect(() => validateResumeEditShape(content, record, current)).toThrow();
+    const legacy = { sections: [{ key: "experience", heading: "Experience", blocks: [block("h1", "Old heading", "paragraph"), block("b1", "Old bullet")] }] } satisfies RenderContent;
+    expect(() => validateResumeEditShape({ sections: [{ ...legacy.sections[0]!, blocks: [block("h1", "Revised heading", "paragraph"), block("b1", "Revised bullet")] }] }, record, legacy)).not.toThrow();
   });
 });
 

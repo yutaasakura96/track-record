@@ -30,7 +30,7 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, ResumeLanguageError, resumeMarkdown, validateResumeBounds } from "~/render/resume";
+import { assembleResume, ResumeLanguageError, resumeMarkdown, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
@@ -693,6 +693,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (target.kind === "english_resume") {
       const record = await collectResumeRecord(db, user.id);
       try {
+        validateResumeEditShape(content, record, current.content as RenderContent);
         validateResumeBounds(content, record.employers);
       } catch (error) {
         if (error instanceof Error) throw validationFailed(error.message, ["content"]);
