@@ -147,7 +147,7 @@ describe("an English document", () => {
     expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The team called it Miro." }]), short)).toBeNull();
   });
 
-  it("reads a multi-word name built from common words as prose unless it keeps the name's capitals", () => {
+  it("reads prose built from a multi-word name's common words as prose unless it keeps the name's capitals", () => {
     const named = spec({
       employers: [],
       projects: [
@@ -158,8 +158,17 @@ describe("an English document", () => {
     const story = (heading: string, text: string) => content([{ key: "opening", heading, text }]);
     expect(englishDefect(story("Work", "Payment gateways were the hard part of the year."), named)).toBeNull();
     expect(englishDefect(story("Work", "Data platform work began in April."), named)).toBeNull();
-    expect(englishDefect(story("Payment gateways and the cutover", PROSE), named)).toBeNull();
     expect(englishDefect(story("Work", "I led the Payment Gatway build."), named)).toBe("record_names");
+  });
+
+  it("checks a story row against the record name whatever the capitals of its later words", () => {
+    const named = spec({
+      employers: [],
+      educations: [{ id: "school", institution: "Shirasagi University", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+    });
+    const row = content([{ key: "anchors", heading: "Figures", text: "Shirasagi universty, 2011-2015" }]);
+    row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, named)).toBe("record_names");
   });
 
   it("exempts only letter case in prose, not dropped punctuation or spacing", () => {

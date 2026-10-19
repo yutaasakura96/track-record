@@ -92,8 +92,8 @@ function distanceWithin(a: string, b: string, limit: number): boolean {
 const WORD = /[\p{L}\p{N}'’]+/gu;
 
 /**
- * A mention of a name keeps the name's capitals: "Payment gateways" at the
- * start of a sentence is prose, not a respelling of the project "Payment Gateway".
+ * A mention of a name in prose keeps the name's capitals: "Payment gateways" at
+ * the start of a sentence is prose, not a respelling of the project "Payment Gateway".
  */
 const casedLike = (tokens: readonly string[], words: readonly string[]): boolean =>
   words.every((word, j) => /^\p{Lu}/u.test(word) === /^\p{Lu}/u.test(tokens[j] ?? ""));
@@ -110,7 +110,7 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
       const found = tokens.slice(i, i + words.length);
-      if (!casedLike(found, words)) continue;
+      if (header ? /\p{Script=Latin}/u.test(found[0]!) && !/^\p{Lu}/u.test(found[0]!) : !casedLike(found, words)) continue;
       if (!header && words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) &&
           !/^(?:at|for|from|with|project|school|employer|called|named)$/iu.test(tokens[i - 1] ?? "")) continue;
       const candidate = found.join(" ").toLocaleLowerCase();
@@ -127,7 +127,6 @@ function hasChangedHeaderName(text: string, names: readonly string[]): boolean {
     const words = name.match(WORD) ?? [];
     if (words.length < 2 || words[0]!.length < 5) continue;
     for (let i = 0; i < tokens.length - 1; i++) {
-      if (!casedLike(tokens.slice(i, i + 2), words.slice(0, 2))) continue;
       if (distanceWithin(tokens[i]!.toLocaleLowerCase(), words[0]!.toLocaleLowerCase(), 1) &&
           distanceWithin(tokens[i + 1]!.toLocaleLowerCase(), words[1]!.toLocaleLowerCase(), 1)) return true;
     }
