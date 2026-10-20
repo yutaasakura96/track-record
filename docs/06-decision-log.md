@@ -6882,7 +6882,8 @@ setting and its rules are unchanged (2026-09-13).
 **Expiry chips say only what is true.** The mockup's `expired · hidden on résumé` is not: an expired
 certification still prints. The chip reads `expired YYYY-MM`, or `expires in N months` up to three
 months ahead, neutral, since green, amber and red are not decoration (`05`). The profile card shows
-what the résumé header shows; birth date, phone and address are named as 履歴書 only and not shown.
+what the résumé header shows (name, headline, city and country, email); the address and birth date
+are named as 履歴書 only and not shown, and the résumé's opt-in phone and links stay on the form.
 
 **Revisit if:** the author wants an expired certification left off the résumé, which is a render
 rule and not this screen's; or a career long enough that a card per employer stops fitting on a

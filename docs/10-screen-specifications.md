@@ -724,9 +724,11 @@ to add one is worse than saying nothing for a moment.
 
 Top to bottom in the 940px column:
 
-1. **Profile card.** Initials, `nameLatin · 漢字名`, the email, a chip `Birth date, phone and address:
-   履歴書 only`, and a link `Edit profile` to the profile form (`Add your profile` when there is none).
-   It shows what the résumé header shows and nothing the 履歴書 alone prints.
+1. **Profile card.** Initials, `nameLatin · 漢字名`, then the résumé headline, city and country, and
+   the email (#108's fields, each only when filled), a chip `Address and birth date: 履歴書 only`, and
+   a link `Edit profile` to the profile form (`Add your profile` when there is none). It shows what
+   the résumé header shows and nothing the 履歴書 alone prints; the résumé's opt-in phone and links
+   stay on the profile form.
 2. **Work.** Heading and `Add a job`. One card per employer on a vertical rail, newest first; the
    current employer's dot is filled. A card: the Latin name with 会社名 beside it; a line of the
    dates, the duration (`3 yrs 6 mos`, both end months counted, an open end running to this month),

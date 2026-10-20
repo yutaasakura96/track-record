@@ -366,7 +366,8 @@ export function Record() {
 
 /**
  * What the résumé's header shows, and the way to change it. The 履歴書's
- * personal fields are not repeated here: they print on no other document.
+ * personal fields are not repeated here: they print on no other document. The
+ * résumé's own phone and links are left to the profile form, opt-in as they are.
  */
 function ProfileCard({ profile }: { profile: Profile | null | undefined }) {
   if (profile === undefined) return null;
@@ -396,14 +397,22 @@ function ProfileCard({ profile }: { profile: Profile | null | undefined }) {
               {profile.nameLatin}
               {kanji ? <span className="font-normal text-text-dim"> · {kanji}</span> : null}
             </div>
-            <div className="text-smaller text-text-dim truncate">{profile.email}</div>
+            <div className="text-smaller text-text-dim truncate">
+              {[
+                profile.resumeHeadline,
+                [profile.resumeCity, profile.resumeCountry].filter(Boolean).join(", "),
+                profile.email,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </div>
           </>
         ) : (
           <div className="text-smaller text-text-dim">No profile yet. Every document's header is built from it.</div>
         )}
       </div>
       <div className="ml-auto flex items-center gap-10 shrink-0">
-        <Chip>Birth date, phone and address: 履歴書 only</Chip>
+        <Chip>Address and birth date: 履歴書 only</Chip>
         <Link
           to="/profile"
           className="motion-surface whitespace-nowrap border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"

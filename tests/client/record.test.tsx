@@ -79,6 +79,9 @@ const PROFILE = {
   familyNameKanji: "玉木",
   givenNameKanji: "凛",
   email: "rin@example.invalid",
+  resumeHeadline: "Platform Engineer",
+  resumeCity: "Sapporo",
+  resumeCountry: "Japan",
 };
 
 const NO_COUNTS: CareerTimeline = { employers: [], projects: [], gaps: [] };
@@ -131,8 +134,8 @@ describe("the timeline", () => {
     const profile = await screen.findByRole("region", { name: "Profile" });
     expect(within(profile).getByText("Rin Tamaki")).toBeTruthy();
     expect(profile.textContent).toContain("玉木 凛");
-    expect(profile.textContent).toContain("rin@example.invalid");
-    expect(profile.textContent).toContain("Birth date, phone and address: 履歴書 only");
+    expect(profile.textContent).toContain("Platform Engineer · Sapporo, Japan · rin@example.invalid");
+    expect(profile.textContent).toContain("Address and birth date: 履歴書 only");
     expect(within(profile).getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe("/profile");
   });
 
