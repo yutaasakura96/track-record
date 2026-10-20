@@ -35,7 +35,23 @@ export const e2eModel: ModelSeam = {
     return [candidate];
   },
 
-  async generateRender(facts) {
+  async generateRender(facts, spec) {
+    if (spec.kind === "english_resume") {
+      return {
+        sections: [
+          {
+            key: "summary",
+            heading: "Summary",
+            blocks: [{ id: "blk_summary", kind: "paragraph" as const, text: facts[0]?.claim ?? "Backend engineer improving reliable settlement systems.", factIds: facts.map((fact) => fact.id) }],
+          },
+          ...spec.employers.map((employer, index) => ({
+            key: `employer:${employer.id}`,
+            heading: employer.name,
+            blocks: [{ id: `blk_employer_${index}`, kind: "bullet" as const, text: CLAIM, factIds: facts.map((fact) => fact.id) }],
+          })),
+        ],
+      };
+    }
     return {
       sections: [
         {

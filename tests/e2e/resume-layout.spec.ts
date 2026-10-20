@@ -1,0 +1,114 @@
+/** The employer-facing English résumé through the running Worker and built SPA. All data is invented. */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { expect, test } from "@playwright/test";
+import PizZip from "pizzip";
+import { SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
+import { RESUME_STORAGE_STATE } from "./env";
+
+const evidence = process.env.TEST_EVIDENCE_DIR;
+const sectionNames = ["Summary", "Skills", "Experience", "Education", "Certifications", "Languages"];
+const PROFILE_FIXTURE = { familyNameKanji: "青木", givenNameKanji: "陽介", familyNameKana: "あおき", givenNameKana: "ようすけ", nameLatin: "Yosuke Aoki", dateOfBirth: "1994-11-01", phone: "080-0000-0000", email: "yosuke@example.invalid", postalCode: "150-0001", address: "東京都渋谷区神宮前0-0-0", addressKana: "とうきょうと しぶやく じんぐうまえ", contactSameAsAddress: true };
+const EMPLOYER_FIXTURE = { nameJa: "株式会社アオゾラ物流", nameLatin: "Aozora Logistics K.K.", industryJa: "運輸業", businessDescription: "架空の物流事業者。", employmentType: "full_time", startedOn: "2022-04-01", endedOn: "2024-09-01" };
+const ROLE_FIXTURE = { titleLatin: "Backend Engineer", titleJa: "バックエンドエンジニア", shokushuJa: "システムエンジニア", startedOn: "2022-04-01", endedOn: "2023-09-01" };
+const EDUCATION_FIXTURE = { institution: "Midorikawa Institute of Technology", institutionJa: "緑川工科大学", faculty: "情報工学部", degree: "B.Eng.", fieldOfStudy: "Information Engineering", startedOn: "2013-04-01", endedOn: "2017-03-01", outcome: "graduated", level: "tertiary" };
+const CERTIFICATION_FIXTURE = { name: "Applied Information Technology Engineer", nameJa: "応用情報技術者試験", issuingOrganization: "Information-technology Promotion Agency", issuedOn: "2019-06-01", technologies: ["SQL"] };
+
+test("main and tailored résumé download, with invalid edit refused", async ({ browser, baseURL }) => {
+  if (evidence) mkdirSync(evidence, { recursive: true });
+  const context = await browser.newContext({ baseURL, storageState: RESUME_STORAGE_STATE, acceptDownloads: true });
+  const page = await context.newPage();
+  const api = page.request;
+  const put = async (url: string, data: unknown) => {
+    const response = await api.put(url, { data });
+    expect(response.status(), `${url}: ${await response.text()}`).toBe(200);
+  };
+  const post = async (url: string, data: unknown) => {
+    const response = await api.post(url, { data });
+    expect(response.status(), `${url}: ${await response.text()}`).toBe(201);
+    return response.json();
+  };
+
+  await put("/api/profile", PROFILE_FIXTURE);
+  const employer = await post("/api/employers", { ...EMPLOYER_FIXTURE, city: "Yokohama" }) as { id: string };
+  await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
+  await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id, titleLatin: "Senior Backend Engineer", startedOn: "2023-10-01", endedOn: "2024-09-01" });
+  await post("/api/educations", EDUCATION_FIXTURE);
+  await post("/api/certifications", { ...CERTIFICATION_FIXTURE, kind: "technical" });
+  await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "Expired Cloud Associate", expiresOn: "2021-03-01" });
+  await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "TOEIC Listening & Reading 880", issuingOrganization: "IIBC", kind: "language", technologies: [] });
+  const imported = await api.post("/api/imports", { multipart: { file: { name: SOURCE_FILENAME, mimeType: "text/markdown", buffer: Buffer.from(SOURCE_TEXT) } } });
+  expect(imported.status(), await imported.text()).toBe(202);
+  await expect.poll(async () => {
+    const body = await api.get("/api/facts").then((r) => r.json()) as { items: { id: string }[] };
+    return body.items.length;
+  }).toBe(1);
+  const facts = await api.get("/api/facts").then((r) => r.json()) as { items: { id: string }[] };
+  expect((await api.patch(`/api/facts/${facts.items[0]!.id}`, { data: { employerId: employer.id } })).status()).toBe(200);
+
+  const accept = async (ref: string) => {
+    const started = await api.post(`/api/renders/${ref}/generate`);
+    expect(started.status(), await started.text()).toBe(202);
+    const { proposalId } = await started.json() as { proposalId: string };
+    await expect.poll(async () => (await api.get(`/api/proposals/${proposalId}`).then((r) => r.json()) as { generationStatus: string }).generationStatus).toBe("ready");
+    expect((await api.post(`/api/proposals/${proposalId}/accept`)).status()).toBe(200);
+  };
+
+  await accept("english_resume");
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-home.png`, fullPage: true });
+
+  const checkDownload = async (ref: string, label: string) => {
+    const md = await api.get(`/api/renders/${ref}/download?format=md`);
+    expect(md.status()).toBe(200);
+    const markdown = await md.text();
+    const headings = [...markdown.matchAll(/^## (.+)$/gm)].map((match) => match[1]);
+    expect(headings).toEqual(sectionNames);
+    expect(markdown).toContain("**Aozora Logistics K.K.** · Yokohama — Apr 2022 – Sep 2024");
+    expect(markdown).toContain("*Senior Backend Engineer (Oct 2023 – Sep 2024) · Backend Engineer (Apr 2022 – Sep 2023)*");
+    expect(markdown).toContain("TOEIC Listening & Reading 880");
+    expect(markdown).not.toMatch(/Expired Cloud Associate|情報工学部|緑川/);
+    if (evidence) writeFileSync(`${evidence}/${label}.md`, markdown);
+
+    const file = await api.get(`/api/renders/${ref}/download`);
+    expect(file.status()).toBe(200);
+    expect(file.headers()["content-disposition"]).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
+    const bytes = Buffer.from(await file.body());
+    if (evidence) writeFileSync(`${evidence}/${label}.docx`, bytes);
+    const zip = new PizZip(bytes);
+    const document = zip.file("word/document.xml")!.asText();
+    expect(document).toContain("<w:numPr>");
+    expect(document).not.toContain("<w:tbl>");
+    expect(document).toContain("Aozora Logistics K.K.");
+    expect(zip.file("word/header1.xml")).toBeNull();
+    expect(zip.file("word/footer1.xml")).toBeNull();
+    return markdown;
+  };
+
+  const original = await checkDownload("english_resume", "resume-main");
+  const { items } = await api.get("/api/renders").then((r) => r.json()) as { items: { kind: string; currentVersionId: string }[] };
+  const versionId = items.find((item) => item.kind === "english_resume")!.currentVersionId;
+  const version = await api.get(`/api/renders/english_resume/versions/${versionId}`).then((r) => r.json()) as { content: { sections: { key: string; blocks: { kind: string }[] }[] } };
+  const invalid = { sections: version.content.sections.map((section) => section.key === `employer:${employer.id}`
+    ? { ...section, blocks: section.blocks.map((block) => ({ ...block, kind: "paragraph" })) }
+    : section) };
+  const edit = await api.post("/api/renders/english_resume/versions", { data: { basedOnVersionId: versionId, content: invalid } });
+  expect(edit.status()).toBe(422);
+  const longSummary = { sections: version.content.sections.map((section) => section.key === "summary"
+    ? { ...section, blocks: section.blocks.map((block) => ({ ...block, text: Array.from({ length: 51 }, () => "settlement").join(" ") })) }
+    : section) };
+  const overBound = await api.post("/api/renders/english_resume/versions", { data: { basedOnVersionId: versionId, content: longSummary } });
+  expect(overBound.status()).toBe(422);
+  if (evidence) writeFileSync(`${evidence}/resume-refused-edits.txt`, `wrong block kind: ${edit.status()} ${await edit.text()}\n51-word summary: ${overBound.status()} ${await overBound.text()}\n`);
+  const after = await api.get("/api/renders/english_resume/download?format=md");
+  expect(await after.text()).toBe(original);
+
+  const application = await post("/api/applications", { company: "Kestrel", position: "Platform Engineer", jobDescription: "Kestrel seeks an engineer for an invented settlement platform." }) as { id: string };
+  const tailored = await api.post(`/api/applications/${application.id}/tailored-resume`);
+  expect(tailored.status(), await tailored.text()).toBe(201);
+  const detail = await api.get(`/api/applications/${application.id}`).then((r) => r.json()) as { documents: { ref: string; tailored: boolean }[] };
+  const ref = detail.documents.find((document) => document.tailored)!.ref;
+  await accept(ref);
+  await checkDownload(ref, "resume-tailored");
+  await context.close();
+});

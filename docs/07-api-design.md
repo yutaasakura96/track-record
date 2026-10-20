@@ -755,6 +755,12 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
+**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when a field the
+file would print holds Japanese script: the message names the record item that needs an English value
+(an employer's name or city, a project, an institution, the profile name), with
+`details.fields: ["english_resume"]`. A tailored résumé is refused the same way, and a download of
+either answers `409 conflict` with the same message rather than print the script (`docs/03` §6).
+
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
 `pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
 and restore routes give. Accepting either of two proposals would discard the other unread. It is
@@ -893,7 +899,10 @@ version and nothing else: an edit whose `basedOnVersionId` is not current → `4
 `details.proposalId`, because accepting that proposal afterwards would silently discard the edit
 (a proposal whose generation `failed` is excluded: it can never be accepted).
 A payload that changes nothing → `409`; one that is malformed, empties the document, or has two
-blocks claiming one id → `422 validation_failed`. A block citing a fact the record does not hold,
+blocks claiming one id → `422 validation_failed`. An English résumé's edit is also `422` when it
+adds, drops or re-kinds a section of the version it edits, or breaks a bound a generation is held to:
+a summary of 50 words or more, a bullet over 240 characters, or more bullets under an employer than
+its budget, checked only for a section the edit grew. A block citing a fact the record does not hold,
 or one a generation would have been forbidden to use, → `422` with `details.facts` carrying
 `{ factId, problem }` — the same shape a refused download returns, and never any claim text.
 

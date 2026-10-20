@@ -458,7 +458,7 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 | `issuing_organization` | text | no | Required |
 | `issued_on` | date | yes | Month precision. Null is legal — some licences have no meaningful issue date |
 | `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé leaves out a certification whose expiry month has passed |
-| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | yes | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Null is unclassified and prints as `technical`: a migration cannot classify an existing row, and guessing from the name is what `educations.level` was added to end. The Japanese documents print every kind |
+| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | yes | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Migration `0026` set existing rows from their names: a language test (TOEIC, TOEFL, IELTS, JLPT, 英検 and the like) became `language`, the rest `technical`. Null is unclassified and prints as `technical`. The Japanese documents print every kind |
 | `credential_id` | text | yes | **Not rendered in v1.** For the author's own reference at renewal |
 | `credential_url` | text | yes | **Not rendered in v1.** Same |
 | `technologies` | text[] | no | Default `'{}'`. Feeds the **same** skill-candidate pool as `facts.technologies` |
