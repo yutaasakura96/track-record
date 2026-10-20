@@ -83,9 +83,9 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
       ? `\nChapters, in this order. Emit exactly these keys and no others:\n${chapterPlanForPrompt(chapters)}\n`
       : "";
   // Names are printed as the record holds them and never labelled: the
-  // registers copy them verbatim, in whatever script they are in. Every other
-  // free-text field goes through `field`, which marks Japanese in an English
-  // prompt for what it is (issue #104).
+  // registers copy them verbatim, in whatever script they are in. The
+  // free-text fields in these record lists go through `field`, which marks
+  // Japanese in an English prompt for what it is (issue #104).
   const field = (value: string) => labelled(spec.language, value);
   const employers = spec.employers
     .map((e) => {

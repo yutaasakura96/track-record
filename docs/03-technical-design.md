@@ -224,7 +224,9 @@ no `factIds` is legal only for headings and for the fixed scaffolding of 履歴�
 
 **Facts are sent plainly; register is applied by the spec.** The same fact renders as an
 action-verb bullet in the English résumé and in the flat factual voice 職務経歴書 expects. That is
-a prompt difference, not a data difference.
+a prompt difference, not a data difference. For English renders, Japanese free-text fields in the
+employer, project, education and certification lists are labelled for English wording or omission;
+names stay verbatim. Fact claims remain in their recorded language.
 
 **Never sent to the model:** source documents during *generation* (only during extraction), and any
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
@@ -432,11 +434,16 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 ## 6. The render pipeline
 
 ```
-generate → RenderContent → stored as a PROPOSAL (never as the current version)
-         → diff(current, proposed) → split-view review
-         → accept  → new version, dated, retained forever
-         → reject  → dismissed proposal, retained but NOT in version history
+queued proposal → generate → RenderContent → English language/name check → ready proposal
+                → diff(current, proposed) → split-view review
+                → accept  → new version, dated, retained forever
+                → reject  → dismissed proposal, retained but NOT in version history
 ```
+
+An English output whose headings or blocks exceed the 5% Japanese-script limit (excluding names
+held only in Japanese), or whose checked record-name mentions differ, is generated once more. If
+the second attempt also fails, the proposal is marked failed with a plain reason and no content is
+offered for review. Japanese renders do not use this check (`src/render/language.ts`).
 
 Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled from the stored
 `RenderContent` **on download**, never stored. The document reader uses the same inputs as that

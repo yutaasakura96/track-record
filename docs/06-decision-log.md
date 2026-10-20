@@ -6847,3 +6847,12 @@ require the recorded name in the chapter. A near-miss scan of paragraphs and bul
 names of at least six characters and name-like context, to avoid treating ordinary word forms as
 misspelt short names. A name failure follows the same retry-once refusal path as a language
 failure. Japanese renders are outside this check.
+
+---
+
+### [2026-10-21] Clarify the English prompt and failed proposal contract
+
+This corrects the 2026-10-17 entry's scope: Japanese free-text fields in the prompt's record lists
+are labelled, while fact claims remain in their recorded language. A rejected generation retains
+its proposal row with `generation_status = failed` and a plain reason; it stores no reviewable
+content. The render pipeline contract is in `docs/03` §4.2 and §6.

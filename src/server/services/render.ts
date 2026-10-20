@@ -413,9 +413,9 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
       });
     let content = await generate();
     // Issue #104. An English document that comes back in Japanese, or with a
-    // chapter that respells its employer, is retried once and then refused —
-    // never landed as a proposal, because the review screen cannot show a
-    // heading change and the author would accept what they could not see.
+    // checked record name changed, is retried once and then refused —
+    // never lands as reviewable content. When this failure was found, the
+    // review screen did not show heading changes.
     const first = inputs.spec.language === "en" ? englishDefect(content, inputs.spec) : null;
     if (first !== null) {
       // Ids and the defect's name only.

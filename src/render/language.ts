@@ -3,9 +3,9 @@
  *
  * The first English career stories generated from a record with Japanese
  * business descriptions came back in Japanese — the whole of one, and every
- * chapter heading of the next — and both were offered for review, where a
- * heading change cannot be seen. The prompt said "Write the document in
- * English" once, below a register that named no language and above a list of
+ * chapter heading of the next — and both were offered for review. At that
+ * time, the review screen did not show heading changes. The prompt said
+ * "Write the document in English" once, below a register that named no language and above a list of
  * Japanese fields. Nothing looked at what came back.
  *
  * This is what looks. It is a count, not a judgement: the share of Japanese
