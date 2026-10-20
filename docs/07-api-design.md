@@ -136,7 +136,8 @@ rejected with `403 forbidden` — the only 403 in the API.
 > **The `resume*` fields are optional**, and blank is stored as `null`. A link needs a literal
 > `http://` or `https://` prefix to count as already schemed (case-insensitive); otherwise the API
 > supplies `https://`, including for a host with a port. It rejects embedded whitespace, control
-> characters and addresses without a dotted hostname with `422` naming the field. After validation,
+> characters, a backslash, credentials before the host (which is also how `mailto:a@example.com` is
+> refused) and addresses without a dotted hostname with `422` naming the field. After validation,
 > it stores the trimmed text as entered, plus any supplied scheme, without URL serialization. The résumé
 > prints the saved link with only `http://` or `https://` removed; `www.`, casing, path and trailing
 > slash remain as entered.

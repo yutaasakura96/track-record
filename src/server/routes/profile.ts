@@ -53,6 +53,11 @@ const optional = z
  * An optional web address. `linkedin.com/in/…` is how people copy one, so a
  * missing scheme is supplied rather than refused; anything that is still not an
  * http(s) address is refused, because the résumé would print it as a link.
+ *
+ * What is checked is the string that is saved. The URL parser quietly rewrites
+ * a backslash into a slash, so one is refused rather than saved unparsed; and
+ * an address carrying credentials is refused, which is also what catches
+ * `mailto:person@example.com` once `https://` is put in front of it.
  */
 const webAddress = (label: string) =>
   optional.transform((value, ctx) => {
@@ -60,9 +65,12 @@ const webAddress = (label: string) =>
     const hasWebScheme = /^https?:\/\//i.test(value);
     const withScheme = hasWebScheme ? value : `https://${value}`;
     try {
-      if (!/[\s\p{Cc}]/u.test(value) && (hasWebScheme || !/^[a-z][a-z0-9+.-]*:\/\//i.test(value))) {
+      if (!/[\s\p{Cc}\\]/u.test(withScheme) && (hasWebScheme || !/^[a-z][a-z0-9+.-]*:\/\//i.test(value))) {
         const url = new URL(withScheme);
-        if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return withScheme;
+        const isWeb = url.protocol === "https:" || url.protocol === "http:";
+        // Read off the text, not the parse, which drops an empty `@` unseen.
+        const hasCredentials = /^https?:\/\/[^/?#]*@/i.test(withScheme);
+        if (isWeb && !hasCredentials && url.hostname.includes(".")) return withScheme;
       }
     } catch {
       // Falls through to the refusal below.
