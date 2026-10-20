@@ -125,6 +125,11 @@ function validateResumeSectionShape(
 const sectionKind = (key: string): Block["kind"] =>
   key === SUMMARY_KEY ? "paragraph" : "bullet";
 
+const isCurrentSectionKey = (key: string): boolean =>
+  key === SUMMARY_KEY || key === OTHER_PROJECTS_KEY ||
+  employerIdOfChapter(key) !== null ||
+  (key.startsWith(PROJECT_KEY_PREFIX) && key.length > PROJECT_KEY_PREFIX.length);
+
 /**
  * An edit is checked against the version it was made from, not today's
  * record: an employer left out or a project reassigned since must not lock the
@@ -132,8 +137,18 @@ const sectionKind = (key: string): Block["kind"] =>
  */
 export function validateResumeEditShape(content: RenderContent, previous: RenderContent): void {
   const previousKeys = new Set(previous.sections.map((section) => section.key));
-  if (previousKeys.has("experience")) {
+  if (content.sections.length !== previous.sections.length) {
+    throw new Error("A résumé edit must keep its sections.");
+  }
+  if (previous.sections.some((section) => !isCurrentSectionKey(section.key))) {
     validateResumeSectionShape(content, [], previousKeys);
+    const previousBlocks = new Map(previous.sections.flatMap((section) => section.blocks.map((block) => [block.id, block.kind] as const)));
+    for (const section of content.sections) {
+      for (const block of section.blocks) {
+        const kind = previousBlocks.get(block.id);
+        if (kind && kind !== block.kind) throw new Error(`Invalid résumé section ${section.key}.`);
+      }
+    }
     return;
   }
   validateResumeSectionShape(

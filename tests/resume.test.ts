@@ -366,6 +366,30 @@ describe("what the model returned", () => {
     const legacy = { sections: [{ key: "experience", heading: "Experience", blocks: [block("h1", "Old heading", "paragraph"), block("b1", "Old bullet")] }] } satisfies RenderContent;
     expect(() => validateResumeEditShape({ sections: [{ ...legacy.sections[0]!, blocks: [block("h1", "Revised heading", "paragraph"), block("b1", "Revised bullet")] }] }, legacy)).not.toThrow();
   });
+
+  it("edits older résumé sections even without an experience section", () => {
+    const legacy: RenderContent = { sections: [
+      { key: "summary", heading: "Summary", blocks: [block("s1", "Engineer.", "paragraph")] },
+      { key: "skills", heading: "Skills", blocks: [block("s2", "TypeScript", "paragraph")] },
+      { key: "education", heading: "Education", blocks: [{ id: "s3", kind: "row", text: "Example University", factIds: [] }] },
+    ] };
+    const edited: RenderContent = { sections: legacy.sections.map((section) =>
+      section.key === "summary"
+        ? { ...section, blocks: [block("s1", "Experienced engineer.", "paragraph")] }
+        : section,
+    ) };
+    expect(() => validateResumeEditShape(edited, legacy)).not.toThrow();
+    const withExperience: RenderContent = { sections: [...legacy.sections,
+      { key: "experience", heading: "Experience", blocks: [block("s4", "Old role", "paragraph")] },
+    ] };
+    expect(() => validateResumeEditShape({ sections: [...edited.sections, withExperience.sections[3]!] }, withExperience)).not.toThrow();
+    expect(() => validateResumeEditShape({ sections: edited.sections.slice(0, 2) }, legacy)).toThrow();
+    expect(() => validateResumeEditShape({ sections: [edited.sections[0]!, edited.sections[1]!, edited.sections[1]!] }, legacy)).toThrow();
+    expect(() => validateResumeEditShape({ sections: [edited.sections[0]!, edited.sections[1]!,
+      { ...edited.sections[2]!, key: "certifications" }] }, legacy)).toThrow();
+    expect(() => validateResumeEditShape({ sections: [edited.sections[0]!, edited.sections[1]!,
+      { ...edited.sections[2]!, blocks: [block("s3", "Example University", "paragraph")] }] }, legacy)).toThrow();
+  });
 });
 
 describe("the file", () => {
