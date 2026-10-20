@@ -42,6 +42,35 @@ const kana = (label: string) =>
     message: `${label} is written in hiragana, not katakana.`,
   });
 
+/** An optional free-text field: blank is the same as absent, and both store null. */
+const optional = z
+  .string()
+  .trim()
+  .nullish()
+  .transform((value) => value || null);
+
+/**
+ * An optional web address. `linkedin.com/in/…` is how people copy one, so a
+ * missing scheme is supplied rather than refused; anything that is still not an
+ * http(s) address is refused, because the résumé would print it as a link.
+ */
+const webAddress = (label: string) =>
+  optional.transform((value, ctx) => {
+    if (!value) return null;
+    const hasWebScheme = /^https?:\/\//i.test(value);
+    const withScheme = hasWebScheme ? value : `https://${value}`;
+    try {
+      if (!/[\s\p{Cc}]/u.test(value) && (hasWebScheme || !/^[a-z][a-z0-9+.-]*:\/\//i.test(value))) {
+        const url = new URL(withScheme);
+        if ((url.protocol === "https:" || url.protocol === "http:") && url.hostname.includes(".")) return withScheme;
+      }
+    } catch {
+      // Falls through to the refusal below.
+    }
+    ctx.addIssue({ code: "custom", message: `${label} is not a web address.` });
+    return z.NEVER;
+  });
+
 const profileBody = z.object({
   familyNameKanji: required("Family name"),
   givenNameKanji: required("Given name"),
@@ -62,6 +91,15 @@ const profileBody = z.object({
     message: "Address (kana) is written in hiragana, not katakana.",
   }),
   desiredRoleNote: z.string().trim().nullish(),
+  // The English résumé's header (issue #108). All optional, and none of them
+  // the 履歴書 PII above: the résumé phone is its own number, opted into here.
+  resumeHeadline: optional,
+  resumeCity: optional,
+  resumeCountry: optional,
+  resumePhone: optional,
+  resumeLinkedinUrl: webAddress("LinkedIn"),
+  resumeGithubUrl: webAddress("GitHub"),
+  resumePortfolioUrl: webAddress("Portfolio"),
 });
 
 export function registerProfileRoutes(app: Hono<AppEnv>) {

@@ -107,6 +107,66 @@ describe("the profile form", () => {
   });
 });
 
+describe("résumé header fields (issue #108)", () => {
+  it("are optional, and a blank one is stored as null", async () => {
+    const saved = await (await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeHeadline: "  " })).json() as Record<string, unknown>;
+    for (const field of ["resumeHeadline", "resumeCity", "resumeCountry", "resumePhone", "resumeLinkedinUrl", "resumeGithubUrl", "resumePortfolioUrl"]) {
+      expect(saved[field]).toBeNull();
+    }
+  });
+
+  it("supplies the scheme a copied link leaves off", async () => {
+    const saved = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeLinkedinUrl: "LinkedIn.com/in/Yosuke-Example",
+      resumeGithubUrl: "https://GitHub.com/Yosuke-Example",
+      resumePortfolioUrl: "kenji.example.com",
+    });
+    expect(saved.status).toBe(200);
+    const profile = await client.json<{ resumeLinkedinUrl: string; resumeGithubUrl: string; resumePortfolioUrl: string }>("/api/profile");
+    expect(profile.resumeLinkedinUrl).toBe("https://LinkedIn.com/in/Yosuke-Example");
+    expect(profile.resumeGithubUrl).toBe("https://GitHub.com/Yosuke-Example");
+    expect(profile.resumePortfolioUrl).toBe("https://kenji.example.com");
+  });
+
+  it("preserves a supplied web address after validation", async () => {
+    for (const address of ["http://WWW.Example.com/Work/", "https://例え.テスト/作品"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: address });
+      expect(response.status).toBe(200);
+      const profile = await client.json<{ resumePortfolioUrl: string }>("/api/profile");
+      expect(profile.resumePortfolioUrl).toBe(address);
+    }
+  });
+
+  it("supplies HTTPS to a domain with a port", async () => {
+    const response = await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumePortfolioUrl: "portfolio.example.com:8443/work",
+    });
+    expect(response.status).toBe(200);
+    const profile = await client.json<{ resumePortfolioUrl: string }>("/api/profile");
+    expect(profile.resumePortfolioUrl).toBe("https://portfolio.example.com:8443/work");
+  });
+
+  it("refuses a link that is not a web address and saves nothing", async () => {
+    for (const bad of ["javascript:alert(1)", "not a link", "ftp://example.com/x", "foo.bar://example.com", "https:example.com", "https://exa\nmple.com", "https://example.com/a b"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: bad });
+      expect(response.status).toBe(422);
+      const body = (await response.json()) as { error: { message: string; details: { fields: string[] } } };
+      expect(body.error.details.fields).toEqual(["resumePortfolioUrl"]);
+      expect(body.error.message).toBe("Portfolio is not a web address.");
+    }
+    expect((await client.get("/api/profile")).status).toBe(404);
+  });
+
+  it("keeps the résumé phone apart from the 履歴書 phone", async () => {
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePhone: "+81 90-0000-9999" });
+    const profile = await client.json<{ phone: string; resumePhone: string }>("/api/profile");
+    expect(profile.phone).toBe(PROFILE_FIXTURE.phone);
+    expect(profile.resumePhone).toBe("+81 90-0000-9999");
+  });
+});
+
 describe("employers and projects", () => {
   beforeEach(async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);

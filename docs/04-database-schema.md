@@ -172,11 +172,21 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `contact_address_kana` | text | yes | `null` | " |
 | `photo` | bytea | yes | `null` | 写真. 30×40 mm conventionally |
 | `desired_role_note` | text | yes | `null` | 本人希望欄 |
+| `resume_headline` | text | yes | `null` | English résumé header, under the name (#108) |
+| `resume_city` | text | yes | `null` | " — printed `City, Country` |
+| `resume_country` | text | yes | `null` | " |
+| `resume_phone` | text | yes | `null` | " — **opt-in**, a number of its own; never filled from `phone` |
+| `resume_linkedin_url` | text | yes | `null` | " — stored with its scheme, printed without it |
+| `resume_github_url` | text | yes | `null` | " |
+| `resume_portfolio_url` | text | yes | `null` | " |
 
 **Constraint:** `check (contact_same_as_address or (contact_postal_code is not null and contact_address is not null))`.
 
 **PII rule (enforced in code, not the schema):** `date_of_birth`, `phone`, `postal_code`,
 `address`, `contact_*` and `photo` are readable **only** by the 履歴書 render spec. Asserted by test.
+The `resume_*` columns are not on that list: they exist so the English résumé can carry a headline,
+a city, links and a phone without reading the 履歴書 PII, and only the English résumé prints them,
+each only when filled (decision log, 2026-10-18).
 
 ---
 

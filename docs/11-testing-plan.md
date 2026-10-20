@@ -126,8 +126,9 @@ And the Restricted fact appears in generalised form, with the client not named
 The third assertion matters as much as the first two: Private facts are filtered **before the
 request is built**, so they never leave the database — not filtered out of the response afterwards.
 
-Plus: **the author's PII appears in 履歴書 and in no other render.** Address, phone and date of birth
-are asserted absent from the résumé, 職務経歴書 and both career stories.
+Plus: **the 履歴書 PII appears in 履歴書 and in no other render.** Its address, phone and date of birth
+are asserted absent from the résumé, 職務経歴書 and both career stories. A separately entered
+`resumePhone` may appear in the English résumé header; a blank one adds no phone (`04` §3.2).
 
 ### 2.4 履歴書 conventional correctness
 

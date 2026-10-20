@@ -1991,7 +1991,7 @@ Needed before their milestones; not blocking M1.
 
 | Screen | Milestone | Note |
 |---|---|---|
-| Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
+| Profile form | M2 | 履歴書 identity fields and the optional English résumé header fields; see `04-database-schema.md` §3.2 and `02-product-requirements.md` §6.2 |
 | Quick capture | M3 (#95) | **Built**, and specified under Screen 16 below |
 
 ---

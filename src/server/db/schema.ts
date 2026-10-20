@@ -187,6 +187,18 @@ export const profiles = pgTable("profiles", {
   contactAddressKana: text("contact_address_kana"),
   photo: bytea("photo"),
   desiredRoleNote: text("desired_role_note"),
+  /**
+   * The English résumé's header (issue #108), each printed only when filled.
+   * Not the PII above: `resume_phone` is a second number the author opts into,
+   * and the 履歴書 `phone` never stands in for it (`docs/04` §3.2).
+   */
+  resumeHeadline: text("resume_headline"),
+  resumeCity: text("resume_city"),
+  resumeCountry: text("resume_country"),
+  resumePhone: text("resume_phone"),
+  resumeLinkedinUrl: text("resume_linkedin_url"),
+  resumeGithubUrl: text("resume_github_url"),
+  resumePortfolioUrl: text("resume_portfolio_url"),
   ...timestamps,
 });
 

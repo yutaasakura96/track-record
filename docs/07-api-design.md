@@ -124,9 +124,23 @@ rejected with `403 forbidden` — the only 403 in the API.
   "address": "東京都渋谷区神宮前0-0-0",
   "addressKana": "とうきょうと しぶやく じんぐうまえ",
   "contactSameAsAddress": true,
-  "hasPhoto": true
+  "hasPhoto": true,
+  "resumeHeadline": "Backend Engineer",
+  "resumeCity": "Tokyo", "resumeCountry": "Japan",
+  "resumePhone": null,
+  "resumeLinkedinUrl": "https://linkedin.com/in/example",
+  "resumeGithubUrl": null, "resumePortfolioUrl": null
 }
 ```
+
+> **The `resume*` fields are optional**, and blank is stored as `null`. A link needs a literal
+> `http://` or `https://` prefix to count as already schemed (case-insensitive); otherwise the API
+> supplies `https://`, including for a host with a port. It rejects embedded whitespace, control
+> characters and addresses without a dotted hostname with `422` naming the field. After validation,
+> it stores the trimmed text as entered, plus any supplied scheme, without URL serialization. The résumé
+> prints the saved link with only `http://` or `https://` removed; `www.`, casing, path and trailing
+> slash remain as entered.
+> `resumePhone` is the English résumé's own number, never copied from `phone` (`04` §3.2).
 
 > **`photo` is never inlined.** The response reports `hasPhoto`; the image is fetched from
 > `GET /api/profile/photo`. Base64 in a JSON body would put the author's face in every cache and

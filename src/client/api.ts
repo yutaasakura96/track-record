@@ -112,6 +112,14 @@ export interface Profile {
   addressKana: string;
   contactSameAsAddress: boolean;
   hasPhoto: boolean;
+  /** The English résumé's header (issue #108); each null until filled. */
+  resumeHeadline: string | null;
+  resumeCity: string | null;
+  resumeCountry: string | null;
+  resumePhone: string | null;
+  resumeLinkedinUrl: string | null;
+  resumeGithubUrl: string | null;
+  resumePortfolioUrl: string | null;
 }
 
 export interface Fact {

@@ -297,7 +297,7 @@ This replaces the rule of 2026-08-11, that anything a model produces starts Gene
 ## 6. Confidentiality rules
 
 1. **Source documents never render.** An imported case study is never emitted, exported or included in any output. It exists to prove facts.
-2. **The author's own PII is a per-render field rule, not a disclosure tier.** Address, phone and date of birth are required by 履歴書 convention and must appear in **no other render**.
+2. **The author's own PII is a per-render field rule, not a disclosure tier.** Address, phone and date of birth are required by 履歴書 convention and must appear in **no other render**. The English résumé's headline, city, links and phone are separate, opt-in profile fields (#108); its phone is never the 履歴書 one.
 3. **Defaults point toward secrecy** in every ambiguous case. The failure is asymmetric: an over-cautious résumé costs a sentence, a leaked client identifier costs a career.
 4. **Facts are stored plainly; impact framing is applied at render time.** The same fact renders as a strong action-verb bullet in English and in a flat factual register in 職務経歴書.
 

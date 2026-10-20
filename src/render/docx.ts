@@ -58,15 +58,17 @@ export async function toDocx(
       }),
     );
   }
-  if (contact.length > 0) {
+  // One paragraph a line: the résumé's headline and its contact line are two
+  // lines (`identityLines` joins each line's parts), every other kind has one.
+  contact.forEach((line, index) => {
     children.push(
       new Paragraph({
         alignment: align,
-        children: [new TextRun({ text: contact.join(" · "), size: 20 })],
-        spacing: { after: 240 },
+        children: [new TextRun({ text: line, size: 20 })],
+        spacing: { after: index === contact.length - 1 ? 240 : 40 },
       }),
     );
-  }
+  });
 
   for (const section of content.sections) {
     if (section.blocks.length === 0) continue;

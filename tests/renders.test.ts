@@ -22,6 +22,7 @@ import { createDb } from "~/server/db/client";
 import { renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
+import { identityLines } from "~/render/identity";
 import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
 import { chaptersOf } from "~/model/generate";
@@ -1024,6 +1025,76 @@ describe("documents and downloads", () => {
     expect(markdown).not.toContain(PROFILE_FIXTURE.address);
     expect(markdown).not.toContain(PROFILE_FIXTURE.postalCode);
     expect(markdown).not.toContain(PROFILE_FIXTURE.dateOfBirth);
+  });
+
+  /**
+   * Issue #108: the résumé header carries the résumé's own fields, each only
+   * when filled, and the résumé phone is never the 履歴書 one.
+   */
+  it("puts the résumé header fields on the English résumé, each only when filled", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    // The identity block: what comes before the first section, less the title.
+    const header = async () =>
+      (await (await client.get("/api/renders/english_resume/download?format=md")).text())
+        .split("\n## ")[0]!
+        .split("\n")
+        .filter((line) => line !== "" && !line.startsWith("# "))
+        .join("\n");
+
+    // Nothing filled: the name and the email, as before.
+    expect((await header()).split("\n")).toEqual(["**Yosuke Aoki**", PROFILE_FIXTURE.email]);
+
+    await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeHeadline: "Backend Engineer",
+      resumeCity: "Tokyo",
+      resumeCountry: "Japan",
+      resumePhone: "+81 90-0000-9999",
+      resumeLinkedinUrl: "https://www.linkedin.com/in/yosuke-aoki-example/",
+      resumeGithubUrl: "github.com/yosuke-example/",
+      resumePortfolioUrl: "http://www.example.invalid/work/",
+    });
+    const filled = await header();
+    expect(filled.split("\n")).toEqual([
+      "**Yosuke Aoki**",
+      "Backend Engineer",
+      `Tokyo, Japan · ${PROFILE_FIXTURE.email} · +81 90-0000-9999 · www.linkedin.com/in/yosuke-aoki-example/ · github.com/yosuke-example/ · www.example.invalid/work/`,
+    ]);
+    expect(filled).not.toContain(PROFILE_FIXTURE.phone);
+    expect(filled).not.toContain(PROFILE_FIXTURE.address);
+    expect(filled).not.toContain(PROFILE_FIXTURE.postalCode);
+
+    // A city alone carries no stray comma.
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeCity: "Osaka" });
+    expect((await header()).split("\n")).toEqual(["**Yosuke Aoki**", `Osaka · ${PROFILE_FIXTURE.email}`]);
+  });
+
+  it("puts no résumé header field on any other render", async () => {
+    const identity = {
+      nameLatin: "Yosuke Aoki",
+      nameKanji: "青木 陽介",
+      email: PROFILE_FIXTURE.email,
+      resume: {
+        headline: "Backend Engineer",
+        city: "Tokyo",
+        country: null,
+        phone: "+81 90-0000-9999",
+        linkedinUrl: null,
+        githubUrl: "https://github.com/yosuke-example",
+        portfolioUrl: null,
+      },
+    };
+    for (const kind of ["rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja"] as const) {
+      const lines = identityLines(kind, identity).join("\n");
+      expect(lines).not.toContain("Backend Engineer");
+      expect(lines).not.toContain("+81");
+      expect(lines).not.toContain("github");
+    }
   });
 
   it("emits no source document text in a render or its download", async () => {
