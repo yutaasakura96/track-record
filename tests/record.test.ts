@@ -148,6 +148,45 @@ describe("résumé header fields (issue #108)", () => {
     expect(profile.resumePortfolioUrl).toBe("https://portfolio.example.com:8443/work");
   });
 
+  it("saves a link exactly as typed, with no slash added and no case folded", async () => {
+    for (const [typed, saved] of [
+      ["GitHub.com/Yosuke-Example", "https://GitHub.com/Yosuke-Example"],
+      ["https://Kenji.Example.com", "https://Kenji.Example.com"],
+      ["medium.com/@yosuke-example", "https://medium.com/@yosuke-example"],
+    ]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeGithubUrl: typed });
+      expect(response.status).toBe(200);
+      const profile = await client.json<{ resumeGithubUrl: string }>("/api/profile");
+      expect(profile.resumeGithubUrl).toBe(saved);
+    }
+  });
+
+  it("supplies HTTPS to a domain with a port and no path", async () => {
+    const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: "example.com:8080" });
+    expect(response.status).toBe(200);
+    const profile = await client.json<{ resumePortfolioUrl: string }>("/api/profile");
+    expect(profile.resumePortfolioUrl).toBe("https://example.com:8080");
+  });
+
+  it("refuses what the URL parser would rewrite rather than save it unchecked", async () => {
+    for (const bad of ["https://example.com\\@evil.example.com", "example.com\\work", "https://example.com/\twork", "https:/example.com", "http:example.com"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: bad });
+      expect(response.status).toBe(422);
+    }
+    expect((await client.get("/api/profile")).status).toBe(404);
+  });
+
+  it("refuses an address carrying credentials", async () => {
+    for (const bad of ["mailto:person@example.com", "person:secret@example.com", "https://person@example.com/work", "https://@example.com"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeLinkedinUrl: bad });
+      expect(response.status).toBe(422);
+      const body = (await response.json()) as { error: { message: string; details: { fields: string[] } } };
+      expect(body.error.details.fields).toEqual(["resumeLinkedinUrl"]);
+      expect(body.error.message).toBe("LinkedIn is not a web address.");
+    }
+    expect((await client.get("/api/profile")).status).toBe(404);
+  });
+
   it("refuses a link that is not a web address and saves nothing", async () => {
     for (const bad of ["javascript:alert(1)", "not a link", "ftp://example.com/x", "foo.bar://example.com", "https:example.com", "https://exa\nmple.com", "https://example.com/a b"]) {
       const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePortfolioUrl: bad });
