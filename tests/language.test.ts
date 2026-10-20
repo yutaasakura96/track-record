@@ -222,6 +222,34 @@ describe("an English document", () => {
     }
   });
 
+  it("does not read one record name as a changed spelling of a longer one it begins", () => {
+    const school = (id: string, institution: string): RenderSpec["educations"][number] =>
+      ({ id, institution, faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" });
+    const schools = spec({ employers: [], educations: [school("b", "Shirasagi University"), school("m", "Shirasagi University Graduate School")] });
+    const row = content([{ key: "anchors", heading: "Figures", text: "Shirasagi University, 2011-2015" }]);
+    row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, schools)).toBeNull();
+
+    const employers = spec({ employers: [employer("emp_a", "Hayabusa Computing"), employer("emp_b", "Hayabusa Computing Europe")] });
+    const story = content([
+      { key: employerChapterKey("emp_a"), heading: "Hayabusa Computing", text: `${PROSE} I joined Hayabusa Computing in 2019.` },
+      { key: employerChapterKey("emp_b"), heading: "Hayabusa Computing Europe", text: `${PROSE} I moved to Hayabusa Computing Europe in 2022.` },
+    ]);
+    expect(englishDefect(story, employers)).toBeNull();
+    const resume = content([{ key: "experience", heading: "Hayabusa Computing — Engineer", text: "Cut the nightly batch." }]);
+    expect(englishDefect(resume, { ...employers, kind: "english_resume" })).toBeNull();
+  });
+
+  it("passes a résumé experience heading made only of generic words", () => {
+    const resumeSpec = spec({ kind: "english_resume", employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")] });
+    for (const heading of ["Selected Experience", "Recent Work", "Career Highlights"]) {
+      const output = content([{ key: "experience", heading, text: "Cut the nightly batch from 6 hours to 90 minutes." }]);
+      expect(englishDefect(output, resumeSpec), heading).toBeNull();
+    }
+    const named = content([{ key: "experience", heading: "Selected Experience at Kawasemi Pay", text: "Cut the nightly batch." }]);
+    expect(englishDefect(named, resumeSpec)).toBe("record_names");
+  });
+
   it("passes over a generic section title, which names no employer, school or project", () => {
     const resumeSpec = spec({ kind: "english_resume", employers: [employer("emp_a", "Hayabusa Computing Co., Ltd."), employer("emp_b", "Kawasemi Pay Inc.")] });
     for (const heading of ["Experience", "Work Experience", "Skills", "Projects", "Summary", "Certifications", "Languages", "Education"]) {

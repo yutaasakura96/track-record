@@ -64,7 +64,7 @@ test("first proposal previews the document; regeneration shows a heading change"
   }).toBe("ready");
   await page.goto(`/proposals/${proposalId}`);
   await expect(page.getByText("Experience", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Professional", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Selected", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Heading rewritten/)).toBeVisible();
   await screenshot(page, "heading-change-review.png");
 

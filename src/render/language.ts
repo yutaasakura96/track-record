@@ -98,15 +98,23 @@ const WORD = /[\p{L}\p{N}'’]+/gu;
 const casedLike = (tokens: readonly string[], words: readonly string[]): boolean =>
   words.every((word, j) => /^\p{Lu}/u.test(word) === /^\p{Lu}/u.test(tokens[j] ?? ""));
 
+const escaped = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+/**
+ * The text with every record name it holds exactly taken out, longest first, so
+ * "Shirasagi University" is not read as a changed "Shirasagi University Graduate School".
+ */
+const withoutNames = (text: string, names: readonly string[], flags: string): string =>
+  [...names].sort((a, b) => b.length - a.length).reduce((t, name) => t.replace(new RegExp(escaped(name), flags), " "), text);
+
 function hasRespeltName(text: string, names: readonly string[], header: boolean): boolean {
+  // In prose a name differing from the record only in letter case is the name.
+  const tokens = withoutNames(text, names, header ? "gu" : "giu").match(WORD) ?? [];
   for (const name of names) {
     // Free prose needs a six-character floor; short ordinary words resemble short names too often.
     if (!header && name.length < 6) continue;
     const words = name.match(WORD) ?? [];
     if (words.length === 0) continue;
-    // In prose a name differing from the record only in letter case is the name.
-    const exact = new RegExp(name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&"), header ? "gu" : "giu");
-    const tokens = text.replace(exact, " ").match(WORD) ?? [];
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
       const found = tokens.slice(i, i + words.length);
@@ -121,9 +129,8 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
 }
 
 function hasChangedHeaderName(text: string, names: readonly string[]): boolean {
-  const tokens = text.match(WORD) ?? [];
+  const tokens = withoutNames(text, names, "gu").match(WORD) ?? [];
   for (const name of names) {
-    if (text.includes(name)) continue;
     const words = name.match(WORD) ?? [];
     if (words.length < 2 || words[0]!.length < 5) continue;
     for (let i = 0; i < tokens.length - 1; i++) {
@@ -148,6 +155,19 @@ const SECTION_TITLES = new Set([
 
 const isSectionTitle = (heading: string): boolean =>
   SECTION_TITLES.has(heading.normalize("NFKC").trim().replace(/[:：]$/u, "").toLocaleLowerCase());
+
+/**
+ * The words a résumé's experience heading uses without naming anybody —
+ * "Selected Experience", "Recent Work". A heading with any other capitalised
+ * word may name an employer and is held to the record's names.
+ */
+const GENERIC_EXPERIENCE_WORDS = new Set([
+  "selected", "recent", "relevant", "highlights", "professional", "work", "experience", "career", "key",
+  "history", "employment", "roles",
+]);
+
+const isGenericExperienceHeading = (heading: string): boolean =>
+  (heading.match(WORD) ?? []).every((word) => !/^\p{Lu}/u.test(word) || GENERIC_EXPERIENCE_WORDS.has(word.toLocaleLowerCase()));
 
 /**
  * What is wrong with an English document, or null when nothing this checks is.
@@ -180,7 +200,7 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
     // A line that names an employer, a school or a project names one of the
     // record's, exactly. A section title names none of them and is not held to it.
     const employers = spec.employers.map((e) => e.name);
-    const experience = content.sections.filter((s) => s.key === "experience" && !isSectionTitle(s.heading));
+    const experience = content.sections.filter((s) => s.key === "experience" && !isSectionTitle(s.heading) && !isGenericExperienceHeading(s.heading));
     if (experience.some((s) => !employers.some((name) => s.heading.includes(name)))) return "record_names";
     const rowsOf = (key: string) => content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
     const schools = spec.educations.map((e) => e.institution);
