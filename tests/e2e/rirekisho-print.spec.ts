@@ -61,6 +61,9 @@ test("current and legacy 履歴書 pages match their printed files in both theme
     const response = await context.request.get(`/api/proposals/${proposalId}`);
     return (await response.json()).generationStatus;
   }).toBe("ready");
+  await page.goto(`/proposals/${proposalId}`);
+  await checkForm(page);
+  await capture(page, "rirekisho-first-proposal-light.png");
   const accepted = await context.request.post(`/api/proposals/${proposalId}/accept`);
   expect(accepted.ok()).toBe(true);
 
@@ -109,6 +112,13 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   await page.getByRole("radio", { name: "Light" }).click();
   await checkForm(page);
   await capture(page, "rirekisho-legacy-light.png");
+
+  await db.update(applicationSentCopies).set({ file: Buffer.from("unreadable") }).where(eq(applicationSentCopies.id, copyId));
+  await page.reload();
+  await expect(page.getByRole("alert")).toContainText("The original file could not be read");
+  await expect(page.getByRole("article")).toContainText("履歴書");
+  await expect(page.getByRole("article").getByRole("table")).toHaveCount(0);
+  await capture(page, "rirekisho-legacy-unreadable-light.png");
   expect(errors).toEqual([]);
   await context.close();
 });

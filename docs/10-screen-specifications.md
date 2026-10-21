@@ -1899,8 +1899,9 @@ Header `Applications / <company> / <title> as sent`. Read-only.
 2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
    sections in file order. A 履歴書 shows the filled form read from the stored file, including its
    cell spans, merged 写真 cell, column proportions and typography. Its layout follows the
-   template (`04-database-schema.md` §4). An older sent copy is read from its own file when opened.
-   Tables fit the width; a table that cannot
+   template (`04-database-schema.md` §4). An older sent copy is read from its own file when opened;
+   if that file cannot be read, its stored text shows under `The original file could not be read —
+   showing its text only.` Tables fit the width; a table that cannot
    fit scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
