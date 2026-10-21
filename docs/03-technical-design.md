@@ -226,7 +226,9 @@ no `factIds` is legal only for headings and for the fixed scaffolding of 履歴�
 action-verb bullet in the English résumé and in the flat factual voice 職務経歴書 expects. That is
 a prompt difference, not a data difference. For English renders, Japanese free-text fields in the
 employer, project, education and certification lists are labelled for English wording or omission;
-names stay verbatim. Fact claims remain in their recorded language.
+names stay verbatim. Fact claims remain in their recorded language. For an English prompt, Japanese
+industry and project-summary copies are omitted from facts' contextual JSON; the labelled employer
+and project lists still carry those fields.
 
 **Never sent to the model:** source documents during *generation* (only during extraction), and any
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
