@@ -24,7 +24,8 @@ import { Mono, SegmentedControl } from "./ui";
  */
 const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" | "goneQuiet" }[] = [
   { label: "Home", to: "/" },
-  { label: "Record", to: "/record" },
+  // Issue #113 renamed the record screen; its path stays.
+  { label: "Career timeline", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
   // Issue #57: what the importer flagged, and everything it accepted.
@@ -52,7 +53,7 @@ export function Sidebar({ name }: { name: string }) {
   // Waiting facts across every version of every document, and flags not yet
   // checked; each shown only above zero. Read from the summary, not the
   // listing: the badges are two numbers and this is the only query the chrome
-  // makes on Home, Record and Skills.
+  // makes on Home, Career timeline and Skills.
   const summary = useImportSummary().data;
   // Read where the list reads it, so the row and the list cannot disagree.
   const goneQuiet = useApplications().data?.items.filter((row) => row.quietDays !== null).length;

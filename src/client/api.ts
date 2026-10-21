@@ -15,6 +15,7 @@ import {
 import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
+import type { CareerTimeline } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
@@ -521,6 +522,9 @@ export const keys = {
   // Under `allFacts`: a ruling on a fact changes what the list holds.
   flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
   masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
+  // Under `allFacts`, so a ruling on any card refreshes its counts; the record
+  // screen's own writes refresh it by name, since they move its gaps.
+  careerTimeline: ["facts", "career-timeline"] as const,
   sourceText: (documentId: string, versionNo: number) =>
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
@@ -625,6 +629,8 @@ export function useEntityActions(key: EntityKey) {
     // An employer's name and dates are part of every render's structure, so
     // changing one is what makes a generated document out of date.
     void queryClient.invalidateQueries({ queryKey: keys.renders });
+    // Dates move the 履歴書's gaps, and a deleted row takes its counts.
+    void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
   };
 
   const create = useMutation({
@@ -671,9 +677,23 @@ export function useSetRenderInclusion() {
   return useMutation({
     mutationFn: (body: RenderInclusion) =>
       api<RenderInclusion>("/api/render-inclusions", { method: "PUT", ...json(body) }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.inclusions }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.inclusions });
+      // A row left out of the 履歴書 is a row its gap warning no longer counts.
+      void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
+    },
   });
 }
+
+/**
+ * What the career timeline shows beside the rows (issue #113): achievement
+ * counts per employer and project, and the 履歴書's gaps.
+ */
+export const useCareerTimeline = () =>
+  useQuery({
+    queryKey: keys.careerTimeline,
+    queryFn: () => api<CareerTimeline>("/api/career-timeline"),
+  });
 
 export interface CuratedSkill {
   name: string;

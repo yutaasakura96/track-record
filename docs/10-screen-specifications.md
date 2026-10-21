@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112)
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112) · Screen 4 renamed Career timeline and laid out as one card per employer 2026-10-19 (#113)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -15,8 +15,9 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Record, Skills, Documents, Flagged, Career record, Applications. Applications
-replaced Tailored résumés in #70. There is no separate Imports row: imports are versions of a
+rows: Home, Career timeline, Skills, Documents, Flagged, Career record, Applications. Applications
+replaced Tailored résumés in #70; Career timeline took the Record row in #113, its path `/record`
+kept. There is no separate Imports row: imports are versions of a
 document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
 circular avatar, name, and the literal label `Personal record` — the single-user posture stated in
@@ -422,7 +423,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 ### Layout
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
-(primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
+(primary)). The title was `Your record`, which was then Screen 4's title and the sidebar's `Record` row.
 `Quick capture` (ghost), before `Import a document`, since #95; it opens Quick capture. Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
@@ -461,7 +462,7 @@ is then to deal with what is. A Generate or Update pressed here that the server 
 server's reason in this panel, under the step.
 
 **Section 2 — Your record.** Heading `Your record`, sentence `What you entered by hand: where you
-worked, and what you hold.`, and a link `Open Record` to Screen 4. Under it a four-tile grid, 1px
+worked, and what you hold.`, and a link `Open career timeline` to Screen 4. Under it a four-tile grid, 1px
 gaps over a `border` background so the tiles read as one object. Each tile: label, 23px value,
 sub-note (`2 current, 2 past` / `4 with measured outcomes` / `1 expires Mar 2027`). Entities:
 Employers · Roles · Projects · Credentials. **Credentials counts educations and certifications
@@ -696,12 +697,12 @@ so the frame does not change under a first-time author; it carries no note and n
 
 ---
 
-## Screen 4 — Your record
+## Screen 4 — Career timeline
 
-The five hand-entered entity types on one screen: employers, roles, projects, education and
-certifications. **Each is a plain form** — no import, no extraction, no diff review (S7). Sidebar
-chrome, one `Panel` per collection, each listing its rows with an inline form below the row being
-edited.
+**Renamed and laid out again 2026-10-19 (#113).** It was `Your record`, five separate lists. The
+five hand-entered entity types are still on one screen: employers, roles, projects, education and
+certifications. **Each is a plain form** — no import, no extraction, no diff review (S7). Route
+`/record`, unchanged.
 
 **Employer** carries 資本金 and 従業員数; **Education** carries an **outcome**, and a withdrawal must
 read 中退 rather than 卒業. **Education also carries a required level** — the rung the schooling sits
@@ -709,33 +710,72 @@ on, which is what the English résumé selects rows by; the field is required on
 alternative is a render classifying a school by its name. All calendar fields collect **month and
 year only**.
 
-**Intro** (Shared chrome, #56): `Your employers, roles, projects, education and certifications,
-entered by hand. Your documents take their headings and dates from here.` Then
-`Next: add an employer. Roles and imported documents are filed under one.` while the record holds no
-employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
+**Header:** title `Career timeline`, note `Where you worked, what you held, what you studied. Every
+document takes its names and dates from here.`
+
+**Intro** (Shared chrome, #56): `Your jobs with the roles and projects inside them, then your
+schooling and certifications, all entered by hand.` Then
+`Next: add a job. Roles, projects and imported documents are filed under one.` while the record holds
+no employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
 it does. The `Next:` line waits for the employers to be read: telling a record with three employers
 to add one is worse than saying nothing for a moment.
 
-Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
-employer exists, because a role belongs to one; and deleting an entry something still references
-surfaces the server's `409` message in place, rather than being pre-empted by a check the client
-would have to keep in step with the server. **Every one of the five collections deletes**, and each
+### Layout
+
+Top to bottom in the 940px column:
+
+1. **Profile card.** Initials, `nameLatin · 漢字名`, then the résumé headline, city and country, and
+   the email (#108's fields, each only when filled), a chip `Address and birth date: 履歴書 only`, and
+   a link `Edit profile` to the profile form (`Add your profile` when there is none). It shows what
+   the résumé header shows and nothing the 履歴書 alone prints; the résumé's opt-in phone and links
+   stay on the profile form.
+2. **Work.** Heading and `Add a job`. One card per employer on a vertical rail, newest first; the
+   current employer's dot is filled. A card: the Latin name with 会社名 beside it; a line of the
+   dates, the duration (`3 yrs 6 mos`, both end months counted, an open end running to this month),
+   the employment type, 業種 and `N people`; Edit and Delete. Inside, two columns: **Roles** (title,
+   dates, Edit, Delete, `Add a role`, which starts the form under this employer) and **Projects and
+   achievements** (name, `N achievements`, dates, its inclusion line, Edit, Delete, `Add a project`,
+   likewise), with a `Not filed under a project` row for the employer's facts on no project. A
+   footer: `From N imported documents`, `N achievements`, and the
+   employer's inclusion line. A form opens full width at the bottom of its card in the footer's place.
+3. **The 履歴書's gap warning, inline.** Each gap `unexplainedGaps` finds over the rows the 履歴書
+   would print, its exclusions applied, sits between the two cards it falls between, in the
+   履歴書's words: `N months between X and Y are covered by no 学歴・職歴 entry. The 履歴書 will
+   warn about it.` A dashed neutral box: it is advice, and nothing is held back by it. A gap before
+   every job, between schooling and the first one, sits after the oldest card.
+4. **Independent projects.** Projects with no employer, as project rows, with `Add a project`.
+5. **Education and Certifications**, side by side. An education row carries its inclusion line, and
+   an upper-secondary rung the chip `Left out of: Résumé (English)`; a lower-secondary rung also names
+   `職務経歴書` as excluded. A certification carries `expired YYYY-MM`,
+   `expires this month` or `expires in N months` (three months ahead) as a neutral chip. Expired
+   certifications still print; the chip says so much and no more.
+
+Counts come from `GET /api/career-timeline` (`07` §4): accepted facts only, called achievements
+here.
+
+**Delete.** Deleting an entry something still references surfaces the server's `409` message at the
+top of the card or panel the row is in, rather than being pre-empted by a check the client would
+have to keep in step with the server. **Every one of the five collections deletes**, and each
 refusal names counts and never content: an employer counts the facts, roles and projects on it, and
 a project counts the facts and the source documents imported under it (Screen 3).
 **A project that has been imported under is refused until its documents are refiled**, and its
 refusal names Screen 8 rather than asking for a reassignment: a document's facts follow its project,
-so refiling the document from Documents is what moves them (`docs/06`, 2026-09-21).
+so refiling the document from Documents is what moves them (`docs/06`, 2026-09-21). Edit and Delete
+are named for their row (`Delete Platform Lead`), since a card holds several of each.
 
-**Per-render inclusion** (S13, added 2026-09-13). Employer, project and education rows carry an
-`Appears in` line beneath the row: one checkbox per render, labelled with the render's name and
-checked unless the author has unchecked it. Unchecking leaves the entry out of that render's
-generation input and nothing else — the row stays on this screen, every other render still reads it,
-and the facts filed under it leave that render with it. A project under an unchecked employer leaves
-too. Saving is immediate, as it is for the forms. Roles and certifications carry no setting: a role
-follows its employer, and S13 does not name certifications. Changing a setting does not mark a
-document out of date, because staleness compares facts a document may use, whatever one render
-leaves out (`docs/06`, 2026-09-13 and 2026-10-08). Deleting an entry
-takes its settings with it (`docs/06`, 2026-09-21).
+**Per-render inclusion** (S13, added 2026-09-13; one line since #113). Employer, project and
+education rows carry one line naming only the exceptions — `In all 5 documents` or `Left out of:
+履歴書`, listing every excluded document even when most are off — and `Change`, which opens a popover
+(`Appears in`, one checkbox per render, labelled with the render's name and checked unless the
+author has unchecked it). Escape closes it and returns focus to `Change`; a press outside closes it.
+A setting that does not save says `That setting was not saved.` and the reason beside the line.
+Unchecking leaves the entry out of that render's generation input and nothing else — the row stays
+on this screen, every other render still reads it, and the facts filed under it leave that render
+with it. A project under an unchecked employer leaves too. Saving is immediate, as it is for the
+forms. Roles and certifications carry no setting: a role follows its employer, and S13 does not name
+certifications. Changing a setting does not mark a document out of date, because staleness compares
+facts a document may use, whatever one render leaves out (`docs/06`, 2026-09-13 and 2026-10-08).
+Deleting an entry takes its settings with it (`docs/06`, 2026-09-21).
 
 The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of
 reading it, and it appears on a resolved card as well as a candidate one so an already-reviewed
@@ -997,7 +1037,7 @@ come from here once the author has curated anything. **Nothing on this screen is
 every name is a technology some accepted fact or certification already carries (`04`
 `skill_curations`), and the screen only chooses, groups and orders them.
 
-Sidebar chrome, with a `Skills` row under `Record`. Header title `Skills`, contextual note
+Sidebar chrome, with a `Skills` row under `Career timeline`. Header title `Skills`, contextual note
 `Chosen from the technologies your facts and certifications name`.
 
 **Intro** (Shared chrome, #56): `Which technologies your documents list, and in what order. Every
