@@ -107,7 +107,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
-| `GET` | `/api/career-timeline` | #113 | What Screen 4 shows beside the rows: `employers[]` `{ id, achievements, unfiled, documents, captures }` counting the accepted facts that resolve to each (`04` §3.12), how many are filed under no project, the documents they came from and the ones added by quick capture; `projects[]` `{ id, achievements }`; and `gaps[]` `{ after, before, months }`, the 履歴書's own gap warning over the rows it would print, its exclusions applied. **Ids, counts and months only**, built on the read |
+| `GET` | `/api/career-timeline` | #113 | What Screen 4 shows beside the rows: `employers[]` `{ id, achievements, unfiled, documents }` counting the accepted facts that resolve to each (`04` §3.12), how many are filed under no project and the documents they came from; `projects[]` `{ id, achievements }`; and `gaps[]` `{ after, before, months }`, the 履歴書's own gap warning over the rows it would print, its exclusions applied. **Ids, counts and months only**, built on the read |
 
 **`GET /api/profile` → 200**
 
