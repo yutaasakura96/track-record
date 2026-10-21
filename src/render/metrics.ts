@@ -17,10 +17,11 @@
  * the record as well as the render, and they are still checked by hand.
  *
  * The input type is structural rather than an import of `RenderContent`, so
- * that this module has no imports at all and Node can load it directly. The
- * test asserts a real `RenderContent` satisfies it, which is what keeps the two
- * from drifting apart.
+ * that Node can load this module directly. The test asserts a real
+ * `RenderContent` satisfies it, which is what keeps the two from drifting apart.
  */
+
+import { EMPLOYER_CHAPTER_PREFIX } from "./chapters.ts";
 
 export interface MeasuredBlock {
   kind: string;
@@ -70,13 +71,6 @@ export const LONG_BULLET_CHARACTERS = 250;
 const CARRIES_A_NUMBER = /\d/;
 
 /**
- * The section key prefix of one employer's own section. Duplicated from
- * `src/render/chapters.ts` rather than imported, so that this module keeps no
- * imports; a test asserts the two stay in step.
- */
-export const EMPLOYER_SECTION_PREFIX = "employer:";
-
-/**
  * The `bullet` blocks written under employers, in document order: the
  * `experience` section of a 職務経歴書 or of a résumé generated before issue
  * #107, and the per-employer sections a résumé has carried since. A career
@@ -84,7 +78,7 @@ export const EMPLOYER_SECTION_PREFIX = "employer:";
  */
 export function experienceBullets(content: MeasuredContent): MeasuredBlock[] {
   return content.sections
-    .filter((s) => s.key === EXPERIENCE_SECTION || s.key.startsWith(EMPLOYER_SECTION_PREFIX))
+    .filter((s) => s.key === EXPERIENCE_SECTION || s.key.startsWith(EMPLOYER_CHAPTER_PREFIX))
     .flatMap((s) => s.blocks.filter((b) => b.kind === "bullet"));
 }
 

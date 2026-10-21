@@ -11,7 +11,7 @@
  * career record, and test fixtures are never sampled from it (CLAUDE.md).
  */
 import { describe, expect, it } from "vitest";
-import { bulletsFromLines, EMPLOYER_SECTION_PREFIX, experienceBullets, measureBullets } from "~/render/metrics";
+import { bulletsFromLines, experienceBullets, measureBullets } from "~/render/metrics";
 import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
 import type { RenderContent } from "~/shared/render-content";
 
@@ -22,9 +22,8 @@ const OVERLONG = "c".repeat(300); // 300, past the 250 threshold
 
 /**
  * Typed as `RenderContent` and passed to a function that takes the module's own
- * structural type. That assignability IS the coupling test: `metrics.ts` has no
- * imports so that Node can load it directly, and this is what stops the two
- * shapes drifting apart.
+ * structural type. That assignability IS the coupling test: Node can load
+ * `metrics.ts` directly, and this is what stops the two shapes drifting apart.
  */
 const CONTENT: RenderContent = {
   sections: [
@@ -59,16 +58,12 @@ describe("measuring a render's experience section", () => {
     const content = {
       sections: [
         { key: "summary", blocks: [{ kind: "paragraph", text: "Not a bullet.", factIds: [] }] },
-        { key: `${EMPLOYER_SECTION_PREFIX}emp_a`, blocks: [{ kind: "bullet", text: "First.", factIds: [] }] },
-        { key: `${EMPLOYER_SECTION_PREFIX}emp_b`, blocks: [{ kind: "paragraph", text: "A chapter.", factIds: [] }] },
-        { key: `${EMPLOYER_SECTION_PREFIX}emp_c`, blocks: [{ kind: "bullet", text: "Second.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_a`, blocks: [{ kind: "bullet", text: "First.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_b`, blocks: [{ kind: "paragraph", text: "A chapter.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_c`, blocks: [{ kind: "bullet", text: "Second.", factIds: [] }] },
       ],
     };
     expect(experienceBullets(content).map((b) => b.text)).toEqual(["First.", "Second."]);
-  });
-
-  it("keeps its employer prefix in step with the chapter plan's", () => {
-    expect(EMPLOYER_SECTION_PREFIX).toBe(EMPLOYER_CHAPTER_PREFIX);
   });
 
   it("reads nothing from a document with no experience section", () => {
