@@ -52,6 +52,7 @@ const SIZE: Record<SheetSize, string> = {
   body: "text-render-body",
   small: "text-smaller",
 };
+const AFTER: Record<number, string> = { 0: "mb-0", 20: "mb-2", 40: "mb-4", 80: "mb-6", 100: "mb-8", 200: "mb-14" };
 
 /**
  * A 履歴書 as its file lays it out: the file's lines and tables, cell for cell,
@@ -81,7 +82,7 @@ function SheetPage({ sheet }: { sheet: Sheet }) {
 }
 
 const lineClass = (line: SheetLine) =>
-  `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} whitespace-pre-wrap break-words`;
+  `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} ${AFTER[line.afterTwips] ?? "mb-0"} whitespace-pre-wrap break-words`;
 
 /** A first row the file sets in bold throughout, as it does 年 / 月 / 学歴・職歴, heads its columns. */
 const headed = (row: SheetCell[]) =>
@@ -111,7 +112,7 @@ function SheetTable({ table }: { table: Extract<Sheet["blocks"][number], { kind:
                   >
                     {cell.lines.map((line, lineIndex) => (
                       <p key={lineIndex} className={lineClass(line)}>
-                        {line.text}
+                        {line.text || "\u00a0"}
                       </p>
                     ))}
                   </Cell>

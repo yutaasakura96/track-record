@@ -445,10 +445,15 @@ describe("a sent copy", () => {
     expect(printedBlocks.map((block) => block.tagName === "P" && block.getAttribute("aria-hidden") === "true" ? "gap" : block.querySelector("table") ? "table" : "line")).toEqual([
       "line", "line", "table", "gap", "table", "gap", "table", "gap", "table", "gap", "table", "gap",
     ]);
+    expect(printedBlocks[3]!.classList.contains("mb-14")).toBe(true);
+    expect(printedBlocks[9]!.classList.contains("mb-8")).toBe(true);
+    expect(printedBlocks[11]!.classList.contains("mb-0")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.querySelectorAll("p")[0]!.classList.contains("mb-2")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.querySelector("p")!.textContent).toBe("\u00a0");
     const cells = (row: HTMLElement) => [...row.querySelectorAll("td, th")];
 
     const identity = within(tables[0]!).getAllByRole("row");
-    expect(cells(identity[0]!).map((cell) => cell.textContent)).toEqual(["ふりがな名前", "かくう　はなこ架空　花子", ""]);
+    expect(cells(identity[0]!).map((cell) => cell.textContent)).toEqual(["ふりがな名前", "かくう　はなこ架空　花子", "\u00a0"]);
     expect(cells(identity[0]!)[2]!.getAttribute("rowspan")).toBe("3");
     expect(cells(identity[1]!).map((cell) => cell.textContent)).toEqual(["1995年 2月 3日生（満 31 歳） 女"]);
     expect(cells(identity[1]!)[0]!.getAttribute("colspan")).toBe("2");

@@ -19,7 +19,7 @@ export const RIREKISHO_DATA: RirekishoTemplateData = {
   motivation: "架空の志望動機です。", kibou: "貴社規定に従います。",
 };
 
-const line = (text: string, over: Partial<SheetLine> = {}): SheetLine => ({ text, align: "start", size: "body", bold: false, ...over });
+const line = (text: string, over: Partial<SheetLine> = {}): SheetLine => ({ text, align: "start", size: "body", bold: false, afterTwips: 0, ...over });
 const cell = (lines: SheetLine[], colSpan = 1, rowSpan = 1, shaded = false): SheetCell => ({ lines, colSpan, rowSpan, shaded });
 const shaded = (lines: SheetLine[], colSpan = 1, rowSpan = 1) => cell(lines, colSpan, rowSpan, true);
 const heading = (text: string) => line(text, { align: "center", bold: true });
@@ -28,19 +28,19 @@ const row = (year: string, month: string, text: string) => [
   cell([line(month, { align: "center" })]),
   cell([line(text)]),
 ];
-const spacer = { kind: "line" as const, line: line("") };
+const spacer = (afterTwips: number) => ({ kind: "line" as const, line: line("", { afterTwips }) });
 
 export const RIREKISHO_SHEET: Sheet = {
   blocks: [
-    { kind: "line", line: line("履 歴 書", { align: "center", size: "title", bold: true }) },
-    { kind: "line", line: line("2026年 10月 6日 ", { align: "end" }) },
+    { kind: "line", line: line("履 歴 書", { align: "center", size: "title", bold: true, afterTwips: 200 }) },
+    { kind: "line", line: line("2026年 10月 6日 ", { align: "end", afterTwips: 200 }) },
     {
       kind: "table",
       columns: [2000 / 9360, 5360 / 9360, 2000 / 9360],
       rows: [
         [
-          cell([line("ふりがな", { align: "center", size: "small" }), line("名前", { align: "center" })]),
-          cell([line("かくう　はなこ"), line("架空　花子", { size: "large", bold: true })]),
+          cell([line("ふりがな", { align: "center", size: "small" }), line("名前", { align: "center", afterTwips: 80 })]),
+          cell([line("かくう　はなこ", { afterTwips: 20 }), line("架空　花子", { size: "large", bold: true, afterTwips: 40 })]),
           shaded([line("", { align: "center" })], 1, 3),
         ],
         [cell([line("1995年 2月 3日生（満 31 歳） 女")], 2)],
@@ -49,7 +49,7 @@ export const RIREKISHO_SHEET: Sheet = {
         [cell([line("ふりがな", { size: "small" }), line("連絡先")]), cell([line("〒"), line("同上")], 2)],
       ],
     },
-    spacer,
+    spacer(200),
     {
       kind: "table",
       columns: [1200 / 9360, 1200 / 9360, 6960 / 9360],
@@ -62,16 +62,16 @@ export const RIREKISHO_SHEET: Sheet = {
         [cell([line("以上", { align: "center" })], 3)],
       ],
     },
-    spacer,
+    spacer(200),
     {
       kind: "table",
       columns: [1200 / 9360, 1200 / 9360, 6960 / 9360],
       rows: [[shaded([heading("年")]), shaded([heading("月")]), shaded([heading("免許・資格")])], row("2018", "6", "架空資格　取得")],
     },
-    spacer,
-    { kind: "table", columns: [1], rows: [[shaded([line("志望動機・特技・アピールポイントなど", { bold: true })])], [cell([line("架空の志望動機です。")])]] },
-    spacer,
-    { kind: "table", columns: [1], rows: [[shaded([line("本人希望欄")])], [cell([line("貴社規定に従います。")])]] },
-    spacer,
+    spacer(200),
+    { kind: "table", columns: [1], rows: [[shaded([line("志望動機・特技・アピールポイントなど", { bold: true })])], [cell([line("架空の志望動機です。", { afterTwips: 100 })])]] },
+    spacer(100),
+    { kind: "table", columns: [1], rows: [[shaded([line("本人希望欄")])], [cell([line("貴社規定に従います。", { afterTwips: 100 })])]] },
+    spacer(0),
   ],
 };

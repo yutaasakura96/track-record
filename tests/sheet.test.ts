@@ -47,7 +47,7 @@ describe("a filled 履歴書, read back out of its file", () => {
 
   it("opens with the title spaced as the file spaces it, then the date on the right", () => {
     const lines = sheet.blocks.flatMap((block) => (block.kind === "line" && block.line.text.trim() ? [block.line] : []));
-    expect(lines[0]).toEqual({ text: "履 歴 書", align: "center", size: "title", bold: true });
+    expect(lines[0]).toEqual({ text: "履 歴 書", align: "center", size: "title", bold: true, afterTwips: 200 });
     expect(lines[1]).toMatchObject({ text: "2099年 4月 1日 ", align: "end" });
   });
 
@@ -88,6 +88,17 @@ describe("a filled 履歴書, read back out of its file", () => {
     expect(readSheet(fillRirekishoTemplate(RIREKISHO_DATA))).toEqual(RIREKISHO_SHEET);
   });
 
+  it("carries paragraph after-spacing from the filled file through separators and table cells", () => {
+    const blocks = sheet.blocks;
+    expect(blocks.filter((block) => block.kind === "line").map((block) => block.line.afterTwips)).toEqual([200, 200, 200, 200, 200, 100, 0]);
+    const [identity, , , motivation, kibou] = tables(sheet);
+    expect(identity!.rows[0]![0]!.lines[1]!.afterTwips).toBe(80);
+    expect(identity!.rows[0]![1]!.lines.map((line) => line.afterTwips)).toEqual([20, 40]);
+    expect(identity!.rows[0]![2]!.lines[0]!.afterTwips).toBe(0);
+    expect(motivation!.rows[1]![0]!.lines[0]!.afterTwips).toBe(100);
+    expect(kibou!.rows[1]![0]!.lines[0]!.afterTwips).toBe(100);
+  });
+
   it("keeps the prose cells' text as written, markup characters included", () => {
     const [, , , motivation, kibou] = tables(sheet);
     expect(motivation!.rows.map(texts)).toEqual([["志望動機・特技・アピールポイントなど"], ["架空の志望動機 & <その理由>。"]]);
@@ -121,6 +132,6 @@ describe("reading a sheet", () => {
         `<w:r><w:t>一</w:t><w:br/><w:t>二</w:t><w:tab/><w:t>三</w:t></w:r>` +
         `<w:del><w:r><w:delText>消</w:delText></w:r></w:del><w:r><w:br w:type="page"/></w:r></w:p>`,
     ));
-    expect(sheet.blocks).toEqual([{ kind: "line", line: { text: "一\n二\t三", align: "end", size: "body", bold: false } }]);
+    expect(sheet.blocks).toEqual([{ kind: "line", line: { text: "一\n二\t三", align: "end", size: "body", bold: false, afterTwips: 0 } }]);
   });
 });

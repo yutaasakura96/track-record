@@ -28,6 +28,7 @@ export interface SheetLine {
   align: SheetAlign;
   size: SheetSize;
   bold: boolean;
+  afterTwips: number;
 }
 
 export interface SheetCell {
@@ -81,7 +82,7 @@ export function sheetOf(xml: string): Sheet {
   const blocks: SheetBlock[] = [];
   let table: OpenTable | null = null;
   let cell: OpenCell | null = null;
-  let paragraph: { text: string; align: SheetAlign; sizes: number[]; bold: boolean } | null = null;
+  let paragraph: { text: string; align: SheetAlign; sizes: number[]; bold: boolean; afterTwips: number } | null = null;
   /** Inside `w:pPr` (paragraph properties) or a run's `w:rPr` (run properties). */
   let inParagraphProperties = false;
   let run: { size: number | null; bold: boolean; written: boolean } | null = null;
@@ -148,15 +149,19 @@ export function sheetOf(xml: string): Sheet {
                 align: paragraph.align,
                 size: sizeOf(paragraph.sizes.length ? Math.max(...paragraph.sizes) : null),
                 bold: paragraph.bold,
+                afterTwips: paragraph.afterTwips,
               }
-            : { text: "", align: "start", size: "body", bold: false };
+            : { text: "", align: "start", size: "body", bold: false, afterTwips: 0 };
           if (cell) cell.lines.push(line);
           else blocks.push({ kind: "line", line });
           paragraph = null;
-        } else paragraph = { text: "", align: "start", sizes: [], bold: false };
+        } else paragraph = { text: "", align: "start", sizes: [], bold: false, afterTwips: 0 };
         continue;
       case "w:pPr":
         if (!selfClosing) inParagraphProperties = !closing;
+        continue;
+      case "w:spacing":
+        if (paragraph && inParagraphProperties && !run) paragraph.afterTwips = Number(attribute(attributes, "after") ?? 0);
         continue;
       case "w:jc":
         if (paragraph && inParagraphProperties && !run) {
