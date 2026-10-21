@@ -423,7 +423,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 ### Layout
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
-(primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
+(primary)). The title was `Your record`, which was then Screen 4's title and the sidebar's `Record` row.
 `Quick capture` (ghost), before `Import a document`, since #95; it opens Quick capture. Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
@@ -1037,7 +1037,7 @@ come from here once the author has curated anything. **Nothing on this screen is
 every name is a technology some accepted fact or certification already carries (`04`
 `skill_curations`), and the screen only chooses, groups and orders them.
 
-Sidebar chrome, with a `Skills` row under `Record`. Header title `Skills`, contextual note
+Sidebar chrome, with a `Skills` row under `Career timeline`. Header title `Skills`, contextual note
 `Chosen from the technologies your facts and certifications name`.
 
 **Intro** (Shared chrome, #56): `Which technologies your documents list, and in what order. Every

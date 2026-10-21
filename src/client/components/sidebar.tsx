@@ -53,7 +53,7 @@ export function Sidebar({ name }: { name: string }) {
   // Waiting facts across every version of every document, and flags not yet
   // checked; each shown only above zero. Read from the summary, not the
   // listing: the badges are two numbers and this is the only query the chrome
-  // makes on Home, Record and Skills.
+  // makes on Home, Career timeline and Skills.
   const summary = useImportSummary().data;
   // Read where the list reads it, so the row and the list cannot disagree.
   const goneQuiet = useApplications().data?.items.filter((row) => row.quietDays !== null).length;
