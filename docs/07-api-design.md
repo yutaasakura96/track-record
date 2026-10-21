@@ -865,7 +865,8 @@ Accepting an already-decided proposal → `409 conflict`.
 name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
 the same way (#107). Every other kind is `<kind>-<YYYY-MM-DD>.docx`, e.g. `shokumu-keirekisho-2026-08-12.docx`.
 Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
-certifications and languages are read from the record at the same time (`docs/03` §6). Failure → `500` with `code: "render_failed"`;
+certifications and languages are read from the record at the same time (`docs/03` §6). Other assembly
+failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
 **A download obeys today's record, not the day the version was accepted.** Every download

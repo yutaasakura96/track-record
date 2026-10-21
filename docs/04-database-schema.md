@@ -253,9 +253,8 @@ The only entity that uses the import pipeline.
 | `ended_on` | date | yes | |
 | `client_is_named` | boolean | no | Default `false`. Per-project override of the "client identity is not named" default |
 
-**The nullable `employer_id` is load-bearing.** The English résumé renders `PROJECTS` as a section
-separate from `PROFESSIONAL EXPERIENCE`; a model requiring every project to hang off an employer
-cannot render it.
+**The nullable `employer_id` is load-bearing.** The English résumé places independent projects in
+Projects, separate from Experience (`03` §6).
 
 **Index:** `(user_id, employer_id)`.
 

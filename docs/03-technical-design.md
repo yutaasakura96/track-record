@@ -467,8 +467,9 @@ not written.
 university level and above, the current technical certifications and a Languages line. The
 `.docx` (`src/render/resume-docx.ts`), the Markdown and a sent copy's page are written from that one
 assembled document. The per-employer bullet budget is computed from the record and printed in the
-prompt. A version from before #107 holds one heading-led `experience` section, and its groups are
-joined to employers by the attribution check's name resolution, so it downloads in the same layout.
+prompt. A version from before #107 may hold a heading-led `experience` section; when present, its
+groups are joined to employers by the attribution check's name resolution. Legacy versions without
+that section remain editable under their stored section shape and download in the same layout.
 
 **The master document is not in this pipeline.** `GET /api/master-document` reads the record in one
 batch and groups it (employer, then project, then fact); no model is called, nothing is stored and

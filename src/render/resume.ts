@@ -355,7 +355,7 @@ function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | nu
  * prints its header: a gap in the history is the first thing a reader asks
  * about, and the dates are true whether or not a bullet is.
  *
- * A version generated before this layout holds one `experience` section in
+ * A version generated before this layout may hold an `experience` section in
  * which a paragraph opens each employer. Its groups are joined to the record by
  * the attribution check's own name resolution, so an old version downloads in
  * the new layout with its bullets under the right job. A group whose heading
