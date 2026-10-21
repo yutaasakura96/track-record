@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { createDb } from "~/server/db/client";
 import { applicationSentCopies } from "~/server/db/schema";
 import { readSheet } from "~/render/sheet";
-import { DOCUMENT_VIEW_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
+import { RIREKISHO_PRINT_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
 
 const evidence = process.env.NO_MISTAKES_EVIDENCE_DIR;
@@ -30,7 +30,7 @@ async function checkForm(page: Page) {
 
 test("current and legacy 履歴書 pages match their printed files in both themes", async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  const context = await browser.newContext({ baseURL, storageState: DOCUMENT_VIEW_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: RIREKISHO_PRINT_STORAGE_STATE });
   const page = await context.newPage();
   await page.setViewportSize({ width: 1440, height: 1100 });
   const errors: string[] = [];
