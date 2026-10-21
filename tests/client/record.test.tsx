@@ -154,7 +154,7 @@ describe("the timeline", () => {
     open(
       {
         "GET /api/career-timeline": {
-          employers: [{ id: QORVANE.id, achievements: 12, unfiled: 3, documents: 2, captures: 4 }],
+          employers: [{ id: QORVANE.id, achievements: 12, unfiled: 3, documents: 2 }],
           projects: [{ id: LEDGER.id, achievements: 9 }],
           gaps: [],
         },
@@ -165,7 +165,7 @@ describe("the timeline", () => {
     );
 
     const qorvane = await card();
-    await within(qorvane).findByText("From 2 imported documents and 4 added by quick capture");
+    await within(qorvane).findByText("From 2 imported documents");
     expect(within(qorvane).getByText("Platform Lead")).toBeTruthy();
     expect((await rowOf("Ledger rebuild")).textContent).toContain("9 achievements");
     expect(within(qorvane).getByText("Not filed under a project").closest("li")!.textContent).toContain(
@@ -200,7 +200,26 @@ describe("the timeline", () => {
     expect(toneOf(text)).toBe("text-dim");
   });
 
-  it("calls out a certification that has expired, and the rungs the English résumé leaves out", async () => {
+  it("shows the 履歴書's gap when education is recorded without an employer", async () => {
+    const gap = { after: "2011-03", before: "2015-04", months: 48 };
+    const school: Education = {
+      id: "edu-test-school", institution: "Kitamachi High School", institutionJa: null,
+      faculty: null, degree: null, fieldOfStudy: null, startedOn: "2008-04-01",
+      endedOn: "2011-03-01", outcome: "graduated", level: "secondary_upper",
+    };
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, gaps: [gap] } }, [], [], {
+      educations: [school, { ...school, id: "edu-test-college", institution: "Cedar College",
+        startedOn: "2015-04-01", endedOn: "2019-03-01", level: "tertiary" }],
+    });
+
+    const work = await panel("Work");
+    expect(within(work).getByText(/No jobs yet/)).toBeTruthy();
+    expect(await within(work).findByText(
+      "48 months between 2011-03 and 2015-04 are covered by no 学歴・職歴 entry. The 履歴書 will warn about it.",
+    )).toBeTruthy();
+  });
+
+  it("calls out expired certifications and each education rung's render exclusions", async () => {
     open({}, [QORVANE], [], {
       certifications: [
         {
@@ -239,12 +258,27 @@ describe("the timeline", () => {
           outcome: "graduated",
           level: "secondary_upper",
         },
+        {
+          id: "edu-test-middle",
+          institution: "Kitamachi Middle School",
+          institutionJa: null,
+          faculty: null,
+          degree: null,
+          fieldOfStudy: null,
+          startedOn: "2005-04-01",
+          endedOn: "2008-03-01",
+          outcome: "graduated",
+          level: "secondary_lower",
+        },
       ],
     });
 
     expect((await rowOf("Hollow Cloud Associate")).textContent).toContain("expired 2022-04");
     expect((await rowOf("Quill Engineer")).textContent).toContain("expires this month");
-    expect((await rowOf("Kitamachi High School")).textContent).toContain("Not on the English résumé");
+    expect((await rowOf("Kitamachi High School")).textContent).toContain("Left out of: Résumé (English)");
+    expect((await rowOf("Kitamachi Middle School")).textContent).toContain(
+      "Left out of: Résumé (English), 職務経歴書",
+    );
   });
 });
 
@@ -600,6 +634,19 @@ describe("choosing which renders an employer appears in", () => {
     expect(within(qorvane).getByText("Left out of: 履歴書")).toBeTruthy();
     expect(within(group).getByRole("checkbox", { name: "履歴書" })).toHaveProperty("checked", false);
     expect(within(group).getByRole("checkbox", { name: "Résumé (English)" })).toHaveProperty("checked", true);
+  });
+
+  it("lists every excluded document when only one remains included", async () => {
+    open({}, [QORVANE], [
+      "english_resume", "shokumu_keirekisho", "career_story_en", "career_story_ja",
+    ].map((kind) => ({
+      entityType: "employer", entityId: QORVANE.id, kind, included: false,
+    })) as RenderInclusion[]);
+
+    const qorvane = await card();
+    expect(await within(qorvane).findByText(
+      "Left out of: Résumé (English), 職務経歴書, Career story (English), 職務経歴ストーリー",
+    )).toBeTruthy();
   });
 
   it("closes on Escape and returns focus to Change", async () => {

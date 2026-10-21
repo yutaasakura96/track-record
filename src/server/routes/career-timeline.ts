@@ -37,7 +37,6 @@ export function registerCareerTimelineRoutes(app: Hono<AppEnv>) {
             achievements: n,
             unfiled: sql<number>`(count(*) filter (where ${facts.projectId} is null))::int`,
             documents: sql<number>`count(distinct ${sourceDocumentVersions.sourceDocumentId})::int`,
-            captures: sql<number>`(count(*) filter (where ${facts.sourceDocumentVersionId} is null))::int`,
           })
           .from(facts)
           .leftJoin(

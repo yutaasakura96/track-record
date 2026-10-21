@@ -107,9 +107,6 @@ const LEVELS = [
   { value: "postgraduate", label: "大学院 · Postgraduate" },
 ];
 
-/** The rungs the English résumé leaves out, whatever the inclusion setting says. */
-const SECONDARY = new Set<Education["level"]>(["secondary_lower", "secondary_upper"]);
-
 /** A required select's first entry on a new row: the author answers it, the first option does not. */
 const UNCHOSEN = "— 未選択 · Choose one —";
 
@@ -460,6 +457,7 @@ function Work({
         </p>
       </li>
     ));
+  const emptyGaps = gapRows(0);
 
   return (
     <section aria-labelledby={heading} className="grid gap-12">
@@ -477,9 +475,12 @@ function Work({
       ) : null}
 
       {ordered.length === 0 && !adding ? (
-        <p className="text-smaller text-text-faint">
-          No jobs yet. The English résumé has no sections to build until there is one.
-        </p>
+        <>
+          <p className="text-smaller text-text-faint">
+            No jobs yet. The English résumé has no sections to build until there is one.
+          </p>
+          {emptyGaps.length > 0 ? <ol className="grid gap-12">{emptyGaps}</ol> : null}
+        </>
       ) : (
         <ol className="grid gap-12">
           {ordered.map((employer, index) => (
@@ -671,7 +672,7 @@ function EmployerCard({
                 moment over a job that has twelve is worse than a blank. */}
             {timeline ? (
               <>
-                <span>{counts ? sources(counts.documents, counts.captures) : "Nothing imported yet"}</span>
+                <span>{counts ? sources(counts.documents) : "Nothing imported yet"}</span>
                 <span aria-hidden>·</span>
                 <span>{count(counts?.achievements ?? 0, "achievement")}</span>
                 <span aria-hidden>·</span>
@@ -685,14 +686,8 @@ function EmployerCard({
   );
 }
 
-/** Where an employer's achievements came from. Quick capture files one fact per claim. */
-const sources = (documents: number, captures: number) => {
-  const parts = [
-    documents ? count(documents, "imported document") : null,
-    captures ? `${captures} added by quick capture` : null,
-  ].filter(Boolean);
-  return parts.length === 0 ? "Nothing imported yet" : `From ${parts.join(" and ")}`;
-};
+const sources = (documents: number) =>
+  documents ? `From ${count(documents, "imported document")}` : "Nothing imported yet";
 
 function ProjectRow({
   project,
@@ -817,7 +812,11 @@ function EducationPanel({ employers }: { employers: Employer[] }) {
         detail: `${span(education.startedOn, education.endedOn)} · ${
           OUTCOMES.find((o) => o.value === education.outcome)?.label ?? education.outcome
         }`,
-        chip: SECONDARY.has(education.level) ? "Not on the English résumé" : null,
+        chip: education.level === "secondary_upper"
+          ? "Left out of: Résumé (English)"
+          : education.level === "secondary_lower"
+            ? "Left out of: Résumé (English), 職務経歴書"
+            : null,
         extra: <Inclusion entityType="education" entityId={education.id} name={education.institution} />,
       })}
     />

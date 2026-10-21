@@ -736,7 +736,7 @@ Top to bottom in the 940px column:
    dates, Edit, Delete, `Add a role`, which starts the form under this employer) and **Projects and
    achievements** (name, `N achievements`, dates, its inclusion line, Edit, Delete, `Add a project`,
    likewise), with a `Not filed under a project` row for the employer's facts on no project. A
-   footer: `From N imported documents and M added by quick capture`, `N achievements`, and the
+   footer: `From N imported documents`, `N achievements`, and the
    employer's inclusion line. A form opens full width at the bottom of its card in the footer's place.
 3. **The 履歴書's gap warning, inline.** Each gap `unexplainedGaps` finds over the rows the 履歴書
    would print, its exclusions applied, sits between the two cards it falls between, in the
@@ -745,7 +745,8 @@ Top to bottom in the 940px column:
    every job, between schooling and the first one, sits after the oldest card.
 4. **Independent projects.** Projects with no employer, as project rows, with `Add a project`.
 5. **Education and Certifications**, side by side. An education row carries its inclusion line, and
-   a secondary rung the chip `Not on the English résumé`. A certification carries `expired YYYY-MM`,
+   an upper-secondary rung the chip `Left out of: Résumé (English)`; a lower-secondary rung also names
+   `職務経歴書` as excluded. A certification carries `expired YYYY-MM`,
    `expires this month` or `expires in N months` (three months ahead) as a neutral chip. Expired
    certifications still print; the chip says so much and no more.
 
@@ -763,8 +764,8 @@ so refiling the document from Documents is what moves them (`docs/06`, 2026-09-2
 are named for their row (`Delete Platform Lead`), since a card holds several of each.
 
 **Per-render inclusion** (S13, added 2026-09-13; one line since #113). Employer, project and
-education rows carry one line naming only the exceptions — `In all 5 documents`, `Left out of:
-履歴書`, or, when most are off, `Only in: 職務経歴書` — and `Change`, which opens a popover
+education rows carry one line naming only the exceptions — `In all 5 documents` or `Left out of:
+履歴書`, listing every excluded document even when most are off — and `Change`, which opens a popover
 (`Appears in`, one checkbox per render, labelled with the render's name and checked unless the
 author has unchecked it). Escape closes it and returns focus to `Change`; a press outside closes it.
 A setting that does not save says `That setting was not saved.` and the reason beside the line.

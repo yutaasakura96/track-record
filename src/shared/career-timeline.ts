@@ -16,8 +16,6 @@ export interface TimelineEmployer {
   unfiled: number;
   /** Imported documents those facts came from. */
   documents: number;
-  /** Of those facts, the ones added by quick capture. */
-  captures: number;
 }
 
 export interface TimelineProject {
@@ -66,15 +64,11 @@ export function duration(startedOn: string | null, endedOn: string | null, today
 
 /**
  * One line for an entry's per-render setting (S13), naming only the
- * exceptions: `In all 5 documents`, `Left out of: 履歴書`, or, when most are
- * off, `Only in: 履歴書`.
+ * exceptions: `In all 5 documents` or `Left out of: 履歴書`.
  */
 export function inclusionSummary(excluded: ReadonlySet<RenderKind>): string {
   const left = RENDER_KINDS.filter((kind) => excluded.has(kind));
-  const kept = RENDER_KINDS.filter((kind) => !excluded.has(kind));
   if (left.length === 0) return `In all ${RENDER_KINDS.length} documents`;
-  if (kept.length === 0) return "Left out of every document";
-  if (kept.length < left.length) return `Only in: ${kept.map((kind) => RENDER_TITLE[kind]).join(", ")}`;
   return `Left out of: ${left.map((kind) => RENDER_TITLE[kind]).join(", ")}`;
 }
 

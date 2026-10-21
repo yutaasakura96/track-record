@@ -77,7 +77,7 @@ describe("the career timeline", () => {
     const { employerId, projectId } = await seedRecord();
 
     expect(await timeline()).toEqual({
-      employers: [{ id: employerId, achievements: 4, unfiled: 2, documents: 2, captures: 1 }],
+      employers: [{ id: employerId, achievements: 4, unfiled: 2, documents: 2 }],
       projects: [{ id: projectId, achievements: 2 }],
       gaps: [{ after: "2017-03", before: "2022-04", months: 60 }],
     });
@@ -89,7 +89,7 @@ describe("the career timeline", () => {
     await imported([fact("Planned the depot routes")], "planner-notes.md", { projectId });
 
     const { employers } = await timeline();
-    expect(employers).toEqual([{ id: employerId, achievements: 1, unfiled: 0, documents: 1, captures: 0 }]);
+    expect(employers).toEqual([{ id: employerId, achievements: 1, unfiled: 0, documents: 1 }]);
   });
 
   it("drops a gap once the row that bounds it is left out of the 履歴書", async () => {

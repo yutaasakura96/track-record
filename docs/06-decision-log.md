@@ -6897,3 +6897,14 @@ This corrects the 2026-10-17 entry's scope: Japanese free-text fields in the pro
 are labelled, while fact claims remain in their recorded language. A rejected generation retains
 its proposal row with `generation_status = failed` and a plain reason; it stores no reviewable
 content. The render pipeline contract is in `docs/03` §4.2 and §6.
+
+---
+
+### [2026-10-21] Career timeline wording follows render inclusion
+
+This supersedes the extra provenance and secondary-school wording in the 2026-10-19 timeline
+entry. Employer footers count imported documents and achievements only; quick-capture facts still
+count as achievements. Inclusion lines always list every excluded document, even when only one
+document remains included. An upper-secondary education chip names the English résumé as excluded;
+a lower-secondary chip also names the 職務経歴書. The 履歴書 gap warning remains visible with education
+but no employers.
