@@ -6934,7 +6934,9 @@ header is joined to its bullets exactly and the attribution check resolves the e
 After parsing, unknown or duplicate keys and wrong block kinds are refused, while headings are
 replaced by the record's. A version from before this one keeps its single `experience` section; its groups are
 joined to employers by the attribution check's name resolution and it downloads in the new layout.
-`npm run measure` counts the bullets of both shapes.
+`npm run measure` counts the bullets of both shapes. To match `employer:<id>`, `metrics.ts` imports
+the prefix from `chapters.ts`, which has no imports of its own, so Node still loads it directly; this
+supersedes the 2026-09-08 entry's rule that `metrics.ts` has no imports at all.
 
 **The bullet budget is computed, not left to the model.** Four or five for the two most recent
 employers, one or two for an employer that ended more than eight years ago, two or three between;
