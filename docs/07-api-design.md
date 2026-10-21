@@ -694,7 +694,7 @@ back to the application it came from.
 blocks. A 履歴書 page also carries `sheet`: ordered line and table blocks read from its filled
 `.docx`, with cell spans, column widths, alignment, size and shading. This applies to the render
 page, the first-version preview and sent copies; older sent copies gain `sheet` from their stored
-file when read.
+file when read, if that file is readable. Otherwise their stored text page is returned.
 
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.

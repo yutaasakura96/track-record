@@ -377,9 +377,9 @@ A change with no explanation is a defect.
 When the render has no current version there is nothing to compare, and two columns against
 nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
 measure: title, document date where applicable, identity and contact lines, then its nonempty
-sections and headings. A 履歴書 includes the template's ふりがな, 性別, 現住所ふりがな, 連絡先 (including
-`同上`) and 学歴・職歴・免許・資格 rows. Address line breaks remain visible. The strip says `This is the
-first version of your <render>. Read it through, then accept it or discard it.` No toolbar, no
+sections and headings. A 履歴書 shows the filled template's form, as in Screen 15. Address line
+breaks remain visible. The strip says `This is the first version of your <render>. Read it through,
+then accept it or discard it.` No toolbar, no
 change navigation, no rationale bar. While the preview loads, the body says `Loading the
 document…`; a failed read shows its error. **Accept stays unavailable until the preview arrives.** The
 footer reads `Accepting saves this as v1 of your <render>.` and `Nothing is saved until you accept
@@ -1897,14 +1897,11 @@ Header `Applications / <company> / <title> as sent`. Read-only.
    reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
    (bare).
 2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
-   sections in file order. A 履歴書 is the filled form read back out of the stored file (decision
-   log, 2026-10-19): the spaced title `履 歴 書`, the date on the right, then the file's tables cell for
-   cell — ふりがな and 名前 beside the empty 写真 cell three rows tall, 生年月日 and 性別, 電話 and
-   Email, 現住所 and 連絡先; the 年 / 月 / 学歴・職歴 table with 学歴, 職歴 and 以上 across the whole
-   row; 年 / 月 / 免許・資格; then the two prose cells. A copy stored before the page carried the form
-   is read the same way, from its file. Tables keep the file's column proportions and fit the
-   width; a table that cannot fit scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese
-   stack.
+   sections in file order. A 履歴書 shows the filled form read from the stored file, including its
+   cell spans, merged 写真 cell, column proportions and typography. Its layout follows the
+   template (`04-database-schema.md` §4). An older sent copy is read from its own file when opened.
+   Tables fit the width; a table that cannot
+   fit scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
 another application, is a 404.
