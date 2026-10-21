@@ -56,6 +56,7 @@ const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
     capitalYen: null,
     headcount: null,
     roles: [],
+    city: null,
   })),
   projects: [],
   workOutsideEmployment: false,

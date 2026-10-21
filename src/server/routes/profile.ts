@@ -108,6 +108,8 @@ const profileBody = z.object({
   resumeLinkedinUrl: webAddress("LinkedIn"),
   resumeGithubUrl: webAddress("GitHub"),
   resumePortfolioUrl: webAddress("Portfolio"),
+  /** Left as it is when not sent; a new profile starts on A4. */
+  paperSize: z.enum(["a4", "letter"]).optional(),
 });
 
 export function registerProfileRoutes(app: Hono<AppEnv>) {

@@ -37,6 +37,8 @@ export interface DemoEmployer {
   nameLatin: string;
   businessDescription: string;
   industryJa: string;
+  /** In English, for the résumé's job header. */
+  city: string;
   capitalYen: number;
   headcount: number;
   employmentType: "full_time" | "contract";
@@ -54,6 +56,7 @@ export const EMPLOYERS: DemoEmployer[] = [
     nameLatin: "Hokushin Systems Co., Ltd.",
     businessDescription: "金融機関向けシステムの受託開発・保守を行う独立系SIer。",
     industryJa: "情報通信業（受託開発）",
+    city: "Tokyo",
     capitalYen: 300_000_000,
     headcount: 850,
     employmentType: "full_time",
@@ -81,6 +84,7 @@ export const EMPLOYERS: DemoEmployer[] = [
     nameLatin: "MinatoPay Inc.",
     businessDescription: "中小規模のEC事業者向けにオンライン決済サービスを提供するフィンテック企業。",
     industryJa: "金融業（決済代行）",
+    city: "Tokyo",
     capitalYen: 1_200_000_000,
     headcount: 140,
     employmentType: "full_time",
@@ -116,6 +120,7 @@ export const EMPLOYERS: DemoEmployer[] = [
     nameLatin: "Kestrel Commerce K.K.",
     businessDescription: "独立系ファッションブランド向けのオンラインマーケットプレイスを運営。",
     industryJa: "小売業（EC）",
+    city: "Tokyo",
     capitalYen: 2_500_000_000,
     headcount: 420,
     employmentType: "full_time",
@@ -143,6 +148,7 @@ export const EMPLOYERS: DemoEmployer[] = [
     nameLatin: "Solaris Health Inc.",
     businessDescription: "クリニック向けの予約・電子カルテ・患者アプリを提供するヘルステック企業。",
     industryJa: "情報通信業（SaaS）",
+    city: "Tokyo",
     capitalYen: 800_000_000,
     headcount: 210,
     employmentType: "full_time",
@@ -205,11 +211,11 @@ export const EDUCATIONS = [
 ];
 
 export const CERTIFICATIONS = [
-  { name: "Applied Information Technology Engineer Examination", nameJa: "応用情報技術者試験 合格", issuingOrganization: "IPA", issuedOn: "2016-06", expiresOn: null, technologies: [] },
-  { name: "AWS Certified Solutions Architect – Associate", nameJa: "AWS認定ソリューションアーキテクト – アソシエイト", issuingOrganization: "Amazon Web Services", issuedOn: "2019-03", expiresOn: "2022-03", technologies: ["AWS"] },
-  { name: "Certified Kubernetes Administrator (CKA)", nameJa: "Certified Kubernetes Administrator (CKA)", issuingOrganization: "The Linux Foundation", issuedOn: "2025-02", expiresOn: "2027-02", technologies: ["Kubernetes"] },
-  { name: "Microsoft Certified: Azure Solutions Architect Expert", nameJa: "Microsoft認定 Azure Solutions Architect Expert", issuingOrganization: "Microsoft", issuedOn: "2024-09", expiresOn: "2026-11", technologies: ["Azure"] },
-  { name: "TOEIC Listening & Reading 865", nameJa: "TOEIC Listening & Reading Test 865点 取得", issuingOrganization: "IIBC", issuedOn: "2018-11", expiresOn: null, technologies: [] },
+  { name: "Applied Information Technology Engineer Examination", nameJa: "応用情報技術者試験 合格", issuingOrganization: "IPA", kind: "technical" as const, issuedOn: "2016-06", expiresOn: null, technologies: [] },
+  { name: "AWS Certified Solutions Architect – Associate", nameJa: "AWS認定ソリューションアーキテクト – アソシエイト", issuingOrganization: "Amazon Web Services", kind: "technical" as const, issuedOn: "2019-03", expiresOn: "2022-03", technologies: ["AWS"] },
+  { name: "Certified Kubernetes Administrator (CKA)", nameJa: "Certified Kubernetes Administrator (CKA)", issuingOrganization: "The Linux Foundation", kind: "technical" as const, issuedOn: "2025-02", expiresOn: "2027-02", technologies: ["Kubernetes"] },
+  { name: "Microsoft Certified: Azure Solutions Architect Expert", nameJa: "Microsoft認定 Azure Solutions Architect Expert", issuingOrganization: "Microsoft", kind: "technical" as const, issuedOn: "2024-09", expiresOn: "2026-11", technologies: ["Azure"] },
+  { name: "TOEIC Listening & Reading 865", nameJa: "TOEIC Listening & Reading Test 865点 取得", issuingOrganization: "IIBC", kind: "language" as const, issuedOn: "2018-11", expiresOn: null, technologies: [] },
 ];
 
 /** Work that left no document: entered through Quick capture, so Attested and with no passage. */

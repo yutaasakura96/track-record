@@ -29,6 +29,8 @@ const employerBody = z.object({
   nameJa: z.string().trim().min(1, "An employer name is required."),
   nameLatin: z.string().trim().nullish(),
   industryJa: z.string().trim().nullish(),
+  /** In English: the English résumé's job header prints it. */
+  city: z.string().trim().nullish(),
   businessDescription: z.string().trim().nullish(),
   /** 資本金 in YEN, not 万円. Formatting happens at render time. */
   capitalYen: z.number().int().nonnegative().nullish(),

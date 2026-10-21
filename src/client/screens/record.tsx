@@ -110,6 +110,13 @@ const LEVELS = [
 /** A required select's first entry on a new row: the author answers it, the first option does not. */
 const UNCHOSEN = "— 未選択 · Choose one —";
 
+/** Where the English résumé puts a certification. Unset prints it as a technical one. */
+const CERTIFICATION_KINDS = [
+  { value: "technical", label: "Technical" },
+  { value: "language", label: "Language" },
+  { value: "other", label: "Other, such as a driving licence" },
+];
+
 const OUTCOMES = [
   { value: "graduated", label: "卒業 · Graduated" },
   { value: "completed", label: "修了 · Completed" },
@@ -151,6 +158,12 @@ const EMPLOYERS: Section = {
       label: "Name in Latin script",
       optional: true,
       hint: "Used on the English résumé. Falls back to 会社名.",
+    },
+    {
+      name: "city",
+      label: "City",
+      optional: true,
+      hint: "In English, as the English résumé's job header gives it: Tokyo.",
     },
     {
       name: "employmentType",
@@ -279,6 +292,14 @@ const CERTIFICATIONS: Section = {
     { name: "issuingOrganization", label: "Issuing organization" },
     { name: "issuedOn", label: "取得 · Issued", type: "month", optional: true },
     { name: "expiresOn", label: "有効期限 · Expires", type: "month", optional: true },
+    {
+      name: "kind",
+      label: "Kind",
+      type: "select",
+      options: CERTIFICATION_KINDS,
+      optional: true,
+      hint: "The English résumé lists technical ones, puts a language score on its Languages line and leaves other kinds out. It leaves out an expired one too.",
+    },
     { name: "credentialId", label: "Credential ID", optional: true },
     { name: "credentialUrl", label: "Credential URL", type: "url", optional: true },
     {

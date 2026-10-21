@@ -30,7 +30,7 @@ const employer = (id: string, nameLatin: string): Employer => ({
   nameJa: "株式会社テスト",
   nameLatin,
   businessDescription: null,
-  industryJa: null,
+  industryJa: null, city: null,
   capitalYen: null,
   headcount: null,
   employmentType: "full_time",

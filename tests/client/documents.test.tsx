@@ -53,7 +53,7 @@ const QORVANE: Employer = {
   nameJa: "株式会社コルヴェイン",
   nameLatin: "Qorvane Labs K.K.",
   businessDescription: null,
-  industryJa: null,
+  industryJa: null, city: null,
   capitalYen: null,
   headcount: null,
   employmentType: "full_time",

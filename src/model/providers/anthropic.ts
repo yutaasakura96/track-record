@@ -23,7 +23,7 @@ import {
 } from "../types";
 import type { RenderContent } from "~/shared/render-content";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
-import { EMIT_RENDER_TOOL, buildGenerationPrompt, chaptersOf, parseRenderContent } from "../generate";
+import { EMIT_RENDER_TOOL, buildGenerationPrompt, parseGeneratedRender } from "../generate";
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
 import { READ_POSTING_SYSTEM_PROMPT, READ_POSTING_TOOL, postingRequest, readPostingInput } from "../posting";
@@ -170,7 +170,7 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
         }
-        return parseRenderContent(block.input, chaptersOf(spec));
+        return parseGeneratedRender(block.input, spec);
       } catch (err) {
         throw asModelError(err);
       }

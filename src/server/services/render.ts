@@ -29,6 +29,8 @@ import { ModelUnavailableError, type ModelUsage } from "~/model/types";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
 import { ENGLISH_DEFECT_REASON, MIXED_ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
+import { bulletBudget } from "~/render/resume";
+import { tokyoToday } from "~/render/rirekisho";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { curatedGroups, curationForRender } from "./skills";
@@ -205,6 +207,7 @@ export async function collectRenderInputs(
   // the headings do, and a fact naming its employer in the other language would
   // leave the model reconciling two spellings before it could file anything.
   const definition = RENDER_DEFINITIONS[kind];
+  const today = tokyoToday();
   // S9. Read only for a render with a skills section, and narrowed to what
   // THIS render is given: the technologies on the facts that survived every
   // filter above, and on the certifications, which no render leaves out.
@@ -260,7 +263,7 @@ export async function collectRenderInputs(
       register: definition.register,
       // Newest-first out of SQL; the document decides whether it stays that
       // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
-      employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e) => ({
+      employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e, position) => ({
         id: e.id,
         // The same language rule the role titles below follow, and for the same
         // reason. This read `nameLatin ?? nameJa` until the first 職務経歴書 was
@@ -291,6 +294,10 @@ export async function collectRenderInputs(
               : (r.titleLatin ?? r.titleJa);
           return title ? [{ title, startedOn: r.startedOn, endedOn: r.endedOn }] : [];
         }),
+        city: e.city,
+        // The résumé's alone: the list is newest-first for it, so the position
+        // is how recent the employer is (`src/render/resume.ts`).
+        ...(kind === "english_resume" ? { bullets: bulletBudget(position, e.endedOn, today) } : {}),
       })),
       projects: includedProjects.map((p) => ({
         id: p.id,
@@ -299,6 +306,8 @@ export async function collectRenderInputs(
         name: nameInLanguage(definition.language, p.nameJa, p.name),
         employerId: p.employerId,
         summary: p.summary,
+        startedOn: p.startedOn,
+        endedOn: p.endedOn,
       })),
       // Facts first, projects second, and the facts are the half that matters:
       // this record holds a personal project as seven facts and no project row,
@@ -350,6 +359,7 @@ export async function collectRenderInputs(
         issuingOrganization: c.issuingOrganization,
         issuedOn: c.issuedOn,
         expiresOn: c.expiresOn,
+        kind: c.kind,
         technologies: c.technologies,
       })),
       // No rows is no curation, and the register writes the section from the

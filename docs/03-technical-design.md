@@ -461,6 +461,18 @@ main résumé is given. The job description is printed in the prompt between tag
 read and not a source of facts, with the rule that a skill the job asks for and no fact states is
 not written.
 
+**The English résumé is laid out from the record, and the model writes only its summary and bullets**
+(#107). A version stores a `summary` section and one section of bullets per employer, keyed
+`employer:<id>` like a story's chapters, plus `project:<id>` for an independent project. On download
+`src/render/resume.ts` joins them by id to what the record holds today: each job's company, city,
+`Mon YYYY – Present` dates and every title held there, the skills curation, the education at
+university level and above, the current technical certifications and a Languages line. The
+`.docx` (`src/render/resume-docx.ts`), the Markdown and a sent copy's page are written from that one
+assembled document. The per-employer bullet budget is computed from the record and printed in the
+prompt. A version from before #107 may hold a heading-led `experience` section; when present, its
+groups are joined to employers by the attribution check's name resolution. Legacy versions without
+that section remain editable under their stored section shape and download in the same layout.
+
 **The master document is not in this pipeline.** `GET /api/master-document` reads the record in one
 batch and groups it (employer, then project, then fact); no model is called, nothing is stored and
 there is no version. It lists every accepted fact, Private and Generated included, and no source

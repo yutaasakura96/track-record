@@ -20,6 +20,7 @@ import {
 } from "~/render/chapters";
 
 export { capitalInJapanese };
+import { shapeResumeContent } from "~/render/resume";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export const EMIT_RENDER_TOOL = {
@@ -97,7 +98,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
         .join("");
       return `- id ${e.id} · ${e.name}${e.industry ? ` (${field(e.industry)})` : ""} · ${monthOf(e.startedOn)} – ${
         e.endedOn ? monthOf(e.endedOn) : "present"
-      }${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${held}`;
+      }${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${bulletsOf(e)}${held}`;
     })
     .join("\n");
   const projects = spec.projects
@@ -202,6 +203,41 @@ export function chaptersOf(spec: RenderSpec): PlannedChapter[] {
 }
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);
+
+/** The résumé's per-employer bullet budget, and nothing on any other render. */
+const bulletsOf = (e: RenderSpec["employers"][number]) =>
+  e.bullets ? ` · bullet budget ${e.bullets.min}–${e.bullets.max}` : "";
+
+/**
+ * The generation contract as the seam applies it: the shape is parsed, a
+ * story's chapters are held to their plan, and a résumé is reduced to the
+ * sections its register asks for (`src/render/resume.ts`).
+ */
+export function parseGeneratedRender(input: unknown, spec: RenderSpec): RenderContent {
+  if (spec.kind === "english_resume" && typeof input === "object" && input !== null &&
+    Array.isArray((input as { sections?: unknown }).sections) &&
+    (input as { sections: unknown[] }).sections.some((section) =>
+      typeof section === "object" && section !== null && Array.isArray((section as { blocks?: unknown }).blocks) &&
+      (section as { blocks: unknown[] }).blocks.some((block) =>
+        typeof block === "object" && block !== null && !KINDS.has((block as { kind?: BlockKind }).kind as BlockKind)))) {
+    throw new ModelUnavailableError("The model returned an unknown résumé block kind.");
+  }
+  const content = parseRenderContent(input, chaptersOf(spec));
+  if (spec.kind !== "english_resume") return content;
+  let shaped: RenderContent;
+  try {
+    shaped = shapeResumeContent(content, spec);
+  } catch (error) {
+    throw new ModelUnavailableError(error instanceof Error ? error.message : "The résumé is invalid.");
+  }
+  if (shaped.sections.some((section) => section.blocks.some((block) => hasJapaneseScript(block.text)))) {
+    throw new ModelUnavailableError("The English résumé contains Japanese script.");
+  }
+  if (shaped.sections.length === 0) {
+    throw new ModelUnavailableError("The model returned no summary and no bullets.");
+  }
+  return shaped;
+}
 
 /**
  * 資本金 and 従業員数, for the one render whose convention requires them

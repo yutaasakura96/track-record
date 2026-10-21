@@ -107,12 +107,8 @@ describe("the register's contract with the rest of the codebase", () => {
     expect(RENDER_DEFINITIONS.english_resume.register).toContain("past-tense action verb");
   });
 
-  it("puts a driving licence in 保有資格, which is where the résumé refuses it", () => {
-    // The two registers contradict each other on purpose, and each says so.
+  it("puts a driving licence in 保有資格", () => {
     expect(definition.register).toContain("A driving licence DOES belong here");
-    expect(RENDER_DEFINITIONS.english_resume.register).toContain(
-      "A driving licence is not a technical certification",
-    );
   });
 });
 

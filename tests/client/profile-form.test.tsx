@@ -23,6 +23,21 @@ describe("saving the profile", () => {
     expect(api.writes()).toEqual(["PUT /api/profile"]);
     expect(pathname()).toBe("/profile");
   });
+
+  it("sends the résumé's paper size, A4 until the author picks Letter (issue #107)", async () => {
+    const { api } = mount("/profile", {
+      "GET /api/profile": new Refusal(404, "not_found", "No profile."),
+      "PUT /api/profile": new Refusal(422, "invalid", "Not saved in this test."),
+    });
+    const paper = (await screen.findByLabelText(/^Paper size/)) as unknown as HTMLSelectElement;
+    expect(paper.value).toBe("a4");
+
+    fireEvent.change(paper, { target: { value: "letter" } });
+    fireEvent.submit(document.querySelector("form")!);
+
+    await screen.findByRole("alert");
+    expect(api.bodyOf("PUT", "/api/profile")).toMatchObject({ paperSize: "letter" });
+  });
 });
 
 describe("the résumé header fields (issue #108)", () => {

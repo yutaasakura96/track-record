@@ -164,8 +164,23 @@ export interface RenderSpec {
     headcount: number | null;
     /** Titles held there, most recent first. A promotion is a second role. */
     roles: { title: string; startedOn: string; endedOn: string | null }[];
+    /** Where the job was, in English. Printed in the résumé's job header, never sent to be written. */
+    city: string | null;
+    /**
+     * How many bullets the English résumé writes for this employer (issue
+     * #107). Set on that render alone, and computed here rather than left to
+     * the model: what makes two pages is an age, and an age is arithmetic.
+     */
+    bullets?: { min: number; max: number };
   }[];
-  projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
+  projects: {
+    id: string;
+    name: string;
+    employerId: string | null;
+    summary: string | null;
+    startedOn: string | null;
+    endedOn: string | null;
+  }[];
   /**
    * Does the record hold work that belongs to no employer?
    *
@@ -223,6 +238,8 @@ export interface RenderSpec {
     issuingOrganization: string;
     issuedOn: string | null;
     expiresOn: string | null;
+    /** `certifications.kind`. Null is an unclassified row, which prints as a technical one. */
+    kind: "technical" | "language" | "other" | null;
     technologies: string[];
   }[];
   /**

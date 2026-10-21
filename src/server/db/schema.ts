@@ -60,6 +60,19 @@ export const educationOutcome = pgEnum("education_outcome", [
 export const educationLevel = pgEnum("education_level", [
   "secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate",
 ]);
+/**
+ * What a certification is, for the documents that sort them (issue #107). The
+ * English résumé lists `technical` ones under Certifications, writes `language`
+ * ones on its Languages line and leaves `other` out — a driving licence is not
+ * something an employer reading English screens on. The Japanese documents
+ * print every kind: 免許・資格 is where a licence belongs.
+ *
+ * Nullable; a row with none prints under Certifications. Migration 0027
+ * classified existing rows by name, while later rows can remain unclassified.
+ */
+export const certificationKind = pgEnum("certification_kind", ["technical", "language", "other"]);
+/** The page an English document is laid out on. A4 unless the author says otherwise (issue #107). */
+export const paperSize = pgEnum("paper_size", ["a4", "letter"]);
 export const renderKind = pgEnum("render_kind", [
   "english_resume", "rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja",
 ]);
@@ -199,6 +212,8 @@ export const profiles = pgTable("profiles", {
   resumeLinkedinUrl: text("resume_linkedin_url"),
   resumeGithubUrl: text("resume_github_url"),
   resumePortfolioUrl: text("resume_portfolio_url"),
+  /** The English résumé's page. Not PII, and read by that render alone. */
+  paperSize: paperSize("paper_size").notNull().default("a4"),
   ...timestamps,
 });
 
@@ -210,6 +225,8 @@ export const employers = pgTable("employers", {
   businessDescription: text("business_description"),
   /** e.g. 小売業 — appears on the 履歴書 職歴 line. */
   industryJa: text("industry_ja"),
+  /** Where the job was, in English — `Tokyo`. The English résumé's job header carries it. */
+  city: text("city"),
   /** 資本金, in YEN — not 万円. Formatted at render time. */
   capitalYen: bigint("capital_yen", { mode: "number" }),
   /** 従業員数 */
@@ -515,6 +532,7 @@ export const certifications = pgTable("certifications", {
   issuingOrganization: text("issuing_organization").notNull(),
   issuedOn: date("issued_on", { mode: "string" }),
   expiresOn: date("expires_on", { mode: "string" }),
+  kind: certificationKind("kind"),
   /** Not rendered in v1 — for the author's own reference at renewal. */
   credentialId: text("credential_id"),
   credentialUrl: text("credential_url"),

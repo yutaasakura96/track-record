@@ -181,13 +181,13 @@ const JAPANESE = {
 const JAPANESE_HEADINGS = { ...ENGLISH, heading: JAPANESE.heading };
 
 /** Reads the spec the route builds, by letting one generation run unscripted. */
-async function specOfStory(kind: "career_story_en" | "english_resume" = "career_story_en"): Promise<RenderSpec> {
+async function specOfStory(): Promise<RenderSpec> {
   model.generations = [{ sections: [] }];
-  await client.post(`/api/renders/${kind}/generate`);
+  await client.post("/api/renders/career_story_en/generate");
   await settle();
   const sent = model.generationInputs.at(-1)!.spec;
   // Dismiss it, so the next generation is not refused as a second waiting proposal.
-  const { items } = await client.json<{ items: { id: string; status: string }[] }>(`/api/proposals?kind=${kind}`);
+  const { items } = await client.json<{ items: { id: string; status: string }[] }>("/api/proposals?kind=career_story_en");
   for (const p of items) await client.post(`/api/proposals/${p.id}/dismiss`);
   model.generationInputs = [];
   return sent;
@@ -203,15 +203,6 @@ async function generateStory(...attempts: RenderContent[]) {
     `/api/proposals/${proposalId}`,
   );
   return { proposalId, proposal };
-}
-
-async function generateResume(...attempts: RenderContent[]) {
-  model.generations = attempts;
-  const response = await client.post("/api/renders/english_resume/generate");
-  expect(response.status).toBe(202);
-  const { proposalId } = (await response.json()) as { proposalId: string };
-  await settle();
-  return client.json<{ generationStatus: string; error: { message: string } | null }>(`/api/proposals/${proposalId}`);
 }
 
 describe("the prompt an English story is written from", () => {
@@ -299,23 +290,6 @@ describe("the record's names", () => {
     expect(proposal.error!.message).toMatch(/changed a name from your record twice/);
   });
 
-  it.each(["employer", "school", "project"] as const)("retries a changed résumé %s name through the proposal path", async (target) => {
-    const spec = await specOfStory("english_resume");
-    const valid: RenderContent = { sections: [
-      ...spec.employers.map((e, i) => ({ key: "experience", heading: `${e.name} — Engineer`, blocks: [{ id: `emp_${i}`, kind: "bullet" as const, text: "Improved batch processing.", factIds: [] }] })),
-      { key: "education", heading: "Education", blocks: spec.educations.map((e, i) => ({ id: `edu_${i}`, kind: "row" as const, text: `${e.institution} — degree`, factIds: [] })) },
-      { key: "projects", heading: "Projects", blocks: [{ id: "project", kind: "row" as const, text: spec.projects[0]!.name, factIds: [] }] },
-    ] };
-    const bad = { sections: valid.sections.map((s) => {
-      if (target === "employer" && s.heading.includes("Hayabusa")) return { ...s, heading: s.heading.replace("Hayabusa", "Hayabsa") };
-      if (target === "school" && s.key === "education") return { ...s, blocks: s.blocks.map((b) => ({ ...b, text: b.text.replace("University", "Universty") })) };
-      if (target === "project" && s.key === "projects") return { ...s, blocks: s.blocks.map((b) => ({ ...b, text: b.text.replace("Settlement", "Setlement") })) };
-      return s;
-    }) };
-    const proposal = await generateResume(bad, bad);
-    expect(proposal.generationStatus).toBe("failed");
-    expect(proposal.error!.message).toMatch(/changed a name from your record twice/);
-  });
 });
 
 describe("a story that comes back in Japanese", () => {
