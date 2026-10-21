@@ -68,7 +68,7 @@ function SheetPage({ sheet }: { sheet: Sheet }) {
         if (block.kind === "table") return <SheetTable key={index} table={block} />;
         if (block.line.text.trim() === "") return <p key={index} aria-hidden="true" className={lineClass(block.line)}>&nbsp;</p>;
         return block.line.size === "title" ? (
-          <h2 key={index} className={`${lineClass(block.line)} text-text-bright`}>
+          <h2 key={index} aria-label={spoken(block.line.text)} className={`${lineClass(block.line)} text-text-bright`}>
             {block.line.text}
           </h2>
         ) : (
@@ -80,6 +80,9 @@ function SheetPage({ sheet }: { sheet: Sheet }) {
     </div>
   );
 }
+
+/** The file spaces its title out, 履 歴 書; the heading is named as the word is written, 履歴書. */
+const spoken = (text: string) => text.replace(/(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])/g, "");
 
 const lineClass = (line: SheetLine) =>
   `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} ${AFTER[line.afterTwips] ?? "mb-0"} whitespace-pre-wrap break-words`;

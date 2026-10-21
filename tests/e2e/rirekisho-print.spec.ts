@@ -13,7 +13,7 @@ const capture = async (page: Page, name: string) => {
 
 async function checkForm(page: Page) {
   const article = page.getByRole("article");
-  await expect(article.getByRole("heading", { name: "履 歴 書" })).toBeVisible();
+  await expect(article.getByRole("heading", { name: "履歴書" })).toBeVisible();
   await expect(article.getByText("さとう", { exact: false })).toBeVisible();
   await expect(article.getByText("佐藤", { exact: false })).toBeVisible();
   const tables = article.getByRole("table");

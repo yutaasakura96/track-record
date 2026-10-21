@@ -363,7 +363,7 @@ describe("a first version", () => {
     });
 
     const page = await screen.findByRole("article");
-    expect(within(page).getByRole("heading", { name: "履 歴 書" })).toBeTruthy();
+    expect(within(page).getByRole("heading", { name: "履歴書" })).toBeTruthy();
     const tables = within(page).getAllByRole("table");
     expect(tables).toHaveLength(5);
     expect(within(tables[0]!).getAllByRole("cell")[1]!.textContent).toContain("架空　花子");

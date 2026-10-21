@@ -437,7 +437,7 @@ describe("a sent copy", () => {
     // The form as its file lays it out: cells, spans and the 年 / 月 tables, not prose.
     const page = screen.getByRole("article");
     expect(page.getAttribute("lang")).toBe("ja");
-    expect(within(page).getByRole("heading", { level: 2, name: "履 歴 書" })).toBeTruthy();
+    expect(within(page).getByRole("heading", { level: 2, name: "履歴書" })).toBeTruthy();
     expect(within(page).getByText("2026年 10月 6日")).toBeTruthy();
     const tables = within(page).getAllByRole("table");
     expect(tables).toHaveLength(5);
