@@ -8,9 +8,10 @@
  * All fixtures are invented.
  */
 import { describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import type { Proposal, RenderDiff } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
+import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 
 const PROPOSAL = "prop-test-1";
 
@@ -325,7 +326,7 @@ describe("a first version", () => {
             stamp: "2026年10月18日現在",
             name: "青木　陽介",
             contact: ["ふりがな あおき　ようすけ", "性別 男", "現住所ふりがな とうきょうと しぶやく", address, "連絡先 同上"],
-            sections: [],
+            sections: [{ heading: "学歴", blocks: [{ kind: "row", text: "2017年3月 架空大学 卒業" }] }],
           },
         },
       },
@@ -336,8 +337,38 @@ describe("a first version", () => {
     expect(screen.getByText("性別 男")).toBeTruthy();
     expect(screen.getByText("現住所ふりがな とうきょうと しぶやく")).toBeTruthy();
     expect(screen.getByText("連絡先 同上")).toBeTruthy();
+    expect(screen.getByText("2017年3月 架空大学 卒業")).toBeTruthy();
     const addressLine = screen.getByText((_, element) => element?.textContent === address);
     expect(addressLine.classList.contains("whitespace-pre-line")).toBe(true);
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("shows a first 履歴書 proposal as its printed form when the preview carries a sheet", async () => {
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: proposal({ basedOnVersionNo: null, proposedVersionNo: 1, renderKind: "rirekisho", title: "履歴書" }),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          title: "履歴書",
+          page: {
+            title: "履 歴 書",
+            stamp: "2026年10月6日現在",
+            name: "架空　花子",
+            contact: [],
+            sections: [{ heading: "学歴", blocks: [{ kind: "row", text: "Prose only" }] }],
+            sheet: RIREKISHO_SHEET,
+          },
+        },
+      },
+    });
+
+    const page = await screen.findByRole("article");
+    expect(within(page).getByRole("heading", { name: "履 歴 書" })).toBeTruthy();
+    const tables = within(page).getAllByRole("table");
+    expect(tables).toHaveLength(5);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.textContent).toContain("架空　花子");
+    expect(within(tables[1]!).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["年", "月", "学歴・職歴"]);
+    expect(within(page).queryByText("Prose only")).toBeNull();
   });
 
   it("blocks acceptance until the document loads", async () => {
