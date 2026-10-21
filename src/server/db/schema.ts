@@ -67,9 +67,8 @@ export const educationLevel = pgEnum("education_level", [
  * something an employer reading English screens on. The Japanese documents
  * print every kind: 免許・資格 is where a licence belongs.
  *
- * Nullable, and a row with none prints under Certifications: a migration cannot
- * classify a row that already exists, and guessing from the name is the failure
- * `education_level` was added to end.
+ * Nullable; a row with none prints under Certifications. Migration 0027
+ * classified existing rows by name, while later rows can remain unclassified.
  */
 export const certificationKind = pgEnum("certification_kind", ["technical", "language", "other"]);
 /** The page an English document is laid out on. A4 unless the author says otherwise (issue #107). */

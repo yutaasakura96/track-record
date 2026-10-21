@@ -698,8 +698,8 @@ Each item also carries `id` (`null` for a main document never generated), `ref` 
 tailored résumé's id) and `tailored` (`null`, or `{ label, createdAt }`).
 
 **A tailored résumé is generated from exactly the facts the main résumé is given**, and its job
-description reaches the model as text to read (`03` §6). Its download is named after it:
-`resume-<label>-<date>.docx`.
+description reaches the model as text to read (`03` §6). Its download uses the English résumé
+filename described below.
 
 **`GET /api/renders` → 200**
 

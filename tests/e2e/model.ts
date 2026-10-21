@@ -49,6 +49,11 @@ export const e2eModel: ModelSeam = {
             heading: employer.name,
             blocks: [{ id: `blk_employer_${index}`, kind: "bullet" as const, text: CLAIM, factIds: facts.map((fact) => fact.id) }],
           })),
+          ...spec.projects.filter((project) => project.employerId === null).map((project, index) => ({
+            key: `project:${project.id}`,
+            heading: project.name,
+            blocks: [{ id: `blk_project_${index}`, kind: "bullet" as const, text: "Built a route planner for invented delivery routes.", factIds: [] }],
+          })),
         ],
       };
     }

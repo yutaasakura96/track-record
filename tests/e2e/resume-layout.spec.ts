@@ -6,7 +6,7 @@ import { SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
 import { RESUME_STORAGE_STATE } from "./env";
 
 const evidence = process.env.TEST_EVIDENCE_DIR;
-const sectionNames = ["Summary", "Skills", "Experience", "Education", "Certifications", "Languages"];
+const sectionNames = ["Summary", "Skills", "Experience", "Projects", "Education", "Certifications", "Languages"];
 const PROFILE_FIXTURE = { familyNameKanji: "青木", givenNameKanji: "陽介", familyNameKana: "あおき", givenNameKana: "ようすけ", nameLatin: "Yosuke Aoki", dateOfBirth: "1994-11-01", phone: "080-0000-0000", email: "yosuke@example.invalid", postalCode: "150-0001", address: "東京都渋谷区神宮前0-0-0", addressKana: "とうきょうと しぶやく じんぐうまえ", contactSameAsAddress: true };
 const EMPLOYER_FIXTURE = { nameJa: "株式会社アオゾラ物流", nameLatin: "Aozora Logistics K.K.", industryJa: "運輸業", businessDescription: "架空の物流事業者。", employmentType: "full_time", startedOn: "2022-04-01", endedOn: "2024-09-01" };
 const ROLE_FIXTURE = { titleLatin: "Backend Engineer", titleJa: "バックエンドエンジニア", shokushuJa: "システムエンジニア", startedOn: "2022-04-01", endedOn: "2023-09-01" };
@@ -32,6 +32,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   const employer = await post("/api/employers", { ...EMPLOYER_FIXTURE, city: "Yokohama" }) as { id: string };
   await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
   await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id, titleLatin: "Senior Backend Engineer", startedOn: "2023-10-01", endedOn: "2024-09-01" });
+  await post("/api/projects", { name: "Route Planner", summary: "Built a route planner for invented delivery routes." });
   await post("/api/educations", EDUCATION_FIXTURE);
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, kind: "technical" });
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "Expired Cloud Associate", expiresOn: "2021-03-01" });
@@ -67,6 +68,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
     expect(markdown).toContain("**Aozora Logistics K.K.** · Yokohama — Apr 2022 – Sep 2024");
     expect(markdown).toContain("*Senior Backend Engineer (Oct 2023 – Sep 2024) · Backend Engineer (Apr 2022 – Sep 2023)*");
     expect(markdown).toContain("TOEIC Listening & Reading 880");
+    expect(markdown).toContain("Route Planner");
     expect(markdown).not.toMatch(/Expired Cloud Associate|情報工学部|緑川/);
     if (evidence) writeFileSync(`${evidence}/${label}.md`, markdown);
 

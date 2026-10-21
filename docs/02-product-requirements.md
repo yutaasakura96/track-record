@@ -37,7 +37,7 @@ Since 2026-10-11 a tailored résumé belongs to one application (§3a, S21).
 
 | Render | Language | Nature |
 |---|---|---|
-| English résumé | EN | Sections: profile summary, technical skills, professional experience, projects, education, certifications |
+| English résumé | EN | Employer-ready layout assembled from the record and model-written summary and bullets (`03` §6) |
 | 履歴書 | JA | Rigid conventional format. Requires the **complete** chronological 学歴・職歴 with no unexplained gaps, and the author's PII |
 | 職務経歴書 | JA | Per employer: business description + 資本金/従業員数, technical outcomes, 主な実績. Plus 経歴要約, 活かせるスキル・経験, 保有資格, 学歴, 自己PR |
 | Career story (EN) | EN | Long-form interview-prep narrative, chapter-structured, ending in an anchor-facts table and a question→chapter routing map |
@@ -104,7 +104,7 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S4 · Generate the English résumé** — `MUST` · M1
 > As the Author, I want the English résumé generated from accepted facts alone, so that producing it costs a click instead of an afternoon.
 
-**Acceptance:** The résumé is generated using only facts whose provenance is Measured or Attested and whose disclosure permits it. No Generated-provenance fact appears. The output is a `.docx` matching the existing document's section structure.
+**Acceptance:** The résumé is generated using only facts whose provenance is Measured or Attested and whose disclosure permits it. No Generated-provenance fact appears. The English résumé's layout and file are specified in `03` §6.
 
 ---
 
