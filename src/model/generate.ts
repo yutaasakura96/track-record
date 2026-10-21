@@ -20,7 +20,7 @@ import {
 } from "~/render/chapters";
 
 export { capitalInJapanese };
-import { hasJapaneseScript, shapeResumeContent } from "~/render/resume";
+import { shapeResumeContent } from "~/render/resume";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export const EMIT_RENDER_TOOL = {

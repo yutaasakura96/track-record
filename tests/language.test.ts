@@ -26,6 +26,7 @@ const employer = (id: string, name: string): RenderSpec["employers"][number] => 
   capitalYen: null,
   headcount: null,
   roles: [],
+  city: null,
 });
 
 const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
@@ -128,7 +129,7 @@ describe("an English document", () => {
   it("checks a short project name in a story heading and a short school name in a story row", () => {
     const named = spec({
       employers: [],
-      projects: [{ id: "project", name: "Mira", employerId: null, summary: null }],
+      projects: [{ id: "project", name: "Mira", employerId: null, summary: null, startedOn: null, endedOn: null }],
       educations: [{ id: "school", institution: "Aoi", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
     });
     expect(englishDefect(content([{ key: "opening", heading: "Miro project", text: PROSE }]), named)).toBe("record_names");
@@ -140,10 +141,10 @@ describe("an English document", () => {
   });
 
   it("limits free-text near misses to longer names used as names", () => {
-    const named = spec({ employers: [], projects: [{ id: "project", name: "Ledger", employerId: null, summary: null }] });
+    const named = spec({ employers: [], projects: [{ id: "project", name: "Ledger", employerId: null, summary: null, startedOn: null, endedOn: null }] });
     expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The ledgers reconciled nightly." }]), named)).toBeNull();
     expect(englishDefect(content([{ key: "opening", heading: "Work", text: "I worked at Ledgr." }]), named)).toBe("record_names");
-    const short = spec({ employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null }] });
+    const short = spec({ employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null, startedOn: null, endedOn: null }] });
     expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The team called it Miro." }]), short)).toBeNull();
   });
 
@@ -151,8 +152,8 @@ describe("an English document", () => {
     const named = spec({
       employers: [],
       projects: [
-        { id: "gateway", name: "Payment Gateway", employerId: null, summary: null },
-        { id: "platform", name: "Data Platform", employerId: null, summary: null },
+        { id: "gateway", name: "Payment Gateway", employerId: null, summary: null, startedOn: null, endedOn: null },
+        { id: "platform", name: "Data Platform", employerId: null, summary: null, startedOn: null, endedOn: null },
       ],
     });
     const story = (heading: string, text: string) => content([{ key: "opening", heading, text }]);
@@ -175,7 +176,7 @@ describe("an English document", () => {
     const named = spec({
       employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")],
       educations: [{ id: "school", institution: "St. Mary's College", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
-      projects: [{ id: "platform", name: "Data-Platform", employerId: null, summary: null }],
+      projects: [{ id: "platform", name: "Data-Platform", employerId: null, summary: null, startedOn: null, endedOn: null }],
     });
     const story = (text: string) => content([{ key: "opening", heading: "Work", text }]);
     expect(englishDefect(story("I joined hayabusa computing co., ltd. in 2019."), named)).toBeNull();
@@ -194,7 +195,7 @@ describe("an English document", () => {
   });
 
   it("checks a short project name in a résumé project header", () => {
-    const named = spec({ kind: "english_resume", employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null }] });
+    const named = spec({ kind: "english_resume", employers: [], projects: [{ id: "project", name: "Mira", employerId: null, summary: null, startedOn: null, endedOn: null }] });
     const output = content([{ key: "projects", heading: "Projects", text: "Mira — built a service" }]);
     output.sections[0]!.blocks[0]!.kind = "row";
     expect(englishDefect(output, named)).toBeNull();
@@ -207,7 +208,7 @@ describe("an English document", () => {
       kind: "english_resume",
       employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")],
       educations: [{ id: "school", institution: "Shirasagi University", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
-      projects: [{ id: "project", name: "Settlement ledger rebuild", employerId: null, summary: null }],
+      projects: [{ id: "project", name: "Settlement ledger rebuild", employerId: null, summary: null, startedOn: null, endedOn: null }],
     });
     const resume = content([
       { key: "experience", heading: "Hayabusa Computing Co., Ltd. — Engineer", text: PROSE },

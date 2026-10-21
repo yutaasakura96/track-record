@@ -30,6 +30,7 @@ import { RENDER_TITLE, type Block, type RenderContent, type RenderSection } from
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
 import { identityLines, type RenderIdentity } from "./identity";
+import { hasJapaneseScript } from "./language";
 import type { SentPage } from "./sent-page";
 
 /* ------------------------------------------------------------ section keys */
@@ -234,17 +235,12 @@ export interface ResumeSection {
 
 export interface ResumeDocument {
   name: string;
-  /** The line under the name. Name and email today; issue #108 adds to it. */
+  /** The line under the name, when the author filled one in (issue #108). */
+  headline: string | null;
+  /** The one contact line under the headline: city, email, phone and links. */
   contact: string[];
   sections: ResumeSection[];
 }
-
-/**
- * Japanese script, and the full-width punctuation that travels with it.
- */
-const JAPANESE_SCRIPT = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}　-〿！-｠]/u;
-
-export const hasJapaneseScript = (text: string): boolean => JAPANESE_SCRIPT.test(text);
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
@@ -278,7 +274,9 @@ export interface AssembleArgs {
 
 /** One stored version and today's record, as the document an employer is sent. */
 export function assembleResume({ content, record, identity, today }: AssembleArgs): ResumeDocument {
-  const [name = "", ...contact] = identityLines("english_resume", identity);
+  const [name = "", ...lines] = identityLines("english_resume", identity);
+  const headline = identity.resume.headline?.trim() || null;
+  const contact = headline === null ? lines : lines.slice(1);
   const sections: ResumeSection[] = [
     section(SUMMARY_KEY, "Summary", summaryBlocks(content)),
     section("skills", "Skills", skillsBlocks(record)),
@@ -288,7 +286,7 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
     section("certifications", "Certifications", certificationBlocks(record, today, "technical")),
     section("languages", "Languages", certificationBlocks(record, today, "language")),
   ].filter((s) => s.blocks.length > 0);
-  const document = { name, contact, sections };
+  const document = { name, headline, contact, sections };
   assertEnglishResume(document);
   return document;
 }
@@ -296,7 +294,11 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
 export class ResumeLanguageError extends Error {}
 
 export function assertEnglishResume(document: ResumeDocument): void {
-  const fields: [string, string][] = [["profile name", document.name], ...document.contact.map((value) => ["contact", value] as [string, string])];
+  const fields: [string, string][] = [
+    ["profile name", document.name],
+    ["headline", document.headline ?? ""],
+    ...document.contact.map((value) => ["contact", value] as [string, string]),
+  ];
   for (const section of document.sections) {
     const type = section.key === "experience" ? "employer" : section.key === "projects" ? "project" : section.key;
     let entry = type;
@@ -461,7 +463,7 @@ const entryText = (block: Extract<ResumeBlock, { kind: "entry" }>) =>
 
 /** The `?format=md` download. Same document, same order, no title above the name. */
 export function resumeMarkdown(doc: ResumeDocument): string {
-  const lines: string[] = [`# ${doc.name}`, ...(doc.contact.length > 0 ? ["", doc.contact.join(" · ")] : []), ""];
+  const lines: string[] = [`# ${doc.name}`, ...[doc.headline, ...doc.contact].flatMap((line) => (line ? ["", line] : [])), ""];
   for (const s of doc.sections) {
     lines.push(`## ${s.heading}`, "");
     for (const block of s.blocks) {
@@ -496,7 +498,7 @@ export function resumeSentPage(doc: ResumeDocument): SentPage {
     title: RENDER_TITLE.english_resume,
     stamp: null,
     name: doc.name,
-    contact: doc.contact.length > 0 ? [doc.contact.join(" · ")] : [],
+    contact: [doc.headline, ...doc.contact].filter((line): line is string => line !== null),
     sections: doc.sections.map((s) => ({
       heading: s.heading,
       blocks: s.blocks.map((block) => {

@@ -260,7 +260,7 @@ describe("a Japanese field in an English prompt", () => {
         roles: [{ title: "主任", startedOn: "2024-10-01", endedOn: null }],
       }),
     ],
-    projects: [{ id: "prj_test", name: "配送最適化", employerId: "emp_test", summary: "架空の配送計画の作り直し。" }],
+    projects: [{ id: "prj_test", name: "配送最適化", employerId: "emp_test", summary: "架空の配送計画の作り直し。", startedOn: null, endedOn: null }],
     desiredRoleNote: "在宅勤務を希望します。",
   };
 

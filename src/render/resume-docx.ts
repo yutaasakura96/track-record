@@ -44,8 +44,8 @@ const FONT = "Calibri";
 const ACCENT = "1F3A5F";
 const MUTED = "4A4F59";
 
-/** Half-points. Body 10pt, name 20pt, headings 10.5pt, contact 9.5pt. */
-const SIZE = { body: 20, name: 40, heading: 21, contact: 19 };
+/** Half-points. Body 10pt, name 20pt, headline 11pt, headings 10.5pt, contact 9.5pt. */
+const SIZE = { body: 20, name: 40, headline: 22, heading: 21, contact: 19 };
 
 const BULLETS = "resume-bullets";
 
@@ -65,6 +65,14 @@ export async function resumeDocx(
       spacing: { after: 40 },
     }),
   ];
+  if (doc.headline !== null) {
+    children.push(
+      new Paragraph({
+        children: [new TextRun({ text: doc.headline, size: SIZE.headline, color: ACCENT })],
+        spacing: { after: 40 },
+      }),
+    );
+  }
   if (doc.contact.length > 0) {
     children.push(
       new Paragraph({
