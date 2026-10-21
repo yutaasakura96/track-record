@@ -11,6 +11,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ModelUnavailableError, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
+import { JAPANESE_ONLY_LABEL, hasJapaneseScript } from "~/render/language";
 import {
   chapterPlan,
   chapterPlanForPrompt,
@@ -81,21 +82,26 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     chapters.length > 0
       ? `\nChapters, in this order. Emit exactly these keys and no others:\n${chapterPlanForPrompt(chapters)}\n`
       : "";
+  // Names are printed as the record holds them and never labelled: the
+  // registers copy them verbatim, in whatever script they are in. The
+  // free-text fields in these record lists go through `field`, which marks
+  // Japanese in an English prompt for what it is (issue #104).
+  const field = (value: string) => labelled(spec.language, value);
   const employers = spec.employers
     .map((e) => {
       const held = e.roles
         .map(
           (r) =>
-            `\n    - ${r.title} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
+            `\n    - ${field(r.title)} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
         )
         .join("");
-      return `- id ${e.id} · ${e.name}${e.industry ? ` (${e.industry})` : ""} · ${monthOf(e.startedOn)} – ${
+      return `- id ${e.id} · ${e.name}${e.industry ? ` (${field(e.industry)})` : ""} · ${monthOf(e.startedOn)} – ${
         e.endedOn ? monthOf(e.endedOn) : "present"
-      }${companyScale(e)}${e.businessDescription ? ` · ${e.businessDescription}` : ""}${held}`;
+      }${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${held}`;
     })
     .join("\n");
   const projects = spec.projects
-    .map((p) => `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${p.summary ? ` · ${p.summary}` : ""}`)
+    .map((p) => `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${p.summary ? ` · ${field(p.summary)}` : ""}`)
     .join("\n");
   // 学歴 and 免許・資格. A row here is the ONLY source of an institution name,
   // an award date and — the one that matters — an education's outcome: 中退 is
@@ -103,9 +109,9 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   const educations = spec.educations
     .map(
       (e) =>
-        `- id ${e.id} · ${e.institution}${e.faculty ? ` · ${e.faculty}` : ""}${
-          e.degree ? ` · ${e.degree}` : ""
-        }${e.fieldOfStudy ? ` · ${e.fieldOfStudy}` : ""} · ${educationSpan(e)} · ${
+        `- id ${e.id} · ${e.institution}${e.faculty ? ` · ${field(e.faculty)}` : ""}${
+          e.degree ? ` · ${field(e.degree)}` : ""
+        }${e.fieldOfStudy ? ` · ${field(e.fieldOfStudy)}` : ""} · ${educationSpan(e)} · ${
           OUTCOME_WORDING[e.outcome]
         } · level: ${LEVEL_WORDING[e.level ?? "unstated"]}`,
     )
@@ -113,7 +119,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   const certifications = spec.certifications
     .map(
       (c) =>
-        `- id ${c.id} · ${c.name} · ${c.issuingOrganization}${
+        `- id ${c.id} · ${field(c.name)} · ${field(c.issuingOrganization)}${
           c.issuedOn ? ` · issued ${monthOf(c.issuedOn)}` : ""
         }${c.expiresOn ? ` · expires ${monthOf(c.expiresOn)}` : ""}`,
     )
@@ -135,7 +141,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // would reach every render's prompt, including the four that have no cell to
   // put a stated preference in.
   const desiredRoleNote = spec.desiredRoleNote
-    ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${spec.desiredRoleNote}\n`
+    ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${field(spec.desiredRoleNote)}\n`
     : "";
 
   // Printed only for a tailored résumé (issue #57). The posting is somebody
@@ -209,12 +215,35 @@ const monthOf = (isoDate: string) => isoDate.slice(0, 7);
  * prompt rule that forbids introducing a total the facts do not state, on the
  * figure a reader is most likely to check. The arithmetic is done here, where
  * it is a pure function with a test, and the register copies a string.
+ *
+ * An English prompt gets the same two figures in English. 資本金 3億円 in the
+ * list an English story is written from is how 資本金 3億円 reached its prose
+ * (issue #104).
  */
-function companyScale(e: RenderSpec["employers"][number]): string {
+function companyScale(e: RenderSpec["employers"][number], language: RenderSpec["language"]): string {
   const parts: string[] = [];
-  if (e.capitalYen !== null) parts.push(`資本金 ${capitalInJapanese(e.capitalYen)} (${e.capitalYen} yen)`);
-  if (e.headcount !== null) parts.push(`従業員数 ${e.headcount}`);
+  if (language === "en") {
+    if (e.capitalYen !== null) parts.push(`capital ${e.capitalYen.toLocaleString("en-US")} yen`);
+    if (e.headcount !== null) parts.push(`${e.headcount.toLocaleString("en-US")} employees`);
+  } else {
+    if (e.capitalYen !== null) parts.push(`資本金 ${capitalInJapanese(e.capitalYen)} (${e.capitalYen} yen)`);
+    if (e.headcount !== null) parts.push(`従業員数 ${e.headcount}`);
+  }
   return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
+}
+
+/**
+ * A free-text field, marked when an English document is given it in Japanese.
+ *
+ * The record keeps one business description and one industry per employer, and
+ * an author who keeps a 職務経歴書 writes them in Japanese. Unmarked, they read
+ * to the model as the language of the record, and the first English story
+ * written from such a record was written in Japanese (issue #104). Marked, the
+ * English registers can say what to do with them: write them in English, or
+ * leave them out. A Japanese prompt marks nothing.
+ */
+function labelled(language: RenderSpec["language"], value: string): string {
+  return language === "en" && hasJapaneseScript(value) ? `${JAPANESE_ONLY_LABEL} ${value}` : value;
 }
 
 

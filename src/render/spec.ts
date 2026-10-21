@@ -12,6 +12,7 @@
  */
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import { REQUIRED_PROFILE_FIELDS } from "./rirekisho";
+import { JAPANESE_ONLY_LABEL } from "./language";
 
 export interface RenderDefinition {
   kind: RenderKind;
@@ -43,7 +44,26 @@ export interface RenderDefinition {
   requiredProfileFields: string[];
 }
 
+/**
+ * The language half of both English registers (issue #104).
+ *
+ * The record is bilingual and an author who keeps a 職務経歴書 keeps much of it
+ * in Japanese: business descriptions, industries, some facts. The first English
+ * stories written from such a record came back in Japanese, wholly or in every
+ * heading, with three names respelt. "Write the document in English" was one
+ * line below the register, which itself named no language. This states it
+ * inside the register, says what to do with the Japanese the prompt carries,
+ * and fences off the one thing that is never translated. `src/render/language.ts`
+ * checks what comes back against the same rules.
+ */
+const ENGLISH_FROM_A_BILINGUAL_RECORD = `Language — English, throughout:
+- Every heading, paragraph, bullet and row is written in English. A heading is part of the document and is English like the rest of it.
+- The record behind this document is partly Japanese. Some facts are written in Japanese, and a field in the lists below that opens with ${JAPANESE_ONLY_LABEL} is held only in Japanese. Write what it says in English, or leave it out. Never copy Japanese wording into the document, and never put a Japanese term beside its English one.
+- Names are the one exception. An employer, a school or a project is named exactly as its list below writes it, character for character and in the script the list gives: never translated, transliterated, shortened or respelt.`;
+
 const RESUME_REGISTER = `Write a résumé for a technical audience reading in English.
+
+${ENGLISH_FROM_A_BILINGUAL_RECORD}
 
 Sections, in this order, omitting any with nothing behind it:
 - "summary": one short paragraph. key "summary".
@@ -186,7 +206,7 @@ Blocks:
 - There are no bullets anywhere in this document. It is prose and two tables.
 
 The employer chapters, one per employer, keyed by that employer's id:
-- Open by placing the reader: when it was, what the employer does, and what the author was there to do. Those come from the Employers list, not from the facts.
+- Open by placing the reader: the employer, named exactly as the Employers list writes it, when it was, what the employer does, and what the author was there to do. Those come from the Employers list, not from the facts.
 - Then the work, written from THAT employer's facts and no other employer's.
 - An employer the facts are thin on gets a SHORT chapter, never no chapter. Write it from the Employers list alone, with factIds empty on those paragraphs. A story that skips an employment has a gap in it, and a gap is the first thing an interviewer asks about.
 - **A fact that carries no employer id is never cited in an employer's chapter**, however well it fits the moment being told. The commonest way to break this is the end of a chapter: the job ended, and the sentence that says what the author did next reaches for the fact that records it. Say the job ended and stop there. What came next is the opening's or the independent-work chapter's, and so is the fact behind it. Work done outside employment, a course taken, a qualification earned: those belong in the opening, in the independent-work chapter where the plan gives one, or in the closing chapters. A fact filed to nobody, told under somebody, is the story saying an employer paid for work they did not.
@@ -210,9 +230,11 @@ The employer chapters, one per employer, keyed by that employer's id:
  * at all), which is what licenses the first person and the failures. Every
  * other register in this project writes for a reader who is screening.
  */
-const CAREER_STORY_EN_REGISTER = `Write a long-form career story for the author to read before an interview.
+const CAREER_STORY_EN_REGISTER = `Write a long-form career story in English for the author to read before an interview.
 
 It is prepared FOR the author and is sent to nobody. It is not a résumé in paragraphs and nobody screens on it. Its one job is to make the career recallable and defensible under questioning: what was walked into, what was actually done, what changed because of it, what it cost, and what was learned.
+
+${ENGLISH_FROM_A_BILINGUAL_RECORD}
 
 ${STORY_STRUCTURE}
 

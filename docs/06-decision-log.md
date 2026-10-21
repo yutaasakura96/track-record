@@ -6794,3 +6794,65 @@ as a link.
 
 **Revisit if:** the career story or a tailored cover note wants a headline, or the layout of the
 header (issue #107) wants the links as hyperlinks rather than text.
+---
+
+### [2026-10-17] An English document is checked for Japanese before it is offered for review
+
+The owner, reading the English career story downloaded from the live site, said it was not usable.
+The evaluation of the same day generated it twice from the demo record: the first was written in
+Japanese throughout and respelt three of the record's names, the second had English prose under a
+Japanese heading on every chapter. Both reached the review screen, which does not show headings
+(issue #104).
+
+**The language is stated inside both English registers, with what to do about the Japanese the
+prompt carries.** The record keeps one business description and one industry per employer, and an
+author who keeps a 職務経歴書 keeps them in Japanese. An English prompt now marks every free-text
+field held in Japanese `[recorded in Japanese only]`, and the registers say to write it in English
+or leave it out. 資本金 and 従業員数 are printed in English for an English document. A fact's copy of
+its employer's industry and its project's summary is dropped from an English prompt when it is
+Japanese, because it cannot be labelled inside the facts' JSON and the lists carry both. Names of
+employers, schools and projects are never labelled and never translated: the registers copy them
+character for character, in the script the record holds them in.
+
+**What comes back is checked, and a failure is retried once, then refused.** `src/render/language.ts`
+measures the share of Japanese script in the headings and, separately, in the blocks, against 5%,
+after taking out the names the record holds only in Japanese. Separately because the second story's
+Japanese headings came to under one percent of the whole document. A career story's employer
+chapter must also name its employer exactly as the record writes it; the chapter is keyed by the
+employer's id, so this is a lookup. A twice-failed generation is marked failed with a plain reason
+and never becomes a proposal. Both calls' usage is recorded.
+
+**Rejected:** translating the record's Japanese fields before the prompt (a model call per field,
+and a translation nobody reviewed standing in for the record); checking the whole document as one
+share (misses the heading failure); holding the résumé to the employer-name check (nothing ties a
+résumé section to one employer by key, so it would be a match on prose).
+
+**Revisit if:** a legitimate English document trips the 5% line, or Japanese documents are given an
+equivalent check (out of scope here).
+
+---
+
+### [2026-10-18] English renders check record names before review
+
+This supersedes the 2026-10-17 decision to leave résumé employer names unchecked. An English
+résumé's employer-section heading, education row or project row that names an employer, school
+or project must carry one of the record's names exactly. A generic section title — "Experience",
+"Education", "Skills", 職務経歴 and the like — names none of them and is not held to it: a
+tailored résumé with one "Experience" section was being refused as a changed name. Which entries
+appear, and in what order, is left to the register and is not checked here.
+
+Both English renders check headings and rows for altered employer, school and project names,
+including short names. Career-story employer chapters additionally use their employer ids to
+require the recorded name in the chapter. A near-miss scan of paragraphs and bullets uses only
+names of at least six characters and name-like context, to avoid treating ordinary word forms as
+misspelt short names. A name failure follows the same retry-once refusal path as a language
+failure. Japanese renders are outside this check.
+
+---
+
+### [2026-10-21] Clarify the English prompt and failed proposal contract
+
+This corrects the 2026-10-17 entry's scope: Japanese free-text fields in the prompt's record lists
+are labelled, while fact claims remain in their recorded language. A rejected generation retains
+its proposal row with `generation_status = failed` and a plain reason; it stores no reviewable
+content. The render pipeline contract is in `docs/03` §4.2 and §6.
