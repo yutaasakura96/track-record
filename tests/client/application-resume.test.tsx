@@ -441,6 +441,10 @@ describe("a sent copy", () => {
     expect(within(page).getByText("2026年 10月 6日")).toBeTruthy();
     const tables = within(page).getAllByRole("table");
     expect(tables).toHaveLength(5);
+    const printedBlocks = [...page.firstElementChild!.children];
+    expect(printedBlocks.map((block) => block.tagName === "P" && block.getAttribute("aria-hidden") === "true" ? "gap" : block.querySelector("table") ? "table" : "line")).toEqual([
+      "line", "line", "table", "gap", "table", "gap", "table", "gap", "table", "gap", "table", "gap",
+    ]);
     const cells = (row: HTMLElement) => [...row.querySelectorAll("td, th")];
 
     const identity = within(tables[0]!).getAllByRole("row");
@@ -480,6 +484,18 @@ describe("a sent copy", () => {
     const page = await screen.findByRole("article");
     expect(within(page).getByRole("heading", { name: "Résumé (English)" })).toBeTruthy();
     expect(within(page).queryByRole("heading", { name: "Main résumé" })).toBeNull();
+  });
+
+  it("warns above the text when an older copy's original file is unreadable", async () => {
+    const { sheet: _sheet, ...legacyPage } = SENT.page;
+    openCopy({ [`GET ${AT}/sent-copies/${SENT.id}`]: {
+      ...SENT, page: { ...legacyPage, readFailure: "original_file_unreadable" },
+    } });
+    const page = await screen.findByRole("article");
+    const notice = within(page).getByRole("alert");
+    expect(notice.textContent).toBe("The original file could not be read — showing its text only.");
+    expect(notice.compareDocumentPosition(within(page).getByRole("heading", { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();
   });
 
   it("shows the corrected date when the copy is opened again after the Applied date was corrected", async () => {

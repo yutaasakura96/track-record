@@ -501,6 +501,32 @@ describe("a sent copy", () => {
     expect(sheetText(legacy.page.sheet)).not.toContain("大阪府");
   });
 
+  it("warns and logs only ids and error kind when a legacy copy's file cannot be read", async () => {
+    const made = await add();
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+    const url = `/api/applications/${made.id}/sent-copies/${copy!.id}`;
+    const current = await client.json<CopyPage>(url);
+    const { sheet: _sheet, ...text } = current.page;
+    await app.db.update(applicationSentCopies).set({ page: text, file: Buffer.from("unreadable") }).where(eq(applicationSentCopies.id, copy!.id));
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await client.get(url);
+      expect(response.status).toBe(200);
+      const legacy = (await response.json()) as CopyPage;
+      expect(legacy.page).toMatchObject({ readFailure: "original_file_unreadable", sections: text.sections });
+      expect(legacy.page.sheet).toBeUndefined();
+      expect(log).toHaveBeenCalledOnce();
+      expect(JSON.parse(log.mock.calls[0]![0] as string)).toEqual({
+        event: "sent_copy_sheet_unreadable", userId: user.id, copyId: copy!.id, errorKind: "Error",
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("keeps the name it was sent under when the company is corrected later", async () => {
     const made = await add();
     const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;

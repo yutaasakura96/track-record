@@ -28,6 +28,7 @@ export interface SentPage {
    * everything above, which stays for the readers that want the text alone.
    */
   sheet?: Sheet;
+  readFailure?: "original_file_unreadable";
 }
 
 const sectionsOf = (content: RenderContent): SentPage["sections"] =>

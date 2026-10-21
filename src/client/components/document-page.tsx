@@ -16,6 +16,9 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
       lang={japanese ? "ja" : "en"}
       className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
     >
+      {page.readFailure === "original_file_unreadable" ? (
+        <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>
+      ) : null}
       {page.sheet ? (
         <SheetPage sheet={page.sheet} />
       ) : (
@@ -59,10 +62,10 @@ const SIZE: Record<SheetSize, string> = {
  */
 function SheetPage({ sheet }: { sheet: Sheet }) {
   return (
-    <div className="grid gap-12 text-text-body">
+    <div className="text-text-body">
       {sheet.blocks.map((block, index) => {
         if (block.kind === "table") return <SheetTable key={index} table={block} />;
-        if (block.line.text.trim() === "") return null;
+        if (block.line.text.trim() === "") return <p key={index} aria-hidden="true" className={lineClass(block.line)}>&nbsp;</p>;
         return block.line.size === "title" ? (
           <h2 key={index} className={`${lineClass(block.line)} text-text-bright`}>
             {block.line.text}

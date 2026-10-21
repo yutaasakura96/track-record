@@ -343,9 +343,9 @@ async function withSheet(db: Db, userId: string, copy: { id: string; kind: strin
   if (!stored) return page;
   try {
     return { ...page, sheet: readSheet(storedBytes(stored.file)) };
-  } catch {
-    console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", copyId: copy.id }));
-    return page;
+  } catch (error) {
+    console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", userId, copyId: copy.id, errorKind: error instanceof Error ? error.constructor.name : typeof error }));
+    return { ...page, readFailure: "original_file_unreadable" as const };
   }
 }
 
