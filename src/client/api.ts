@@ -112,6 +112,8 @@ export interface Profile {
   address: string;
   addressKana: string;
   contactSameAsAddress: boolean;
+  /** The English résumé's page. */
+  paperSize: "a4" | "letter";
   hasPhoto: boolean;
   /** The English résumé's header (issue #108); each null until filled. */
   resumeHeadline: string | null;
@@ -215,6 +217,7 @@ export interface Employer {
   nameJa: string;
   nameLatin: string | null;
   industryJa: string | null;
+  city: string | null;
   businessDescription: string | null;
   capitalYen: number | null;
   headcount: number | null;
@@ -268,6 +271,7 @@ export interface Certification {
   issuingOrganization: string;
   issuedOn: string | null;
   expiresOn: string | null;
+  kind: "technical" | "language" | "other" | null;
   credentialId: string | null;
   credentialUrl: string | null;
   technologies: string[];

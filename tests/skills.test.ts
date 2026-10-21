@@ -194,7 +194,7 @@ describe("a curated skill the record stops naming", () => {
 describe("a render with a skills section", () => {
   it("is given no list while nothing is curated", async () => {
     await seedRecord();
-    expect((await generated("english_resume")).curatedSkills).toBeNull();
+    expect((await generated("shokumu_keirekisho")).curatedSkills).toBeNull();
   });
 
   it("is given the curated groups, and a render without the section is not", async () => {
@@ -208,9 +208,11 @@ describe("a render with a skills section", () => {
       { name: "Data platforms", skills: ["CockroachDB", "Airflow"] },
       { name: "Qualifications", skills: ["SQL"] },
     ];
-    expect((await generated("english_resume")).curatedSkills).toEqual(expected);
     expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual(expected);
     expect((await generated("career_story_en")).curatedSkills).toBeNull();
+    // The English résumé's skills line is filled from the record when the file
+    // is built (issue #107), so its prompt carries no list to write one from.
+    expect((await generated("english_resume")).curatedSkills).toBeNull();
   });
 
   it("is never given a stale skill, and drops a group left empty", async () => {
@@ -225,7 +227,7 @@ describe("a render with a skills section", () => {
       technologies: [],
     });
 
-    expect((await generated("english_resume")).curatedSkills).toEqual([
+    expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual([
       { name: "Data platforms", skills: ["CockroachDB"] },
     ]);
   });
@@ -238,11 +240,11 @@ describe("a render with a skills section", () => {
     await client.put("/api/render-inclusions", {
       entityType: "employer",
       entityId: employer.id,
-      kind: "english_resume",
+      kind: "shokumu_keirekisho",
       included: false,
     });
 
-    expect((await generated("english_resume")).curatedSkills).toEqual([
+    expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual([
       { name: "Data platforms", skills: ["CockroachDB"] },
     ]);
     // Still stale nowhere: the record names it, one render simply leaves it out.

@@ -448,9 +448,13 @@ describe("a sent copy", () => {
     expect(page).toMatchObject({ company: "Harrowgate Signals", title: "Main résumé", versionNo: 1, sentOn: dateAfter(0), language: "en" });
     expect(page.page.name).toBe("Yosuke Aoki");
     expect(page.page.contact).toEqual([PROFILE_FIXTURE.email]);
-    expect(page.page.sections).toEqual([
-      { heading: "Experience", blocks: [{ kind: "bullet", text: "Cut the nightly run to 90 minutes." }] },
-    ]);
+    // The résumé's page is the file's text: its job header and education are
+    // the record of that day, and the later education is not on it (issue #107).
+    const experience = page.page.sections.find((section) => section.heading === "Experience")!;
+    expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Apr 2022 – Sep 2024" });
+    expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes." });
+    expect(JSON.stringify(page.page)).not.toContain("Rebuilt the settlement run");
+    expect(page.page.sections.find((section) => section.heading === "Education")!.blocks).toHaveLength(1);
 
     const form = await client.json<CopyPage>(`/api/applications/${made.id}/sent-copies/${rirekisho!.id}`);
     expect(form).toMatchObject({ title: "履歴書", language: "ja" });
@@ -486,7 +490,7 @@ describe("a sent copy", () => {
 
     const response = await client.get(`${path}/download`);
     expect(response.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     for (const method of ["PUT", "PATCH", "DELETE", "POST"]) {
       expect((await client.request(path, { method, body: "{}", headers: { "content-type": "application/json" } })).status).toBe(404);

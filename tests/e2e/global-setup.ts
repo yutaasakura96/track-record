@@ -30,6 +30,8 @@ import {
   DIFF_REVIEW_STORAGE_STATE,
   DOCUMENT_VIEW_IDENTITY,
   DOCUMENT_VIEW_STORAGE_STATE,
+  RESUME_IDENTITY,
+  RESUME_STORAGE_STATE,
   INTERVIEW_IDENTITY,
   INTERVIEW_STORAGE_STATE,
   RESUME_HEADER_IDENTITY,
@@ -114,6 +116,16 @@ export default async function setup() {
     RESUME_HEADER_IDENTITY,
   );
   writeFileSync(RESUME_HEADER_STORAGE_STATE, `${JSON.stringify(storageState(resumeHeaderSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The résumé layout's own author (issue #107), so the smoke test's record still starts with no profile.
+  const resumeSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    RESUME_IDENTITY,
+  );
+  writeFileSync(RESUME_STORAGE_STATE, `${JSON.stringify(storageState(resumeSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

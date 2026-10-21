@@ -12,6 +12,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { bulletsFromLines, experienceBullets, measureBullets } from "~/render/metrics";
+import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
 import type { RenderContent } from "~/shared/render-content";
 
 /** Lengths are exact and distinct, so a wrong figure cannot look plausible. */
@@ -21,9 +22,8 @@ const OVERLONG = "c".repeat(300); // 300, past the 250 threshold
 
 /**
  * Typed as `RenderContent` and passed to a function that takes the module's own
- * structural type. That assignability IS the coupling test: `metrics.ts` has no
- * imports so that Node can load it directly, and this is what stops the two
- * shapes drifting apart.
+ * structural type. That assignability IS the coupling test: Node can load
+ * `metrics.ts` directly, and this is what stops the two shapes drifting apart.
  */
 const CONTENT: RenderContent = {
   sections: [
@@ -52,6 +52,18 @@ const CONTENT: RenderContent = {
 describe("measuring a render's experience section", () => {
   it("counts the bullets of the experience section and nothing else", () => {
     expect(experienceBullets(CONTENT).map((b) => b.text.length)).toEqual([100, 200, 300]);
+  });
+
+  it("counts the bullets of a résumé's per-employer sections, and not a story chapter's paragraphs (issue #107)", () => {
+    const content = {
+      sections: [
+        { key: "summary", blocks: [{ kind: "paragraph", text: "Not a bullet.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_a`, blocks: [{ kind: "bullet", text: "First.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_b`, blocks: [{ kind: "paragraph", text: "A chapter.", factIds: [] }] },
+        { key: `${EMPLOYER_CHAPTER_PREFIX}emp_c`, blocks: [{ kind: "bullet", text: "Second.", factIds: [] }] },
+      ],
+    };
+    expect(experienceBullets(content).map((b) => b.text)).toEqual(["First.", "Second."]);
   });
 
   it("reads nothing from a document with no experience section", () => {

@@ -30,12 +30,14 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
+import { assembleResume, ResumeLanguageError, resumeMarkdown, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import { collectResumeRecord } from "../services/resume";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -93,6 +95,19 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
+    if (kind === "english_resume") {
+      try {
+        assembleResume({
+          content: { sections: [] },
+          record: await collectResumeRecord(db, user.id),
+          identity: await renderIdentity(db, user.id),
+          today: tokyoToday(),
+        });
+      } catch (error) {
+        if (error instanceof ResumeLanguageError) throw preconditionFailed(error.message, ["english_resume"]);
+        throw error;
+      }
+    }
     // The tool never silently produces an empty document, and the reason is
     // stated rather than left to the author to work out.
     if (inputs.facts.length === 0) {
@@ -675,6 +690,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
       throw err;
     }
+    if (target.kind === "english_resume") {
+      const record = await collectResumeRecord(db, user.id);
+      try {
+        validateResumeEditShape(content, current.content as RenderContent);
+        validateResumeBounds(content, record.employers, current.content as RenderContent);
+      } catch (error) {
+        if (error instanceof Error) throw validationFailed(error.message, ["content"]);
+        throw error;
+      }
+    }
     if (sameContent(content, current.content as RenderContent)) {
       throw new ApiError("conflict", "That edit changes nothing.");
     }
@@ -805,15 +830,27 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       // is not a claim about a career, and an accepted version must not go stale
       // because a phone number changed (`src/render/identity.ts`).
       const identity = await renderIdentity(db, user.id);
-      return new Response(toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday()), {
+      // The résumé's Markdown is the same document its `.docx` is (issue #107).
+      let markdown: string;
+      try {
+        markdown = kind === "english_resume"
+          ? resumeMarkdown(
+              assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today: tokyoToday() }),
+            )
+          : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
+      } catch (error) {
+        if (error instanceof ResumeLanguageError) throw new ApiError("conflict", error.message);
+        throw error;
+      }
+      return new Response(markdown, {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filenameFor(render, kind, format, version)}"`,
+          "content-disposition": `attachment; filename="${filenameFor(kind, format, version, identity)}"`,
         },
       });
     }
 
-    const file = await buildDocumentFile(db, user.id, kind, render, version);
+    const file = await buildDocumentFile(db, user.id, kind, version);
     return new Response(file.bytes as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,

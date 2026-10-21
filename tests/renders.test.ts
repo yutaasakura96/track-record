@@ -974,7 +974,7 @@ describe("documents and downloads", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(1000);
@@ -1043,11 +1043,11 @@ describe("documents and downloads", () => {
       (await (await client.get("/api/renders/english_resume/download?format=md")).text())
         .split("\n## ")[0]!
         .split("\n")
-        .filter((line) => line !== "" && !line.startsWith("# "))
+        .filter((line) => line !== "")
         .join("\n");
 
     // Nothing filled: the name and the email, as before.
-    expect((await header()).split("\n")).toEqual(["**Yosuke Aoki**", PROFILE_FIXTURE.email]);
+    expect((await header()).split("\n")).toEqual(["# Yosuke Aoki", PROFILE_FIXTURE.email]);
 
     await client.put("/api/profile", {
       ...PROFILE_FIXTURE,
@@ -1061,7 +1061,7 @@ describe("documents and downloads", () => {
     });
     const filled = await header();
     expect(filled.split("\n")).toEqual([
-      "**Yosuke Aoki**",
+      "# Yosuke Aoki",
       "Backend Engineer",
       `Tokyo, Japan · ${PROFILE_FIXTURE.email} · +81 90-0000-9999 · www.linkedin.com/in/yosuke-aoki-example/ · github.com/yosuke-example/ · www.example.invalid/work/`,
     ]);
@@ -1071,7 +1071,7 @@ describe("documents and downloads", () => {
 
     // A city alone carries no stray comma.
     await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeCity: "Osaka" });
-    expect((await header()).split("\n")).toEqual(["**Yosuke Aoki**", `Osaka · ${PROFILE_FIXTURE.email}`]);
+    expect((await header()).split("\n")).toEqual(["# Yosuke Aoki", `Osaka · ${PROFILE_FIXTURE.email}`]);
   });
 
   it("puts no résumé header field on any other render", async () => {
@@ -1981,11 +1981,16 @@ describe("a version is read as its download would hold it", () => {
     expect(view.page.contact.join("\n")).toContain(PROFILE_FIXTURE.email);
 
     const markdown = await (await client.get("/api/renders/english_resume/download?format=md")).text();
-    expect(texts(view)).toEqual([
-      "Cut nightly batch runtime from six hours to ninety minutes",
-      "Introduced trunk-based development",
-    ]);
-    for (const text of texts(view)) expect(markdown).toContain(text);
+    const prose = view.page.sections.flatMap((section) =>
+      section.blocks.filter((block) => block.kind !== "row").map((block) => block.text),
+    );
+    expect(prose).toEqual(
+      expect.arrayContaining(["Cut nightly batch runtime from six hours to ninety minutes", "Introduced trunk-based development"]),
+    );
+    // A job header is laid out per format (the Markdown form is pinned in resume-download.test.ts); its prose is not.
+    for (const text of prose) expect(markdown).toContain(text);
+    expect(texts(view)).toContain("Aozora Logistics K.K. · Apr 2022 – Sep 2024");
+    expect(markdown).toContain("**Aozora Logistics K.K.** — Apr 2022 – Sep 2024");
     for (const section of view.page.sections) expect(markdown).toContain(section.heading);
   });
 

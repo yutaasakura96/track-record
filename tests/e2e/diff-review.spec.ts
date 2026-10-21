@@ -20,6 +20,11 @@ test("first proposal previews the document; regeneration shows a heading change"
   });
   await expect(page.locator("article[data-fact-card]").filter({ hasText: CLAIM })).toBeVisible();
   await page.getByRole("button", { name: "Done", exact: true }).first().click();
+  // An independent project's section is headed by its record name, the one
+  // résumé heading a record edit can rewrite.
+  const projectResponse = await context.request.post("/api/projects", { data: { name: "Route Planner" } });
+  expect(projectResponse.status()).toBe(201);
+  const project = await projectResponse.json() as { id: string };
   await page.route("**/api/proposals/*/diff", async (route) => {
     await route.fulfill({
       status: 503,
@@ -47,14 +52,8 @@ test("first proposal previews the document; regeneration shows a heading change"
   await page.getByRole("button", { name: "Accept as v1" }).click();
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
 
-  const factsResponse = await context.request.get("/api/facts");
-  expect(factsResponse.ok()).toBeTruthy();
-  const { items } = await factsResponse.json() as { items: { id: string; claim: string }[] };
-  const fact = items.find((item) => item.claim.includes(CLAIM));
-  expect(fact).toBeDefined();
-  const revised = `${CLAIM} (revised)`;
-  const editResponse = await context.request.patch(`/api/facts/${fact!.id}`, { data: { claim: revised } });
-  expect(editResponse.ok()).toBeTruthy();
+  const renameResponse = await context.request.patch(`/api/projects/${project.id}`, { data: { name: "Route Optimizer" } });
+  expect(renameResponse.ok()).toBeTruthy();
   const generation = await context.request.post("/api/renders/english_resume/generate");
   expect(generation.ok()).toBeTruthy();
   const { proposalId } = await generation.json() as { proposalId: string };
@@ -63,8 +62,8 @@ test("first proposal previews the document; regeneration shows a heading change"
     return (await response.json()).generationStatus;
   }).toBe("ready");
   await page.goto(`/proposals/${proposalId}`);
-  await expect(page.getByText("Experience", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Selected", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Planner", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Optimizer", { exact: true }).first()).toBeVisible();
   await expect(page.getByText(/Heading rewritten/)).toBeVisible();
   await screenshot(page, "heading-change-review.png");
 

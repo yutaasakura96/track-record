@@ -13,7 +13,7 @@
  */
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { profiles, type renderVersions, type renders } from "../db/schema";
+import { profiles, type renderVersions } from "../db/schema";
 import { ApiError, preconditionFailed } from "../http/errors";
 import { badCitations, citationMessage, collectEditableRecord } from "./version-edit";
 import { collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
@@ -22,10 +22,12 @@ import { downloadFilename, toDocx } from "~/render/docx";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
 import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
+import { assembleResume, ResumeLanguageError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
+import { resumeDocx, type PaperSize } from "~/render/resume-docx";
+import { collectResumeRecord } from "./resume";
 import type { RenderIdentity } from "~/render/identity";
 import { RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 
-type RenderRow = typeof renders.$inferSelect;
 type VersionRow = typeof renderVersions.$inferSelect;
 
 export interface DocumentFile {
@@ -59,29 +61,56 @@ export async function refuseWithheldCitations(db: Db, userId: string, content: R
   }
 }
 
-/** `resume-2026-08-12.docx`, or with a tailored résumé's name and id in it. */
-export const filenameFor = (render: RenderRow | null, kind: RenderKind, extension: string, version: VersionRow) =>
-  downloadFilename(kind, extension, version.acceptedAt, render?.label ? { label: render.label, id: render.id } : null);
+/**
+ * `Kenji-Moriyama-Resume-2026-10.docx` for an English résumé, main or tailored
+ * alike: it is the file an employer receives, and the label is the author's
+ * note to themselves. Every other kind keeps `shokumu-keirekisho-2026-08-12.docx`.
+ */
+export const filenameFor = (
+  kind: RenderKind,
+  extension: string,
+  version: VersionRow,
+  identity: RenderIdentity,
+) =>
+  kind === "english_resume"
+    ? resumeFilename(identity.nameLatin, extension, version.acceptedAt)
+    : downloadFilename(kind, extension, version.acceptedAt);
 
 /** The file of one version, as it is assembled today. Refuses what a download refuses. */
 export async function buildDocumentFile(
   db: Db,
   userId: string,
   kind: RenderKind,
-  render: RenderRow | null,
   version: VersionRow,
 ): Promise<DocumentFile> {
-  const filename = filenameFor(render, kind, "docx", version);
   const inputs = await assemblyInputs(db, userId, kind, version);
-  return assembled(version, async () =>
-    inputs.kind === "rirekisho"
-      ? { bytes: fillRirekishoTemplate(inputs.data), filename, page: rirekishoSentPage(inputs.data, inputs.content) }
-      : {
-          bytes: await toDocx(inputs.content, RENDER_TITLE[kind], kind, inputs.identity, inputs.today),
-          filename,
-          page: sentPage(kind, inputs.content, inputs.identity, inputs.today),
-        },
-  );
+  switch (inputs.kind) {
+    case "rirekisho": {
+      const filename = downloadFilename(kind, "docx", version.acceptedAt);
+      return assembled(version, () => ({
+        bytes: fillRirekishoTemplate(inputs.data),
+        filename,
+        page: rirekishoSentPage(inputs.data, inputs.content),
+      }));
+    }
+    case "resume": {
+      const { document, paper } = inputs;
+      const filename = filenameFor(kind, "docx", version, inputs.identity);
+      return assembled(version, async () => ({
+        bytes: await resumeDocx(document, paper, { title: `${document.name} – Résumé`, author: document.name }),
+        filename,
+        page: resumeSentPage(document),
+      }));
+    }
+    case "built": {
+      const filename = filenameFor(kind, "docx", version, inputs.identity);
+      return assembled(version, async () => ({
+        bytes: await toDocx(inputs.content, RENDER_TITLE[kind], kind, inputs.identity, inputs.today),
+        filename,
+        page: sentPage(kind, inputs.content, inputs.identity, inputs.today),
+      }));
+    }
+  }
 }
 
 /**
@@ -91,15 +120,19 @@ export async function buildDocumentFile(
  */
 export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<SentPage> {
   const inputs = await assemblyInputs(db, userId, kind, version);
-  return assembled(version, () =>
-    inputs.kind === "rirekisho"
-      ? rirekishoSentPage(inputs.data, inputs.content)
-      : sentPage(kind, inputs.content, inputs.identity, inputs.today),
-  );
+  switch (inputs.kind) {
+    case "rirekisho":
+      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content));
+    case "resume":
+      return assembled(version, () => resumeSentPage(inputs.document));
+    case "built":
+      return assembled(version, () => sentPage(kind, inputs.content, inputs.identity, inputs.today));
+  }
 }
 
 type AssemblyInputs =
   | { kind: "rirekisho"; content: RenderContent; data: RirekishoTemplateData }
+  | { kind: "resume"; identity: RenderIdentity; document: ResumeDocument; paper: PaperSize }
   | { kind: "built"; content: RenderContent; identity: RenderIdentity; today: string };
 
 /** What a file is assembled from today, read once for the file and the page alike. */
@@ -127,6 +160,20 @@ async function assemblyInputs(db: Db, userId: string, kind: RenderKind, version:
   // a claim about a career, and an accepted version must not go stale because
   // a phone number changed (`src/render/identity.ts`).
   const identity = await renderIdentity(db, userId);
+
+  // The English résumé is laid out from the record with the version's summary
+  // and bullets set into it (issue #107, `src/render/resume.ts`). Tailored
+  // résumés are the same kind and take the same path.
+  if (kind === "english_resume") {
+    const { paper, ...record } = await collectResumeRecord(db, userId);
+    return assembled(version, () => ({
+      kind: "resume" as const,
+      identity,
+      document: assembleResume({ content, record, identity, today }),
+      paper,
+    }));
+  }
+
   return { kind: "built", content, identity, today };
 }
 
@@ -137,6 +184,7 @@ async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): P
   } catch (error) {
     // A refusal with words for the author is passed on as it is.
     if (error instanceof ApiError) throw error;
+    if (error instanceof ResumeLanguageError) throw new ApiError("conflict", error.message);
     // The build fails; the stored content is untouched and the next one can succeed.
     console.error(JSON.stringify({ event: "docx_build_failed", versionId: version.id }));
     throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
