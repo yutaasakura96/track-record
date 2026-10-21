@@ -1903,7 +1903,7 @@ Header `Applications / <company> / <title> as sent`. Read-only.
    Email, 現住所 and 連絡先; the 年 / 月 / 学歴・職歴 table with 学歴, 職歴 and 以上 across the whole
    row; 年 / 月 / 免許・資格; then the two prose cells. A copy stored before the page carried the form
    is read the same way, from its file. Tables keep the file's column proportions and fit the
-   width; a table that cannot scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese
+   width; a table that cannot fit scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese
    stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under

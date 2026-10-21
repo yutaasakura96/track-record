@@ -690,6 +690,12 @@ back to the application it came from.
 | `GET` | `/api/renders/:kind/diff` | M1 | `?from=&to=` — two **versions** of one render, the restore preview. `from` is the left column. Never names a proposal; proposals keep their own diff route |
 | `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal (not one whose generation `failed`) or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
 
+`SentPage` carries `stamp`, `name`, `contact` lines and nonempty `sections` with their headings and
+blocks. A 履歴書 page also carries `sheet`: ordered line and table blocks read from its filled
+`.docx`, with cell spans, column widths, alignment, size and shading. This applies to the render
+page, the first-version preview and sent copies; older sent copies gain `sheet` from their stored
+file when read.
+
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.
 
@@ -837,9 +843,7 @@ version. Two passes have already run server-side: paragraphs aligned, then token
 - `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
   `removed_unverified` · `from_restricted`.
 - `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,
-  and null otherwise. `SentPage` carries `stamp`, `name`, `contact` lines and nonempty `sections`
-  with their headings and blocks. A 履歴書 page includes its template fields and tables. The
-  first-version screen reads `preview`; every other review reads `changes`.
+  and null otherwise. The first-version screen reads `preview`; every other review reads `changes`.
 - **A change with no `rationale` is a defect**, not a tolerable gap
   (`10-screen-specifications.md`).
 
