@@ -2088,12 +2088,13 @@ describe("a version is read as its download would hold it", () => {
     for (const section of view.page.sections) expect(markdown).toContain(section.heading);
   });
 
-  /** The page and both download formats, each refused with the job header's gaps named. */
+  /** The page and every download format, each refused with the job header's gaps named. */
   async function expectJobHeaderRefusal(jobHeaders: unknown[]) {
     for (const path of [
       "/api/renders/english_resume/page",
       "/api/renders/english_resume/download?format=md",
-      "/api/renders/english_resume/download",
+      "/api/renders/english_resume/download?format=docx",
+      "/api/renders/english_resume/download?format=pdf",
     ]) {
       const response = await client.get(path);
       expect(response.status, path).toBe(409);
