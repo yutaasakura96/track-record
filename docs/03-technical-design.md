@@ -447,6 +447,16 @@ held only in Japanese), or whose checked record-name mentions differ, is generat
 the second attempt also fails, the proposal is marked failed with a plain reason and no content is
 offered for review. Japanese renders do not use this check (`src/render/language.ts`).
 
+The name check requires a recorded employer name as a whole word in each named résumé experience
+heading, a school name in each education row, and an independent project name in each project row.
+Each keyed career-story chapter must contain its recorded employer name. Generic section titles do
+not require a name. The check also rejects near-miss spellings in headings and rows, including a
+longer name that contains another recorded name.
+Prose checks longer names in name-like context; names shorter than six characters are checked
+only immediately after `joined`, `at`, `for`, `with`, `left` or `from`. Ordinary prose words are
+left alone. A `Date` label followed by a year, date or date range is not treated as a misspelling
+of a short name such as `Data`.
+
 Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled from the stored
 `RenderContent` **on download**, never stored. The document reader uses the same inputs as that
 version's download to assemble its page without building the file (`10` Screen 17), except a
