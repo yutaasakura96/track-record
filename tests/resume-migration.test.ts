@@ -5,6 +5,7 @@ import { createDb } from "~/server/db/client";
 import type { Bindings } from "~/server/env";
 import migration from "../src/server/db/migrations/0027_resume_layout.sql?raw";
 import classification from "../src/server/db/migrations/0028_certification_kind.sql?raw";
+import jlptLevel from "../src/server/db/migrations/0030_certification_jlpt_level.sql?raw";
 
 const db = createDb((env as unknown as Bindings).DATABASE_URL);
 const schema = `resume_mig_${Math.trunc(Math.random() * 1e9)}`;
@@ -46,6 +47,9 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       ('toeic_unset', 'TOEIC Listening & Reading 880', null, null),
       ('toeic_score', 'TOEIC800点', null, null),
       ('hsk', 'HSK6級', null, 'technical'),
+      ('jlpt_level', 'JLPTN1', null, null),
+      ('jlpt_passed', 'JLPTN2 合格', null, null),
+      ('jlpt_word', 'JLPTNavigator', null, null),
       ('versant', 'Versant English Test', null, 'technical'),
       ('cloud_unset', 'Cloud Architect', null, null),
       ('cloud', 'Cloud Architect Professional', null, 'technical'),
@@ -53,6 +57,8 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       ('kept_other', 'TOEIC Speaking', null, 'other'),
       ('kept_language', 'Driving licence', null, 'language')`,
     ...split(classification.replaceAll('"public".', `"${second}".`)),
+    ...split(jlptLevel),
+    ...split(jlptLevel),
     `select id, kind from certifications order by id`,
     `select is_nullable from information_schema.columns where table_schema = '${second}' and table_name = 'certifications' and column_name = 'kind'`,
   ];
@@ -63,6 +69,9 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       { id: "cloud", kind: "technical" },
       { id: "cloud_unset", kind: "technical" },
       { id: "hsk", kind: "language" },
+      { id: "jlpt_level", kind: "language" },
+      { id: "jlpt_passed", kind: "language" },
+      { id: "jlpt_word", kind: "technical" },
       { id: "kept_language", kind: "language" },
       { id: "kept_other", kind: "other" },
       { id: "licence_en", kind: "other" },
