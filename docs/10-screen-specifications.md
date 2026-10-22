@@ -746,7 +746,8 @@ Top to bottom in the 940px column:
 4. **Independent projects.** Projects with no employer, as project rows, with `Add a project`.
 5. **Education and Certifications**, side by side. An education row carries its inclusion line, and
    an upper-secondary rung the chip `Left out of: Résumé (English)`; a lower-secondary rung also names
-   `職務経歴書` as excluded. A certification carries `expired YYYY-MM`,
+   `職務経歴書` as excluded. A vocational rung, and a row with no level, carry no chip: every document
+   prints them. The chip is read from `src/shared/education.ts`, the rule the résumé applies. A certification carries `expired YYYY-MM`,
    `expires this month` or `expires in N months` (three months ahead) as a neutral chip. Expired
    certifications still print; the chip says so much and no more.
 

@@ -272,6 +272,18 @@ describe("the timeline", () => {
           outcome: "graduated",
           level: "secondary_lower",
         },
+        {
+          id: "edu-test-vocational",
+          institution: "Kitamachi Design Academy",
+          institutionJa: null,
+          faculty: null,
+          degree: null,
+          fieldOfStudy: null,
+          startedOn: "2011-04-01",
+          endedOn: "2012-03-01",
+          outcome: "completed",
+          level: "vocational",
+        },
       ],
     });
 
@@ -281,6 +293,8 @@ describe("the timeline", () => {
     expect((await rowOf("Kitamachi Middle School")).textContent).toContain(
       "Left out of: Résumé (English), 職務経歴書",
     );
+    // A vocational programme prints in every document, so it carries no chip.
+    expect((await rowOf("Kitamachi Design Academy")).textContent).not.toContain("Left out of");
   });
 });
 

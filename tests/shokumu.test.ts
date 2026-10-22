@@ -29,6 +29,7 @@ import { checkAttribution, copiedPairs, copyIsPermitted, experienceGroups } from
 import { experienceBullets, measureBullets } from "~/render/metrics";
 import type { RenderContent } from "~/shared/render-content";
 import { RENDER_KINDS } from "~/shared/render-content";
+import { leavesOutEducation } from "~/shared/education";
 
 const definition = RENDER_DEFINITIONS.shokumu_keirekisho;
 
@@ -105,6 +106,17 @@ describe("the register's contract with the rest of the codebase", () => {
     expect(definition.register).toContain("体言止め");
     expect(definition.register).toContain("English résumé");
     expect(RENDER_DEFINITIONS.english_resume.register).toContain("past-tense action verb");
+  });
+
+  it("keeps a vocational programme in 学歴 and drops lower secondary, as the timeline's chip says", () => {
+    // The register applies this in prose; the chip names the 職務経歴書 from
+    // `~/shared/education`. Asserted together so the two cannot drift.
+    expect(definition.register).toContain("omit one below upper-secondary level");
+    expect(definition.register).toContain("keep every other entry including a vocational programme");
+    expect(leavesOutEducation("shokumu_keirekisho", "secondary_lower")).toBe(true);
+    for (const level of ["secondary_upper", "vocational", "tertiary", "postgraduate", null] as const) {
+      expect(leavesOutEducation("shokumu_keirekisho", level), String(level)).toBe(false);
+    }
   });
 
   it("puts a driving licence in 保有資格", () => {

@@ -475,8 +475,9 @@ not written.
 (#107). A version stores a `summary` section and one section of bullets per employer, keyed
 `employer:<id>` like a story's chapters, plus `project:<id>` for an independent project. On download
 `src/render/resume.ts` joins them by id to what the record holds today: each job's company, city,
-`Mon YYYY – Present` dates and every title held there, the skills curation, the education at
-university level and above, the current technical certifications and a Languages line. The
+`Mon YYYY – Present` dates and every title held there, the skills curation, the education past
+secondary school (a vocational programme and a row with no level included, by the rule in
+`src/shared/education.ts`), the current technical certifications and a Languages line. The
 `.docx` (`src/render/resume-docx.ts`), the Markdown and a sent copy's page are written from that one
 assembled document. The per-employer bullet budget is computed from the record and printed in the
 prompt. A version from before #107 may hold a heading-led `experience` section; when present, its
