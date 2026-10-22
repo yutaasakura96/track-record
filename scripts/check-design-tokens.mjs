@@ -151,6 +151,7 @@ const SURFACES = [
   "card-selected",
   "card-recessed",
   "chip",
+  "shade",
   "hover",
 ];
 /** Text that sits on one fill of its own rather than on a surface. */

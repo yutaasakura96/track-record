@@ -69,6 +69,16 @@ test("current and legacy 履歴書 pages match their printed files in both theme
 
   await page.goto("/renders/rirekisho/view");
   await checkForm(page);
+  const identityCells = page.getByRole("article").getByRole("table").first().getByRole("row").first().getByRole("cell");
+  const nameLines = identityCells.nth(1).locator("p");
+  const marginAbove = async (line: ReturnType<typeof nameLines.nth>) =>
+    line.evaluate((element) => parseFloat(getComputedStyle(element).marginTop));
+  expect(await marginAbove(nameLines.first())).toBeGreaterThan(0);
+  expect(await marginAbove(nameLines.nth(1))).toBe(0);
+  expect(await marginAbove(identityCells.nth(2).locator("p"))).toBeGreaterThan(await marginAbove(nameLines.first()));
+  const shade = async () => identityCells.nth(2).evaluate((element) => getComputedStyle(element).backgroundColor);
+  const lightShade = await shade();
+  expect(lightShade).not.toBe("rgba(0, 0, 0, 0)");
   await capture(page, "rirekisho-current-light.png");
   const version = await context.request.get("/api/renders/rirekisho/page");
   expect(version.ok()).toBe(true);
@@ -77,6 +87,9 @@ test("current and legacy 履歴書 pages match their printed files in both theme
 
   await page.getByRole("radio", { name: "Dark" }).click();
   await checkForm(page);
+  const darkShade = await shade();
+  expect(darkShade).not.toBe(lightShade);
+  expect(darkShade).not.toBe("rgba(0, 0, 0, 0)");
   await capture(page, "rirekisho-current-dark.png");
 
   const made = await context.request.post("/api/applications", {

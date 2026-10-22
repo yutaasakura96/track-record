@@ -42,6 +42,7 @@ Every table gives the light value first, because light is the default.
 | `card-selected` | `#f4f5fe` | `#13141a` | Selected card (neutral state only) |
 | `card-recessed` | `#eef0f3` | `#0b0c0d` | Private cards, resolved cards |
 | `chip` | `#eceef2` | `#131416` | Inline chips, file badges, icon tiles |
+| `shade` | `#eceef2` | `#26282b` | The 履歴書 preview's shaded cells — 年 / 月, 学歴 / 職歴, 写真 — the grey the file prints. Lighter than `chip` in dark, so the fill reads on the page as it does on paper |
 | `hover` | `#e8eaee` | `#17181b` | Hover fill on ghost controls and rows |
 | `disabled-bg` | `#eef0f3` | `#141518` | Disabled button fill |
 | `progress-track` | `#dfe2e7` | `#1c1d20` | Progress bar track |

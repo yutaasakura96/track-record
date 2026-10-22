@@ -32,6 +32,7 @@
   --color-card-selected: #f4f5fe;
   --color-card-recessed: #eef0f3;
   --color-chip: #eceef2;
+  --color-shade: #eceef2;
   --color-hover: #e8eaee;
 
   /* ------------------------------------------------------------ borders */
@@ -238,6 +239,7 @@
   --color-card-selected: #13141a;
   --color-card-recessed: #0b0c0d;
   --color-chip: #131416;
+  --color-shade: #26282b;
   --color-hover: #17181b;
 
   --color-border: #1a1b1e;

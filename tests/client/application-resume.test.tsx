@@ -449,7 +449,13 @@ describe("a sent copy", () => {
     expect(printedBlocks[9]!.classList.contains("mb-8")).toBe(true);
     expect(printedBlocks[11]!.classList.contains("mb-0")).toBe(true);
     expect(within(tables[0]!).getAllByRole("cell")[1]!.querySelectorAll("p")[0]!.classList.contains("mb-2")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.querySelectorAll("p")[0]!.classList.contains("mt-4")).toBe(true);
     expect(within(tables[0]!).getAllByRole("cell")[2]!.querySelector("p")!.textContent).toBe("\u00a0");
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.querySelector("p")!.classList.contains("mt-26")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.classList.contains("bg-shade")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.classList.contains("bg-shade")).toBe(false);
+    expect(within(tables[3]!).getAllByRole("cell")[1]!.querySelector("p")!.classList.contains("mt-8")).toBe(true);
+    expect(printedBlocks[0]!.classList.contains("mt-0")).toBe(true);
     const cells = (row: HTMLElement) => [...row.querySelectorAll("td, th")];
 
     const identity = within(tables[0]!).getAllByRole("row");

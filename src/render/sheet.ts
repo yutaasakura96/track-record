@@ -10,7 +10,7 @@
  * its own stored file.
  *
  * Only what the template uses is read: top-level paragraphs and tables of
- * paragraphs, each cell's fill, each paragraph's alignment, and its runs' size
+ * paragraphs, each cell's fill, each paragraph's alignment and spacing, and its runs' size
  * and weight. It is
  * not a general `.docx` reader — `src/pipeline/docx.ts` is the one for files
  * the author brings, and this borrows its tokenizer and nothing else.
@@ -28,6 +28,8 @@ export interface SheetLine {
   align: SheetAlign;
   size: SheetSize;
   bold: boolean;
+  /** The paragraph's own space above and below it, in twips, as `w:spacing` sets it. */
+  beforeTwips: number;
   afterTwips: number;
 }
 
@@ -82,7 +84,7 @@ export function sheetOf(xml: string): Sheet {
   const blocks: SheetBlock[] = [];
   let table: OpenTable | null = null;
   let cell: OpenCell | null = null;
-  let paragraph: { text: string; align: SheetAlign; sizes: number[]; bold: boolean; afterTwips: number } | null = null;
+  let paragraph: { text: string; align: SheetAlign; sizes: number[]; bold: boolean; beforeTwips: number; afterTwips: number } | null = null;
   /** Inside `w:pPr` (paragraph properties) or a run's `w:rPr` (run properties). */
   let inParagraphProperties = false;
   let run: { size: number | null; bold: boolean; written: boolean } | null = null;
@@ -149,19 +151,23 @@ export function sheetOf(xml: string): Sheet {
                 align: paragraph.align,
                 size: sizeOf(paragraph.sizes.length ? Math.max(...paragraph.sizes) : null),
                 bold: paragraph.bold,
+                beforeTwips: paragraph.beforeTwips,
                 afterTwips: paragraph.afterTwips,
               }
-            : { text: "", align: "start", size: "body", bold: false, afterTwips: 0 };
+            : { text: "", align: "start", size: "body", bold: false, beforeTwips: 0, afterTwips: 0 };
           if (cell) cell.lines.push(line);
           else blocks.push({ kind: "line", line });
           paragraph = null;
-        } else paragraph = { text: "", align: "start", sizes: [], bold: false, afterTwips: 0 };
+        } else paragraph = { text: "", align: "start", sizes: [], bold: false, beforeTwips: 0, afterTwips: 0 };
         continue;
       case "w:pPr":
         if (!selfClosing) inParagraphProperties = !closing;
         continue;
       case "w:spacing":
-        if (paragraph && inParagraphProperties && !run) paragraph.afterTwips = Number(attribute(attributes, "after") ?? 0);
+        if (paragraph && inParagraphProperties && !run) {
+          paragraph.beforeTwips = Number(attribute(attributes, "before") ?? 0);
+          paragraph.afterTwips = Number(attribute(attributes, "after") ?? 0);
+        }
         continue;
       case "w:jc":
         if (paragraph && inParagraphProperties && !run) {
