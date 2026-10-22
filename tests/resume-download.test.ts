@@ -164,7 +164,7 @@ describe("the English résumé download", () => {
     await client.patch(`/api/employers/${employerId}`, { nameJa: "Компания", nameLatin: null });
     const response = await client.post("/api/renders/english_resume/generate");
     expect(response.status).toBe(428);
-    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for employer Компания/);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for employer/);
     expect(model.generationInputs).toEqual([]);
   });
 

@@ -762,11 +762,13 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
-**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when a field the
-file would print holds Japanese script: the message names the record item that needs an English value
-(an employer's name or city, a project, an institution, the profile name), with
-`details.fields: ["english_resume"]`. A tailored résumé is refused the same way, and a download of
-either answers `409 conflict` with the same message rather than print the script (`docs/03` §6).
+**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when an employer,
+project or education name in the generation spec lacks a Latin letter or contains a non-Latin letter,
+or an assembled field would print Japanese script. The name check includes entries later omitted
+from the file. The message names the field needing an English or Latin-script value, with
+`details.fields: ["english_resume"]`. A tailored résumé is refused the same way. A download of
+either answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
+or a legacy experience heading naming no included employer (`docs/03` §6).
 
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
 `pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
@@ -870,8 +872,8 @@ Accepting an already-decided proposal → `409 conflict`.
 name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
 the same way (#107). Every other kind is `<kind>-<YYYY-MM-DD>.docx`, e.g. `shokumu-keirekisho-2026-08-12.docx`.
 Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
-certifications and languages are read from the record at the same time (`docs/03` §6). Other assembly
-failures → `500` with `code: "render_failed"`;
+certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
+assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
 **A download obeys today's record, not the day the version was accepted.** Every download

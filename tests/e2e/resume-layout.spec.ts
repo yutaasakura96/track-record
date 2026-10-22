@@ -32,7 +32,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   const employer = await post("/api/employers", { ...EMPLOYER_FIXTURE, city: "Yokohama" }) as { id: string };
   await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
   await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id, titleLatin: "Senior Backend Engineer", startedOn: "2023-10-01", endedOn: "2024-09-01" });
-  await post("/api/projects", { name: "Route Planner", summary: "Built a route planner for invented delivery routes." });
+  const independent = await post("/api/projects", { name: "Route Planner", summary: "Built a route planner for invented delivery routes." }) as { id: string };
   await post("/api/educations", EDUCATION_FIXTURE);
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, kind: "technical" });
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "Expired Cloud Associate", expiresOn: "2021-03-01" });
@@ -57,6 +57,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   await accept("english_resume");
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Résumé (English)" })).toContainText("Up to date");
   if (evidence) await page.screenshot({ path: `${evidence}/resume-home.png`, fullPage: true });
 
   const checkDownload = async (ref: string, label: string) => {
@@ -88,6 +89,29 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   };
 
   const original = await checkDownload("english_resume", "resume-main");
+  await page.goto("/renders/english_resume/view");
+  await expect(page.getByRole("article").getByText("Aozora Logistics K.K.")).toBeVisible();
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-reader.png`, fullPage: true });
+  const refused = async (entry: string, expected: string) => {
+    const response = await api.post("/api/renders/english_resume/generate");
+    expect(response.status(), `${entry}: ${await response.text()}`).toBe(428);
+    expect(await response.text()).toContain(expected);
+    if (evidence) writeFileSync(`${evidence}/resume-${entry}-refusal.txt`, `${response.status()} ${await response.text()}\n`);
+  };
+  expect((await api.patch(`/api/employers/${employer.id}`, { data: { nameJa: "Компания", nameLatin: null } })).status()).toBe(200);
+  await refused("employer", "Latin-script name for employer");
+  for (const format of ["md", "docx"]) {
+    const response = await api.get(`/api/renders/english_resume/download?format=${format}`);
+    expect(response.status()).toBe(409);
+    expect(await response.text()).toContain("Latin-script name");
+  }
+  expect((await api.patch(`/api/employers/${employer.id}`, { data: { nameJa: EMPLOYER_FIXTURE.nameJa, nameLatin: EMPLOYER_FIXTURE.nameLatin } })).status()).toBe(200);
+  const attached = await post("/api/projects", { name: "Проект", employerId: employer.id }) as { id: string };
+  await refused("attached-project", "Latin-script name for project");
+  expect((await api.patch(`/api/projects/${attached.id}`, { data: { name: "Dispatch Console" } })).status()).toBe(200);
+  const school = await post("/api/educations", { ...EDUCATION_FIXTURE, institution: "Школа", level: "secondary_upper" }) as { id: string };
+  await refused("secondary-school", "Latin-script name for education");
+  expect((await api.patch(`/api/educations/${school.id}`, { data: { institution: "Midorikawa High School" } })).status()).toBe(200);
   const { items } = await api.get("/api/renders").then((r) => r.json()) as { items: { kind: string; currentVersionId: string }[] };
   const versionId = items.find((item) => item.kind === "english_resume")!.currentVersionId;
   const version = await api.get(`/api/renders/english_resume/versions/${versionId}`).then((r) => r.json()) as { content: { sections: { key: string; blocks: { kind: string }[] }[] } };
@@ -112,5 +136,12 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   const ref = detail.documents.find((document) => document.tailored)!.ref;
   await accept(ref);
   await checkDownload(ref, "resume-tailored");
+  expect((await api.patch(`/api/projects/${independent.id}`, { data: { employerId: employer.id } })).status()).toBe(200);
+  const reworded = { sections: version.content.sections.map((section) => section.key === "summary"
+    ? { ...section, blocks: section.blocks.map((block) => ({ ...block, text: "Backend engineer improving dependable settlement services." })) }
+    : section) };
+  const movedRecordEdit = await api.post("/api/renders/english_resume/versions", { data: { basedOnVersionId: versionId, content: reworded } });
+  expect(movedRecordEdit.status(), await movedRecordEdit.text()).toBe(201);
+  if (evidence) writeFileSync(`${evidence}/resume-edit-after-project-move.txt`, `${movedRecordEdit.status()} ${await movedRecordEdit.text()}\n`);
   await context.close();
 });
