@@ -43,7 +43,7 @@ import {
 } from "~/shared/skills";
 
 const CONTROL =
-  "min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring";
+  "min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring disabled:bg-disabled-bg disabled:text-text-faint";
 
 const CHIP =
   "inline-flex items-center gap-6 min-h-control-inline max-phone:min-h-control px-8 py-2 rounded-control border text-row motion-tone outline-none focus-visible:shadow-glow";
@@ -156,13 +156,15 @@ function Curation({ data }: { data: SkillCuration }) {
     ...drafts.filter((d) => !saved.some((g) => g.name === d)).map((name) => ({ name, skills: [] })),
   ];
   const groupNames = working.map((g) => g.name);
-  const shown = held?.groups ?? working;
-  const previewed =
-    held && !held.adding
-      ? held.groups
-      : dragging && dropAt
-        ? placeSkill(working, dragging.skill, dropAt)
-        : working;
+  const moving = held && !held.adding ? held : null;
+  // While a chip is held, its list is the one pending change; the group controls wait for Place or Cancel.
+  const locked = moving ? `Place or cancel the move of ${moving.skill} first.` : undefined;
+  const shown = moving?.groups ?? working;
+  const previewed = moving
+    ? moving.groups
+    : dragging && dropAt
+      ? placeSkill(working, dragging.skill, dropAt)
+      : working;
   const preview = skillsSectionPage(resumeSkills(nonEmpty(previewed), data.printable));
   const printable = new Set(data.printable);
 
@@ -197,7 +199,7 @@ function Curation({ data }: { data: SkillCuration }) {
   };
 
   const pickUp = (skill: string) => {
-    const from = held && !held.adding ? place(held) : working;
+    const from = moving ? place(moving) : working;
     setHeld({ skill, groups: from, adding: false });
     setSaid(`${skill} picked up. ${whereIs(from, skill)} Arrow keys move it. Enter places it, Escape puts it back.`);
   };
@@ -328,7 +330,7 @@ function Curation({ data }: { data: SkillCuration }) {
     setNewGroup("");
   };
 
-  const heldAt = held && !held.adding ? placeOf(held.groups, held.skill) : null;
+  const heldAt = moving ? placeOf(moving.groups, moving.skill) : null;
 
   return (
     <>
@@ -393,6 +395,10 @@ function Curation({ data }: { data: SkillCuration }) {
                   key={group.name}
                   aria-label={group.name}
                   onDragOver={(event) => overGroup(event, gi)}
+                  onDragLeave={(event) => {
+                    if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                    setDropAt((at) => (at?.group === gi ? null : at));
+                  }}
                   onDrop={(event) => dropOnGroup(event, gi)}
                   className={`grid gap-8 bg-card border rounded-tile px-12 py-10 motion-tone ${
                     target !== null ? "border-border-active bg-card-selected" : "border-border"
@@ -403,6 +409,8 @@ function Curation({ data }: { data: SkillCuration }) {
                       <input
                         aria-label="Group name"
                         defaultValue={group.name}
+                        disabled={locked !== undefined}
+                        title={locked}
                         className={`${CONTROL} flex-1 min-w-0`}
                         onBlur={(event) => {
                           const name = event.target.value.trim();
@@ -421,6 +429,7 @@ function Curation({ data }: { data: SkillCuration }) {
                         index={gi}
                         length={saved.length}
                         what="group"
+                        lockedReason={locked}
                         onMove={(by) => commit(moved(working, gi, by), "groups")}
                       />
                     ) : null}
@@ -549,13 +558,17 @@ function Curation({ data }: { data: SkillCuration }) {
               aria-label="New group name"
               placeholder="Group name"
               value={newGroup}
+              disabled={locked !== undefined}
+              title={locked}
               onChange={(event) => setNewGroup(event.target.value)}
               className={`${CONTROL} flex-1 min-w-0`}
             />
             <Button
               type="submit"
-              disabled={!newGroup.trim() || groupNames.includes(newGroup.trim())}
-              disabledReason={newGroup.trim() ? "A group with that name already exists." : "Name the group first."}
+              disabled={locked !== undefined || !newGroup.trim() || groupNames.includes(newGroup.trim())}
+              disabledReason={
+                locked ?? (newGroup.trim() ? "A group with that name already exists." : "Name the group first.")
+              }
             >
               Add group
             </Button>
@@ -594,6 +607,7 @@ function Curation({ data }: { data: SkillCuration }) {
                 candidates={inView}
                 groupNames={groupNames}
                 heldSkill={held?.adding ? held.skill : null}
+                lockedReason={locked}
                 onAdd={addTo}
                 onHold={(skill) => {
                   setHeld({ skill, groups: working, adding: true });
@@ -616,6 +630,7 @@ function Curation({ data }: { data: SkillCuration }) {
                       candidates={folded}
                       groupNames={groupNames}
                       heldSkill={held?.adding ? held.skill : null}
+                      lockedReason={locked}
                       onAdd={addTo}
                       onHold={(skill) => {
                         setHeld({ skill, groups: working, adding: true });
@@ -669,6 +684,7 @@ function SuggestionChips({
   candidates,
   groupNames,
   heldSkill,
+  lockedReason,
   onAdd,
   onHold,
   onDragStart,
@@ -677,6 +693,7 @@ function SuggestionChips({
   candidates: SkillCuration["candidates"];
   groupNames: string[];
   heldSkill: string | null;
+  lockedReason: string | undefined;
   onAdd: (skill: string, group: string) => void;
   onHold: (skill: string) => void;
   onDragStart: (event: DragEvent, skill: string) => void;
@@ -704,8 +721,10 @@ function SuggestionChips({
                   : `Add ${candidate.name}, choosing a group: ${longEvidence(candidate)}`
               }
               aria-pressed={heldSkill === candidate.name}
+              disabled={lockedReason !== undefined}
+              title={lockedReason}
               onClick={() => (suggested ? onAdd(candidate.name, suggested) : onHold(candidate.name))}
-              className={`${CHIP} cursor-grab border-dashed ${
+              className={`${CHIP} cursor-grab border-dashed disabled:cursor-default disabled:text-text-faint ${
                 heldSkill === candidate.name
                   ? "bg-mark-selected border-border-active text-text-strong"
                   : "bg-surface border-border-dashed text-text-strong hover:bg-hover"
@@ -729,11 +748,13 @@ function MoveButtons({
   index,
   length,
   what,
+  lockedReason,
   onMove,
 }: {
   index: number;
   length: number;
   what: string;
+  lockedReason: string | undefined;
   onMove: (by: -1 | 1) => void;
 }) {
   return (
@@ -741,8 +762,8 @@ function MoveButtons({
       <Button
         variant="bare"
         aria-label={`Move ${what} up`}
-        disabled={index === 0}
-        disabledReason={`This ${what} is already first.`}
+        disabled={lockedReason !== undefined || index === 0}
+        disabledReason={lockedReason ?? `This ${what} is already first.`}
         onClick={() => onMove(-1)}
       >
         ↑
@@ -750,8 +771,8 @@ function MoveButtons({
       <Button
         variant="bare"
         aria-label={`Move ${what} down`}
-        disabled={index === length - 1}
-        disabledReason={`This ${what} is already last.`}
+        disabled={lockedReason !== undefined || index === length - 1}
+        disabledReason={lockedReason ?? `This ${what} is already last.`}
         onClick={() => onMove(1)}
       >
         ↓

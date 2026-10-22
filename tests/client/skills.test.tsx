@@ -344,6 +344,35 @@ describe("moving a skill by keyboard", () => {
   });
 });
 
+describe("the group controls while a skill is held", () => {
+  it("wait for the move, so placing it keeps the group order and names", async () => {
+    const { api, user } = open({ [PUT]: stored });
+    await user.click(await chip("Quillset"));
+
+    const reason = "Place or cancel the move of Quillset first.";
+    const first = within(await group("Qorvane stack"));
+    const down = first.getByRole("button", { name: "Move group down" }) as HTMLButtonElement;
+    expect(down.disabled).toBe(true);
+    expect(down.getAttribute("title")).toBe(reason);
+    expect((first.getByLabelText("Group name") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByLabelText("New group name") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: "Add group" }) as HTMLButtonElement).disabled).toBe(true);
+    expect((screen.getByRole("button", { name: /^Add Halvane to Zentrel tools/ }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+
+    const bar = within(screen.getByRole("group", { name: "Move Quillset" }));
+    await user.click(bar.getByRole("button", { name: "← Earlier" }));
+    await user.click(bar.getByRole("button", { name: "Place" }));
+    await waitFor(() => expect(api.writes()).toEqual([PUT]));
+    expect(sent(api)).toEqual([
+      { name: "Qorvane stack", skills: ["Quillset", "Plinth"] },
+      { name: "Zentrel tools", skills: ["Zentrel CLI"] },
+    ]);
+    expect(down.disabled).toBe(false);
+  });
+});
+
 /* -------------------------------------------------------------------- drag */
 
 describe("dragging a skill", () => {
@@ -367,6 +396,24 @@ describe("dragging a skill", () => {
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Plinth", "Quillset", "Halvane"] });
+  });
+
+  it("puts the preview back when the chip leaves a group for somewhere it cannot land", async () => {
+    const { api } = open({ [PUT]: stored });
+    const from = (await chip("Plinth")).closest("li")!;
+    const target = await group("Zentrel tools");
+    const dataTransfer = { setData: () => {}, effectAllowed: "", dropEffect: "" };
+
+    fireEvent.dragStart(from, { dataTransfer });
+    fireEvent.dragOver(await chip("Zentrel CLI"), { dataTransfer });
+    expect(await preview()).toEqual(["Qorvane stack: Quillset", "Zentrel tools: Plinth, Zentrel CLI"]);
+
+    fireEvent.dragLeave(target, { dataTransfer, relatedTarget: document.body });
+    expect(await preview()).toEqual(["Qorvane stack: Plinth, Quillset", "Zentrel tools: Zentrel CLI"]);
+    expect(target.className).not.toContain("border-border-active");
+
+    fireEvent.dragEnd(from, { dataTransfer });
+    expect(api.writes()).toEqual([]);
   });
 
   it("takes a listed skill off the list when it is dropped on the suggestions", async () => {
