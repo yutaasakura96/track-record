@@ -24,7 +24,7 @@ import { downloadMasterDocument, failureText, useMasterDocument, useProfile } fr
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { ScreenIntro } from "../components/screen-intro";
 import { Sidebar } from "../components/sidebar";
-import { Button, FilterPill, Mono } from "../components/ui";
+import { Button, Dot, FilterPill, Mono } from "../components/ui";
 import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
 import { useDocumentLanguageStore } from "../stores/document-language";
 import {
@@ -237,6 +237,7 @@ function Body({ doc }: { doc: MasterDocument }) {
 
       <article className="flex-1 min-w-0 max-w-measure grid gap-20 content-start">
         <Counts doc={doc} onShowKeptOut={() => choose("kept-out")} />
+        {all.length > 0 ? <Provenance facts={all} /> : null}
 
         {all.length > 0 ? (
           <div role="group" aria-label="Show" className="flex flex-wrap gap-4">
@@ -364,6 +365,82 @@ function Counts({ doc, onShowKeptOut }: { doc: MasterDocument; onShowKeptOut: ()
       ) : null}
       {sentences.waiting ? ` ${sentences.waiting} Sort them from Home.` : ""}
     </p>
+  );
+}
+
+/**
+ * Plain words first, the product's term second: `Measured`, `Attested` and
+ * `Generated` are the words on the fact card, and mean nothing at a glance.
+ */
+const PROVENANCE = [
+  {
+    key: "measured",
+    plain: "Backed by a number",
+    term: "Measured",
+    tone: "measured",
+    about: "A result with a figure, and the passage that proves it.",
+    bar: "bg-measured",
+  },
+  {
+    key: "attested",
+    plain: "Stated by you",
+    term: "Attested",
+    tone: "accent",
+    about: "True, and yours, with no figure behind it.",
+    bar: "bg-accent",
+  },
+  {
+    key: "generated",
+    plain: "Not confirmed",
+    term: "Generated",
+    tone: "generated",
+    about: "Written by the importer. Left out of every document until you confirm it.",
+    bar: "bg-generated",
+  },
+] as const;
+
+/**
+ * What the record's facts rest on, as one bar and its key (issue #111). It
+ * stood on Home, above the documents, as a panel of its own; here it sits over
+ * the facts it counts. Counted over the whole record, whatever the filter.
+ */
+function Provenance({ facts }: { facts: MasterFact[] }) {
+  const counts = { measured: 0, attested: 0, generated: 0 };
+  for (const fact of facts) counts[fact.provenance] += 1;
+  return (
+    <section aria-label="What your facts rest on" className="bg-surface-raised border border-border rounded-panel px-16 py-12">
+      <div className="flex gap-2 h-8" aria-hidden>
+        {PROVENANCE.filter((row) => counts[row.key] > 0).map((row) => (
+          <div
+            key={row.key}
+            className={`${row.bar} rounded-mark`}
+            style={{ width: `${(counts[row.key] / facts.length) * 100}%` }}
+          />
+        ))}
+      </div>
+      <ul className="mt-12 grid grid-cols-3 gap-16 max-wide:grid-cols-1 max-wide:gap-8">
+        {PROVENANCE.map((row) => (
+          <li key={row.key} className="min-w-0">
+            <div className="flex items-center gap-8">
+              <Dot tone={row.tone} />
+              {/* A zero is written as words, never as `0`. */}
+              {counts[row.key] === 0 ? (
+                <span className="text-small text-text-muted">None</span>
+              ) : (
+                <span className="text-row font-medium text-text-bright">{counts[row.key].toLocaleString("en-US")}</span>
+              )}
+              <span className="text-row font-medium text-text-strong">{row.plain}</span>
+            </div>
+            <p className="mt-4 pl-14 text-small text-text-body">
+              <span className="mr-6 border border-border-control rounded-chip px-6 py-2 text-smaller text-text-muted">
+                {row.term}
+              </span>
+              {row.about}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
