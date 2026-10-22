@@ -30,11 +30,11 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
+import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
-import { rirekishoSentPage, sentPage } from "~/render/sent-page";
+import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
 import { collectResumeRecord } from "../services/resume";
@@ -260,7 +260,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           }),
           proposed,
         )
-      : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
+      : kind === "english_resume"
+        ? await resumePreviewPage(db, user.id, proposed, today)
+        : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
     return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
   });
 
@@ -1095,6 +1097,23 @@ async function requireVersion(db: Db, userId: string, target: RenderRef, id: str
     .limit(1);
   if (!version) throw notFound("That version");
   return version;
+}
+
+/**
+ * A first English résumé read as its file lays it out, as the document view
+ * reads a version (`../services/document-file`): no title above the name, the
+ * headline set apart. A proposal that cannot be laid out is refused as a
+ * download of it would be.
+ */
+async function resumePreviewPage(db: Db, userId: string, content: RenderContent, today: string): Promise<SentPage> {
+  const record = await collectResumeRecord(db, userId);
+  const identity = await renderIdentity(db, userId);
+  try {
+    return resumeSentPage(assembleResume({ content, record, identity, today }));
+  } catch (error) {
+    if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+    throw error;
+  }
 }
 
 /** The next version number for a render. Versions are numbered per render. */
