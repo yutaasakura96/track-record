@@ -972,15 +972,15 @@ they will be read, and `[]` when none is waiting.
 `batch_order`, as `{ importId, filename, status, chunksTotal, chunksDone, error }`; it stays after
 they finish, until the next set is submitted.
 While it is not `null` the request costs a second round trip, for that body.
-`factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
-screen's Not confirmed row amber.
+`factsByProvenance` counts accepted facts only; the home screen's at-a-glance strip sums it for its
+`Facts` cell and notes `measured` (#111).
 `review` is `null` when no candidate is waiting. Otherwise `openCandidates` is the same count
 `GET /api/imports/summary` gives the sidebar, `documents` is how many source documents they sit in,
 and `importId` and `filename` are the most recently imported version that holds any, which is where
 the Next step opens Fact Review (#58).
 `unconfirmed` is the most recently imported version holding a fact **the author accepted on its
 card** while it was still Generated, or `null`. Its `count` covers only that version and `total`
-every version. It is where the Not confirmed row and its step open Fact Review. A Generated fact
+every version. It is where the Next step's Confirm step opens Fact Review. A Generated fact
 the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
 a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
