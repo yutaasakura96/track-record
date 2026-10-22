@@ -156,10 +156,12 @@ describe("sign-in through an accepted résumé version", () => {
 
     const diff = await client.json<{
       additions: number;
-      preview: { page: { sections: { heading: string }[] } };
+      preview: { page: { sections: { heading: string; blocks: { text: string }[] }[] } };
       changes: { target: string; rationale: { text: string; factIds: string[] } }[];
     }>(`/api/proposals/${proposalId}/diff`);
-    expect(diff.preview.page.sections[0]!.heading).toBe(EMPLOYER_FIXTURE.nameLatin);
+    // The preview reads as the file does: the employer leads its job under Experience.
+    const experience = diff.preview.page.sections.find((section) => section.heading === "Experience")!;
+    expect(experience.blocks[0]!.text.startsWith(EMPLOYER_FIXTURE.nameLatin)).toBe(true);
     expect(diff.additions).toBe(2);
     expect(diff.changes.find((change) => change.target === "block")!.rationale.factIds).toContain(fact.id);
 
