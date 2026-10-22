@@ -479,8 +479,8 @@ refused. A version stores that section and one section of bullets per employer, 
 `Mon YYYY – Present` dates and every title held there, the skills curation, the education past
 secondary school (a vocational programme and a row with no level included, by the rule in
 `src/shared/education.ts`), the current technical certifications and a Languages line. The
-`.docx` (`src/render/resume-docx.ts`), the Markdown and a sent copy's page are written from that one
-assembled document. The per-employer bullet budget is computed from the record and printed in the
+`.docx` (`src/render/resume-docx.ts`), the PDF (`src/render/resume-pdf.ts`, §6.3), the Markdown and
+a sent copy's page are written from that one assembled document. The per-employer bullet budget is computed from the record and printed in the
 prompt. Before the model call, every employer, project and education name in the generation spec
 must contain a Latin letter and no non-Latin letters; this includes entries the file later omits.
 Assembly also refuses Japanese script in any printed field and names with non-Latin letters. A
@@ -547,6 +547,40 @@ to parse the `.docx` as JavaScript and the import fails before workerd sees it.
 shape, and one `fillRirekishoTemplate()` that renders with `linebreaks: true` and generates with
 `compression: "DEFLATE"`. Deriving the rows that go into it is the render's job and
 `docs/04` §4 is their contract.
+
+### 6.3 The English résumé's PDF
+
+**PDF is the résumé's default download, Word the second** (#109, `06` 2026-10-22). Only the English
+résumé has one: `?format=pdf` on any other kind is `409`. Like the `.docx` it is assembled on each
+request from the same assembled document and never stored; a sent copy keeps the `.docx`.
+
+**Built with `pdf-lib` and `@pdf-lib/fontkit`**, pure JavaScript with no filesystem, canvas or
+browser. The suite builds and reads back every PDF inside workerd (`tests/resume-pdf.test.ts`,
+`tests/resume-download.test.ts`), which is the proof that it runs where the route runs.
+
+**Set from the `.docx`'s numbers, not a copy of them.** `src/render/resume-docx.ts` exports the page
+sizes, margin, sizes, colours, line pitch, paragraph spacing, bullet indent and rule, and the PDF
+lays out lines and pages itself from those: wrapping at spaces and splitting an oversized token at
+character boundaries without adding a hyphen or losing text, dates right-aligned on the first line,
+keep-with-next chains reserving the whole following block when it has three lines or fewer or its
+first two lines when it can split, paragraphs of three lines or fewer kept whole, and the larger of
+one paragraph's space-after and the next one's
+space-before, as Word does. Checked against Word 16.114's own PDF of the same `.docx`: the same
+line breaks, the same page break, every baseline within 0.2 pt.
+
+**Carlito, embedded whole.** `templates/fonts/` holds Carlito Regular, Bold and Italic (SIL OFL 1.1,
+`OFL.txt` beside them), imported as `Data` modules like the 履歴書 template (§6.2; a `**/*.ttf` rule in
+`wrangler.toml` and in `vitest.config.ts`). Carlito is metric-compatible with the `.docx`'s Calibri,
+so lines break in the same places, and it covers every Latin letter a name can hold. They are not
+subset: `pdf-lib`'s subsets drew most letters as nothing in Preview and Quick Look. A file is about
+0.9 MB. Ligatures are off, as Word leaves them. There is no fallback font: a character Carlito has no glyph for (a ✓, a ★,
+an emoji) refuses the PDF with `409`, naming the character and where it sits and pointing to the
+Word file, rather than drawing a blank the `.docx` would print.
+
+**Tagged, so the text copies in reading order.** The content is drawn top to bottom, and the file
+carries a structure tree (`Document` › `H1` name, `P`, `H2` headings, `L` › `LI` › `Lbl`/`LBody`
+bullets; the heading rules are artifacts). Without it Preview's copy took the right-aligned dates for
+a second column and gave them back after each job's bullets.
 
 ---
 

@@ -533,8 +533,10 @@ exists there is nothing to view, and the write is the card's one secondary contr
 | Not built | muted, `Not available yet` | None | None |
 
 `Download` reads the same on every card so the cards line up; the file's type is the document's own
-and is in the name of what is saved. A Generate or Update the server refuses says the server's
-reason above the cards.
+and is in the name of what is saved. The English résumé's `Download` saves its PDF, and a second
+quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109). It is
+the only document with a second format, so it is the only card with a second download link. A
+Generate or Update the server refuses says the server's reason above the cards.
 
 **Section 3 — Your record at a glance.** Under the documents (#111), heading `Your record at a
 glance`, sentence `Where you worked, what you hold, and the facts your documents are written from.`,
@@ -837,7 +839,8 @@ already spoken for (`05-design-system.md` §1).
 existing proposal diff. They carry no version chip, because they never received a version number.
 
 **Download honours the existing rules** — `?versionId=` serves any version, and a 履歴書 offers
-`.docx` only.
+`.docx` only. The English résumé's download is its PDF, with `Word` beside it for the `.docx`, on
+every screen that offers its download (#109).
 
 **A download can be refused, so it is a button and not a link.** Every download re-checks the facts
 its version cites, and a version citing a fact that is now Private, now Generated provenance, or no

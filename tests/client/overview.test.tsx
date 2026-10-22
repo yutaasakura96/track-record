@@ -445,8 +445,9 @@ describe("which document to act on", () => {
     );
     const item = await documentRow();
     expect(within(item).getByText("12 new facts")).toBeTruthy();
-    // One write a card; history and the download are quiet beside View.
-    expect(within(item).getAllByRole("button").map((b) => b.textContent)).toEqual(["Download", "Update"]);
+    // One write a card; history and the downloads are quiet beside View, the
+    // résumé's PDF and its Word file (issue #109).
+    expect(within(item).getAllByRole("button").map((b) => b.textContent)).toEqual(["Download", "Word", "Update"]);
     expect(within(item).getByRole("link", { name: "History" }).getAttribute("href")).toBe(
       "/renders/english_resume/history",
     );

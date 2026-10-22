@@ -382,6 +382,17 @@ describe("the wait while a document is read", () => {
     expect(screen.queryByText(/review the facts found so far/)).toBeNull();
   });
 
+  it("still shows the facts when the import finished after the last read of them", async () => {
+    let reads = 0;
+    open([], {
+      routes: { [`GET /api/facts?importId=${IMPORT}`]: () => ({ items: reads++ === 0 ? [] : CANDIDATES }) },
+    });
+
+    await waitFor(() => expect(document.querySelector('[data-fact-card="f-measured"]')).not.toBeNull(), {
+      timeout: 5000,
+    });
+  });
+
   it("is gone once the import is ready", async () => {
     open(CANDIDATES);
     await card("f-measured");

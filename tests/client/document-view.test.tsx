@@ -117,7 +117,7 @@ describe("the page", () => {
     open();
     const bar = await notice();
 
-    expect(bar.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
     expect(bar.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${KIND}/history`);
     expect(bar.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(`/renders/${KIND}/edit`);
     expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();
@@ -438,7 +438,7 @@ describe("at phone width", () => {
 
     expect(screen.queryByText(WIDER)).toBeNull();
     expect(screen.getByRole("article")).toBeTruthy();
-    expect(bar.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
     expect(bar.getByRole("link", { name: "History" })).toBeTruthy();
     expect(bar.getByRole("link", { name: "Edit" })).toBeTruthy();
     expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();

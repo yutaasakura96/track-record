@@ -26,7 +26,10 @@ export default defineConfig({
           cloudflareTest({
             miniflare: {
               compatibilityDate: "2026-08-12",
-              modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }],
+              modulesRules: [
+                { type: "Data", include: ["**/*.docx"], fallthrough: true },
+                { type: "Data", include: ["**/*.ttf"], fallthrough: true },
+              ],
               compatibilityFlags: ["nodejs_compat"],
               // Emulated in memory, one bucket a run: no test reaches R2.
               r2Buckets: ["RECORDINGS"],

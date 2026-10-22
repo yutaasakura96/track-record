@@ -14,7 +14,15 @@
 import { useEffect, useState } from "react";
 import { ApiError, downloadRender, failureText } from "../api";
 import { MonoId } from "./ui";
-import { RENDER_DOWNLOAD_FORMAT, type RenderKind } from "~/shared/render-content";
+import {
+  RENDER_DOWNLOAD_ALTERNATIVE,
+  RENDER_DOWNLOAD_FORMAT,
+  type DownloadFormat,
+  type RenderKind,
+} from "~/shared/render-content";
+
+/** What the second control is called, by the format it saves. */
+const ALTERNATIVE_LABEL: Record<DownloadFormat, string> = { docx: "Word", md: "Markdown", pdf: "PDF" };
 
 /** What a refusal says per id, in the author's words rather than the column's. */
 export const CITATION_PROBLEM: Record<string, string> = {
@@ -79,32 +87,42 @@ export function DownloadButton({
 }) {
   // Anything the download threw: a refusal, or a request that never arrived.
   const [refusal, setRefusal] = useState<unknown>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<DownloadFormat | null>(null);
   // The two career stories are read on screen and are not submission documents,
   // so what they offer is the Markdown they are read in rather than a `.docx`
-  // nobody will be sent (`~/shared/render-content`).
+  // nobody will be sent (`~/shared/render-content`). The English résumé is a
+  // PDF by default, with its Word file beside it (issue #109).
   const format = RENDER_DOWNLOAD_FORMAT[kind];
+  const alternative = RENDER_DOWNLOAD_ALTERNATIVE[kind];
+
+  const download = async (chosen: DownloadFormat) => {
+    setRefusal(null);
+    setBusy(chosen);
+    try {
+      await downloadRender(docRef, chosen, versionId);
+    } catch (error) {
+      setRefusal(error);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <>
-      <button
-        type="button"
-        className={className}
-        disabled={busy}
-        onClick={async () => {
-          setRefusal(null);
-          setBusy(true);
-          try {
-            await downloadRender(docRef, format, versionId);
-          } catch (error) {
-            setRefusal(error);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        {busy ? "Preparing…" : (label ?? `Download .${format}`)}
+      <button type="button" className={className} disabled={busy !== null} onClick={() => void download(format)}>
+        {busy === format ? "Preparing…" : (label ?? `Download .${format}`)}
       </button>
+      {alternative ? (
+        <button
+          type="button"
+          className={className}
+          disabled={busy !== null}
+          aria-label={`Download as ${ALTERNATIVE_LABEL[alternative]} (.${alternative})`}
+          onClick={() => void download(alternative)}
+        >
+          {busy === alternative ? "Preparing…" : ALTERNATIVE_LABEL[alternative]}
+        </button>
+      ) : null}
       {refusal !== null ? <Refusal error={refusal} onClose={() => setRefusal(null)} /> : null}
     </>
   );

@@ -7119,3 +7119,36 @@ each was a row offering History, Download and Regenerate (#111, evaluation §3.1
 - **Not changed:** Home and Screen 10 stay desktop screens, held behind the narrow-window message
   under 1024px. The cards fall to one column under the phone breakpoint, so opening Home on a phone
   later needs no change to them.
+
+---
+
+### [2026-10-22] The English résumé downloads as a tagged PDF, built in the Worker with `pdf-lib`
+
+Issue #109, the owner's choice of 2026-10-17 (Q2): PDF by default, Word second. Employer and ATS
+guidance asks for a PDF with text that can be selected.
+
+- **Decision:** `?format=pdf` on the English résumé, main or tailored, assembled on request from the
+  same document as the `.docx` and never stored (`03` §6.3). The download control offers it as
+  `Download` and the `.docx` as `Word` beside it. No other kind has a PDF.
+- **Library: `pdf-lib` 1.17.1 with `@pdf-lib/fontkit` 1.1.1.** Its documentation states it runs in
+  any JavaScript runtime, and it needs no filesystem, canvas or browser; the suite builds and reads
+  every PDF inside workerd, which is where the route runs. The Worker grew to 3.0 MiB gzipped of the
+  10 MiB allowed, fonts included. Not chosen: Cloudflare Browser Rendering printing an HTML page
+  (a second layout to keep in step with the `.docx`, another binding, and nothing the suite can
+  run); converting the `.docx` (needs LibreOffice, which a Worker cannot run); the `@cantoo/pdf-lib`
+  fork (maintained, but adds an HTML parser and a colour library the résumé does not need).
+- **The layout is computed from the `.docx`'s own constants**, exported from
+  `src/render/resume-docx.ts`. Against Word 16.114's PDF of the demo record's `.docx`, every
+  baseline was within 0.2 pt, with the same line breaks and the same page break. One rule was found
+  only by measuring: between two paragraphs Word leaves the larger of the space after and the space
+  before, not their sum.
+- **Carlito, embedded whole, not subset.** It is metric-compatible with Calibri, so lines break where
+  the `.docx`'s do. `pdf-lib`'s subsets copied correctly but drew most letters as nothing in Preview
+  and Quick Look. Whole faces make a file of about 0.9 MB. Committed unmodified, with `OFL.txt`; a
+  subset committed to the repo would be a Modified Version and could not keep the name Carlito.
+- **Tagged.** Drawing in reading order was not enough: Preview's copy reads by position, took the
+  right-aligned dates for a second column and gave them back after each job's bullets. A structure
+  tree fixed it; a stretched space between the header and its dates did not.
+- **Revisit if:** a résumé needs a character Carlito does not have (it would print as a blank box,
+  where Word substitutes a font), or the file size is refused by an applicant-tracking system.
+  Until then the PDF refuses such a character with `409` instead of drawing the box (`03` §6.3).

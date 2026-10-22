@@ -631,6 +631,8 @@ generation, because that render can fail in ways the résumé cannot.
 > **Built 2026-09-30** (issue #33; decision log, 2026-09-30). `tests/e2e/smoke.spec.ts` under
 > `playwright.config.ts`; `npm run test:e2e` locally, and a step after the build in CI. It has its own
 > database, `track_record_e2e`, which `npm run db:up` creates. §3 item 8 is now covered by it.
+> Since #109 its last step presses the résumé's default `Download` and asserts a PDF; the `.docx`
+> step above stays in `tests/smoke.test.ts`.
 
 ---
 
@@ -658,6 +660,9 @@ For the English résumé, firstmate imported the demo-record file
 import error. Every section, job header, bullet list and the Languages line
 (`TOEIC Listening & Reading 865`) remained intact. The real Microsoft Word
 opening check is pending the owner; item 1 is not yet complete.
+On 2026-10-22 the issue #109 worker opened the same demo-record résumé in Microsoft Word 16.114 on
+macOS and saved it as a PDF from Word, with no error or repair prompt; the comparison with the app's
+own PDF is in `docs/06` that day. The owner's own check of item 1 is still outstanding.
 
 **Item 4 is runnable, and its structural half was run on 2026-09-13** against the first generated
 pair. Both stories became `buildable` that day. The structure is not a judgement and is not read by

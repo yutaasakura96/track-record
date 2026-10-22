@@ -12,10 +12,10 @@ import { expect as playwrightExpect, test } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
 import { STORAGE_STATE } from "./env";
 
-const DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PDF = "application/pdf";
 const expect = playwrightExpect.configure({ timeout: 60_000 });
 
-test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) => {
+test("sign-in button to a downloaded PDF", async ({ browser, page, baseURL }) => {
   test.setTimeout(300_000);
   // 1 · Signed out, the built SPA mounts and offers the one way in. The click
   //     asks our Worker for the authorization URL and the browser is sent to
@@ -81,17 +81,17 @@ test("sign-in button to a downloaded .docx", async ({ browser, page, baseURL }) 
   const row = app.getByRole("listitem").filter({ hasText: "Résumé (English)" });
   await expect(row).toContainText("Up to date");
 
-  // 7 · Download the .docx: the response is the Word MIME type, and what the
-  //     browser saved is a zip of a non-trivial length.
+  // 7 · Download the default PDF: the response has its MIME type, and what the
+  //     browser saved is a PDF of a non-trivial length.
   const response = app.waitForResponse((r) => r.url().includes("/api/renders/english_resume/download"));
   const download = app.waitForEvent("download");
   await row.getByRole("button", { name: "Download", exact: true }).click();
-  expect((await response).headers()["content-type"]).toBe(DOCX);
+  expect((await response).headers()["content-type"]).toBe(PDF);
   const saved = await download;
-  expect(saved.suggestedFilename()).toMatch(/\.docx$/);
+  expect(saved.suggestedFilename()).toMatch(/\.pdf$/);
   const bytes = await readFile(await saved.path());
   expect(bytes.length).toBeGreaterThan(1000);
-  expect([...bytes.subarray(0, 4)]).toEqual([0x50, 0x4b, 0x03, 0x04]);
+  expect(bytes.subarray(0, 5).toString()).toBe("%PDF-");
 
   await context.close();
 });

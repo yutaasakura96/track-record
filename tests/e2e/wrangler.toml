@@ -45,3 +45,8 @@ bucket_name = "track-record-e2e-recordings"
 type = "Data"
 globs = ["**/*.docx"]
 fallthrough = true
+
+[[rules]]
+type = "Data"
+globs = ["**/*.ttf"]
+fallthrough = true

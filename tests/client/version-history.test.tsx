@@ -242,7 +242,24 @@ describe("the restore preview", () => {
 });
 
 describe("a download", () => {
-  const DOWNLOAD_V1 = `GET /api/renders/${KIND}/download?format=docx&versionId=${V1.id}`;
+  // The résumé is a PDF by default (issue #109).
+  const DOWNLOAD_V1 = `GET /api/renders/${KIND}/download?format=pdf&versionId=${V1.id}`;
+  const WORD_V1 = `GET /api/renders/${KIND}/download?format=docx&versionId=${V1.id}`;
+
+  it("offers the Word file beside the PDF, and refuses it the same way", async () => {
+    const { api, user } = open({
+      [WORD_V1]: new Refusal(409, "unrenderable", "fct-test-1 is Private and never reaches a document.", {
+        facts: [{ factId: "fct-test-1", problem: "private" }],
+      }),
+    });
+
+    const v1 = await row("v1, accepted · from a proposal");
+    await user.click(within(v1).getByRole("button", { name: "Download as Word (.docx)" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("fct-test-1 is Private and never reaches a document.");
+    expect(api.calls.some((c) => `${c.method} ${c.path}` === WORD_V1)).toBe(true);
+    expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(false);
+  });
 
   it.each([
     [
@@ -266,14 +283,14 @@ describe("a download", () => {
     const { api, user } = open({ [DOWNLOAD_V1]: answer });
 
     const v1 = await row("v1, accepted · from a proposal");
-    await user.click(within(v1).getByRole("button", { name: "Download" }));
+    await user.click(within(v1).getByRole("button", { name: /^Download$/ }));
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
     expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(true);
     expect(api.writes()).toEqual([]);
     // The control is usable again rather than stuck on "Preparing…".
-    expect(within(v1).getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(within(v1).getByRole("button", { name: /^Download$/ })).toBeTruthy();
   });
 });
 
