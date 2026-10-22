@@ -16,6 +16,7 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  ROLE_FIXTURE,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -73,7 +74,9 @@ beforeEach(async () => {
  * a Measured/Private fact.
  */
 async function seedRecord() {
-  await client.post("/api/employers", EMPLOYER_FIXTURE);
+  const employer = (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
+  // An English résumé's job header needs a title, so the job holds a role.
+  await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
   model.extractions = [
     [
       {
@@ -393,6 +396,41 @@ describe("the order a document reads in", () => {
 });
 
 describe("generation is blocked rather than producing an empty document", () => {
+  it("blocks a job with no city or no titled role, naming each and what it lacks, before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: null });
+    const bare = (await (
+      await client.post("/api/employers", {
+        ...EMPLOYER_FIXTURE,
+        nameJa: "株式会社ミナト計測",
+        nameLatin: "Minato Instruments K.K.",
+        startedOn: "2018-04-01",
+        endedOn: "2022-03-01",
+      })
+    ).json()) as { id: string };
+    // A role whose only title is blank is no title at all.
+    await client.post("/api/roles", { employerId: bare.id, startedOn: "2018-04-01", titleLatin: null, titleJa: null });
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    const body = (await response.json()) as {
+      error: { code: string; message: string; details: { fields: string[]; jobHeaders: unknown[] } };
+    };
+    expect(body.error.code).toBe("precondition_failed");
+    expect(body.error.message).toBe(
+      "Every job on the English résumé is headed by its city and title. Aozora Logistics K.K. needs a city; Minato Instruments K.K. needs a role with a title.",
+    );
+    expect(body.error.details).toEqual({
+      fields: ["employers"],
+      jobHeaders: [
+        { employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] },
+        { employerId: bare.id, name: "Minato Instruments K.K.", missing: ["role"] },
+      ],
+    });
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
   it("blocks an employer-attached project without a Latin-script name before the model call", async () => {
     await seedRecord();
     const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
@@ -2045,8 +2083,8 @@ describe("a version is read as its download would hold it", () => {
     );
     // A job header is laid out per format (the Markdown form is pinned in resume-download.test.ts); its prose is not.
     for (const text of prose) expect(markdown).toContain(text);
-    expect(texts(view)).toContain("Aozora Logistics K.K. · Apr 2022 – Sep 2024");
-    expect(markdown).toContain("**Aozora Logistics K.K.** — Apr 2022 – Sep 2024");
+    expect(texts(view)).toContain("Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024");
+    expect(markdown).toContain("**Aozora Logistics K.K.** · Tokyo — Apr 2022 – Sep 2024");
     for (const section of view.page.sections) expect(markdown).toContain(section.heading);
   });
 

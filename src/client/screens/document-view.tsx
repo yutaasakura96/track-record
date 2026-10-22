@@ -13,11 +13,12 @@
  * button that opens the facts it was written from, under it, with each fact's
  * passage and the way into Fact Review.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ApiError, failureText, useGenerate, useRenderPage, type RenderPage } from "../api";
+import { ApiError, useGenerate, useRenderPage, type RenderPage } from "../api";
 import { PhoneFrame } from "../components/application-chrome";
 import { DocumentPage, type Trace } from "../components/document-page";
+import { generateFailure } from "../components/generate-failure";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
@@ -168,7 +169,7 @@ function Notice({ view }: { view: RenderPage }) {
 function NewVersion({ view }: { view: RenderPage }) {
   const generate = useGenerate();
   const navigate = useNavigate();
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ReactNode>(null);
   const { document } = view;
 
   if (!document.buildable) return null;
@@ -189,7 +190,7 @@ function NewVersion({ view }: { view: RenderPage }) {
       const made = await generate.mutateAsync(view.renderRef);
       await navigate({ to: "/proposals/$proposalId", params: { proposalId: made.proposalId } });
     } catch (error) {
-      setFailure(failureText(error));
+      setFailure(generateFailure(error));
     }
   };
 

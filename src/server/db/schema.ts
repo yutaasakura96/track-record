@@ -67,8 +67,11 @@ export const educationLevel = pgEnum("education_level", [
  * something an employer reading English screens on. The Japanese documents
  * print every kind: 免許・資格 is where a licence belongs.
  *
- * Nullable; a row with none prints under Certifications. Migration 0027
- * classified existing rows by name, while later rows can remain unclassified.
+ * Required. Migration 0027 classified rows by name but called every
+ * non-language row technical, a driving licence included, and left the column
+ * nullable, so a row added after it without a kind printed as technical — a
+ * TOEIC score under Certifications. Migration 0028 classified those rows again
+ * and made the column NOT NULL (`docs/06`, 2026-10-22).
  */
 export const certificationKind = pgEnum("certification_kind", ["technical", "language", "other"]);
 /** The page an English document is laid out on. A4 unless the author says otherwise (issue #107). */
@@ -532,7 +535,7 @@ export const certifications = pgTable("certifications", {
   issuingOrganization: text("issuing_organization").notNull(),
   issuedOn: date("issued_on", { mode: "string" }),
   expiresOn: date("expires_on", { mode: "string" }),
-  kind: certificationKind("kind"),
+  kind: certificationKind("kind").notNull(),
   /** Not rendered in v1 — for the author's own reference at renewal. */
   credentialId: text("credential_id"),
   credentialUrl: text("credential_url"),

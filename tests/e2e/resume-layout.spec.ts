@@ -11,7 +11,7 @@ const PROFILE_FIXTURE = { familyNameKanji: "青木", givenNameKanji: "陽介", f
 const EMPLOYER_FIXTURE = { nameJa: "株式会社アオゾラ物流", nameLatin: "Aozora Logistics K.K.", industryJa: "運輸業", businessDescription: "架空の物流事業者。", employmentType: "full_time", startedOn: "2022-04-01", endedOn: "2024-09-01" };
 const ROLE_FIXTURE = { titleLatin: "Backend Engineer", titleJa: "バックエンドエンジニア", shokushuJa: "システムエンジニア", startedOn: "2022-04-01", endedOn: "2023-09-01" };
 const EDUCATION_FIXTURE = { institution: "Midorikawa Institute of Technology", institutionJa: "緑川工科大学", faculty: "情報工学部", degree: "B.Eng.", fieldOfStudy: "Information Engineering", startedOn: "2013-04-01", endedOn: "2017-03-01", outcome: "graduated", level: "tertiary" };
-const CERTIFICATION_FIXTURE = { name: "Applied Information Technology Engineer", nameJa: "応用情報技術者試験", issuingOrganization: "Information-technology Promotion Agency", issuedOn: "2019-06-01", technologies: ["SQL"] };
+const CERTIFICATION_FIXTURE = { name: "Applied Information Technology Engineer", nameJa: "応用情報技術者試験", issuingOrganization: "Information-technology Promotion Agency", issuedOn: "2019-06-01", kind: "technical", technologies: ["SQL"] };
 
 test("main and tailored résumé download, with invalid edit refused", async ({ browser, baseURL }) => {
   if (evidence) mkdirSync(evidence, { recursive: true });
@@ -34,7 +34,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id, titleLatin: "Senior Backend Engineer", startedOn: "2023-10-01", endedOn: "2024-09-01" });
   const independent = await post("/api/projects", { name: "Route Planner", summary: "Built a route planner for invented delivery routes." }) as { id: string };
   await post("/api/educations", EDUCATION_FIXTURE);
-  await post("/api/certifications", { ...CERTIFICATION_FIXTURE, kind: "technical" });
+  await post("/api/certifications", CERTIFICATION_FIXTURE);
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "Expired Cloud Associate", expiresOn: "2021-03-01" });
   await post("/api/certifications", { ...CERTIFICATION_FIXTURE, name: "TOEIC Listening & Reading 880", issuingOrganization: "IIBC", kind: "language", technologies: [] });
   const imported = await api.post("/api/imports", { multipart: { file: { name: SOURCE_FILENAME, mimeType: "text/markdown", buffer: Buffer.from(SOURCE_TEXT) } } });

@@ -201,7 +201,7 @@ each only when filled (decision log, 2026-10-18).
 | `name_latin` | text | yes | `null` | For the English résumé |
 | `business_description` | text | yes | `null` | 事業内容 — the 職務経歴書 paragraph |
 | `industry_ja` | text | yes | `null` | e.g. 小売業 — appears in the 履歴書 職歴 line |
-| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it; a value in Japanese script stops generation with a message naming the employer's city (#107) |
+| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it. Generation is refused when an included employer has none, or has no titled role, and when the value is in Japanese script; each message names the employer (#107, `docs/06` 2026-10-22) |
 | `capital_yen` | bigint | yes | `null` | **資本金**, in yen |
 | `headcount` | integer | yes | `null` | **従業員数** |
 | `employment_type` | employment_type | no | — | |
@@ -458,7 +458,7 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 | `issuing_organization` | text | no | Required |
 | `issued_on` | date | yes | Month precision. Null is legal — some licences have no meaningful issue date |
 | `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé leaves out a certification whose expiry month has passed |
-| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | yes | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Migration `0027` classified existing rows by name: recognised language tests became `language`, the rest `technical`. Null is unclassified and prints as `technical`. The Japanese documents print every kind |
+| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | no | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Migration `0027` classified existing rows by name; `0028` moved driving licences to `other` and missed language tests to `language`, set any remaining null to `technical`, and made the column required (`docs/06`, 2026-10-22). The Japanese documents print every kind |
 | `credential_id` | text | yes | **Not rendered in v1.** For the author's own reference at renewal |
 | `credential_url` | text | yes | **Not rendered in v1.** Same |
 | `technologies` | text[] | no | Default `'{}'`. Feeds the **same** skill-candidate pool as `facts.technologies` |

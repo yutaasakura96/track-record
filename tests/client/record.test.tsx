@@ -439,6 +439,28 @@ describe("a new row's required choices", () => {
     expect((api.bodyOf("POST", path!) as Record<string, unknown>)[name]).toBeNull();
   });
 
+  it("asks a certification's kind with nothing chosen, and sends nothing when it is left alone", async () => {
+    const POST = "POST /api/certifications";
+    const { api, user } = open({
+      [POST]: new Refusal(422, "validation_failed", "Choose whether this is technical, a language score or something else.", { fields: ["kind"] }),
+    });
+    const section = await panel("Certifications");
+    await user.click(within(section).getByRole("button", { name: "Add a certification" }));
+    const form = section.querySelector("form")!;
+    const kind = within(form).getByLabelText(/^Kind/);
+    expect(kind).toHaveProperty("value", "");
+    expect(kind.closest("label")!.textContent).not.toMatch(/optional/);
+
+    await user.type(within(form).getByLabelText("Name"), "TOEIC Listening & Reading 880");
+    await user.type(within(form).getByLabelText("Issuing organization"), "IIBC");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    const alert = await within(form).findByRole("alert");
+    expect(alert.textContent).toBe("Choose whether this is technical, a language score or something else. Nothing was saved.");
+    expect(kind.getAttribute("aria-invalid")).toBe("true");
+    expect((api.bodyOf("POST", "/api/certifications") as Record<string, unknown>).kind).toBeNull();
+  });
+
   it("does not call an education's end month optional", async () => {
     const { user } = open();
     const section = await panel("Education");
@@ -697,5 +719,39 @@ describe("choosing which renders an employer appears in", () => {
     const alert = await within(qorvane).findByRole("alert");
     expect(alert.textContent).toBe(`That setting was not saved. ${NOT_REACHED}`);
     expect(within(group).getByRole("checkbox", { name: "履歴書" })).toHaveProperty("checked", true);
+  });
+});
+
+/* ------------------------------------------------- from a refused résumé */
+
+describe("arriving from a refused English résumé", () => {
+  const at = (path: string, roles: Role[] = []) =>
+    mount(path, {
+      "GET /api/profile": PROFILE,
+      "GET /api/employers": { items: [QORVANE, BRISTEL] },
+      "GET /api/roles": { items: roles },
+      "GET /api/projects": { items: [] },
+      "GET /api/educations": { items: [] },
+      "GET /api/certifications": { items: [] },
+      "GET /api/render-inclusions": { items: [] },
+      "GET /api/career-timeline": NO_COUNTS,
+    });
+
+  it("opens the named job's form with the cursor in City", async () => {
+    at(`/record?employer=${BRISTEL.id}&fix=city`);
+    const bristel = await card("Bristel Inc.");
+    const form = await waitFor(() => bristel.querySelector("form")!);
+    expect(form.getAttribute("aria-label")).toBe("Editing employer");
+    await waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText(/^City/)));
+    expect((await card()).querySelector("form")).toBeNull();
+  });
+
+  it("opens a new role under the named job with the cursor in Title", async () => {
+    at(`/record?employer=${QORVANE.id}&fix=role`);
+    const qorvane = await card();
+    const form = await waitFor(() => qorvane.querySelector("form")!);
+    expect(form.getAttribute("aria-label")).toBe("New role");
+    expect(within(form).getByLabelText("Employer")).toHaveProperty("value", QORVANE.id);
+    await waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText(/^Title/)));
   });
 });

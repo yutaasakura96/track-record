@@ -19,6 +19,7 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  postJob,
   SECOND_EMAIL,
   seedAllowedUser,
   seedTailoredResume,
@@ -120,7 +121,7 @@ afterEach(() => {
 /** A profile, an employer, an education and one fact a document may use. */
 async function seedRecord(as: Client): Promise<string> {
   await as.put("/api/profile", PROFILE_FIXTURE);
-  employerId = ((await (await as.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string }).id;
+  employerId = await postJob(as);
   await as.post("/api/educations", EDUCATION_FIXTURE);
   model.extractions = [[USABLE]];
   await as.request("/api/imports", { method: "POST", body: uploadForm(`# Notes\n\n${USABLE.quote}\n`) });
@@ -466,7 +467,7 @@ describe("a sent copy", () => {
     // The résumé's page is the file's text: its job header and education are
     // the record of that day, and the later education is not on it (issue #107).
     const experience = page.page.sections.find((section) => section.heading === "Experience")!;
-    expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Apr 2022 – Sep 2024" });
+    expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024" });
     expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes." });
     expect(page.page.sections.flatMap((section) => section.blocks).every((block) => !("factIds" in block))).toBe(true);
     expect(JSON.stringify(page.page)).not.toContain("Rebuilt the settlement run");

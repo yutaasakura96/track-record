@@ -30,7 +30,7 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
+import { assembleResume, assertResumeSpecNames, incompleteJobHeaders, incompleteJobHeadersMessage, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
@@ -106,6 +106,15 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
     if (kind === "english_resume") {
+      // Named per job, with what each lacks, so the screen can link to the
+      // field rather than leave the author to find it.
+      const incomplete = incompleteJobHeaders(inputs.spec.employers);
+      if (incomplete.length > 0) {
+        throw new ApiError("precondition_failed", incompleteJobHeadersMessage(incomplete), {
+          fields: ["employers"],
+          jobHeaders: incomplete,
+        });
+      }
       try {
         assertResumeSpecNames(inputs.spec);
         assembleResume({

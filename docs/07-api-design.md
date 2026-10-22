@@ -106,7 +106,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
 | `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
-| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
+| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | `kind` (`technical`, `language`, `other`) required on `POST`; a `PATCH` may omit it but not set it to null (`06`, 2026-10-22) |
 | `GET` | `/api/career-timeline` | #113 | What Screen 4 shows beside the rows: `employers[]` `{ id, achievements, unfiled, documents }` counting the accepted facts that resolve to each (`04` §3.12), how many are filed under no project and the documents they came from; `projects[]` `{ id, achievements }`; and `gaps[]` `{ after, before, months }`, the 履歴書's own gap warning over the rows it would print, its exclusions applied. **Ids, counts and months only**, built on the read |
 
 **`GET /api/profile` → 200**
@@ -765,7 +765,11 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
-**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when an employer,
+**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when a job it
+includes has no city or no role with a title, the parts of its header the record leaves optional.
+The message names each job and what it lacks; `details.fields` is `["employers"]` and
+`details.jobHeaders` is `[{ employerId, name, missing: ("city" | "role")[] }]`, which the screens
+turn into links to the career timeline (`06`, 2026-10-22). Then **428** too when an employer,
 project or education name in the generation spec lacks a Latin letter or contains a non-Latin letter,
 or an assembled field would print Japanese script. The name check includes entries later omitted
 from the file. The message names the field needing an English or Latin-script value, with

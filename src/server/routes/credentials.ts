@@ -114,8 +114,15 @@ const certificationBody = z.object({
   issuingOrganization: z.string().trim().min(1, "An issuing organization is required."),
   issuedOn: monthDate.nullish(),
   expiresOn: monthDate.nullish(),
-  /** Where the English résumé puts it. Unset is unclassified, and prints as technical. */
-  kind: z.enum(["technical", "language", "other"]).nullish(),
+  /**
+   * Where the English résumé puts it. Required, and never null on a PATCH: an
+   * unset kind used to print as technical, which put a TOEIC score under
+   * Certifications and a driving licence on an English résumé (`docs/06`,
+   * 2026-10-22).
+   */
+  kind: z.enum(["technical", "language", "other"], {
+    error: "Choose whether this is technical, a language score or something else.",
+  }),
   /** Not rendered in v1 — for the author's own reference at renewal. */
   credentialId: z.string().trim().nullish(),
   credentialUrl: z.string().trim().url("That is not a URL.").nullish(),

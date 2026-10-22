@@ -15,7 +15,7 @@
  * the panel says why (issue #75). Choosing, recording, taking off, reading what
  * was sent and downloading all work at any width.
  */
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   downloadSentCopy,
@@ -30,6 +30,7 @@ import {
 } from "../api";
 import { useFlashStore } from "../stores/flash";
 import { DownloadButton } from "./download-button";
+import { generateFailure } from "./generate-failure";
 import { useWideEnough } from "./too-narrow";
 import { QUIET, SECONDARY } from "./document-row";
 import { Button, Chip, Panel } from "./ui";
@@ -58,7 +59,7 @@ export function ResumePanel({
   const navigate = useNavigate();
   const flash = useFlashStore((state) => state.show);
   const [picking, setPicking] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ReactNode>(null);
 
   const { documents, choices, sentCopies } = application;
   const applied = application.step !== "not_applied";
@@ -85,7 +86,7 @@ export function ResumePanel({
       const made = await generate.mutateAsync(ref);
       await navigate({ to: "/proposals/$proposalId", params: { proposalId: made.proposalId } });
     } catch (error) {
-      setFailure(failureText(error));
+      setFailure(generateFailure(error));
     }
   };
 
