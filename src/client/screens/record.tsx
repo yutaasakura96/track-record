@@ -44,6 +44,7 @@ import { Button, Chip, Mono, Panel } from "../components/ui";
 import { Sidebar } from "../components/sidebar";
 import { ScreenIntro } from "../components/screen-intro";
 import { currentMonth, fromMonth, toMonth } from "~/shared/calendar";
+import { educationLeftOutOf } from "~/shared/education";
 import { RENDER_KINDS, RENDER_TITLE } from "~/shared/render-content";
 import {
   duration,
@@ -263,7 +264,7 @@ const EDUCATIONS: Section = {
       // An empty value is refused by the server on a new row and preserved as
       // "not recorded" on an old one, which prints.
       unset: "— 未記入 · Not recorded —",
-      hint: "The English résumé omits the two secondary rungs. It cannot tell them from an institution's name.",
+      hint: "The English résumé omits the two secondary rungs and keeps a vocational programme. It cannot tell them from an institution's name.",
     },
     {
       name: "startedOn",
@@ -817,6 +818,12 @@ function IndependentProjects({
 
 /* ------------------------------------------------- education, certificates */
 
+/** The documents an education's level keeps it out of, in the inclusion line's words. */
+function levelChip(level: Education["level"]): string | null {
+  const leftOut = educationLeftOutOf(level);
+  return leftOut.length > 0 ? inclusionSummary(new Set(leftOut)) : null;
+}
+
 function EducationPanel({ employers }: { employers: Employer[] }) {
   const query = useEntities<Education>("educations");
   const items = [...(query.data?.items ?? [])].sort((a, b) => (b.endedOn ?? "").localeCompare(a.endedOn ?? ""));
@@ -833,11 +840,7 @@ function EducationPanel({ employers }: { employers: Employer[] }) {
         detail: `${span(education.startedOn, education.endedOn)} · ${
           OUTCOMES.find((o) => o.value === education.outcome)?.label ?? education.outcome
         }`,
-        chip: education.level === "secondary_upper"
-          ? "Left out of: Résumé (English)"
-          : education.level === "secondary_lower"
-            ? "Left out of: Résumé (English), 職務経歴書"
-            : null,
+        chip: levelChip(education.level),
         extra: <Inclusion entityType="education" entityId={education.id} name={education.institution} />,
       })}
     />

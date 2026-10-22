@@ -26,6 +26,7 @@
  *     so the three cannot disagree.
  */
 import type { RenderSpec } from "~/model/types";
+import { leavesOutEducation } from "~/shared/education";
 import { RENDER_TITLE, type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
@@ -261,9 +262,6 @@ const yearOf = (isoDate: string) => isoDate.slice(0, 4);
 const isExpired = (expiresOn: string | null, today: string) =>
   expiresOn !== null && expiresOn.slice(0, 7) < today.slice(0, 7);
 
-/** Below university level: the two secondary rungs. An unstated level prints. */
-const BELOW_UNIVERSITY = new Set(["secondary_lower", "secondary_upper"]);
-
 export interface AssembleArgs {
   content: RenderContent;
   record: ResumeRecord;
@@ -417,7 +415,9 @@ function projectBlocks(content: RenderContent, record: ResumeRecord): ResumeBloc
 }
 
 /**
- * University level and above, newest first. The degree and field are the
+ * Everything past secondary school, newest first: a vocational programme and a
+ * row whose level is not recorded print beside a degree (`~/shared/education`).
+ * The degree and field are the
  * English fields; the 学部・学科 is the 履歴書's and is never read here. An
  * entry left unfinished says so, and one still in progress says when it is
  * expected — a withdrawal printed as a degree is a misrepresentation
@@ -425,7 +425,7 @@ function projectBlocks(content: RenderContent, record: ResumeRecord): ResumeBloc
  */
 function educationBlocks(record: ResumeRecord): ResumeBlock[] {
   return record.educations
-    .filter((e) => e.level === null || !BELOW_UNIVERSITY.has(e.level))
+    .filter((e) => !leavesOutEducation("english_resume", e.level))
     .map((e): ResumeBlock => {
       const studied = [e.degree, e.fieldOfStudy].filter((v): v is string => Boolean(v)).join(", ");
       const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;

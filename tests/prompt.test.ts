@@ -25,6 +25,7 @@ import { READ_POSTING_TOOL, postingRequest, readPostingInput } from "~/model/pos
 import { CAPTURE_TOOL, captureRequest, readCaptureInput } from "~/model/capture";
 import { POSTING_EN, POSTING_JA, READING_EN, READING_JA } from "./fixtures/postings";
 import type { FlagKind } from "~/pipeline/flags";
+import { leavesOutEducation } from "~/shared/education";
 import type { FlagToExplain, RenderSpec } from "~/model/types";
 
 type Education = RenderSpec["educations"][number];
@@ -132,11 +133,14 @@ describe("the generation prompt", () => {
 
     // Wording, not the enum value: the model is told what the rung MEANS, the
     // same way `withdrawn` is spelled out rather than passed through.
-    expect(below("secondary_lower")).toContain("below university level");
-    expect(below("secondary_upper")).toContain("below university level");
-    expect(below("vocational")).not.toContain("below university level");
-    expect(below("tertiary")).not.toContain("below university level");
-    expect(below("postgraduate")).not.toContain("below university level");
+    // And it says so of exactly the rungs the résumé leaves out when the file
+    // is assembled, so the prompt and the file cannot disagree on vocational.
+    for (const level of ["secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate"] as const) {
+      if (leavesOutEducation("english_resume", level)) expect(below(level), level).toContain("below university level");
+      else expect(below(level), level).not.toContain("below university level");
+    }
+    expect(leavesOutEducation("english_resume", "secondary_upper")).toBe(true);
+    expect(leavesOutEducation("english_resume", "vocational")).toBe(false);
   });
 
   it("tells the model to keep a row whose level was never recorded", () => {

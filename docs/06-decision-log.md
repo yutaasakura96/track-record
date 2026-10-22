@@ -7048,3 +7048,26 @@ border tokens are either too dark in light or still faint in dark.
 - **Also in this change:** the preview now carries each template paragraph's before-spacing
   (`beforeTwips`) as well as its after-spacing. It is mapped to the spacing scale the same way
   (40 → `mt-4`, 100 → `mt-8`, 400 → `mt-26`).
+
+---
+
+### [2026-10-22] A vocational programme stays on the English résumé, and one rule names what each document leaves out
+
+This supersedes two sentences, and no decision. The 2026-09-12 職務経歴書 entry says 学歴 "keeps a
+vocational programme that the résumé's level selector drops", and the 2026-10-18 résumé entry says
+the file prints "education at university level and above". Neither matches what was decided on
+2026-09-06 or what the code does. The selector drops the two secondary rungs and keeps
+`vocational`, `tertiary`, `postgraduate` and a row with no level, and `tests/prompt.test.ts` has
+pinned that since the level column landed. Only the wording was wrong.
+
+**The rule now lives once, in `src/shared/education.ts`**: for each document, the rungs it leaves
+out. `src/render/resume.ts` filters the résumé's education with it, the prompt test holds the
+model's level wording to it, and the career timeline's chip on an education row names the
+documents from it. The chip had been a hand-written copy of the same rule. The 職務経歴書 still
+applies its rule (drop lower secondary only) in register prose, and `tests/shokumu.test.ts`
+asserts that the register text and the shared rule say the same thing.
+
+Kept as decided: a finished vocational programme is post-secondary and a credential an English
+reader screens on. Dropping it was the alternative, and it would have reversed 2026-09-06 to
+match two sentences that described the rule wrongly. A vocational row carries no chip, because
+every document prints it.

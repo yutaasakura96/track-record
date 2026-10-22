@@ -225,6 +225,22 @@ describe("the English résumé document", () => {
     expect(resumeMarkdown(doc)).not.toMatch(/Cloud Associate|driving licence|Kitanomori/);
   });
 
+  it("keeps a vocational programme and a row whose level is not recorded", () => {
+    const doc = assembled(CONTENT, {
+      ...RECORD,
+      educations: [
+        ...RECORD.educations,
+        { ...RECORD.educations[0]!, id: "edu_voc", institution: "Harbour Design Academy", faculty: null, degree: "Diploma", fieldOfStudy: "Web Design", startedOn: "2015-04-01", endedOn: "2016-03-01", level: "vocational" },
+        { ...RECORD.educations[0]!, id: "edu_unknown", institution: "Northgate Evening School", faculty: null, level: null },
+      ],
+    });
+    expect(doc.sections.find((s) => s.key === "education")!.blocks.map((b) => b.kind === "entry" && b.lead)).toEqual([
+      "Seaside Institute of Technology",
+      "Harbour Design Academy",
+      "Northgate Evening School",
+    ]);
+  });
+
   it("says an unfinished course is unfinished, and when one in progress is expected", () => {
     const doc = assembled(CONTENT, {
       ...RECORD,

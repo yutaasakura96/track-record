@@ -69,7 +69,13 @@ export const RESUME_IDENTITY = {
   name: "Resume Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email}`;
+export const EDUCATION_CHIPS_IDENTITY = {
+  sub: "e2e-education-chips-local",
+  email: "e2e-education-chips@example.invalid",
+  name: "Education Chips Test",
+};
+
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -134,6 +140,14 @@ export const RESUME_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-resume-storage-state.json",
+);
+
+export const EDUCATION_CHIPS_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-education-chips-storage-state.json",
 );
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */
