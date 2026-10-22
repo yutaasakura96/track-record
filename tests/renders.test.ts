@@ -390,6 +390,33 @@ describe("the order a document reads in", () => {
 });
 
 describe("generation is blocked rather than producing an empty document", () => {
+  it("blocks an employer-attached project without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const created = await client.post("/api/projects", { name: "Проект", employerId: items[0]!.id });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for project/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
+  it("blocks below-university education without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const created = await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      institution: "Школа",
+      level: "secondary_upper",
+    });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for education/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
   it("states the reason when nothing has been accepted", async () => {
     const response = await client.post("/api/renders/english_resume/generate");
     expect(response.status).toBe(428);

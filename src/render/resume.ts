@@ -324,6 +324,16 @@ export class ResumeLanguageError extends ResumeAssemblyError {}
 const isLatinName = (value: string): boolean =>
   /\p{L}/u.test(value) && !/(?!\p{Script=Latin})\p{L}/u.test(value);
 
+export function assertResumeSpecNames(spec: Pick<RenderSpec, "employers" | "projects" | "educations">): void {
+  const names: [string, string][] = [
+    ...spec.employers.map((employer): [string, string] => ["employer", employer.name]),
+    ...spec.projects.map((project): [string, string] => ["project", project.name]),
+    ...spec.educations.map((education): [string, string] => ["education", education.institution]),
+  ];
+  const unreadable = names.find(([, value]) => !isLatinName(value));
+  if (unreadable) throw new ResumeLanguageError(`The English résumé needs a Latin-script name for ${unreadable[0]}.`);
+}
+
 const NAMED_ENTRIES = new Set(["employer", "project", "education"]);
 
 export function assertEnglishResume(document: ResumeDocument): void {
