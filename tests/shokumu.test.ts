@@ -22,7 +22,8 @@ import { RENDER_DEFINITIONS } from "~/render/spec";
 import { REQUIRED_PROFILE_FIELDS } from "~/render/rirekisho";
 import { EXPERIENCE_SECTION as MEASURED_SECTION } from "~/render/metrics";
 import { EXPERIENCE_SECTION as ATTRIBUTED_SECTION } from "~/render/attribution";
-import { capitalInJapanese } from "~/model/generate";
+import { buildGenerationPrompt, capitalInJapanese } from "~/model/generate";
+import type { RenderSpec } from "~/model/types";
 import { documentDate, isDated } from "~/render/identity";
 import { nameInLanguage } from "~/server/services/render";
 import { checkAttribution, copiedPairs, copyIsPermitted, experienceGroups } from "~/render/attribution";
@@ -109,10 +110,35 @@ describe("the register's contract with the rest of the codebase", () => {
   });
 
   it("keeps a vocational programme in 学歴 and drops lower secondary, as the timeline's chip says", () => {
-    // The register applies this in prose; the chip names the 職務経歴書 from
-    // `~/shared/education`. Asserted together so the two cannot drift.
-    expect(definition.register).toContain("omit one below upper-secondary level");
-    expect(definition.register).toContain("keep every other entry including a vocational programme");
+    const spec: RenderSpec = {
+      kind: "shokumu_keirekisho",
+      language: "ja",
+      subjectName: "山田太郎",
+      register: definition.register,
+      jobDescription: null,
+      employers: [],
+      projects: [],
+      workOutsideEmployment: false,
+      desiredRoleNote: null,
+      educations: [{
+        id: "edu_vocational",
+        institution: "架空技術専門学校",
+        faculty: null,
+        degree: null,
+        fieldOfStudy: null,
+        startedOn: "2015-04-01",
+        endedOn: "2017-03-01",
+        outcome: "completed",
+        level: "vocational",
+      }],
+      certifications: [],
+      curatedSkills: null,
+    };
+    const prompt = buildGenerationPrompt(spec);
+    expect(prompt).toContain("- id edu_vocational · 架空技術専門学校");
+    expect(prompt).toContain("level: post-secondary vocational, non-degree");
+    expect(prompt).toContain("omit one below upper-secondary level");
+    expect(prompt).toContain("keep every other entry including a vocational programme");
     expect(leavesOutEducation("shokumu_keirekisho", "secondary_lower")).toBe(true);
     for (const level of ["secondary_upper", "vocational", "tertiary", "postgraduate", null] as const) {
       expect(leavesOutEducation("shokumu_keirekisho", level), String(level)).toBe(false);
