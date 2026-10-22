@@ -7093,3 +7093,29 @@ was assembled, and only the Edit screen showed them, as raw ids (#110).
 - **Alternative rejected:** a separate evidence route queried per click. One read per click buys
   nothing here, because a page cites a few dozen facts at most, and a second read could disagree
   with the page it describes.
+
+---
+
+### [2026-10-22] Home leads with the documents as cards; the provenance bar moves to the career record
+
+The documents were Home's fourth panel, under a tile grid and a chart of facts by provenance, and
+each was a row offering History, Download and Regenerate (#111, evaluation §3.1).
+
+- **Decision:** after the Next step come the documents, each a card with a picture of its first
+  page, its status in plain words, and `View` first. The record's counts are one strip of five
+  cells under them, and the provenance bar and its three rows sit on the career record (Screen 10),
+  over the facts they count.
+- **Decision:** `View` is the card's primary action and is drawn as a secondary button. The Next
+  step keeps the only primary button in the content column (#58, `docs/10` Screen 3); five accent
+  buttons under it would give the eye six places to go. The card's write steps down to ghost
+  beside View.
+- **Decision:** the picture is the page `GET /api/renders/:kind/page` serves, the same read and
+  cache entry View opens, drawn at 36% by one utility, `page-thumbnail`. A page refused for a
+  withheld fact leaves the picture blank and says nothing: the card's status already says where it
+  stands, and View says why. The career record's card draws its own first lines from the record
+  the screen reads.
+- **Alternative rejected:** a stored or generated image per version. It is a second copy of the
+  page that can fall out of step with it, and a version's page is already assembled on demand.
+- **Not changed:** Home and Screen 10 stay desktop screens, held behind the narrow-window message
+  under 1024px. The cards fall to one column under the phone breakpoint, so opening Home on a phone
+  later needs no change to them.

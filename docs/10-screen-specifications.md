@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112) · Screen 4 renamed Career timeline and laid out as one card per employer 2026-10-19 (#113)
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112) · Screen 4 renamed Career timeline and laid out as one card per employer 2026-10-19 (#113) · Screen 3 leads with the documents as cards, the record's counts one strip, and the provenance bar moved to Screen 10, 2026-10-22 (#111)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -414,8 +414,10 @@ Same layout, same components. Differences that are **requirements, not styling**
 
 ## Screen 3 — Home
 
-**Purpose.** Home, and the first thing the author sees. In this order: what to do next, what the
-record holds, what the documents say. **Rewritten 2026-10-05 (#58)**: the screen it replaces led
+**Purpose.** Home, and the first thing the author sees. In this order: what to do next, the
+documents, and the record at a glance. **Reordered 2026-10-22 (#111)**: the documents were the
+fourth panel, under two panels of the record's own counts, and nothing on them opened a document.
+**Rewritten 2026-10-05 (#58)**: the screen it replaces led
 with four counts and a chart of `Facts by provenance`, and the author could not say what they were
 looking at. The test of this screen is that a first-time author and a returning one can both say
 what it shows and what to do, without knowing a word of the product's vocabulary.
@@ -455,49 +457,15 @@ Every other step that applies is listed under it, below the line `Also waiting`,
 its title and a ghost button. So a returning author reads the whole of what is waiting in one
 place, in the order to take it. `Wait for the first facts`, `Import a document` and
 `You are up to date` are answers to "what now" and never appear in that list. One document stands
-for all of them in the two document steps, the first in the list that needs it; Section 4 says the
+for all of them in the two document steps, the first in the list that needs it; Section 2 says the
 rest. **The two document steps need a fact a document may use**; without one they are not offered,
 and `Import a document` stands only when nothing else is waiting, because the way to a usable fact
 is then to deal with what is. A Generate or Update pressed here that the server refuses says the
 server's reason in this panel, under the step.
 
-**Section 2 — Your record.** Heading `Your record`, sentence `What you entered by hand: where you
-worked, and what you hold.`, and a link `Open career timeline` to Screen 4. Under it a four-tile grid, 1px
-gaps over a `border` background so the tiles read as one object. Each tile: label, 23px value,
-sub-note (`2 current, 2 past` / `4 with measured outcomes` / `1 expires Mar 2027`). Entities:
-Employers · Roles · Projects · Credentials. **Credentials counts educations and certifications
-together** — the split is a storage decision (`04-database-schema.md` §3.8–3.9), not an interface
-one. **A tile at zero says so in words**: its sub-note reads `None added yet`, so a `0` reads as an
-answer and not as a failure to load.
-
-**Section 3 — Facts in your record.** Heading `Facts in your record`, sentence
-`A fact is one claim about your work, quoted from a document you imported. N accepted.` Then an
-8px stacked bar (green / accent / amber, 2px gaps) and one row per provenance value. **The row
-leads with plain words and names the product's term second**, because `Measured`, `Attested` and
-`Generated` are the words on the fact card and mean nothing at a glance (#58):
-
-| Row | Term | Description | At zero |
-|---|---|---|---|
-| `Backed by a number` | `Measured` | `A result with a figure, and the passage that proves it.` | `None yet` |
-| `Stated by you` | `Attested` | `True, and yours, with no figure behind it.` | `None yet` |
-| `Not confirmed` | `Generated` | `Written by the importer. Left out of every document until you confirm it.` | `Nothing waiting` |
-
-**Flags are a line under the rows, not a row and not a step** (#57). While any flag is open:
-`N are flagged for you to check when you want. Each says why.` and a ghost `Open the list` to Screen
-9. The section's heading carries a quiet `Open career record` link to Screen 10 once the record
-holds an accepted fact.
-
-Each row: dot, the plain words, the term in a chip, the description, and the count at the row-title
-size. **A zero is written as words, never as `0`.** `Measured 0` in the faintest text on the screen
-read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — while
-the author has a fact of their own to confirm (above zero, until 2026-10-08) it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
-Review the Next step does, N being that version's facts as it is in the step. With no accepted fact
-at all, the bar and the rows give way to one line:
-`No accepted facts yet. They are accepted for you as a document you import is read.`
-
-**Section 4 — Your career documents.** Heading `Your career documents`, sentence
-`Generated from your accepted facts, in English and in Japanese. Each one is a file you can
-download.` The heading is not `Documents`: that is the sidebar's word for the files facts are quoted
+**Section 2 — Your career documents.** Straight after the Next step (#111). Heading `Your career
+documents`, sentence `Written from your record, in English and in Japanese. View one to read it as it
+will print, or download it to send.` The heading is not `Documents`: that is the sidebar's word for the files facts are quoted
 *from*, and this section is what is generated *out*. **Japanese titles render in the mixed font
 stack.**
 
@@ -517,12 +485,23 @@ language, and one panel under it:
   `localStorage` key `track-record:document-language`, as the theme is. It is not a column: it says
   which tab is open, and nothing about the record. **Screen 10 reads the same choice**, so the
   language open here is the language of the master document that opens.
-- **The first row of each tab is that language's career record** (Screen 10; the master document
-  until #112). Title `Career record` or `キャリア記録`, note `English · everything in your record, and what
-  every English document is written from` (or `Japanese · … every Japanese document …`), the count
-  `N facts` (`No facts yet` at zero) and one secondary `Open`. It is not generated and has no
-  versions, so it has no status dot, no `History`, no button and no `Download`: the file is
-  downloaded on Screen 10, beside the note that it holds Private facts.
+- **Each document is a card** (#111), three across (one column under the phone breakpoint), with
+  8px between them. A card is a `card` surface with a `border` rule and the tile radius: on top, a
+  **picture of its first page** (`05` §3: 160px tall, the page drawn at 36%, on `surface-raised`, the
+  page itself on `bg` with its top corners rounded); under it the title at the row-title size, the
+  status, a muted line, and the controls at the foot. The picture is the current version's page as
+  Screen 17 opens it, read only once a version exists; before then, or when the page cannot be read
+  (a version citing a fact now Private is refused, `409`), the page is blank and nothing else
+  changes. It is hidden from assistive technology and `inert`, so it takes no tab stop: the title
+  and status beside it say what it shows.
+- **The first card of each tab is that language's career record** (Screen 10; the master document
+  until #112). Title `Career record` or `キャリア記録`, the line `N facts · everything in your record,
+  and what every English document is written from. Not for sending.` (`… every Japanese document …`;
+  `No facts yet` at zero) and one secondary `Open`, named `Open the English career record` (or
+  `Japanese`). Its picture is the record's own first lines: the name, then up to three employers,
+  each with its first two claims. It is not generated and has no versions, so it has no status
+  dot, no `History`, no button and no `Download`: the file is downloaded on Screen 10, beside the
+  note that it holds Private facts.
 
 **One line above the rows says which to act on** (#58), and it speaks for the rows of the tab that
 is open. Five rows each reading `N new facts since it was generated` beside the same three buttons
@@ -536,24 +515,42 @@ said nothing about where to start, and the honest answer is that they do not dep
 - None generated → `None generated yet. Generate the one you need first; each is made on its own.`
 - Otherwise → `Every document you have generated is up to date with your record.`
 
-Each row: name, `<language> · generated <relative time>`, status dot + text, then the quiet links
-`View` (Screen 17, since #106), `History` (Screen 5) and `Download`, offered once a version exists,
-and **one** button.
+Each document card: title, status dot + text in plain words, then a muted line `v<N> · written
+<relative time>` (the English résumé adds `· your main résumé, tailored to no job`). **View leads**:
+once a version exists, the first control is `View` (Screen 17), a secondary button named `View
+<document>`, then the quiet links `Download` and `History` (Screen 5), and the card's write set a
+step down at the right. **View is the card's primary action but is not drawn as a primary button**:
+the Next step keeps the only primary button in the content column, as #58 decided. Before a version
+exists there is nothing to view, and the write is the card's one secondary control.
 
-| Status | Dot and text | Button |
-|---|---|---|
-| Never generated | muted, `Not generated yet` | `Generate` (secondary) |
-| Proposal waiting | accent, `New version waiting` | `Review changes` (secondary) |
-| Proposal being written | accent, `Writing a new version` | `Open it` (secondary) |
-| Out of date | accent, `N new facts`, `N facts no longer usable`, or `N new facts, M no longer usable` | `Update` (secondary) |
-| Up to date | green, `Up to date` | `Regenerate` (ghost) |
-| Not built | muted, `Not available yet` | None |
+| Status | Dot and text | Write, with a version | Write, before one |
+|---|---|---|---|
+| Never generated | muted, `Not written yet` | — | `Generate` (secondary) |
+| Proposal waiting | accent, `A new version is waiting for you to check` | `Review changes` (ghost) | `Review changes` (secondary) |
+| Proposal being written | accent, `A new version is being written` | `Open it` (ghost) | `Open it` (secondary) |
+| Out of date | accent, `N new facts since v<N>`, `N facts it was written from can no longer be used`, or `N new facts since v<N>, and M it was written from can no longer be used` | `Update` (ghost) | — |
+| Up to date | green, `Up to date with your record` | `Regenerate` (ghost) | — |
+| Not built | muted, `Not available yet` | None | None |
 
-`Download` reads the same on every row so the rows line up; the file's type is the document's own
+`Download` reads the same on every card so the cards line up; the file's type is the document's own
 and is in the name of what is saved. A Generate or Update the server refuses says the server's
-reason above the rows.
+reason above the cards.
 
-**Section 5 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
+**Section 3 — Your record at a glance.** Under the documents (#111), heading `Your record at a
+glance`, sentence `Where you worked, what you hold, and the facts your documents are written from.`,
+and a quiet `Open career timeline` to Screen 4. **One strip** of five cells, 1px gaps over a
+`border` background so it reads as one object: `Employers`, `Roles`, `Projects`, `Credentials` and
+`Facts`, each a label, its count at the document-heading size, and a muted note (`2 current, 2
+past`; `Facts`: `N backed by a number`). **Credentials counts educations and certifications
+together**, a storage split (`04` §3.8–3.9) and not an interface one. `Facts` counts the accepted
+facts. **A count at zero says so in words**, `None added yet`, so a `0` reads as an answer and not
+as a failure to load. Two cells a row under the phone breakpoint.
+It replaced two panels: the four-tile `Your record` grid, and `Facts in your record`, whose stacked
+bar and rows of facts by provenance are on Screen 10 now. The `Confirm N` that row carried is the
+Next step's, and the flag line is the sidebar's count beside `Flagged` and Screen 10's count
+sentence.
+
+**Section 4 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
 you entered, every fact, and where each fact is quoted from. The imported documents themselves are
 not included, and neither are recordings of interviews or the links to them.`, and a secondary
 `Export my record`, which is `GET /api/export` (S15, S24).
@@ -687,13 +684,12 @@ so the frame does not change under a first-time author; it carries no note and n
 | State | Behaviour |
 |---|---|
 | **No profile** | Redirect to the profile form. Every render needs a name |
-| **Loading** | **The frame is drawn at once and filled as the reads answer** (#58): the sidebar, the header with `Home` and the note `Loading your record…`, and the four section headings over blank blocks the height of what they will hold. Nothing animates (`05` §8). It replaced a bare `Loading your record…` on an empty page that stood for about ten seconds. The session, the profile and the overview are read at the same time, not one after the other, and the screen shows this frame until all three have answered. After four seconds the note becomes `Still loading. This is taking longer than usual.` |
+| **Loading** | **The frame is drawn at once and filled as the reads answer** (#58): the sidebar, the header with `Home` and the note `Loading your record…`, and the section headings over blank blocks the height of what they will hold. Nothing animates (`05` §8). It replaced a bare `Loading your record…` on an empty page that stood for about ten seconds. The session, the profile and the overview are read at the same time, not one after the other, and the screen shows this frame until all three have answered. After four seconds the note becomes `Still loading. This is taking longer than usual.` |
 | **Could not be read** | Centred in the content area, with the sidebar beside it and the header above it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the loading frame returns. Only a first read shows this. |
 | **Could not refresh** | The overview, populated or empty, stays on screen. A later read that fails puts one dim line above it, at the top of the content, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
 | **Import in progress** | A panel above the Next step, which carries the way into the review. First line: `Reading`, the document's filename in a mono chip, and the share done as a percentage at the row-title size. Then an 8px progress bar, twice the control's 4px because here it is the status and not a detail of a row. Then the sentence `Still working, please wait. N of M parts read.`, or `Still working, please wait. Getting the document ready.` before the document has been split; a part is a chunk, in the author's word for it. Then `A long document takes several minutes. You can leave this page and it carries on.` The percentage is how much of the document has been read, which is not the model certainty `05` §9 rule 12 forbids. The screen reads again every 1.5 s while it runs, so the bar moves. The first line stays one line: a filename too long for it is cut short with an ellipsis and shown whole on hover, and nothing else in it gives way |
 | **Read again after a write** | A write that changes what Home says (finishing a review, deciding a proposal, starting an import) marks the overview untrue. Until the read after it answers, the Next step and the import panel are **held back**: in their place stands the Next step's frame, its heading over a blank block, with the status line `Checking what is waiting for you now…`. The other sections stay as they were. A poll, during an import or while a proposal is being written, and a plain return to the page hold nothing back. Without this Home told the author to wait for an import they had just finished reviewing, for as long as the read took |
-| **All documents stale** | Normal. Five accent dots is a valid state, not an error, and the line above the rows says the rest can wait |
-| **Zero Generated facts** | The Not confirmed row renders in the resting style with `Nothing waiting` — no amber, no call to action |
+| **All documents stale** | Normal. Every card's accent dot is a valid state, not an error, and the line above the cards says the rest can wait |
 
 ---
 
@@ -1320,6 +1316,16 @@ page lists, the note `The file includes Private facts. It is your copy.` and **`
    are waiting to be sorted and are not listed yet. Sort them from Home.` **Flags are counted as the
    sidebar counts them**, open flags rather than facts with a flag, so the two numbers agree.
    `across N years` runs from the first employment or project to the last, or to today.
+   **Under it, what the facts rest on** (#111; it stood on Home until then), in a raised box named
+   `What your facts rest on`: an 8px stacked bar (green / accent / amber, 2px gaps) and, under it,
+   three columns (one under the `wide` breakpoint), one per provenance value: its dot, its count at
+   the row-title size (`None` in words at zero) and its plain words, then under them the product's
+   term in a chip and one sentence. `Backed by a number` · `Measured` · `A result with a figure, and
+   the passage that proves it.`, `Stated by you` · `Attested` · `True, and yours, with no figure
+   behind it.`, `Not confirmed` · `Generated` · `Written by the importer. Left out of every document
+   until you confirm it.` It counts every fact on the
+   page whatever the filter, and is absent while the record holds none. The way to confirm a fact is
+   Home's Next step, so nothing here is a button.
 4. **The filters**, filter pills in a group named `Show`: `Everything`, `Results with a number N`
    (Measured facts whose claim contains a figure, using the same rule as highlighted numbers), `Kept out of documents N` (Private or Generated), and `Not used in any document yet N`
    (usable, and cited by the current version of no document, tailored résumés included). The one on

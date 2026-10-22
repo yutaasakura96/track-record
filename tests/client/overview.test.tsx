@@ -74,7 +74,7 @@ const file = () => new File(["# zentrel"], "quillset-notes.md", { type: "text/ma
 const documentRow = async (title = "English résumé") => (await screen.findByText(title)).closest("li")!;
 const nextStep = () => screen.findByRole("region", { name: "Next step" });
 /** Every section of the populated screen, by its heading. */
-const SECTIONS = ["Your record", "Facts in your record", "Your career documents"];
+const SECTIONS = ["Your career documents", "Your record at a glance"];
 
 describe("generating a document", () => {
   const POST = "POST /api/renders/english_resume/generate";
@@ -159,8 +159,8 @@ describe("generating a document", () => {
     ]);
     const item = await documentRow();
 
-    expect(within(item).getByText("Writing a new version")).toBeTruthy();
-    expect(within(item).queryByText("New version waiting")).toBeNull();
+    expect(within(item).getByText("A new version is being written")).toBeTruthy();
+    expect(within(item).queryByText("A new version is waiting for you to check")).toBeNull();
     expect(within(item).queryByRole("link", { name: "Review changes" })).toBeNull();
     expect(within(item).queryByRole("button", { name: "Generate" })).toBeNull();
     await user.click(within(item).getByRole("link", { name: "Open it" }));
@@ -338,7 +338,7 @@ describe("the next step", () => {
     const step = await nextStep();
     expect(within(step).getByRole("heading", { name: "Update your English résumé" })).toBeTruthy();
     expect(within(step).getByText("1 fact it was generated from can no longer be used.")).toBeTruthy();
-    expect(screen.getByText("1 fact no longer usable")).toBeTruthy();
+    expect(within(await documentRow()).getByText("1 fact it was written from can no longer be used")).toBeTruthy();
   });
 
   it("says both when facts arrived and one it was generated from left", async () => {
@@ -348,7 +348,7 @@ describe("the next step", () => {
         "2 new facts since it was generated, and 1 it was generated from can no longer be used.",
       ),
     ).toBeTruthy();
-    expect(screen.getByText("2 new facts, 1 no longer usable")).toBeTruthy();
+    expect(within(await documentRow()).getByText("2 new facts, and 1 it was written from can no longer be used")).toBeTruthy();
   });
 
   it("offers the import when no fact can be used and nothing is waiting", async () => {
@@ -370,65 +370,59 @@ describe("the next step", () => {
   });
 });
 
-describe("the facts, in plain words", () => {
-  const facts = (factsByProvenance: Overview["factsByProvenance"], over: Partial<Overview> = {}): Routes => ({
-    "GET /api/overview": { ...overview([row()]), factsByProvenance, ...over },
-  });
-  const factRow = async (plain: string) => (await screen.findByText(plain)).closest("li")!;
+/**
+ * Issue #111: the record's counts are one strip under the documents, and the
+ * chart of facts by provenance is on the career record (Screen 10).
+ */
+describe("the record at a glance", () => {
+  // Found by a count's label: the frame shown before the read answers has the heading alone.
+  const strip = async () => (await screen.findByText("Employers")).closest("section")!;
+  const cell = (within_: HTMLElement, label: string) => within(within_).getByText(label).closest("div")!;
 
-  it("leads each row with plain words and names the card's term second", async () => {
-    open([], facts({ measured: 3, attested: 1, generated: 0 }));
-    const item = await factRow("Backed by a number");
-
-    expect(within(item).getByText("Measured")).toBeTruthy();
-    expect(within(item).getByText("A result with a figure, and the passage that proves it.")).toBeTruthy();
-    expect(within(item).getByText("3")).toBeTruthy();
-    expect(screen.queryByText("Facts by provenance")).toBeNull();
-    expect(screen.getByText(/4 accepted\./)).toBeTruthy();
-  });
-
-  it("writes a zero as words, never as 0", async () => {
-    open([], facts({ measured: 0, attested: 96, generated: 0 }));
-
-    const measured = await factRow("Backed by a number");
-    expect(within(measured).getByText("None yet")).toBeTruthy();
-    expect(within(measured).queryByText("0")).toBeNull();
-    const generated = await factRow("Not confirmed");
-    expect(within(generated).getByText("Nothing waiting")).toBeTruthy();
-    expect(within(generated).queryByRole("link")).toBeNull();
-  });
-
-  it("opens the review holding the facts that are not confirmed", async () => {
-    open(
-      [],
-      facts(
-        { measured: 0, attested: 96, generated: 16 },
-        { unconfirmed: { importId: "imp-test-quillset", count: 3, total: 3 } },
-      ),
-    );
-    const item = await factRow("Not confirmed");
-
-    expect(within(item).getByText("16")).toBeTruthy();
-    expect(within(item).getByRole("link", { name: "Confirm 3" }).getAttribute("href")).toBe(
-      "/imports/imp-test-quillset",
-    );
-  });
-
-  it("says there are none yet rather than three empty rows", async () => {
-    open([], facts({ measured: 0, attested: 0, generated: 0 }));
-
-    expect(
-      await screen.findByText("No accepted facts yet. They are accepted for you as a document you import is read."),
-    ).toBeTruthy();
-    expect(screen.queryByText("Backed by a number")).toBeNull();
-  });
-
-  it("says a tile at zero in words", async () => {
+  it("is one strip of counts, the facts among them", async () => {
     open([row()]);
-    await documentRow();
+    const section = await strip();
 
-    // Projects and credentials are at zero in the fixture; employers and roles are not.
-    expect(screen.getAllByText("None added yet")).toHaveLength(2);
+    expect(within(section).getAllByRole("term").map((term) => term.textContent)).toEqual([
+      "Employers",
+      "Roles",
+      "Projects",
+      "Credentials",
+      "Facts",
+    ]);
+    expect(within(cell(section, "Facts")).getByText("4")).toBeTruthy();
+    expect(within(cell(section, "Facts")).getByText("3 backed by a number")).toBeTruthy();
+    expect(within(section).getByRole("link", { name: "Open career timeline" }).getAttribute("href")).toBe("/record");
+  });
+
+  it("says a count at zero in words", async () => {
+    open([], { "GET /api/overview": { ...overview([row()]), factsByProvenance: { measured: 0, attested: 0, generated: 0 } } });
+    const section = await strip();
+
+    // Projects, credentials and facts are at zero; employers and roles are not.
+    expect(within(section).getAllByText("None added yet")).toHaveLength(3);
+  });
+
+  it("has no chart of facts by provenance: that is on the career record", async () => {
+    open([row()]);
+    await strip();
+
+    expect(screen.queryByText("Backed by a number")).toBeNull();
+    expect(screen.queryByText("Facts in your record")).toBeNull();
+  });
+
+  it("comes after the documents, which come straight after the next step", async () => {
+    open([row()]);
+    await strip();
+
+    const headings = screen
+      .getAllByRole("heading", { level: 2 })
+      .map((heading) => heading.textContent)
+      .filter((text) => text !== null);
+    const at = (text: string) => headings.indexOf(text);
+    expect(at("Your career documents")).toBeGreaterThan(-1);
+    expect(at("Your career documents")).toBe(at("Generate your English résumé") + 1);
+    expect(at("Your record at a glance")).toBe(at("Your career documents") + 1);
   });
 });
 
@@ -451,13 +445,13 @@ describe("which document to act on", () => {
     );
     const item = await documentRow();
     expect(within(item).getByText("12 new facts")).toBeTruthy();
-    // One button a row; history and the download are links beside it.
+    // One write a card; history and the download are quiet beside View.
     expect(within(item).getAllByRole("button").map((b) => b.textContent)).toEqual(["Download", "Update"]);
     expect(within(item).getByRole("link", { name: "History" }).getAttribute("href")).toBe(
       "/renders/english_resume/history",
     );
     // Read in the app without downloading it (issue #106).
-    expect(within(item).getByRole("link", { name: "View" }).getAttribute("href")).toBe(
+    expect(within(item).getByRole("link", { name: "View English résumé" }).getAttribute("href")).toBe(
       "/renders/english_resume/view",
     );
   });
@@ -587,7 +581,7 @@ describe("the English documents and the Japanese ones, apart", () => {
   const titles = () =>
     within(screen.getByRole("tabpanel"))
       .getAllByRole("listitem")
-      .map((item) => item.querySelector("div > div")!.textContent);
+      .map((item) => item.querySelector("h3")!.textContent);
 
   it("shows the English documents first, under the English master document", async () => {
     open(ROWS);
@@ -642,8 +636,8 @@ describe("the English documents and the Japanese ones, apart", () => {
     const { user } = open(ROWS);
     const english = await masterRow("Career record");
 
-    expect(within(english).getByText("4 facts")).toBeTruthy();
-    expect(within(english).getByText(/^English · everything in your record/)).toBeTruthy();
+    expect(within(english).getByText(/^4 facts · /)).toBeTruthy();
+    expect(within(english).getByText(/everything in your record, and what every English document is written from/)).toBeTruthy();
     expect(within(english).getByRole("link", { name: "Open the English career record" }).getAttribute("href")).toBe("/master");
     // Not a generated document: nothing to generate, no history, and no download from here.
     expect(within(english).queryAllByRole("button")).toEqual([]);
@@ -668,31 +662,33 @@ describe("the English documents and the Japanese ones, apart", () => {
     });
     await documentRow();
     await user.click(screen.getByRole("tab", { name: "日本語" }));
+    // Home read the English record for its card's picture; the screen opened reads only the Japanese one.
+    const before = api.calls.length;
     await user.click(screen.getByRole("link", { name: "Open the Japanese career record" }));
 
     await waitFor(() => expect(pathname()).toBe("/master"));
     await waitFor(() => expect(api.calls.map((call) => call.path)).toContain("/api/master-document?language=ja"));
-    expect(api.calls.map((call) => call.path)).not.toContain("/api/master-document");
+    expect(api.calls.slice(before).map((call) => call.path)).not.toContain("/api/master-document");
     expect((await screen.findByRole("tab", { name: "日本語" })).getAttribute("aria-selected")).toBe("true");
   });
 
   it("says the master document has no facts yet rather than a zero", async () => {
     open([], { "GET /api/overview": { ...overview(ROWS), factsByProvenance: { measured: 0, attested: 0, generated: 0 } } });
 
-    expect(within(await masterRow("Career record")).getByText("No facts yet")).toBeTruthy();
+    expect(within(await masterRow("Career record")).getByText(/^No facts yet · /)).toBeTruthy();
   });
 });
 
 /**
- * Issue #57. A flag is advice, so it is a line under the facts and never the
- * Next step; and the master document is one link from the facts it lists. A
- * tailored résumé is no longer on Home: it is on its application (issue #70).
+ * Issue #57. A flag is advice, so it is never the Next step; since #111 it is
+ * counted beside Flagged in the sidebar and on the career record, not on Home.
+ * A tailored résumé is no longer on Home: it is on its application (issue #70).
  */
 describe("what automatic acceptance adds to Home", () => {
   const with57 = (over: Partial<Overview>, documents: RenderRow[] = [row()]): Routes => ({
     "GET /api/overview": { ...overview(documents), ...over },
   });
-  it("says how many facts are flagged and where the list is, and makes no step of them", async () => {
+  it("makes no step of flags or of the facts the importer accepted", async () => {
     open(
       [],
       with57(
@@ -700,41 +696,100 @@ describe("what automatic acceptance adds to Home", () => {
         [row({ status: "up_to_date", currentVersionId: "ver-test-1", currentVersionNo: 1, newFactsSince: 0 })],
       ),
     );
-    // Found by its own words: the frame shown before the read answers has the
-    // section's heading and none of its content.
-    const line = await screen.findByText("9 are flagged for you to check when you want. Each says why.");
-    expect(within(line.closest("p")!).getByRole("link", { name: "Open the list" }).getAttribute("href")).toBe("/flagged");
-    // Five Generated facts the importer accepted: counted, flagged, and not a
-    // thing the author is told to do next.
-    const generated = (await screen.findByText("Not confirmed")).closest("li")!;
-    expect(within(generated).getByText("5")).toBeTruthy();
-    expect(within(generated).queryByRole("link")).toBeNull();
     const step = await nextStep();
+    expect(within(step).getByRole("heading", { name: "You are up to date" })).toBeTruthy();
     expect(within(step).queryByText(/Confirm/)).toBeNull();
     expect(within(step).queryByText(/flagged/)).toBeNull();
   });
 
-  it("says nothing about flags when there are none", async () => {
-    open([], with57({ flagged: 0 }));
-    await screen.findByText("Not confirmed");
-    expect(screen.queryByRole("link", { name: "Open the list" })).toBeNull();
-  });
-
-  it("opens the master document from the facts it lists", async () => {
-    open([], with57({}));
-    expect((await screen.findByRole("link", { name: "Open career record" })).getAttribute("href")).toBe("/master");
-  });
-
   it("names the main résumé as the one tailored to no job", async () => {
     open([row()]);
-    expect(within(await documentRow()).getByText("English · your main résumé, tailored to no job")).toBeTruthy();
+    expect(within(await documentRow()).getByText(/your main résumé, tailored to no job/)).toBeTruthy();
   });
 
   it("has no section for tailored résumés: each one is an application now", async () => {
     open([], with57({}));
-    await screen.findByRole("link", { name: "Open career record" });
+    await documentRow();
     expect(screen.queryByText(/Tailored résumés/)).toBeNull();
     expect(screen.queryByRole("link", { name: "Make one" })).toBeNull();
+  });
+});
+
+/**
+ * Issue #111: each document is a card with a picture of its first page, where
+ * it stands in plain words, and View as the way in.
+ */
+describe("the document cards", () => {
+  const VERSIONED = row({
+    status: "up_to_date",
+    currentVersionId: "ver-test-1",
+    currentVersionNo: 4,
+    generatedAt: "2026-10-01T03:00:00.000Z",
+    newFactsSince: 0,
+  });
+  const PAGE = {
+    renderKind: "english_resume",
+    renderRef: "english_resume",
+    title: "English résumé",
+    language: "en",
+    tailored: false,
+    applicationId: null,
+    document: VERSIONED,
+    canGenerate: true,
+    version: { id: "ver-test-1", versionNo: 4, origin: "accepted", acceptedAt: "2026-10-01T03:00:00.000Z", isCurrent: true },
+    page: {
+      title: null,
+      name: "Wren Halloway",
+      contact: [],
+      stamp: null,
+      sections: [{ heading: "Experience", blocks: [{ kind: "paragraph", text: "Cut the plinth queue to nine minutes." }] }],
+    },
+    evidence: {},
+  };
+
+  it("leads with View, and draws the current version's page as its picture", async () => {
+    const { api } = open([VERSIONED], { "GET /api/renders/english_resume/page": PAGE });
+    const card = await documentRow();
+
+    const view = within(card).getByRole("link", { name: "View English résumé" });
+    expect(view.textContent).toBe("View");
+    expect(view.getAttribute("href")).toBe("/renders/english_resume/view");
+    // The first control in the card, before Download and History.
+    expect(within(card).getAllByRole("link")[0]).toBe(view);
+    expect(within(card).getByText("Up to date with your record")).toBeTruthy();
+    expect(within(card).getByText(/^v4 · written /)).toBeTruthy();
+
+    // The picture is the page View opens, hidden from a screen reader and out of the tab order.
+    await waitFor(() => expect(card.textContent).toContain("Cut the plinth queue to nine minutes."));
+    const picture = card.querySelector("[aria-hidden][inert]")!;
+    expect(picture.textContent).toContain("Wren Halloway");
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("asks for no page before there is a version, and offers Generate in place of View", async () => {
+    const { api } = open([row()]);
+    const card = await documentRow();
+
+    expect(within(card).getByText("Not written yet")).toBeTruthy();
+    expect(within(card).queryByRole("link", { name: /^View/ })).toBeNull();
+    expect(within(card).getByRole("button", { name: "Generate" })).toBeTruthy();
+    expect(api.calls.map((call) => call.path)).not.toContain("/api/renders/english_resume/page");
+  });
+
+  it("says how far out of date it is, by the version it is on", async () => {
+    open([row({ status: "stale", currentVersionId: "ver-test-1", currentVersionNo: 4, newFactsSince: 3 })]);
+    expect(within(await documentRow()).getByText("3 new facts since v4")).toBeTruthy();
+  });
+
+  it("keeps its words when the page cannot be read for the picture", async () => {
+    open([VERSIONED], {
+      "GET /api/renders/english_resume/page": new Refusal(409, "citation_blocked", "A fact it cites is Private."),
+    });
+    const card = await documentRow();
+
+    expect(within(card).getByText("Up to date with your record")).toBeTruthy();
+    expect(within(card).getByRole("link", { name: "View English résumé" })).toBeTruthy();
+    expect(within(card).queryByRole("alert")).toBeNull();
   });
 });
 

@@ -113,9 +113,35 @@ describe("the career record", () => {
     expect((await rowOf(USABLE.claim)).textContent).toBe(`•${USABLE.claim}`);
     expect((await rowOf(SIDE.claim)).textContent).toBe(`•${SIDE.claim}`);
     // The storage labels are not printed on every line any more.
-    for (const label of ["Measured", "Attested", "Generated", "Restricted", "Flagged"]) {
-      expect(within(screen.getByRole("article")).queryByText(label)).toBeNull();
+    for (const claim of [PRIVATE.claim, GENERATED.claim, USABLE.claim, SIDE.claim]) {
+      for (const label of ["Measured", "Attested", "Generated", "Restricted", "Flagged"]) {
+        expect(within(await rowOf(claim)).queryByText(label)).toBeNull();
+      }
     }
+  });
+
+  // Issue #111: the bar stood on Home, above the documents.
+  it("says what the facts rest on, in plain words first and the card's term second", async () => {
+    open(master());
+    const bar = await screen.findByRole("region", { name: "What your facts rest on" });
+    const item = (plain: string) => within(bar).getByText(plain).closest("li")!;
+
+    expect(within(item("Backed by a number")).getByText("Measured")).toBeTruthy();
+    expect(within(item("Backed by a number")).getByText("1")).toBeTruthy();
+    expect(within(item("Stated by you")).getByText("2")).toBeTruthy();
+    expect(within(item("Not confirmed")).getByText("1")).toBeTruthy();
+    expect(
+      within(item("Not confirmed")).getByText("Written by the importer. Left out of every document until you confirm it."),
+    ).toBeTruthy();
+  });
+
+  it("counts the whole record under a filter, and writes a zero as words", async () => {
+    open(master({ employers: [], independent: { projects: [], facts: [SIDE] } }));
+    const bar = await screen.findByRole("region", { name: "What your facts rest on" });
+
+    const measured = within(bar).getByText("Backed by a number").closest("li")!;
+    expect(within(measured).getByText("None")).toBeTruthy();
+    expect(within(measured).queryByText("0")).toBeNull();
   });
 
   it("sets the figures apart", async () => {

@@ -227,6 +227,8 @@ Common applications:
   Responsive behaviour
 - Sidebar width: **212px**. Fact rail width: **412px** comfortable / **380px** compact
 - Contents column, beside a rendered document: **212px**, the sidebar's width and the same token
+- Page picture on a document card (Home, #111): **160px** tall, the page drawn at **36%** of its
+  size from the top left, so it keeps its own measure. Composed from the scale, 60 + 60 + 40
 - Label column, where a row aligns its notes behind a word: **80px**. The longest label
   this has to hold is `Generated` at 13px/medium, which measures 67.33px; 60px broke it
   mid-word (issue #9). Composed from the scale, 40 + 40

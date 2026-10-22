@@ -917,9 +917,10 @@ export interface RenderPage {
 }
 
 /** `versionId` absent reads the current version. A refusal is an answer, not a blip to retry. */
-export const useRenderPage = (ref: string, versionId: string | undefined) =>
+export const useRenderPage = (ref: string, versionId: string | undefined, enabled = true) =>
   useQuery({
     queryKey: keys.page(ref, versionId ?? "current"),
+    enabled,
     queryFn: () =>
       api<RenderPage>(`/api/renders/${ref}/page${versionId ? `?versionId=${encodeURIComponent(versionId)}` : ""}`),
     retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 409)) && count < 3,
