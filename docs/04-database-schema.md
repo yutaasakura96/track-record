@@ -423,8 +423,9 @@ least one of `started_on` / `ended_on` is enforced in `credentials.ts`, not by t
 
 **`level` is nullable in the database and required by the API**, the same split `started_on` uses
 and for the same reason: a migration cannot classify rows that already exist. It exists because the
-English résumé register has to select rows below university level, and asking the model to classify
-a row by the institution's name is a question the record could not answer — `San Beda College
+English résumé has to exclude the two secondary levels while keeping vocational education
+(`src/shared/education.ts`), and asking the model to classify a row by the institution's name is a
+question the record could not answer — `San Beda College
 Alabang` survived a cut that `Westfield Science Oriented School` did not, on the word "College"
 alone. The enum is **stage-neutral rather than 中学校/高校/大学**, because most of this record's
 schooling is not Japanese; the 履歴書 register maps a rung to Japanese wording where Japanese
@@ -963,9 +964,9 @@ space sits visibly narrow beside the rest in `MS Mincho`.
 nowhere in the author's file; the third element of the 入社 row is the 職種.
 
 **The null-`started_on` rule is live here.** The English résumé cannot exercise it, because its
-register drops every entry below university level; 履歴書 is required to be complete, so the record's
-one such row reaches this table and contributes its closing row alone. The author's own file already
-opens 学歴 with a closing row that has no 入学 above it.
+assembly excludes this secondary-lower row (`src/shared/education.ts`); 履歴書 is required to be
+complete, so the record's one such row reaches this table and contributes its closing row alone.
+The author's own file already opens 学歴 with a closing row that has no 入学 above it.
 
 **Generation rules**
 

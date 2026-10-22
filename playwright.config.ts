@@ -34,6 +34,7 @@ export default defineConfig({
       "npx wrangler dev",
       "--config tests/e2e/wrangler.toml",
       `--port ${E2E_PORT}`,
+      ...(process.env.E2E_INSPECTOR_PORT ? [`--inspector-port ${process.env.E2E_INSPECTOR_PORT}`] : []),
       "--ip localhost",
       "--local",
       ...workerVars(E2E_DATABASE_URL, E2E_SECRET).map((v) => `--var ${v}`),
