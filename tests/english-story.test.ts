@@ -290,6 +290,54 @@ describe("the record's names", () => {
     expect(proposal.error!.message).toMatch(/changed a name from your record twice/);
   });
 
+  it("refuses a changed longer employer name even when the record also holds its exact prefix", async () => {
+    await client.post("/api/employers", {
+      ...EMPLOYERS[0],
+      nameJa: "株式会社ハヤブサ欧州",
+      nameLatin: "Hayabusa Computing Co., Ltd. Europe",
+      startedOn: "2022-04-01",
+      endedOn: null,
+    });
+    const spec = await specOfStory();
+    const changed = story(spec, ENGLISH);
+    changed.sections[0]!.heading = "Hayabusa Computing Co., Ltd. Eurpe rollout";
+    const { proposal } = await generateStory(changed, changed);
+    expect(proposal.generationStatus).toBe("failed");
+    expect(proposal.error!.message).toMatch(/changed a name from your record twice/);
+  });
+
+  it("offers a written date label for review, but refuses a changed project name in a name field", async () => {
+    await client.post("/api/projects", { name: "Data" });
+    const spec = await specOfStory();
+    const valid = story(spec, ENGLISH);
+    valid.sections[0]!.heading = "Date: June 2019";
+    const first = await generateStory(valid);
+    expect(first.proposal.generationStatus).toBe("ready");
+    await client.post(`/api/proposals/${first.proposalId}/dismiss`);
+
+    const changed = story(spec, ENGLISH);
+    changed.sections[0]!.heading = "Date — project";
+    const second = await generateStory(changed, changed);
+    expect(second.proposal.generationStatus).toBe("failed");
+    expect(second.proposal.error!.message).toMatch(/changed a name from your record twice/);
+  });
+
+  it("refuses short-name changes in a heading or after joined, while ordinary prose passes", async () => {
+    await client.post("/api/projects", { name: "Mira" });
+    const spec = await specOfStory();
+    const heading = story(spec, ENGLISH);
+    heading.sections[0]!.heading = "My Miro years";
+    expect((await generateStory(heading, heading)).proposal.generationStatus).toBe("failed");
+
+    const prose = story(spec, ENGLISH);
+    prose.sections[0]!.blocks[0]!.text = "I joined Miro in 2019.";
+    expect((await generateStory(prose, prose)).proposal.generationStatus).toBe("failed");
+
+    const ordinary = story(spec, ENGLISH);
+    ordinary.sections[0]!.blocks[0]!.text = "The team called it Miro and moved on.";
+    expect((await generateStory(ordinary)).proposal.generationStatus).toBe("ready");
+  });
+
 });
 
 describe("a story that comes back in Japanese", () => {
