@@ -95,12 +95,13 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   if (evidence) await page.screenshot({ path: `${evidence}/resume-reader.png`, fullPage: true });
 
   // A version accepted with a complete job must stop printing when today's
-  // record loses its city, in the reader and in both downloadable formats.
+  // record loses its city, in the reader and in every downloadable format.
   expect((await api.patch(`/api/employers/${employer.id}`, { data: { city: null } })).status()).toBe(200);
   for (const path of [
     "/api/renders/english_resume/page",
     "/api/renders/english_resume/download?format=md",
     "/api/renders/english_resume/download?format=docx",
+    "/api/renders/english_resume/download?format=pdf",
   ]) {
     const response = await api.get(path);
     expect(response.status(), path).toBe(409);
