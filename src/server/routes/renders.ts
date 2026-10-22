@@ -30,7 +30,7 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, ResumeLanguageError, resumeMarkdown, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
+import { assembleResume, ResumeAssemblyError, resumeMarkdown, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
@@ -104,7 +104,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           today: tokyoToday(),
         });
       } catch (error) {
-        if (error instanceof ResumeLanguageError) throw preconditionFailed(error.message, ["english_resume"]);
+        if (error instanceof ResumeAssemblyError) throw preconditionFailed(error.message, ["english_resume"]);
         throw error;
       }
     }
@@ -839,7 +839,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
             )
           : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
       } catch (error) {
-        if (error instanceof ResumeLanguageError) throw new ApiError("conflict", error.message);
+        if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
         throw error;
       }
       return new Response(markdown, {

@@ -19,6 +19,7 @@ import {
   resumeMarkdown,
   resumeSentPage,
   shapeResumeContent,
+  ResumeAssemblyError,
   ResumeLanguageError,
   validateResumeEditShape,
   type ResumeRecord,
@@ -144,16 +145,32 @@ describe("the English résumé document", () => {
     expect(() => assembled({ sections: [{ key: "summary", heading: "Summary", blocks: [block("j1", "日本語", "paragraph")] }] })).toThrow(/summary/);
   });
 
-  it("prints an unmatched legacy heading as plain text", () => {
-    const content: RenderContent = {
+  it("refuses an old version whose experience heading names no employer the record includes", () => {
+    const unmatched: RenderContent = {
       sections: [{ key: "experience", heading: "Experience", blocks: [
         block("h1", "Unknown company · Jan 2020 – Present", "paragraph"),
         block("b1", "Built a service."),
       ] }],
     };
-    const blocks = assembled(content).sections.find((section) => section.key === "experience")!.blocks;
-    expect(blocks).toContainEqual({ kind: "paragraph", text: "Unknown company · Jan 2020 – Present" });
-    expect(blocks).not.toContainEqual(expect.objectContaining({ kind: "entry", lead: "Unknown company · Jan 2020 – Present" }));
+    expect(() => assembled(unmatched)).toThrow(ResumeAssemblyError);
+    const headless: RenderContent = {
+      sections: [{ key: "experience", heading: "Experience", blocks: [block("b1", "Built a service.")] }],
+    };
+    expect(() => assembled(headless)).toThrow(/names no employer/);
+  });
+
+  it("refuses an employer, project, school or profile name with no Latin script", () => {
+    const tertiary = RECORD.educations[1]!;
+    const records: ResumeRecord[] = [
+      { ...RECORD, employers: [employer({ name: "Компания" })] },
+      { ...RECORD, employers: [employer({ name: "Harbourline Компания" })] },
+      { ...RECORD, projects: [{ ...RECORD.projects[0]!, name: "Проект" }] },
+      { ...RECORD, educations: [{ ...tertiary, institution: "Πανεπιστήμιο" }] },
+    ];
+    for (const record of records) expect(() => assembled(CONTENT, record)).toThrow(/Latin-script name/);
+    expect(() => assembleResume({ content: CONTENT, record: RECORD, identity: { ...IDENTITY, nameLatin: "Мика Танабе" }, today: TODAY }))
+      .toThrow(/Latin-script name for profile name/);
+    expect(() => assembled(CONTENT, { ...RECORD, employers: [employer({ name: "Société Générale Zürich" })] })).not.toThrow();
   });
 
   it("heads each job from the record: company, city, Mon YYYY dates, and every title held there", () => {
@@ -186,8 +203,6 @@ describe("the English résumé document", () => {
           blocks: [
             block("p1", "Pinecrest Retail K.K. · Tech Lead (2021-04 – 2023-12) · 2019-07 – 2023-12", "paragraph"),
             block("p2", "Raised conversion 9%."),
-            block("p3", "Somebody Unknown Ltd · 2010", "paragraph"),
-            block("p4", "Did a thing."),
           ],
         },
       ],
@@ -195,12 +210,7 @@ describe("the English résumé document", () => {
     const experience = assembled(legacy).sections.find((s) => s.key === "experience")!.blocks;
     const pinecrest = experience.findIndex((b) => b.kind === "entry" && b.lead === "Pinecrest Retail K.K.");
     expect(experience[pinecrest + 2]).toEqual({ kind: "bullet", text: "Raised conversion 9%." });
-    // A heading naming nobody keeps its bullets, under its own words.
-    expect(experience.slice(-2)).toEqual([
-      { kind: "paragraph", text: "Somebody Unknown Ltd · 2010" },
-      { kind: "bullet", text: "Did a thing." },
-    ]);
-    expect(resumeMarkdown(assembled(legacy))).toContain("Somebody Unknown Ltd · 2010");
+    expect(resumeMarkdown(assembled(legacy))).not.toContain("2019-07");
   });
 
   it("lists independent projects only, with their bullets", () => {
@@ -389,6 +399,28 @@ describe("what the model returned", () => {
       { ...edited.sections[2]!, key: "certifications" }] }, legacy)).toThrow();
     expect(() => validateResumeEditShape({ sections: [edited.sections[0]!, edited.sections[1]!,
       { ...edited.sections[2]!, blocks: [block("s3", "Example University", "paragraph")] }] }, legacy)).toThrow();
+  });
+
+  it("recognises an older version that holds only keys this layout still uses", () => {
+    const projectsAsParagraphs: RenderContent = { sections: [
+      { key: "summary", heading: "Summary", blocks: [block("s1", "Engineer.", "paragraph")] },
+      { key: "projects", heading: "Projects", blocks: [block("p1", "tategaki-js: a vertical text library.", "paragraph")] },
+    ] };
+    const reworded = (content: RenderContent, id: string, text: string): RenderContent => ({
+      sections: content.sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((b) => (b.id === id ? { ...b, text } : b)),
+      })),
+    });
+    expect(() => validateResumeEditShape(reworded(projectsAsParagraphs, "s1", "Platform engineer."), projectsAsParagraphs)).not.toThrow();
+    const noSummary: RenderContent = { sections: [
+      { key: "projects", heading: "Projects", blocks: [block("p1", "Wrote a layout library.")] },
+    ] };
+    expect(() => validateResumeEditShape(reworded(noSummary, "p1", "Wrote a vertical layout library."), noSummary)).not.toThrow();
+    expect(() => validateResumeEditShape({ sections: [
+      { ...projectsAsParagraphs.sections[0]!, blocks: [block("s1", "Engineer.")] },
+      projectsAsParagraphs.sections[1]!,
+    ] }, projectsAsParagraphs)).toThrow();
   });
 });
 
