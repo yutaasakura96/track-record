@@ -7212,8 +7212,10 @@ and M3's "within a week of finishing" had nothing behind it.
   had a fact is not asked; the import step answers it.
 - **The current employer** is the one with no `ended_on`; of two held at once, the one started
   last. With none, the step asks `What did you ship this month?` and chooses nothing.
-- **`Not this month` is stored on the profile**, `capture_prompt_dismissed_on` (`04` §3.2), not in
-  the browser, so it holds on the author's phone and laptop alike. It holds until the author's own
+- **`Not this month` is stored on the member**, in `capture_prompt_dismissals` (`04` §3.18), not in
+  the browser, so it holds on the author's phone and laptop alike. It is a table of its own, keyed
+  by the user, and not a `profiles` column: a profile row exists only once the profile is saved,
+  and a member who has imported and never filled it in is asked too, so must be able to answer. It holds until the author's own
   month ends: the client sends its local month and decides with its own clock, because a month ends
   where the author is. The server refuses a month more than one away from its own, so no dismissal
   can be made to last.

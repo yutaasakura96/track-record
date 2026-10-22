@@ -659,9 +659,9 @@ fact is unfiled. **404** for an employer or a project the session does not own, 
 
 **`POST /api/capture/prompt/dismiss`** (#116) takes `{ month }`, the author's own month as
 `YYYY-MM-01`, and puts Home's monthly capture prompt away until that month ends, on every device:
-it is stored on the profile (`04` §3.2). **200** `{ dismissedOn }`. **422** for a month that is not
-`YYYY-MM-01`, or one more than a month from the server's, so a dismissal never outlasts the month it
-was for. **404** before a profile exists.
+it is stored on the member, in `capture_prompt_dismissals` (`04` §3.18), so it answers with or
+without a profile. **200** `{ dismissedOn }`. **422** for a month that is not `YYYY-MM-01`, or one
+more than a month from the server's, so a dismissal never outlasts the month it was for.
 
 ---
 
@@ -1017,7 +1017,7 @@ fact is both not Private and not Generated, and the home screen then offers no G
 month is the author's: `lastFactAt` is when the newest fact was created, by any road and in any
 state, or `null` for none; `employer` is the employer with no `ended_on`, the one started last when
 there are two, named by `name_latin` or else `name_ja`, or `null` when every job has ended; and
-`dismissedOn` is the profile's `capture_prompt_dismissed_on`.
+`dismissedOn` is the member's `capture_prompt_dismissals.dismissed_on`, or `null` for none.
 
 ---
 

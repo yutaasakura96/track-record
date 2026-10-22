@@ -120,9 +120,12 @@ describe("putting the prompt away", () => {
     expect((await prompt(other)).dismissedOn).toBeNull();
   });
 
-  it("answers 404 before a profile exists", async () => {
+  it("is put away by a member who has no profile yet, and the overview then says that month", async () => {
     const fresh = harness(stubModel()).as(await seedAllowedUser());
-    expect((await dismiss({ month: month() }, fresh)).status).toBe(404);
+    const response = await dismiss({ month: month() }, fresh);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ dismissedOn: month() });
+    expect((await prompt(fresh)).dismissedOn).toBe(month());
   });
 
   it("leaves the month alone when the profile is saved again", async () => {

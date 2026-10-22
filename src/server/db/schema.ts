@@ -217,12 +217,18 @@ export const profiles = pgTable("profiles", {
   resumePortfolioUrl: text("resume_portfolio_url"),
   /** The English résumé's page. Not PII, and read by that render alone. */
   paperSize: paperSize("paper_size").notNull().default("a4"),
-  /**
-   * The month the author put Home's monthly capture prompt away for (issue
-   * #116), day pinned to `01`. Not PII. It holds until that month ends, and on
-   * every device, because it is the member's and not the browser's.
-   */
-  capturePromptDismissedOn: date("capture_prompt_dismissed_on", { mode: "string" }),
+  ...timestamps,
+});
+
+/**
+ * The month the author put Home's monthly capture prompt away for (issue
+ * #116), day pinned to `01`. Not PII. It holds until that month ends, and on
+ * every device, because it is the member's and not the browser's. Its own row
+ * and not a profile column, because a member with no profile is asked too.
+ */
+export const capturePromptDismissals = pgTable("capture_prompt_dismissals", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  dismissedOn: date("dismissed_on", { mode: "string" }).notNull(),
   ...timestamps,
 });
 

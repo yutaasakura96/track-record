@@ -15,8 +15,8 @@
 import type { Hono } from "hono";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { employers, factFlags, facts, profiles, projects } from "../db/schema";
-import { ApiError, notFound } from "../http/errors";
+import { capturePromptDismissals, employers, factFlags, facts, projects } from "../db/schema";
+import { ApiError } from "../http/errors";
 import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
@@ -220,7 +220,7 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
 
   /**
    * Puts Home's monthly capture prompt away until the author's month ends
-   * (issue #116). Kept on the profile, so it holds on every device. The month
+   * (issue #116). Kept on the member, so it holds on every device. The month
    * is the author's, since a month ends where they are; one more than a month
    * from the server's is refused, so no dismissal outlasts the month it was for.
    */
@@ -230,13 +230,14 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
     if (Math.abs(monthIndex(month) - monthIndex(thisMonth())) > 1) {
       throw new ApiError("validation_failed", "The prompt can only be put away for this month.");
     }
-    const [saved] = await c
+    await c
       .get("db")
-      .update(profiles)
-      .set({ capturePromptDismissedOn: month })
-      .where(eq(profiles.userId, user.id))
-      .returning({ dismissedOn: profiles.capturePromptDismissedOn });
-    if (!saved) throw notFound("A profile");
-    return c.json({ dismissedOn: saved.dismissedOn });
+      .insert(capturePromptDismissals)
+      .values({ userId: user.id, dismissedOn: month })
+      .onConflictDoUpdate({
+        target: capturePromptDismissals.userId,
+        set: { dismissedOn: month, updatedAt: new Date() },
+      });
+    return c.json({ dismissedOn: month });
   });
 }

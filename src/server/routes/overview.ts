@@ -12,6 +12,7 @@ import {
   applicationSentCopies,
   applicationSteps,
   applications,
+  capturePromptDismissals,
   certifications,
   educations,
   employers,
@@ -84,7 +85,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         [unconfirmed],
         [flagged],
         [newestFact],
-        [profile],
+        [dismissal],
       ],
       documents,
     ] = await Promise.all([
@@ -203,9 +204,9 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
           .orderBy(desc(facts.createdAt))
           .limit(1),
         db
-          .select({ dismissedOn: profiles.capturePromptDismissedOn })
-          .from(profiles)
-          .where(eq(profiles.userId, userId)),
+          .select({ dismissedOn: capturePromptDismissals.dismissedOn })
+          .from(capturePromptDismissals)
+          .where(eq(capturePromptDismissals.userId, userId)),
       ]),
       renderState(db, userId),
     ]);
@@ -276,7 +277,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       capturePrompt: {
         lastFactAt: newestFact?.createdAt.toISOString() ?? null,
         employer: employer ? { id: employer.id, name: employer.nameLatin ?? employer.nameJa } : null,
-        dismissedOn: profile?.dismissedOn ?? null,
+        dismissedOn: dismissal?.dismissedOn ?? null,
       },
       documents: documents.documents,
       canGenerate: (usable?.n ?? 0) > 0,

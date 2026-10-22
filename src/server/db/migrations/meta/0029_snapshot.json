@@ -1,5 +1,5 @@
 {
-  "id": "3d869e83-4f18-4b33-8b9a-d49291542f25",
+  "id": "da5f34ac-cadc-4704-a3bf-ba20cf4d9a76",
   "prevId": "69aab065-c7a9-4299-a02a-ac31a7ed054c",
   "version": "7",
   "dialect": "postgresql",
@@ -767,6 +767,59 @@
           "value": "\"applications\".\"closed_as\" in ('rejected', 'withdrawn')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.capture_prompt_dismissals": {
+      "name": "capture_prompt_dismissals",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "dismissed_on": {
+          "name": "dismissed_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "capture_prompt_dismissals_user_id_users_id_fk": {
+          "name": "capture_prompt_dismissals_user_id_users_id_fk",
+          "tableFrom": "capture_prompt_dismissals",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.certifications": {
@@ -2442,12 +2495,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'a4'"
-        },
-        "capture_prompt_dismissed_on": {
-          "name": "capture_prompt_dismissed_on",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
