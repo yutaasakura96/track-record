@@ -1084,7 +1084,10 @@ year. Not yet ended is `now`. A skill the résumé does not print although the r
   `Place` (primary).
 
 A move is held on the screen until it is placed and is **written once**, on placing; the chip shows
-where it was placed while the save is in flight.
+where it was placed while the save is in flight. While a chip is held it is the one pending change:
+the group names, the group `↑` `↓`, `Add group` and the suggestion chips are disabled, saying
+`Place or cancel the move of Go first.` A dragged chip that leaves a group for somewhere it cannot
+land clears the outline, the mark and the preview back to what is stored.
 
 **Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
 then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
