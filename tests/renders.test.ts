@@ -2210,7 +2210,7 @@ describe("a version is read as its download would hold it", () => {
       expect(blockOf(view, "Cut nightly batch runtime from six hours to ninety minutes").factIds).toEqual([record.measuredPublic.id]);
       expect(blockOf(view, "Introduced trunk-based development").factIds).toEqual([record.attestedRestricted.id]);
       // A job header is the record's, not a claim's.
-      expect(blockOf(view, "Aozora Logistics K.K. · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
+      expect(blockOf(view, "Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
 
       const byId = new Map(view.evidence.map((fact) => [fact.id, fact]));
       expect([...byId.keys()].sort()).toEqual([record.measuredPublic.id, record.attestedRestricted.id].sort());
