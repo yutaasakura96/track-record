@@ -21,7 +21,7 @@ import {
   uploadForm,
 } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
-import { facts, renderVersions } from "~/server/db/schema";
+import { employers, facts, renderVersions, roles } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { identityLines } from "~/render/identity";
@@ -2086,6 +2086,47 @@ describe("a version is read as its download would hold it", () => {
     expect(texts(view)).toContain("Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024");
     expect(markdown).toContain("**Aozora Logistics K.K.** · Tokyo — Apr 2022 – Sep 2024");
     for (const section of view.page.sections) expect(markdown).toContain(section.heading);
+  });
+
+  /** The page and both download formats, each refused with the job header's gaps named. */
+  async function expectJobHeaderRefusal(jobHeaders: unknown[]) {
+    for (const path of [
+      "/api/renders/english_resume/page",
+      "/api/renders/english_resume/download?format=md",
+      "/api/renders/english_resume/download",
+    ]) {
+      const response = await client.get(path);
+      expect(response.status, path).toBe(409);
+      const body = (await response.json()) as { error: { code: string; message: string; details: unknown } };
+      expect(body.error.code, path).toBe("conflict");
+      expect(body.error.message, path).toMatch(/^Every job on the English résumé is headed by its city and title\. /);
+      expect(body.error.details, path).toEqual({ fields: ["employers"], jobHeaders });
+    }
+  }
+
+  it("refuses the page and every download once a job's city is cleared after acceptance", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    expect((await client.patch(`/api/employers/${items[0]!.id}`, { city: null })).status).toBe(200);
+
+    await expectJobHeaderRefusal([{ employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] }]);
+
+    // Filling the field lifts it; the version needs no regeneration.
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: "Tokyo" });
+    expect((await client.get("/api/renders/english_resume/download")).status).toBe(200);
+  });
+
+  it("refuses a version accepted before the check, from a job migration 0027 left without a city and with no role", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const employerId = items[0]!.id;
+    // The record as it stood when such a version was accepted: 0027 added the
+    // city column empty, and nothing then required a role.
+    const db = createDb((env as unknown as Bindings).DATABASE_URL);
+    await db.update(employers).set({ city: null }).where(eq(employers.id, employerId));
+    await db.delete(roles).where(eq(roles.employerId, employerId));
+
+    await expectJobHeaderRefusal([{ employerId, name: "Aozora Logistics K.K.", missing: ["city", "role"] }]);
   });
 
   it("serves an earlier version by id, and the current one without it", async () => {

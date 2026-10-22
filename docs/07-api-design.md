@@ -769,7 +769,10 @@ belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 includes has no city or no role with a title, the parts of its header the record leaves optional.
 The message names each job and what it lacks; `details.fields` is `["employers"]` and
 `details.jobHeaders` is `[{ employerId, name, missing: ("city" | "role")[] }]`, which the screens
-turn into links to the career timeline (`06`, 2026-10-22). Then **428** too when an employer,
+turn into links to the career timeline (`06`, 2026-10-22). The same gap refuses a version
+already accepted: `GET /api/renders/:ref/download` (every format), the document page and a first
+proposal's preview answer **409 `conflict`** with the same message and `details`, for a version
+made before the check as for a city cleared after acceptance. Then **428** too when an employer,
 project or education name in the generation spec lacks a Latin letter or contains a non-Latin letter,
 or an assembled field would print Japanese script. The name check includes entries later omitted
 from the file. The message names the field needing an English or Latin-script value, with

@@ -1,7 +1,9 @@
 /**
- * A refused generation, said where the button is. Most refusals are a sentence;
- * an English résumé refused for a job header with no city or no title also
- * links to each field to fill in, on the career timeline.
+ * A refused English résumé, said where the author is. Most refusals are a
+ * sentence; one refused for a job header with no city or no title also links
+ * to each field to fill in, on the career timeline. Generation, the page, the
+ * proposal preview and each download refuse it the same way (`docs/06`,
+ * 2026-10-22), so every one of those says it with these links.
  */
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
@@ -21,12 +23,13 @@ const jobHeaderGaps = (error: unknown): JobHeaderGap[] =>
     ? (error.details.jobHeaders as JobHeaderGap[])
     : [];
 
-export function generateFailure(error: unknown): ReactNode {
+/** A link per gap the refusal named; nothing for any other failure. */
+export function JobHeaderLinks({ error }: { error: unknown }) {
   const gaps = jobHeaderGaps(error);
-  if (gaps.length === 0) return failureText(error);
+  if (gaps.length === 0) return null;
   return (
     <>
-      {failureText(error)}{" "}
+      {" "}
       {gaps.flatMap((gap) =>
         gap.missing.map((fix) => (
           <Link
@@ -39,6 +42,17 @@ export function generateFailure(error: unknown): ReactNode {
           </Link>
         )),
       )}
+    </>
+  );
+}
+
+/** A refused write's words, and the links when it names job headers. */
+export function generateFailure(error: unknown): ReactNode {
+  if (jobHeaderGaps(error).length === 0) return failureText(error);
+  return (
+    <>
+      {failureText(error)}
+      <JobHeaderLinks error={error} />
     </>
   );
 }

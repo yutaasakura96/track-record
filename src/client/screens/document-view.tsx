@@ -18,7 +18,7 @@ import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import { ApiError, useGenerate, useRenderPage, type RenderPage } from "../api";
 import { PhoneFrame } from "../components/application-chrome";
 import { DocumentPage, type Trace } from "../components/document-page";
-import { generateFailure } from "../components/generate-failure";
+import { generateFailure, JobHeaderLinks } from "../components/generate-failure";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
@@ -223,21 +223,25 @@ function Withheld({ docRef, current, error }: { docRef: string; current: boolean
     <div className="grid gap-6 text-small text-text-secondary">
       <p role="alert" className="text-removed">
         {error.message}
+        <JobHeaderLinks error={error} />
       </p>
       <WithheldFacts facts={withheldFacts(error)} />
-      <p>
-        A document obeys your record as it is today, not as it was when this version was accepted. Change the
-        fact in your record, or edit the block out into a new version.
-        {/* An edit is made from the current version, so it is the way out only for that one. */}
-        {current ? (
-          <>
-            {" "}
-            <Link to="/renders/$ref/edit" params={{ ref: docRef }} className={QUIET}>
-              Edit
-            </Link>
-          </>
-        ) : null}
-      </p>
+      {/* A job header's gap is closed by its links, in the record; no fact or edit closes it. */}
+      {error.details.jobHeaders ? null : (
+        <p>
+          A document obeys your record as it is today, not as it was when this version was accepted. Change the
+          fact in your record, or edit the block out into a new version.
+          {/* An edit is made from the current version, so it is the way out only for that one. */}
+          {current ? (
+            <>
+              {" "}
+              <Link to="/renders/$ref/edit" params={{ ref: docRef }} className={QUIET}>
+                Edit
+              </Link>
+            </>
+          ) : null}
+        </p>
+      )}
     </div>
   );
 }

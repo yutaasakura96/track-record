@@ -30,7 +30,7 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
-import { assembleResume, assertResumeSpecNames, incompleteJobHeaders, incompleteJobHeadersMessage, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
+import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
 import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
@@ -44,6 +44,7 @@ import {
   filenameFor,
   refuseWithheldCitations,
   renderIdentity,
+  resumeRefusal,
 } from "../services/document-file";
 import { factEvidence } from "../services/evidence";
 import { collectResumeRecord } from "../services/resume";
@@ -106,15 +107,6 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
     if (kind === "english_resume") {
-      // Named per job, with what each lacks, so the screen can link to the
-      // field rather than leave the author to find it.
-      const incomplete = incompleteJobHeaders(inputs.spec.employers);
-      if (incomplete.length > 0) {
-        throw new ApiError("precondition_failed", incompleteJobHeadersMessage(incomplete), {
-          fields: ["employers"],
-          jobHeaders: incomplete,
-        });
-      }
       try {
         assertResumeSpecNames(inputs.spec);
         assembleResume({
@@ -124,7 +116,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           today: tokyoToday(),
         });
       } catch (error) {
-        if (error instanceof ResumeAssemblyError) throw preconditionFailed(error.message, ["english_resume"]);
+        // A job header with a gap is named per job, with what each lacks, so
+        // the screen can link to the field rather than leave the author to find it.
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error, "precondition_failed", ["english_resume"]);
         throw error;
       }
     }
@@ -871,7 +865,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
             )
           : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
       } catch (error) {
-        if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
         throw error;
       }
       return new Response(markdown, {
@@ -1150,7 +1144,7 @@ async function resumePreviewPage(db: Db, userId: string, content: RenderContent,
   try {
     return resumeSentPage(assembleResume({ content, record, identity, today }));
   } catch (error) {
-    if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+    if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
     throw error;
   }
 }

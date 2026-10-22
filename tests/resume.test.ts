@@ -22,6 +22,7 @@ import {
   resumeSentPage,
   shapeResumeContent,
   ResumeAssemblyError,
+  ResumeJobHeaderError,
   ResumeLanguageError,
   validateResumeEditShape,
   type ResumeRecord,
@@ -548,6 +549,23 @@ describe("a job header the record cannot complete", () => {
     ]);
     expect(incompleteJobHeadersMessage(incomplete)).toBe(
       "Every job on the English résumé is headed by its city and title. Gull Freight Ltd. needs a city; Tern Labs needs a city and a role with a title; Wren Data needs a role with a title.",
+    );
+  });
+
+  it("refuses to assemble any version over a job header with a gap, naming the gaps", () => {
+    const record = { ...RECORD, employers: [employer({ city: null })] };
+    let refused: unknown;
+    try {
+      assembled(CONTENT, record);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(ResumeJobHeaderError);
+    expect((refused as ResumeJobHeaderError).jobHeaders).toEqual([
+      { employerId: "emp_now", name: "Harbourline Systems Inc.", missing: ["city"] },
+    ]);
+    expect((refused as Error).message).toBe(
+      "Every job on the English résumé is headed by its city and title. Harbourline Systems Inc. needs a city.",
     );
   });
 

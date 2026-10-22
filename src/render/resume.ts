@@ -294,8 +294,16 @@ export interface AssembleArgs {
   today: string;
 }
 
-/** One stored version and today's record, as the document an employer is sent. */
+/**
+ * One stored version and today's record, as the document an employer is sent.
+ * Every job header comes from today's record, so a gap in one refuses the
+ * document here, where generation, the page, the preview and every download
+ * format meet: a version accepted before the check, or a city cleared after
+ * acceptance, is refused as generation is (`docs/06`, 2026-10-22).
+ */
 export function assembleResume({ content, record, identity, today }: AssembleArgs): ResumeDocument {
+  const incomplete = incompleteJobHeaders(record.employers);
+  if (incomplete.length > 0) throw new ResumeJobHeaderError(incomplete);
   const [name = "", ...lines] = identityLines("english_resume", identity);
   const headline = identity.resume.headline?.trim() || null;
   const contact = headline === null ? lines : lines.slice(1);
@@ -317,6 +325,13 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
 export class ResumeAssemblyError extends Error {}
 
 export class ResumeLanguageError extends ResumeAssemblyError {}
+
+/** A job header the record cannot complete. Carries each job and what it lacks, so a refusal can link to the fields. */
+export class ResumeJobHeaderError extends ResumeAssemblyError {
+  constructor(readonly jobHeaders: IncompleteJobHeader[]) {
+    super(incompleteJobHeadersMessage(jobHeaders));
+  }
+}
 
 /**
  * A name an English reader can read: at least one letter, and every letter in

@@ -201,7 +201,7 @@ each only when filled (decision log, 2026-10-18).
 | `name_latin` | text | yes | `null` | For the English résumé |
 | `business_description` | text | yes | `null` | 事業内容 — the 職務経歴書 paragraph |
 | `industry_ja` | text | yes | `null` | e.g. 小売業 — appears in the 履歴書 職歴 line |
-| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it. Generation is refused when an included employer has none, or has no titled role, and when the value is in Japanese script; each message names the employer (#107, `docs/06` 2026-10-22) |
+| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it. Generation, the page and every download refuse when an included employer has none, or has no titled role; generation also refuses a value in Japanese script. Each message names the employer (#107, `docs/06` 2026-10-22) |
 | `capital_yen` | bigint | yes | `null` | **資本金**, in yen |
 | `headcount` | integer | yes | `null` | **従業員数** |
 | `employment_type` | employment_type | no | — | |

@@ -174,6 +174,24 @@ describe("the page", () => {
     expect(screen.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(`/renders/${KIND}/edit`);
   });
 
+  it("links each gap in a refused job header to its field, as a refused generation does", async () => {
+    const message = "Every job on the English résumé is headed by its city and title. Gull Freight Ltd. needs a city.";
+    open(undefined, {
+      [PAGE]: new Refusal(409, "conflict", message, {
+        fields: ["employers"],
+        jobHeaders: [{ employerId: "emp-test-gull", name: "Gull Freight Ltd.", missing: ["city"] }],
+      }),
+    });
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent!.startsWith(message)).toBe(true);
+    expect(within(alert).getByRole("link", { name: "Add the city for Gull Freight Ltd." }).getAttribute("href")).toBe(
+      "/record?employer=emp-test-gull&fix=city",
+    );
+    // No fact or edit closes the gap, so the advice about them is not given.
+    expect(screen.queryByText(/A document obeys your record/)).toBeNull();
+  });
+
   it("replaces a cached page when a later read is refused", async () => {
     let withheld = false;
     const { queryClient } = open(undefined, {

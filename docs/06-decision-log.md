@@ -7189,5 +7189,10 @@ parts missing.
   under the job at Title.
 - **The city stays optional in the record.** Only the English résumé prints it, and the 履歴書 and
   職務経歴書 must not be blocked for a field they never read.
-- **Download is not refused for this.** A version accepted before this change still downloads; the
-  check runs where a version is made, as the profile-field check does.
+- **Download, the page and the preview refuse it too.** A job header is read from today's record on
+  every one of them, so a check at generation alone would still print a gap: a version accepted
+  before this change, when `0027` had left every city empty, and a city cleared or a role removed
+  after a version was accepted. The check sits in `assembleResume`, where generation, the document
+  page, the proposal preview and the `.docx` and `.md` downloads all meet, and each answers with the
+  same message, `details.jobHeaders` and links. The refusal is lifted by filling the field, with no
+  regeneration needed.
