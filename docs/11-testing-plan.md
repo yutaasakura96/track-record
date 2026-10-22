@@ -631,6 +631,8 @@ generation, because that render can fail in ways the résumé cannot.
 > **Built 2026-09-30** (issue #33; decision log, 2026-09-30). `tests/e2e/smoke.spec.ts` under
 > `playwright.config.ts`; `npm run test:e2e` locally, and a step after the build in CI. It has its own
 > database, `track_record_e2e`, which `npm run db:up` creates. §3 item 8 is now covered by it.
+> Since #109 its last step presses the résumé's default `Download` and asserts a PDF; the `.docx`
+> step above stays in `tests/smoke.test.ts`.
 
 ---
 
