@@ -6,7 +6,7 @@
  * only have to show the rules are applied. Every claim here is invented.
  */
 import { describe, expect, it } from "vitest";
-import { repeatFlag, sortFact, statesNumber } from "~/pipeline/flags";
+import { repeatFlag, sortFact, unsourcedNumber } from "~/pipeline/flags";
 import type { FactGrade } from "~/model/types";
 
 const QUOTE = "The intake queue was moved onto a job runner.";
@@ -127,13 +127,13 @@ describe("a fact the importer was unsure of", () => {
   });
 });
 
-describe("a claim that states a number", () => {
+describe("a claim that states a number its passage does not", () => {
   it("is flagged and still usable", () => {
     const sorted = sortFact(fact("Cut the nightly run from 6 hours to 90 minutes"), grade({ provenance: "measured" }));
     expect(sorted.provenance).toBe("measured");
     expect(sorted.disclosure).toBe("restricted");
     expect(sorted.flags).toEqual([
-      { kind: "number", reason: "It states a number. Check the number against the passage it was read from." },
+      { kind: "number", reason: "It states a number the passage it was read from does not. Check where the number came from." },
     ]);
   });
 
@@ -145,27 +145,43 @@ describe("a claim that states a number", () => {
     expect(kinds(sorted)).toEqual(["confidential", "number", "unsure"]);
   });
 
-  const stated: [string, string, string[]][] = [
-    ["a figure in digits", "Cut the run from 6 hours to 90 minutes", []],
-    ["a percentage", "Raised coverage to 85%", []],
-    ["full-width digits", "応答時間を３秒に短縮した", []],
-    ["a figure in kanji with its counter", "五名のチームを率いた", []],
-    ["a kanji ratio", "処理時間を三割削減した", []],
-    ["a number beside a technology that also has one", "Moved 40 buckets to S3", ["S3"]],
+  it("is not flagged when its passage states the same number", () => {
+    const sorted = sortFact(
+      fact("Cut the nightly run from 6 hours to 90 minutes", { quote: "The nightly run went from 6 hours to 90 minutes." }),
+      grade({ provenance: "measured" }),
+    );
+    expect(kinds(sorted)).toEqual([]);
+  });
+
+  const unsourced: [string, string, string | null, string[]][] = [
+    ["a figure the passage does not have", "Raised coverage to 85%", "Coverage was raised across the service.", []],
+    ["one figure of two missing", "Cut the run from 6 hours to 90 minutes", "The run took 6 hours before the change.", []],
+    ["a number only inside a longer one", "Served 40 teams", "Served 140 teams.", []],
+    ["a number only as a decimal's whole part", "Cut latency by 3 seconds", "Latency fell by 3.5 seconds.", []],
+    ["a figure in kanji the passage writes another way", "処理時間を三割削減した", "処理時間を30%削減した。", []],
+    ["a number beside a technology that also has one", "Moved 40 buckets to S3", "Moved the buckets to S3.", ["S3"]],
+    ["any figure, when there is no passage", "Led a team of 5 engineers", null, []],
   ];
-  for (const [label, claim, technologies] of stated) {
-    it(`reads ${label} as a number`, () => expect(statesNumber(claim, technologies)).toBe(true));
+  for (const [label, claim, quote, technologies] of unsourced) {
+    it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
   }
 
-  const notStated: [string, string, string[]][] = [
-    ["a technology name with a digit in it", "Moved the archive to S3 and EC2", ["S3", "EC2"]],
-    ["a versioned technology", "Upgraded the service to Java 17", ["Java 17"]],
-    ["a technology named in another case", "Stored snapshots in s3", ["S3"]],
-    ["a claim with no figure", "Introduced code review for the billing service", []],
-    ["a kanji numeral that is part of a word", "一部の画面を再設計した", []],
+  const sourced: [string, string, string | null, string[]][] = [
+    ["a figure the passage states", "Raised coverage to 85%", "Coverage rose to 85% by spring.", []],
+    ["a figure the passage writes with a thousands comma", "Served 1200 users", "It served 1,200 users a day.", []],
+    ["full-width digits against half-width", "応答時間を３秒に短縮した", "応答時間を3秒に短縮した。", []],
+    ["a figure in kanji the passage also has", "五名のチームを率いた", "五名のチームを率いた。", []],
+    ["a figure in words the passage also has", "Mentored five engineers", "I mentored five engineers.", []],
+    ["a year alone, absent from the passage", "Gave a talk on queue design in 2023", "Gave a talk on queue design.", []],
+    ["a year alone, with no passage", "Gave a talk on queue design in 2023", null, []],
+    ["a year with its 年, absent from the passage", "2023年に社内勉強会で登壇した", "社内勉強会で登壇した。", []],
+    ["a technology name with a digit in it", "Moved the archive to S3 and EC2", "Moved the archive.", ["S3", "EC2"]],
+    ["a versioned technology", "Upgraded the service to Java 17", "Upgraded the service.", ["Java 17"]],
+    ["a claim with no figure", "Introduced code review for the billing service", null, []],
+    ["a kanji numeral that is part of a word", "一部の画面を再設計した", "画面を再設計した。", []],
   ];
-  for (const [label, claim, technologies] of notStated) {
-    it(`does not read ${label} as a number`, () => expect(statesNumber(claim, technologies)).toBe(false));
+  for (const [label, claim, quote, technologies] of sourced) {
+    it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
   }
 });
 

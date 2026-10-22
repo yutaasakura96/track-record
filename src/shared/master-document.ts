@@ -239,7 +239,7 @@ const FIGURE = new RegExp(
     `(?:one|\\p{Nd}+) in (?:${WORD_NUMBER}|five|\\p{Nd}+)`,
     `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
     `${DIGITS}(?:\\s?${COUNTER}|x(?![\\p{L}]))?(?: (?:hundred|thousand|million|billion))?(?: ?${UNIT}(?![\\p{L}]))?`,
-    // A figure written in kanji, with the counter that makes it one (`src/pipeline/flags.ts`).
+    // A figure written in kanji, with the counter that makes it one.
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)",
   ].join("|"),
   "giu",
@@ -259,8 +259,8 @@ const YEAR = /^(?:19|20)\d{2}年?$/;
  *
  * Not a figure: a digit inside a word (`EC2`, `K8s`, `2FA`), a year alone, an
  * address or a version (`10.20.4.15`), or a digit inside a technology the fact
- * names (`Java 17`), as the importer's number flag already skips it
- * (`statesNumber`).
+ * names (`Java 17`). The importer's number flag reads figures with this
+ * (`unsourcedNumber`), so the two agree on what a figure is.
  */
 export function figures(claim: string, technologies: string[] = []): { text: string; figure: boolean }[] {
   const named: [number, number][] = [];

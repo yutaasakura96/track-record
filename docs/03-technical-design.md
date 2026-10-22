@@ -273,12 +273,15 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 **Step 9 accepts every fact that reaches it** (decided 2026-10-08, #57). Nothing waits as a
 candidate and nothing is rejected by the pipeline. Step 6 is the one place a candidate is not kept,
 and it is not a judgement about the claim: a quote that is not in the document is the invented fact
-§4.1 exists to keep out. A fact is flagged when it is confidential, when its claim states a number,
-when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
+§4.1 exists to keep out. A fact is flagged when it is confidential, when its claim states a number its
+quote does not, when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
 flag is a row with a reason (`04` §3.13); it gates nothing.
 
-**A number** is any digit in the claim once the technologies the fact names are taken out, so that
-`S3` and `Java 17` flag nothing, or a kanji figure with its counter (三割, 五名).
+**A number** is a figure as the career record finds one (`figures`, `src/shared/master-document.ts`):
+not a year alone, a digit inside a word, a version or address, or a technology's own digits, so
+`in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
+is flagged only when the quote does not hold the same number on its own (`1,200` and `１２００` match
+`1200`; `140` does not match `40`), or when there is no quote (issue #115).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through
 `gradeFacts`, twenty-five to a call, accepts them and writes the same flags; the client asks

@@ -149,7 +149,7 @@ export async function rationaleFor(
       if (restricted.length === supporting.length) {
         return {
           kind: "from_restricted",
-          text: `From ${count(supporting.length, "restricted fact")} · included in this document, withheld from public outputs`,
+          text: `From ${count(supporting.length, "restricted fact")} · written in general terms, without the client or system named`,
           factIds: proposedBlock.factIds,
         };
       }

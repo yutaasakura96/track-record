@@ -39,11 +39,6 @@ export const WORTH_WORDS: Record<FactEvidence["provenance"], string> = {
 /** A fact saved on Quick capture, with no document to quote. */
 export const BY_HAND = "Added by hand";
 
-/** What to say about one fact: its worth, and whether it was added by hand. */
-export function evidenceMarks(fact: Pick<FactEvidence, "provenance" | "source">): string[] {
-  return [WORTH_WORDS[fact.provenance], ...(fact.source === null ? [BY_HAND] : [])];
-}
-
 /** Every fact id the page's blocks cite, once each, in the order they are first cited. */
 export function citedOnPage(page: { sections: { blocks: { factIds?: string[] }[] }[] }): string[] {
   return [...new Set(page.sections.flatMap((section) => section.blocks.flatMap((block) => block.factIds ?? [])))];

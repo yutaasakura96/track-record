@@ -58,7 +58,7 @@ const PLAIN: CandidateFact = {
 };
 const NUMBERED: CandidateFact = {
   claim: "Cut the nightly settlement run from 6 hours to 90 minutes",
-  quote: "The nightly settlement run fell from 6 hours to 90 minutes.",
+  quote: "The nightly settlement run fell from 6 hours to about an hour and a half.",
   technologies: [],
   provenance: "measured",
 };
@@ -244,7 +244,7 @@ describe("the flagged list", () => {
       filename: "kestrel-notes.md",
     });
     expect(numbered.fact.lineNumber).toBeGreaterThan(0);
-    expect(numbered.reason).toBe("It states a number. Check the number against the passage it was read from.");
+    expect(numbered.reason).toBe("It states a number the passage it was read from does not. Check where the number came from.");
   });
 
   it("carries no passage from the source document", async () => {

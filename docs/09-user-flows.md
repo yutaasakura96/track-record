@@ -64,7 +64,7 @@ change, which still wait as candidates (Flow 9).
 | 4 | A candidate's quote is not verbatim in the source | Silently discarded before the author sees it. Counted in `candidatesDiscarded`, never shown as content |
 | 5 | The importer cannot tell what a fact is worth | **Kept, never dropped.** Accepted as Generated and flagged `Not sure`, with the reason. It stays out of documents until the author gives it a Worth |
 | 5 | A fact names a client, a person or an internal system | Kept as **Private** and flagged `Kept private`. Making it usable is done on that fact, by hand, one at a time |
-| 5 | A fact states a number | Kept at the Worth it was given and flagged `States a number`. **It can be used by the next document without being opened**; a document is still a proposal the author reads before it becomes current (Flow 3) |
+| 5 | A fact states a number its quote does not | Kept at the Worth it was given and flagged `States a number`. **It can be used by the next document without being opened**; a document is still a proposal the author reads before it becomes current (Flow 3) |
 | 5 | A fact likely restates one already in the record | Kept and flagged `Likely a repeat`, with the other fact shown beside it. Neither is removed |
 | 6 | Author sets **Measured** on a fact with no evidence | `422`: *"A Measured fact needs a passage in the source that proves it."* |
 | 6 | Author rejects a fact | It leaves the record's documents and the Flagged list, and is kept. `Undo` on its card puts it back as the importer left it |

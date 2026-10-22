@@ -361,7 +361,7 @@ Every change states where it came from. This is PRD S6 (traceability) at the poi
 - `From 1 attested fact · <source>, L63`
 - `Removed — no fact in your record supports it`
 - `Removed — the supporting fact is unverified (Generated) and is never rendered`
-- `From 1 restricted fact · included in this résumé, withheld from public outputs`
+- `From 1 restricted fact · written in general terms, without the client or system named`
 
 A change with no explanation is a defect.
 
@@ -1110,8 +1110,8 @@ holds a project or an employer to offer.
 ### Layout
 
 **Intro** (Shared chrome, #56), at the top of the content column: `Every file you have imported,
-and every version of it. Importing reads a file and finds candidate facts in it; nothing enters
-your record until you review them.` Then the `Next:` line, the first of these that applies:
+and every version of it. Importing reads a file and adds the facts it finds to your record; review
+them to correct or reject any.` Then the `Next:` line, the first of these that applies:
 
 | State | `Next:` |
 |---|---|

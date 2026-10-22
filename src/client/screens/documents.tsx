@@ -131,8 +131,8 @@ function Intro({ documents }: { documents: SourceDocumentRow[] }) {
           : "accepted: in your record · rejected: set aside and never used · to review: waiting for your decision"
       }
     >
-      Every file you have imported, and every version of it. Importing reads a file and finds
-      candidate facts in it; nothing enters your record until you review them.
+      Every file you have imported, and every version of it. Importing reads a file and adds the
+      facts it finds to your record; review them to correct or reject any.
     </ScreenIntro>
   );
 }

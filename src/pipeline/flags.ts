@@ -15,6 +15,7 @@
  *     promotes from there, one fact at a time.
  */
 import type { FactGrade } from "~/model/types";
+import { figures } from "~/shared/master-document";
 import { scrub } from "./scrub";
 
 export type FlagKind = "confidential" | "number" | "unsure" | "repeat";
@@ -89,7 +90,9 @@ export function classifyClaim(fact: { claim: string; quote: string | null; techn
     shape,
     flags: [
       ...(shape ? [{ kind: "confidential" as const, reason: `It contains what looks like ${shape}. ${KEPT_PRIVATE}` }] : []),
-      ...(statesNumber(fact.claim, fact.technologies) ? [{ kind: "number" as const, reason: "It states a number. Check the number against the passage it was read from." }] : []),
+      ...(unsourcedNumber(fact.claim, fact.quote, fact.technologies)
+        ? [{ kind: "number" as const, reason: "It states a number the passage it was read from does not. Check where the number came from." }]
+        : []),
     ],
   };
 }
@@ -115,21 +118,31 @@ const sentences = (...parts: string[]) =>
     .map((part) => (/[.!?。]$/.test(part) ? part : `${part}.`))
     .join(" ");
 
-/** A figure written in kanji, with the counter that makes it one: 三割, 二倍, 五名. */
-const KANJI_FIGURE = /[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)/;
+/** Full-width digits read as digits, and thousands commas taken out: `１，２００` and `1,200` are `1200`. */
+const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3})/g, "").toLowerCase();
 
 /**
- * Does the claim state a number?
+ * Does the claim state a number its passage does not (issue #115)?
  *
- * The technologies the fact names are taken out first. `S3`, `EC2` and
- * `Java 17` carry a digit and state no figure, and a list where every AWS fact
- * is flagged is a list nobody reads.
+ * A figure is what the career record sets apart (`figures`): a year alone, a
+ * digit inside a word, a version or address, and a technology's own digits
+ * (`S3`, `Java 17`) are not figures. A figure counts as sourced when each of
+ * its numbers stands in the quote on its own, not inside a longer one; a
+ * figure written in words or kanji, when the quote holds the same words. With
+ * no quote there is nothing to check a figure against, and any figure counts.
+ *
+ * Flagging every claim with a digit in it flagged half the record, a talk
+ * given "in 2023" among them, and a list where almost everything is flagged
+ * points nowhere. This flag says one thing: the number has no source.
  */
-export function statesNumber(claim: string, technologies: string[]): boolean {
-  let text = claim;
-  for (const name of technologies) {
-    if (name.trim() === "") continue;
-    text = text.replace(new RegExp(name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
-  }
-  return /\p{Nd}/u.test(text) || KANJI_FIGURE.test(text);
+export function unsourcedNumber(claim: string, quote: string | null, technologies: string[]): boolean {
+  const passage = plain(quote ?? "");
+  return figures(claim, technologies)
+    .filter((part) => part.figure)
+    .some(({ text }) => {
+      const figure = plain(text);
+      const numbers = figure.match(/\d+(?:\.\d+)?/g);
+      if (!numbers) return !passage.includes(figure);
+      return numbers.some((n) => !new RegExp(`(?<![\\d.])${n.replace(".", "\\.")}(?!\\d|\\.\\d)`).test(passage));
+    });
 }
