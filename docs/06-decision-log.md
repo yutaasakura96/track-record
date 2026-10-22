@@ -7172,7 +7172,9 @@ although `other` is the kind the résumé leaves out.
 - **Migration `0028`** classifies again before adding the constraint. An unset or `technical` row
   whose name reads as a driving licence (English or 運転免許) becomes `other`. One that reads as a
   language test (the `0027` list, plus 英語技能検定, Duolingo English Test, Versant and TOPIK)
-  becomes `language`. Any row still unset becomes `technical`. A row already `language` or `other`
+  becomes `language`. Unlike `0027`, a Latin-script test name must not touch another Latin letter,
+  so `DELE` inside "Modeler" stays technical while `TOEIC800点` and `HSK6級` still match; the
+  Japanese names match anywhere. Any row still unset becomes `technical`. A row already `language` or `other`
   keeps its kind, because nothing but the author wrote one of those after `0027`.
 - **Rejected:** keeping the null and printing it nowhere. An unclassified certification would then
   disappear from the résumé without a word, which is the worse failure.
