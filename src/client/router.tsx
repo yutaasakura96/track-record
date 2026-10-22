@@ -171,14 +171,17 @@ const sentCopyRoute = createRoute({
 /**
  * Quick capture (issue #95). `?fact=` opens one captured fact's card: a fact
  * with no document has its card here, where the master document and the
- * Flagged list send the author.
+ * Flagged list send the author. `?employer=` files what is typed under that
+ * employer from the start, as Home's monthly prompt opens it (issue #116).
  */
 const captureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/capture",
   component: CaptureScreen,
-  validateSearch: (search: Record<string, unknown>): { fact?: string } =>
-    typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {},
+  validateSearch: (search: Record<string, unknown>): { fact?: string; employer?: string } => ({
+    ...(typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {}),
+    ...(typeof search.employer === "string" && search.employer !== "" ? { employer: search.employer } : {}),
+  }),
 });
 
 /**

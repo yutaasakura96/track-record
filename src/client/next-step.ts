@@ -11,6 +11,11 @@
  * Pure, so the order is a table to read rather than a render to follow.
  */
 import type { Overview, RenderRow } from "./api";
+import { currentMonth } from "~/shared/calendar";
+
+/** How long the record goes without a new fact before Home asks for one (issue #116). */
+export const CAPTURE_AFTER_DAYS = 30;
+const DAY = 86_400_000;
 
 /**
  * Why a document is out of date. It is out of date by facts that arrived, by
@@ -41,16 +46,44 @@ export type StepAction =
   /** Asks for a proposal, then opens it. */
   | { kind: "generate"; label: string; render: RenderRow["kind"] }
   /** The header's own control. */
-  | { kind: "import"; label: string };
+  | { kind: "import"; label: string }
+  /** Into Quick capture, filed under that employer from the start. */
+  | { kind: "capture"; label: string; employerId: string | null };
 
 export interface Step {
   key: string;
   title: string;
   why: string;
   action: StepAction | null;
+  /** Can be put away until the author's month ends. Only the capture prompt can. */
+  dismissible?: boolean;
 }
 
-export function nextSteps(data: Overview): Step[] {
+/**
+ * The monthly capture prompt (issue #116): after a month in which the record
+ * gained no fact, ask what was shipped, at the employer the author works for
+ * now. It asks nothing of a record that has never had a fact, which the import
+ * step already answers, and it is quiet for the rest of a month it was put
+ * away in. `now` is the author's clock, so the month is theirs.
+ */
+function capturePrompt(data: Overview, now: Date): Step | null {
+  const prompt = data.capturePrompt;
+  if (!prompt?.lastFactAt) return null;
+  const days = Math.floor((now.getTime() - Date.parse(prompt.lastFactAt)) / DAY);
+  if (days < CAPTURE_AFTER_DAYS) return null;
+  if (prompt.dismissedOn && prompt.dismissedOn >= currentMonth(now)) return null;
+  return {
+    key: "capture",
+    title: prompt.employer
+      ? `What did you ship this month at ${prompt.employer.name}?`
+      : "What did you ship this month?",
+    why: `Nothing has been added to your record for ${days} days. A sentence or two now is easier than remembering it at your next job search.`,
+    action: { kind: "capture", label: "Quick capture", employerId: prompt.employer?.id ?? null },
+    dismissible: true,
+  };
+}
+
+export function nextSteps(data: Overview, now: Date = new Date()): Step[] {
   const steps: Step[] = [];
   const { review, activeImport, unconfirmed, documents, canGenerate } = data;
 
@@ -109,6 +142,10 @@ export function nextSteps(data: Overview): Step[] {
       action: { kind: "review", label: n === 1 ? "Open it" : "Open them", importId: unconfirmed.importId },
     });
   }
+
+  // Before generating: what is captured now is in the document generated next.
+  const capture = capturePrompt(data, now);
+  if (capture) steps.push(capture);
 
   if (!canGenerate) {
     // Only an answer to "what now": with something already waiting above, the

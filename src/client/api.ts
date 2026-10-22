@@ -393,6 +393,16 @@ export interface Overview {
   review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
   /** The newest version holding an accepted fact that is still Generated. */
   unconfirmed: { importId: string; count: number; total: number } | null;
+  /**
+   * What the monthly capture prompt is decided from (issue #116): when the
+   * record last gained a fact, the employer not left (the one joined last, of
+   * two), and the month the prompt was put away for, `YYYY-MM-01`.
+   */
+  capturePrompt?: {
+    lastFactAt: string | null;
+    employer: { id: string; name: string } | null;
+    dismissedOn: string | null;
+  };
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
@@ -1118,6 +1128,23 @@ export function useSaveCapture() {
       void queryClient.invalidateQueries({ queryKey: keys.overview });
       void queryClient.invalidateQueries({ queryKey: keys.allFacts });
     },
+  });
+}
+
+/**
+ * Puts the monthly capture prompt away until the author's month ends. The
+ * answer is written into the overview held here, so the Next step moves on
+ * without a read again.
+ */
+export function useDismissCapturePrompt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (month: string) =>
+      api<{ dismissedOn: string }>("/api/capture/prompt/dismiss", { method: "POST", ...json({ month }) }),
+    onSuccess: ({ dismissedOn }) =>
+      queryClient.setQueryData<Overview>(keys.overview, (held) =>
+        held?.capturePrompt ? { ...held, capturePrompt: { ...held.capturePrompt, dismissedOn } } : held,
+      ),
   });
 }
 

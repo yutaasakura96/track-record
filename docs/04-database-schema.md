@@ -180,6 +180,7 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `resume_github_url` | text | yes | `null` | " |
 | `resume_portfolio_url` | text | yes | `null` | " |
 | `paper_size` | `paper_size` enum (`a4`, `letter`) | no | `'a4'` | The English résumé's page (#107). Not PII; read by that render alone. A profile save that does not send it leaves it as it is |
+| `capture_prompt_dismissed_on` | date | yes | `null` | The month Home's monthly capture prompt was put away for (#116), day pinned to `01`. Not PII. Kept on the member so it holds on every device; written only by `POST /api/capture/prompt/dismiss`, and a profile save leaves it as it is |
 
 **Constraint:** `check (contact_same_as_address or (contact_postal_code is not null and contact_address is not null))`.
 

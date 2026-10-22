@@ -204,6 +204,13 @@
       "when": 1792640823349,
       "tag": "0028_certification_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1792664670090,
+      "tag": "0029_capture_prompt",
+      "breakpoints": true
     }
   ]
 }
