@@ -148,10 +148,15 @@ const isWholeField = (tokens: readonly Token[], i: number, length: number): bool
   tokens.filter((t) => t.field === tokens[i]!.field).length === length &&
   tokens.slice(i, i + length).every((t) => t.field === tokens[i]!.field);
 
-const isDateLabel = (tokens: readonly Token[], i: number): boolean =>
+const MONTH = "(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)";
+const YEAR = "\\d{4}";
+const DATE = `(?:${YEAR}(?:-(?:0?[1-9]|1[0-2]))?|(?:0?[1-9]|1[0-2])/${YEAR}|${MONTH}\\s+${YEAR})`;
+const DATE_FIELD = new RegExp(`^${DATE}(?:\\s*[-–—]\\s*(?:${DATE}|Present|Now))?$`, "iu");
+
+const isDateLabel = (text: string, tokens: readonly Token[], i: number): boolean =>
   tokens[i]!.word.toLocaleLowerCase() === "date" &&
   (tokens[i + 1]?.word.toLocaleLowerCase() === "of" ||
-    (tokens[i + 1] !== undefined && tokens[i + 1]!.field > tokens[i]!.field && /^\d{4}$/u.test(tokens[i + 1]!.word)));
+    DATE_FIELD.test(text.split(FIELD_SEPARATOR)[tokens[i]!.field + 1]?.trim() ?? ""));
 
 function hasRespeltName(text: string, names: readonly string[], header: boolean): boolean {
   // In prose a name differing from the record only in letter case is the name.
@@ -163,7 +168,8 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
     // name inside this one stays, or "Shirasagi University Graduate Schol" would
     // lose "Shirasagi University" and leave nothing to compare.
     const inside = (other: string) => other !== name && nameRegExp(other, header ? "u" : "iu").test(name);
-    const tokens = tokensOf(withoutNames(text, names.filter((other) => !inside(other)), flags));
+    const stripped = withoutNames(text, names.filter((other) => !inside(other)), flags);
+    const tokens = tokensOf(stripped);
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
       const found = tokens.slice(i, i + words.length).map((t) => t.word);
@@ -172,7 +178,7 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
         const capitalised = !/\p{Script=Latin}/u.test(found[0]!) || /^\p{Lu}/u.test(found[0]!);
         const named = capitalised && (words.length > 1 || name.length >= 6);
         const namePosition = isWholeField(tokens, i, words.length) || besideNameWord(tokens, i, words.length);
-        if (name.length < 6 && isDateLabel(tokens, i)) continue;
+        if (name.length < 6 && isDateLabel(stripped, tokens, i)) continue;
         if (name.length < 6 && found.join(" ").toLocaleLowerCase() === expected && !namePosition) continue;
         if (name.length >= 6 && !named && !namePosition) continue;
       } else {

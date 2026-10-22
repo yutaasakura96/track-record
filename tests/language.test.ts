@@ -326,10 +326,14 @@ describe("an English document", () => {
     const row = content([{ key: "anchors", heading: "Figures", text: "Date, 2019-2020" }]);
     row.sections[0]!.blocks[0]!.kind = "row";
     expect(englishDefect(row, named)).toBeNull();
-    row.sections[0]!.blocks[0]!.text = "Date: 2019";
-    expect(englishDefect(row, named)).toBeNull();
+    for (const date of ["2019", "2019-2020", "June 2019", "Jun 2019", "06/2019", "2019-06", "2019–Present", "June 2019–Now"]) {
+      row.sections[0]!.blocks[0]!.text = `Date: ${date}`;
+      expect(englishDefect(row, named), `row: ${date}`).toBeNull();
+      expect(englishDefect(content([{ key: "opening", heading: `Date: ${date}`, text: PROSE }]), named), `heading: ${date}`).toBeNull();
+    }
     row.sections[0]!.blocks[0]!.text = "Date — project";
     expect(englishDefect(row, named)).toBe("record_names");
+    expect(englishDefect(content([{ key: "opening", heading: "Date — project", text: PROSE }]), named)).toBe("record_names");
     expect(englishDefect(content([{ key: "opening", heading: "Dta project", text: PROSE }]), named)).toBe("record_names");
   });
 
