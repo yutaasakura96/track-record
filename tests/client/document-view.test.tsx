@@ -10,7 +10,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { RenderPage, RenderRow } from "~/client/api";
+import type { FactEvidence } from "~/shared/evidence";
 import { mount, Refusal, type Routes } from "./harness";
+import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 
 const KIND = "english_resume";
 const PAGE = `GET /api/renders/${KIND}/page`;
@@ -57,6 +59,7 @@ const view = (over: Partial<RenderPage> = {}): RenderPage => ({
       },
     ],
   },
+  evidence: [],
   ...over,
 });
 
@@ -209,6 +212,215 @@ describe("the page", () => {
       "/applications/app-test-1",
     );
     expect(bar.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${ref}/history`);
+  });
+});
+
+/**
+ * "Show where each line comes from" (issue #110, S6): a line opens the facts
+ * it was written from, each with its worth, its employer and its passage.
+ */
+describe("where each line comes from", () => {
+  const MEASURED: FactEvidence = {
+    id: "fct-test-measured",
+    claim: "Cut the plinth build from nine minutes to two",
+    provenance: "measured",
+    employer: "Quillset Ltd",
+    quote: "The plinth build went from nine minutes to two.",
+    source: { importId: "sdv-test-1", filename: "quillset-notes.md", lineNumber: 12 },
+  };
+  const ATTESTED: FactEvidence = {
+    id: "fct-test-attested",
+    claim: "Moved the Qorvane quillset to zentrel",
+    provenance: "attested",
+    employer: "Quillset Ltd",
+    quote: "We moved the quillset onto zentrel.",
+    source: { importId: "sdv-test-1", filename: "quillset-notes.md", lineNumber: 4 },
+  };
+  const CAPTURED: FactEvidence = {
+    id: "fct-test-captured",
+    claim: "Mentored two new plinth engineers",
+    provenance: "attested",
+    employer: null,
+    quote: null,
+    source: null,
+  };
+  const SOURCED_UNQUOTED: FactEvidence = {
+    id: "fct-test-unquoted",
+    claim: "Maintained the quillset release process",
+    provenance: "attested",
+    employer: "Quillset Ltd",
+    quote: null,
+    source: { importId: "sdv-test-2", filename: "release-notes.md", lineNumber: null },
+  };
+
+  const traced = () =>
+    view({
+      page: {
+        title: null,
+        stamp: null,
+        name: "Ryo Tanabe",
+        contact: [],
+        sections: [
+          {
+            heading: "Experience",
+            blocks: [
+              { kind: "row", text: "Quillset Ltd · Apr 2022 – Present", factIds: [] },
+              { kind: "bullet", text: "Moved the Qorvane quillset to zentrel", factIds: [ATTESTED.id, SOURCED_UNQUOTED.id] },
+              { kind: "bullet", text: "Cut the plinth build from nine minutes to two", factIds: [MEASURED.id, CAPTURED.id] },
+            ],
+          },
+        ],
+      },
+      evidence: [ATTESTED, SOURCED_UNQUOTED, MEASURED, CAPTURED],
+    });
+
+  const tracing = async () => {
+    const mounted = mount(`/renders/${KIND}/view`, { [PAGE]: traced() });
+    const toggle = await screen.findByRole("button", { name: "Show where each line comes from" });
+    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    await mounted.user.click(toggle);
+    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    return { ...mounted, toggle, page: within(screen.getByRole("article")) };
+  };
+
+  it("makes no line a control until it is asked to, then every line one", async () => {
+    const { user } = open(undefined, { [PAGE]: traced() });
+    const page = within(await screen.findByRole("article"));
+    expect(page.queryAllByRole("button")).toEqual([]);
+
+    await user.click(screen.getByRole("button", { name: "Show where each line comes from" }));
+    expect(page.getAllByRole("button").map((line) => line.textContent)).toEqual([
+      "Quillset Ltd · Apr 2022 – Present",
+      "Moved the Qorvane quillset to zentrel",
+      "Cut the plinth build from nine minutes to two",
+    ]);
+  });
+
+  it("shows a measured fact's worth, employer and passage, and opens it in Fact Review", async () => {
+    const { user, page, pathname } = await tracing();
+    const line = page.getByRole("button", { name: "Cut the plinth build from nine minutes to two" });
+    await user.click(line);
+
+    expect(line.getAttribute("aria-expanded")).toBe("true");
+    const behind = within(page.getByRole("region", { name: "Behind this line" }));
+    expect(line.getAttribute("aria-controls")).toBe(behind.getByText("2 facts from your record.").closest("div[id]")!.id);
+    const card = within(behind.getByText(MEASURED.claim).closest("li")!);
+    expect(card.getByText("Backed by a number")).toBeTruthy();
+    expect(card.getByText("Quillset Ltd")).toBeTruthy();
+    expect(card.getByText(MEASURED.quote!)).toBeTruthy();
+    expect(card.getByText("quillset-notes.md, line 12")).toBeTruthy();
+    expect(card.queryByText("Added by hand")).toBeNull();
+    const source = card.getByRole("link", { name: "Open in source" });
+    expect(source.getAttribute("href")).toBe("/imports/sdv-test-1?fact=fct-test-measured");
+
+    await user.click(source);
+    await waitFor(() => expect(pathname()).toBe("/imports/sdv-test-1"));
+  });
+
+  it("says an attested fact has no number behind it", async () => {
+    const { user, page } = await tracing();
+    await user.click(page.getByRole("button", { name: ATTESTED.claim }));
+
+    const behind = within(page.getByRole("region", { name: "Behind this line" }));
+    expect(behind.getByText("2 facts from your record.")).toBeTruthy();
+    const card = within(behind.getByText(ATTESTED.claim, { selector: "p" }).closest("li")!);
+    expect(card.getByText("Stated by you, no number behind it")).toBeTruthy();
+    expect(card.queryByText("Backed by a number")).toBeNull();
+    expect(card.getByText(ATTESTED.quote!)).toBeTruthy();
+    expect(card.getByRole("link", { name: "Open in source" }).getAttribute("href")).toBe(
+      "/imports/sdv-test-1?fact=fct-test-attested",
+    );
+  });
+
+  it("keeps a sourced fact without a saved quote in Fact Review", async () => {
+    const { user, page } = await tracing();
+    await user.click(page.getByRole("button", { name: ATTESTED.claim }));
+    const card = within(page.getByText(SOURCED_UNQUOTED.claim).closest("li")!);
+    expect(card.getByText("Stated by you, no number behind it")).toBeTruthy();
+    expect(card.getByText("Quillset Ltd")).toBeTruthy();
+    expect(card.getByText("No quoted passage was saved for this fact.")).toBeTruthy();
+    expect(card.queryByText("Added by hand")).toBeNull();
+    expect(card.queryByRole("link", { name: "Open it in Quick capture" })).toBeNull();
+    expect(card.getByRole("link", { name: "Open in source" }).getAttribute("href")).toBe(
+      "/imports/sdv-test-2?fact=fct-test-unquoted",
+    );
+  });
+
+  it("keeps a 履歴書 sheet visible and selects its prose cell in place", async () => {
+    const sheet = structuredClone(RIREKISHO_SHEET);
+    const motivation = sheet.blocks.filter((block) => block.kind === "table")[3]!;
+    motivation.rows[1]![0]!.factIds = [ATTESTED.id];
+    const { user } = mount("/renders/rirekisho/view", {
+      "GET /api/renders/rirekisho/page": view({
+        renderKind: "rirekisho", renderRef: "rirekisho", language: "ja",
+        page: { title: "履 歴 書", stamp: null, name: "架空　花子", contact: [], sections: [], sheet },
+        evidence: [ATTESTED],
+      }),
+    });
+    const page = within(await screen.findByRole("article"));
+    expect(page.getAllByRole("table")).toHaveLength(5);
+    await user.click(screen.getByRole("button", { name: "Show where each line comes from" }));
+    expect(page.getAllByRole("table")).toHaveLength(5);
+    const cell = page.getByRole("button", { name: "架空の志望動機です。" });
+    expect(cell.closest("td")).toBeTruthy();
+    cell.focus();
+    await user.keyboard("{Enter}");
+    expect(cell.getAttribute("aria-expanded")).toBe("true");
+    expect(page.getByText(ATTESTED.claim)).toBeTruthy();
+    await user.click(page.getByRole("button", { name: "架空大学　架空学部　卒業" }));
+    expect(page.getByText(/No fact behind this line/)).toBeTruthy();
+  });
+
+  it("says a captured fact was added by hand, with no passage, and opens its card", async () => {
+    const { user, page } = await tracing();
+    await user.click(page.getByRole("button", { name: MEASURED.claim }));
+
+    const card = within(screen.getByText(CAPTURED.claim).closest("li")!);
+    expect(card.getByText("Added by hand")).toBeTruthy();
+    expect(card.getByText("Stated by you, no number behind it")).toBeTruthy();
+    expect(card.getByText("No employer")).toBeTruthy();
+    expect(card.getByText(/no passage to quote/)).toBeTruthy();
+    expect(card.queryByRole("link", { name: "Open in source" })).toBeNull();
+    expect(card.getByRole("link", { name: "Open it in Quick capture" }).getAttribute("href")).toBe(
+      "/capture?fact=fct-test-captured",
+    );
+  });
+
+  it("says a line copied from the record has no fact behind it", async () => {
+    const { user, page } = await tracing();
+    await user.click(page.getByRole("button", { name: "Quillset Ltd · Apr 2022 – Present" }));
+
+    expect(page.getByText(/No fact behind this line/)).toBeTruthy();
+  });
+
+  it("shows one line at a time, closes it on a second press, and puts every line back when turned off", async () => {
+    const { user, page, toggle } = await tracing();
+    const first = page.getByRole("button", { name: ATTESTED.claim });
+    const second = page.getByRole("button", { name: MEASURED.claim });
+
+    await user.click(first);
+    await user.click(second);
+    expect(first.getAttribute("aria-expanded")).toBe("false");
+    expect(page.getAllByRole("region", { name: "Behind this line" })).toHaveLength(1);
+
+    await user.click(second);
+    expect(page.queryByRole("region", { name: "Behind this line" })).toBeNull();
+
+    await user.click(second);
+    await user.click(toggle);
+    expect(page.queryAllByRole("button")).toEqual([]);
+    expect(page.queryByRole("region", { name: "Behind this line" })).toBeNull();
+  });
+
+  it("works from the keyboard: a line opens on Enter, and its evidence is the next stop", async () => {
+    const { user, page } = await tracing();
+    const line = page.getByRole("button", { name: ATTESTED.claim });
+    line.focus();
+
+    await user.keyboard("{Enter}");
+    expect(line.getAttribute("aria-expanded")).toBe("true");
+    await user.tab();
+    expect(document.activeElement?.textContent).toBe("Open in source");
   });
 });
 

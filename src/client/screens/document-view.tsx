@@ -8,23 +8,33 @@
  * The page is assembled by the server from the inputs the download uses, and
  * refused on the facts the download refuses. What is read here is what would
  * leave the tool, not the stored content as it was accepted.
+ *
+ * "Show where each line comes from" (issue #110, S6) turns each line into a
+ * button that opens the facts it was written from, under it, with each fact's
+ * passage and the way into Fact Review.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
 import { ApiError, failureText, useGenerate, useRenderPage, type RenderPage } from "../api";
 import { PhoneFrame } from "../components/application-chrome";
-import { DocumentPage } from "../components/document-page";
+import { DocumentPage, type Trace } from "../components/document-page";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
 import { Button, Chip, Dot } from "../components/ui";
 import { absolute } from "../format";
+import { BY_HAND, WORTH_WORDS, type FactEvidence } from "~/shared/evidence";
 
 export function DocumentViewScreen() {
   const { ref } = useParams({ from: "/renders/$ref/view" });
   const { version } = useSearch({ from: "/renders/$ref/view" });
   const read = useRenderPage(ref, version);
   const data = read.data;
+  const [tracing, setTracing] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  // Another version is another page: the line chosen on the last one is not on it.
+  const versionId = data?.version.id;
+  useEffect(() => setSelected(null), [versionId]);
 
   if ((read.error instanceof ApiError && read.error.status === 409) || !data) {
     const status = read.error instanceof ApiError ? read.error.status : null;
@@ -57,8 +67,28 @@ export function DocumentViewScreen() {
           download is.
         </p>
       ) : null}
+      <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
+          <Button
+            variant="ghost"
+            aria-pressed={tracing}
+            onClick={() => {
+              setTracing(!tracing);
+              setSelected(null);
+            }}
+            className={tracing ? "bg-hover text-text-secondary" : ""}
+          >
+            Show where each line comes from
+          </Button>
+          {tracing ? (
+            <p className="text-small text-text-muted">Choose a line to see the facts behind it and where each is quoted from.</p>
+          ) : null}
+      </div>
       <div className="bg-card border border-border rounded-tile px-20 max-phone:px-12">
-        <DocumentPage page={data.page} language={data.language} />
+        <DocumentPage
+          page={data.page}
+          language={data.language}
+          trace={tracing ? trace(data.evidence, selected, setSelected) : undefined}
+        />
       </div>
     </PhoneFrame>
   );
@@ -208,5 +238,96 @@ function Withheld({ docRef, current, error }: { docRef: string; current: boolean
         ) : null}
       </p>
     </div>
+  );
+}
+
+function trace(evidence: FactEvidence[], selected: string | null, onSelect: (key: string | null) => void): Trace {
+  const byId = new Map(evidence.map((fact) => [fact.id, fact]));
+  return { selected, onSelect, behind: (block) => <BehindLine factIds={block.factIds ?? []} byId={byId} /> };
+}
+
+/**
+ * What stands behind one line: its facts, each with its worth, its employer
+ * and its passage. Interface chrome, so English under a Japanese document too.
+ */
+function BehindLine({ factIds, byId }: { factIds: string[]; byId: Map<string, FactEvidence> }) {
+  return (
+    <section
+      lang="en"
+      aria-label="Behind this line"
+      // The page's Japanese tracking is the document's, not the interface's:
+      // back to the browser's own spacing, which no token names.
+      style={{ letterSpacing: "normal" }}
+      className="grid gap-8 bg-surface-raised border border-border rounded-tile px-12 py-10"
+    >
+      {factIds.length === 0 ? (
+        <p className="text-small text-text-secondary">
+          No fact behind this line. It is copied from your record as it stands, not written from a claim.
+        </p>
+      ) : (
+        <>
+          <p className="text-small text-text-secondary">
+            {factIds.length === 1 ? "1 fact" : `${factIds.length} facts`} from your record.
+          </p>
+          <ul className="grid gap-8 list-none">
+            {factIds.flatMap((id) => {
+              const fact = byId.get(id);
+              return fact ? [<EvidenceCard key={id} fact={fact} />] : [];
+            })}
+          </ul>
+        </>
+      )}
+    </section>
+  );
+}
+
+const WORTH_TONE: Record<FactEvidence["provenance"], string> = {
+  measured: "bg-add-idle text-measured-text",
+  attested: "bg-mark-selected text-accent-text",
+};
+
+const CHIP = "inline-flex items-center rounded-chip border border-transparent px-6 py-2 text-smaller";
+
+function EvidenceCard({ fact }: { fact: FactEvidence }) {
+  const { source } = fact;
+  return (
+    <li className="grid gap-6 bg-card border border-border rounded-control px-10 py-8">
+      <p className="text-ui text-text-strong">{fact.claim}</p>
+      <p className="flex flex-wrap gap-6">
+        <span className={`${CHIP} ${WORTH_TONE[fact.provenance]}`}>{WORTH_WORDS[fact.provenance]}</span>
+        {source === null ? <span className={`${CHIP} bg-chip border-border-control text-text-muted`}>{BY_HAND}</span> : null}
+        <span className={`${CHIP} bg-chip border-border-control text-text-secondary`}>{fact.employer ?? "No employer"}</span>
+      </p>
+      {source ? (
+        <>
+          {fact.quote ? (
+            <blockquote className="border-l border-border-strong pl-10 text-small text-text-secondary whitespace-pre-wrap break-words">
+              {fact.quote}
+            </blockquote>
+          ) : <p className="text-smaller text-text-muted">No quoted passage was saved for this fact.</p>}
+          <p className="flex flex-wrap items-center gap-x-8 gap-y-4 text-smaller text-text-muted">
+            <span className="min-w-0 break-all">
+              {source.filename}
+              {source.lineNumber === null ? "" : `, line ${source.lineNumber}`}
+            </span>
+            <Link
+              to="/imports/$importId"
+              params={{ importId: source.importId }}
+              search={{ fact: fact.id }}
+              className="text-accent-link hover:text-accent-link-hover underline"
+            >
+              Open in source
+            </Link>
+          </p>
+        </>
+      ) : (
+        <p className="text-smaller text-text-muted">
+          Saved on Quick capture, so there is no passage to quote.{" "}
+          <Link to="/capture" search={{ fact: fact.id }} className="text-accent-link hover:text-accent-link-hover underline">
+            Open it in Quick capture
+          </Link>
+        </p>
+      )}
+    </li>
   );
 }

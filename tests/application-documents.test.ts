@@ -468,6 +468,7 @@ describe("a sent copy", () => {
     const experience = page.page.sections.find((section) => section.heading === "Experience")!;
     expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Apr 2022 – Sep 2024" });
     expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes." });
+    expect(page.page.sections.flatMap((section) => section.blocks).every((block) => !("factIds" in block))).toBe(true);
     expect(JSON.stringify(page.page)).not.toContain("Rebuilt the settlement run");
     expect(page.page.sections.find((section) => section.heading === "Education")!.blocks).toHaveLength(1);
 
@@ -476,6 +477,8 @@ describe("a sent copy", () => {
     expect(form.page.name).toBe("青木　陽介");
     expect(form.page.contact.join("\n")).toContain("東京都渋谷区神宮前0-0-0");
     expect(form.page.sections.map((section) => section.heading)).toEqual(["学歴", "職歴", "志望の動機"]);
+    expect(form.page.sections.flatMap((section) => section.blocks).every((block) => !("factIds" in block))).toBe(true);
+    expect(form.page.sheet!.blocks.filter((block) => block.kind === "table").flatMap((table) => table.rows.flat()).every((cell) => !("factIds" in cell))).toBe(true);
     expect(JSON.stringify(form.page)).not.toContain("白波大学院大学");
     expect(JSON.stringify(form.page)).toContain("海事システムの保守経験を活かしたい。");
     // The form as the file lays it out, read out of the file that was sent.

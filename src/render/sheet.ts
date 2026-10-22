@@ -37,6 +37,7 @@ export interface SheetCell {
   lines: SheetLine[];
   colSpan: number;
   rowSpan: number;
+  factIds?: string[];
   /** The file fills the cell, as it greys the 年 / 月 headings, 学歴 / 職歴 and the 写真 cell. */
   shaded: boolean;
 }

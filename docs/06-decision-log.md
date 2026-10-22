@@ -7071,3 +7071,25 @@ Kept as decided: a finished vocational programme is post-secondary and a credent
 reader screens on. Dropping it was the alternative, and it would have reversed 2026-09-06 to
 match two sentences that described the rule wrongly. A vocational row carries no chip, because
 every document prints it.
+
+---
+
+### [2026-10-22] A line's evidence opens under the line, and the page carries each block's facts
+
+S6 asks to click a line of a document and see the fact behind it and the passage that proves it.
+The data was there, as each stored block's `factIds`, but the reader's page dropped them when it
+was assembled, and only the Edit screen showed them, as raw ids (#110).
+
+- **Decision:** the page `GET /api/renders/:kind/page` serves the cited blocks' `factIds`, the
+  English résumé's included, and the response carries `evidence`: every cited fact once, with its
+  provenance, employer and saved passage. It is looked up after the download's refusal, so it never
+  describes a Private or Generated fact. Stored sent copies omit the citation fields.
+- **Decision:** the chosen line's evidence opens directly under the line, not in a side rail beside
+  the page as the evaluation's mock drew it. The reader's content column is 940px and the page sits
+  at a 740px measure, so a rail would have narrowed the document it explains. The evidence follows
+  the line in reading order and works at phone width without a second layout.
+  A 履歴書 keeps its printed sheet on screen; its cells are selectable in place. The two prose
+  cells cite facts, while rows copied from the record cite none.
+- **Alternative rejected:** a separate evidence route queried per click. One read per click buys
+  nothing here, because a page cites a few dozen facts at most, and a second read could disagree
+  with the page it describes.

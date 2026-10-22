@@ -238,13 +238,17 @@ export interface ResumeRecord {
 }
 
 export type ResumeBlock =
-  /** A plain paragraph: the summary, a project's own summary, a list run together. */
-  | { kind: "paragraph"; text: string }
+  /**
+   * A plain paragraph: the summary, a project's own summary, a list run together.
+   * `factIds`, here and on a bullet, are the facts the version wrote it from
+   * (issue #110); a paragraph made from the record cites none.
+   */
+  | { kind: "paragraph"; text: string; factIds?: string[] }
   /** A job, a project or a school: bold lead, a detail after it, the dates right-aligned. */
   | { kind: "entry"; lead: string; detail: string | null; dates: string | null }
   /** The titles held, in italic under the job. */
   | { kind: "subtitle"; text: string }
-  | { kind: "bullet"; text: string }
+  | { kind: "bullet"; text: string; factIds?: string[] }
   /** One skills group: its name in bold, then the skills. */
   | { kind: "labelled"; label: string; text: string };
 
@@ -364,11 +368,18 @@ export function assertEnglishResume(document: ResumeDocument): void {
 
 const section = (key: string, heading: string, blocks: ResumeBlock[]): ResumeSection => ({ key, heading, blocks });
 
-const textsOf = (content: RenderContent, key: string): string[] =>
-  content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.map((b) => b.text));
+type Written = { text: string; factIds: string[] };
+
+/** A block's text and the facts it was written from, without the rest of the block. */
+const written = (b: Written): Written => ({ text: b.text, factIds: b.factIds });
+
+const writtenOf = (content: RenderContent, key: string): Written[] =>
+  content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.map(written));
+
+const bullet = (b: Written): ResumeBlock => ({ kind: "bullet", ...b });
 
 function summaryBlocks(content: RenderContent): ResumeBlock[] {
-  return textsOf(content, SUMMARY_KEY).map((text) => ({ kind: "paragraph", text }));
+  return writtenOf(content, SUMMARY_KEY).map((b) => ({ kind: "paragraph", ...b }));
 }
 
 function skillsBlocks(record: ResumeRecord): ResumeBlock[] {
@@ -409,24 +420,24 @@ function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | nu
  * exists to keep off the page. Regenerating gives the version a key per job.
  */
 function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
-  const bulletsByEmployer = new Map<string, string[]>();
-  const add = (employerId: string, texts: string[]) =>
-    bulletsByEmployer.set(employerId, [...(bulletsByEmployer.get(employerId) ?? []), ...texts]);
+  const bulletsByEmployer = new Map<string, Written[]>();
+  const add = (employerId: string, blocks: Written[]) =>
+    bulletsByEmployer.set(employerId, [...(bulletsByEmployer.get(employerId) ?? []), ...blocks]);
 
   for (const s of content.sections) {
     const employerId = employerIdOfChapter(s.key);
-    if (employerId !== null) add(employerId, s.blocks.map((b) => b.text));
+    if (employerId !== null) add(employerId, s.blocks.map(written));
   }
 
   const named = record.employers.map((e) => ({ id: e.id, names: [e.name], copy: [] }));
   for (const group of experienceGroups(content, named)) {
-    const texts = group.blocks.map((b) => b.text);
+    const blocks = group.blocks.map(written);
     if (group.employerId === null) {
       throw new ResumeAssemblyError(
         "This résumé version has an experience heading that names no employer the résumé includes. Generate the résumé again.",
       );
     }
-    add(group.employerId, texts);
+    add(group.employerId, blocks);
   }
 
   return record.employers.flatMap((e): ResumeBlock[] => {
@@ -434,7 +445,7 @@ function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeB
     return [
       { kind: "entry", lead: e.name, detail: e.city, dates: monthSpan(e.startedOn, e.endedOn) },
       ...(titles ? [{ kind: "subtitle" as const, text: titles }] : []),
-      ...(bulletsByEmployer.get(e.id) ?? []).map((text): ResumeBlock => ({ kind: "bullet", text })),
+      ...(bulletsByEmployer.get(e.id) ?? []).map(bullet),
     ];
   });
 }
@@ -447,13 +458,12 @@ function projectBlocks(content: RenderContent, record: ResumeRecord): ResumeBloc
   const entries = record.projects
     .filter((p) => p.employerId === null)
     .flatMap((p): ResumeBlock[] => {
-      const bullets = textsOf(content, projectKey(p.id));
       return [
         { kind: "entry", lead: p.name, detail: null, dates: p.startedOn ? monthSpan(p.startedOn, p.endedOn) : null },
-        ...bullets.map((text): ResumeBlock => ({ kind: "bullet", text })),
+        ...writtenOf(content, projectKey(p.id)).map(bullet),
       ];
     });
-  const other = textsOf(content, OTHER_PROJECTS_KEY).map((text): ResumeBlock => ({ kind: "bullet", text }));
+  const other = writtenOf(content, OTHER_PROJECTS_KEY).map(bullet);
   return [...entries, ...other];
 }
 
@@ -536,7 +546,7 @@ export function resumeMarkdown(doc: ResumeDocument): string {
 }
 
 /** What a sent copy's screen shows: the file's text, in its order. Headers and titles read as rows. */
-export function resumeSentPage(doc: ResumeDocument): SentPage {
+export function resumeSentPage(doc: ResumeDocument, citations = false): SentPage {
   return {
     // The file prints no title above the name (§4.3), so neither does its page.
     title: null,
@@ -555,7 +565,7 @@ export function resumeSentPage(doc: ResumeDocument): SentPage {
           case "labelled":
             return { kind: "row" as const, text: `${block.label}: ${block.text}` };
           default:
-            return { kind: block.kind, text: block.text };
+            return { kind: block.kind, text: block.text, ...(citations ? { factIds: block.factIds ?? [] } : {}) };
         }
       }),
     })),

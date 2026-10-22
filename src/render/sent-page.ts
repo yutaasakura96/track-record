@@ -31,7 +31,7 @@ export interface SentPage {
   headline?: string;
   /** The lines under the name, as the file carried them. */
   contact: string[];
-  sections: { heading: string; blocks: { kind: BlockKind; text: string }[] }[];
+  sections: { heading: string; blocks: { kind: BlockKind; text: string; factIds?: string[] }[] }[];
   /**
    * A 履歴書's form as its file lays it out, read back out of the file
    * (`./sheet.ts`). Set only for a 履歴書; the screen shows it in place of
@@ -41,18 +41,18 @@ export interface SentPage {
   readFailure?: "original_file_unreadable";
 }
 
-const sectionsOf = (content: RenderContent): SentPage["sections"] =>
+const sectionsOf = (content: RenderContent, citations: boolean): SentPage["sections"] =>
   content.sections
     .filter((section) => section.blocks.length > 0)
     .map((section) => ({
       heading: section.heading,
-      blocks: section.blocks.map((block) => ({ kind: block.kind, text: block.text })),
+      blocks: section.blocks.map((block) => ({ kind: block.kind, text: block.text, ...(citations ? { factIds: block.factIds } : {}) })),
     }));
 
 /** The page of a document `toDocx` assembles, from what `toDocx` is given. */
-export function sentPage(kind: RenderKind, content: RenderContent, identity: RenderIdentity, today: string): SentPage {
+export function sentPage(kind: RenderKind, content: RenderContent, identity: RenderIdentity, today: string, citations = false): SentPage {
   const [name = "", ...contact] = identityLines(kind, identity);
-  return { title: RENDER_TITLE[kind], stamp: documentDate(kind, today), name, contact, sections: sectionsOf(content) };
+  return { title: RENDER_TITLE[kind], stamp: documentDate(kind, today), name, contact, sections: sectionsOf(content, citations) };
 }
 
 const tableRow = (row: RirekishoRow) => ({
@@ -71,13 +71,31 @@ export function rirekishoSentPage(
   data: RirekishoTemplateData,
   content: RenderContent,
   bytes: Uint8Array = fillRirekishoTemplate(data),
+  citations = false,
 ): SentPage {
   const headingOf = new Map(content.sections.map((section) => [section.key, section.heading]));
+  // A cell is one paragraph however many blocks wrote it, so it cites them all.
+  const citedBy = (key: string) => [
+    ...new Set(content.sections.filter((section) => section.key === key).flatMap((section) => section.blocks.flatMap((block) => block.factIds))),
+  ];
   const prose = (key: string, text: string, fallback: string) =>
-    text === "" ? [] : [{ heading: headingOf.get(key) ?? fallback, blocks: [{ kind: "paragraph" as const, text }] }];
+    text === ""
+      ? []
+      : [{ heading: headingOf.get(key) ?? fallback, blocks: [{ kind: "paragraph" as const, text, ...(citations ? { factIds: citedBy(key) } : {}) }] }];
   const table = (heading: string, rows: RirekishoRow[]) =>
     rows.length === 0 ? [] : [{ heading, blocks: rows.map(tableRow) }];
 
+  const sheet = readSheet(bytes);
+  if (citations) {
+    const tables = sheet.blocks.filter((block) => block.kind === "table");
+    for (const [index, key] of [[3, "motivation"], [4, "kibou"]] as const) {
+      const cell = tables[index]?.rows[1]?.[0];
+      if (!cell || cell.lines.map((line) => line.text).join("\n") !== data[key]) {
+        throw new Error(`The ${key} cell does not match the filled 履歴書.`);
+      }
+      cell.factIds = citedBy(key);
+    }
+  }
   return {
     title: "履 歴 書",
     stamp: `${data.submitYear}年${data.submitMonth}月${data.submitDay}日現在`,
@@ -100,6 +118,6 @@ export function rirekishoSentPage(
       ...prose("motivation", data.motivation, "志望の動機、特技、アピールポイントなど"),
       ...prose("kibou", data.kibou, "本人希望記入欄"),
     ],
-    sheet: readSheet(bytes),
+    sheet,
   };
 }

@@ -37,6 +37,7 @@ import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
 import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import { factEvidence } from "../services/evidence";
 import { collectResumeRecord } from "../services/resume";
 import {
   RENDER_KINDS,
@@ -45,6 +46,7 @@ import {
   type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
+import { citedOnPage } from "~/shared/evidence";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
@@ -782,6 +784,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (!versionId) throw notFound("A version of that document");
     const version = await requireVersion(db, user.id, target, versionId);
     const page = await buildDocumentPage(db, user.id, kind, version);
+    // What stands behind each line (issue #110), looked up only once the page
+    // has passed the download's refusal.
+    const evidence = await factEvidence(db, user.id, citedOnPage(page), RENDER_LANGUAGE[kind]);
     // Where it stands, for the header's one button: the row Home or the
     // application would show for it, by the same query.
     const state = await renderState(db, user.id);
@@ -804,6 +809,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         isCurrent: version.id === render?.currentVersionId,
       },
       page,
+      evidence,
     });
   });
 
