@@ -241,6 +241,89 @@ describe("an English document", () => {
     expect(englishDefect(resume, { ...employers, kind: "english_resume" })).toBeNull();
   });
 
+  it("still sees a changed longer name when a shorter record name sits inside it", () => {
+    const school = (id: string, institution: string): RenderSpec["educations"][number] =>
+      ({ id, institution, faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" });
+    const schools = spec({ employers: [], educations: [school("b", "Shirasagi University"), school("m", "Shirasagi University Graduate School")] });
+    const row = content([{ key: "anchors", heading: "Figures", text: "Shirasagi University Graduate Schol, 2015-2017" }]);
+    row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, schools)).toBe("record_names");
+
+    // "Data" is a word of its own, not the start of "Databse".
+    const data = spec({
+      employers: [employer("emp_a", "Database Systems Inc.")],
+      projects: [{ id: "project", name: "Data", employerId: null, summary: null, startedOn: null, endedOn: null }],
+    });
+    expect(englishDefect(content([{ key: "opening", heading: "Databse Systems Inc. rollout", text: PROSE }]), data)).toBe("record_names");
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "I joined Databse Systems Inc. in 2019." }]), data)).toBe("record_names");
+
+    const employers = spec({ employers: [employer("emp_a", "Hayabusa Computing"), employer("emp_b", "Hayabusa Computing Europe")] });
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "In 2022 I moved to Hayabusa Computing Eurpe." }]), employers)).toBe("record_names");
+    const ledger = spec({
+      employers: [employer("emp_a", "Hayabusa Computing")],
+      projects: [{ id: "project", name: "Hayabusa Computing Ledger", employerId: "emp_a", summary: null, startedOn: null, endedOn: null }],
+    });
+    expect(englishDefect(content([{ key: "opening", heading: "Hayabusa Computing Ledger", text: PROSE }]), ledger)).toBeNull();
+    expect(englishDefect(content([{ key: "opening", heading: "Hayabusa Computing Ledgr", text: PROSE }]), ledger)).toBe("record_names");
+  });
+
+  it("holds a heading or row to a short name's capitals, and the free text to a name after 'joined'", () => {
+    const named = spec({
+      employers: [],
+      projects: [{ id: "project", name: "Mira", employerId: null, summary: null, startedOn: null, endedOn: null }],
+      educations: [{ id: "school", institution: "Aoi", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+    });
+    expect(englishDefect(content([{ key: "opening", heading: "The Mira project", text: PROSE }]), named)).toBeNull();
+    expect(englishDefect(content([{ key: "opening", heading: "The mira project", text: PROSE }]), named)).toBe("record_names");
+    const row = content([{ key: "anchors", heading: "Figures", text: "aoi — graduated" }]);
+    row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, named)).toBe("record_names");
+    const ledger = spec({ employers: [], projects: [{ id: "project", name: "Ledger", employerId: null, summary: null, startedOn: null, endedOn: null }] });
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "I joined Ledgr in 2019." }]), ledger)).toBe("record_names");
+  });
+
+  it("finds a record name only as a whole word, so a longer word that begins with it is not the name", () => {
+    const mira = (kind: RenderSpec["kind"]) => spec({ kind, employers: [employer("emp_m", "Mira")] });
+    expect(englishDefect(content([{ key: "experience", heading: "Mira — Engineer", text: "Did a thing." }]), mira("english_resume"))).toBeNull();
+    expect(englishDefect(content([{ key: "experience", heading: "Mirage — Engineer", text: "Did a thing." }]), mira("english_resume"))).toBe("record_names");
+    expect(englishDefect(content([{ key: employerChapterKey("emp_m"), heading: "Mirage years", text: PROSE }]), mira("career_story_en"))).toBe("record_names");
+
+    const resume = spec({
+      kind: "english_resume",
+      employers: [],
+      educations: [{ id: "school", institution: "Aoi", faculty: null, degree: null, fieldOfStudy: null, startedOn: null, endedOn: null, outcome: "graduated", level: "tertiary" }],
+      projects: [{ id: "project", name: "Mira", employerId: null, summary: null, startedOn: null, endedOn: null }],
+    });
+    const output = content([
+      { key: "education", heading: "Education", text: "Aoino University — B.Eng." },
+      { key: "projects", heading: "Projects", text: "Mira — built a service" },
+    ]);
+    for (const s of output.sections) s.blocks[0]!.kind = "row";
+    expect(englishDefect(output, resume)).toBe("record_names");
+    output.sections[0]!.blocks[0]!.text = "Aoi — B.Eng.";
+    expect(englishDefect(output, resume)).toBeNull();
+    output.sections[1]!.blocks[0]!.text = "Mirage — built a service";
+    expect(englishDefect(output, resume)).toBe("record_names");
+  });
+
+  it("does not read an ordinary heading word as a short name it resembles", () => {
+    const named = spec({
+      employers: [],
+      projects: [
+        { id: "data", name: "Data", employerId: null, summary: null, startedOn: null, endedOn: null },
+        { id: "ledger", name: "Ledger", employerId: null, summary: null, startedOn: null, endedOn: null },
+      ],
+    });
+    for (const heading of ["Date of the decision", "Moving data off the mainframe", "Rebuilding the ledger"]) {
+      expect(englishDefect(content([{ key: "opening", heading, text: PROSE }]), named), heading).toBeNull();
+    }
+    // Where a name stands — a field of its own, or beside "project" — it is still the name.
+    const row = content([{ key: "anchors", heading: "Figures", text: "Date, 2019-2020" }]);
+    row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, named)).toBe("record_names");
+    expect(englishDefect(content([{ key: "opening", heading: "Dta project", text: PROSE }]), named)).toBe("record_names");
+  });
+
   it("passes a résumé experience heading made only of generic words", () => {
     const resumeSpec = spec({ kind: "english_resume", employers: [employer("emp_a", "Hayabusa Computing Co., Ltd.")] });
     for (const heading of ["Selected Experience", "Recent Work", "Career Highlights"]) {

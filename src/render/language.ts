@@ -101,26 +101,82 @@ const casedLike = (tokens: readonly string[], words: readonly string[]): boolean
 const escaped = (name: string): string => name.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
 
 /**
- * The text with every record name it holds exactly taken out, longest first, so
- * "Shirasagi University" is not read as a changed "Shirasagi University Graduate School".
+ * A name as a whole word: "Data" is not in "Database", and "Mira" is not in
+ * "Mirage". Only a Latin letter or a digit continues a word; a Japanese name
+ * written against the kana around it is still that name.
+ */
+const nameRegExp = (name: string, flags: string): RegExp => {
+  const edge = /[\p{Script=Latin}\p{N}]/u;
+  const before = edge.test(name.at(0) ?? "") ? "(?<![\\p{Script=Latin}\\p{N}])" : "";
+  const after = edge.test(name.at(-1) ?? "") ? "(?![\\p{Script=Latin}\\p{N}])" : "";
+  return new RegExp(`${before}${escaped(name)}${after}`, flags);
+};
+
+/** Whether `text` names `name` exactly, as a whole word. */
+const mentions = (text: string, name: string): boolean => nameRegExp(name, "u").test(text);
+
+/** Where a name was taken out. Never a word, so never read as one. */
+const STRIPPED = "\u0000";
+
+/**
+ * The text with every one of `names` it holds exactly taken out, longest first,
+ * so "Shirasagi University" is not read as a changed "Shirasagi University Graduate School".
  */
 const withoutNames = (text: string, names: readonly string[], flags: string): string =>
-  [...names].sort((a, b) => b.length - a.length).reduce((t, name) => t.replace(new RegExp(escaped(name), flags), " "), text);
+  [...names].sort((a, b) => b.length - a.length).reduce((t, name) => t.replace(nameRegExp(name, flags), ` ${STRIPPED} `), text);
+
+/**
+ * What divides a heading or a row into fields: "Aoi — graduated", "Shirasagi
+ * University, 2011-2015". A field that is nothing but a name-like word is a name.
+ */
+const FIELD_SEPARATOR = /\s[-–—]\s|[—–,;:|()·]/gu;
+
+type Token = { word: string; field: number };
+
+const tokensOf = (text: string): Token[] =>
+  text.split(FIELD_SEPARATOR).flatMap((field, i) => (field.match(/[\p{L}\p{N}'’]+|\u0000/gu) ?? []).map((word) => ({ word, field: i })));
+
+/** The words that put a name next to them: "at Ledger", "joined Ledger", "the Mira project". */
+const NAME_BEFORE = /^(?:at|for|from|with|to|joined|left|project|school|employer|called|named)$/iu;
+const NAME_AFTER = /^(?:project|school)$/iu;
+
+const besideNameWord = (tokens: readonly Token[], i: number, length: number): boolean =>
+  NAME_BEFORE.test(tokens[i - 1]?.word ?? "") || NAME_AFTER.test(tokens[i + length]?.word ?? "");
+
+const isWholeField = (tokens: readonly Token[], i: number, length: number): boolean =>
+  tokens.filter((t) => t.field === tokens[i]!.field).length === length &&
+  tokens.slice(i, i + length).every((t) => t.field === tokens[i]!.field);
 
 function hasRespeltName(text: string, names: readonly string[], header: boolean): boolean {
   // In prose a name differing from the record only in letter case is the name.
-  const tokens = withoutNames(text, names, header ? "gu" : "giu").match(WORD) ?? [];
+  const flags = header ? "gu" : "giu";
   for (const name of names) {
     // Free prose needs a six-character floor; short ordinary words resemble short names too often.
     if (!header && name.length < 6) continue;
     const words = name.match(WORD) ?? [];
     if (words.length === 0) continue;
+    // This name, and every name not inside it, is taken out. A shorter record
+    // name inside this one stays, or "Shirasagi University Graduate Schol" would
+    // lose "Shirasagi University" and leave nothing to compare.
+    const inside = (other: string) => other !== name && nameRegExp(other, header ? "u" : "iu").test(name);
+    const tokens = tokensOf(withoutNames(text, names.filter((other) => !inside(other)), flags));
     const expected = words.join(" ").toLocaleLowerCase();
     for (let i = 0; i <= tokens.length - words.length; i++) {
-      const found = tokens.slice(i, i + words.length);
-      if (header ? /\p{Script=Latin}/u.test(found[0]!) && !/^\p{Lu}/u.test(found[0]!) : !casedLike(found, words)) continue;
-      if (!header && words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) &&
-          !/^(?:at|for|from|with|project|school|employer|called|named)$/iu.test(tokens[i - 1] ?? "")) continue;
+      const found = tokens.slice(i, i + words.length).map((t) => t.word);
+      if (found.includes(STRIPPED)) continue;
+      if (header) {
+        // A heading is held to the record's exact spelling, capitals included.
+        // A capitalised run of a long or multi-word name is taken to name it;
+        // anything else only where a name stands — a field of its own, or
+        // beside "project" or "joined" — so "Date of the decision" is not the
+        // project "Data", nor "Rebuilding the ledger" the project "Ledger".
+        const capitalised = !/\p{Script=Latin}/u.test(found[0]!) || /^\p{Lu}/u.test(found[0]!);
+        const named = capitalised && (words.length > 1 || name.length >= 6);
+        if (!named && !isWholeField(tokens, i, words.length) && !besideNameWord(tokens, i, words.length)) continue;
+      } else {
+        if (!casedLike(found, words)) continue;
+        if (words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) && !NAME_BEFORE.test(tokens[i - 1]?.word ?? "")) continue;
+      }
       const candidate = found.join(" ").toLocaleLowerCase();
       if (distanceWithin(candidate, expected, name.length >= 12 ? 2 : 1)) return true;
     }
@@ -194,19 +250,19 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
     const name = employerId === null ? undefined : nameOf.get(employerId);
     if (name === undefined) continue;
     const said = [section.heading, ...section.blocks.map((b) => b.text)].join("\n");
-    if (!said.includes(name)) return "record_names";
+    if (!mentions(said, name)) return "record_names";
   }
   if (spec.kind === "english_resume") {
     // A line that names an employer, a school or a project names one of the
     // record's, exactly. A section title names none of them and is not held to it.
     const employers = spec.employers.map((e) => e.name);
     const experience = content.sections.filter((s) => s.key === "experience" && !isSectionTitle(s.heading) && !isGenericExperienceHeading(s.heading));
-    if (experience.some((s) => !employers.some((name) => s.heading.includes(name)))) return "record_names";
+    if (experience.some((s) => !employers.some((name) => mentions(s.heading, name)))) return "record_names";
     const rowsOf = (key: string) => content.sections.filter((s) => s.key === key).flatMap((s) => s.blocks.filter((b) => b.kind === "row"));
     const schools = spec.educations.map((e) => e.institution);
-    if (rowsOf("education").some((row) => !schools.some((name) => row.text.includes(name)))) return "record_names";
+    if (rowsOf("education").some((row) => !schools.some((name) => mentions(row.text, name)))) return "record_names";
     const projects = spec.projects.filter((p) => p.employerId === null).map((p) => p.name);
-    if (rowsOf("projects").some((row) => !projects.some((name) => row.text.includes(name)))) return "record_names";
+    if (rowsOf("projects").some((row) => !projects.some((name) => mentions(row.text, name)))) return "record_names";
   }
   return null;
 }
