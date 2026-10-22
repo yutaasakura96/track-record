@@ -47,6 +47,7 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       ('versant', 'Versant English Test', null, 'technical'),
       ('cloud_unset', 'Cloud Architect', null, null),
       ('cloud', 'Cloud Architect Professional', null, 'technical'),
+      ('modeler', 'Certified Data Modeler', null, 'technical'),
       ('kept_other', 'TOEIC Speaking', null, 'other'),
       ('kept_language', 'Driving licence', null, 'language')`,
     ...split(classification.replaceAll('"public".', `"${second}".`)),
@@ -63,6 +64,7 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       { id: "kept_other", kind: "other" },
       { id: "licence_en", kind: "other" },
       { id: "licence_ja", kind: "other" },
+      { id: "modeler", kind: "technical" },
       { id: "toeic_unset", kind: "language" },
       { id: "versant", kind: "language" },
     ]);

@@ -10,6 +10,6 @@ WHERE ("kind" IS NULL OR "kind" = 'technical')
   AND concat_ws(' ', "name", "name_ja") ~* '(driv(er|ing)\S* +licen[cs]e|運転免許|自動車免許)';--> statement-breakpoint
 UPDATE "certifications" SET "kind" = 'language'::"certification_kind"
 WHERE ("kind" IS NULL OR "kind" = 'technical')
-  AND concat_ws(' ', "name", "name_ja") ~* '(TOEIC|TOEFL|IELTS|JLPT|Eiken|英検|Cambridge English|英語検定|英語技能検定|日本語能力試験|Duolingo English Test|Versant|TOPIK|DELE|DELF|DALF|HSK)';--> statement-breakpoint
+  AND concat_ws(' ', "name", "name_ja") ~* '\y(TOEIC|TOEFL|IELTS|JLPT|Eiken|Cambridge English|Duolingo English Test|Versant|TOPIK|DELE|DELF|DALF|HSK)\y|英検|英語検定|英語技能検定|日本語能力試験';--> statement-breakpoint
 UPDATE "certifications" SET "kind" = 'technical'::"certification_kind" WHERE "kind" IS NULL;--> statement-breakpoint
 ALTER TABLE "certifications" ALTER COLUMN "kind" SET NOT NULL;
