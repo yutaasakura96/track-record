@@ -5,6 +5,7 @@
  */
 import { beforeEach, describe, expect, it } from "vitest";
 import PizZip from "pizzip";
+import { extractText, getDocumentProxy, getMeta } from "unpdf";
 import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
 import {
   CERTIFICATION_FIXTURE,
@@ -172,7 +173,7 @@ describe("the English résumé download", () => {
     const { employerId, factId } = await seedRecord();
     await accepted("english_resume", contentFor(employerId, factId));
     await client.patch(`/api/employers/${employerId}`, { nameJa: "Компания", nameLatin: null });
-    for (const format of ["md", "docx"]) {
+    for (const format of ["md", "docx", "pdf"]) {
       const response = await client.get(`/api/renders/english_resume/download?format=${format}`);
       expect(response.status).toBe(409);
       expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name/);
@@ -201,5 +202,109 @@ describe("the English résumé download", () => {
     };
     const response = await client.post("/api/renders/english_resume/versions", { basedOnVersionId: versionId, content });
     expect(response.status).toBe(201);
+  });
+});
+
+/** The PDF's text as a reader copies it, one space for every run of white space. */
+async function pdfText(bytes: ArrayBuffer) {
+  const { text } = await extractText(new Uint8Array(bytes), { mergePages: true });
+  return text.replace(/\s+/g, " ");
+}
+
+describe("the English résumé's PDF (issue #109)", () => {
+  it("is a PDF named for its author, with a title and an author in its properties", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+
+    const response = await client.get("/api/renders/english_resume/download?format=pdf");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.pdf"$/);
+
+    const bytes = await response.arrayBuffer();
+    expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
+    const { info } = await getMeta(new Uint8Array(bytes));
+    expect(info.Title).toBe("Yosuke Aoki – Résumé");
+    expect(info.Author).toBe("Yosuke Aoki");
+  });
+
+  it("holds the .docx's text, selectable and in reading order", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+
+    const text = await pdfText(await (await client.get("/api/renders/english_resume/download?format=pdf")).arrayBuffer());
+    // The same document the Markdown and the .docx are written from, top to bottom.
+    const order = [
+      "Yosuke Aoki",
+      "yosuke@example.invalid",
+      "SUMMARY",
+      "Backend engineer for logistics.",
+      "SKILLS",
+      "EXPERIENCE",
+      "Aozora Logistics K.K. · Yokohama",
+      "Apr 2022 – Sep 2024",
+      "Senior Backend Engineer (Oct 2023 – Sep 2024) · Backend Engineer (Apr 2022 – Sep 2023)",
+      "Cut the nightly settlement run from 6 hours to 90 minutes.",
+      "EDUCATION",
+      "Midorikawa Institute of Technology · B.Eng., Information Engineering",
+      "CERTIFICATIONS",
+      "Applied Information Technology Engineer, 2019",
+      "LANGUAGES",
+      "TOEIC Listening & Reading 880 (2020)",
+    ];
+    let from = 0;
+    for (const piece of order) {
+      const at = text.indexOf(piece, from);
+      expect(at, `"${piece}" after offset ${from}`).toBeGreaterThanOrEqual(from);
+      from = at + piece.length;
+    }
+    // No document title above the name, and nothing the .docx leaves out.
+    expect(text.startsWith("Yosuke Aoki")).toBe(true);
+    expect(text).not.toMatch(/Résumé \(English\)|Expired Cloud Associate|driving licence|情報工学部|緑川/);
+  });
+
+  it("is set on the paper the profile names", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+
+    const pageSize = async () => {
+      const bytes = await (await client.get("/api/renders/english_resume/download?format=pdf")).arrayBuffer();
+      const page = await (await getDocumentProxy(new Uint8Array(bytes))).getPage(1);
+      return page.view.map((v) => Math.round(v * 100) / 100);
+    };
+    expect(await pageSize()).toEqual([0, 0, 595.3, 841.9]);
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, paperSize: "letter" });
+    expect(await pageSize()).toEqual([0, 0, 612, 792]);
+  });
+
+  it("serves a tailored résumé under the same name", async () => {
+    const { employerId, factId } = await seedRecord();
+    const tailored = await seedTailoredResume(user, "Kestrel, platform engineer", "Platform engineer for a marketplace.");
+    await accepted(tailored.id, contentFor(employerId, factId));
+
+    const response = await client.get(`/api/renders/${tailored.id}/download?format=pdf`);
+    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.pdf"/);
+    expect(await pdfText(await response.arrayBuffer())).toContain("Aozora Logistics K.K. · Yokohama");
+  });
+
+  it("is offered for the English résumé only", async () => {
+    for (const kind of ["rirekisho", "shokumu_keirekisho", "career_story_en"]) {
+      const response = await client.get(`/api/renders/${kind}/download?format=pdf`);
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: { message: string } }).error.message).toBe(
+        "Only the English résumé is produced as a PDF.",
+      );
+    }
+  });
+
+  it("refuses a version citing a fact made Private since, as the .docx does", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+    await client.patch(`/api/facts/${factId}`, { disclosure: "private" });
+
+    const response = await client.get("/api/renders/english_resume/download?format=pdf");
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { error: { details: { facts: { factId: string; problem: string }[] } } };
+    expect(body.error.details.facts).toEqual([{ factId, problem: "private" }]);
   });
 });

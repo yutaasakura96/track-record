@@ -682,7 +682,7 @@ back to the application it came from.
 | `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
-| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
+| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` only; `pdf` is the English résumé's only (#109) |
 | `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page, evidence }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Cited section blocks carry their `factIds`; a 履歴書's motivation and kibou sheet cells also carry them. Blocks and cells copied from the record may omit `factIds` (treated as `[]`). `evidence` is every cited fact once, `{ id, claim, provenance, employer, quote, source: { importId, filename, lineNumber } \| null }`, the employer named in the document's language and `source` null on a fact added by hand (#110). Refused at `409` on a withheld fact exactly as the download is, before anything is looked up |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
@@ -878,6 +878,13 @@ Assembled from stored `RenderContent` on each request; the résumé's job header
 certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
 assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
+
+**`GET /api/renders/english_resume/download?format=pdf` → 200** · `Content-Type: application/pdf` ·
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.pdf"`, named as the `.docx` is.
+The same document in the same layout, with selectable, tagged text and the title
+`<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
+as the `.docx` is. A tailored résumé has one too. `?format=pdf` on any other kind → `409 conflict`
+(`Only the English résumé is produced as a PDF.`), before a version is read.
 
 **A download obeys today's record, not the day the version was accepted.** Every download
 re-checks the facts its stored content cites, before the 履歴書 branch and so for every kind. A

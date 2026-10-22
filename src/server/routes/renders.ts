@@ -32,11 +32,19 @@ import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
 import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
+import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
-import { buildDocumentFile, buildDocumentPage, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import {
+  buildDocumentFile,
+  buildDocumentPage,
+  buildResumePdf,
+  filenameFor,
+  refuseWithheldCitations,
+  renderIdentity,
+} from "../services/document-file";
 import { factEvidence } from "../services/evidence";
 import { collectResumeRecord } from "../services/resume";
 import {
@@ -819,7 +827,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const target = await resolveRender(db, user.id, pathParam(c, "ref"));
     const { kind, render } = target;
-    const format = c.req.query("format") === "md" ? "md" : "docx";
+    // `.docx` unless asked otherwise. Only the English résumé has a PDF, and
+    // the screen asks for it by default there (issue #109).
+    const asked = c.req.query("format");
+    const format = asked === "md" || asked === "pdf" ? asked : "docx";
+    if (format === "pdf" && kind !== "english_resume") {
+      throw new ApiError("conflict", "Only the English résumé is produced as a PDF.");
+    }
 
     const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
     if (!versionId) throw notFound("A version of that document");
@@ -855,6 +869,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
           "content-disposition": `attachment; filename="${filenameFor(kind, format, version, identity)}"`,
+        },
+      });
+    }
+
+    if (format === "pdf") {
+      const file = await buildResumePdf(db, user.id, kind, version);
+      return new Response(file.bytes as BodyInit, {
+        headers: {
+          "content-type": PDF_MIME,
+          "content-disposition": `attachment; filename="${file.filename}"`,
         },
       });
     }

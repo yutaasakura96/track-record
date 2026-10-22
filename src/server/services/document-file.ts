@@ -24,6 +24,7 @@ import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rire
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { assembleResume, ResumeAssemblyError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
 import { resumeDocx, type PaperSize } from "~/render/resume-docx";
+import { resumePdf } from "~/render/resume-pdf";
 import { collectResumeRecord } from "./resume";
 import type { RenderIdentity } from "~/render/identity";
 import { RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
@@ -93,7 +94,7 @@ export async function buildDocumentFile(
       const { document, paper } = inputs;
       const filename = filenameFor(kind, "docx", version, inputs.identity);
       return assembled(version, async () => ({
-        bytes: await resumeDocx(document, paper, { title: `${document.name} – Résumé`, author: document.name }),
+        bytes: await resumeDocx(document, paper, resumeMetadata(document)),
         filename,
         page: resumeSentPage(document),
       }));
@@ -108,6 +109,33 @@ export async function buildDocumentFile(
     }
   }
 }
+
+/**
+ * The English résumé as a PDF (issue #109): the same assembly and the same
+ * refusals as its `.docx`, set from the same layout. Only the résumé has one;
+ * the Japanese documents are expected as Word files, and the stories are read
+ * as Markdown (`~/shared/render-content`). Never stored — a sent copy keeps the
+ * `.docx`, which is the file its page is read out of.
+ */
+export async function buildResumePdf(
+  db: Db,
+  userId: string,
+  kind: RenderKind,
+  version: VersionRow,
+): Promise<Pick<DocumentFile, "bytes" | "filename">> {
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  // The route refuses a PDF of any other kind before it reads a version.
+  if (inputs.kind !== "resume") throw new Error("Only the English résumé is produced as a PDF.");
+  const { document, paper } = inputs;
+  const filename = filenameFor(kind, "pdf", version, inputs.identity);
+  return assembled(version, async () => ({
+    bytes: await resumePdf(document, paper, resumeMetadata(document)),
+    filename,
+  }));
+}
+
+/** The title and author both files carry in their properties. */
+const resumeMetadata = (document: ResumeDocument) => ({ title: `${document.name} – Résumé`, author: document.name });
 
 /** One filling, so the page is read out of the very bytes that are handed over. */
 function rirekishoFile(data: RirekishoTemplateData, content: RenderContent, filename: string): DocumentFile {
@@ -189,7 +217,7 @@ async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): P
     if (error instanceof ApiError) throw error;
     if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
     // The build fails; the stored content is untouched and the next one can succeed.
-    console.error(JSON.stringify({ event: "docx_build_failed", versionId: version.id }));
+    console.error(JSON.stringify({ event: "document_build_failed", versionId: version.id }));
     throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
   }
 }

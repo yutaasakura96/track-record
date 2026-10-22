@@ -52,6 +52,8 @@ export const RENDER_LANGUAGE: Record<RenderKind, "en" | "ja"> = {
   career_story_ja: "ja",
 };
 
+export type DownloadFormat = "docx" | "md" | "pdf";
+
 /**
  * The format a render is taken away in.
  *
@@ -65,12 +67,20 @@ export const RENDER_LANGUAGE: Record<RenderKind, "en" | "ja"> = {
  * The download route serves either format for any kind — this decides which the
  * screen offers, so that the affordance and the decision agree.
  */
-export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, "docx" | "md"> = {
-  english_resume: "docx",
+export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, DownloadFormat> = {
+  // PDF is what employers and ATS guidance expect of an English résumé, so it
+  // is the default; Word is offered beside it for a posting that asks for one
+  // (issue #109).
+  english_resume: "pdf",
   rirekisho: "docx",
   shokumu_keirekisho: "docx",
   career_story_en: "md",
   career_story_ja: "md",
+};
+
+/** The second format a render is offered in, beside its own. Only the résumé has one. */
+export const RENDER_DOWNLOAD_ALTERNATIVE: Partial<Record<RenderKind, DownloadFormat>> = {
+  english_resume: "docx",
 };
 
 export const RENDER_TITLE: Record<RenderKind, string> = {

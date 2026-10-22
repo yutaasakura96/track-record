@@ -1,5 +1,6 @@
 /**
- * `.docx` files are binary modules, not JavaScript.
+ * `.docx` files, and the `.ttf` fonts the résumé's PDF embeds, are binary
+ * modules, not JavaScript.
  *
  * The `[[rules]]` entry in `wrangler.toml` gives the Worker build a `Data`
  * module — an `ArrayBuffer` at runtime, emitted beside the bundle rather than
@@ -7,6 +8,11 @@
  * the same thing inside workerd. This declaration is what tells TypeScript so.
  */
 declare module "*.docx" {
+  const contents: ArrayBuffer;
+  export default contents;
+}
+
+declare module "*.ttf" {
   const contents: ArrayBuffer;
   export default contents;
 }

@@ -110,7 +110,8 @@ function History({ doc }: { doc: Doc }) {
           </span>
         )}
         {current ? (
-          <span className="ml-auto">
+          // A flex row: the résumé's download is two controls, its PDF and its Word file.
+          <span className="ml-auto flex items-center gap-10">
             <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={current.id} label="Download current" />
           </span>
         ) : null}

@@ -29,23 +29,50 @@ import type { ResumeBlock, ResumeDocument } from "./resume";
 
 export type PaperSize = "a4" | "letter";
 
+/*
+ * The layout's numbers, exported because the PDF (`./resume-pdf.ts`) is set
+ * from the same ones: two files of one document must not drift apart.
+ */
+
 /** Twips. A4 is 210 × 297 mm; Letter 8.5 × 11 in. */
-const PAGE: Record<PaperSize, { width: number; height: number }> = {
+export const PAGE: Record<PaperSize, { width: number; height: number }> = {
   a4: { width: 11906, height: 16838 },
   letter: { width: 12240, height: 15840 },
 };
 
 /** 15.5 mm on every side, inside §4.3's 15–16 mm. */
-const MARGIN = 879;
+export const MARGIN = 879;
 
-const FONT = "Calibri";
+export const FONT = "Calibri";
 
 /** One accent, for the section headings and their rule; grey for the contact line and the dates. */
-const ACCENT = "1F3A5F";
-const MUTED = "4A4F59";
+export const ACCENT = "1F3A5F";
+export const MUTED = "4A4F59";
 
 /** Half-points. Body 10pt, name 20pt, headline 11pt, headings 10.5pt, contact 9.5pt. */
-const SIZE = { body: 20, name: 40, headline: 22, heading: 21, contact: 19 };
+export const SIZE = { body: 20, name: 40, headline: 22, heading: 21, contact: 19 };
+
+/** Line pitch in 240ths of single spacing: 1.05 lines. */
+export const LINE = 252;
+
+/** Twips of space around each kind of paragraph. */
+export const SPACE = {
+  name: { after: 40 },
+  headline: { after: 40 },
+  contact: { after: 80 },
+  heading: { before: 200, after: 80 },
+  entry: { before: 80 },
+  subtitle: { after: 20 },
+  bullet: { after: 20 },
+  labelled: { after: 20 },
+  paragraph: { after: 40 },
+};
+
+/** Twips. The bullet hangs 200 left of its text, which starts 284 in. */
+export const BULLET_INDENT = { left: 284, hanging: 200 };
+
+/** Eighths of a point: the rule under a heading, and its gap in points. */
+export const RULE = { size: 6, space: 1 };
 
 const BULLETS = "resume-bullets";
 
@@ -62,14 +89,14 @@ export async function resumeDocx(
     // for the file, printed at the top of the page an employer reads.
     new Paragraph({
       children: [new TextRun({ text: doc.name, bold: true, size: SIZE.name })],
-      spacing: { after: 40 },
+      spacing: SPACE.name,
     }),
   ];
   if (doc.headline !== null) {
     children.push(
       new Paragraph({
         children: [new TextRun({ text: doc.headline, size: SIZE.headline, color: ACCENT })],
-        spacing: { after: 40 },
+        spacing: SPACE.headline,
       }),
     );
   }
@@ -77,7 +104,7 @@ export async function resumeDocx(
     children.push(
       new Paragraph({
         children: [new TextRun({ text: doc.contact.join(" · "), size: SIZE.contact, color: MUTED })],
-        spacing: { after: 80 },
+        spacing: SPACE.contact,
       }),
     );
   }
@@ -87,7 +114,7 @@ export async function resumeDocx(
       new Paragraph({
         heading: HeadingLevel.HEADING_2,
         children: [new TextRun(section.heading)],
-        border: { bottom: { style: BorderStyle.SINGLE, size: 6, color: ACCENT, space: 1 } },
+        border: { bottom: { style: BorderStyle.SINGLE, size: RULE.size, color: ACCENT, space: RULE.space } },
       }),
     );
     section.blocks.forEach((block, index) => {
@@ -101,10 +128,10 @@ export async function resumeDocx(
     ...(metadata.author ? { creator: metadata.author, lastModifiedBy: metadata.author } : {}),
     styles: {
       default: {
-        document: { run: { font: FONT, size: SIZE.body }, paragraph: { spacing: { after: 0, line: 252 } } },
+        document: { run: { font: FONT, size: SIZE.body }, paragraph: { spacing: { after: 0, line: LINE } } },
         heading2: {
           run: { font: FONT, size: SIZE.heading, bold: true, smallCaps: true, color: ACCENT },
-          paragraph: { spacing: { before: 200, after: 80 }, keepNext: true },
+          paragraph: { spacing: SPACE.heading, keepNext: true },
         },
       },
     },
@@ -118,7 +145,7 @@ export async function resumeDocx(
               format: LevelFormat.BULLET,
               text: "•",
               alignment: AlignmentType.LEFT,
-              style: { paragraph: { indent: { left: 284, hanging: 200 } } },
+              style: { paragraph: { indent: BULLET_INDENT } },
             },
           ],
         },
@@ -146,7 +173,7 @@ function paragraphFor(block: ResumeBlock, textWidth: number, next: ResumeBlock |
         tabStops: [{ type: TabStopType.RIGHT, position: textWidth }],
         // A job's header never ends a page apart from its first line under it.
         keepNext: next !== undefined && next.kind !== "entry",
-        spacing: { before: 80 },
+        spacing: SPACE.entry,
         children: [
           new TextRun({ text: block.lead, bold: true }),
           ...(block.detail ? [new TextRun(` · ${block.detail}`)] : []),
@@ -156,21 +183,21 @@ function paragraphFor(block: ResumeBlock, textWidth: number, next: ResumeBlock |
     case "subtitle":
       return new Paragraph({
         keepNext: true,
-        spacing: { after: 20 },
+        spacing: SPACE.subtitle,
         children: [new TextRun({ text: block.text, italics: true })],
       });
     case "bullet":
       return new Paragraph({
         numbering: { reference: BULLETS, level: 0 },
-        spacing: { after: 20 },
+        spacing: SPACE.bullet,
         children: [new TextRun(block.text)],
       });
     case "labelled":
       return new Paragraph({
-        spacing: { after: 20 },
+        spacing: SPACE.labelled,
         children: [new TextRun({ text: `${block.label}: `, bold: true }), new TextRun(block.text)],
       });
     case "paragraph":
-      return new Paragraph({ spacing: { after: 40 }, children: [new TextRun(block.text)] });
+      return new Paragraph({ spacing: SPACE.paragraph, children: [new TextRun(block.text)] });
   }
 }

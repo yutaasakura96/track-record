@@ -13,7 +13,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import { useState } from "react";
-import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { RENDER_KINDS, RENDER_TITLE, type DownloadFormat, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
 import type { CareerTimeline } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
@@ -1637,7 +1637,7 @@ export function useEditVersion(ref: string) {
 }
 
 /** `versionId` omitted means the current version — the server's own default. */
-const downloadUrl = (ref: string, format: "docx" | "md", versionId?: string) =>
+const downloadUrl = (ref: string, format: DownloadFormat, versionId?: string) =>
   `/api/renders/${ref}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
 
 /**
@@ -1651,7 +1651,7 @@ const downloadUrl = (ref: string, format: "docx" | "md", versionId?: string) =>
  * document and there is no second request to spend on it. The URL is revoked
  * immediately; the click has already handed the bytes to the browser.
  */
-export const downloadRender = (ref: string, format: "docx" | "md", versionId?: string): Promise<void> =>
+export const downloadRender = (ref: string, format: DownloadFormat, versionId?: string): Promise<void> =>
   saveResponse(downloadUrl(ref, format, versionId), `${ref}.${format}`, "That document could not be downloaded.");
 
 /** Fetches a file the server names and hands it to the browser to save. */
