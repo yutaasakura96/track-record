@@ -560,9 +560,11 @@ browser. The suite builds and reads back every PDF inside workerd (`tests/resume
 
 **Set from the `.docx`'s numbers, not a copy of them.** `src/render/resume-docx.ts` exports the page
 sizes, margin, sizes, colours, line pitch, paragraph spacing, bullet indent and rule, and the PDF
-lays out lines and pages itself from those: greedy wrapping at spaces, dates right-aligned on the
-first line, a heading, a job's header and its titles kept with the next line, no paragraph of three
-lines or fewer split, and the larger of one paragraph's space-after and the next one's
+lays out lines and pages itself from those: wrapping at spaces and splitting an oversized token at
+character boundaries without adding a hyphen or losing text, dates right-aligned on the first line,
+keep-with-next chains reserving the whole following block when it has three lines or fewer or its
+first two lines when it can split, paragraphs of three lines or fewer kept whole, and the larger of
+one paragraph's space-after and the next one's
 space-before, as Word does. Checked against Word 16.114's own PDF of the same `.docx`: the same
 line breaks, the same page break, every baseline within 0.2 pt.
 
