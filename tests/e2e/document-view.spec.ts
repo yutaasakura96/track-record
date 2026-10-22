@@ -1,6 +1,10 @@
 import { expect, test, type Page } from "@playwright/test";
-import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
+import { CLAIM, CLAIM_SENTENCE, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
 import { DOCUMENT_VIEW_STORAGE_STATE } from "./env";
+import { E2E_DATABASE_URL } from "./env";
+import { createDb } from "~/server/db/client";
+import { facts as factTable } from "~/server/db/schema";
+import { eq } from "drizzle-orm";
 
 const ready = expect.configure({ timeout: 20_000 });
 const screenshot = async (page: Page, name: string) => {
@@ -45,6 +49,40 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await ready(article.getByRole("heading", { name: PROFILE["Name in Latin script"] })).toBeVisible();
   await expect(article.getByRole("heading", { name: "Résumé (English)" })).toHaveCount(0);
   await ready(article.getByText(CLAIM, { exact: false })).toBeVisible();
+  const traceToggle = page.getByRole("button", { name: "Show where each line comes from" });
+  await traceToggle.click();
+  const line = article.getByRole("button", { name: CLAIM, exact: false }).first();
+  await line.click();
+  await ready(article.getByText(CLAIM_SENTENCE)).toBeVisible();
+  await ready(article.getByText("Backed by a number", { exact: true })).toBeVisible();
+  await screenshot(page, "reader-evidence-measured.png");
+  await article.getByRole("link", { name: "Open in source" }).first().click();
+  await ready(page).toHaveURL(new RegExp(`/imports/${importId}\\?fact=${fact!.id}`));
+  await page.goBack();
+  await ready(page).toHaveURL(/\/renders\/english_resume\/view$/);
+  const db = createDb(E2E_DATABASE_URL);
+  await db.update(factTable).set({ provenance: "attested" }).where(eq(factTable.id, fact!.id));
+  await page.reload();
+  await traceToggle.click();
+  await line.click();
+  await ready(article.getByText("Stated by you, no number behind it", { exact: true })).toBeVisible();
+  await screenshot(page, "reader-evidence-attested.png");
+  await db.update(factTable).set({ quote: null }).where(eq(factTable.id, fact!.id));
+  await page.reload();
+  await traceToggle.click();
+  await line.click();
+  await ready(article.getByText("No quoted passage was saved for this fact.")).toBeVisible();
+  await ready(article.getByRole("link", { name: "Open in source" })).toBeVisible();
+  await screenshot(page, "reader-evidence-no-quote.png");
+  await db.update(factTable).set({ sourceDocumentVersionId: null }).where(eq(factTable.id, fact!.id));
+  await page.reload();
+  await traceToggle.click();
+  await line.click();
+  await ready(article.getByText("Added by hand", { exact: true })).toBeVisible();
+  await ready(article.getByRole("link", { name: "Open it in Quick capture" })).toBeVisible();
+  await screenshot(page, "reader-evidence-captured.png");
+  await traceToggle.click();
+  await expect(article.getByRole("button", { name: CLAIM, exact: false })).toHaveCount(0);
   await expect(page.getByText("v1", { exact: true })).toBeVisible();
   for (const name of ["Download", "History", "Edit", "Regenerate"]) {
     await expect(page.getByRole(name === "Download" || name === "Regenerate" ? "button" : "link", { name })).toBeVisible();

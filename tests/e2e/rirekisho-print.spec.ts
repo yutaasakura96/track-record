@@ -2,7 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { eq } from "drizzle-orm";
 import { createDb } from "~/server/db/client";
 import { applicationSentCopies } from "~/server/db/schema";
-import { readSheet } from "~/render/sheet";
+import { readSheet, type Sheet } from "~/render/sheet";
 import { RIREKISHO_PRINT_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
 
@@ -69,6 +69,26 @@ test("current and legacy 履歴書 pages match their printed files in both theme
 
   await page.goto("/renders/rirekisho/view");
   await checkForm(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Show where each line comes from" }).click();
+  await checkForm(page);
+  const proseCell = page.getByRole("article").getByRole("table").nth(3)
+    .getByRole("button", { name: CLAIM, exact: false });
+  await proseCell.click();
+  await expect(proseCell).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText(SOURCE_TEXT.split("\n")[2]!)).toBeVisible();
+  await proseCell.scrollIntoViewIfNeeded();
+  await capture(page, "rirekisho-evidence-prose-phone.png");
+  const recordCell = page.getByRole("article").getByRole("table").nth(1)
+    .getByRole("button", { name: "学歴", exact: true }).first();
+  await recordCell.focus();
+  await page.keyboard.press("Enter");
+  await expect(recordCell).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByText(/No fact behind this line/)).toBeVisible();
+  await recordCell.scrollIntoViewIfNeeded();
+  await capture(page, "rirekisho-evidence-phone.png");
+  await page.getByRole("button", { name: "Show where each line comes from" }).click();
+  await page.setViewportSize({ width: 1440, height: 1100 });
   const identityCells = page.getByRole("article").getByRole("table").first().getByRole("row").first().getByRole("cell");
   const nameLines = identityCells.nth(1).locator("p");
   const marginAbove = async (line: ReturnType<typeof nameLines.nth>) =>
@@ -82,8 +102,11 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   await capture(page, "rirekisho-current-light.png");
   const version = await context.request.get("/api/renders/rirekisho/page");
   expect(version.ok()).toBe(true);
-  const versionPage = await version.json() as { page: { sheet: unknown } };
+  const versionPage = await version.json() as { page: { sheet: Sheet } };
   expect(versionPage.page.sheet).toBeTruthy();
+  const citedCells = versionPage.page.sheet.blocks.filter((block) => block.kind === "table")
+    .flatMap((block) => block.rows.flatMap((row) => row.filter((cell) => (cell.factIds?.length ?? 0) > 0)));
+  expect(citedCells).toHaveLength(1);
 
   await page.getByRole("radio", { name: "Dark" }).click();
   await checkForm(page);
@@ -104,7 +127,10 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   const detail = await moved.json() as { sentCopies: { id: string }[] };
   const copyId = detail.sentCopies[0]!.id;
   const copyUrl = `/api/applications/${application.id}/sent-copies/${copyId}`;
-  const before = await context.request.get(copyUrl).then((response) => response.json()) as { page: { sheet: unknown; title: string } };
+  const before = await context.request.get(copyUrl).then((response) => response.json()) as { page: { sheet: Sheet; title: string; sections: { blocks: { factIds?: string[] }[] }[] } };
+  expect(before.page.sections.flatMap((section) => section.blocks).every((block) => block.factIds === undefined)).toBe(true);
+  expect(before.page.sheet.blocks.filter((block) => block.kind === "table")
+    .flatMap((block) => block.rows.flatMap((row) => row)).every((cell) => cell.factIds === undefined)).toBe(true);
   const file = await context.request.get(`${copyUrl}/download`);
   expect(file.ok()).toBe(true);
   const printedSheet = readSheet(new Uint8Array(await file.body()));

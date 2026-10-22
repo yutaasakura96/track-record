@@ -36,6 +36,14 @@ export const e2eModel: ModelSeam = {
   },
 
   async generateRender(facts, spec) {
+    if (spec.kind === "rirekisho") {
+      return { sections: [
+        { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
+          { id: "blk_motivation", kind: "paragraph" as const, text: facts[0]?.claim ?? "", factIds: facts.map((fact) => fact.id) },
+        ] },
+        { key: "kibou", heading: "本人希望記入欄", blocks: [] },
+      ] };
+    }
     if (spec.kind === "english_resume") {
       return {
         sections: [
