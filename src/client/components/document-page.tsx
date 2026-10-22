@@ -5,11 +5,27 @@
  * with the file that day; a version (Screen 17) shows the page its download
  * would hold today. The page is the server's in both, so this only sets it.
  */
+import { useId, type ReactNode } from "react";
 import type { SentPage } from "~/render/sent-page";
 import type { Sheet, SheetAlign, SheetCell, SheetLine, SheetSize } from "~/render/sheet";
 
+type PageBlock = SentPage["sections"][number]["blocks"][number];
+
+/**
+ * "Show where each line comes from" (issue #110): every block a button, and
+ * what stands behind the chosen one shown directly under it, so the next tab
+ * stop after a line is its evidence and a phone needs no second pane.
+ */
+export interface Trace {
+  /** The chosen block, as `<section>.<block>`, or null. */
+  selected: string | null;
+  onSelect: (key: string | null) => void;
+  /** What is shown under the chosen block. */
+  behind: (block: PageBlock) => ReactNode;
+}
+
 /** The document at the reading measure. A 履歴書 or 職務経歴書 is set with the Japanese stack. */
-export function DocumentPage({ page, language }: { page: SentPage; language: "en" | "ja" }) {
+export function DocumentPage({ page, language, trace }: { page: SentPage; language: "en" | "ja"; trace?: Trace }) {
   const japanese = language === "ja";
   return (
     <article
@@ -19,7 +35,9 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
       {page.readFailure === "original_file_unreadable" ? (
         <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>
       ) : null}
-      {page.sheet ? (
+      {/* A 履歴書's form has no lines to choose, so it is traced through its
+          text, which the page carries beside the form for this. */}
+      {page.sheet && !trace ? (
         <SheetPage sheet={page.sheet} />
       ) : (
         <>
@@ -50,7 +68,7 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
               <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
                 {section.heading}
               </h3>
-              <Blocks blocks={section.blocks} />
+              {trace ? <TracedBlocks blocks={section.blocks} section={index} trace={trace} /> : <Blocks blocks={section.blocks} />}
             </section>
           ))}
         </>
@@ -168,6 +186,67 @@ function Blocks({ blocks }: { blocks: SentPage["sections"][number]["blocks"] }) 
           <p key={index} className="whitespace-pre-line">
             {block.text}
           </p>
+        ),
+      )}
+    </div>
+  );
+}
+
+/**
+ * The blocks of one section, each a button that opens what stands behind it.
+ * A bullet stays a list item, so the page still reads as the document does.
+ */
+function TracedBlocks({ blocks, section, trace }: { blocks: PageBlock[]; section: number; trace: Trace }) {
+  const id = useId();
+  const lines = blocks.map((block, index) => {
+    const key = `${section}.${index}`;
+    const open = trace.selected === key;
+    const panel = `${id}-${index}`;
+    return {
+      key,
+      bullet: block.kind === "bullet",
+      body: (
+        <>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={open ? panel : undefined}
+            onClick={() => trace.onSelect(open ? null : key)}
+            className={`block w-full text-left rounded-control border px-6 py-2 motion-tone ${block.kind === "bullet" ? "" : "whitespace-pre-line"} ${
+              open ? "bg-mark-selected border-border-active" : "border-transparent hover:bg-hover"
+            }`}
+          >
+            {block.text}
+          </button>
+          {open ? (
+            <div id={panel} className="mt-6 mb-8">
+              {trace.behind(block)}
+            </div>
+          ) : null}
+        </>
+      ),
+    };
+  });
+
+  const body = "text-render-body text-text-body";
+  if (lines.every((line) => line.bullet)) {
+    return (
+      <ul className={`grid gap-4 pl-20 list-disc ${body}`}>
+        {lines.map((line) => (
+          <li key={line.key}>{line.body}</li>
+        ))}
+      </ul>
+    );
+  }
+  return (
+    <div className={`grid gap-4 ${body}`}>
+      {lines.map((line) =>
+        line.bullet ? (
+          <ul key={line.key} className="pl-20 list-disc">
+            <li>{line.body}</li>
+          </ul>
+        ) : (
+          <div key={line.key}>{line.body}</div>
         ),
       )}
     </div>

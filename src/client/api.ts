@@ -20,6 +20,7 @@ import type { ApplicationStatus, Figures, Standing } from "~/shared/application"
 import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
 import type { NamedVersion, SendableKind } from "~/shared/application-documents";
+import type { FactEvidence } from "~/shared/evidence";
 import type { SentPage } from "~/render/sent-page";
 
 export interface ApiErrorBody {
@@ -911,6 +912,8 @@ export interface RenderPage {
   canGenerate: boolean;
   version: Pick<RenderVersion, "id" | "versionNo" | "origin" | "acceptedAt" | "isCurrent">;
   page: SentPage;
+  /** Every fact the page's lines cite, for "Show where each line comes from" (issue #110). */
+  evidence: FactEvidence[];
 }
 
 /** `versionId` absent reads the current version. A refusal is an answer, not a blip to retry. */

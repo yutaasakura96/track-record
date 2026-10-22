@@ -178,10 +178,10 @@ describe("the English résumé document", () => {
     expect(experience).toEqual([
       { kind: "entry", lead: "Harbourline Systems Inc.", detail: "Osaka", dates: "Jan 2024 – Present" },
       { kind: "subtitle", text: "Staff Engineer" },
-      { kind: "bullet", text: "Cut deploys to 5 minutes." },
+      { kind: "bullet", text: "Cut deploys to 5 minutes.", factIds: [] },
       { kind: "entry", lead: "Pinecrest Retail K.K.", detail: "Tokyo", dates: "Jul 2019 – Dec 2023" },
       { kind: "subtitle", text: "Tech Lead (Apr 2021 – Dec 2023) · Senior Engineer (Jul 2019 – Mar 2021)" },
-      { kind: "bullet", text: "Raised conversion 9%." },
+      { kind: "bullet", text: "Raised conversion 9%.", factIds: [] },
     ]);
   });
 
@@ -209,7 +209,7 @@ describe("the English résumé document", () => {
     };
     const experience = assembled(legacy).sections.find((s) => s.key === "experience")!.blocks;
     const pinecrest = experience.findIndex((b) => b.kind === "entry" && b.lead === "Pinecrest Retail K.K.");
-    expect(experience[pinecrest + 2]).toEqual({ kind: "bullet", text: "Raised conversion 9%." });
+    expect(experience[pinecrest + 2]).toEqual({ kind: "bullet", text: "Raised conversion 9%.", factIds: [] });
     expect(resumeMarkdown(assembled(legacy))).not.toContain("2019-07");
   });
 
@@ -217,8 +217,25 @@ describe("the English résumé document", () => {
     const projects = assembled().sections.find((s) => s.key === "projects")!.blocks;
     expect(projects).toEqual([
       { kind: "entry", lead: "tategaki-js", detail: null, dates: "May 2020 – Present" },
-      { kind: "bullet", text: "Wrote a layout library with 1,400 stars." },
+      { kind: "bullet", text: "Wrote a layout library with 1,400 stars.", factIds: [] },
     ]);
+  });
+
+  it("keeps the facts each written line cites onto the page, and none on a line from the record (issue #110)", () => {
+    const cited: RenderContent = {
+      sections: CONTENT.sections.map((s) => ({
+        ...s,
+        blocks: s.blocks.map((b) => ({ ...b, factIds: [`fct_${b.id}`] })),
+      })),
+    };
+    const page = resumeSentPage(assembled(cited));
+    const factIdsOf = (text: string) =>
+      page.sections.flatMap((s) => s.blocks).find((b) => b.text === text)!.factIds;
+
+    expect(factIdsOf("Platform engineer who ships.")).toEqual(["fct_b1"]);
+    expect(factIdsOf("Cut deploys to 5 minutes.")).toEqual(["fct_b2"]);
+    expect(factIdsOf("Wrote a layout library with 1,400 stars.")).toEqual(["fct_b4"]);
+    expect(factIdsOf("Staff Engineer") ?? []).toEqual([]);
   });
 
   it("leaves out schooling below university, the 学部・学科, expired and other certifications, and puts a language score on its own line", () => {

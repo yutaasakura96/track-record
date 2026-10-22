@@ -2021,6 +2021,23 @@ Read-only.
    order. The English résumé prints no title, so its page leads with the name, left-aligned and large,
    its headline in the accent and then its contact line, as its file does. A 履歴書 is the form its download would hold today, read back out of that file, as in
    Screen 15. Both themes use the theme's tokens.
+4. **Where each line comes from** (#110, S6). Above the card, the ghost toggle `Show where each line
+   comes from` (`aria-pressed`); while it is on, the sentence `Choose a line to see the facts behind
+   it and where each is quoted from.` beside it. On, every block of the page is a button
+   (`aria-expanded`), bullets still a list, and one line at a time is chosen; a second press, or
+   turning the toggle off, closes it. A 履歴書 is traced through the text its page carries beside the
+   form, since the form has no lines to choose. The chosen line's evidence opens **directly under
+   it**, not in a side rail, so the next tab stop after a line is its evidence and a phone needs no
+   second pane (decision log, 2026-10-22). The panel, `Behind this line`, is interface chrome: English,
+   and without the Japanese tracking. It says `N facts from your record.`, then one card per fact
+   in the block's order: the claim; its worth in plain words, `Backed by a number` (Measured) or
+   `Stated by you, no number behind it` (Attested); `Added by hand` on a fact saved on Quick
+   capture; its employer, or `No employer`; then the quoted passage with `<file>, line N` and
+   `Open in source`, which opens Fact Review on that fact (`/imports/<id>?fact=<id>`). A fact added
+   by hand has no passage: `Saved on Quick capture, so there is no passage to quote.` and `Open it in
+   Quick capture`. A line copied from the record, such as a job header, a skills group or an
+   education row, says `No fact behind this line. It is copied from your record as it stands, not
+   written from a claim.` Fact Review keeps its own width gate, as every destination does.
 
 | State | Behaviour |
 |---|---|

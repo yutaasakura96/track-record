@@ -467,7 +467,8 @@ describe("a sent copy", () => {
     // the record of that day, and the later education is not on it (issue #107).
     const experience = page.page.sections.find((section) => section.heading === "Experience")!;
     expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Apr 2022 – Sep 2024" });
-    expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes." });
+    // With the fact it was written from, as the version had it (issue #110).
+    expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes.", factIds: [factId] });
     expect(JSON.stringify(page.page)).not.toContain("Rebuilt the settlement run");
     expect(page.page.sections.find((section) => section.heading === "Education")!.blocks).toHaveLength(1);
 

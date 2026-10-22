@@ -31,7 +31,12 @@ export interface SentPage {
   headline?: string;
   /** The lines under the name, as the file carried them. */
   contact: string[];
-  sections: { heading: string; blocks: { kind: BlockKind; text: string }[] }[];
+  /**
+   * `factIds` are the facts a block was written from (issue #110), for the
+   * reader to show what stands behind a line. A row copied from the record
+   * cites none, and a page stored before they were kept has no field.
+   */
+  sections: { heading: string; blocks: { kind: BlockKind; text: string; factIds?: string[] }[] }[];
   /**
    * A 履歴書's form as its file lays it out, read back out of the file
    * (`./sheet.ts`). Set only for a 履歴書; the screen shows it in place of
@@ -46,7 +51,7 @@ const sectionsOf = (content: RenderContent): SentPage["sections"] =>
     .filter((section) => section.blocks.length > 0)
     .map((section) => ({
       heading: section.heading,
-      blocks: section.blocks.map((block) => ({ kind: block.kind, text: block.text })),
+      blocks: section.blocks.map((block) => ({ kind: block.kind, text: block.text, factIds: block.factIds })),
     }));
 
 /** The page of a document `toDocx` assembles, from what `toDocx` is given. */
@@ -73,8 +78,14 @@ export function rirekishoSentPage(
   bytes: Uint8Array = fillRirekishoTemplate(data),
 ): SentPage {
   const headingOf = new Map(content.sections.map((section) => [section.key, section.heading]));
+  // A cell is one paragraph however many blocks wrote it, so it cites them all.
+  const citedBy = (key: string) => [
+    ...new Set(content.sections.filter((section) => section.key === key).flatMap((section) => section.blocks.flatMap((block) => block.factIds))),
+  ];
   const prose = (key: string, text: string, fallback: string) =>
-    text === "" ? [] : [{ heading: headingOf.get(key) ?? fallback, blocks: [{ kind: "paragraph" as const, text }] }];
+    text === ""
+      ? []
+      : [{ heading: headingOf.get(key) ?? fallback, blocks: [{ kind: "paragraph" as const, text, factIds: citedBy(key) }] }];
   const table = (heading: string, rows: RirekishoRow[]) =>
     rows.length === 0 ? [] : [{ heading, blocks: rows.map(tableRow) }];
 

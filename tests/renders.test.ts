@@ -9,6 +9,7 @@
  */
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import {
   CERTIFICATION_FIXTURE,
@@ -19,7 +20,7 @@ import {
   uploadForm,
 } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
-import { renderVersions } from "~/server/db/schema";
+import { facts, renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { identityLines } from "~/render/identity";
@@ -30,6 +31,8 @@ import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
 import { readSheet, type Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
+import { factEvidence } from "~/server/services/evidence";
+import type { FactEvidence } from "~/shared/evidence";
 
 interface Fact {
   id: string;
@@ -2106,6 +2109,82 @@ describe("a version is read as its download would hold it", () => {
     // And the form as the file a download hands over lays it out.
     const download = await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer();
     expect(view.page.sheet).toEqual(readSheet(download));
+  });
+
+  /** "Show where each line comes from" (issue #110, S6). */
+  describe("what stands behind each line", () => {
+    interface Traced {
+      page: { sections: { blocks: { kind: string; text: string; factIds?: string[] }[] }[] };
+      evidence: FactEvidence[];
+    }
+    const blockOf = (view: Traced, text: string) =>
+      view.page.sections.flatMap((section) => section.blocks).find((block) => block.text === text)!;
+
+    it("names each line's facts, with a measured or attested fact's passage and the import it opens in", async () => {
+      const { record } = await acceptedResume();
+      const view = await client.json<Traced>("/api/renders/english_resume/page");
+
+      expect(blockOf(view, "Cut nightly batch runtime from six hours to ninety minutes").factIds).toEqual([record.measuredPublic.id]);
+      expect(blockOf(view, "Introduced trunk-based development").factIds).toEqual([record.attestedRestricted.id]);
+      // A job header is the record's, not a claim's.
+      expect(blockOf(view, "Aozora Logistics K.K. · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
+
+      const byId = new Map(view.evidence.map((fact) => [fact.id, fact]));
+      expect([...byId.keys()].sort()).toEqual([record.measuredPublic.id, record.attestedRestricted.id].sort());
+      expect(byId.get(record.measuredPublic.id)).toMatchObject({
+        claim: record.measuredPublic.claim,
+        provenance: "measured",
+        quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+        source: { importId: record.importId, lineNumber: 1 },
+      });
+      expect(byId.get(record.attestedRestricted.id)).toMatchObject({
+        provenance: "attested",
+        quote: "The team adopted trunk-based development that quarter.",
+        source: { importId: record.importId, lineNumber: 3 },
+      });
+      expect(byId.get(record.measuredPublic.id)!.source!.filename).toMatch(/\S/);
+    });
+
+    it("says a captured fact has no passage, and names its employer in the document's language", async () => {
+      await seedRecord();
+      const [employer] = (await client.json<{ items: { id: string }[] }>("/api/employers")).items;
+      const saved = await client.post("/api/capture", {
+        claims: [{ claim: "Mentored two new hires", month: "2023-05", employerId: employer!.id }],
+      });
+      expect(saved.status).toBe(201);
+      const { items } = await client.json<{ items: Fact[] }>("/api/facts?status=accepted");
+      const captured = items.find((fact) => fact.claim === "Mentored two new hires")!;
+
+      const created = (await (
+        await generate(resumeFrom([{ text: "Mentored two new hires", factIds: [captured.id] }]))
+      ).json()) as { proposalId: string };
+      await client.post(`/api/proposals/${created.proposalId}/accept`);
+      const view = await client.json<Traced>("/api/renders/english_resume/page");
+
+      expect(view.evidence).toEqual([
+        {
+          id: captured.id,
+          claim: "Mentored two new hires",
+          provenance: "attested",
+          employer: EMPLOYER_FIXTURE.nameLatin,
+          quote: null,
+          source: null,
+        },
+      ]);
+      // The same fact, read for a Japanese document, names the employer as a Japanese document does.
+      const db = createDb((env as unknown as Bindings).DATABASE_URL);
+      const [owner] = await db.select({ userId: facts.userId }).from(facts).where(eq(facts.id, captured.id));
+      const [ja] = await factEvidence(db, owner!.userId, [captured.id], "ja");
+      expect(ja!.employer).toBe(EMPLOYER_FIXTURE.nameJa);
+    });
+
+    it("looks up only the asking author's facts", async () => {
+      const { record } = await acceptedResume();
+      const other = await seedAllowedUser();
+      const db = createDb((env as unknown as Bindings).DATABASE_URL);
+
+      expect(await factEvidence(db, other.id, [record.measuredPublic.id], "en")).toEqual([]);
+    });
   });
 });
 
