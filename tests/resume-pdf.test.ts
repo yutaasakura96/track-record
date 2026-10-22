@@ -83,6 +83,59 @@ describe("the résumé PDF", () => {
     }
   });
 
+  it("keeps headings and entry–subtitle chains with their short following blocks", async () => {
+    const doc: ResumeDocument = {
+      name: "Ada Example",
+      headline: null,
+      contact: [],
+      sections: [
+        ...Array.from({ length: 14 }, (_, index) => ({
+          key: `section-${index}`,
+          heading: `Section ${String(index).padStart(2, "0")}`,
+          blocks: [{ kind: "paragraph" as const, text: `Start${index} ${LONG} ${LONG.slice(0, 70)} End${index}` }],
+        })),
+        {
+          key: "experience",
+          heading: "Experience",
+          blocks: Array.from({ length: 14 }, (_, index) => [
+            { kind: "entry" as const, lead: `Employer${String(index).padStart(2, "0")}`, detail: null, dates: "Jan 2020 – Present" },
+            { kind: "subtitle" as const, text: `Role${index}` },
+            { kind: "bullet" as const, text: `Outcome${index} ${LONG} ${LONG.slice(0, 70)}` },
+          ]).flat(),
+        },
+      ],
+    };
+    const { totalPages, items } = await extractTextItems((await resumePdf(doc, "a4", METADATA)).slice());
+    expect(totalPages).toBeGreaterThan(2);
+    const pages = items.map((page) => page.map((item) => item.str).join("").replace(/\s/g, ""));
+    for (let index = 0; index < 14; index++) {
+      const headingPage = pages.findIndex((text) => text.includes(`SECTION${String(index).padStart(2, "0")}`));
+      expect(headingPage).toBeGreaterThanOrEqual(0);
+      expect(pages[headingPage]).toContain(`End${index}`);
+
+      const entryPage = pages.findIndex((text) => text.includes(`Employer${String(index).padStart(2, "0")}`));
+      expect(entryPage).toBeGreaterThanOrEqual(0);
+      expect(pages[entryPage]).toContain(`Role${index}`);
+      expect(pages[entryPage]).toContain(`Outcome${index}`);
+    }
+  });
+
+  it("wraps an oversized URL without losing characters or crossing the margins", async () => {
+    const url = `https://example.invalid/portfolio/${"abcdefghij".repeat(90)}`;
+    const doc = documentWith(1);
+    doc.contact = [url];
+    const bytes = await resumePdf(doc, "letter", METADATA);
+    const copied = (await extractText(bytes.slice(), { mergePages: true })).text;
+    expect(copied.replace(/\s/g, "")).toContain(url);
+
+    const { items } = await extractTextItems(bytes.slice());
+    const margin = 879 / 20;
+    for (const item of items.flat().filter((item) => item.str.trim() !== "")) {
+      expect(item.x).toBeGreaterThanOrEqual(margin - 1);
+      expect(item.x + item.width).toBeLessThanOrEqual(612 - margin + 1);
+    }
+  });
+
   it("is tagged, so a reader that goes by position still reads a job's dates with its header", async () => {
     const pdf = await getDocumentProxy((await resumePdf(documentWith(1), "a4", METADATA)).slice());
     expect((await pdf.getMarkInfo())?.Marked).toBe(true);

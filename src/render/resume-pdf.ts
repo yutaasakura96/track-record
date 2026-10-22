@@ -239,7 +239,6 @@ function smallCaps(text: string, font: PDFFont, size: number, color: RGB): Run[]
 
 const widthOf = (run: Run) => run.font.widthOfTextAtSize(run.text, run.size);
 
-/** Breaks a block into lines at spaces, as wide as the column allows beside its dates. */
 function lay(block: Block, textWidth: number): Laid {
   // The dates take their width and a gap of two spaces off the first line.
   const reserved = block.dates ? widthOf(block.dates) + block.dates.size : 0;
@@ -248,21 +247,43 @@ function lay(block: Block, textWidth: number): Laid {
 
   for (const run of block.runs) {
     for (const [token] of run.text.matchAll(/\s+|\S+/g)) {
-      const piece = { ...run, text: token };
-      const width = widthOf(piece);
-      const room = textWidth - block.indent - (lines.length === 1 ? reserved : 0);
-      const line = lines[lines.length - 1]!;
       const isSpace = /^\s+$/.test(token);
-      if (!isSpace && used + width > room && used > 0) {
-        // The spaces the line broke at end it; they are not carried over.
-        while (line.length > 0 && /^\s+$/.test(line[line.length - 1]!.text)) line.pop();
-        lines.push([piece]);
-        used = width;
-        continue;
+      let remaining = token;
+      while (remaining) {
+        const room = textWidth - block.indent - (lines.length === 1 ? reserved : 0);
+        const line = lines[lines.length - 1]!;
+        const width = widthOf({ ...run, text: remaining });
+        if (isSpace && used === 0 && lines.length > 1) break;
+        if (used + width <= room) {
+          append(line, { ...run, text: remaining });
+          used += width;
+          break;
+        }
+        if (isSpace) {
+          lines.push([]);
+          used = 0;
+          break;
+        }
+        if (used > 0) {
+          while (line.length > 0 && /^\s+$/.test(line[line.length - 1]!.text)) line.pop();
+          lines.push([]);
+          used = 0;
+          continue;
+        }
+        let fragment = "";
+        for (const char of remaining) {
+          if (widthOf({ ...run, text: fragment + char }) > room) break;
+          fragment += char;
+        }
+        if (!fragment && lines.length === 1 && reserved > 0) {
+          lines.push([]);
+          continue;
+        }
+        if (!fragment) throw new Error("A résumé character is wider than its PDF column.");
+        append(line, { ...run, text: fragment });
+        used = widthOf({ ...run, text: fragment });
+        remaining = remaining.slice(fragment.length);
       }
-      if (isSpace && used === 0 && lines.length > 1) continue;
-      append(line, piece);
-      used += width;
     }
   }
 
@@ -373,19 +394,15 @@ function place(
   });
 }
 
-/**
- * How much of the page a block needs before it may start on it: all of a
- * block that keeps with the next and the first line of whatever it keeps
- * with (a heading, a job's header and its titles travel together), all of a
- * short block, the first two lines of a long one.
- */
 function roomFor(blocks: Laid[], index: number, height: (block: Laid, from?: number, to?: number) => number): number {
   const block = blocks[index]!;
-  if (!block.keepNext) return block.lines.length <= 3 ? height(block) : height(block, 0, 2);
-  let needed = height(block);
+  const whole = (item: Laid) => height(item) + (item.rule ? RULE.space + RULE.size / 8 : 0);
+  if (!block.keepNext) return block.lines.length <= 3 ? whole(block) : height(block, 0, 2);
+  let needed = whole(block);
   for (let i = index; blocks[i]!.keepNext && blocks[i + 1]; i++) {
     const next = blocks[i + 1]!;
-    needed += Math.max(blocks[i]!.after, next.before) + (next.keepNext ? height(next) : next.pitches[0]!);
+    needed += Math.max(blocks[i]!.after, next.before) +
+      (next.keepNext || next.lines.length <= 3 ? whole(next) : height(next, 0, 2));
   }
   return needed;
 }
