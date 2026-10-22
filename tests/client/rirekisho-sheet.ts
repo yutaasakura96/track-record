@@ -19,7 +19,7 @@ export const RIREKISHO_DATA: RirekishoTemplateData = {
   motivation: "架空の志望動機です。", kibou: "貴社規定に従います。",
 };
 
-const line = (text: string, over: Partial<SheetLine> = {}): SheetLine => ({ text, align: "start", size: "body", bold: false, afterTwips: 0, ...over });
+const line = (text: string, over: Partial<SheetLine> = {}): SheetLine => ({ text, align: "start", size: "body", bold: false, beforeTwips: 0, afterTwips: 0, ...over });
 const cell = (lines: SheetLine[], colSpan = 1, rowSpan = 1, shaded = false): SheetCell => ({ lines, colSpan, rowSpan, shaded });
 const shaded = (lines: SheetLine[], colSpan = 1, rowSpan = 1) => cell(lines, colSpan, rowSpan, true);
 const heading = (text: string) => line(text, { align: "center", bold: true });
@@ -40,8 +40,8 @@ export const RIREKISHO_SHEET: Sheet = {
       rows: [
         [
           cell([line("ふりがな", { align: "center", size: "small" }), line("名前", { align: "center", afterTwips: 80 })]),
-          cell([line("かくう　はなこ", { afterTwips: 20 }), line("架空　花子", { size: "large", bold: true, afterTwips: 40 })]),
-          shaded([line("", { align: "center" })], 1, 3),
+          cell([line("かくう　はなこ", { beforeTwips: 40, afterTwips: 20 }), line("架空　花子", { size: "large", bold: true, afterTwips: 40 })]),
+          shaded([line("", { align: "center", beforeTwips: 400 })], 1, 3),
         ],
         [cell([line("1995年 2月 3日生（満 31 歳） 女")], 2)],
         [cell([line("電話 000-0000-0000"), line("Email hanako@example.invalid")], 2)],
@@ -69,9 +69,9 @@ export const RIREKISHO_SHEET: Sheet = {
       rows: [[shaded([heading("年")]), shaded([heading("月")]), shaded([heading("免許・資格")])], row("2018", "6", "架空資格　取得")],
     },
     spacer(200),
-    { kind: "table", columns: [1], rows: [[shaded([line("志望動機・特技・アピールポイントなど", { bold: true })])], [cell([line("架空の志望動機です。", { afterTwips: 100 })])]] },
+    { kind: "table", columns: [1], rows: [[shaded([line("志望動機・特技・アピールポイントなど", { bold: true })])], [cell([line("架空の志望動機です。", { beforeTwips: 100, afterTwips: 100 })])]] },
     spacer(100),
-    { kind: "table", columns: [1], rows: [[shaded([line("本人希望欄")])], [cell([line("貴社規定に従います。", { afterTwips: 100 })])]] },
+    { kind: "table", columns: [1], rows: [[shaded([line("本人希望欄")])], [cell([line("貴社規定に従います。", { beforeTwips: 100, afterTwips: 100 })])]] },
     spacer(0),
   ],
 };

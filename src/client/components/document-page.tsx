@@ -52,6 +52,8 @@ const SIZE: Record<SheetSize, string> = {
   body: "text-render-body",
   small: "text-smaller",
 };
+/** The template's paragraph spacing, in twips, on the spacing scale: 20 twips is a point. */
+const BEFORE: Record<number, string> = { 0: "mt-0", 40: "mt-4", 100: "mt-8", 400: "mt-26" };
 const AFTER: Record<number, string> = { 0: "mb-0", 20: "mb-2", 40: "mb-4", 80: "mb-6", 100: "mb-8", 200: "mb-14" };
 
 /**
@@ -85,7 +87,7 @@ function SheetPage({ sheet }: { sheet: Sheet }) {
 const spoken = (text: string) => text.replace(/(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])/g, "");
 
 const lineClass = (line: SheetLine) =>
-  `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} ${AFTER[line.afterTwips] ?? "mb-0"} whitespace-pre-wrap break-words`;
+  `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} ${BEFORE[line.beforeTwips] ?? "mt-0"} ${AFTER[line.afterTwips] ?? "mb-0"} whitespace-pre-wrap break-words`;
 
 /** A first row the file sets in bold throughout, as it does 年 / 月 / 学歴・職歴, heads its columns. */
 const headed = (row: SheetCell[]) =>
