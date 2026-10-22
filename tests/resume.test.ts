@@ -13,6 +13,8 @@ import type { RenderSpec } from "~/model/types";
 import {
   assembleResume,
   bulletBudget,
+  incompleteJobHeaders,
+  incompleteJobHeadersMessage,
   monthSpan,
   projectKey,
   resumeFilename,
@@ -20,6 +22,7 @@ import {
   resumeSentPage,
   shapeResumeContent,
   ResumeAssemblyError,
+  ResumeJobHeaderError,
   ResumeLanguageError,
   validateResumeEditShape,
   type ResumeRecord,
@@ -94,7 +97,7 @@ const RECORD: ResumeRecord = {
     { id: "crt_old", name: "Cloud Associate", issuingOrganization: "Vendor", issuedOn: "2019-03-01", expiresOn: "2022-03-01", kind: "technical", technologies: [] },
     { id: "crt_lang", name: "TOEIC Listening & Reading 900", issuingOrganization: "IIBC", issuedOn: "2018-11-01", expiresOn: null, kind: "language", technologies: [] },
     { id: "crt_drive", name: "Ordinary driving licence", issuingOrganization: "Police", issuedOn: "2012-08-01", expiresOn: null, kind: "other", technologies: [] },
-    { id: "crt_unset", name: "Information Security Exam", issuingOrganization: "IPA", issuedOn: "2016-06-01", expiresOn: null, kind: null, technologies: [] },
+    { id: "crt_sec", name: "Information Security Exam", issuingOrganization: "IPA", issuedOn: "2016-06-01", expiresOn: null, kind: "technical", technologies: [] },
   ],
   skills: [
     { name: "Languages", skills: ["Go", "TypeScript"] },
@@ -528,6 +531,46 @@ describe("what the model returned", () => {
       { ...projectsAsParagraphs.sections[0]!, blocks: [block("s1", "Engineer.")] },
       projectsAsParagraphs.sections[1]!,
     ] }, projectsAsParagraphs)).toThrow();
+  });
+});
+
+describe("a job header the record cannot complete", () => {
+  it("names each job with no city, no role, or only untitled roles, and passes complete ones", () => {
+    const incomplete = incompleteJobHeaders([
+      employer(),
+      employer({ id: "emp_nocity", name: "Gull Freight Ltd.", city: null }),
+      employer({ id: "emp_blank", name: "Tern Labs", city: "  ", roles: [] }),
+      employer({ id: "emp_untitled", name: "Wren Data", roles: [{ title: " ", startedOn: "2024-01-01", endedOn: null }] }),
+    ]);
+    expect(incomplete).toEqual([
+      { employerId: "emp_nocity", name: "Gull Freight Ltd.", missing: ["city"] },
+      { employerId: "emp_blank", name: "Tern Labs", missing: ["city", "role"] },
+      { employerId: "emp_untitled", name: "Wren Data", missing: ["role"] },
+    ]);
+    expect(incompleteJobHeadersMessage(incomplete)).toBe(
+      "Every job on the English résumé is headed by its city and title. Gull Freight Ltd. needs a city; Tern Labs needs a city and a role with a title; Wren Data needs a role with a title.",
+    );
+  });
+
+  it("refuses to assemble any version over a job header with a gap, naming the gaps", () => {
+    const record = { ...RECORD, employers: [employer({ city: null })] };
+    let refused: unknown;
+    try {
+      assembled(CONTENT, record);
+    } catch (error) {
+      refused = error;
+    }
+    expect(refused).toBeInstanceOf(ResumeJobHeaderError);
+    expect((refused as ResumeJobHeaderError).jobHeaders).toEqual([
+      { employerId: "emp_now", name: "Harbourline Systems Inc.", missing: ["city"] },
+    ]);
+    expect((refused as Error).message).toBe(
+      "Every job on the English résumé is headed by its city and title. Harbourline Systems Inc. needs a city.",
+    );
+  });
+
+  it("finds nothing to refuse in a record whose jobs all have both", () => {
+    expect(incompleteJobHeaders(RECORD.employers)).toEqual([]);
   });
 });
 

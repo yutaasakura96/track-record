@@ -44,6 +44,7 @@ import {
   filenameFor,
   refuseWithheldCitations,
   renderIdentity,
+  resumeRefusal,
 } from "../services/document-file";
 import { factEvidence } from "../services/evidence";
 import { collectResumeRecord } from "../services/resume";
@@ -115,7 +116,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
           today: tokyoToday(),
         });
       } catch (error) {
-        if (error instanceof ResumeAssemblyError) throw preconditionFailed(error.message, ["english_resume"]);
+        // A job header with a gap is named per job, with what each lacks, so
+        // the screen can link to the field rather than leave the author to find it.
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error, "precondition_failed", ["english_resume"]);
         throw error;
       }
     }
@@ -862,7 +865,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
             )
           : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
       } catch (error) {
-        if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
         throw error;
       }
       return new Response(markdown, {
@@ -1141,7 +1144,7 @@ async function resumePreviewPage(db: Db, userId: string, content: RenderContent,
   try {
     return resumeSentPage(assembleResume({ content, record, identity, today }));
   } catch (error) {
-    if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+    if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
     throw error;
   }
 }

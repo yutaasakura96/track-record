@@ -16,7 +16,7 @@ import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type Harness, type SeededUser, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, seedTailoredResume, uploadForm } from "./helpers/seed";
+import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, postJob, SECOND_EMAIL, seedAllowedUser, seedTailoredResume, uploadForm } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
 import { renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
@@ -75,7 +75,7 @@ beforeEach(async () => {
 /** A profile, an employer and three facts, of which one may be used. */
 async function seedRecord(as: Client = client) {
   await as.put("/api/profile", PROFILE_FIXTURE);
-  const { id: employerId } = (await (await as.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
+  const employerId = await postJob(as);
   model.extractions = [[USABLE, PRIVATE, GENERATED]];
   const text = `# Notes\n\n${[USABLE, PRIVATE, GENERATED].map((c) => c.quote).join("\n\n")}\n`;
   await as.request("/api/imports", { method: "POST", body: uploadForm(text) });

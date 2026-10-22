@@ -16,11 +16,12 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  ROLE_FIXTURE,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
-import { facts, renderVersions } from "~/server/db/schema";
+import { employers, facts, renderVersions, roles } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { identityLines } from "~/render/identity";
@@ -73,7 +74,9 @@ beforeEach(async () => {
  * a Measured/Private fact.
  */
 async function seedRecord() {
-  await client.post("/api/employers", EMPLOYER_FIXTURE);
+  const employer = (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
+  // An English résumé's job header needs a title, so the job holds a role.
+  await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
   model.extractions = [
     [
       {
@@ -393,6 +396,41 @@ describe("the order a document reads in", () => {
 });
 
 describe("generation is blocked rather than producing an empty document", () => {
+  it("blocks a job with no city or no titled role, naming each and what it lacks, before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: null });
+    const bare = (await (
+      await client.post("/api/employers", {
+        ...EMPLOYER_FIXTURE,
+        nameJa: "株式会社ミナト計測",
+        nameLatin: "Minato Instruments K.K.",
+        startedOn: "2018-04-01",
+        endedOn: "2022-03-01",
+      })
+    ).json()) as { id: string };
+    // A role whose only title is blank is no title at all.
+    await client.post("/api/roles", { employerId: bare.id, startedOn: "2018-04-01", titleLatin: null, titleJa: null });
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    const body = (await response.json()) as {
+      error: { code: string; message: string; details: { fields: string[]; jobHeaders: unknown[] } };
+    };
+    expect(body.error.code).toBe("precondition_failed");
+    expect(body.error.message).toBe(
+      "Every job on the English résumé is headed by its city and title. Aozora Logistics K.K. needs a city; Minato Instruments K.K. needs a role with a title.",
+    );
+    expect(body.error.details).toEqual({
+      fields: ["employers"],
+      jobHeaders: [
+        { employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] },
+        { employerId: bare.id, name: "Minato Instruments K.K.", missing: ["role"] },
+      ],
+    });
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
   it("blocks an employer-attached project without a Latin-script name before the model call", async () => {
     await seedRecord();
     const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
@@ -2045,9 +2083,51 @@ describe("a version is read as its download would hold it", () => {
     );
     // A job header is laid out per format (the Markdown form is pinned in resume-download.test.ts); its prose is not.
     for (const text of prose) expect(markdown).toContain(text);
-    expect(texts(view)).toContain("Aozora Logistics K.K. · Apr 2022 – Sep 2024");
-    expect(markdown).toContain("**Aozora Logistics K.K.** — Apr 2022 – Sep 2024");
+    expect(texts(view)).toContain("Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024");
+    expect(markdown).toContain("**Aozora Logistics K.K.** · Tokyo — Apr 2022 – Sep 2024");
     for (const section of view.page.sections) expect(markdown).toContain(section.heading);
+  });
+
+  /** The page and every download format, each refused with the job header's gaps named. */
+  async function expectJobHeaderRefusal(jobHeaders: unknown[]) {
+    for (const path of [
+      "/api/renders/english_resume/page",
+      "/api/renders/english_resume/download?format=md",
+      "/api/renders/english_resume/download?format=docx",
+      "/api/renders/english_resume/download?format=pdf",
+    ]) {
+      const response = await client.get(path);
+      expect(response.status, path).toBe(409);
+      const body = (await response.json()) as { error: { code: string; message: string; details: unknown } };
+      expect(body.error.code, path).toBe("conflict");
+      expect(body.error.message, path).toMatch(/^Every job on the English résumé is headed by its city and title\. /);
+      expect(body.error.details, path).toEqual({ fields: ["employers"], jobHeaders });
+    }
+  }
+
+  it("refuses the page and every download once a job's city is cleared after acceptance", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    expect((await client.patch(`/api/employers/${items[0]!.id}`, { city: null })).status).toBe(200);
+
+    await expectJobHeaderRefusal([{ employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] }]);
+
+    // Filling the field lifts it; the version needs no regeneration.
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: "Tokyo" });
+    expect((await client.get("/api/renders/english_resume/download")).status).toBe(200);
+  });
+
+  it("refuses a version accepted before the check, from a job migration 0027 left without a city and with no role", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const employerId = items[0]!.id;
+    // The record as it stood when such a version was accepted: 0027 added the
+    // city column empty, and nothing then required a role.
+    const db = createDb((env as unknown as Bindings).DATABASE_URL);
+    await db.update(employers).set({ city: null }).where(eq(employers.id, employerId));
+    await db.delete(roles).where(eq(roles.employerId, employerId));
+
+    await expectJobHeaderRefusal([{ employerId, name: "Aozora Logistics K.K.", missing: ["city", "role"] }]);
   });
 
   it("serves an earlier version by id, and the current one without it", async () => {
@@ -2131,7 +2211,7 @@ describe("a version is read as its download would hold it", () => {
       expect(blockOf(view, "Cut nightly batch runtime from six hours to ninety minutes").factIds).toEqual([record.measuredPublic.id]);
       expect(blockOf(view, "Introduced trunk-based development").factIds).toEqual([record.attestedRestricted.id]);
       // A job header is the record's, not a claim's.
-      expect(blockOf(view, "Aozora Logistics K.K. · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
+      expect(blockOf(view, "Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
 
       const byId = new Map(view.evidence.map((fact) => [fact.id, fact]));
       expect([...byId.keys()].sort()).toEqual([record.measuredPublic.id, record.attestedRestricted.id].sort());

@@ -505,6 +505,26 @@ describe("the entity layer", () => {
     expect(items).toHaveLength(1);
     expect((await client.delete(`/api/certifications/${items[0]!.id}`)).status).toBe(204);
   });
+
+  it("requires a certification's kind, and never lets a PATCH unset it", async () => {
+    const { kind, ...unset } = CERTIFICATION_FIXTURE;
+    void kind;
+    const refused = await client.post("/api/certifications", { ...unset, name: "TOEIC Listening & Reading 880" });
+    expect(refused.status).toBe(422);
+    const body = (await refused.json()) as { error: { message: string; details: { fields: string[] } } };
+    expect(body.error.details.fields).toEqual(["kind"]);
+    expect(body.error.message).toBe("Choose whether this is technical, a language score or something else.");
+    expect((await client.post("/api/certifications", { ...CERTIFICATION_FIXTURE, kind: null })).status).toBe(422);
+
+    const created = (await (
+      await client.post("/api/certifications", { ...unset, name: "TOEIC Listening & Reading 880", kind: "language" })
+    ).json()) as { id: string; kind: string };
+    expect(created.kind).toBe("language");
+    expect((await client.patch(`/api/certifications/${created.id}`, { kind: null })).status).toBe(422);
+    const renamed = await client.patch(`/api/certifications/${created.id}`, { name: "TOEIC Listening & Reading 900" });
+    expect(renamed.status).toBe(200);
+    expect(((await renamed.json()) as { kind: string }).kind).toBe("language");
+  });
 });
 
 describe("filing a fact under an employer", () => {

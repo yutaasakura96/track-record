@@ -318,6 +318,29 @@ describe("the next step", () => {
     expect(api.writes()).toEqual([POST]);
   });
 
+  it("links each gap in a refused résumé's job headers to the field on the career timeline", async () => {
+    const message =
+      "Every job on the English résumé is headed by its city and title. Gull Freight Ltd. needs a city and a role with a title.";
+    const { user, pathname } = open([row()], {
+      [POST]: new Refusal(428, "precondition_failed", message, {
+        fields: ["employers"],
+        jobHeaders: [{ employerId: "emp-test-gull", name: "Gull Freight Ltd.", missing: ["city", "role"] }],
+      }),
+    });
+    const step = await nextStep();
+    await user.click(within(step).getByRole("button", { name: "Generate" }));
+
+    const alert = await within(step).findByRole("alert");
+    expect(alert.textContent!.startsWith(message)).toBe(true);
+    const city = within(alert).getByRole("link", { name: "Add the city for Gull Freight Ltd." });
+    expect(city.getAttribute("href")).toBe("/record?employer=emp-test-gull&fix=city");
+    expect(within(alert).getByRole("link", { name: "Add the role for Gull Freight Ltd." }).getAttribute("href")).toBe(
+      "/record?employer=emp-test-gull&fix=role",
+    );
+    await user.click(city);
+    await waitFor(() => expect(pathname()).toBe("/record"));
+  });
+
   it("updates the first document that is out of date", async () => {
     const { api, user, pathname } = open(
       [row({ status: "stale", currentVersionId: "ver-test-1", newFactsSince: 1 })],

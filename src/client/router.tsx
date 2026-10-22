@@ -98,10 +98,19 @@ const profileRoute = createRoute({
   component: ProfileForm,
 });
 
+/**
+ * The career timeline. `?employer=&fix=` opens that job's form at the field an
+ * English résumé's generation was refused for: `city` on the job itself, `role`
+ * on a new role under it.
+ */
 const recordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/record",
   component: Record,
+  validateSearch: (search: Record<string, unknown>): { employer?: string; fix?: "city" | "role" } =>
+    typeof search.employer === "string" && search.employer !== "" && (search.fix === "city" || search.fix === "role")
+      ? { employer: search.employer, fix: search.fix }
+      : {},
 });
 
 const skillsRoute = createRoute({

@@ -7152,3 +7152,49 @@ guidance asks for a PDF with text that can be selected.
 - **Revisit if:** a résumé needs a character Carlito does not have (it would print as a blank box,
   where Word substitutes a font), or the file size is refused by an applicant-tracking system.
   Until then the PDF refuses such a character with `409` instead of drawing the box (`03` §6.3).
+
+---
+
+### [2026-10-22] A certification's kind is required, and an English résumé needs every job's city and title
+
+This supersedes one clause of the 2026-10-18 résumé entry: "a remaining null prints as technical".
+The second review of #107 found two ways the résumé printed wrongly while every check passed.
+
+**A certification's kind.** The column was nullable and the form left it optional, and an unset
+kind printed under Certifications. So a TOEIC score entered without a kind sat among the technical
+certifications instead of on the Languages line. Migration `0027` also called every row that was
+not a recognised language test `technical`, a driving licence included, so the licence printed
+although `other` is the kind the résumé leaves out.
+
+- **Decision:** `certifications.kind` is `NOT NULL`. The API refuses a create without it and a
+  PATCH that sets it to null, and the form's select starts on 未選択 rather than on its first
+  option, for the reason the education level does.
+- **Migration `0028`** classifies again before adding the constraint. An unset or `technical` row
+  whose name reads as a driving licence (English or 運転免許) becomes `other`. One that reads as a
+  language test (the `0027` list, plus 英語技能検定, Duolingo English Test, Versant and TOPIK)
+  becomes `language`. Unlike `0027`, a Latin-script test name must not touch another Latin letter,
+  so `DELE` inside "Modeler" stays technical while `TOEIC800点` and `HSK6級` still match; the
+  Japanese names match anywhere. Any row still unset becomes `technical`. A row already `language` or `other`
+  keeps its kind, because nothing but the author wrote one of those after `0027`.
+- **Rejected:** keeping the null and printing it nowhere. An unclassified certification would then
+  disappear from the résumé without a word, which is the worse failure.
+
+**A job header's city and title.** The 2026-10-18 layout heads every job with its company, city,
+dates and title. `employers.city` arrived in `0027` and is empty on every older employer, and a job
+may have no role, or roles with no title in either language. The header then printed with those
+parts missing.
+
+- **Decision:** generating an English résumé is refused, 428 `precondition_failed`, when any job it includes has no city
+  or no titled role. The message names each job and what it lacks. `details.jobHeaders` carries the
+  same list with employer ids, and the refusal on Home, the document view and an application links
+  each gap to `/record?employer=…&fix=city|role`. That opens the job's form at City, or a new role
+  under the job at Title.
+- **The city stays optional in the record.** Only the English résumé prints it, and the 履歴書 and
+  職務経歴書 must not be blocked for a field they never read.
+- **Download, the page and the preview refuse it too.** A job header is read from today's record on
+  every one of them, so a check at generation alone would still print a gap: a version accepted
+  before this change, when `0027` had left every city empty, and a city cleared or a role removed
+  after a version was accepted. The check sits in `assembleResume`, where generation, the document
+  page, the proposal preview and the `.docx`, `.md` and `.pdf` downloads all meet, and each answers with the
+  same message, `details.jobHeaders` and links. The refusal is lifted by filling the field, with no
+  regeneration needed.

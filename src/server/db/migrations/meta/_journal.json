@@ -197,6 +197,13 @@
       "when": 1792533027839,
       "tag": "0027_resume_layout",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1792640823349,
+      "tag": "0028_certification_kind",
+      "breakpoints": true
     }
   ]
 }

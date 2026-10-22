@@ -294,8 +294,16 @@ export interface AssembleArgs {
   today: string;
 }
 
-/** One stored version and today's record, as the document an employer is sent. */
+/**
+ * One stored version and today's record, as the document an employer is sent.
+ * Every job header comes from today's record, so a gap in one refuses the
+ * document here, where generation, the page, the preview and every download
+ * format meet: a version accepted before the check, or a city cleared after
+ * acceptance, is refused as generation is (`docs/06`, 2026-10-22).
+ */
 export function assembleResume({ content, record, identity, today }: AssembleArgs): ResumeDocument {
+  const incomplete = incompleteJobHeaders(record.employers);
+  if (incomplete.length > 0) throw new ResumeJobHeaderError(incomplete);
   const [name = "", ...lines] = identityLines("english_resume", identity);
   const headline = identity.resume.headline?.trim() || null;
   const contact = headline === null ? lines : lines.slice(1);
@@ -318,6 +326,13 @@ export class ResumeAssemblyError extends Error {}
 
 export class ResumeLanguageError extends ResumeAssemblyError {}
 
+/** A job header the record cannot complete. Carries each job and what it lacks, so a refusal can link to the fields. */
+export class ResumeJobHeaderError extends ResumeAssemblyError {
+  constructor(readonly jobHeaders: IncompleteJobHeader[]) {
+    super(incompleteJobHeadersMessage(jobHeaders));
+  }
+}
+
 /**
  * A name an English reader can read: at least one letter, and every letter in
  * Latin script. An employer recorded only as Компания has no Latin name to
@@ -334,6 +349,40 @@ export function assertResumeSpecNames(spec: Pick<RenderSpec, "employers" | "proj
   ];
   const unreadable = names.find(([, value]) => !isLatinName(value));
   if (unreadable) throw new ResumeLanguageError(`The English résumé needs a Latin-script name for ${unreadable[0]}.`);
+}
+
+/** A job whose header would print without its city, its title, or both. */
+export interface IncompleteJobHeader {
+  employerId: string;
+  name: string;
+  missing: ("city" | "role")[];
+}
+
+/**
+ * The jobs the header cannot be written for. Every job on an English résumé is
+ * headed by its city and its title, and the record holds both as optional: a
+ * city added in migration 0027 is empty on every older employer, and a job can
+ * have no role, or only roles with no title. Generation is refused on these and
+ * names them, rather than printing a header with a hole in it.
+ */
+export function incompleteJobHeaders(employers: RenderSpec["employers"]): IncompleteJobHeader[] {
+  return employers.flatMap((e) => {
+    const missing = [
+      ...(e.city?.trim() ? [] : ["city" as const]),
+      ...(rolesLine(e.roles) === null ? ["role" as const] : []),
+    ];
+    return missing.length === 0 ? [] : [{ employerId: e.id, name: e.name, missing }];
+  });
+}
+
+/**
+ * `… Aozora Logistics needs a city; Harbourline needs a role with a title.` Each
+ * part ends on what is missing, so a name ending in `K.K.` never ends the sentence.
+ */
+export function incompleteJobHeadersMessage(incomplete: IncompleteJobHeader[]): string {
+  const what = { city: "a city", role: "a role with a title" };
+  const parts = incomplete.map((job) => `${job.name} needs ${job.missing.map((m) => what[m]).join(" and ")}`);
+  return `Every job on the English résumé is headed by its city and title. ${parts.join("; ")}.`;
 }
 
 const NAMED_ENTRIES = new Set(["employer", "project", "education"]);
@@ -494,13 +543,12 @@ function educationDates(e: RenderSpec["educations"][number]): string | null {
 }
 
 /**
- * Current certifications of one kind, run together on one line. An
- * unclassified row is a technical one. `other` — a driving licence — is
- * nobody's line on an English résumé.
+ * Current certifications of one kind, run together on one line. `other` — a
+ * driving licence — is nobody's line on an English résumé.
  */
 function certificationBlocks(record: ResumeRecord, today: string, kind: "technical" | "language"): ResumeBlock[] {
   const items = record.certifications
-    .filter((c) => (c.kind ?? "technical") === kind && !isExpired(c.expiresOn, today))
+    .filter((c) => c.kind === kind && !isExpired(c.expiresOn, today))
     .flatMap((c) => {
       const name = c.name;
       if (!c.issuedOn) return [name];

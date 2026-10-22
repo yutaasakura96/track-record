@@ -12,6 +12,7 @@
  * loading state and this control is not on screen to be pressed twice.
  */
 import { readFailureText } from "../api";
+import { JobHeaderLinks } from "./generate-failure";
 import { Button } from "./ui";
 
 export interface FailedRead {
@@ -24,6 +25,7 @@ export function ReadFailure({ query, className = "" }: { query: FailedRead; clas
     <div className={`flex items-center gap-12 ${className}`}>
       <p role="alert" className="text-small text-text-secondary">
         {readFailureText(query.error)}
+        <JobHeaderLinks error={query.error} />
       </p>
       <Button variant="ghost" onClick={() => void query.refetch()}>
         Retry

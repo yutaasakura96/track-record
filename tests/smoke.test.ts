@@ -20,7 +20,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { harness, settle, stubModel } from "./helpers/harness";
 import { installIssuer, type FixtureIssuer } from "./helpers/oidc";
-import { AUTHOR_EMAIL, EMPLOYER_FIXTURE, PROFILE_FIXTURE, uploadForm } from "./helpers/seed";
+import { AUTHOR_EMAIL, EMPLOYER_FIXTURE, PROFILE_FIXTURE, postJob, uploadForm } from "./helpers/seed";
 
 let issuer: FixtureIssuer;
 
@@ -80,7 +80,7 @@ describe("sign-in through an accepted résumé version", () => {
     expect(empty.isEmpty).toBe(true);
     expect(empty.documents.every((d) => d.status === "never_generated")).toBe(true);
 
-    const employer = (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
+    const employer = { id: await postJob(client) };
 
     // 6 · Import one case study.
     model.extractions = [

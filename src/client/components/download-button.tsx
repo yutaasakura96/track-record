@@ -13,6 +13,7 @@
  */
 import { useEffect, useState } from "react";
 import { ApiError, downloadRender, failureText } from "../api";
+import { JobHeaderLinks } from "./generate-failure";
 import { MonoId } from "./ui";
 import {
   RENDER_DOWNLOAD_ALTERNATIVE,
@@ -157,6 +158,7 @@ function Refusal({ error, onClose }: { error: unknown; onClose: () => void }) {
       >
         <p role="alert" className="text-smaller text-text-secondary">
           {failureText(error)}
+          <JobHeaderLinks error={error} />
         </p>
         <WithheldFacts facts={facts} />
         {facts.length > 0 ? (

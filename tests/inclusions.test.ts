@@ -12,6 +12,7 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  postJob,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -74,8 +75,9 @@ async function acceptedFacts(
 }
 
 async function seedRecord() {
-  const later = await created("/api/employers", EMPLOYER_FIXTURE);
-  const earlier = await created("/api/employers", EARLIER_EMPLOYER);
+  // Each with a titled role, which an English résumé's job header needs.
+  const later = { id: await postJob(client) };
+  const earlier = { id: await postJob(client, EARLIER_EMPLOYER) };
   const education = await created("/api/educations", EDUCATION_FIXTURE);
 
   const fact = await acceptedFacts([LATER_QUOTE, EARLIER_QUOTE].join("\n\n"), [

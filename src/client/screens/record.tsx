@@ -21,7 +21,7 @@
  * never displayed (`docs/04-database-schema.md` §0).
  */
 import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
 import {
   ApiError,
   failureText,
@@ -111,7 +111,7 @@ const LEVELS = [
 /** A required select's first entry on a new row: the author answers it, the first option does not. */
 const UNCHOSEN = "— 未選択 · Choose one —";
 
-/** Where the English résumé puts a certification. Unset prints it as a technical one. */
+/** Where the English résumé puts a certification. Required: the résumé cannot guess it (`docs/06`, 2026-10-22). */
 const CERTIFICATION_KINDS = [
   { value: "technical", label: "Technical" },
   { value: "language", label: "Language" },
@@ -164,7 +164,7 @@ const EMPLOYERS: Section = {
       name: "city",
       label: "City",
       optional: true,
-      hint: "In English, as the English résumé's job header gives it: Tokyo.",
+      hint: "In English, as the English résumé's job header gives it: Tokyo. The English résumé needs one.",
     },
     {
       name: "employmentType",
@@ -298,7 +298,9 @@ const CERTIFICATIONS: Section = {
       label: "Kind",
       type: "select",
       options: CERTIFICATION_KINDS,
-      optional: true,
+      // No default, for the reason the education level has none: the first
+      // option would be chosen for an author who never opened the select.
+      unset: UNCHOSEN,
       hint: "The English résumé lists technical ones, puts a language score on its Languages line and leaves other kinds out. It leaves out an expired one too.",
     },
     { name: "credentialId", label: "Credential ID", optional: true },
@@ -319,6 +321,8 @@ interface Editing {
   section: Section;
   item: { id: string } | null;
   defaults?: Record<string, string>;
+  /** The field to put the cursor in: the one a refused generation linked to. */
+  focus?: string;
 }
 
 /* ------------------------------------------------------------------ screen */
@@ -552,7 +556,16 @@ function EmployerCard({
   today: string;
   last: boolean;
 }) {
-  const [editing, setEditing] = useState<Editing | null>(null);
+  // A refused English résumé links here with the job and the field it lacks.
+  const asked = useSearch({ from: "/record" });
+  const fix = asked.employer === employer.id ? asked.fix : undefined;
+  const [editing, setEditing] = useState<Editing | null>(() =>
+    fix === "city"
+      ? { section: EMPLOYERS, item: employer, focus: "city" }
+      : fix === "role"
+        ? { section: ROLES, item: null, defaults: { employerId: employer.id }, focus: "titleLatin" }
+        : null,
+  );
   const [conflict, setConflict] = useState<string | null>(null);
   const title = employer.nameLatin ?? employer.nameJa;
   const counts = timeline?.employers.find((e) => e.id === employer.id);
@@ -632,7 +645,7 @@ function EmployerCard({
                 );
               })}
               {roles.length === 0 ? (
-                <li className="py-6 text-smaller text-text-faint">No roles yet. The section renders without a title.</li>
+                <li className="py-6 text-smaller text-text-faint">No roles yet. The English résumé needs a title here before it can be generated.</li>
               ) : null}
             </ul>
             <Button
@@ -685,6 +698,7 @@ function EmployerCard({
               employers={employers}
               item={editing.item}
               defaults={editing.defaults}
+              focus={editing.focus}
               onDone={() => setEditing(null)}
             />
           </div>
@@ -1100,6 +1114,7 @@ function EntityForm({
   employers,
   item,
   defaults = {},
+  focus,
   onDone,
 }: {
   section: Section;
@@ -1107,9 +1122,19 @@ function EntityForm({
   item: { id: string } | null;
   /** A new row's starting values: a role added inside a card starts under that employer. */
   defaults?: Record<string, string>;
+  focus?: string;
   onDone: () => void;
 }) {
   const actions = useEntityActions(section.key);
+  const formElement = useRef<HTMLFormElement>(null);
+
+  useEffect(() => {
+    if (!focus) return;
+    const field = formElement.current?.querySelector<HTMLElement>(`[name="${focus}"]`);
+    // Optional: jsdom has no layout, and so no `scrollIntoView`.
+    field?.scrollIntoView?.({ block: "center" });
+    field?.focus({ preventScroll: true });
+  }, [focus]);
   const save = item ? actions.update : actions.create;
   // Fields come only from a refusal; a write that never arrived names none.
   const invalid = new Set(save.error instanceof ApiError ? save.error.fields : []);
@@ -1152,6 +1177,7 @@ function EntityForm({
 
   return (
     <form
+      ref={formElement}
       onSubmit={onSubmit}
       aria-label={item ? `Editing ${section.singular}` : `New ${section.singular}`}
       className="border-t border-border-inner px-16 py-14 grid gap-14"
@@ -1216,15 +1242,17 @@ function EntityField({
 
   return (
     // content-start: a field sits in a row with its neighbour, and without it a
-    // neighbour's hint or error line stretched this control to match.
-    <label className={`grid content-start gap-6 ${spec.wide ? "col-span-2" : ""}`}>
+    // neighbour's hint or error line stretched this control to match. min-w-0:
+    // a select is as wide as its longest option, which pushed Kind past the
+    // Certifications panel's edge.
+    <label className={`grid min-w-0 content-start gap-6 ${spec.wide ? "col-span-2" : ""}`}>
       <span className="text-smaller text-text-dim">
         {spec.label}
         {spec.optional ? <span className="text-text-faint"> · optional</span> : null}
       </span>
 
       {spec.type === "select" ? (
-        <select name={spec.name} defaultValue={defaultValue} className={`${CONTROL} ${border}`}>
+        <select name={spec.name} defaultValue={defaultValue} aria-invalid={invalid} className={`${CONTROL} ${border} min-w-0`}>
           {spec.optional ? <option value="">—</option> : null}
           {spec.unset ? <option value="">{spec.unset}</option> : null}
           {options.map((option) => (

@@ -216,6 +216,7 @@ export const CERTIFICATIONS = [
   { name: "Certified Kubernetes Administrator (CKA)", nameJa: "Certified Kubernetes Administrator (CKA)", issuingOrganization: "The Linux Foundation", kind: "technical" as const, issuedOn: "2025-02", expiresOn: "2027-02", technologies: ["Kubernetes"] },
   { name: "Microsoft Certified: Azure Solutions Architect Expert", nameJa: "Microsoft認定 Azure Solutions Architect Expert", issuingOrganization: "Microsoft", kind: "technical" as const, issuedOn: "2024-09", expiresOn: "2026-11", technologies: ["Azure"] },
   { name: "TOEIC Listening & Reading 865", nameJa: "TOEIC Listening & Reading Test 865点 取得", issuingOrganization: "IIBC", kind: "language" as const, issuedOn: "2018-11", expiresOn: null, technologies: [] },
+  { name: "Ordinary Driving Licence", nameJa: "普通自動車第一種運転免許 取得", issuingOrganization: "Prefectural Public Safety Commission", kind: "other" as const, issuedOn: "2012-08", expiresOn: null, technologies: [] },
 ];
 
 /** Work that left no document: entered through Quick capture, so Attested and with no passage. */

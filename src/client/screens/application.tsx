@@ -30,6 +30,7 @@ import {
   type ApplicationFields,
 } from "../api";
 import { ResumePanel } from "../components/application-resume";
+import { generateFailure } from "../components/generate-failure";
 import {
   ApplicationsFrame,
   CONTROL_INLINE,
@@ -121,7 +122,7 @@ function Body({ application }: { application: Application }) {
   /** Which date is open for correction. */
   const [dating, setDating] = useState<ApplicationStatus | null>(null);
   const [editing, setEditing] = useState(false);
-  const [failure, setFailure] = useState<string | null>(null);
+  const [failure, setFailure] = useState<ReactNode>(null);
 
   const notice = useRef<HTMLDivElement>(null);
   // A move made by saving an interview is said up here, where its Undo is, and the author is looking further down.
@@ -138,7 +139,7 @@ function Body({ application }: { application: Application }) {
     try {
       return await stand.mutateAsync(action);
     } catch (error) {
-      setFailure(failureText(error));
+      setFailure(generateFailure(error));
       return null;
     }
   };

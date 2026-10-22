@@ -106,7 +106,7 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
 | `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
-| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
+| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | `kind` (`technical`, `language`, `other`) required on `POST`; a `PATCH` may omit it but not set it to null (`06`, 2026-10-22) |
 | `GET` | `/api/career-timeline` | #113 | What Screen 4 shows beside the rows: `employers[]` `{ id, achievements, unfiled, documents }` counting the accepted facts that resolve to each (`04` §3.12), how many are filed under no project and the documents they came from; `projects[]` `{ id, achievements }`; and `gaps[]` `{ after, before, months }`, the 履歴書's own gap warning over the rows it would print, its exclusions applied. **Ids, counts and months only**, built on the read |
 
 **`GET /api/profile` → 200**
@@ -765,7 +765,14 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
-**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when an employer,
+**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when a job it
+includes has no city or no role with a title, the parts of its header the record leaves optional.
+The message names each job and what it lacks; `details.fields` is `["employers"]` and
+`details.jobHeaders` is `[{ employerId, name, missing: ("city" | "role")[] }]`, which the screens
+turn into links to the career timeline (`06`, 2026-10-22). The same gap refuses a version
+already accepted: `GET /api/renders/:ref/download` (every format), the document page and a first
+proposal's preview answer **409 `conflict`** with the same message and `details`, for a version
+made before the check as for a city cleared after acceptance. Then **428** too when an employer,
 project or education name in the generation spec lacks a Latin letter or contains a non-Latin letter,
 or an assembled field would print Japanese script. The name check includes entries later omitted
 from the file. The message names the field needing an English or Latin-script value, with
@@ -1240,7 +1247,8 @@ other document.
   frozen, dated with the day that step saved. Documents with a copy are left alone, and no other
   change of step freezes anything. A move made by `POST …/interviews` is a move: it freezes the
   same way and answers with `frozen`. The files are built first, and one that cannot be built (a citation withheld
-  since, `409`) refuses the move with nothing saved.
+  since, or an English résumé job header with a gap, `409` with the download's `details`) refuses the
+  move with nothing saved.
 - **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy

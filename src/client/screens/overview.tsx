@@ -32,6 +32,7 @@ import {
   type RenderRow,
 } from "../api";
 import { Button } from "../components/ui";
+import { generateFailure } from "../components/generate-failure";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
@@ -217,7 +218,7 @@ function PopulatedRecord({
   const importFile = useImportPicker();
   const generate = useGenerate();
   const sort = useSortFacts();
-  const [failure, setFailure] = useState<{ from: GenerateFrom; text: string } | null>(null);
+  const [failure, setFailure] = useState<{ from: GenerateFrom; text: ReactNode } | null>(null);
 
   const onGenerate = async (ref: string, from: GenerateFrom) => {
     setFailure(null);
@@ -225,7 +226,7 @@ function PopulatedRecord({
       const created = await generate.mutateAsync(ref);
       await navigate({ to: "/proposals/$proposalId", params: { proposalId: created.proposalId } });
     } catch (error) {
-      setFailure({ from, text: failureText(error) });
+      setFailure({ from, text: generateFailure(error) });
     }
   };
   const failed = (from: GenerateFrom) => (failure?.from === from ? failure.text : null);
@@ -415,7 +416,7 @@ function NextStep({
 }: {
   steps: Step[];
   busy: boolean;
-  failure: string | null;
+  failure: ReactNode;
   sorting: SortProgress;
   onGenerate: (ref: string) => void;
   onImport: () => void;
@@ -645,7 +646,7 @@ function CareerDocuments({
   facts: number;
   canGenerate: boolean;
   busy: boolean;
-  failure: string | null;
+  failure: ReactNode;
   onGenerate: (ref: string) => void;
 }) {
   const language = useDocumentLanguageStore((state) => state.language);

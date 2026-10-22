@@ -272,7 +272,7 @@ export interface Certification {
   issuingOrganization: string;
   issuedOn: string | null;
   expiresOn: string | null;
-  kind: "technical" | "language" | "other" | null;
+  kind: "technical" | "language" | "other";
   credentialId: string | null;
   credentialUrl: string | null;
   technologies: string[];

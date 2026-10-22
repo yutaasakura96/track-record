@@ -14,7 +14,7 @@
 import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { profiles, type renderVersions } from "../db/schema";
-import { ApiError, preconditionFailed } from "../http/errors";
+import { ApiError, preconditionFailed, type ErrorCode } from "../http/errors";
 import { badCitations, citationMessage, collectEditableRecord } from "./version-edit";
 import { collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
 import { citedFactIds } from "~/render/edit";
@@ -22,7 +22,7 @@ import { downloadFilename, toDocx } from "~/render/docx";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
 import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
-import { assembleResume, ResumeAssemblyError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
+import { assembleResume, ResumeAssemblyError, ResumeJobHeaderError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
 import { resumeDocx, type PaperSize } from "~/render/resume-docx";
 import { resumePdf } from "~/render/resume-pdf";
 import { collectResumeRecord } from "./resume";
@@ -208,6 +208,19 @@ async function assemblyInputs(db: Db, userId: string, kind: RenderKind, version:
   return { kind: "built", content, identity, today };
 }
 
+/**
+ * A résumé the record cannot assemble, as the API says it. The one place every
+ * route builds it, so a job header's gaps travel the same way from generation,
+ * the page, the preview and each download: `details.jobHeaders` names each job
+ * and what it lacks, and the screens link each gap to its field.
+ */
+export function resumeRefusal(error: ResumeAssemblyError, code: ErrorCode = "conflict", fields: string[] = []): ApiError {
+  if (error instanceof ResumeJobHeaderError) {
+    return new ApiError(code, error.message, { fields: ["employers"], jobHeaders: error.jobHeaders });
+  }
+  return new ApiError(code, error.message, fields.length > 0 ? { fields } : undefined);
+}
+
 /** Runs the build alone, so a read that fails before it is not reported as a file that could not be assembled. */
 async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): Promise<T> {
   try {
@@ -215,7 +228,7 @@ async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): P
   } catch (error) {
     // A refusal with words for the author is passed on as it is.
     if (error instanceof ApiError) throw error;
-    if (error instanceof ResumeAssemblyError) throw new ApiError("conflict", error.message);
+    if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
     // The build fails; the stored content is untouched and the next one can succeed.
     console.error(JSON.stringify({ event: "document_build_failed", versionId: version.id }));
     throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
