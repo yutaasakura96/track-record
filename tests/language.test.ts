@@ -275,6 +275,11 @@ describe("an English document", () => {
     });
     expect(englishDefect(content([{ key: "opening", heading: "The Mira project", text: PROSE }]), named)).toBeNull();
     expect(englishDefect(content([{ key: "opening", heading: "The mira project", text: PROSE }]), named)).toBe("record_names");
+    expect(englishDefect(content([{ key: "opening", heading: "My Miro years", text: "I joined Mira in 2019." }]), named)).toBe("record_names");
+    for (const cue of ["joined", "at", "for", "with", "left", "from"]) {
+      expect(englishDefect(content([{ key: "opening", heading: "Work", text: `I ${cue} Miro in 2019.` }]), named), cue).toBe("record_names");
+    }
+    expect(englishDefect(content([{ key: "opening", heading: "Work", text: "The team called it Miro, then moved a mile to the next site." }]), named)).toBeNull();
     const row = content([{ key: "anchors", heading: "Figures", text: "aoi — graduated" }]);
     row.sections[0]!.blocks[0]!.kind = "row";
     expect(englishDefect(row, named)).toBe("record_names");
@@ -320,6 +325,10 @@ describe("an English document", () => {
     // Where a name stands — a field of its own, or beside "project" — it is still the name.
     const row = content([{ key: "anchors", heading: "Figures", text: "Date, 2019-2020" }]);
     row.sections[0]!.blocks[0]!.kind = "row";
+    expect(englishDefect(row, named)).toBeNull();
+    row.sections[0]!.blocks[0]!.text = "Date: 2019";
+    expect(englishDefect(row, named)).toBeNull();
+    row.sections[0]!.blocks[0]!.text = "Date — project";
     expect(englishDefect(row, named)).toBe("record_names");
     expect(englishDefect(content([{ key: "opening", heading: "Dta project", text: PROSE }]), named)).toBe("record_names");
   });

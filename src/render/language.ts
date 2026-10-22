@@ -138,6 +138,7 @@ const tokensOf = (text: string): Token[] =>
 
 /** The words that put a name next to them: "at Ledger", "joined Ledger", "the Mira project". */
 const NAME_BEFORE = /^(?:at|for|from|with|to|joined|left|project|school|employer|called|named)$/iu;
+const SHORT_NAME_CUE = /^(?:joined|at|for|with|left|from)$/iu;
 const NAME_AFTER = /^(?:project|school)$/iu;
 
 const besideNameWord = (tokens: readonly Token[], i: number, length: number): boolean =>
@@ -147,12 +148,15 @@ const isWholeField = (tokens: readonly Token[], i: number, length: number): bool
   tokens.filter((t) => t.field === tokens[i]!.field).length === length &&
   tokens.slice(i, i + length).every((t) => t.field === tokens[i]!.field);
 
+const isDateLabel = (tokens: readonly Token[], i: number): boolean =>
+  tokens[i]!.word.toLocaleLowerCase() === "date" &&
+  (tokens[i + 1]?.word.toLocaleLowerCase() === "of" ||
+    (tokens[i + 1] !== undefined && tokens[i + 1]!.field > tokens[i]!.field && /^\d{4}$/u.test(tokens[i + 1]!.word)));
+
 function hasRespeltName(text: string, names: readonly string[], header: boolean): boolean {
   // In prose a name differing from the record only in letter case is the name.
   const flags = header ? "gu" : "giu";
   for (const name of names) {
-    // Free prose needs a six-character floor; short ordinary words resemble short names too often.
-    if (!header && name.length < 6) continue;
     const words = name.match(WORD) ?? [];
     if (words.length === 0) continue;
     // This name, and every name not inside it, is taken out. A shorter record
@@ -165,17 +169,19 @@ function hasRespeltName(text: string, names: readonly string[], header: boolean)
       const found = tokens.slice(i, i + words.length).map((t) => t.word);
       if (found.includes(STRIPPED)) continue;
       if (header) {
-        // A heading is held to the record's exact spelling, capitals included.
-        // A capitalised run of a long or multi-word name is taken to name it;
-        // anything else only where a name stands — a field of its own, or
-        // beside "project" or "joined" — so "Date of the decision" is not the
-        // project "Data", nor "Rebuilding the ledger" the project "Ledger".
         const capitalised = !/\p{Script=Latin}/u.test(found[0]!) || /^\p{Lu}/u.test(found[0]!);
         const named = capitalised && (words.length > 1 || name.length >= 6);
-        if (!named && !isWholeField(tokens, i, words.length) && !besideNameWord(tokens, i, words.length)) continue;
+        const namePosition = isWholeField(tokens, i, words.length) || besideNameWord(tokens, i, words.length);
+        if (name.length < 6 && isDateLabel(tokens, i)) continue;
+        if (name.length < 6 && found.join(" ").toLocaleLowerCase() === expected && !namePosition) continue;
+        if (name.length >= 6 && !named && !namePosition) continue;
       } else {
-        if (!casedLike(found, words)) continue;
-        if (words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) && !NAME_BEFORE.test(tokens[i - 1]?.word ?? "")) continue;
+        if (name.length < 6) {
+          if (!SHORT_NAME_CUE.test(tokens[i - 1]?.word ?? "")) continue;
+        } else {
+          if (!casedLike(found, words)) continue;
+          if (words.length === 1 && !/[\p{Script=Han}\p{Script=Katakana}]/u.test(found[0]!) && !NAME_BEFORE.test(tokens[i - 1]?.word ?? "")) continue;
+        }
       }
       const candidate = found.join(" ").toLocaleLowerCase();
       if (distanceWithin(candidate, expected, name.length >= 12 ? 2 : 1)) return true;
