@@ -122,7 +122,7 @@ describe("the English résumé download", () => {
     await accepted("english_resume", contentFor(employerId, factId));
 
     const pageSize = async () => {
-      const bytes = await (await client.get("/api/renders/english_resume/download")).arrayBuffer();
+      const bytes = await (await client.get("/api/renders/english_resume/download?format=docx")).arrayBuffer();
       return /<w:pgSz w:w="(\d+)"/.exec(new PizZip(bytes).file("word/document.xml")!.asText())![1];
     };
     expect(await pageSize()).toBe("11906");

@@ -73,7 +73,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
     expect(markdown).not.toMatch(/Expired Cloud Associate|情報工学部|緑川/);
     if (evidence) writeFileSync(`${evidence}/${label}.md`, markdown);
 
-    const file = await api.get(`/api/renders/${ref}/download`);
+    const file = await api.get(`/api/renders/${ref}/download?format=docx`);
     expect(file.status()).toBe(200);
     expect(file.headers()["content-disposition"]).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
     const bytes = Buffer.from(await file.body());

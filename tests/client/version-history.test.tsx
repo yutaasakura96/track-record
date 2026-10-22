@@ -283,14 +283,14 @@ describe("a download", () => {
     const { api, user } = open({ [DOWNLOAD_V1]: answer });
 
     const v1 = await row("v1, accepted · from a proposal");
-    await user.click(within(v1).getByRole("button", { name: "Download" }));
+    await user.click(within(v1).getByRole("button", { name: /^Download$/ }));
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
     expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(true);
     expect(api.writes()).toEqual([]);
     // The control is usable again rather than stuck on "Preparing…".
-    expect(within(v1).getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(within(v1).getByRole("button", { name: /^Download$/ })).toBeTruthy();
   });
 });
 
