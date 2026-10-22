@@ -13,17 +13,48 @@
  */
 import { and, asc, eq, ne } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { certifications, facts, skillCurations } from "../db/schema";
+import { certifications, employers, facts, projects, skillCurations } from "../db/schema";
+import { laterUse, type CuratedGroup, type LastUsed } from "~/shared/skills";
+import { effectiveEmployerId } from "./employer";
+
+export type { CuratedGroup } from "~/shared/skills";
 
 export interface SkillCandidate {
   name: string;
   factCount: number;
   certificationCount: number;
+  /** The latest a fact or certification naming it reaches (issue #114). */
+  lastUsed: LastUsed;
 }
 
-export interface CuratedGroup {
-  name: string;
-  skills: string[];
+/** The candidates, and the technologies each eligible fact names together. */
+export interface SkillPool {
+  candidates: SkillCandidate[];
+  /** One entry per fact: what it names, deduplicated. Read for which group a candidate goes with. */
+  together: string[][];
+}
+
+const yearOf = (isoDate: string) => Number(isoDate.slice(0, 4));
+
+/**
+ * The latest a fact's work reaches, as far as the record says: the month it
+ * was captured with, else the end of its project, else the end of its
+ * employer's tenure. A project or tenure not yet ended is going on now — but a
+ * project left open at an employer the author has since left ended with it.
+ */
+function factUse(row: {
+  occurredOn: string | null;
+  projectStartedOn: string | null;
+  projectEndedOn: string | null;
+  employerStartedOn: string | null;
+  employerEndedOn: string | null;
+}): LastUsed {
+  if (row.occurredOn) return yearOf(row.occurredOn);
+  if (row.projectEndedOn) return yearOf(row.projectEndedOn);
+  if (row.projectStartedOn) return row.employerEndedOn ? yearOf(row.employerEndedOn) : "now";
+  if (row.employerEndedOn) return yearOf(row.employerEndedOn);
+  if (row.employerStartedOn) return "now";
+  return null;
 }
 
 /**
@@ -32,9 +63,22 @@ export interface CuratedGroup {
  * they name is not a skill a document could list.
  */
 export async function skillCandidates(db: Db, userId: string): Promise<SkillCandidate[]> {
+  return (await skillPool(db, userId)).candidates;
+}
+
+export async function skillPool(db: Db, userId: string): Promise<SkillPool> {
   const factRows = await db
-    .select({ technologies: facts.technologies })
+    .select({
+      technologies: facts.technologies,
+      occurredOn: facts.occurredOn,
+      projectStartedOn: projects.startedOn,
+      projectEndedOn: projects.endedOn,
+      employerStartedOn: employers.startedOn,
+      employerEndedOn: employers.endedOn,
+    })
     .from(facts)
+    .leftJoin(projects, and(eq(projects.id, facts.projectId), eq(projects.userId, userId)))
+    .leftJoin(employers, and(eq(employers.id, effectiveEmployerId), eq(employers.userId, userId)))
     .where(
       and(
         eq(facts.userId, userId),
@@ -44,30 +88,59 @@ export async function skillCandidates(db: Db, userId: string): Promise<SkillCand
       ),
     );
   const certificationRows = await db
-    .select({ technologies: certifications.technologies })
+    .select({ technologies: certifications.technologies, issuedOn: certifications.issuedOn })
     .from(certifications)
     .where(eq(certifications.userId, userId));
 
   const pool = new Map<string, SkillCandidate>();
-  const tally = (rows: { technologies: string[] }[], field: "factCount" | "certificationCount") => {
-    for (const row of rows) {
-      // A fact naming one technology twice is one fact behind it.
-      for (const name of new Set(row.technologies)) {
-        const entry = pool.get(name) ?? { name, factCount: 0, certificationCount: 0 };
-        entry[field] += 1;
-        pool.set(name, entry);
-      }
+  const tally = (names: Set<string>, field: "factCount" | "certificationCount", used: LastUsed) => {
+    // A fact naming one technology twice is one fact behind it.
+    for (const name of names) {
+      const entry = pool.get(name) ?? { name, factCount: 0, certificationCount: 0, lastUsed: null };
+      entry[field] += 1;
+      entry.lastUsed = laterUse(entry.lastUsed, used);
+      pool.set(name, entry);
     }
   };
-  tally(factRows, "factCount");
-  tally(certificationRows, "certificationCount");
+  const together: string[][] = [];
+  for (const row of factRows) {
+    const names = new Set(row.technologies);
+    tally(names, "factCount", factUse(row));
+    together.push([...names]);
+  }
+  for (const row of certificationRows) {
+    tally(new Set(row.technologies), "certificationCount", row.issuedOn ? yearOf(row.issuedOn) : null);
+  }
 
-  return [...pool.values()].sort(
+  const candidates = [...pool.values()].sort(
     (a, b) =>
       b.factCount - a.factCount ||
       b.certificationCount - a.certificationCount ||
       (a.name < b.name ? -1 : a.name > b.name ? 1 : 0),
   );
+  return { candidates, together };
+}
+
+/**
+ * The group a skill not yet listed most likely belongs in: the one whose
+ * skills it is named beside on the most facts, the earlier group on a tie.
+ * Nothing is suggested for a skill no fact names beside a listed one — a
+ * group picked by its name would be a guess the screen presented as a reason.
+ */
+export function suggestedGroup(skill: string, groups: CuratedGroup[], together: string[][]): string | null {
+  const groupOf = new Map(groups.flatMap((g) => g.skills.map((s) => [s, g.name] as const)));
+  const score = new Map<string, number>();
+  for (const names of together) {
+    if (!names.includes(skill)) continue;
+    for (const group of new Set(names.flatMap((name) => groupOf.get(name) ?? []))) {
+      score.set(group, (score.get(group) ?? 0) + 1);
+    }
+  }
+  let best: string | null = null;
+  for (const g of groups) {
+    if ((score.get(g.name) ?? 0) > (best === null ? 0 : score.get(best)!)) best = g.name;
+  }
+  return best;
 }
 
 /** The stored curation, grouped in the order its rows were saved. Empty when nothing is curated. */
@@ -86,16 +159,4 @@ export async function curatedGroups(db: Db, userId: string): Promise<CuratedGrou
     else groups.push({ name, skills: [row.skillName] });
   }
   return groups;
-}
-
-/**
- * The curation one render is given: only the skills something that render
- * receives still names, and no group left empty. `available` is built by the
- * collector AFTER the inclusion filter, so a skill whose only facts sit under
- * an employer this render leaves out is not written into it.
- */
-export function curationForRender(groups: CuratedGroup[], available: Set<string>): CuratedGroup[] {
-  return groups
-    .map((g) => ({ name: g.name, skills: g.skills.filter((s) => available.has(s)) }))
-    .filter((g) => g.skills.length > 0);
 }

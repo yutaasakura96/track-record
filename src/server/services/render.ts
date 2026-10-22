@@ -33,7 +33,8 @@ import { bulletBudget } from "~/render/resume";
 import { tokyoToday } from "~/render/rirekisho";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
-import { curatedGroups, curationForRender } from "./skills";
+import { curatedGroups } from "./skills";
+import { curationForRender } from "~/shared/skills";
 
 export interface RenderInputs {
   facts: RenderFact[];

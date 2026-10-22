@@ -25,15 +25,22 @@ const PRIVATE_QUOTE = "The client's session cache was rebuilt over one weekend."
 const GENERATED_QUOTE = "Infrastructure was described entirely as code.";
 const PENDING_QUOTE = "An event bus carried order updates between four services.";
 
+type LastUsed = number | "now" | null;
 interface Candidate {
   name: string;
   factCount: number;
   certificationCount: number;
+  lastUsed: LastUsed;
   curated: boolean;
+  suggestedGroup: string | null;
 }
 interface Curation {
-  groups: { name: string; skills: { name: string; factCount: number; certificationCount: number; stale: boolean }[] }[];
+  groups: {
+    name: string;
+    skills: { name: string; factCount: number; certificationCount: number; lastUsed: LastUsed; stale: boolean }[];
+  }[];
   candidates: Candidate[];
+  printable: string[];
 }
 
 let model: StubModel;
@@ -114,10 +121,74 @@ describe("candidates", () => {
 
     expect(groups).toEqual([]);
     expect(candidates).toEqual([
-      { name: "CockroachDB", factCount: 2, certificationCount: 0, curated: false },
-      { name: "Airflow", factCount: 1, certificationCount: 0, curated: false },
-      { name: "SQL", factCount: 0, certificationCount: 1, curated: false },
+      { name: "CockroachDB", factCount: 2, certificationCount: 0, lastUsed: null, curated: false, suggestedGroup: null },
+      { name: "Airflow", factCount: 1, certificationCount: 0, lastUsed: null, curated: false, suggestedGroup: null },
+      { name: "SQL", factCount: 0, certificationCount: 1, lastUsed: 2019, curated: false, suggestedGroup: null },
     ]);
+  });
+});
+
+describe("when a skill was last used", () => {
+  it("is the end of the employer's tenure its fact resolves to, or the month it was captured with", async () => {
+    const record = await seedRecord();
+    const employer = await created("/api/employers", EMPLOYER_FIXTURE);
+    await client.patch(`/api/facts/${record.pipeline.id}`, { employerId: employer.id });
+
+    const byName = async () => new Map((await curation()).candidates.map((c) => [c.name, c.lastUsed]));
+    expect(await byName()).toEqual(new Map<string, LastUsed>([["CockroachDB", 2024], ["Airflow", 2024], ["SQL", 2019]]));
+
+    // The later of two facts: one at the 2024 employer, one captured in 2025.
+    await client.patch(`/api/facts/${record.warehouse.id}`, { month: "2025-03" });
+    expect((await byName()).get("CockroachDB")).toBe(2025);
+  });
+
+  it("is now while the employer is current, on a curated skill as on a candidate", async () => {
+    const record = await seedRecord();
+    const current = await created("/api/employers", { ...EMPLOYER_FIXTURE, endedOn: null, leavingReasonJa: null });
+    await client.patch(`/api/facts/${record.pipeline.id}`, { employerId: current.id });
+    await curate([{ name: "Data platforms", skills: ["Airflow"] }]);
+
+    const { groups, candidates } = await curation();
+    expect(groups[0]!.skills[0]!.lastUsed).toBe("now");
+    expect(candidates.find((c) => c.name === "CockroachDB")!.lastUsed).toBe("now");
+  });
+});
+
+describe("a suggested group", () => {
+  it("is the group whose skills a candidate is named beside, and none where it is named beside none", async () => {
+    await seedRecord();
+    await curate([
+      { name: "Qualifications", skills: ["SQL"] },
+      { name: "Data platforms", skills: ["CockroachDB"] },
+    ]);
+
+    const { candidates } = await curation();
+    expect(candidates.map((c) => [c.name, c.suggestedGroup])).toEqual([
+      ["CockroachDB", null],
+      ["Airflow", "Data platforms"],
+      ["SQL", null],
+    ]);
+  });
+});
+
+describe("what the résumé may print", () => {
+  it("is every technology its facts and certifications name, best evidenced first", async () => {
+    await seedRecord();
+    expect((await curation()).printable).toEqual(["CockroachDB", "Airflow", "SQL"]);
+  });
+
+  it("leaves out a skill whose only facts the résumé leaves out, which the preview then leaves out too", async () => {
+    const record = await seedRecord();
+    const employer = await created("/api/employers", EMPLOYER_FIXTURE);
+    await client.patch(`/api/facts/${record.pipeline.id}`, { employerId: employer.id });
+    await client.put("/api/render-inclusions", {
+      entityType: "employer",
+      entityId: employer.id,
+      kind: "english_resume",
+      included: false,
+    });
+
+    expect((await curation()).printable).toEqual(["CockroachDB", "SQL"]);
   });
 });
 

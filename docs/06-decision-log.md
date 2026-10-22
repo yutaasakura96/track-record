@@ -7222,3 +7222,33 @@ and M3's "within a week of finishing" had nothing behind it.
 - **No email and no notification.** The prompt exists only on Home.
 - **Revisit if:** the step proves noisy for an author between jobs, or a second reminder channel is
   ever wanted; either is a new decision, not a setting.
+
+---
+
+### [2026-10-22] Skills shows the section it controls, and its chips move by drag, keyboard or tap
+
+The Skills screen was two lists of rows with `↑ ↓ Remove` and an `Add to` select on each, and
+nothing on it said it was the résumé's Skills section (#114, evaluation §3.6).
+
+- **Decision:** the screen leads with the Skills section the next English résumé prints, built by
+  the résumé's own functions (`resumeSkills`, `skillsSectionPage`) from the names the résumé may
+  print, which the curation read now carries as `printable`. The uncurated fallback and the narrowing
+  that were inline in `collectResumeRecord` moved into those pure functions so the download and the
+  preview cannot diverge, and `curationForRender` moved to `src/shared/skills.ts` for the same reason.
+  The preview is computed on the client, so it follows a move before the move is saved.
+- **Decision:** skills are chips carrying their achievement count and the last year the record
+  places them in. The year is derived on the read, from the quick-capture month, else the project's
+  end, else the employer's tenure; nothing new is stored.
+- **Decision:** a candidate's suggested group is the group whose skills it is named beside on the
+  most facts. A group guessed from a technology's name would be presented as evidence it is not.
+  One named beside no listed skill gets no suggestion, and adding it asks which group.
+- **Decision:** candidates named once and not in the last five years are folded. Two pieces of
+  evidence, or one recent one, keep a candidate in view.
+- **Decision:** a chip moves by native drag and drop, by the keyboard (pick up, arrows, place) and by
+  a bar of buttons a tap opens. A move is held until placed and written once. No drag library: the
+  keyboard path is the specified one rather than a sensor's geometry, and it is testable in jsdom.
+- **Decision:** Skills opens at phone width in the Applications frame, as the fourth exception to the
+  wider-window message. Choosing and ordering a list is one column of work, unlike the two-pane
+  screens the gate exists for.
+- **Not changed:** the stale-skill rule. A curated skill nothing names any more stays in place,
+  amber, `in no fact`, and is left out of every render and of the preview.

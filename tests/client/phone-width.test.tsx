@@ -86,6 +86,16 @@ describe("the wider-window message at phone width", () => {
     expect(screen.queryByText(WIDER)).toBeNull();
   });
 
+  it("is not shown on Skills, which opens with the menu in its header", async () => {
+    mount("/skills", {
+      ...ROUTES,
+      "GET /api/skills/curation": { groups: [], candidates: [], printable: [] },
+    });
+    expect(await screen.findByRole("heading", { name: "Skills", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
+    expect(screen.queryByText(WIDER)).toBeNull();
+  });
+
   it("is still shown on every other screen", async () => {
     // What these would read is not stubbed: the message stands in front of it.
     for (const path of ["/", "/record", "/documents", "/proposals/prop-test-1", "/applicationsx"]) {

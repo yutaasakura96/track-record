@@ -27,6 +27,7 @@
  */
 import type { RenderSpec } from "~/model/types";
 import { leavesOutEducation } from "~/shared/education";
+import { curationForRender, type CuratedGroup } from "~/shared/skills";
 import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
@@ -309,7 +310,7 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
   const contact = headline === null ? lines : lines.slice(1);
   const sections: ResumeSection[] = [
     section(SUMMARY_KEY, "Summary", summaryBlocks(content)),
-    section("skills", "Skills", skillsBlocks(record)),
+    section("skills", "Skills", skillsBlocks(record.skills)),
     section("experience", "Experience", experienceBlocks(content, record)),
     section("projects", "Projects", projectBlocks(content, record)),
     section("education", "Education", educationBlocks(record)),
@@ -431,8 +432,43 @@ function summaryBlocks(content: RenderContent): ResumeBlock[] {
   return writtenOf(content, SUMMARY_KEY).map((b) => ({ kind: "paragraph", ...b }));
 }
 
-function skillsBlocks(record: ResumeRecord): ResumeBlock[] {
-  return record.skills.flatMap((group): ResumeBlock[] => {
+/**
+ * Every technology the résumé's facts and certifications name, the
+ * best-evidenced first, then by name: the line printed when nothing is curated.
+ */
+export function rankedSkills(rows: { technologies: string[] }[]): string[] {
+  const tally = new Map<string, number>();
+  for (const row of rows) {
+    for (const name of new Set(row.technologies)) tally.set(name, (tally.get(name) ?? 0) + 1);
+  }
+  return [...tally.entries()]
+    .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : a > b ? 1 : 0))
+    .map(([name]) => name);
+}
+
+/**
+ * The résumé's skills: the author's curation, narrowed to what this résumé may
+ * name (`ranked`, from `rankedSkills`). A curation that leaves nothing is no
+ * skills section, never a fallback. With nothing curated, one ungrouped line of
+ * `ranked` — the list the Skills screen offers to curate from, in its order.
+ */
+export function resumeSkills(curation: CuratedGroup[], ranked: string[]): ResumeRecord["skills"] {
+  if (curation.length > 0) return curationForRender(curation, new Set(ranked));
+  return ranked.length > 0 ? [{ name: "", skills: ranked }] : [];
+}
+
+/**
+ * The Skills section alone, as a version's page shows it: what the Skills
+ * screen previews (issue #114). It goes through `resumeSentPage`, so the
+ * preview cannot set a group out differently from the document.
+ */
+export function skillsSectionPage(skills: ResumeRecord["skills"]): SentPage["sections"] {
+  const sections = [section("skills", "Skills", skillsBlocks(skills))].filter((s) => s.blocks.length > 0);
+  return resumeSentPage({ name: "", headline: null, contact: [], sections }).sections;
+}
+
+function skillsBlocks(groups: ResumeRecord["skills"]): ResumeBlock[] {
+  return groups.flatMap((group): ResumeBlock[] => {
     const skills = group.skills;
     if (skills.length === 0) return [];
     const label = group.name.trim();
