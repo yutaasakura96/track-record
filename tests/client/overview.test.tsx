@@ -393,6 +393,107 @@ describe("the next step", () => {
   });
 });
 
+describe("the monthly capture prompt", () => {
+  const DAY = 86_400_000;
+  const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
+  /** The author's month, `YYYY-MM-01`, `shift` months from this one. */
+  const month = (shift = 0) => {
+    const at = new Date();
+    at.setDate(1);
+    at.setMonth(at.getMonth() + shift);
+    return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-01`;
+  };
+  const QORVANE = { id: "emp-test-qorvane", name: "Qorvane K.K." };
+  const prompt = (over: Partial<NonNullable<Overview["capturePrompt"]>>, documents: RenderRow[] = []): Routes => ({
+    "GET /api/overview": {
+      ...overview(documents),
+      capturePrompt: { lastFactAt: ago(31), employer: QORVANE, dismissedOn: null, ...over },
+    },
+  });
+  const ASKS = "What did you ship this month at Qorvane K.K.?";
+
+  it("asks after 30 days with no new fact, and opens Quick capture with the employer chosen", async () => {
+    const { user, pathname } = open([], prompt({ lastFactAt: ago(30) }));
+    const step = await nextStep();
+
+    expect(within(step).getByRole("heading", { name: ASKS })).toBeTruthy();
+    expect(within(step).getByText(/Nothing has been added to your record for 30 days\./)).toBeTruthy();
+    const link = within(step).getByRole("link", { name: "Quick capture" });
+    expect(link.getAttribute("href")).toBe(`/capture?employer=${QORVANE.id}`);
+
+    await user.click(link);
+    await waitFor(() => expect(pathname()).toBe("/capture"));
+  });
+
+  it("does not ask while a fact has arrived in the last 30 days", async () => {
+    open([], prompt({ lastFactAt: ago(29) }));
+    const step = await nextStep();
+    expect(within(step).queryByText(ASKS)).toBeNull();
+    expect(within(step).getByRole("heading", { name: "You are up to date" })).toBeTruthy();
+  });
+
+  it("does not ask a record that has never had a fact", async () => {
+    open([], prompt({ lastFactAt: null }));
+    expect(within(await nextStep()).queryByText(ASKS)).toBeNull();
+  });
+
+  it("asks without an employer when the author works for none now", async () => {
+    open([], prompt({ employer: null }));
+    const step = await nextStep();
+    expect(within(step).getByRole("heading", { name: "What did you ship this month?" })).toBeTruthy();
+    expect(within(step).getByRole("link", { name: "Quick capture" }).getAttribute("href")).toBe("/capture");
+  });
+
+  it("comes before generating a document, and after what is already waiting", async () => {
+    open(
+      [],
+      prompt({}, [
+        row(),
+        row({ kind: "rirekisho", language: "ja", title: "Qorvane 履歴書", status: "proposal_pending", pendingProposalId: "prop-test-zentrel" }),
+      ]),
+    );
+    const step = await nextStep();
+    expect(within(step).getByRole("heading", { name: "Check the new Qorvane 履歴書" })).toBeTruthy();
+    const rest = within(step).getAllByRole("listitem");
+    expect(rest.map((item) => item.querySelector("span")!.textContent)).toEqual([ASKS, "Generate your English résumé"]);
+  });
+
+  it("is put away until the month ends, for this member, and asks again the month after", async () => {
+    const { api, user } = open([], {
+      ...prompt({}),
+      "POST /api/capture/prompt/dismiss": { dismissedOn: month() },
+    });
+    const step = await nextStep();
+    await user.click(within(step).getByRole("button", { name: "Not this month" }));
+
+    await waitFor(() => expect(within(step).queryByText(ASKS)).toBeNull());
+    expect(api.writes()).toEqual(["POST /api/capture/prompt/dismiss"]);
+    expect(api.bodyOf("POST", "/api/capture/prompt/dismiss")).toEqual({ month: month() });
+  });
+
+  it("stays away for the rest of the month it was put away in", async () => {
+    open([], prompt({ dismissedOn: month() }));
+    expect(within(await nextStep()).queryByText(ASKS)).toBeNull();
+  });
+
+  it("asks again once the month it was put away in has ended", async () => {
+    open([], prompt({ dismissedOn: month(-1) }));
+    expect(within(await nextStep()).getByRole("heading", { name: ASKS })).toBeTruthy();
+  });
+
+  it("says a refused dismissal and keeps asking", async () => {
+    const { user } = open([], {
+      ...prompt({}),
+      "POST /api/capture/prompt/dismiss": UNREACHABLE,
+    });
+    const step = await nextStep();
+    await user.click(within(step).getByRole("button", { name: "Not this month" }));
+
+    expect((await within(step).findByRole("alert")).textContent).toBe(NOT_REACHED);
+    expect(within(step).getByRole("heading", { name: ASKS })).toBeTruthy();
+  });
+});
+
 /**
  * Issue #111: the record's counts are one strip under the documents, and the
  * chart of facts by provenance is on the career record (Screen 10).

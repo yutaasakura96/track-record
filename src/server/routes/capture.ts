@@ -15,7 +15,7 @@
 import type { Hono } from "hono";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { employers, factFlags, facts, projects } from "../db/schema";
+import { capturePromptDismissals, employers, factFlags, facts, projects } from "../db/schema";
 import { ApiError } from "../http/errors";
 import { newId } from "../http/ids";
 import { routes } from "../http/registry";
@@ -24,6 +24,7 @@ import { factWithEmployer } from "../services/employer";
 import { settleRepeats } from "../services/repeats";
 import { flagsOf } from "./flags";
 import { requireOwnedEmployer, requireOwnedProject } from "./record";
+import { monthDate } from "./profile";
 import { toResponse } from "./facts";
 import { classifyClaim } from "~/pipeline/flags";
 import { ModelUnavailableError, type CapturedClaim, type ModelUsage } from "~/model";
@@ -72,6 +73,14 @@ const saveBody = z.object({
 });
 
 const thisMonth = () => new Date().toISOString().slice(0, 7);
+
+const dismissBody = z.object({
+  /** The author's own month, `YYYY-MM-01`: the prompt is away until it ends. */
+  month: monthDate,
+});
+
+/** Months since the year 0, so two months subtract. */
+const monthIndex = (month: string) => Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7));
 
 export function registerCaptureRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -207,5 +216,28 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
       }),
     );
     return c.json({ items: saved.map((fact) => toResponse(fact, [], flags.get(fact.id) ?? [])) }, 201);
+  });
+
+  /**
+   * Puts Home's monthly capture prompt away until the author's month ends
+   * (issue #116). Kept on the member, so it holds on every device. The month
+   * is the author's, since a month ends where they are; one more than a month
+   * from the server's is refused, so no dismissal outlasts the month it was for.
+   */
+  api.post("/api/capture/prompt/dismiss", async (c) => {
+    const user = c.get("user");
+    const { month } = await parseBody(c, dismissBody);
+    if (Math.abs(monthIndex(month) - monthIndex(thisMonth())) > 1) {
+      throw new ApiError("validation_failed", "The prompt can only be put away for this month.");
+    }
+    await c
+      .get("db")
+      .insert(capturePromptDismissals)
+      .values({ userId: user.id, dismissedOn: month })
+      .onConflictDoUpdate({
+        target: capturePromptDismissals.userId,
+        set: { dismissedOn: month, updatedAt: new Date() },
+      });
+    return c.json({ dismissedOn: month });
   });
 }

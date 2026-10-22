@@ -657,6 +657,12 @@ set, `null` a chosen `No employer`; `projectId` files the fact through its proje
 fact is unfiled. **404** for an employer or a project the session does not own, and nothing is saved.
 **422** for an empty claim, a malformed month, or both an employer and a project on one claim.
 
+**`POST /api/capture/prompt/dismiss`** (#116) takes `{ month }`, the author's own month as
+`YYYY-MM-01`, and puts Home's monthly capture prompt away until that month ends, on every device:
+it is stored on the member, in `capture_prompt_dismissals` (`04` §3.18), so it answers with or
+without a profile. **200** `{ dismissedOn }`. **422** for a month that is not `YYYY-MM-01`, or one
+more than a month from the server's, so a dismissal never outlasts the month it was for.
+
 ---
 
 ## 7. Renders · M1 for the English résumé
@@ -972,6 +978,11 @@ and the home screen waited for all of them.
   "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
   "unconfirmed": { "importId": "sdv_…", "count": 3, "total": 16 },
   "flagged": 14,
+  "capturePrompt": {
+    "lastFactAt": "2026-08-12T08:02:00Z",
+    "employer": { "id": "emp_…", "name": "Example Corp" },
+    "dismissedOn": null
+  },
   "documents": [],
   "canGenerate": true,
   "isEmpty": false
@@ -1002,6 +1013,11 @@ a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
+`capturePrompt` (#116) is what the monthly capture prompt is decided from, by the client, since the
+month is the author's: `lastFactAt` is when the newest fact was created, by any road and in any
+state, or `null` for none; `employer` is the employer with no `ended_on`, the one started last when
+there are two, named by `name_latin` or else `name_ja`, or `null` when every job has ended; and
+`dismissedOn` is the member's `capture_prompt_dismissals.dismissed_on`, or `null` for none.
 
 ---
 

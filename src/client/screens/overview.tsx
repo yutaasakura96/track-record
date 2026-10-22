@@ -21,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   failureText,
   keys,
+  useDismissCapturePrompt,
   useGenerate,
   useOverview,
   useProfile,
@@ -42,6 +43,7 @@ import { DocumentCard, MasterDocumentCard } from "../components/document-card";
 import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
 import { useDocumentLanguageStore } from "../stores/document-language";
 import { nextSteps, type Step, type StepAction } from "../next-step";
+import { currentMonth } from "~/shared/calendar";
 
 const number = (n: number) => n.toLocaleString("en-US");
 
@@ -422,18 +424,33 @@ function NextStep({
   onImport: () => void;
   onSort: () => void;
 }) {
+  const dismiss = useDismissCapturePrompt();
   const [first, ...rest] = steps;
   if (!first) return null;
-  const act = (action: StepAction | null, className: string) => (
-    <StepControl
-      action={action}
-      className={className}
-      busy={busy}
-      sorting={sorting.running}
-      onGenerate={onGenerate}
-      onImport={onImport}
-      onSort={onSort}
-    />
+  const act = (step: Step, className: string) => (
+    <>
+      {step.dismissible ? (
+        <Button
+          type="button"
+          variant="bare"
+          className="shrink-0"
+          onClick={() => dismiss.mutate(currentMonth())}
+          disabled={dismiss.isPending}
+          disabledReason={dismiss.isPending ? "Putting it away…" : undefined}
+        >
+          Not this month
+        </Button>
+      ) : null}
+      <StepControl
+        action={step.action}
+        className={className}
+        busy={busy}
+        sorting={sorting.running}
+        onGenerate={onGenerate}
+        onImport={onImport}
+        onSort={onSort}
+      />
+    </>
   );
 
   return (
@@ -449,7 +466,7 @@ function NextStep({
           <h2 className="text-page font-semibold tracking-tight text-text-bright">{first.title}</h2>
           <p className="mt-4 text-ui text-text-body">{first.why}</p>
         </div>
-        {act(first.action, PRIMARY)}
+        <div className="shrink-0 flex items-center gap-8">{act(first, PRIMARY)}</div>
       </div>
       {sorting.running || sorting.sorted > 0 ? (
         <p role="status" className="mt-12 text-small text-text-secondary">
@@ -462,6 +479,11 @@ function NextStep({
           {failure}
         </p>
       ) : null}
+      {dismiss.error ? (
+        <p role="alert" className="mt-12 text-small text-text-secondary">
+          {failureText(dismiss.error)}
+        </p>
+      ) : null}
 
       {rest.length > 0 ? (
         <div className="mt-14 pt-12 border-t border-border-inner">
@@ -470,7 +492,7 @@ function NextStep({
             {rest.map((step) => (
               <li key={step.key} className="flex items-center justify-between gap-12 py-6">
                 <span className="text-row text-text-strong">{step.title}</span>
-                {act(step.action, GHOST)}
+                <span className="shrink-0 flex items-center gap-8">{act(step, GHOST)}</span>
               </li>
             ))}
           </ul>
@@ -517,6 +539,17 @@ function StepControl({
   if (action.kind === "review") {
     return (
       <Link to="/imports/$importId" params={{ importId: action.importId }} className={`shrink-0 ${className}`}>
+        {action.label}
+      </Link>
+    );
+  }
+  if (action.kind === "capture") {
+    return (
+      <Link
+        to="/capture"
+        search={action.employerId ? { employer: action.employerId } : {}}
+        className={`shrink-0 ${className}`}
+      >
         {action.label}
       </Link>
     );

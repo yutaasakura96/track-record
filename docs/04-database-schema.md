@@ -66,7 +66,8 @@ users (Better Auth)
  │    ├── application_documents  0:N   (the documents chosen for it; taken off, never deleted)
  │    └── application_sent_copies 0:N  (each document as it was sent: the file, kept whole)
  ├── skill_curations             1:N   [M2]
- └── render_inclusions           1:N   [M2]
+ ├── render_inclusions           1:N   [M2]
+ └── capture_prompt_dismissals   0:1   (the month Home's capture prompt was put away for)
 ```
 
 PRD entities map as: **Profile** → `profiles`, **Employer** → `employers`, **Role** → `roles`,
@@ -877,6 +878,18 @@ live rows.
 - **Carry-over.** Migration 0020 lists each tailored résumé that 0017 linked as a document of its
   application. `down/0020_application_documents.sql` reverses it, and
   `tests/applications-migration.test.ts` runs both directions.
+
+### 3.18 `capture_prompt_dismissals` · migration 0029, 2026-10-22 (#116)
+
+One row per member at most: the month Home's monthly capture prompt was put away for. Not PII. It
+is kept on the member, not the browser, so it holds on every device, and it is its own table rather
+than a `profiles` column because a member with no profile is asked too, and must be able to answer.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `user_id` | text | no | — | Primary key; FK → `users.id`, `on delete cascade` |
+| `dismissed_on` | date | no | — | The month, day pinned to `01`. Written only by `POST /api/capture/prompt/dismiss`, which overwrites it |
+| `created_at`, `updated_at` | timestamptz | no | `now()` | |
 
 ---
 

@@ -448,6 +448,7 @@ the content column**, so the eye has one place to go. The step is the first of t
 | A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
 | A proposal is still being written, and none is ready | `Wait for the new <document>` | `It is still being written. Open it to watch it arrive.` | `Open it`, into Diff Review |
 | Facts **the author accepted on a card** are still Generated. One the importer accepted is not counted: it carries a `Not sure` flag, and a flag is never a step (#57) | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
+| The record has facts, and none was added in the last 30 days (#116) | `What did you ship this month at <current employer>?`, the employer with no end date (the one joined last, of two), by its Latin name or else its Japanese one. With no current employer: `What did you ship this month?` | `Nothing has been added to your record for N days. A sentence or two now is easier than remembering it at your next job search.` | `Quick capture`, into Screen 16 with that employer chosen (`/capture?employer=<id>`). Beside it, `Not this month` (bare) puts the step away until the author's month ends, on every device: it is kept on the member, not the browser. A refusal is said in this panel. No email and no notification, ever |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
 | A document is out of date | `Update your <document>` | `N new facts since it was generated.` When it is out of date only by facts it may no longer use: `N facts it was generated from can no longer be used.` Both: `N new facts since it was generated, and M it was generated from can no longer be used.` | `Update` |
@@ -1947,6 +1948,10 @@ is saved.` `Next:` `type what you did, then press Read it.` Panel `What did you 
 
 - `In your own words`, a five-row text area with an invented example as its placeholder. At most
   2,000 characters.
+- `Employer or project`, the same select as Step 2's, `Not said` unless the screen was opened from
+  Home's monthly prompt (`?employer=<id>`, #116), which chooses that employer; a draft kept from
+  before keeps its own choice. What is chosen files every claim the reading leaves unfiled, and
+  the plain form's claim, and those claims are not asked `Which employer, or which project?`.
 - `Nothing is saved until you save it.`, then `Fill it in yourself` (bare), which opens the plain
   form without a reading, and **`Read it`** (primary).
 - While it is read, the text is read-only and the actions give way to a `role="status"` line with

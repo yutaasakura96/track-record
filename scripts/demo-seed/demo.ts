@@ -56,6 +56,7 @@ export const RESET_ORDER = [
   s.sourceDocuments,
   s.skillCurations,
   s.renderInclusions,
+  s.capturePromptDismissals,
   s.certifications,
   s.educations,
   s.projects,

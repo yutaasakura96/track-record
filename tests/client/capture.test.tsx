@@ -186,6 +186,49 @@ describe("reading what was typed", () => {
   });
 });
 
+describe("arriving from Home's monthly prompt", () => {
+  it("files the text under the employer it named, wherever the reading names none", async () => {
+    const { api, user } = mount(
+      `/capture?employer=${QORVANE.id}`,
+      routes({
+        "POST /api/capture/read": { claims: [CLAIMS[0]] },
+        "POST /api/capture": { items: [saved({})] },
+      }),
+    );
+    await typeIt(user);
+    const where = (await screen.findByRole("combobox", { name: "Where it was: employer or project" })) as unknown as HTMLSelectElement;
+    await waitFor(() => expect(where.value).toBe(`employer:${QORVANE.id}`));
+
+    await user.click(screen.getByRole("button", { name: "Read it" }));
+    const form = within(await screen.findByRole("group", { name: "Claim" }));
+    expect((form.getByRole("combobox") as unknown as HTMLSelectElement).value).toBe(`employer:${QORVANE.id}`);
+    // Where it was is said, so the step does not ask it again.
+    expect(form.queryByText("Which employer, or which project?")).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Save the fact" }));
+    await screen.findByText("Saved 1 fact into your record.");
+    expect(api.bodyOf("POST", "/api/capture")).toEqual({
+      claims: [{ claim: CLAIMS[0]!.claim, month: "2026-09", employerId: QORVANE.id, technologies: [] }],
+    });
+  });
+
+  it("leaves a kept draft filed where the author said", async () => {
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({ step: "text", text: TYPED, filed: "none", claims: [], reading: "read" }),
+    );
+    mount(`/capture?employer=${QORVANE.id}`, routes());
+    const where = (await screen.findByRole("combobox", { name: "Where it was: employer or project" })) as unknown as HTMLSelectElement;
+    expect(where.value).toBe("none");
+  });
+
+  it("files nothing when it was opened without an employer", async () => {
+    mount("/capture", routes());
+    const where = (await screen.findByRole("combobox", { name: "Where it was: employer or project" })) as unknown as HTMLSelectElement;
+    expect(where.value).toBe("");
+  });
+});
+
 describe("the draft", () => {
   it("survives leaving the screen, and nothing is written before save", async () => {
     const first = mount("/capture", routes({ "POST /api/capture/read": { claims: CLAIMS } }));

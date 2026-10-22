@@ -7198,3 +7198,27 @@ parts missing.
   page, the proposal preview and the `.docx`, `.md` and `.pdf` downloads all meet, and each answers with the
   same message, `details.jobHeaders` and links. The refusal is lifted by filling the field, with no
   regeneration needed.
+
+### [2026-10-22] Home asks what was shipped after a month with no new fact, and remembers "not this month" on the member
+
+Issue #116. The record goes stale between job searches because nothing asks for it in between,
+and M3's "within a week of finishing" had nothing behind it.
+
+- **Decision:** after 30 days in which the record gained no fact, by any road and in any state,
+  Home's Next step reads `What did you ship this month at <current employer>?` and opens Quick
+  capture with that employer chosen (`10` Screen 3). It ranks after everything already waiting on
+  the author (facts to sort, a proposal, facts to confirm) and before generating or updating a
+  document, since what is captured now is in the document generated next. A record that has never
+  had a fact is not asked; the import step answers it.
+- **The current employer** is the one with no `ended_on`; of two held at once, the one started
+  last. With none, the step asks `What did you ship this month?` and chooses nothing.
+- **`Not this month` is stored on the member**, in `capture_prompt_dismissals` (`04` §3.18), not in
+  the browser, so it holds on the author's phone and laptop alike. It is a table of its own, keyed
+  by the user, and not a `profiles` column: a profile row exists only once the profile is saved,
+  and a member who has imported and never filled it in is asked too, so must be able to answer. It holds until the author's own
+  month ends: the client sends its local month and decides with its own clock, because a month ends
+  where the author is. The server refuses a month more than one away from its own, so no dismissal
+  can be made to last.
+- **No email and no notification.** The prompt exists only on Home.
+- **Revisit if:** the step proves noisy for an author between jobs, or a second reminder channel is
+  ever wanted; either is a new decision, not a setting.
