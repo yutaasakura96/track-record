@@ -6989,3 +6989,45 @@ and `src/pipeline/docx.ts` stays the one for files the author brings, sharing on
 
 **Revisit if:** the template gains an image, a nested table or a text box, none of which the reader
 draws, or the English résumé moves to a template too and could be read the same way.
+
+---
+
+### [2026-10-22] The local proxy pools its connections and logs at `warn`
+
+On 2026-10-21 every worktree's test stack ran the Neon proxy at 85–745% CPU, logging "throwing away
+connection … because pool is full, total_conns=20" thousands of times a minute. Suites timed out
+(61 of 117 server tests once) and passed when rerun alone. On a throwaway stack, one full server run
+produced 30,843 proxied queries, 30,820 "pool is full" lines and 393,477 log lines in 214s, with
+the proxy at 119% mean and 225% peak CPU.
+
+**The cause is the one the 2026-09-19 entry found and set aside.** The proxy draws from its pool
+only for requests that send `Neon-Pool-Opt-In: true`, and the driver never sends it. Every query
+opened a Postgres connection and returned it to a pool of 20 that nothing drew from, so all but
+the first 20 were closed again, and each query wrote about thirteen INFO lines. That entry
+measured pooling by query latency, where it saved about 1ms. The cost it missed was the logging
+and the connection churn.
+There are no client-side pools in the suite to close: every query is one HTTP request.
+
+**`scripts/neon-proxy-start.sh` now passes `--sql-over-http-pool-opt-in=false` and
+`--sql-over-http-pool-max-conns-per-endpoint=64`**, so every request uses the pool. A full run
+at the default parallelism never held more than 25 client backends, measured once a second, so 64
+is headroom that still sits under Postgres's `max_connections` of 100. **`docker-compose.yml` sets
+`RUST_LOG=warn`**, and `OTEL_SDK_DISABLED=true` stops an export to an OpenTelemetry collector on
+`localhost:4318` that does not exist. That export had failed with an ERROR line 1,017 times in
+the run.
+
+| Same stack, same suite | Before | Pool flags | Pool flags and `warn` |
+| --- | --- | --- | --- |
+| "pool is full" lines | 30,820 | 0 | 0 (and none at `info`) |
+| Proxy log lines | 393,477 | 238,763 | 17 |
+| Proxy CPU, mean / peak | 119% / 225% | 112% / 208% | 105% / 186%; 97% / 182% on a repeat |
+| Suite time | 214s | 183s | 134s; 154s on a repeat |
+
+**What is left is authentication.** The proxy's mock auth backend still runs two role-secret
+lookups per query, each a new Postgres login, and no flag caches them. That is the remaining
+proxy and Postgres CPU. Removing it would mean changing the proxy itself.
+
+**Existing stacks pick this up on the next `npm run db:up`**, because Compose recreates a container
+whose environment changed. Nothing else about starting the stack changes. To read the proxy's
+per-query lines while diagnosing, set `RUST_LOG` to `info` in `docker-compose.yml` and run
+`npm run db:up`.

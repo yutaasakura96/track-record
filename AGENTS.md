@@ -36,8 +36,9 @@ before touching anything.
   prints the same steps when a query and a `select 1` probe after it both go unanswered
   (`src/server/db/proxy-watch.ts`).
 
-Every stall recorded before 2026-09-25 was the first kind (issue #25, decision log 2026-09-25). The
-20 idle backends on `track_record_test` are the proxy's normal resting state, not a full pool.
+Every stall recorded before 2026-09-25 was the first kind (issue #25, decision log 2026-09-25). Idle
+backends on `track_record_test` after a run are the proxy's connection pool (capped at 64, closed
+after five idle minutes), not a leak (decision log 2026-10-22).
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
