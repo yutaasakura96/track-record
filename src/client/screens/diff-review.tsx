@@ -416,6 +416,7 @@ function FirstVersion({
           <h1 className="text-render-heading font-semibold text-text-strong">{preview.title}</h1>
           {preview.page.stamp ? <p className="mt-8 text-render-body text-text-body">{preview.page.stamp}</p> : null}
           {preview.page.name ? <p className="mt-8 text-render-body font-semibold text-text-body">{preview.page.name}</p> : null}
+          {preview.page.headline ? <p className="text-render-body text-text-body">{preview.page.headline}</p> : null}
           {preview.page.contact.map((line) => <p key={line} className="text-render-body text-text-body whitespace-pre-line">{line}</p>)}
           {preview.page.sections.map((section, index) => (
             <section key={index}>

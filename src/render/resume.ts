@@ -27,7 +27,7 @@
  */
 import type { RenderSpec } from "~/model/types";
 import { leavesOutEducation } from "~/shared/education";
-import { RENDER_TITLE, type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
+import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
 import { identityLines, type RenderIdentity } from "./identity";
@@ -538,10 +538,12 @@ export function resumeMarkdown(doc: ResumeDocument): string {
 /** What a sent copy's screen shows: the file's text, in its order. Headers and titles read as rows. */
 export function resumeSentPage(doc: ResumeDocument): SentPage {
   return {
-    title: RENDER_TITLE.english_resume,
+    // The file prints no title above the name (§4.3), so neither does its page.
+    title: null,
     stamp: null,
     name: doc.name,
-    contact: [doc.headline, ...doc.contact].filter((line): line is string => line !== null),
+    ...(doc.headline === null ? {} : { headline: doc.headline }),
+    contact: doc.contact,
     sections: doc.sections.map((s) => ({
       heading: s.heading,
       blocks: s.blocks.map((block) => {

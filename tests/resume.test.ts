@@ -288,6 +288,78 @@ describe("the English résumé document", () => {
   });
 });
 
+describe("the header", () => {
+  const FILLED = {
+    headline: "Platform Engineer",
+    city: "Sapporo",
+    country: "Japan",
+    phone: "+81 90-0000-4321",
+    linkedinUrl: "https://www.linkedin.com/in/mika-example/",
+    githubUrl: "github.com/mika-example",
+    portfolioUrl: "http://mika.example.invalid/work/",
+  };
+  const EMPTY = { headline: null, city: null, country: null, phone: null, linkedinUrl: null, githubUrl: null, portfolioUrl: null };
+
+  const withHeader = (resume: typeof EMPTY | typeof FILLED | Record<keyof typeof EMPTY, string | null>) =>
+    assembleResume({ content: CONTENT, record: RECORD, identity: { ...IDENTITY, resume }, today: TODAY });
+
+  /** The paragraphs before the first section heading, as Word holds them: text, size and colour. */
+  const fileHeader = async (doc: ReturnType<typeof withHeader>) => {
+    const xml = new PizZip(await resumeDocx(doc, "a4", { title: "t", author: "a" })).file("word/document.xml")!.asText();
+    const paragraphs = xml.split("</w:p>").map((p) => ({
+      text: [...p.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/g)].map((m) => m[1]).join(""),
+      size: /<w:sz w:val="(\d+)"/.exec(p)?.[1] ?? null,
+      color: /<w:color w:val="([0-9A-F]+)"/.exec(p)?.[1] ?? null,
+    }));
+    return paragraphs.slice(0, paragraphs.findIndex((p) => p.text === "Summary"));
+  };
+  const markdownHeader = (doc: ReturnType<typeof withHeader>) =>
+    resumeMarkdown(doc).split("\n## ")[0]!.split("\n").filter((line) => line !== "");
+
+  it("prints every filled field: the name, an 11pt accent headline, then one contact line", async () => {
+    const doc = withHeader(FILLED);
+    const contact = "Sapporo, Japan · mika@example.com · +81 90-0000-4321 · www.linkedin.com/in/mika-example/ · github.com/mika-example · mika.example.invalid/work/";
+    expect(doc.headline).toBe("Platform Engineer");
+    expect(doc.contact).toEqual([contact]);
+
+    const [name, headline, line, ...rest] = await fileHeader(doc);
+    expect(rest).toEqual([]);
+    expect(name).toMatchObject({ text: "Mika Tanabe", size: "40" });
+    expect(headline).toMatchObject({ text: "Platform Engineer", size: "22" });
+    expect(headline!.color).not.toBeNull();
+    expect(line).toMatchObject({ text: contact, size: "19" });
+    expect(line!.color).not.toBe(headline!.color);
+
+    expect(markdownHeader(doc)).toEqual(["# Mika Tanabe", "Platform Engineer", contact]);
+    const page = resumeSentPage(doc);
+    expect(page).toMatchObject({ title: null, name: "Mika Tanabe", headline: "Platform Engineer", contact: [contact] });
+  });
+
+  it("prints only the name and email when no résumé field is filled", async () => {
+    const doc = withHeader(EMPTY);
+    expect(doc.headline).toBeNull();
+    expect((await fileHeader(doc)).map((p) => p.text)).toEqual(["Mika Tanabe", "mika@example.com"]);
+    expect(markdownHeader(doc)).toEqual(["# Mika Tanabe", "mika@example.com"]);
+    const page = resumeSentPage(doc);
+    expect(page.headline).toBeUndefined();
+    expect(page.contact).toEqual(["mika@example.com"]);
+  });
+
+  it("leaves the phone out when it is not opted in, and closes the line up around it", async () => {
+    const doc = withHeader({ ...FILLED, phone: null, portfolioUrl: null });
+    const contact = "Sapporo, Japan · mika@example.com · www.linkedin.com/in/mika-example/ · github.com/mika-example";
+    expect((await fileHeader(doc)).map((p) => p.text)).toEqual(["Mika Tanabe", "Platform Engineer", contact]);
+    expect(markdownHeader(doc)).toEqual(["# Mika Tanabe", "Platform Engineer", contact]);
+    expect(resumeSentPage(doc).contact).toEqual([contact]);
+    expect(withHeader({ ...FILLED, phone: "   " }).contact[0]).not.toMatch(/·\s*·/);
+  });
+
+  it("refuses Japanese script in a header field", () => {
+    expect(() => withHeader({ ...EMPTY, headline: "バックエンドエンジニア" })).toThrow(ResumeLanguageError);
+    expect(() => withHeader({ ...EMPTY, city: "札幌" })).toThrow(ResumeLanguageError);
+  });
+});
+
 describe("the bullet budget", () => {
   it("is 4–5 for the two most recent employers, 1–2 past eight years, and 2–3 between", () => {
     expect(bulletBudget(0, null, TODAY)).toEqual({ min: 4, max: 5 });

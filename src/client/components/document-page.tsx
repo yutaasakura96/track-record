@@ -23,14 +23,28 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
         <SheetPage sheet={page.sheet} />
       ) : (
         <>
-          <h2 className="text-doc-title text-center font-semibold tracking-tight text-text-bright">{page.title}</h2>
-          <div className="mt-8 text-center">
-            {page.stamp ? <p className="text-right text-small text-text-muted">{page.stamp}</p> : null}
-            <p className="text-render-heading font-semibold text-text-bright">{page.name}</p>
-            {page.contact.length > 0 ? (
-              <p className="text-ui text-text-secondary whitespace-pre-line">{page.contact.join(" · ")}</p>
-            ) : null}
-          </div>
+          {page.title ? (
+            <>
+              <h2 className="text-doc-title text-center font-semibold tracking-tight text-text-bright">{page.title}</h2>
+              <div className="mt-8 text-center">
+                {page.stamp ? <p className="text-right text-small text-text-muted">{page.stamp}</p> : null}
+                <p className="text-render-heading font-semibold text-text-bright">{page.name}</p>
+                {page.contact.length > 0 ? (
+                  <p className="text-ui text-text-secondary whitespace-pre-line">{page.contact.join(" · ")}</p>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            // A file with no title leads with the name, as the English résumé
+            // does: the name large, its headline in the accent, then the contact line.
+            <header>
+              <h2 className="text-doc-title font-semibold tracking-tight text-text-bright">{page.name}</h2>
+              {page.headline ? <p className="text-doc-body text-accent-text">{page.headline}</p> : null}
+              {page.contact.length > 0 ? (
+                <p className="text-ui text-text-muted whitespace-pre-line">{page.contact.join(" · ")}</p>
+              ) : null}
+            </header>
+          )}
           {page.sections.map((section, index) => (
             <section key={index}>
               <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">

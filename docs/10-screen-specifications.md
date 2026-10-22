@@ -2018,7 +2018,8 @@ Read-only.
    filled from your record as it is now, as the download is.`
 3. **The document**, on a `card` at the reading measure: the page its download would hold today.
    Built documents show the printed title above the centered identity block, then sections in file
-   order. A 履歴書 is the form its download would hold today, read back out of that file, as in
+   order. The English résumé prints no title, so its page leads with the name, left-aligned and large,
+   its headline in the accent and then its contact line, as its file does. A 履歴書 is the form its download would hold today, read back out of that file, as in
    Screen 15. Both themes use the theme's tokens.
 
 | State | Behaviour |

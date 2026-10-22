@@ -86,6 +86,30 @@ describe("the page", () => {
     expect(bar.getByText(/This is the document as its download holds it today/)).toBeTruthy();
   });
 
+  it("leads an English résumé with its name, headline and contact line, under no title", async () => {
+    mount(`/renders/${KIND}/view`, {
+      [PAGE]: view({
+        page: {
+          title: null,
+          stamp: null,
+          name: "Ryo Tanabe",
+          headline: "Platform Engineer",
+          contact: ["Sapporo, Japan · ryo@example.invalid · github.com/ryo-example"],
+          sections: [{ heading: "Summary", blocks: [{ kind: "paragraph", text: "Engineer who ships." }] }],
+        },
+      }),
+    });
+
+    const page = await screen.findByRole("article");
+    const headings = within(page).getAllByRole("heading").map((heading) => heading.textContent);
+    expect(headings).toEqual(["Ryo Tanabe", "Summary"]);
+    const headline = within(page).getByText("Platform Engineer");
+    const contact = within(page).getByText("Sapporo, Japan · ryo@example.invalid · github.com/ryo-example");
+    expect(within(page).getByRole("heading", { name: "Ryo Tanabe" }).compareDocumentPosition(headline) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(headline.compareDocumentPosition(contact) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(headline).not.toBe(contact);
+  });
+
   it("offers Download, History, Edit and Regenerate on the current version", async () => {
     open();
     const bar = await notice();
