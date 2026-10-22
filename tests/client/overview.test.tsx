@@ -393,10 +393,6 @@ describe("the next step", () => {
   });
 });
 
-/**
- * Issue #111: the record's counts are one strip under the documents, and the
- * chart of facts by provenance is on the career record (Screen 10).
- */
 describe("the monthly capture prompt", () => {
   const DAY = 86_400_000;
   const ago = (days: number) => new Date(Date.now() - days * DAY).toISOString();
@@ -498,6 +494,10 @@ describe("the monthly capture prompt", () => {
   });
 });
 
+/**
+ * Issue #111: the record's counts are one strip under the documents, and the
+ * chart of facts by provenance is on the career record (Screen 10).
+ */
 describe("the record at a glance", () => {
   // Found by a count's label: the frame shown before the read answers has the heading alone.
   const strip = async () => (await screen.findByText("Employers")).closest("section")!;
