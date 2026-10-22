@@ -44,6 +44,8 @@ it("classifies again, moves licences and missed language tests, and makes the ki
       ('licence_en', 'Driver''s License', null, 'technical'),
       ('licence_ja', 'Ordinary licence', '普通自動車第一種運転免許', 'technical'),
       ('toeic_unset', 'TOEIC Listening & Reading 880', null, null),
+      ('toeic_score', 'TOEIC800点', null, null),
+      ('hsk', 'HSK6級', null, 'technical'),
       ('versant', 'Versant English Test', null, 'technical'),
       ('cloud_unset', 'Cloud Architect', null, null),
       ('cloud', 'Cloud Architect Professional', null, 'technical'),
@@ -60,11 +62,13 @@ it("classifies again, moves licences and missed language tests, and makes the ki
     expect(results.at(-2)?.rows).toEqual([
       { id: "cloud", kind: "technical" },
       { id: "cloud_unset", kind: "technical" },
+      { id: "hsk", kind: "language" },
       { id: "kept_language", kind: "language" },
       { id: "kept_other", kind: "other" },
       { id: "licence_en", kind: "other" },
       { id: "licence_ja", kind: "other" },
       { id: "modeler", kind: "technical" },
+      { id: "toeic_score", kind: "language" },
       { id: "toeic_unset", kind: "language" },
       { id: "versant", kind: "language" },
     ]);
