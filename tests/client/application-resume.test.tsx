@@ -292,6 +292,23 @@ describe("moving to Applied", () => {
     expect(screen.getByRole("button", { name: "Move to Applied" })).toBeTruthy();
     expect(screen.queryByText(/Moved to Applied/)).toBeNull();
   });
+
+  it("links to the missing job header field when moving to Applied cannot freeze the résumé", async () => {
+    const start = application(NOT_APPLIED, { documents: [MAIN], choices: choicesOf([MAIN]) });
+    const { user } = open(start, {
+      [`POST ${AT}/steps`]: new Refusal(409, "conflict", "Complete the job header first.", {
+        jobHeaders: [{ employerId: "emp-test-osprey", name: "Osprey Grid", missing: ["city"] }],
+      }),
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Move to Applied" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Complete the job header first.");
+    expect(within(alert).getByRole("link", { name: "Add the city for Osprey Grid" }).getAttribute("href"))
+      .toBe("/record?employer=emp-test-osprey&fix=city");
+    expect(screen.getByRole("button", { name: "Move to Applied" })).toBeTruthy();
+  });
 });
 
 describe("from Applied onward", () => {
@@ -348,6 +365,25 @@ describe("from Applied onward", () => {
     expect(api.bodyOf("POST", `${AT}/sent-copies`)).toEqual({ documents: ["shokumu_keirekisho", TAILORED] });
     expect(api.writes()).toEqual([`POST ${AT}/sent-copies`]);
     await waitFor(() => expect(resume.queryByRole("button", { name: "Record the ticked documents" })).toBeNull());
+  });
+
+  it("links to the missing job header field when recording another sent copy is refused", async () => {
+    const { user } = open(sent, {
+      [`POST ${AT}/sent-copies`]: new Refusal(409, "conflict", "Complete the job header first.", {
+        jobHeaders: [{ employerId: "emp-test-osprey", name: "Osprey Grid", missing: ["role"] }],
+      }),
+    });
+    const resume = await panel();
+
+    await user.click(resume.getByRole("button", { name: "Record another sent copy" }));
+    await user.click(resume.getByRole("checkbox", { name: /Main résumé/ }));
+    await user.click(resume.getByRole("button", { name: "Record the ticked documents" }));
+
+    const alert = await resume.findByRole("alert");
+    expect(alert.textContent).toContain("Complete the job header first.");
+    expect(within(alert).getByRole("link", { name: "Add the role for Osprey Grid" }).getAttribute("href"))
+      .toBe("/record?employer=emp-test-osprey&fix=role");
+    expect(resume.getByRole("button", { name: "Record the ticked documents" })).toBeTruthy();
   });
 
   it("closes the card on Cancel and sends nothing", async () => {

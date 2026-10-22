@@ -74,7 +74,7 @@ export function ResumePanel({
       onChanged();
       return next;
     } catch (error) {
-      setFailure(failureText(error));
+      setFailure(generateFailure(error));
       return null;
     }
   };
