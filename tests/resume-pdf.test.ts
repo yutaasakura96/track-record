@@ -152,6 +152,24 @@ describe("the résumé PDF", () => {
     }
   });
 
+  it("lets white space at the end of a bullet hang, with no line of its own", async () => {
+    const withBullets = (end: string) => {
+      const doc = documentWith(1);
+      doc.sections[2]!.blocks = Array.from({ length: 120 }, (_, n) => ({
+        kind: "bullet" as const,
+        text: `${"word ".repeat(18)}${"i".repeat(n)}${end}`,
+      }));
+      return doc;
+    };
+    const positions = async (doc: ResumeDocument) => {
+      const { items } = await extractTextItems((await resumePdf(doc, "letter", METADATA)).slice());
+      return items.map((page) => page.filter((item) => item.str.trim() !== "").map((item) => Math.round(item.y * 100)));
+    };
+    const trimmed = await positions(withBullets(""));
+    expect(await positions(withBullets("   "))).toEqual(trimmed);
+    expect(await positions(withBullets(" \n"))).toEqual(trimmed);
+  });
+
   it("is tagged, so a reader that goes by position still reads a job's dates with its header", async () => {
     const pdf = await getDocumentProxy((await resumePdf(documentWith(1), "a4", METADATA)).slice());
     expect((await pdf.getMarkInfo())?.Marked).toBe(true);

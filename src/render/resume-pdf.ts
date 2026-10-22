@@ -300,11 +300,8 @@ function lay(block: Block, textWidth: number): Laid {
           used += width;
           break;
         }
-        if (isSpace) {
-          lines.push([]);
-          used = 0;
-          break;
-        }
+        // A space that does not fit hangs past the margin, as in Word, and starts no line.
+        if (isSpace) break;
         if (used > 0) {
           while (line.length > 0 && /^\s+$/.test(line[line.length - 1]!.text)) line.pop();
           lines.push([]);
@@ -328,6 +325,7 @@ function lay(block: Block, textWidth: number): Laid {
     }
   }
 
+  while (lines.length > 1 && lines[lines.length - 1]!.length === 0) lines.pop();
   const pitches = lines.map((line) => Math.max(...line.map((r) => r.size), block.runs[0]?.size ?? 0) * PITCH);
   return { ...block, lines, pitches };
 }
