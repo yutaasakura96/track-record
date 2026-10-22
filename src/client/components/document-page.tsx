@@ -113,7 +113,7 @@ function SheetTable({ table }: { table: Extract<Sheet["blocks"][number], { kind:
                     scope={Cell === "th" ? "col" : undefined}
                     colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
                     rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
-                    className={`border border-border-active px-8 py-6 align-top font-normal ${cell.shaded ? "bg-chip" : ""}`}
+                    className={`border border-border-active px-8 py-6 align-top font-normal ${cell.shaded ? "bg-shade" : ""}`}
                   >
                     {cell.lines.map((line, lineIndex) => (
                       <p key={lineIndex} className={lineClass(line)}>

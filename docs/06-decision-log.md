@@ -7031,3 +7031,20 @@ proxy and Postgres CPU. Removing it would mean changing the proxy itself.
 whose environment changed. Nothing else about starting the stack changes. To read the proxy's
 per-query lines while diagnosing, set `RUST_LOG` to `info` in `docker-compose.yml` and run
 `npm run db:up`.
+
+### [2026-10-22] The 履歴書 preview's shaded cells get a token of their own, `shade`
+
+The preview filled the file's shaded cells (年 / 月, 学歴 / 職歴, 写真) with `chip`. In light that
+is the grey the file prints. In dark, `chip` is `#131416` on a `#101113` card, about 1.03:1, so the
+fills could hardly be seen. No existing token keeps the light grey and is visible in dark:
+`private-bg` is close in dark but means Private disclosure and is darker in light, and the
+border tokens are either too dark in light or still faint in dark.
+
+- **Decision:** a new surface token, `shade`, light `#eceef2` (unchanged from `chip`) and dark
+  `#26282b`. It is used only for the 履歴書 preview's shaded cells.
+- **Why that dark value:** it is the lightest value that keeps every checked text token at 4.5:1,
+  `text-faint` included (4.55:1). `scripts/check-design-tokens.mjs` lists it as a surface, so the
+  lint enforces that. On the card it is about 1.28:1, against 1.03:1 for `chip`.
+- **Also in this change:** the preview now carries each template paragraph's before-spacing
+  (`beforeTwips`) as well as its after-spacing. It is mapped to the spacing scale the same way
+  (40 → `mt-4`, 100 → `mt-8`, 400 → `mt-26`).
