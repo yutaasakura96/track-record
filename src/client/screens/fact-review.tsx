@@ -57,8 +57,13 @@ export function FactReview() {
   const status = useImportStatus(importId);
   const facts = useFacts(importId, {
     // Cards appear incrementally as extraction progresses, rather than after
-    // one long silence.
-    refetchInterval: isImportRunning(status.data?.status) ? POLL_MS : false,
+    // one long silence. A final status poll can finish before the facts poll;
+    // keep reading until the rail contains every fact the status counted.
+    refetchInterval: (query) =>
+      isImportRunning(status.data?.status) ||
+      (status.data?.candidatesExtracted ?? 0) > (query.state.data?.items.length ?? 0)
+        ? POLL_MS
+        : false,
   });
   const source = useSourceText(status.data?.sourceDocumentId ?? "", status.data?.versionNo ?? 1);
   const select = useReviewStore((s) => s.select);
