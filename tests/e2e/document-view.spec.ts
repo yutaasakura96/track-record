@@ -41,8 +41,9 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await row.getByRole("link", { name: "View" }).click();
   await ready(page).toHaveURL(/\/renders\/english_resume\/view$/);
   const article = page.getByRole("article");
-  await ready(article.getByRole("heading", { name: "Résumé (English)" })).toBeVisible();
-  await expect(article.getByText(PROFILE["Name in Latin script"])).toBeVisible();
+  // The file prints no title above the name, so neither does its page.
+  await ready(article.getByRole("heading", { name: PROFILE["Name in Latin script"] })).toBeVisible();
+  await expect(article.getByRole("heading", { name: "Résumé (English)" })).toHaveCount(0);
   await ready(article.getByText(CLAIM, { exact: false })).toBeVisible();
   await expect(page.getByText("v1", { exact: true })).toBeVisible();
   for (const name of ["Download", "History", "Edit", "Regenerate"]) {

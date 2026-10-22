@@ -15,10 +15,20 @@ import { fillRirekishoTemplate, type RirekishoRow, type RirekishoTemplateData } 
 import { readSheet, type Sheet } from "./sheet";
 
 export interface SentPage {
-  title: string;
+  /**
+   * The title the file prints above the name. Null where it prints none, as the
+   * English résumé does; a page stored before titles were kept has no field.
+   */
+  title?: string | null;
   /** The date the file carries above its name. Null where its kind is not dated. */
   stamp: string | null;
   name: string;
+  /**
+   * The English résumé's line under the name, set apart as its file sets it.
+   * Absent on every other kind, and on a résumé page stored before it was set
+   * apart, whose headline is its first contact line.
+   */
+  headline?: string;
   /** The lines under the name, as the file carried them. */
   contact: string[];
   sections: { heading: string; blocks: { kind: BlockKind; text: string }[] }[];

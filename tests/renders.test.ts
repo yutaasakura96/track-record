@@ -541,10 +541,11 @@ describe("the proposal", () => {
     ).json()) as { proposalId: string };
 
     const firstDiff = await client.json<{
-      preview: { title: string; page: { stamp: string | null; name: string; contact: string[]; sections: { heading: string; blocks: { text: string }[] }[] } } | null;
+      preview: { title: string; page: { title?: string | null; stamp: string | null; name: string; contact: string[]; sections: { heading: string; blocks: { text: string }[] }[] } } | null;
       changes: { target: string }[];
     }>(`/api/proposals/${first.proposalId}/diff`);
     expect(firstDiff.preview?.title).toBe("Résumé (English)");
+    expect(firstDiff.preview?.page.title).toBeNull();
     expect(firstDiff.preview?.page.name).toBe(PROFILE_FIXTURE.nameLatin);
     expect(firstDiff.preview?.page.contact).toContain(PROFILE_FIXTURE.email);
     expect(firstDiff.preview?.page.stamp).toBeNull();
@@ -1101,6 +1102,28 @@ describe("documents and downloads", () => {
     // A city alone carries no stray comma.
     await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeCity: "Osaka" });
     expect((await header()).split("\n")).toEqual(["# Yosuke Aoki", `Osaka · ${PROFILE_FIXTURE.email}`]);
+  });
+
+  it("sets the headline apart from the contact line in a first résumé's preview, under no title", async () => {
+    const record = await seedRecord();
+    await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeHeadline: "Backend Engineer",
+      resumeCity: "Tokyo",
+      resumeCountry: "Japan",
+      resumeGithubUrl: "github.com/yosuke-example/",
+    });
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const { preview } = await client.json<{
+      preview: { page: { title?: string | null; name: string; headline?: string; contact: string[] } };
+    }>(`/api/proposals/${first.proposalId}/diff`);
+    expect(preview.page.title).toBeNull();
+    expect(preview.page.name).toBe("Yosuke Aoki");
+    expect(preview.page.headline).toBe("Backend Engineer");
+    expect(preview.page.contact).toEqual([`Tokyo, Japan · ${PROFILE_FIXTURE.email} · github.com/yosuke-example/`]);
   });
 
   it("puts no résumé header field on any other render", async () => {

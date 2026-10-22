@@ -38,7 +38,7 @@ export function SentCopyScreen() {
   return (
     <ApplicationsFrame title={`${data.company} / ${data.title} as sent`} crumb>
       <Notice copy={data} />
-      <DocumentPage page={{ ...data.page, title: data.page.title ?? RENDER_TITLE[data.kind] }} language={data.language} />
+      <DocumentPage page={{ ...data.page, title: data.page.title === undefined ? RENDER_TITLE[data.kind] : data.page.title }} language={data.language} />
     </ApplicationsFrame>
   );
 }

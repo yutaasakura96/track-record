@@ -691,8 +691,11 @@ back to the application it came from.
 | `GET` | `/api/renders/:kind/diff` | M1 | `?from=&to=` — two **versions** of one render, the restore preview. `from` is the left column. Never names a proposal; proposals keep their own diff route |
 | `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal (not one whose generation `failed`) or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
 
-`SentPage` carries `stamp`, `name`, `contact` lines and nonempty `sections` with their headings and
-blocks. A 履歴書 page also carries `sheet`: ordered line and table blocks read from its filled
+`SentPage` carries `title`, `stamp`, `name`, `contact` lines and nonempty `sections` with their headings and
+blocks. `title` is the title the file prints above the name, and is `null` for the English résumé,
+which prints none; a sent copy stored before titles were kept has no `title`. The English résumé's page
+also carries `headline`, its line under the name, when the profile has one, and `contact` is then the
+contact line alone. A 履歴書 page also carries `sheet`: ordered line and table blocks read from its filled
 `.docx`, with cell spans, column widths, alignment, size, shading and each paragraph's before- and after-spacing
 in twips (`beforeTwips`, `afterTwips`). This applies to the render page, the first-version preview and sent copies;
 older sent copies gain `sheet` from their stored file when read, if that file is readable. Otherwise
@@ -767,7 +770,7 @@ project or education name in the generation spec lacks a Latin letter or contain
 or an assembled field would print Japanese script. The name check includes entries later omitted
 from the file. The message names the field needing an English or Latin-script value, with
 `details.fields: ["english_resume"]`. A tailored résumé is refused the same way. A download of
-either answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
+either, and the first-version preview of the English résumé (`GET /api/proposals/:id/diff`), answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
 or a legacy experience heading naming no included employer (`docs/03` §6).
 
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —

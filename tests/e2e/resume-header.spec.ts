@@ -44,6 +44,11 @@ test("résumé header fields are opt-in and never copy 履歴書 PII", async ({ 
   await page.getByRole("region", { name: "Next step" }).getByRole("button", { name: "Generate" }).click();
   await expect(page.getByText(CLAIM).first()).toBeVisible({ timeout: 20_000 });
   await expect(page.getByRole("button", { name: "Accept as v1" })).toBeEnabled();
+  const preview = page.locator("article").filter({ hasText: CLAIM });
+  await expect(preview.getByRole("heading", { name: "Yosuke Aoki" })).toBeVisible();
+  await expect(preview.getByRole("heading", { name: "Résumé (English)" })).toHaveCount(0);
+  await expect(preview.getByText("Backend Engineer", { exact: true })).toBeVisible();
+  await expect(preview.getByText(/^Tokyo, Japan · .* · \+81 90-0000-9999 · /)).toBeVisible();
   if (process.env.TEST_EVIDENCE_DIR) {
     await page.screenshot({ path: `${process.env.TEST_EVIDENCE_DIR}/resume-preview-filled.png`, fullPage: true });
   }

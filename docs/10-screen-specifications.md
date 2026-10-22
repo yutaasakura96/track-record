@@ -377,7 +377,7 @@ A change with no explanation is a defect.
 When the render has no current version there is nothing to compare, and two columns against
 nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
 measure: title, document date where applicable, identity and contact lines, then its nonempty
-sections and headings. A 履歴書 shows the filled template's form, as in Screen 15. Address line
+sections and headings. The English résumé has no title and leads with its name, as in Screen 17. A 履歴書 shows the filled template's form, as in Screen 15. Address line
 breaks remain visible. The strip says `This is the first version of your <render>. Read it through,
 then accept it or discard it.` No toolbar, no
 change navigation, no rationale bar. While the preview loads, the body says `Loading the
@@ -2018,7 +2018,8 @@ Read-only.
    filled from your record as it is now, as the download is.`
 3. **The document**, on a `card` at the reading measure: the page its download would hold today.
    Built documents show the printed title above the centered identity block, then sections in file
-   order. A 履歴書 is the form its download would hold today, read back out of that file, as in
+   order. The English résumé prints no title, so its page leads with the name, left-aligned and large,
+   its headline in the accent and then its contact line, as its file does. A 履歴書 is the form its download would hold today, read back out of that file, as in
    Screen 15. Both themes use the theme's tokens.
 
 | State | Behaviour |

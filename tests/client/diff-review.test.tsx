@@ -314,6 +314,29 @@ describe("a first version", () => {
     expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
   });
 
+  it("leads a first résumé with its name, headline and contact line, under no title", async () => {
+    openFirst({
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          ...FIRST_DIFF.preview,
+          page: {
+            ...FIRST_DIFF.preview.page,
+            title: null,
+            headline: "Backend Engineer",
+            contact: ["Tokyo, Japan · mika@example.invalid"],
+          },
+        },
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Mika Tanaka" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Résumé (English)" })).toBeNull();
+    expect(screen.getByText("Backend Engineer").classList.contains("text-accent-text")).toBe(true);
+    expect(screen.getByText("Tokyo, Japan · mika@example.invalid")).toBeTruthy();
+    expect(screen.getByText("Cut the zentrel batch to nine minutes.")).toBeTruthy();
+  });
+
   it("shows the 履歴書 identity cells and address lines", async () => {
     const address = "〒150-0001 東京都渋谷区神宮前0-0-0\n架空ビル404号室";
     mount(`/proposals/${PROPOSAL}`, {

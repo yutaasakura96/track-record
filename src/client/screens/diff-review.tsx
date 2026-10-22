@@ -406,7 +406,7 @@ function FirstVersion({
       <p className="h-strip flex items-center px-20 border-b border-border-subtle text-small text-text-secondary">
         This is the first version of your {proposal.title}. Read it through, then accept it or discard it.
       </p>
-      {preview?.page.sheet ? (
+      {preview?.page.sheet || preview?.page.title === null ? (
         <DocumentPage page={preview.page} language={RENDER_LANGUAGE[proposal.renderKind]} />
       ) : preview ? (
         <article

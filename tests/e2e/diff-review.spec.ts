@@ -40,8 +40,8 @@ test("first proposal previews the document; regeneration shows a heading change"
   await page.unroute("**/api/proposals/*/diff");
   await page.getByRole("button", { name: "Retry" }).click();
 
-  await expect(page.getByRole("heading", { name: "Résumé (English)" })).toBeVisible();
-  await expect(page.getByText("Yosuke Aoki")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Yosuke Aoki" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Résumé (English)" })).toHaveCount(0);
   await expect(page.getByText("yosuke@example.invalid")).toBeVisible();
   await expect(page.getByText(CLAIM).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept as v1" })).toBeEnabled();
