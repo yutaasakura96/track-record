@@ -377,7 +377,7 @@ A change with no explanation is a defect.
 When the render has no current version there is nothing to compare, and two columns against
 nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
 measure: title, document date where applicable, identity and contact lines, then its nonempty
-sections and headings. A 履歴書 shows the filled template's form, as in Screen 15. Address line
+sections and headings. The English résumé has no title and leads with its name, as in Screen 17. A 履歴書 shows the filled template's form, as in Screen 15. Address line
 breaks remain visible. The strip says `This is the first version of your <render>. Read it through,
 then accept it or discard it.` No toolbar, no
 change navigation, no rationale bar. While the preview loads, the body says `Loading the

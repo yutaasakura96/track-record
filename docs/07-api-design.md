@@ -770,7 +770,7 @@ project or education name in the generation spec lacks a Latin letter or contain
 or an assembled field would print Japanese script. The name check includes entries later omitted
 from the file. The message names the field needing an English or Latin-script value, with
 `details.fields: ["english_resume"]`. A tailored résumé is refused the same way. A download of
-either answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
+either, and the first-version preview of the English résumé (`GET /api/proposals/:id/diff`), answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
 or a legacy experience heading naming no included employer (`docs/03` §6).
 
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
