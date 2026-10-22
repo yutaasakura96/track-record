@@ -2025,8 +2025,9 @@ Read-only.
    comes from` (`aria-pressed`); while it is on, the sentence `Choose a line to see the facts behind
    it and where each is quoted from.` beside it. On, every block of the page is a button
    (`aria-expanded`), bullets still a list, and one line at a time is chosen; a second press, or
-   turning the toggle off, closes it. A 履歴書 is traced through the text its page carries beside the
-   form, since the form has no lines to choose. The chosen line's evidence opens **directly under
+   turning the toggle off, closes it. A 履歴書 keeps its printed form, with its cells and lines
+   selectable in place by pointer or keyboard, including at phone width. Its motivation and kibou
+   prose cells cite facts; table rows copied from the record cite none. The chosen line's evidence opens **directly under
    it**, not in a side rail, so the next tab stop after a line is its evidence and a phone needs no
    second pane (decision log, 2026-10-22). The panel, `Behind this line`, is interface chrome: English,
    and without the Japanese tracking. It says `N facts from your record.`, then one card per fact
@@ -2035,7 +2036,8 @@ Read-only.
    capture; its employer, or `No employer`; then the quoted passage with `<file>, line N` and
    `Open in source`, which opens Fact Review on that fact (`/imports/<id>?fact=<id>`). A fact added
    by hand has no passage: `Saved on Quick capture, so there is no passage to quote.` and `Open it in
-   Quick capture`. A line copied from the record, such as a job header, a skills group or an
+   Quick capture`. A sourced fact without a saved quote says `No quoted passage was saved for this fact.`
+   and still offers `Open in source` to Fact Review. A line copied from the record, such as a job header, a skills group or an
    education row, says `No fact behind this line. It is copied from your record as it stands, not
    written from a claim.` Fact Review keeps its own width gate, as every destination does.
 

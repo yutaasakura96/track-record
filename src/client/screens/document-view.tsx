@@ -270,9 +270,10 @@ function BehindLine({ factIds, byId }: { factIds: string[]; byId: Map<string, Fa
             {factIds.length === 1 ? "1 fact" : `${factIds.length} facts`} from your record.
           </p>
           <ul className="grid gap-8 list-none">
-            {factIds.map((id) => (
-              <EvidenceCard key={id} fact={byId.get(id)} />
-            ))}
+            {factIds.flatMap((id) => {
+              const fact = byId.get(id);
+              return fact ? [<EvidenceCard key={id} fact={fact} />] : [];
+            })}
           </ul>
         </>
       )}
@@ -287,14 +288,7 @@ const WORTH_TONE: Record<FactEvidence["provenance"], string> = {
 
 const CHIP = "inline-flex items-center rounded-chip border border-transparent px-6 py-2 text-smaller";
 
-function EvidenceCard({ fact }: { fact: FactEvidence | undefined }) {
-  if (!fact) {
-    return (
-      <li className="bg-card border border-border rounded-control px-10 py-8 text-small text-text-muted">
-        This fact is no longer in your record.
-      </li>
-    );
-  }
+function EvidenceCard({ fact }: { fact: FactEvidence }) {
   const { source } = fact;
   return (
     <li className="grid gap-6 bg-card border border-border rounded-control px-10 py-8">
@@ -304,11 +298,13 @@ function EvidenceCard({ fact }: { fact: FactEvidence | undefined }) {
         {source === null ? <span className={`${CHIP} bg-chip border-border-control text-text-muted`}>{BY_HAND}</span> : null}
         <span className={`${CHIP} bg-chip border-border-control text-text-secondary`}>{fact.employer ?? "No employer"}</span>
       </p>
-      {source && fact.quote ? (
+      {source ? (
         <>
-          <blockquote className="border-l border-border-strong pl-10 text-small text-text-secondary whitespace-pre-wrap break-words">
-            {fact.quote}
-          </blockquote>
+          {fact.quote ? (
+            <blockquote className="border-l border-border-strong pl-10 text-small text-text-secondary whitespace-pre-wrap break-words">
+              {fact.quote}
+            </blockquote>
+          ) : <p className="text-smaller text-text-muted">No quoted passage was saved for this fact.</p>}
           <p className="flex flex-wrap items-center gap-x-8 gap-y-4 text-smaller text-text-muted">
             <span className="min-w-0 break-all">
               {source.filename}
@@ -325,7 +321,6 @@ function EvidenceCard({ fact }: { fact: FactEvidence | undefined }) {
           </p>
         </>
       ) : (
-        // No document: a fact saved by quick capture, whose card is there (issue #95).
         <p className="text-smaller text-text-muted">
           Saved on Quick capture, so there is no passage to quote.{" "}
           <Link to="/capture" search={{ fact: fact.id }} className="text-accent-link hover:text-accent-link-hover underline">

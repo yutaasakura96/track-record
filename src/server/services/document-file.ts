@@ -125,11 +125,11 @@ export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind
   const inputs = await assemblyInputs(db, userId, kind, version);
   switch (inputs.kind) {
     case "rirekisho":
-      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content));
+      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content, undefined, true));
     case "resume":
-      return assembled(version, () => resumeSentPage(inputs.document));
+      return assembled(version, () => resumeSentPage(inputs.document, true));
     case "built":
-      return assembled(version, () => sentPage(kind, inputs.content, inputs.identity, inputs.today));
+      return assembled(version, () => sentPage(kind, inputs.content, inputs.identity, inputs.today, true));
   }
 }
 

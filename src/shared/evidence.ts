@@ -17,7 +17,7 @@ export interface FactEvidence {
   provenance: "measured" | "attested";
   /** The employer the fact resolves to, named in the document's language. Null is no employer. */
   employer: string | null;
-  /** The passage the fact was read from, verbatim. Null on a fact added by hand. */
+  /** The passage the fact was read from, verbatim. Null when none was saved. */
   quote: string | null;
   /**
    * The imported document the passage is in, opened in Fact Review by

@@ -546,7 +546,7 @@ export function resumeMarkdown(doc: ResumeDocument): string {
 }
 
 /** What a sent copy's screen shows: the file's text, in its order. Headers and titles read as rows. */
-export function resumeSentPage(doc: ResumeDocument): SentPage {
+export function resumeSentPage(doc: ResumeDocument, citations = false): SentPage {
   return {
     // The file prints no title above the name (§4.3), so neither does its page.
     title: null,
@@ -565,7 +565,7 @@ export function resumeSentPage(doc: ResumeDocument): SentPage {
           case "labelled":
             return { kind: "row" as const, text: `${block.label}: ${block.text}` };
           default:
-            return { kind: block.kind, text: block.text, factIds: block.factIds ?? [] };
+            return { kind: block.kind, text: block.text, ...(citations ? { factIds: block.factIds ?? [] } : {}) };
         }
       }),
     })),

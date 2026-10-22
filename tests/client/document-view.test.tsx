@@ -12,6 +12,7 @@ import { screen, waitFor, within } from "@testing-library/react";
 import type { RenderPage, RenderRow } from "~/client/api";
 import type { FactEvidence } from "~/shared/evidence";
 import { mount, Refusal, type Routes } from "./harness";
+import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 
 const KIND = "english_resume";
 const PAGE = `GET /api/renders/${KIND}/page`;
@@ -243,6 +244,14 @@ describe("where each line comes from", () => {
     quote: null,
     source: null,
   };
+  const SOURCED_UNQUOTED: FactEvidence = {
+    id: "fct-test-unquoted",
+    claim: "Maintained the quillset release process",
+    provenance: "attested",
+    employer: "Quillset Ltd",
+    quote: null,
+    source: { importId: "sdv-test-2", filename: "release-notes.md", lineNumber: null },
+  };
 
   const traced = () =>
     view({
@@ -256,13 +265,13 @@ describe("where each line comes from", () => {
             heading: "Experience",
             blocks: [
               { kind: "row", text: "Quillset Ltd · Apr 2022 – Present", factIds: [] },
-              { kind: "bullet", text: "Moved the Qorvane quillset to zentrel", factIds: [ATTESTED.id] },
+              { kind: "bullet", text: "Moved the Qorvane quillset to zentrel", factIds: [ATTESTED.id, SOURCED_UNQUOTED.id] },
               { kind: "bullet", text: "Cut the plinth build from nine minutes to two", factIds: [MEASURED.id, CAPTURED.id] },
             ],
           },
         ],
       },
-      evidence: [ATTESTED, MEASURED, CAPTURED],
+      evidence: [ATTESTED, SOURCED_UNQUOTED, MEASURED, CAPTURED],
     });
 
   const tracing = async () => {
@@ -313,7 +322,7 @@ describe("where each line comes from", () => {
     await user.click(page.getByRole("button", { name: ATTESTED.claim }));
 
     const behind = within(page.getByRole("region", { name: "Behind this line" }));
-    expect(behind.getByText("1 fact from your record.")).toBeTruthy();
+    expect(behind.getByText("2 facts from your record.")).toBeTruthy();
     const card = within(behind.getByText(ATTESTED.claim, { selector: "p" }).closest("li")!);
     expect(card.getByText("Stated by you, no number behind it")).toBeTruthy();
     expect(card.queryByText("Backed by a number")).toBeNull();
@@ -321,6 +330,45 @@ describe("where each line comes from", () => {
     expect(card.getByRole("link", { name: "Open in source" }).getAttribute("href")).toBe(
       "/imports/sdv-test-1?fact=fct-test-attested",
     );
+  });
+
+  it("keeps a sourced fact without a saved quote in Fact Review", async () => {
+    const { user, page } = await tracing();
+    await user.click(page.getByRole("button", { name: ATTESTED.claim }));
+    const card = within(page.getByText(SOURCED_UNQUOTED.claim).closest("li")!);
+    expect(card.getByText("Stated by you, no number behind it")).toBeTruthy();
+    expect(card.getByText("Quillset Ltd")).toBeTruthy();
+    expect(card.getByText("No quoted passage was saved for this fact.")).toBeTruthy();
+    expect(card.queryByText("Added by hand")).toBeNull();
+    expect(card.queryByRole("link", { name: "Open it in Quick capture" })).toBeNull();
+    expect(card.getByRole("link", { name: "Open in source" }).getAttribute("href")).toBe(
+      "/imports/sdv-test-2?fact=fct-test-unquoted",
+    );
+  });
+
+  it("keeps a 履歴書 sheet visible and selects its prose cell in place", async () => {
+    const sheet = structuredClone(RIREKISHO_SHEET);
+    const motivation = sheet.blocks.filter((block) => block.kind === "table")[3]!;
+    motivation.rows[1]![0]!.factIds = [ATTESTED.id];
+    const { user } = mount("/renders/rirekisho/view", {
+      "GET /api/renders/rirekisho/page": view({
+        renderKind: "rirekisho", renderRef: "rirekisho", language: "ja",
+        page: { title: "履 歴 書", stamp: null, name: "架空　花子", contact: [], sections: [], sheet },
+        evidence: [ATTESTED],
+      }),
+    });
+    const page = within(await screen.findByRole("article"));
+    expect(page.getAllByRole("table")).toHaveLength(5);
+    await user.click(screen.getByRole("button", { name: "Show where each line comes from" }));
+    expect(page.getAllByRole("table")).toHaveLength(5);
+    const cell = page.getByRole("button", { name: "架空の志望動機です。" });
+    expect(cell.closest("td")).toBeTruthy();
+    cell.focus();
+    await user.keyboard("{Enter}");
+    expect(cell.getAttribute("aria-expanded")).toBe("true");
+    expect(page.getByText(ATTESTED.claim)).toBeTruthy();
+    await user.click(page.getByRole("button", { name: "架空大学　架空学部　卒業" }));
+    expect(page.getByText(/No fact behind this line/)).toBeTruthy();
   });
 
   it("says a captured fact was added by hand, with no passage, and opens its card", async () => {

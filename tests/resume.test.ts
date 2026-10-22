@@ -228,7 +228,9 @@ describe("the English résumé document", () => {
         blocks: s.blocks.map((b) => ({ ...b, factIds: [`fct_${b.id}`] })),
       })),
     };
-    const page = resumeSentPage(assembled(cited));
+    const sent = resumeSentPage(assembled(cited));
+    expect(sent.sections.flatMap((s) => s.blocks).every((b) => !("factIds" in b))).toBe(true);
+    const page = resumeSentPage(assembled(cited), true);
     const factIdsOf = (text: string) =>
       page.sections.flatMap((s) => s.blocks).find((b) => b.text === text)!.factIds;
 

@@ -7080,16 +7080,16 @@ S6 asks to click a line of a document and see the fact behind it and the passage
 The data was there, as each stored block's `factIds`, but the reader's page dropped them when it
 was assembled, and only the Edit screen showed them, as raw ids (#110).
 
-- **Decision:** the page `GET /api/renders/:kind/page` serves keeps each block's `factIds`, the
+- **Decision:** the page `GET /api/renders/:kind/page` serves each block's `factIds`, the
   English résumé's included, and the response carries `evidence`: every cited fact once, with its
   worth, its employer and its passage. It is looked up after the download's refusal, so it never
-  describes a Private or Generated fact. Stored sent copies carry the field too, since they are
-  built by the same function, and nothing reads it there yet.
+  describes a Private or Generated fact. Stored sent copies omit the citation fields.
 - **Decision:** the chosen line's evidence opens directly under the line, not in a side rail beside
   the page as the evaluation's mock drew it. The reader's content column is 940px and the page sits
   at a 740px measure, so a rail would have narrowed the document it explains. Under the line it
   is the next tab stop after the line, and it works at phone width without a second layout.
+  A 履歴書 keeps its printed sheet on screen; its cells are selectable in place. The two prose
+  cells cite facts, while rows copied from the record cite none.
 - **Alternative rejected:** a separate evidence route queried per click. One read per click buys
   nothing here, because a page cites a few dozen facts at most, and a second read could disagree
   with the page it describes.
-

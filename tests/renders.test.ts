@@ -2108,7 +2108,11 @@ describe("a version is read as its download would hold it", () => {
 
     // And the form as the file a download hands over lays it out.
     const download = await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer();
-    expect(view.page.sheet).toEqual(readSheet(download));
+    const printed = readSheet(download);
+    const tables = printed.blocks.filter((block) => block.kind === "table");
+    tables[3]!.rows[1]![0]!.factIds = [record.measuredPublic.id];
+    tables[4]!.rows[1]![0]!.factIds = [];
+    expect(view.page.sheet).toEqual(printed);
   });
 
   /** "Show where each line comes from" (issue #110, S6). */

@@ -35,10 +35,8 @@ export function DocumentPage({ page, language, trace }: { page: SentPage; langua
       {page.readFailure === "original_file_unreadable" ? (
         <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>
       ) : null}
-      {/* A 履歴書's form has no lines to choose, so it is traced through its
-          text, which the page carries beside the form for this. */}
-      {page.sheet && !trace ? (
-        <SheetPage sheet={page.sheet} />
+      {page.sheet ? (
+        <SheetPage sheet={page.sheet} trace={trace} />
       ) : (
         <>
           {page.title ? (
@@ -95,12 +93,17 @@ const AFTER: Record<number, string> = { 0: "mb-0", 20: "mb-2", 40: "mb-4", 80: "
  * which field is which, so the screen cannot set out a form the file does not.
  * The empty lines that space the file's tables are the gap between them.
  */
-function SheetPage({ sheet }: { sheet: Sheet }) {
+function SheetPage({ sheet, trace }: { sheet: Sheet; trace?: Trace }) {
   return (
     <div className="text-text-body">
       {sheet.blocks.map((block, index) => {
-        if (block.kind === "table") return <SheetTable key={index} table={block} />;
+        if (block.kind === "table") return <SheetTable key={index} table={block} index={index} trace={trace} />;
         if (block.line.text.trim() === "") return <p key={index} aria-hidden="true" className={lineClass(block.line)}>&nbsp;</p>;
+        if (trace) {
+          const key = `sheet.${index}`;
+          const open = trace.selected === key;
+          return <SheetLineTrace key={index} line={block.line} open={open} onSelect={() => trace.onSelect(open ? null : key)} behind={() => trace.behind({ kind: "row", text: block.line.text, factIds: [] })} />;
+        }
         return block.line.size === "title" ? (
           <h2 key={index} aria-label={spoken(block.line.text)} className={`${lineClass(block.line)} text-text-bright`}>
             {block.line.text}
@@ -115,6 +118,18 @@ function SheetPage({ sheet }: { sheet: Sheet }) {
   );
 }
 
+function SheetLineTrace({ line, open, onSelect, behind }: { line: SheetLine; open: boolean; onSelect: () => void; behind: () => ReactNode }) {
+  const id = useId();
+  const content = <button type="button" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onSelect}
+    className={`block w-full rounded-control border motion-tone ${lineClass(line)} ${line.size === "title" ? "text-text-bright" : ""} ${open ? "bg-mark-selected border-border-active" : "border-transparent hover:bg-hover"}`}>
+    {line.text}
+  </button>;
+  return <div>
+    {line.size === "title" ? <h2 aria-label={spoken(line.text)}>{content}</h2> : content}
+    {open ? <div id={id} className="mt-6 mb-8">{behind()}</div> : null}
+  </div>;
+}
+
 /** The file spaces its title out, 履 歴 書; the heading is named as the word is written, 履歴書. */
 const spoken = (text: string) => text.replace(/(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])/g, "");
 
@@ -125,7 +140,8 @@ const lineClass = (line: SheetLine) =>
 const headed = (row: SheetCell[]) =>
   row.length > 1 && row.every((cell) => cell.lines.some((line) => line.text.trim() !== "") && cell.lines.every((line) => line.bold || line.text.trim() === ""));
 
-function SheetTable({ table }: { table: Extract<Sheet["blocks"][number], { kind: "table" }> }) {
+function SheetTable({ table, index, trace }: { table: Extract<Sheet["blocks"][number], { kind: "table" }>; index: number; trace?: Trace }) {
+  const id = useId();
   return (
     <div className="min-w-0 max-w-full overflow-x-auto">
       <table className="w-full table-fixed max-phone:table-auto border-collapse">
@@ -139,21 +155,33 @@ function SheetTable({ table }: { table: Extract<Sheet["blocks"][number], { kind:
             const Cell = rowIndex === 0 && headed(row) ? "th" : "td";
             return (
               <tr key={rowIndex}>
-                {row.map((cell, cellIndex) => (
-                  <Cell
+                {row.map((cell, cellIndex) => {
+                  const key = `sheet.${index}.${rowIndex}.${cellIndex}`;
+                  const open = trace?.selected === key;
+                  const panel = `${id}-${rowIndex}-${cellIndex}`;
+                  return <Cell
                     key={cellIndex}
                     scope={Cell === "th" ? "col" : undefined}
                     colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
                     rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
                     className={`border border-border-active px-8 py-6 align-top font-normal ${cell.shaded ? "bg-shade" : ""}`}
                   >
-                    {cell.lines.map((line, lineIndex) => (
-                      <p key={lineIndex} className={lineClass(line)}>
-                        {line.text || "\u00a0"}
-                      </p>
+                    {trace ? (
+                      <>
+                        <button type="button" aria-expanded={open} aria-controls={open ? panel : undefined}
+                          onClick={() => trace.onSelect(open ? null : key)}
+                          className={`block w-full text-left rounded-control border motion-tone ${open ? "bg-mark-selected border-border-active" : "border-transparent hover:bg-hover"}`}>
+                          {cell.lines.map((line, lineIndex) => (
+                            <span key={lineIndex} className={`block ${lineClass(line)}`}>{line.text || "\u00a0"}</span>
+                          ))}
+                        </button>
+                        {open ? <div id={panel} className="mt-6 mb-8 min-w-0 break-words">{trace.behind({ kind: "paragraph", text: cell.lines.map((line) => line.text).join("\n"), factIds: cell.factIds ?? [] })}</div> : null}
+                      </>
+                    ) : cell.lines.map((line, lineIndex) => (
+                      <p key={lineIndex} className={lineClass(line)}>{line.text || "\u00a0"}</p>
                     ))}
                   </Cell>
-                ))}
+                })}
               </tr>
             );
           })}

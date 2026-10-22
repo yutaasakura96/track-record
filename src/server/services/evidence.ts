@@ -4,8 +4,7 @@
  *
  * Looked up for a page that has already passed the download's refusal
  * (`refuseWithheldCitations`), so every id it is given is an accepted fact
- * that may reach a document. An id it cannot find is left out rather than
- * refused; the reader says so under the line.
+ * that may reach a document. An id it cannot find is left out.
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client";
