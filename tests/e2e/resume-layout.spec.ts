@@ -14,6 +14,7 @@ const EDUCATION_FIXTURE = { institution: "Midorikawa Institute of Technology", i
 const CERTIFICATION_FIXTURE = { name: "Applied Information Technology Engineer", nameJa: "応用情報技術者試験", issuingOrganization: "Information-technology Promotion Agency", issuedOn: "2019-06-01", kind: "technical", technologies: ["SQL"] };
 
 test("main and tailored résumé download, with invalid edit refused", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
   if (evidence) mkdirSync(evidence, { recursive: true });
   const context = await browser.newContext({ baseURL, storageState: RESUME_STORAGE_STATE, acceptDownloads: true });
   const page = await context.newPage();
@@ -92,6 +93,46 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   await page.goto("/renders/english_resume/view");
   await expect(page.getByRole("article").getByText("Aozora Logistics K.K.")).toBeVisible();
   if (evidence) await page.screenshot({ path: `${evidence}/resume-reader.png`, fullPage: true });
+
+  // A version accepted with a complete job must stop printing when today's
+  // record loses its city, in the reader and in both downloadable formats.
+  expect((await api.patch(`/api/employers/${employer.id}`, { data: { city: null } })).status()).toBe(200);
+  for (const path of [
+    "/api/renders/english_resume/page",
+    "/api/renders/english_resume/download?format=md",
+    "/api/renders/english_resume/download?format=docx",
+  ]) {
+    const response = await api.get(path);
+    expect(response.status(), path).toBe(409);
+    const body = await response.json();
+    expect(body.error.details.jobHeaders).toEqual([
+      { employerId: employer.id, name: "Aozora Logistics K.K.", missing: ["city"] },
+    ]);
+    if (evidence) writeFileSync(`${evidence}/resume-city-refusal.json`, JSON.stringify(body, null, 2));
+  }
+  await page.reload();
+  const cityLink = page.getByRole("link", { name: "Add the city for Aozora Logistics K.K." });
+  await expect(cityLink).toBeVisible();
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-city-refusal.png`, fullPage: true });
+  await cityLink.click();
+  await expect(page).toHaveURL(new RegExp(`/record\\?employer=${employer.id}&fix=city$`));
+  await expect(page.getByRole("form", { name: "Editing employer" }).getByLabel(/^City/)).toBeFocused();
+  expect((await api.patch(`/api/employers/${employer.id}`, { data: { city: "Yokohama" } })).status()).toBe(200);
+  expect((await api.get("/api/renders/english_resume/download?format=md")).status()).toBe(200);
+
+  // The form cannot silently classify a new language score as technical.
+  const unclassified = await api.post("/api/certifications", {
+    data: { name: "TOEIC Listening & Reading 890", issuingOrganization: "IIBC" },
+  });
+  expect(unclassified.status()).toBe(422);
+  expect((await unclassified.json()).error.details.fields).toContain("kind");
+  await post("/api/certifications", {
+    name: "Ordinary driving licence", issuingOrganization: "Fictional licensing office", kind: "other",
+  });
+  const classified = await api.get("/api/renders/english_resume/download?format=md");
+  expect(classified.status()).toBe(200);
+  expect(await classified.text()).not.toContain("Ordinary driving licence");
+
   const refused = async (entry: string, expected: string) => {
     const response = await api.post("/api/renders/english_resume/generate");
     expect(response.status(), `${entry}: ${await response.text()}`).toBe(428);
@@ -143,5 +184,44 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   const movedRecordEdit = await api.post("/api/renders/english_resume/versions", { data: { basedOnVersionId: versionId, content: reworded } });
   expect(movedRecordEdit.status(), await movedRecordEdit.text()).toBe(201);
   if (evidence) writeFileSync(`${evidence}/resume-edit-after-project-move.txt`, `${movedRecordEdit.status()} ${await movedRecordEdit.text()}\n`);
+
+  // An accepted version must also refuse a title lost after acceptance.
+  const savedRoles = await api.get("/api/roles").then((response) => response.json()) as { items: { id: string; employerId: string }[] };
+  for (const role of savedRoles.items.filter((item) => item.employerId === employer.id)) {
+    expect((await api.delete(`/api/roles/${role.id}`)).status()).toBe(204);
+  }
+  for (const path of ["/api/renders/english_resume/page", "/api/renders/english_resume/download?format=md"]) {
+    const response = await api.get(path);
+    expect(response.status(), path).toBe(409);
+    const body = await response.json();
+    expect(body.error.details.jobHeaders).toEqual([
+      { employerId: employer.id, name: "Aozora Logistics K.K.", missing: ["role"] },
+    ]);
+    if (evidence) writeFileSync(`${evidence}/resume-role-refusal.json`, JSON.stringify(body, null, 2));
+  }
+  const noRoleGeneration = await api.post("/api/renders/english_resume/generate");
+  expect(noRoleGeneration.status()).toBe(428);
+  await page.goto("/renders/english_resume/view");
+  const roleLink = page.getByRole("link", { name: "Add the role for Aozora Logistics K.K." });
+  await expect(roleLink).toBeVisible();
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-role-refusal.png`, fullPage: true });
+  await roleLink.click();
+  await expect(page).toHaveURL(new RegExp(`/record\\?employer=${employer.id}&fix=role$`));
+  await expect(page.getByRole("form", { name: "New role" }).getByLabel(/^Title/)).toBeFocused();
+
+  // Both ways an application freezes a document must show the same repair link.
+  await page.goto(`/applications/${application.id}`);
+  await page.getByRole("button", { name: "Move to Applied" }).click();
+  await expect(page.getByRole("link", { name: "Add the role for Aozora Logistics K.K." })).toBeVisible();
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-application-step-refusal.png`, fullPage: true });
+  await post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
+  await page.getByRole("button", { name: "Move to Applied" }).click();
+  await expect(page.getByRole("button", { name: "Move to Résumé passed" })).toBeVisible();
+  expect((await api.patch(`/api/employers/${employer.id}`, { data: { city: null } })).status()).toBe(200);
+  await page.getByRole("button", { name: "Record another sent copy" }).click();
+  await page.getByRole("checkbox").first().check();
+  await page.getByRole("button", { name: "Record the ticked documents" }).click();
+  await expect(page.getByRole("link", { name: "Add the city for Aozora Logistics K.K." })).toBeVisible({ timeout: 15_000 });
+  if (evidence) await page.screenshot({ path: `${evidence}/resume-application-record-refusal.png`, fullPage: true });
   await context.close();
 });

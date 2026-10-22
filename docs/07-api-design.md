@@ -1247,7 +1247,8 @@ other document.
   frozen, dated with the day that step saved. Documents with a copy are left alone, and no other
   change of step freezes anything. A move made by `POST …/interviews` is a move: it freezes the
   same way and answers with `frozen`. The files are built first, and one that cannot be built (a citation withheld
-  since, `409`) refuses the move with nothing saved.
+  since, or an English résumé job header with a gap, `409` with the download's `details`) refuses the
+  move with nothing saved.
 - **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
