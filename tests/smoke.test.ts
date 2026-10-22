@@ -80,7 +80,7 @@ describe("sign-in through an accepted résumé version", () => {
     expect(empty.isEmpty).toBe(true);
     expect(empty.documents.every((d) => d.status === "never_generated")).toBe(true);
 
-    await client.post("/api/employers", EMPLOYER_FIXTURE);
+    const employer = (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
 
     // 6 · Import one case study.
     model.extractions = [
@@ -128,8 +128,8 @@ describe("sign-in through an accepted résumé version", () => {
       {
         sections: [
           {
-            key: "experience",
-            heading: "Experience",
+            key: `employer:${employer.id}`,
+            heading: EMPLOYER_FIXTURE.nameLatin,
             blocks: [
               {
                 id: "blk_1",
@@ -159,7 +159,7 @@ describe("sign-in through an accepted résumé version", () => {
       preview: { page: { sections: { heading: string }[] } };
       changes: { target: string; rationale: { text: string; factIds: string[] } }[];
     }>(`/api/proposals/${proposalId}/diff`);
-    expect(diff.preview.page.sections[0]!.heading).toBe("Experience");
+    expect(diff.preview.page.sections[0]!.heading).toBe(EMPLOYER_FIXTURE.nameLatin);
     expect(diff.additions).toBe(2);
     expect(diff.changes.find((change) => change.target === "block")!.rationale.factIds).toContain(fact.id);
 

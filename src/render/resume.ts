@@ -142,7 +142,7 @@ export function validateResumeEditShape(content: RenderContent, previous: Render
   if (content.sections.length !== previous.sections.length) {
     throw new Error("A résumé edit must keep its sections.");
   }
-  if (previous.sections.some((section) => !isCurrentSectionKey(section.key))) {
+  if (isOlderVersion(previous)) {
     validateResumeSectionShape(content, [], previousKeys);
     const previousBlocks = new Map(previous.sections.flatMap((section) => section.blocks.map((block) => [block.id, block.kind] as const)));
     for (const section of content.sections) {
@@ -157,6 +157,26 @@ export function validateResumeEditShape(content: RenderContent, previous: Render
     content,
     [...previousKeys].map((key) => ({ key, heading: "", kind: sectionKind(key) })),
   );
+}
+
+/**
+ * A version generated before this layout, under the register that asked for
+ * every section and omitted "any with nothing behind it". It need not have an
+ * `experience` section: one generated when no employer fact was usable can
+ * hold only a summary and projects, or no summary at all. What marks it is a
+ * key this layout never asks for, or a section the current shape refuses.
+ */
+function isOlderVersion(version: RenderContent): boolean {
+  if (version.sections.some((section) => !isCurrentSectionKey(section.key))) return true;
+  try {
+    validateResumeSectionShape(
+      version,
+      version.sections.map(({ key }) => ({ key, heading: "", kind: sectionKind(key) })),
+    );
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 export function shapeResumeContent(content: RenderContent, spec: RenderSpec): RenderContent {
@@ -289,9 +309,33 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
   return document;
 }
 
-export class ResumeLanguageError extends Error {}
+/** A stored version and today's record that cannot make the file. Refused, never printed around. */
+export class ResumeAssemblyError extends Error {}
+
+export class ResumeLanguageError extends ResumeAssemblyError {}
+
+/**
+ * A name an English reader can read: at least one letter, and every letter in
+ * Latin script. An employer recorded only as Компания has no Latin name to
+ * fall back to, any more than one recorded only as 株式会社… does.
+ */
+const isLatinName = (value: string): boolean =>
+  /\p{L}/u.test(value) && !/(?!\p{Script=Latin})\p{L}/u.test(value);
+
+export function assertResumeSpecNames(spec: Pick<RenderSpec, "employers" | "projects" | "educations">): void {
+  const names: [string, string][] = [
+    ...spec.employers.map((employer): [string, string] => ["employer", employer.name]),
+    ...spec.projects.map((project): [string, string] => ["project", project.name]),
+    ...spec.educations.map((education): [string, string] => ["education", education.institution]),
+  ];
+  const unreadable = names.find(([, value]) => !isLatinName(value));
+  if (unreadable) throw new ResumeLanguageError(`The English résumé needs a Latin-script name for ${unreadable[0]}.`);
+}
+
+const NAMED_ENTRIES = new Set(["employer", "project", "education"]);
 
 export function assertEnglishResume(document: ResumeDocument): void {
+  const names: [string, string][] = [["profile name", document.name]];
   const fields: [string, string][] = [
     ["profile name", document.name],
     ["headline", document.headline ?? ""],
@@ -303,6 +347,7 @@ export function assertEnglishResume(document: ResumeDocument): void {
     for (const block of section.blocks) {
       if (block.kind === "entry") {
         entry = `${type} ${block.lead}`;
+        if (NAMED_ENTRIES.has(type)) names.push([`${entry} name`, block.lead]);
         fields.push([`${entry} name`, block.lead], [`${entry} ${type === "employer" ? "city" : "detail"}`, block.detail ?? ""]);
       } else if (block.kind === "labelled") {
         fields.push([`${type} label`, block.label], [`${type} value`, block.text]);
@@ -313,6 +358,8 @@ export function assertEnglishResume(document: ResumeDocument): void {
   }
   const invalid = fields.find(([, value]) => hasJapaneseScript(value));
   if (invalid) throw new ResumeLanguageError(`The English résumé needs an English value for ${invalid[0]}.`);
+  const unreadable = names.find(([, value]) => !isLatinName(value));
+  if (unreadable) throw new ResumeLanguageError(`The English résumé needs a Latin-script name for ${unreadable[0]}.`);
 }
 
 const section = (key: string, heading: string, blocks: ResumeBlock[]): ResumeSection => ({ key, heading, blocks });
@@ -357,7 +404,9 @@ function rolesLine(roles: RenderSpec["employers"][number]["roles"]): string | nu
  * which a paragraph opens each employer. Its groups are joined to the record by
  * the attribution check's own name resolution, so an old version downloads in
  * the new layout with its bullets under the right job. A group whose heading
- * names nobody keeps that heading as plain text rather than losing its bullets.
+ * names no employer the résumé includes is refused rather than printed: every
+ * job line comes from the record, and a model-written one is what this layout
+ * exists to keep off the page. Regenerating gives the version a key per job.
  */
 function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeBlock[] {
   const bulletsByEmployer = new Map<string, string[]>();
@@ -369,31 +418,25 @@ function experienceBlocks(content: RenderContent, record: ResumeRecord): ResumeB
     if (employerId !== null) add(employerId, s.blocks.map((b) => b.text));
   }
 
-  const unresolved: ResumeBlock[] = [];
   const named = record.employers.map((e) => ({ id: e.id, names: [e.name], copy: [] }));
-  const headingText = new Map(content.sections.flatMap((s) => s.blocks.map((b) => [b.id, b.text] as const)));
   for (const group of experienceGroups(content, named)) {
     const texts = group.blocks.map((b) => b.text);
-    if (group.employerId !== null) {
-      add(group.employerId, texts);
-      continue;
+    if (group.employerId === null) {
+      throw new ResumeAssemblyError(
+        "This résumé version has an experience heading that names no employer the résumé includes. Generate the résumé again.",
+      );
     }
-    const lead = group.headingBlockId ? headingText.get(group.headingBlockId) : undefined;
-    if (lead) unresolved.push({ kind: "paragraph", text: lead });
-    unresolved.push(...texts.map((text): ResumeBlock => ({ kind: "bullet", text })));
+    add(group.employerId, texts);
   }
 
-  return [
-    ...record.employers.flatMap((e): ResumeBlock[] => {
-      const titles = rolesLine(e.roles);
-      return [
-        { kind: "entry", lead: e.name, detail: e.city, dates: monthSpan(e.startedOn, e.endedOn) },
-        ...(titles ? [{ kind: "subtitle" as const, text: titles }] : []),
-        ...(bulletsByEmployer.get(e.id) ?? []).map((text): ResumeBlock => ({ kind: "bullet", text })),
-      ];
-    }),
-    ...unresolved,
-  ];
+  return record.employers.flatMap((e): ResumeBlock[] => {
+    const titles = rolesLine(e.roles);
+    return [
+      { kind: "entry", lead: e.name, detail: e.city, dates: monthSpan(e.startedOn, e.endedOn) },
+      ...(titles ? [{ kind: "subtitle" as const, text: titles }] : []),
+      ...(bulletsByEmployer.get(e.id) ?? []).map((text): ResumeBlock => ({ kind: "bullet", text })),
+    ];
+  });
 }
 
 /**

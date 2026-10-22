@@ -132,12 +132,13 @@ async function seedRecord() {
   return { measuredPublic, attestedRestricted, generatedPublic, measuredPrivate, importId: created.importId };
 }
 
-function resumeFrom(blocks: { text: string; factIds: string[] }[]): RenderContent {
+/** `experience` is the section a version made before the job-keyed layout held its bullets in. */
+function resumeFrom(blocks: { text: string; factIds: string[] }[], key: "projects" | "experience" = "projects"): RenderContent {
   return {
     sections: [
       {
-        key: "experience",
-        heading: "Experience",
+        key,
+        heading: key === "projects" ? "Projects" : "Experience",
         blocks: blocks.map((b, i) => ({ id: `blk_${i + 1}`, kind: "bullet" as const, ...b })),
       },
     ],
@@ -389,6 +390,33 @@ describe("the order a document reads in", () => {
 });
 
 describe("generation is blocked rather than producing an empty document", () => {
+  it("blocks an employer-attached project without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const created = await client.post("/api/projects", { name: "Проект", employerId: items[0]!.id });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for project/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
+  it("blocks below-university education without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const created = await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      institution: "Школа",
+      level: "secondary_upper",
+    });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for education/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
   it("states the reason when nothing has been accepted", async () => {
     const response = await client.post("/api/renders/english_resume/generate");
     expect(response.status).toBe(428);
@@ -1283,14 +1311,14 @@ describe("a version is edited by hand", () => {
     content: RenderContent;
   }
 
-  async function acceptedResume() {
+  async function acceptedResume(key: "projects" | "experience" = "projects") {
     const record = await seedRecord();
     const created = (await (
       await generate(
         resumeFrom([
           { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
           { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
-        ]),
+        ], key),
       )
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${created.proposalId}/accept`);
@@ -1457,7 +1485,7 @@ describe("a version is edited by hand", () => {
    * states them from.
    */
   it("returns attribution warnings on the version it accepted, rather than refusing", async () => {
-    const { record, version } = await acceptedResume();
+    const { record, version } = await acceptedResume("experience");
 
     // A paragraph opens an employer group in the experience section, and the
     // bullet under it cites a fact filed to no employer at all.

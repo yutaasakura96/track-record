@@ -472,7 +472,8 @@ read and not a source of facts, with the rule that a skill the job asks for and 
 not written.
 
 **The English résumé is laid out from the record, and the model writes only its summary and bullets**
-(#107). A version stores a `summary` section and one section of bullets per employer, keyed
+(#107). A generation requires a nonempty model-written `summary` section; output without it is
+refused. A version stores that section and one section of bullets per employer, keyed
 `employer:<id>` like a story's chapters, plus `project:<id>` for an independent project. On download
 `src/render/resume.ts` joins them by id to what the record holds today: each job's company, city,
 `Mon YYYY – Present` dates and every title held there, the skills curation, the education past
@@ -480,9 +481,13 @@ secondary school (a vocational programme and a row with no level included, by th
 `src/shared/education.ts`), the current technical certifications and a Languages line. The
 `.docx` (`src/render/resume-docx.ts`), the Markdown and a sent copy's page are written from that one
 assembled document. The per-employer bullet budget is computed from the record and printed in the
-prompt. A version from before #107 may hold a heading-led `experience` section; when present, its
-groups are joined to employers by the attribution check's name resolution. Legacy versions without
-that section remain editable under their stored section shape and download in the same layout.
+prompt. Before the model call, every employer, project and education name in the generation spec
+must contain a Latin letter and no non-Latin letters; this includes entries the file later omits.
+Assembly also refuses Japanese script in any printed field and names with non-Latin letters. A
+version from before #107 may hold a heading-led `experience` section; when present, its groups are
+joined to employers by the attribution check's name resolution. A group naming no included employer
+prevents download instead of printing a model-written job heading. Legacy versions remain editable
+under their stored section shape, including versions without an `experience` section.
 
 **The master document is not in this pipeline.** `GET /api/master-document` reads the record in one
 batch and groups it (employer, then project, then fact); no model is called, nothing is stored and

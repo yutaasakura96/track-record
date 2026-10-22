@@ -159,6 +159,26 @@ describe("the English résumé download", () => {
     expect(after.items.find((item) => item.kind === "english_resume")!.currentVersionId).toBe(versionId);
   });
 
+  it("stops before the model call when an employer has no Latin-script name", async () => {
+    const { employerId } = await seedRecord();
+    await client.patch(`/api/employers/${employerId}`, { nameJa: "Компания", nameLatin: null });
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for employer/);
+    expect(model.generationInputs).toEqual([]);
+  });
+
+  it("refuses the download once the record leaves an employer with no Latin-script name", async () => {
+    const { employerId, factId } = await seedRecord();
+    await accepted("english_resume", contentFor(employerId, factId));
+    await client.patch(`/api/employers/${employerId}`, { nameJa: "Компания", nameLatin: null });
+    for (const format of ["md", "docx"]) {
+      const response = await client.get(`/api/renders/english_resume/download?format=${format}`);
+      expect(response.status).toBe(409);
+      expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name/);
+    }
+  });
+
   it("still saves a summary edit after the record has moved a project under an employer", async () => {
     const { employerId, factId } = await seedRecord();
     const project = (await (await client.post("/api/projects", { name: "Route planner" })).json()) as { id: string };
