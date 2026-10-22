@@ -7151,3 +7151,4 @@ guidance asks for a PDF with text that can be selected.
   tree fixed it; a stretched space between the header and its dates did not.
 - **Revisit if:** a résumé needs a character Carlito does not have (it would print as a blank box,
   where Word substitutes a font), or the file size is refused by an applicant-tracking system.
+  Until then the PDF refuses such a character with `409` instead of drawing the box (`03` §6.3).
