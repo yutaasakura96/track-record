@@ -22,6 +22,7 @@ import { renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import type { CandidateFact } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
+import { employerChapterKey } from "~/render/chapters";
 
 interface Tailored {
   ref: string;
@@ -74,13 +75,13 @@ beforeEach(async () => {
 /** A profile, an employer and three facts, of which one may be used. */
 async function seedRecord(as: Client = client) {
   await as.put("/api/profile", PROFILE_FIXTURE);
-  await as.post("/api/employers", EMPLOYER_FIXTURE);
+  const { id: employerId } = (await (await as.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
   model.extractions = [[USABLE, PRIVATE, GENERATED]];
   const text = `# Notes\n\n${[USABLE, PRIVATE, GENERATED].map((c) => c.quote).join("\n\n")}\n`;
   await as.request("/api/imports", { method: "POST", body: uploadForm(text) });
   await settle();
   const { items } = await as.json<{ items: { id: string; claim: string }[] }>("/api/facts");
-  return { usable: items.find((f) => f.claim === USABLE.claim)! };
+  return { usable: items.find((f) => f.claim === USABLE.claim)!, employerId };
 }
 
 const createdRow = (label = "Kestrel, platform engineer", jobDescription = POSTING, as: SeededUser = user): Promise<Seeded> =>
@@ -91,10 +92,19 @@ const shown = async (row: Seeded, as: Client = client) => {
   return { ...application.documents.find((document) => document.tailored)!, canGenerate: application.canGenerate };
 };
 
-function resumeFrom(text: string, factIds: string[]): RenderContent {
+function resumeFrom(text: string, factIds: string[], employerId: string): RenderContent {
   return {
     sections: [
-      { key: "experience", heading: "Experience", blocks: [{ id: "blk_1", kind: "bullet", text, factIds }] },
+      {
+        key: "summary",
+        heading: "Summary",
+        blocks: [{ id: "blk_summary", kind: "paragraph", text: "Platform engineer with batch systems experience.", factIds: [] }],
+      },
+      {
+        key: employerChapterKey(employerId),
+        heading: EMPLOYER_FIXTURE.nameLatin,
+        blocks: [{ id: "blk_1", kind: "bullet", text, factIds }],
+      },
     ],
   };
 }
@@ -162,10 +172,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("is a proposal, read as a diff and accepted, like every other document", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
 
     expect(await shown(row)).toMatchObject({ status: "proposal_pending", currentVersionNo: null });
@@ -181,7 +191,13 @@ describe("generating a tailored résumé", () => {
     const { usable } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, {
+        sections: [{
+          key: "experience",
+          heading: "Experience",
+          blocks: [{ id: "blk_1", kind: "bullet", text: "Cut the nightly settlement run to 90 minutes.", factIds: [usable.id] }],
+        }],
+      })
     ).json()) as { proposalId: string };
 
     // One call: the English check found nothing to retry.
@@ -191,10 +207,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("refuses a second proposal while one waits, and holds only its own document", async () => {
-    await seedRecord();
+    const { employerId } = await seedRecord();
     const row = await createdRow();
     const other = await createdRow("Plinth, backend engineer");
-    await generate(row.id, resumeFrom("One.", []));
+    await generate(row.id, resumeFrom("One.", [], employerId));
 
     expect((await generate(row.id)).status).toBe(409);
     // A waiting proposal on one résumé does not hold another, nor the main one.
@@ -203,10 +219,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("keeps its versions apart from the main résumé's, on every route that reads one", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const accept = async (ref: string, text: string) => {
-      const { proposalId } = (await (await generate(ref, resumeFrom(text, [usable.id]))).json()) as { proposalId: string };
+      const { proposalId } = (await (await generate(ref, resumeFrom(text, [usable.id], employerId))).json()) as { proposalId: string };
       await client.post(`/api/proposals/${proposalId}/accept`);
     };
     await accept(row.id, "Tailored bullet about the batch platform.");
@@ -239,10 +255,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("records the facts its version could use, and is out of date once one of them is withdrawn", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${proposalId}/accept`);
 
@@ -259,10 +275,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("withholds the file once a fact it cites is made Private, as the main résumé's is", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${proposalId}/accept`);
     expect((await client.get(`/api/renders/${row.id}/download?format=md`)).status).toBe(200);
