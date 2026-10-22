@@ -28,6 +28,8 @@ import {
   CAPTURE_STORAGE_STATE,
   DIFF_REVIEW_IDENTITY,
   DIFF_REVIEW_STORAGE_STATE,
+  EDUCATION_CHIPS_IDENTITY,
+  EDUCATION_CHIPS_STORAGE_STATE,
   DOCUMENT_VIEW_IDENTITY,
   DOCUMENT_VIEW_STORAGE_STATE,
   RESUME_IDENTITY,
@@ -138,6 +140,15 @@ export default async function setup() {
     RESUME_IDENTITY,
   );
   writeFileSync(RESUME_STORAGE_STATE, `${JSON.stringify(storageState(resumeSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const educationChipsSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    EDUCATION_CHIPS_IDENTITY,
+  );
+  writeFileSync(EDUCATION_CHIPS_STORAGE_STATE, `${JSON.stringify(storageState(educationChipsSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { STORAGE_STATE } from "./env";
+import { EDUCATION_CHIPS_STORAGE_STATE } from "./env";
 import { PROFILE } from "./fixture";
 
 test("education chips match document exclusions and update when the level changes", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE, viewport: { width: 1440, height: 900 } });
+  const context = await browser.newContext({ baseURL, storageState: EDUCATION_CHIPS_STORAGE_STATE, viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
