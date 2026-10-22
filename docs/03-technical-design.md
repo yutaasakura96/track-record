@@ -573,7 +573,9 @@ line breaks, the same page break, every baseline within 0.2 pt.
 `wrangler.toml` and in `vitest.config.ts`). Carlito is metric-compatible with the `.docx`'s Calibri,
 so lines break in the same places, and it covers every Latin letter a name can hold. They are not
 subset: `pdf-lib`'s subsets drew most letters as nothing in Preview and Quick Look. A file is about
-0.9 MB. Ligatures are off, as Word leaves them.
+0.9 MB. Ligatures are off, as Word leaves them. There is no fallback font: a character Carlito has no glyph for (a ✓, a ★,
+an emoji) refuses the PDF with `409`, naming the character and where it sits and pointing to the
+Word file, rather than drawing a blank the `.docx` would print.
 
 **Tagged, so the text copies in reading order.** The content is drawn top to bottom, and the file
 carries a structure tree (`Document` › `H1` name, `P`, `H2` headings, `L` › `LI` › `Lbl`/`LBody`

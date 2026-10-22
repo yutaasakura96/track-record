@@ -64,8 +64,9 @@ export type DownloadFormat = "docx" | "md" | "pdf";
  * Offering one a `.docx` button would be offering to produce a submission
  * document out of the one render that is not one.
  *
- * The download route serves either format for any kind — this decides which the
- * screen offers, so that the affordance and the decision agree.
+ * The download route serves `.docx` and Markdown for any kind (a 履歴書 is
+ * `.docx` only) and a PDF for the English résumé alone — this decides which the
+ * screen offers first, so that the affordance and the decision agree.
  */
 export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, DownloadFormat> = {
   // PDF is what employers and ATS guidance expect of an English résumé, so it

@@ -297,6 +297,24 @@ describe("the English résumé's PDF (issue #109)", () => {
     }
   });
 
+  it("refuses a character its font cannot draw, naming it and where it is, and leaves the .docx", async () => {
+    const { employerId, factId } = await seedRecord();
+    const base = contentFor(employerId, factId);
+    await accepted("english_resume", {
+      sections: base.sections.map((section) => section.key === `employer:${employerId}`
+        ? { ...section, blocks: section.blocks.map((block) => ({ ...block, text: "✓ Cut the nightly settlement run." })) }
+        : section),
+    });
+
+    const response = await client.get("/api/renders/english_resume/download?format=pdf");
+    expect(response.status).toBe(409);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toBe(
+      "The PDF cannot show “✓” (U+2713) in the Experience section. Remove it, or download the Word file instead.",
+    );
+    expect((await client.get("/api/renders/english_resume/download?format=docx")).status).toBe(200);
+    expect((await client.get("/api/renders/english_resume/download?format=md")).status).toBe(200);
+  });
+
   it("refuses a version citing a fact made Private since, as the .docx does", async () => {
     const { employerId, factId } = await seedRecord();
     await accepted("english_resume", contentFor(employerId, factId));

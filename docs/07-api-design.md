@@ -883,7 +883,9 @@ assembly refusals above return `409 conflict`; other assembly failures → `500`
 `Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.pdf"`, named as the `.docx` is.
 The same document in the same layout, with selectable, tagged text and the title
 `<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
-as the `.docx` is. A tailored résumé has one too. `?format=pdf` on any other kind → `409 conflict`
+as the `.docx` is, and also when any text holds a character the embedded Carlito cannot draw →
+`409 conflict` (`The PDF cannot show “✓” (U+2713) in the Experience section. Remove it, or download
+the Word file instead.`); the `.docx` and Markdown are unaffected. A tailored résumé has one too. `?format=pdf` on any other kind → `409 conflict`
 (`Only the English résumé is produced as a PDF.`), before a version is read.
 
 **A download obeys today's record, not the day the version was accepted.** Every download

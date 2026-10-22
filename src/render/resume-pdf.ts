@@ -51,7 +51,7 @@ import {
 import regularFont from "../../templates/fonts/Carlito-Regular.ttf";
 import boldFont from "../../templates/fonts/Carlito-Bold.ttf";
 import italicFont from "../../templates/fonts/Carlito-Italic.ttf";
-import type { ResumeBlock, ResumeDocument } from "./resume";
+import { ResumeAssemblyError, type ResumeBlock, type ResumeDocument } from "./resume";
 import { ACCENT, BULLET_INDENT, LINE, MARGIN, MUTED, PAGE, RULE, SIZE, SPACE, type PaperSize } from "./resume-docx";
 
 export const PDF_MIME = "application/pdf";
@@ -100,6 +100,8 @@ interface Run {
 interface Block {
   /** Its structure role: the name, a heading, a paragraph or a list item. */
   role: "H1" | "H2" | "P" | "LI";
+  /** Where it sits, in the author's words, for a refusal that names it. */
+  where: string;
   runs: Run[];
   before: number;
   after: number;
@@ -142,7 +144,9 @@ export async function resumePdf(
   const margin = twips(MARGIN);
   const textWidth = size.width - 2 * margin;
 
-  const laid = blocksFor(doc, fonts).map((block) => lay(block, textWidth));
+  const blocks = blocksFor(doc, fonts);
+  refuseMissingGlyphs(blocks, fonts);
+  const laid = blocks.map((block) => lay(block, textWidth));
   const tags = new Tags(pdf);
   place(pdf, tags, laid, size, margin, textWidth);
   tags.finish();
@@ -156,6 +160,7 @@ function blocksFor(doc: ResumeDocument, fonts: Fonts): Block[] {
   const run = (text: string, font: PDFFont, size = body, color = BLACK): Run => ({ text, font, size, color });
   const plain = (runs: Run[], spacing: { before?: number; after?: number }, keepNext = false): Block => ({
     role: "P",
+    where: "",
     runs,
     before: twips(spacing.before ?? 0),
     after: twips(spacing.after ?? 0),
@@ -167,22 +172,31 @@ function blocksFor(doc: ResumeDocument, fonts: Fonts): Block[] {
   });
 
   // No document title above the name, as in the `.docx`.
-  const blocks: Block[] = [{ ...plain([run(doc.name, fonts.bold, halfPoints(SIZE.name))], SPACE.name), role: "H1" }];
+  const blocks: Block[] = [
+    { ...plain([run(doc.name, fonts.bold, halfPoints(SIZE.name))], SPACE.name), role: "H1", where: "the name" },
+  ];
   if (doc.headline !== null) {
-    blocks.push(plain([run(doc.headline, fonts.regular, halfPoints(SIZE.headline), hex(ACCENT))], SPACE.headline));
+    blocks.push({
+      ...plain([run(doc.headline, fonts.regular, halfPoints(SIZE.headline), hex(ACCENT))], SPACE.headline),
+      where: "the headline",
+    });
   }
   if (doc.contact.length > 0) {
-    blocks.push(plain([run(doc.contact.join(" · "), fonts.regular, halfPoints(SIZE.contact), hex(MUTED))], SPACE.contact));
+    blocks.push({
+      ...plain([run(doc.contact.join(" · "), fonts.regular, halfPoints(SIZE.contact), hex(MUTED))], SPACE.contact),
+      where: "the contact line",
+    });
   }
 
   for (const section of doc.sections) {
     blocks.push({
       ...plain(smallCaps(section.heading, fonts.bold, halfPoints(SIZE.heading), hex(ACCENT)), SPACE.heading, true),
       role: "H2",
+      where: `the ${section.heading} heading`,
       rule: true,
     });
     section.blocks.forEach((block, index) => {
-      blocks.push(blockFor(block, section.blocks[index + 1], fonts, run, plain));
+      blocks.push({ ...blockFor(block, section.blocks[index + 1], fonts, run, plain), where: `the ${section.heading} section` });
     });
   }
   return blocks;
@@ -233,6 +247,32 @@ function smallCaps(text: string, font: PDFFont, size: number, color: RGB): Run[]
     runs.push({ text: lower ? part.toUpperCase() : part, font, size: lower ? size * SMALL_CAP : size, color });
   }
   return runs;
+}
+
+/**
+ * Carlito has no glyph for a ✓, a ★ or an emoji, and the PDF carries no other
+ * font: such a character would be drawn as a blank and copied as nothing,
+ * where Word's font fallback prints it in the `.docx`. The PDF is refused
+ * instead, naming the character, as a name with no Latin letters is.
+ * Whitespace is laid out as space and not drawn.
+ */
+function refuseMissingGlyphs(blocks: Block[], fonts: Fonts) {
+  const covered = new Map<PDFFont, Set<number>>(
+    Object.values(fonts).map((font) => [font, new Set(font.getCharacterSet())]),
+  );
+  for (const block of blocks) {
+    for (const run of [...block.runs, block.bullet, block.dates]) {
+      if (!run) continue;
+      for (const char of run.text) {
+        const code = char.codePointAt(0)!;
+        if (/\s/u.test(char) || covered.get(run.font)!.has(code)) continue;
+        const name = `U+${code.toString(16).toUpperCase().padStart(4, "0")}`;
+        throw new ResumeAssemblyError(
+          `The PDF cannot show “${char}” (${name}) in ${block.where}. Remove it, or download the Word file instead.`,
+        );
+      }
+    }
+  }
 }
 
 /* ------------------------------------------------------------ the lines */
