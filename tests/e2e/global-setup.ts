@@ -36,6 +36,8 @@ import {
   INTERVIEW_STORAGE_STATE,
   RESUME_HEADER_IDENTITY,
   RESUME_HEADER_STORAGE_STATE,
+  RIREKISHO_PRINT_IDENTITY,
+  RIREKISHO_PRINT_STORAGE_STATE,
   STORAGE_STATE,
 } from "./env";
 
@@ -116,6 +118,16 @@ export default async function setup() {
     RESUME_HEADER_IDENTITY,
   );
   writeFileSync(RESUME_HEADER_STORAGE_STATE, `${JSON.stringify(storageState(resumeHeaderSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The 履歴書 print check's own author, so it onboards from no profile whichever spec ran first.
+  const rirekishoPrintSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    RIREKISHO_PRINT_IDENTITY,
+  );
+  writeFileSync(RIREKISHO_PRINT_STORAGE_STATE, `${JSON.stringify(storageState(rirekishoPrintSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
   // The résumé layout's own author (issue #107), so the smoke test's record still starts with no profile.

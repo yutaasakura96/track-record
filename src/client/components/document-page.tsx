@@ -6,6 +6,7 @@
  * would hold today. The page is the server's in both, so this only sets it.
  */
 import type { SentPage } from "~/render/sent-page";
+import type { Sheet, SheetAlign, SheetCell, SheetLine, SheetSize } from "~/render/sheet";
 
 /** The document at the reading measure. A 履歴書 or 職務経歴書 is set with the Japanese stack. */
 export function DocumentPage({ page, language }: { page: SentPage; language: "en" | "ja" }) {
@@ -15,11 +16,14 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
       lang={japanese ? "ja" : "en"}
       className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
     >
-      <h2 className="text-doc-title text-center font-semibold tracking-tight text-text-bright">{page.title}</h2>
-      {page.form ? (
-        <FormPage form={page.form} stamp={page.stamp} />
+      {page.readFailure === "original_file_unreadable" ? (
+        <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>
+      ) : null}
+      {page.sheet ? (
+        <SheetPage sheet={page.sheet} />
       ) : (
         <>
+          <h2 className="text-doc-title text-center font-semibold tracking-tight text-text-bright">{page.title}</h2>
           <div className="mt-8 text-center">
             {page.stamp ? <p className="text-right text-small text-text-muted">{page.stamp}</p> : null}
             <p className="text-render-heading font-semibold text-text-bright">{page.name}</p>
@@ -41,43 +45,86 @@ export function DocumentPage({ page, language }: { page: SentPage; language: "en
   );
 }
 
-function FormPage({ form, stamp }: { form: NonNullable<SentPage["form"]>; stamp: string | null }) {
+const ALIGN: Record<SheetAlign, string> = { start: "text-left", center: "text-center", end: "text-right" };
+const SIZE: Record<SheetSize, string> = {
+  title: "text-doc-title",
+  large: "text-doc-heading",
+  body: "text-render-body",
+  small: "text-smaller",
+};
+const AFTER: Record<number, string> = { 0: "mb-0", 20: "mb-2", 40: "mb-4", 80: "mb-6", 100: "mb-8", 200: "mb-14" };
+
+/**
+ * A 履歴書 as its file lays it out: the file's lines and tables, cell for cell,
+ * with its spans, its merged 写真 cell, its shading and its fixed column widths.
+ * At phone width the widths give way to the content, so a year is not broken. Nothing here knows
+ * which field is which, so the screen cannot set out a form the file does not.
+ * The empty lines that space the file's tables are the gap between them.
+ */
+function SheetPage({ sheet }: { sheet: Sheet }) {
   return (
-    <div className="mt-8 grid gap-20 text-render-body text-text-body">
-      {stamp ? <p className="text-right text-small text-text-muted">{stamp}</p> : null}
-      <dl className="grid grid-cols-2 max-phone:grid-cols-1 border-t border-l border-border">
-        {form.cells.map((cell) => (
-          <div key={cell.label} className="min-w-0 border-r border-b border-border p-8">
-            <dt className="text-smaller text-text-dim">{cell.label}</dt>
-            <dd className="whitespace-pre-line break-words">{cell.value}</dd>
-          </div>
-        ))}
-      </dl>
-      {form.tables.map((table) => (
-        <div key={table.heading} className="min-w-0 max-w-full overflow-x-auto border border-border">
-          <table className="w-full min-w-measure border-collapse text-left">
-            <caption className="p-8 text-left text-render-heading font-semibold text-text-dim">{table.heading}</caption>
-            <thead>
-              <tr><th scope="col" className="border border-border p-8">年</th><th scope="col" className="border border-border p-8">月</th><th scope="col" className="border border-border p-8">{table.heading}</th></tr>
-            </thead>
-            <tbody>
-              {table.rows.map((row, index) => (
-                <tr key={index}>
-                  <td className="border border-border p-8 whitespace-nowrap">{row.year}</td>
-                  <td className="border border-border p-8 whitespace-nowrap">{row.month}</td>
-                  <td className="border border-border p-8 whitespace-pre-line break-words">{row.text}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-      {form.prose.map((cell) => (
-        <section key={cell.heading} className="border border-border">
-          <h3 className="border-b border-border p-8 text-render-heading font-semibold text-text-dim">{cell.heading}</h3>
-          <p className="p-8 whitespace-pre-line">{cell.text}</p>
-        </section>
-      ))}
+    <div className="text-text-body">
+      {sheet.blocks.map((block, index) => {
+        if (block.kind === "table") return <SheetTable key={index} table={block} />;
+        if (block.line.text.trim() === "") return <p key={index} aria-hidden="true" className={lineClass(block.line)}>&nbsp;</p>;
+        return block.line.size === "title" ? (
+          <h2 key={index} aria-label={spoken(block.line.text)} className={`${lineClass(block.line)} text-text-bright`}>
+            {block.line.text}
+          </h2>
+        ) : (
+          <p key={index} className={lineClass(block.line)}>
+            {block.line.text}
+          </p>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The file spaces its title out, 履 歴 書; the heading is named as the word is written, 履歴書. */
+const spoken = (text: string) => text.replace(/(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])/g, "");
+
+const lineClass = (line: SheetLine) =>
+  `${ALIGN[line.align]} ${SIZE[line.size]} ${line.bold ? "font-semibold" : ""} ${AFTER[line.afterTwips] ?? "mb-0"} whitespace-pre-wrap break-words`;
+
+/** A first row the file sets in bold throughout, as it does 年 / 月 / 学歴・職歴, heads its columns. */
+const headed = (row: SheetCell[]) =>
+  row.length > 1 && row.every((cell) => cell.lines.some((line) => line.text.trim() !== "") && cell.lines.every((line) => line.bold || line.text.trim() === ""));
+
+function SheetTable({ table }: { table: Extract<Sheet["blocks"][number], { kind: "table" }> }) {
+  return (
+    <div className="min-w-0 max-w-full overflow-x-auto">
+      <table className="w-full table-fixed max-phone:table-auto border-collapse">
+        <colgroup>
+          {table.columns.map((width, index) => (
+            <col key={index} style={{ width: `${(width * 100).toFixed(2)}%` }} />
+          ))}
+        </colgroup>
+        <tbody>
+          {table.rows.map((row, rowIndex) => {
+            const Cell = rowIndex === 0 && headed(row) ? "th" : "td";
+            return (
+              <tr key={rowIndex}>
+                {row.map((cell, cellIndex) => (
+                  <Cell
+                    key={cellIndex}
+                    scope={Cell === "th" ? "col" : undefined}
+                    colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
+                    rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
+                    className={`border border-border-active px-8 py-6 align-top font-normal ${cell.shaded ? "bg-chip" : ""}`}
+                  >
+                    {cell.lines.map((line, lineIndex) => (
+                      <p key={lineIndex} className={lineClass(line)}>
+                        {line.text || "\u00a0"}
+                      </p>
+                    ))}
+                  </Cell>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

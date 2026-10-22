@@ -87,11 +87,7 @@ export async function buildDocumentFile(
   switch (inputs.kind) {
     case "rirekisho": {
       const filename = downloadFilename(kind, "docx", version.acceptedAt);
-      return assembled(version, () => ({
-        bytes: fillRirekishoTemplate(inputs.data),
-        filename,
-        page: rirekishoSentPage(inputs.data, inputs.content),
-      }));
+      return assembled(version, () => rirekishoFile(inputs.data, inputs.content, filename));
     }
     case "resume": {
       const { document, paper } = inputs;
@@ -113,10 +109,17 @@ export async function buildDocumentFile(
   }
 }
 
+/** One filling, so the page is read out of the very bytes that are handed over. */
+function rirekishoFile(data: RirekishoTemplateData, content: RenderContent, filename: string): DocumentFile {
+  const bytes = fillRirekishoTemplate(data);
+  return { bytes, filename, page: rirekishoSentPage(data, content, bytes) };
+}
+
 /**
  * The page of one version, as a download would assemble it today (issue #106).
  * The same inputs and the same refusal as `buildDocumentFile`, so what is read
- * on the screen is what the file would hold; only the `.docx` is not built.
+ * on the screen is what the file would hold. Only a 履歴書's file is made, and
+ * only to read its form back out of it (`~/render/sheet`); nothing is kept.
  */
 export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<SentPage> {
   const inputs = await assemblyInputs(db, userId, kind, version);

@@ -27,6 +27,7 @@ import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
 import { chaptersOf } from "~/model/generate";
 import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
+import { readSheet, type Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
 
@@ -1947,6 +1948,7 @@ describe("a version is read as its download would hold it", () => {
       name: string;
       contact: string[];
       sections: { heading: string; blocks: { kind: string; text: string }[] }[];
+      sheet?: Sheet;
     };
   }
 
@@ -2049,6 +2051,10 @@ describe("a version is read as its download would hold it", () => {
     expect(headings).toContain("学歴");
     expect(headings).toContain("職歴");
     expect(texts(view)).toContain("貴社の基盤刷新に携わりたいと考えております。");
+
+    // And the form as the file a download hands over lays it out.
+    const download = await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer();
+    expect(view.page.sheet).toEqual(readSheet(download));
   });
 });
 

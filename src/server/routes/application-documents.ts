@@ -27,6 +27,8 @@ import { mainRender } from "../services/render-ref";
 import { detail, markActivity, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
 import { tokyoToday } from "~/render/rirekisho";
+import type { SentPage } from "~/render/sent-page";
+import { readSheet } from "~/render/sheet";
 import { SENDABLE_KINDS, SENDABLE_TITLE, isSendableKind } from "~/shared/application-documents";
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import type { AppEnv } from "../env";
@@ -232,6 +234,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     return c.json({
       ...copy,
+      page: await withSheet(db, user.id, copy),
       recordedAt: copy.recordedAt.toISOString(),
       language: RENDER_LANGUAGE[copy.kind as RenderKind],
       applicationId: id,
@@ -321,6 +324,29 @@ async function requireDocuments(db: Db, userId: string, application: Application
     documents.push(render);
   }
   return documents;
+}
+
+/**
+ * A 履歴書 copy's page with its form, as its file lays it out. A copy stored
+ * before the page carried one is read from its stored file, which is the form
+ * as it was sent that day: nothing about it is rebuilt from the record now.
+ * A file that cannot be read leaves the page as it was stored, its text.
+ */
+async function withSheet(db: Db, userId: string, copy: { id: string; kind: string; page: unknown }) {
+  const page = copy.page as SentPage;
+  if (copy.kind !== "rirekisho" || page.sheet) return page;
+  const [stored] = await db
+    .select({ file: applicationSentCopies.file })
+    .from(applicationSentCopies)
+    .where(and(eq(applicationSentCopies.userId, userId), eq(applicationSentCopies.id, copy.id)))
+    .limit(1);
+  if (!stored) return page;
+  try {
+    return { ...page, sheet: readSheet(storedBytes(stored.file)) };
+  } catch (error) {
+    console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", userId, copyId: copy.id, errorKind: error instanceof Error ? error.constructor.name : typeof error }));
+    return { ...page, readFailure: "original_file_unreadable" as const };
+  }
 }
 
 /**

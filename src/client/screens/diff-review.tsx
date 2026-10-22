@@ -25,6 +25,7 @@ import {
 import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { DocumentBlocks } from "../components/document-blocks";
+import { DocumentPage } from "../components/document-page";
 import { DownloadButton } from "../components/download-button";
 import { ReadFailure } from "../components/read-failure";
 import { RENDER_LANGUAGE } from "~/shared/render-content";
@@ -405,7 +406,9 @@ function FirstVersion({
       <p className="h-strip flex items-center px-20 border-b border-border-subtle text-small text-text-secondary">
         This is the first version of your {proposal.title}. Read it through, then accept it or discard it.
       </p>
-      {preview ? (
+      {preview?.page.sheet ? (
+        <DocumentPage page={preview.page} language={RENDER_LANGUAGE[proposal.renderKind]} />
+      ) : preview ? (
         <article
           lang={japanese ? "ja" : "en"}
           className={`mx-auto w-measure max-w-full px-20 py-32 ${japanese ? "tracking-ja" : ""}`}

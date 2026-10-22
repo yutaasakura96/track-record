@@ -57,13 +57,19 @@ export const RESUME_HEADER_IDENTITY = {
   name: "Resume Header Test",
 };
 
+export const RIREKISHO_PRINT_IDENTITY = {
+  sub: "e2e-rirekisho-print-local",
+  email: "e2e-rirekisho-print@example.invalid",
+  name: "Rirekisho Print Test",
+};
+
 export const RESUME_IDENTITY = {
   sub: "e2e-resume-local",
   email: "e2e-resume@example.invalid",
   name: "Resume Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email}`;
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -112,6 +118,14 @@ export const RESUME_HEADER_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-resume-header-storage-state.json",
+);
+
+export const RIREKISHO_PRINT_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-rirekisho-print-storage-state.json",
 );
 
 export const RESUME_STORAGE_STATE = join(

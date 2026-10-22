@@ -25,7 +25,7 @@ import { UnreadableDocument } from "./unreadable";
 
 export const DOCX_EXTRACTOR_VERSION = "docx-1";
 
-const TOKEN = /<(\/?)([A-Za-z][\w.-]*:)?([\w.-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[([\s\S]*?)\]\]>|([^<]+)/g;
+export const TOKEN = /<(\/?)([A-Za-z][\w.-]*:)?([\w.-]+)((?:[^>"']|"[^"]*"|'[^']*')*?)(\/?)>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<!\[CDATA\[([\s\S]*?)\]\]>|([^<]+)/g;
 
 /**
  * Never read. The two property elements are here because a paragraph's tab
@@ -38,7 +38,7 @@ const COMPATIBILITY_NAMESPACE = "http://schemas.openxmlformats.org/markup-compat
 const ENTITY = /&(?:#(\d+)|#x([0-9A-Fa-f]+)|(amp|lt|gt|quot|apos));/g;
 const NAMED: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 
-const decode = (text: string) =>
+export const decode = (text: string) =>
   text.replace(ENTITY, (_, dec?: string, hex?: string, name?: string) =>
     name ? NAMED[name]! : String.fromCodePoint(dec ? Number(dec) : parseInt(hex!, 16)),
   );
