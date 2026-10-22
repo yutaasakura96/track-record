@@ -136,6 +136,22 @@ describe("the résumé PDF", () => {
     }
   });
 
+  it("sets a line break or a tab in the text as one space, on one line inside the margins", async () => {
+    const doc = documentWith(1);
+    doc.sections[0]!.blocks = [{ kind: "paragraph", text: "Led payments.\nCut settlement\ttime." }];
+    const bytes = await resumePdf(doc, "letter", METADATA);
+    expect((await extractText(bytes.slice(), { mergePages: true })).text).toContain("Led payments. Cut settlement time.");
+
+    const { items } = await extractTextItems(bytes.slice());
+    const pieces = items.flat().filter((item) => /Led payments|settlement/.test(item.str));
+    expect(new Set(pieces.map((item) => item.y)).size).toBe(1);
+    const margin = 879 / 20;
+    for (const item of pieces) {
+      expect(item.x).toBeGreaterThanOrEqual(margin - 1);
+      expect(item.x + item.width).toBeLessThanOrEqual(612 - margin + 1);
+    }
+  });
+
   it("is tagged, so a reader that goes by position still reads a job's dates with its header", async () => {
     const pdf = await getDocumentProxy((await resumePdf(documentWith(1), "a4", METADATA)).slice());
     expect((await pdf.getMarkInfo())?.Marked).toBe(true);

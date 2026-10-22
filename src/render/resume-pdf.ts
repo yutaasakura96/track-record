@@ -254,7 +254,8 @@ function smallCaps(text: string, font: PDFFont, size: number, color: RGB): Run[]
  * font: such a character would be drawn as a blank and copied as nothing,
  * where Word's font fallback prints it in the `.docx`. The PDF is refused
  * instead, naming the character, as a name with no Latin letters is.
- * Whitespace is laid out as space and not drawn.
+ * White space is not checked: `lay` sets every run of it as one space, as
+ * Word shows a line break or a tab inside a run's text.
  */
 function refuseMissingGlyphs(blocks: Block[], fonts: Fonts) {
   const covered = new Map<PDFFont, Set<number>>(
@@ -288,7 +289,7 @@ function lay(block: Block, textWidth: number): Laid {
   for (const run of block.runs) {
     for (const [token] of run.text.matchAll(/\s+|\S+/g)) {
       const isSpace = /^\s+$/.test(token);
-      let remaining = token;
+      let remaining = isSpace ? " " : token;
       while (remaining) {
         const room = textWidth - block.indent - (lines.length === 1 ? reserved : 0);
         const line = lines[lines.length - 1]!;
