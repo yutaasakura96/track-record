@@ -155,7 +155,7 @@ describe("when a skill was last used", () => {
 });
 
 describe("a suggested group", () => {
-  it("is the group whose skills a candidate is named beside, and none where it is named beside none", async () => {
+  it("is the group whose skills a candidate is named beside", async () => {
     await seedRecord();
     await curate([
       { name: "Qualifications", skills: ["SQL"] },
@@ -168,6 +168,43 @@ describe("a suggested group", () => {
       ["Airflow", "Data platforms"],
       ["SQL", null],
     ]);
+  });
+
+  it("is the group sharing its employers, else the largest group, when it is named beside none", async () => {
+    const fact = await imported([
+      { claim: "Streamed orders through Kafka", quote: "Orders streamed through a Kafka topic per region.", technologies: ["Kafka"] },
+      { claim: "Cached prices in Redis", quote: "Price lookups were served from Redis.", technologies: ["Redis"] },
+      { claim: "Planned networks in Terraform", quote: "Every network was planned in Terraform.", technologies: ["Terraform"] },
+      { claim: "Packaged services with Helm", quote: "Each service shipped as a Helm chart.", technologies: ["Helm"] },
+      { claim: "Scripted releases in Bash", quote: "Releases ran from one Bash script.", technologies: ["Bash"] },
+    ]);
+    const first = await created("/api/employers", EMPLOYER_FIXTURE);
+    const second = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: "Kumo Freight K.K." });
+    for (const [fragment, employerId] of [["Kafka", first.id], ["Redis", first.id], ["Terraform", second.id], ["Helm", second.id]]) {
+      const id = fact(fragment!).id;
+      await client.patch(`/api/facts/${id}`, { employerId });
+      await accept(id);
+    }
+    await accept(fact("Bash").id);
+    await curate([
+      { name: "Infrastructure", skills: ["Terraform", "Helm"] },
+      { name: "Data", skills: ["Redis"] },
+    ]);
+
+    const suggested = new Map((await curation()).candidates.map((c) => [c.name, c.suggestedGroup]));
+    expect(suggested.get("Kafka")).toBe("Data");
+    expect(suggested.get("Bash")).toBe("Infrastructure");
+  });
+
+  it("is the earlier of equally large groups, and none while no group exists", async () => {
+    await seedRecord();
+    expect((await curation()).candidates.every((c) => c.suggestedGroup === null)).toBe(true);
+
+    await curate([
+      { name: "Pipelines", skills: ["Airflow"] },
+      { name: "Stores", skills: ["CockroachDB"] },
+    ]);
+    expect((await curation()).candidates.find((c) => c.name === "SQL")!.suggestedGroup).toBe("Pipelines");
   });
 });
 

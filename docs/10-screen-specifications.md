@@ -1091,8 +1091,9 @@ land clears the outline, the mark and the preview back to what is stored.
 
 **Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
 then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
-group whose skills it is named beside on the most facts, the earlier group on a tie, written
-`→ Data`; one named beside no listed skill has none. Pressing a chip with a suggestion adds it to
+group whose skills it is named beside on the most facts; for one named beside no listed skill, the
+group whose skills were used at the most of the same employers, and failing that the largest group;
+the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none. Pressing a chip with a suggestion adds it to
 the end of that group at once. Pressing one without opens a bar, `Add Redis to`, with a button per
 group and `Cancel`. Any of them can also be dragged to a group.
 

@@ -27,11 +27,17 @@ export interface SkillCandidate {
   lastUsed: LastUsed;
 }
 
-/** The candidates, and the technologies each eligible fact names together. */
+/** What one eligible fact names, deduplicated, and the employer it resolves to. */
+export interface FactNames {
+  names: string[];
+  employerId: string | null;
+}
+
+/** The candidates, and what each eligible fact names together. */
 export interface SkillPool {
   candidates: SkillCandidate[];
-  /** One entry per fact: what it names, deduplicated. Read for which group a candidate goes with. */
-  together: string[][];
+  /** One entry per fact. Read for which group a candidate goes with. */
+  together: FactNames[];
 }
 
 const yearOf = (isoDate: string) => Number(isoDate.slice(0, 4));
@@ -70,6 +76,7 @@ export async function skillPool(db: Db, userId: string): Promise<SkillPool> {
   const factRows = await db
     .select({
       technologies: facts.technologies,
+      employerId: effectiveEmployerId,
       occurredOn: facts.occurredOn,
       projectStartedOn: projects.startedOn,
       projectEndedOn: projects.endedOn,
@@ -102,11 +109,11 @@ export async function skillPool(db: Db, userId: string): Promise<SkillPool> {
       pool.set(name, entry);
     }
   };
-  const together: string[][] = [];
+  const together: FactNames[] = [];
   for (const row of factRows) {
     const names = new Set(row.technologies);
     tally(names, "factCount", factUse(row));
-    together.push([...names]);
+    together.push({ names: [...names], employerId: row.employerId });
   }
   for (const row of certificationRows) {
     tally(new Set(row.technologies), "certificationCount", row.issuedOn ? yearOf(row.issuedOn) : null);
@@ -123,22 +130,40 @@ export async function skillPool(db: Db, userId: string): Promise<SkillPool> {
 
 /**
  * The group a skill not yet listed most likely belongs in: the one whose
- * skills it is named beside on the most facts, the earlier group on a tie.
- * Nothing is suggested for a skill no fact names beside a listed one — a
- * group picked by its name would be a guess the screen presented as a reason.
+ * skills it is named beside on the most facts; failing that, the one whose
+ * skills' facts share the most employers with its own; failing that, the
+ * largest. The earlier group wins every tie. None only while there is no group.
  */
-export function suggestedGroup(skill: string, groups: CuratedGroup[], together: string[][]): string | null {
+export function suggestedGroup(skill: string, groups: CuratedGroup[], together: FactNames[]): string | null {
   const groupOf = new Map(groups.flatMap((g) => g.skills.map((s) => [s, g.name] as const)));
-  const score = new Map<string, number>();
-  for (const names of together) {
-    if (!names.includes(skill)) continue;
-    for (const group of new Set(names.flatMap((name) => groupOf.get(name) ?? []))) {
-      score.set(group, (score.get(group) ?? 0) + 1);
+  const beside = new Map<string, number>();
+  const employersOf = new Map<string, Set<string>>();
+  const ownEmployers = new Set<string>();
+  for (const { names, employerId } of together) {
+    const named = new Set(names.flatMap((name) => groupOf.get(name) ?? []));
+    if (employerId) {
+      for (const group of named) employersOf.set(group, (employersOf.get(group) ?? new Set()).add(employerId));
     }
+    if (!names.includes(skill)) continue;
+    if (employerId) ownEmployers.add(employerId);
+    for (const group of named) beside.set(group, (beside.get(group) ?? 0) + 1);
   }
+  const sharedEmployers = (g: CuratedGroup) =>
+    [...(employersOf.get(g.name) ?? [])].filter((id) => ownEmployers.has(id)).length;
+  return (
+    highest(groups, (g) => beside.get(g.name) ?? 0) ??
+    highest(groups, sharedEmployers) ??
+    highest(groups, (g) => g.skills.length)
+  );
+}
+
+/** The first group with the highest score above zero. */
+function highest(groups: CuratedGroup[], score: (group: CuratedGroup) => number): string | null {
   let best: string | null = null;
+  let top = 0;
   for (const g of groups) {
-    if ((score.get(g.name) ?? 0) > (best === null ? 0 : score.get(best)!)) best = g.name;
+    const s = score(g);
+    if (s > top) [best, top] = [g.name, s];
   }
   return best;
 }
