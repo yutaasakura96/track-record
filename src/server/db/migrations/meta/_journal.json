@@ -218,6 +218,13 @@
       "when": 1792665141990,
       "tag": "0030_certification_jlpt_level",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1792752000000,
+      "tag": "0031_settle_sourced_number_flags",
+      "breakpoints": true
     }
   ]
 }

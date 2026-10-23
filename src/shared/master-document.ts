@@ -259,8 +259,7 @@ const YEAR = /^(?:19|20)\d{2}年?$/;
  *
  * Not a figure: a digit inside a word (`EC2`, `K8s`, `2FA`), a year alone, an
  * address or a version (`10.20.4.15`), or a digit inside a technology the fact
- * names (`Java 17`), as the importer's number flag already skips it
- * (`statesNumber`).
+ * names (`Java 17`).
  */
 export function figures(claim: string, technologies: string[] = []): { text: string; figure: boolean }[] {
   const named: [number, number][] = [];

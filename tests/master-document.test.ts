@@ -27,7 +27,7 @@ import type { RenderContent } from "~/shared/render-content";
 
 const USABLE: CandidateFact = {
   claim: "Cut the nightly settlement run from 6 hours to 90 minutes",
-  quote: "The nightly settlement run fell from 6 hours to 90 minutes.",
+  quote: "The nightly settlement run fell from 6 hours to about an hour and a half.",
   technologies: ["Airflow"],
   provenance: "measured",
 };

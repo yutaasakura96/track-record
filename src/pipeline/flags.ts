@@ -89,7 +89,9 @@ export function classifyClaim(fact: { claim: string; quote: string | null; techn
     shape,
     flags: [
       ...(shape ? [{ kind: "confidential" as const, reason: `It contains what looks like ${shape}. ${KEPT_PRIVATE}` }] : []),
-      ...(statesNumber(fact.claim, fact.technologies) ? [{ kind: "number" as const, reason: "It states a number. Check the number against the passage it was read from." }] : []),
+      ...(unsourcedNumber(fact.claim, fact.quote, fact.technologies)
+        ? [{ kind: "number" as const, reason: "It states a number the passage it was read from does not. Check where the number came from." }]
+        : []),
     ],
   };
 }
@@ -115,21 +117,108 @@ const sentences = (...parts: string[]) =>
     .map((part) => (/[.!?。]$/.test(part) ? part : `${part}.`))
     .join(" ");
 
-/** A figure written in kanji, with the counter that makes it one: 三割, 二倍, 五名. */
-const KANJI_FIGURE = /[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)/;
+/** Full-width digits read as digits, and thousands commas taken out: `１，２００` and `1,200` are `1200`. */
+const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3})/g, "").toLowerCase();
 
 /**
- * Does the claim state a number?
+ * Does the claim state a number its passage does not (issue #115)?
  *
- * The technologies the fact names are taken out first. `S3`, `EC2` and
- * `Java 17` carry a digit and state no figure, and a list where every AWS fact
- * is flagged is a list nobody reads.
+ * A figure is read much as the career record reads one (`figures`,
+ * `src/shared/master-document.ts`), with patterns of its own: a year alone, a
+ * digit inside a word, a version or address, and a technology's own digits
+ * (`S3`, `Java 17`) are not figures, but a year followed by a word or a counter
+ * is a quantity (`2023 tickets`), and a scale belongs to its word number
+ * (`five hundred engineers`). A figure counts as sourced when each of its
+ * number, scale and next token stand in the quote on their own. With no quote
+ * there is nothing to check a figure against, and any figure counts.
+ *
+ * Flagging every claim with a digit in it flagged half the record, a talk
+ * given "in 2023" among them, and a list where almost everything is flagged
+ * points nowhere. This flag says one thing: the number has no source.
  */
-export function statesNumber(claim: string, technologies: string[]): boolean {
-  let text = claim;
+export function unsourcedNumber(claim: string, quote: string | null, technologies: string[]): boolean {
+  const passage = plain(quote ?? "");
+  const text = plain(claim);
+  return numberFigures(text, technologies.map(plain)).some(([start, end]) => !sourcedFigure(text.slice(start, end), text.slice(end), passage));
+}
+
+const UNIT =
+  "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|" +
+  "kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|" +
+  "customers?|participants?|countries|languages|releases?|times)";
+const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
+const SCALE = "(?:hundred|thousand|million|billion)";
+const WORD_NUMBER =
+  `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
+  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: ${SCALE})?|hundreds|thousands|millions)`;
+const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
+const NUMBER_FIGURE = new RegExp(
+  [
+    `(?:one|\\d+) in (?:${WORD_NUMBER}|\\d+)`,
+    `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
+    `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
+    "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|%)",
+  ].join("|"),
+  "gu",
+);
+const YEAR = /^(?:19|20)\d{2}年?$/u;
+const QUANTITY_AFTER_YEAR = new RegExp(`^(?:\\s+[a-z]|${COUNTER})`, "u");
+
+/** The figures of a plain claim, as `[start, end]`, with a technology's own digits left out. */
+function numberFigures(text: string, technologies: string[]): [number, number][] {
+  const named: [number, number][] = [];
   for (const name of technologies) {
-    if (name.trim() === "") continue;
-    text = text.replace(new RegExp(name.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), " ");
+    const trimmed = name.trim();
+    if (trimmed === "" || !/\d/u.test(trimmed)) continue;
+    for (const match of text.matchAll(new RegExp(escapePattern(trimmed), "g"))) named.push([match.index, match.index + match[0].length]);
   }
-  return /\p{Nd}/u.test(text) || KANJI_FIGURE.test(text);
+  const found: [number, number][] = [];
+  for (const match of text.matchAll(NUMBER_FIGURE)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (/[a-z0-9_]/u.test(text[start - 1] ?? "") || /[a-z0-9_]/u.test(text[end] ?? "")) continue;
+    if (/^[.:]\d/u.test(text.slice(end, end + 2)) || /(?:\d[.:]|[a-z]-)$/u.test(text.slice(Math.max(0, start - 2), start))) continue;
+    if (YEAR.test(match[0]) && !QUANTITY_AFTER_YEAR.test(text.slice(end))) continue;
+    if (named.some(([from, to]) => start < to && end > from)) continue;
+    found.push([start, end]);
+  }
+  return found;
+}
+
+const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
+
+function nextToken(tail: string): string {
+  const first = tail.trimStart().replace(/^-(?=[a-z])/u, "");
+  const word = first.match(/^[a-z]+/u);
+  if (word) return word[0];
+  const character = [...first][0] ?? "";
+  return character === "%" || character === "×" || (character !== "" && !/[\p{P}\p{S}]/u.test(character)) ? character : "";
+}
+
+function sourcedFigure(figure: string, following: string, passage: string): boolean {
+  const head = figure.match(/^(?:one|\d+) in (?:[a-z-]+|\d+)/u)
+    ?? figure.match(/^[¥$€£]?\d+(?:\.\d+)?/u)
+    ?? figure.match(new RegExp(`^[${KANJI_NUMBER}]+`, "u"))
+    ?? figure.match(/^[a-z]+(?:-[a-z]+)?/u);
+  if (!head) return false;
+  let number = head[0];
+  let tail = figure.slice(number.length);
+  if (/^[¥$€£]?\d/u.test(number) || /^[a-z]/u.test(number)) {
+    const scale = tail.match(/^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])/u);
+    if (scale) {
+      number += scale[0];
+      tail = tail.slice(scale[0].length);
+    }
+  }
+  const claimTail = tail + following;
+  const expected = nextToken(claimTail);
+  const before = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number) ? `(?<![${KANJI_NUMBER}])` : "(?<![A-Za-z0-9_.])(?<![a-z]-)";
+  const pattern = new RegExp(`${before}${escapePattern(number)}(?!\\d|[.,]\\d)`, "gu");
+  for (const match of passage.matchAll(pattern)) {
+    const quoteTail = passage.slice(match.index + match[0].length);
+    if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
+    if (nextToken(quoteTail) === expected) return true;
+  }
+  return false;
 }

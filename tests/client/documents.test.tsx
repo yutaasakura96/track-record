@@ -504,7 +504,7 @@ describe("saying what the screen is for and what to do next", () => {
     expect(await next()).toBe(
       "Next: nothing is waiting. Import another document, or go Home to generate a document from your record.",
     );
-    expect(screen.getByText(/Importing reads a file and finds candidate facts in it/)).toBeTruthy();
+    expect(screen.getByText(/Importing reads a file and adds the facts it finds to your record/)).toBeTruthy();
   });
 
   it("counts the facts waiting across documents, and says where to press", async () => {

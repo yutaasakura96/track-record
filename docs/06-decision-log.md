@@ -7225,6 +7225,35 @@ and M3's "within a week of finishing" had nothing behind it.
 
 ---
 
+### [2026-10-22] The number flag fires only when the quote lacks the number
+
+Issue #115, from the evaluation of 2026-10-17: `States a number` sat on 27 of 59 facts, a talk given
+"in 2023" among them, because any digit in the claim counted. A list where half the record is
+flagged points nowhere.
+
+- **Decision:** a fact is flagged when its claim holds a figure whose number its quote does not
+  (`unsourcedNumber`, `src/pipeline/flags.ts`). The flag reads figures with patterns of its own, kept
+  in `flags.ts` so the career record's `figures` and its bolding do not change: a year alone, a digit inside a word, a version and a technology's own digits never
+  count. A number matches only on its own (`140` is not `40`), after
+  full-width digits and thousands commas are read as plain digits. Its scale and immediate next
+  token must also match, whether that token is a word or a counter character. A descriptive word
+  between the number and its noun makes the figure unsourced and prompts a look. A 19xx/20xx
+  number followed by a word is a quantity (`2023 tickets`); a standalone year is not. Thousands
+  commas in full width, scale words after a word number (`five hundred`), abbreviated scales
+  (`$2.5M`, `10k`) each side of a range (`30-40%`) and a compound quantity (`5-person`, whose next token is
+  `person`) are read too; a number after a word and a hyphen (`COVID-19`, `twenty-five`) is not
+  matched on its own. The page
+  keeps its own rules. With no quote, any figure is flagged,
+  as before.
+- **Backfilled:** migration 0031 settles untouched, automatically set number flags when SQL can
+  establish that every digit run is a standalone year or matches the quote's number, scale and
+  immediate next token, and the claim holds no number word or kanji figure, which it leaves open.
+  Ambiguous cases remain open for review. Author-checked or edited flags are left alone.
+- **Revisit if:** a quote writes the number another way often enough to matter (`三割` against `30%`,
+  `five` against `5`); each is flagged today, which errs toward a look.
+
+---
+
 ### [2026-10-22] Skills shows the section it controls, and its chips move by drag, keyboard or tap
 
 The Skills screen was two lists of rows with `↑ ↓ Remove` and an `Add to` select on each, and

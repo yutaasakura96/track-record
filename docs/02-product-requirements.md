@@ -190,7 +190,7 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S17 · Check what was flagged, when I want to** — `MUST` · M3
 > As the Author, I want the facts worth checking shown as a list with the reason for each, so that I look at the few that need me and not at every fact.
 
-**Acceptance:** Four things are flagged: a fact kept Private as confidential, a claim that states a number, a fact the importer was unsure of, and a fact that likely repeats one already in the record. **Every flag says why**, in a sentence. A flag is advice: nothing waits on it, and a flagged fact that is neither Private nor Generated is used by the next document unopened. The author opens a flagged fact only by choosing to, and marks a flag checked when they have looked. **`Explain this`** on a flag asks the AI to explain it in plain words; it is the only thing on the list that calls the AI, it does so only when pressed, and the answer is kept so that a second press costs nothing.
+**Acceptance:** Four things are flagged: a fact kept Private as confidential, a claim that states a number its quote does not, a fact the importer was unsure of, and a fact that likely repeats one already in the record. **Every flag says why**, in a sentence. A flag is advice: nothing waits on it, and a flagged fact that is neither Private nor Generated is used by the next document unopened. The author opens a flagged fact only by choosing to, and marks a flag checked when they have looked. **`Explain this`** on a flag asks the AI to explain it in plain words; it is the only thing on the list that calls the AI, it does so only when pressed, and the answer is kept so that a second press costs nothing.
 
 ---
 

@@ -580,7 +580,7 @@ session's own candidates are read, and another user's `importId` sorts nothing.
     {
       "id": "flg_8Hq2",
       "kind": "number",
-      "reason": "It states a number. Check the number against the passage it was read from.",
+      "reason": "It states a number the passage it was read from does not. Check where the number came from.",
       "explanation": null,
       "checked": false,
       "fact": {
