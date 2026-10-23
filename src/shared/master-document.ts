@@ -227,12 +227,12 @@ const UNIT =
   "customers?|participants?|countries|languages|releases?|times)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const WORD_NUMBER =
-  `(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
-  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS}|hundreds|thousands|millions)`;
+  `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
+  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: (?:hundred|thousand|million|billion))?|hundreds|thousands|millions)`;
 /** The counters a Japanese figure is written with: 30%, 3倍, 5名, 2年. */
 const COUNTER = "(?:%|％|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 // Thousands commas, and at most one decimal point: `1,200`, `0.42`.
-const DIGITS = "[¥$€£]?(?:\\p{Nd}{1,3}(?:,\\p{Nd}{3})+|\\p{Nd}+)(?:\\.\\p{Nd}+)?";
+const DIGITS = "[¥$€£]?(?:\\p{Nd}{1,3}(?:[,，]\\p{Nd}{3})+|\\p{Nd}+)(?:\\.\\p{Nd}+)?";
 const FIGURE = new RegExp(
   [
     // `1 in 5`, `one in twenty`: a rate, read as one figure.
@@ -252,6 +252,7 @@ const LATIN_WORD = /[A-Za-z0-9_]/;
 const JOINED_AFTER = /^(?:[.:]\p{Nd}|-[A-Za-z0-9])/u;
 const JOINED_BEFORE = /(?:\p{Nd}[.:]|[A-Za-z0-9]-)$/u;
 const YEAR = /^(?:19|20)\d{2}年?$/;
+const COUNTER_AFTER_YEAR = new RegExp(`^${COUNTER}`, "u");
 
 /**
  * A claim cut where its figures are, so they can be set apart: the numbers are
@@ -278,7 +279,7 @@ export function figures(claim: string, technologies: string[] = []): { text: str
     const end = start + match[0].length;
     if (LATIN_WORD.test(claim[start - 1] ?? "") || LATIN_WORD.test(claim[end] ?? "")) continue;
     if (JOINED_AFTER.test(claim.slice(end, end + 2)) || JOINED_BEFORE.test(claim.slice(Math.max(0, start - 2), start))) continue;
-    if (YEAR.test(match[0])) continue;
+    if (YEAR.test(match[0]) && !/^\s+[A-Za-z]+/u.test(claim.slice(end)) && !COUNTER_AFTER_YEAR.test(claim.slice(end))) continue;
     if (named.some(([from, to]) => start < to && end > from)) continue;
     if (start > at) parts.push({ text: claim.slice(at, start), figure: false });
     parts.push({ text: match[0], figure: true });

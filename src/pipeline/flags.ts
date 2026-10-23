@@ -127,8 +127,7 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  * A figure is what the career record sets apart (`figures`): a year alone, a
  * digit inside a word, a version or address, and a technology's own digits
  * (`S3`, `Java 17`) are not figures. A figure counts as sourced when each of
- * its number and scale stand in the quote on their own; a figure written in
- * words may have descriptive words before its unit. With
+ * its number, scale and next token stand in the quote on their own. With
  * no quote there is nothing to check a figure against, and any figure counts.
  *
  * Flagging every claim with a digit in it flagged half the record, a talk
@@ -137,36 +136,44 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  */
 export function unsourcedNumber(claim: string, quote: string | null, technologies: string[]): boolean {
   const passage = plain(quote ?? "");
-  return figures(claim, technologies)
-    .filter((part) => part.figure)
-    .some(({ text }) => !figurePattern(plain(text)).test(passage));
+  const parts = figures(claim, technologies);
+  return parts.some((part, index) => part.figure && !sourcedFigure(plain(part.text), plain(parts[index + 1]?.text ?? ""), passage));
 }
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const SCALE = "(?:hundred|thousand|million|billion|万|億)";
-const ENGLISH_UNIT = "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|customers?|participants?|countries|languages|releases?|times)";
-const COUNTER = "[%％×倍割名人件社台万円億円万億回時間日週間ヶ月か月カ月年間年分秒]";
-const QUANTITY_WORD = "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|double|triple|twice|half|couple|few)";
-const DESCRIPTORS = `(?: (?!${QUANTITY_WORD}\\b)[a-z]+){0,4}`;
+const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 
-function figurePattern(figure: string): RegExp {
-  const numeric = figure.match(/^([¥$€£]?\d+(?:\.\d+)?)(.*)$/u);
-  if (numeric) {
-    const [, number, rest] = numeric;
-    const scale = rest!.match(new RegExp(`(?:^| )(${SCALE})(?: |$)`, "u"))?.[1];
-    const suffix = scale ? rest!.replace(scale, "").trim() : rest!.trim();
-    const scalePattern = scale ? ` ?${escapePattern(scale)}` : `(?! ?${SCALE})`;
-    const unitPattern = suffix ? /^[a-z]/u.test(suffix) ? `${DESCRIPTORS} ${escapePattern(suffix)}` : ` ?${escapePattern(suffix)}` : "";
-    const bareUnit = suffix ? "" : `(?!${DESCRIPTORS} ${ENGLISH_UNIT}\\b|${COUNTER})`;
-    return new RegExp(`(?<![A-Za-z0-9_.])${escapePattern(number!)}(?!\\d|[.,]\\d)${scalePattern}${unitPattern}${bareUnit}(?![A-Za-z0-9/-]|\\.\\d|${COUNTER})`, "u");
+function nextToken(tail: string): string {
+  const first = tail.trimStart();
+  const word = first.match(/^[a-z]+/u);
+  if (word) return word[0];
+  const character = [...first][0] ?? "";
+  return character === "%" || character === "×" || (character !== "" && !/[\p{P}\p{S}]/u.test(character)) ? character : "";
+}
+
+function sourcedFigure(figure: string, following: string, passage: string): boolean {
+  const head = figure.match(/^(?:one|\d+) in (?:[a-z-]+|\d+)/u)
+    ?? figure.match(/^[¥$€£]?\d+(?:\.\d+)?/u)
+    ?? figure.match(new RegExp(`^[${KANJI_NUMBER}]+`, "u"))
+    ?? figure.match(/^[a-z]+(?:-[a-z]+)?/u);
+  if (!head) return false;
+  let number = head[0];
+  let tail = figure.slice(number.length);
+  if (/^[¥$€£]?\d/u.test(number) || /^[a-z]/u.test(number)) {
+    const scale = tail.match(/^(?: (?:hundred|thousand|million|billion)|[万億])(?=$|[^a-z])/u);
+    if (scale) {
+      number += scale[0];
+      tail = tail.slice(scale[0].length);
+    }
   }
-  const words = figure.match(/^([a-z]+(?:-[a-z]+)?) ([a-z]+)$/u);
-  if (words) {
-    return new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(words[1]!)}${DESCRIPTORS} ${escapePattern(words[2]!)}(?![\\p{L}\\p{N}])`, "u");
+  const claimTail = tail + following;
+  const expected = nextToken(claimTail);
+  const before = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number) ? `(?<![${KANJI_NUMBER}])` : "(?<![A-Za-z0-9_.])";
+  const pattern = new RegExp(`${before}${escapePattern(number)}(?!\\d|[.,]\\d)`, "gu");
+  for (const match of passage.matchAll(pattern)) {
+    const quoteTail = passage.slice(match.index + match[0].length);
+    if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
+    if (nextToken(quoteTail) === expected) return true;
   }
-  if (/^(?:one|\d+) in (?:[a-z-]+|\d+)$/u.test(figure)) {
-    return new RegExp(`(?<![A-Za-z0-9])${escapePattern(figure)}(?![A-Za-z0-9.%％/-]| ${QUANTITY_WORD}\\b)`, "u");
-  }
-  const before = /^[〇一二三四五六七八九十百千万億]/u.test(figure) ? "(?<![〇一二三四五六七八九十百千万億])" : "(?<![\\p{L}\\p{N}])";
-  return new RegExp(`${before}${escapePattern(figure)}(?![〇一二三四五六七八九十百千万億])`, "u");
+  return false;
 }

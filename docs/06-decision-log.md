@@ -7235,11 +7235,14 @@ flagged points nowhere.
   (`unsourcedNumber`, `src/pipeline/flags.ts`). The figures are the ones the career record sets apart
   (`figures`), so a year alone, a digit inside a word, a version and a technology's own digits never
   count, and the flag and the page agree. A number matches only on its own (`140` is not `40`), after
-  full-width digits and thousands commas are read as plain digits. Scale words must match; a figure
-  in words matches its number and unit, even with descriptive words between them. Kanji numerals
-  match as whole numbers. With no quote, any figure is flagged, as before.
+  full-width digits and thousands commas are read as plain digits. Its scale and immediate next
+  token must also match, whether that token is a word or a counter character. A descriptive word
+  between the number and its noun makes the figure unsourced and prompts a look. A 19xx/20xx
+  number followed by a word is a quantity; a standalone year is not. With no quote, any figure
+  is flagged, as before.
 - **Backfilled:** migration 0031 settles untouched, automatically set number flags when SQL can
-  establish that the claim contains only a year or that the quote contains the complete claim.
+  establish that every digit run is a standalone year or matches the quote's number, scale and
+  immediate next token.
   Ambiguous cases remain open for review. Author-checked or edited flags are left alone.
 - **Revisit if:** a quote writes the number another way often enough to matter (`三割` against `30%`,
   `five` against `5`); each is flagged today, which errs toward a look.
