@@ -279,9 +279,10 @@ flag is a row with a reason (`04` §3.13); it gates nothing.
 
 **A number** is a figure as the flag reads one (`unsourcedNumber`, `src/pipeline/flags.ts`, with
 patterns of its own so the career record's bolding is unchanged): a year followed by a word or a
-counter (`2023 tickets`) is a quantity, and a word number keeps its scale (`five hundred`); but
-not a year alone, a digit inside a word, a version or address, or a technology's own digits, so
-`in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
+counter (`2023 tickets`) is a quantity, a number keeps its scale (`five hundred`, `$2.5M`, `10k`),
+each end of a range counts (`30-40%`), and a compound's next word is its noun (`5-person`); but
+not a year alone, a digit inside a word or after a word and a hyphen (`COVID-19`), a version or
+address, or a technology's own digits, so `in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
 is flagged only when the quote does not hold the same number on its own (`1,200` and `１２００` match
 `1200`; `140` does not match `40`), or when there is no quote (issue #115).
 
