@@ -728,10 +728,10 @@ export interface SkillCandidate {
   lastUsed: LastUsed;
   curated: boolean;
   /**
- * The group it is offered: the one it is most often named beside, else the one
- * sharing the most employers, else the largest. Null when curated, or when
- * there is no group.
- */
+   * The group it is offered: the one it is most often named beside, else the one
+   * sharing the most employers, else the largest. Null when curated, or when
+   * there is no group.
+   */
   suggestedGroup: string | null;
 }
 

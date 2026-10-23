@@ -2181,6 +2181,6 @@ since none of them leaves Applications (decision log, 2026-10-14). Diff Review i
 **The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
 interview note is. The Quick capture route is not behind the wider-window message and follows the
 Applications table under 720px: no sidebar, `Menu` first in the header, one column, buttons at least
-36px tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
-capture as the parts that work there. Home and every other screen keep the message. Built by #95
+36px tall. On a phone it is reached from the menu, whose sentence names Applications, Quick capture
+and Skills as the parts that work there. Home and every other screen keep the message. Built by #95
 (Screen 16); nothing scrolls sideways at 390px, in either theme, with Japanese text.
