@@ -136,7 +136,7 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  */
 export function unsourcedNumber(claim: string, quote: string | null, technologies: string[]): boolean {
   const passage = plain(quote ?? "");
-  const parts = figures(claim, technologies);
+  const parts = figures(claim, technologies, { quantityYears: true });
   return parts.some((part, index) => part.figure && !sourcedFigure(plain(part.text), plain(parts[index + 1]?.text ?? ""), passage));
 }
 

@@ -261,9 +261,15 @@ const COUNTER_AFTER_YEAR = new RegExp(`^${COUNTER}`, "u");
  * Not a figure: a digit inside a word (`EC2`, `K8s`, `2FA`), a year alone, an
  * address or a version (`10.20.4.15`), or a digit inside a technology the fact
  * names (`Java 17`). The importer's number flag reads figures with this
- * (`unsourcedNumber`), so the two agree on what a figure is.
+ * (`unsourcedNumber`), so the two agree on what a figure is. The flag alone
+ * passes `quantityYears`: a year followed by a word or a counter is then a
+ * quantity (`2023 tickets`), not a year alone.
  */
-export function figures(claim: string, technologies: string[] = []): { text: string; figure: boolean }[] {
+export function figures(
+  claim: string,
+  technologies: string[] = [],
+  { quantityYears = false }: { quantityYears?: boolean } = {},
+): { text: string; figure: boolean }[] {
   const named: [number, number][] = [];
   for (const name of technologies) {
     const trimmed = name.trim();
@@ -279,7 +285,7 @@ export function figures(claim: string, technologies: string[] = []): { text: str
     const end = start + match[0].length;
     if (LATIN_WORD.test(claim[start - 1] ?? "") || LATIN_WORD.test(claim[end] ?? "")) continue;
     if (JOINED_AFTER.test(claim.slice(end, end + 2)) || JOINED_BEFORE.test(claim.slice(Math.max(0, start - 2), start))) continue;
-    if (YEAR.test(match[0]) && !/^\s+[A-Za-z]+/u.test(claim.slice(end)) && !COUNTER_AFTER_YEAR.test(claim.slice(end))) continue;
+    if (YEAR.test(match[0]) && !(quantityYears && (/^\s+[A-Za-z]/u.test(claim.slice(end)) || COUNTER_AFTER_YEAR.test(claim.slice(end))))) continue;
     if (named.some(([from, to]) => start < to && end > from)) continue;
     if (start > at) parts.push({ text: claim.slice(at, start), figure: false });
     parts.push({ text: match[0], figure: true });

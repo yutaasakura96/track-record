@@ -22,6 +22,8 @@ FROM counted AS fact
 WHERE flag.id = fact.id
   AND fact.digit_runs > 0
   AND fact.digit_runs = fact.complete_runs
+  AND fact.claim_text !~ '[〇一二三四五六七八九十百千万億]+(割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)'
+  AND fact.claim_text !~ '\m(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds|thousands|millions)\M'
   AND NOT EXISTS (
     SELECT 1
     FROM regexp_matches(fact.claim_text, fact.pattern, 'g') AS claim_part(parts)

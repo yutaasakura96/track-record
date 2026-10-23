@@ -222,6 +222,7 @@ describe("the career record", () => {
     }
     expect(figures("One of the teams").some((part) => part.figure)).toBe(false);
     expect(figures("Migrated to Java 17", ["Java 17"]).some((part) => part.figure)).toBe(false);
+    expect(figures("Joined in 2019 as the second backend engineer").some((part) => part.figure)).toBe(false);
   });
 
   it("shows what is kept out from the count line, and opens on the filter in the address", async () => {
