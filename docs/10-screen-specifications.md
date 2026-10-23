@@ -1058,7 +1058,8 @@ in the `No candidates` state, which says the same thing itself.
    and a skill whose only facts sit under an entry the résumé excludes. With nothing curated it is
    the résumé's one uncurated line. **It is live:** it follows a chip being carried by keyboard or
    dragged over a group, before anything is saved. A curation that leaves the résumé nothing reads
-   `Nothing to print…` and the résumé has no Skills section.
+   `Nothing to print. No skill in these groups is named by anything the résumé includes, so it has no
+   Skills section.`
 2. **Your groups** (left) and **Found in your record, not listed yet** (right), side by side, one
    column at phone width.
 
@@ -1093,9 +1094,10 @@ land clears the outline, the mark and the preview back to what is stored.
 then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
 group whose skills it is named beside on the most facts; for one named beside no listed skill, the
 group whose skills were used at the most of the same employers, and failing that the largest group;
-the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none. Pressing a chip with a suggestion adds it to
-the end of that group at once. Pressing one without opens a bar, `Add Redis to`, with a button per
-group and `Cancel`. Any of them can also be dragged to a group.
+the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none.
+Pressing a chip with a suggestion adds it to the end of that group at once. Pressing one without
+opens a bar, `Add Redis to`, with a button per existing group and `Cancel`; with no groups, the bar
+asks for a group to be named first. Any of them can also be dragged to a group.
 
 **Folded by usage.** A candidate named once (one fact, or one certification) and not in the last five
 years, or never dated, is folded away under the chips: `7 more, each named once and not in the last
@@ -1114,7 +1116,8 @@ underneath it. Removing it is the only way it leaves.
 - **Saving is immediate** once a move is placed, as it is on Screen 4. Every change sends the whole
   curated list; there is no draft and no `Save`.
 - A group exists on the server only while it holds a skill. A group just added holds none, and
-  reads `Add a skill to keep this group…` until one arrives; leaving the screen first discards it.
+  reads `Add a skill to keep this group. Drag one here, or pick one up and move it here.` until one
+  arrives; leaving the screen first discards it.
 - Removing a group's last skill removes the group.
 - One curated list serves every render with a skills section. There is no per-render setting here.
 
@@ -2153,7 +2156,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Part | At phone width |
 |---|---|
 | Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
-| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; the sentence `On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.`; then the Theme control |
+| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; its guidance names the phone-capable routes described above; then the Theme control |
 | Header | 12px side padding; the contextual note is not shown |
 | Content column | `16px 12px` padding, 16px between blocks |
 | List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
