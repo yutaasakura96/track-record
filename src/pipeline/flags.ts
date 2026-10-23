@@ -144,6 +144,8 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const SCALE = "(?:hundred|thousand|million|billion|万|億)";
+const ENGLISH_UNIT = "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|customers?|participants?|countries|languages|releases?|times)";
+const COUNTER = "[%％×倍割名人件社台万円億円万億回時間日週間ヶ月か月カ月年間年分秒]";
 const QUANTITY_WORD = "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|double|triple|twice|half|couple|few)";
 const DESCRIPTORS = `(?: (?!${QUANTITY_WORD}\\b)[a-z]+){0,4}`;
 
@@ -155,11 +157,15 @@ function figurePattern(figure: string): RegExp {
     const suffix = scale ? rest!.replace(scale, "").trim() : rest!.trim();
     const scalePattern = scale ? ` ?${escapePattern(scale)}` : `(?! ?${SCALE})`;
     const unitPattern = suffix ? /^[a-z]/u.test(suffix) ? `${DESCRIPTORS} ${escapePattern(suffix)}` : ` ?${escapePattern(suffix)}` : "";
-    return new RegExp(`(?<![A-Za-z0-9_.])${escapePattern(number!)}(?![\\d.]|,\\d)${scalePattern}${unitPattern}(?![A-Za-z0-9])`, "u");
+    const bareUnit = suffix ? "" : `(?!${DESCRIPTORS} ${ENGLISH_UNIT}\\b|${COUNTER})`;
+    return new RegExp(`(?<![A-Za-z0-9_.])${escapePattern(number!)}(?!\\d|[.,]\\d)${scalePattern}${unitPattern}${bareUnit}(?![A-Za-z0-9/-]|\\.\\d|${COUNTER})`, "u");
   }
   const words = figure.match(/^([a-z]+(?:-[a-z]+)?) ([a-z]+)$/u);
   if (words) {
     return new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(words[1]!)}${DESCRIPTORS} ${escapePattern(words[2]!)}(?![\\p{L}\\p{N}])`, "u");
+  }
+  if (/^(?:one|\d+) in (?:[a-z-]+|\d+)$/u.test(figure)) {
+    return new RegExp(`(?<![A-Za-z0-9])${escapePattern(figure)}(?![A-Za-z0-9.%％/-]| ${QUANTITY_WORD}\\b)`, "u");
   }
   const before = /^[〇一二三四五六七八九十百千万億]/u.test(figure) ? "(?<![〇一二三四五六七八九十百千万億])" : "(?<![\\p{L}\\p{N}])";
   return new RegExp(`${before}${escapePattern(figure)}(?![〇一二三四五六七八九十百千万億])`, "u");

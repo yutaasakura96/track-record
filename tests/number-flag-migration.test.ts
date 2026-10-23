@@ -26,6 +26,8 @@ it("settles only untouched number flags with certain sources or years", async ()
       ('percent', 'u', 'Raised coverage to 2023%', 'Raised coverage.'),
       ('counter', 'u', '売上を2023万円に伸ばした', '売上を伸ばした。'),
       ('duration', 'u', '2023年間継続した', '継続した。'),
+      ('year_unit', 'u', 'Mentored 2023 engineers', 'Mentored engineers.'),
+      ('unit_prefix', 'u', 'Reached 50 percent', 'Reached 50 percentage points.'),
       ('absent', 'u', 'Served 5 million users', 'Served 5 users.'),
       ('edited', 'u', 'Served 5 million users', 'Served 5 million users in total.')`,
     `insert into fact_flags values
@@ -35,6 +37,8 @@ it("settles only untouched number flags with certain sources or years", async ()
       ('percent', 'u', 'percent', 'number', null, null, null, now(), now()),
       ('counter', 'u', 'counter', 'number', null, null, null, now(), now()),
       ('duration', 'u', 'duration', 'number', null, null, null, now(), now()),
+      ('year_unit', 'u', 'year_unit', 'number', null, null, null, now(), now()),
+      ('unit_prefix', 'u', 'unit_prefix', 'number', null, null, null, now(), now()),
       ('absent', 'u', 'absent', 'number', null, null, null, now(), now()),
       ('edited', 'u', 'edited', 'number', null, null, 'Author note', now(), now()),
       ('other', 'u', 'sourced', 'unsure', null, null, null, now(), now())`,
@@ -53,6 +57,8 @@ it("settles only untouched number flags with certain sources or years", async ()
     { id: "other", checked: false, settled: false },
     { id: "percent", checked: false, settled: false },
     { id: "sourced", checked: true, settled: true },
+    { id: "unit_prefix", checked: false, settled: false },
     { id: "year", checked: true, settled: true },
+    { id: "year_unit", checked: false, settled: false },
   ]);
 });
