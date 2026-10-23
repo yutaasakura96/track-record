@@ -137,6 +137,26 @@ describe("a chip", () => {
     expect(plinth.textContent).toBe("Plinth2 · 2024");
     expect((await chip("Quillset")).getAttribute("aria-label")).toBe("Quillset: 1 achievement, in use now");
   });
+
+  it("counts the certifications behind it too", async () => {
+    const certified = (name: string, factCount: number, certificationCount: number, lastUsed: CuratedSkill["lastUsed"]) => ({
+      ...skill(name, factCount, lastUsed),
+      certificationCount,
+    });
+    open({}, {
+      ...STORED,
+      groups: [
+        {
+          name: "Qorvane stack",
+          skills: [certified("Plinth", 0, 2, 2023), certified("Quillset", 1, 2, "now"), certified("Vorbit", 0, 1, 2023)],
+        },
+      ],
+    });
+    expect((await chip("Plinth")).textContent).toBe("Plinth2 certs · 2023");
+    expect((await chip("Plinth")).getAttribute("aria-label")).toBe("Plinth: 2 certifications, last used 2023");
+    expect((await chip("Quillset")).textContent).toBe("Quillset1 + 2 certs · now");
+    expect((await chip("Vorbit")).textContent).toBe("Vorbit1 cert · 2023");
+  });
 });
 
 /* ------------------------------------------------------------- stale skill */
@@ -370,6 +390,29 @@ describe("the group controls while a skill is held", () => {
       { name: "Zentrel tools", skills: ["Zentrel CLI"] },
     ]);
     expect(down.disabled).toBe(false);
+  });
+});
+
+describe("dragging while a skill is held", () => {
+  it("starts no drag, so the held move is the one placed", async () => {
+    const { api, user } = open({ [PUT]: stored });
+    await user.click(await chip("Quillset"));
+    await user.click(within(screen.getByRole("group", { name: "Move Quillset" })).getByRole("button", { name: "← Earlier" }));
+
+    const listed = (await chip("Zentrel CLI")).closest("li")!;
+    const suggested = (await screen.findByRole("button", { name: /^Add Halvane to Zentrel tools/ })).closest("li")!;
+    expect(listed.getAttribute("draggable")).toBe("false");
+    expect(suggested.getAttribute("draggable")).toBe("false");
+    drag(listed, await group("Qorvane stack"));
+    drag(suggested, await group("Qorvane stack"));
+    expect(api.writes()).toEqual([]);
+
+    await user.click(within(screen.getByRole("group", { name: "Move Quillset" })).getByRole("button", { name: "Place" }));
+    await waitFor(() => expect(api.writes()).toEqual([PUT]));
+    expect(sent(api)).toEqual([
+      { name: "Qorvane stack", skills: ["Quillset", "Plinth"] },
+      { name: "Zentrel tools", skills: ["Zentrel CLI"] },
+    ]);
   });
 });
 

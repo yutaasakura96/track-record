@@ -1065,7 +1065,7 @@ in the `No candidates` state, which says the same thing itself.
 **Your groups.** One card per group, in order. Its heading is its name, editable in place, with `↑`
 `↓` to move the group. Beneath it the group's skills as **chips**, wrapping. A chip reads the name,
 then in small text the achievements behind it and the last year one of them reaches — `Go 3 · 2020`,
-`Azure 1 + cert · now` — and is named in full for a screen reader (`Go: 3 achievements, last used
+`Azure 1 + 1 cert · now` — and is named in full for a screen reader (`Go: 3 achievements, last used
 2020`). The year is the latest of: the month a quick capture carries; else the end of the fact's
 project; else the end of its employer's tenure (`effectiveEmployerId`); a certification's issue
 year. Not yet ended is `now`. A skill the résumé does not print although the record names it adds

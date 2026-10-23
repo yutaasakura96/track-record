@@ -66,10 +66,10 @@ interface Evidence {
   stale?: boolean;
 }
 
-/** `3 · 2020`, `2 + cert · now`, `cert · 2023`: what backs a chip, and when it was last used. */
+/** `3 · 2020`, `2 + 1 cert · now`, `2 certs · 2023`: what backs a chip, and when it was last used. */
 const shortEvidence = ({ factCount, certificationCount, lastUsed }: Evidence) =>
   [
-    [factCount > 0 ? String(factCount) : null, certificationCount > 0 ? "cert" : null].filter(Boolean).join(" + "),
+    [factCount > 0 ? String(factCount) : null, certificationCount > 0 ? `${certificationCount} ${certificationCount === 1 ? "cert" : "certs"}` : null].filter(Boolean).join(" + "),
     lastUsed === null ? null : String(lastUsed),
   ]
     .filter(Boolean)
@@ -271,6 +271,10 @@ function Curation({ data }: { data: SkillCuration }) {
   const drag = useRef<{ skill: string; from: PanelName } | null>(null);
 
   const startDrag = (event: DragEvent, skill: string, from: PanelName) => {
+    if (moving) {
+      event.preventDefault();
+      return;
+    }
     event.dataTransfer.setData("text/plain", skill);
     event.dataTransfer.effectAllowed = "move";
     drag.current = { skill, from };
@@ -448,7 +452,7 @@ function Curation({ data }: { data: SkillCuration }) {
                           <li
                             key={skill}
                             data-chip-index={si}
-                            draggable
+                            draggable={!moving}
                             onDragStart={(event) => startDrag(event, skill, "groups")}
                             onDragEnd={endDrag}
                             className="flex items-center gap-6"
@@ -709,7 +713,7 @@ function SuggestionChips({
         return (
           <li
             key={candidate.name}
-            draggable
+            draggable={lockedReason === undefined}
             onDragStart={(event) => onDragStart(event, candidate.name)}
             onDragEnd={onDragEnd}
           >
