@@ -177,6 +177,15 @@ describe("a claim that states a number its passage does not", () => {
     ["a kanji number inside another", "五名のチームを率いた", "十五名のチームを率いた。", []],
     ["a figure in kanji the passage writes another way", "処理時間を三割削減した", "処理時間を30%削減した。", []],
     ["a number beside a technology that also has one", "Moved 40 buckets to S3", "Moved the buckets to S3.", ["S3"]],
+    ["an abbreviated scale", "Saved $2.5M", "Saved money.", []],
+    ["an abbreviated scale before a unit", "Served 5M users", "Served users.", []],
+    ["a thousands abbreviation", "Handled 10k requests", "Handled requests.", []],
+    ["an abbreviated scale the passage writes in words", "Saved $2.5M", "Saved $2.5 million.", []],
+    ["a percentage range", "Cut response time by 30-40%", "Cut response time.", []],
+    ["a range of a count", "Grew the team from 5-10 engineers", "Grew the team.", []],
+    ["one side of a range missing", "Grew the team from 5-10 engineers", "Grew the team from 5 engineers.", []],
+    ["a word number inside a compound one", "Mentored five engineers", "Mentored twenty-five engineers.", []],
+    ["a number inside a hyphenated name", "Treated 19 patients", "Treated COVID-19 patients.", []],
     ["any figure, when there is no passage", "Led a team of 5 engineers", null, []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
@@ -204,6 +213,11 @@ describe("a claim that states a number its passage does not", () => {
     ["a year with its 年, absent from the passage", "2023年に社内勉強会で登壇した", "社内勉強会で登壇した。", []],
     ["a technology name with a digit in it", "Moved the archive to S3 and EC2", "Moved the archive.", ["S3", "EC2"]],
     ["a versioned technology", "Upgraded the service to Java 17", "Upgraded the service.", ["Java 17"]],
+    ["an abbreviated scale the passage states", "Saved $2.5M", "We saved $2.5M.", []],
+    ["a thousands abbreviation the passage states", "Handled 10k requests", "It handled 10k requests a day.", []],
+    ["a range the passage states", "Cut response time by 30-40%", "Response time fell by 30-40% overall.", []],
+    ["a count range the passage states", "Grew the team from 5-10 engineers", "The team grew from 5-10 engineers.", []],
+    ["digits inside names and words", "Enabled 2FA on EC2 and K8s", "Enabled sign-in checks.", []],
     ["a claim with no figure", "Introduced code review for the billing service", null, []],
     ["a kanji numeral that is part of a word", "一部の画面を再設計した", "画面を再設計した。", []],
   ];

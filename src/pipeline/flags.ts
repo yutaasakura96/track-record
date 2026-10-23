@@ -156,7 +156,7 @@ const NUMBER_FIGURE = new RegExp(
   [
     `(?:one|\\d+) in (?:${WORD_NUMBER}|\\d+)`,
     `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
-    `[¥$€£]?\\d+(?:\\.\\d+)?(?:\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
+    `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|%)",
   ].join("|"),
   "gu",
@@ -177,7 +177,7 @@ function numberFigures(text: string, technologies: string[]): [number, number][]
     const start = match.index;
     const end = start + match[0].length;
     if (/[a-z0-9_]/u.test(text[start - 1] ?? "") || /[a-z0-9_]/u.test(text[end] ?? "")) continue;
-    if (/^(?:[.:]\d|-[a-z0-9])/u.test(text.slice(end, end + 2)) || /(?:\d[.:]|[a-z0-9]-)$/u.test(text.slice(Math.max(0, start - 2), start))) continue;
+    if (/^(?:[.:]\d|-[a-z])/u.test(text.slice(end, end + 2)) || /(?:\d[.:]|[a-z]-)$/u.test(text.slice(Math.max(0, start - 2), start))) continue;
     if (YEAR.test(match[0]) && !QUANTITY_AFTER_YEAR.test(text.slice(end))) continue;
     if (named.some(([from, to]) => start < to && end > from)) continue;
     found.push([start, end]);
@@ -205,7 +205,7 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
   let number = head[0];
   let tail = figure.slice(number.length);
   if (/^[¥$€£]?\d/u.test(number) || /^[a-z]/u.test(number)) {
-    const scale = tail.match(/^(?: (?:hundred|thousand|million|billion)|[万億])(?=$|[^a-z])/u);
+    const scale = tail.match(/^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])/u);
     if (scale) {
       number += scale[0];
       tail = tail.slice(scale[0].length);
@@ -213,8 +213,8 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
   }
   const claimTail = tail + following;
   const expected = nextToken(claimTail);
-  const before = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number) ? `(?<![${KANJI_NUMBER}])` : "(?<![A-Za-z0-9_.])";
-  const pattern = new RegExp(`${before}${escapePattern(number)}(?!\\d|[.,]\\d)`, "gu");
+  const before = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number) ? `(?<![${KANJI_NUMBER}])` : "(?<![A-Za-z0-9_.])(?<![a-z]-)";
+  const pattern = new RegExp(`${before}${escapePattern(number)}(?!\\d|[.,]\\d|-[a-z])`, "gu");
   for (const match of passage.matchAll(pattern)) {
     const quoteTail = passage.slice(match.index + match[0].length);
     if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
