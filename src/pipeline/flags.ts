@@ -144,6 +144,8 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const SCALE = "(?:hundred|thousand|million|billion|万|億)";
+const QUANTITY_WORD = "(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds?|thousands?|millions?|billions?|dozens?|double|triple|twice|half|couple|few)";
+const DESCRIPTORS = `(?: (?!${QUANTITY_WORD}\\b)[a-z]+){0,4}`;
 
 function figurePattern(figure: string): RegExp {
   const numeric = figure.match(/^([¥$€£]?\d+(?:\.\d+)?)(.*)$/u);
@@ -152,12 +154,12 @@ function figurePattern(figure: string): RegExp {
     const scale = rest!.match(new RegExp(`(?:^| )(${SCALE})(?: |$)`, "u"))?.[1];
     const suffix = scale ? rest!.replace(scale, "").trim() : rest!.trim();
     const scalePattern = scale ? ` ?${escapePattern(scale)}` : `(?! ?${SCALE})`;
-    const unitPattern = suffix ? ` ?${escapePattern(suffix)}` : "";
+    const unitPattern = suffix ? /^[a-z]/u.test(suffix) ? `${DESCRIPTORS} ${escapePattern(suffix)}` : ` ?${escapePattern(suffix)}` : "";
     return new RegExp(`(?<![A-Za-z0-9_.])${escapePattern(number!)}(?![\\d.]|,\\d)${scalePattern}${unitPattern}(?![A-Za-z0-9])`, "u");
   }
   const words = figure.match(/^([a-z]+(?:-[a-z]+)?) ([a-z]+)$/u);
   if (words) {
-    return new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(words[1]!)}(?: [a-z]+){0,4} ${escapePattern(words[2]!)}(?![\\p{L}\\p{N}])`, "u");
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(words[1]!)}${DESCRIPTORS} ${escapePattern(words[2]!)}(?![\\p{L}\\p{N}])`, "u");
   }
   const before = /^[〇一二三四五六七八九十百千万億]/u.test(figure) ? "(?<![〇一二三四五六七八九十百千万億])" : "(?<![\\p{L}\\p{N}])";
   return new RegExp(`${before}${escapePattern(figure)}(?![〇一二三四五六七八九十百千万億])`, "u");

@@ -10,8 +10,8 @@ WHERE flag.fact_id = fact.id
   AND flag.updated_at = flag.created_at
   AND (
     (
-      fact.claim ~ '(^|[^A-Za-z0-9])(19|20)[0-9]{2}年?($|[^A-Za-z0-9])'
-      AND regexp_replace(fact.claim, '(19|20)[0-9]{2}年?', '', 'g') !~ '[0-9０-９]'
+      fact.claim ~ '(^|[^A-Za-z0-9])(19|20)[0-9]{2}年?($|[^A-Za-z0-9%％×倍割名人件社台万円億円万億回時間日週間ヶ月か月カ月年間年分秒間])'
+      AND regexp_replace(fact.claim, '(^|[^A-Za-z0-9])(19|20)[0-9]{2}年?($|[^A-Za-z0-9%％×倍割名人件社台万円億円万億回時間日週間ヶ月か月カ月年間年分秒間])', '\1\3', 'g') !~ '[0-9０-９]'
       AND fact.claim !~* '(^|[^A-Za-z])(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds|thousands|millions)[ -]'
       AND fact.claim !~ '[〇一二三四五六七八九十百千万億]+(割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)'
     )
