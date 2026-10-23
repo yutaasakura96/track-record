@@ -186,6 +186,10 @@ describe("a claim that states a number its passage does not", () => {
     ["one side of a range missing", "Grew the team from 5-10 engineers", "Grew the team from 5 engineers.", []],
     ["a word number inside a compound one", "Mentored five engineers", "Mentored twenty-five engineers.", []],
     ["a number inside a hyphenated name", "Treated 19 patients", "Treated COVID-19 patients.", []],
+    ["a compound quantity", "Led a 5-person team", "Led a team.", []],
+    ["a compound duration", "Built a 10-minute pipeline", "Built a pipeline.", []],
+    ["a compound period", "Ran 2-week sprints", "Ran sprints.", []],
+    ["a compound with a different word", "Led a 5-person team", "Led a 5-member team.", []],
     ["any figure, when there is no passage", "Led a team of 5 engineers", null, []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
@@ -218,6 +222,10 @@ describe("a claim that states a number its passage does not", () => {
     ["a range the passage states", "Cut response time by 30-40%", "Response time fell by 30-40% overall.", []],
     ["a count range the passage states", "Grew the team from 5-10 engineers", "The team grew from 5-10 engineers.", []],
     ["digits inside names and words", "Enabled 2FA on EC2 and K8s", "Enabled sign-in checks.", []],
+    ["a compound quantity the passage states", "Led a 5-person team", "I led a 5-person team.", []],
+    ["a compound duration the passage states", "Ran 24-hour on-call", "We ran 24-hour on-call.", []],
+    ["a number joined to a name by a hyphen", "Deployed to prd-01", "Deployed the service.", []],
+    ["a number inside a hyphenated name in the claim", "Treated COVID-19 patients", "Treated patients.", []],
     ["a claim with no figure", "Introduced code review for the billing service", null, []],
     ["a kanji numeral that is part of a word", "一部の画面を再設計した", "画面を再設計した。", []],
   ];

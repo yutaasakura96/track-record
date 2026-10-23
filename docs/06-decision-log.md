@@ -7240,8 +7240,9 @@ flagged points nowhere.
   between the number and its noun makes the figure unsourced and prompts a look. A 19xx/20xx
   number followed by a word is a quantity (`2023 tickets`); a standalone year is not. Thousands
   commas in full width, scale words after a word number (`five hundred`), abbreviated scales
-  (`$2.5M`, `10k`) and each side of a range (`30-40%`) are read too; a number joined to a word by a
-  hyphen (`COVID-19`, `twenty-five`) is not matched on its own. The page
+  (`$2.5M`, `10k`) each side of a range (`30-40%`) and a compound quantity (`5-person`, whose next token is
+  `person`) are read too; a number after a word and a hyphen (`COVID-19`, `twenty-five`) is not
+  matched on its own. The page
   keeps its own rules. With no quote, any figure is flagged,
   as before.
 - **Backfilled:** migration 0031 settles untouched, automatically set number flags when SQL can
