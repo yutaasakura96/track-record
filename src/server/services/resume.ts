@@ -16,8 +16,8 @@ import { eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { profiles } from "../db/schema";
 import { collectRenderInputs } from "./render";
-import { curatedGroups, curationForRender } from "./skills";
-import type { ResumeRecord } from "~/render/resume";
+import { curatedGroups } from "./skills";
+import { rankedSkills, resumeSkills, type ResumeRecord } from "~/render/resume";
 import type { PaperSize } from "~/render/resume-docx";
 
 export async function collectResumeRecord(db: Db, userId: string): Promise<ResumeRecord & { paper: PaperSize }> {
@@ -39,13 +39,8 @@ export async function collectResumeRecord(db: Db, userId: string): Promise<Resum
 }
 
 /**
- * The author's curation, narrowed to what this résumé may name — the skills a
- * fact it is given or a certification still names (S9). A curation that leaves
- * nothing is no skills section, never a fallback.
- *
- * With nothing curated, one ungrouped line of every technology those facts and
- * certifications name, the best-evidenced first: the list the Skills screen
- * offers to curate from, in the order it offers it.
+ * The résumé's skills (S9): the curation, or with nothing curated every
+ * technology the résumé's facts and certifications name (`resumeSkills`).
  */
 async function skillsFor(
   db: Db,
@@ -53,16 +48,15 @@ async function skillsFor(
   facts: { technologies: string[] }[],
   certifications: { technologies: string[] }[],
 ): Promise<ResumeRecord["skills"]> {
-  const tally = new Map<string, number>();
-  for (const row of [...facts, ...certifications]) {
-    for (const name of new Set(row.technologies)) tally.set(name, (tally.get(name) ?? 0) + 1);
-  }
+  return resumeSkills(await curatedGroups(db, userId), rankedSkills([...facts, ...certifications]));
+}
 
-  const curation = await curatedGroups(db, userId);
-  if (curation.length > 0) return curationForRender(curation, new Set(tally.keys()));
-
-  const ranked = [...tally.entries()]
-    .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name]) => name);
-  return ranked.length > 0 ? [{ name: "", skills: ranked }] : [];
+/**
+ * What the English résumé may name in its Skills section today, ranked as its
+ * uncurated line is: read through `collectRenderInputs`, as the file is, so the
+ * Skills screen's preview leaves out what the résumé leaves out (issue #114).
+ */
+export async function resumeSkillPool(db: Db, userId: string): Promise<string[]> {
+  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "");
+  return rankedSkills([...facts, ...spec.certifications]);
 }

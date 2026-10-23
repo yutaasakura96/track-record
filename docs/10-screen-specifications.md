@@ -1034,49 +1034,90 @@ restructuring a section by hand may be right where the checker is wrong (`docs/0
 
 ## Screen 7 — Skills
 
-S9 (added 2026-09-13). The skills section of the English résumé and the 職務経歴書's 活かせるスキル・経験
-come from here once the author has curated anything. **Nothing on this screen is typed as a skill**:
-every name is a technology some accepted fact or certification already carries (`04`
-`skill_curations`), and the screen only chooses, groups and orders them.
+S9 (added 2026-09-13; reworked by #114, 2026-10-22). The skills section of the English résumé and
+the 職務経歴書's 活かせるスキル・経験 come from here once the author has curated anything. **Nothing
+on this screen is typed as a skill**: every name is a technology some accepted fact or certification
+already carries (`04` `skill_curations`), and the screen only chooses, groups and orders them.
 
-Sidebar chrome, with a `Skills` row under `Career timeline`. Header title `Skills`, contextual note
-`Chosen from the technologies your facts and certifications name`.
+In the frame Applications uses, so it **works at phone width** (Responsive behaviour): the sidebar,
+and under 720px `Menu` in the header instead. Header title `Skills`, contextual note
+`The Skills section of your résumé and the 活かせるスキル of your 職務経歴書`.
 
 **Intro** (Shared chrome, #56): `Which technologies your documents list, and in what order. Every
 name comes from an accepted fact or a certification; nothing is typed here.` Then
-`Next: add a group on the left, then add skills to it from the candidates on the right.` while
-nothing is curated, and `Next: nothing is waiting here. Every change saves at once.` once something
-is. Absent in the `No candidates` state, which says the same thing itself.
+`Next: add a group, then add skills to it from the ones found in your record.` while nothing is
+curated, and `Next: nothing is waiting here. Every change saves at once.` once something is. Absent
+in the `No candidates` state, which says the same thing itself.
 
 ### Layout
 
-Two panels side by side, each half the content width.
+1. **How it reads on your résumé.** The Skills section the next English résumé prints, set as a
+   document's page sets a section (`DocumentSection`), inside a card. It is built by the résumé's
+   own rule (`resumeSkills`, `skillsSectionPage` in `src/render/resume.ts`) from the groups below
+   and the names the résumé may print, so it leaves out what the résumé leaves out — a stale skill,
+   and a skill whose only facts sit under an entry the résumé excludes. With nothing curated it is
+   the résumé's one uncurated line. **It is live:** it follows a chip being carried by keyboard or
+   dragged over a group, before anything is saved. A curation that leaves the résumé nothing reads
+   `Nothing to print. No skill in these groups is named by anything the résumé includes, so it has no
+   Skills section.`
+2. **Your groups** (left) and **Found in your record, not listed yet** (right), side by side, one
+   column at phone width.
 
-**Curated** (left). One block per group, in order. A group heading is its name, editable in place,
-with `↑` `↓` to move the group and nothing else. Beneath it, one row per skill: the name, a
-right-aligned mono count (`4 FACTS`, or `CERT` when only a certification names it), then `↑` `↓`
-and `Remove`. `↑` is disabled on the first row and `↓` on the last, stating why. Below the last
-group, a name field and `Add group`.
+**Your groups.** One card per group, in order. Its heading is its name, editable in place, with `↑`
+`↓` to move the group. Beneath it the group's skills as **chips**, wrapping. A chip reads the name,
+then in small text the achievements behind it and the last year one of them reaches — `Go 3 · 2020`,
+`Azure 1 + 1 cert · now` — and is named in full for a screen reader (`Go: 3 achievements, last used
+2020`). The year is the latest of: the month a quick capture carries; else the end of the fact's
+project; else the end of its employer's tenure (`effectiveEmployerId`); a certification's issue
+year. Not yet ended is `now`. A skill the résumé does not print although the record names it adds
+`left off`. Below the last group, a name field and `Add group`.
 
-**Candidates** (right). Every candidate not yet curated, most facts first, then by name. Each row:
-the name, the same mono count, and an `Add to` select listing the groups. The select is disabled
-with a stated reason while no group exists.
+**Moving a chip**, three ways to the same result, none of them the only one:
+
+- **Drag** it before another chip, onto a group (its end), or onto the suggestions panel to take it
+  off the list. A group under the pointer is outlined and a mark shows where it will land.
+- **Keyboard.** `Enter` or `Space` picks the chip up (`aria-pressed`). `←` `→` move it one place in
+  its group and stop at either end; `↑` `↓` carry it to the end of the group above or below. Focus
+  stays on it. `Enter` places it, `Escape` puts it back. Each step is said in a live region
+  (`Go: Data, 3 of 5.`), and a step that goes nowhere says so.
+- **Tap.** Picking a chip up opens a bar under the groups, `Moving Go`, with `← Earlier`, `Later →`,
+  `↑ Group above`, `↓ Group below` (each disabled at its end, saying why), `Remove`, `Cancel` and
+  `Place` (primary).
+
+A move is held on the screen until it is placed and is **written once**, on placing; the chip shows
+where it was placed while the save is in flight. While a chip is held it is the one pending change:
+the group names, the group `↑` `↓`, `Add group` and the suggestion chips are disabled, saying
+`Place or cancel the move of Go first.` A dragged chip that leaves a group for somewhere it cannot
+land clears the outline, the mark and the preview back to what is stored.
+
+**Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
+then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
+group whose skills it is named beside on the most facts; for one named beside no listed skill, the
+group whose skills were used at the most of the same employers, and failing that the largest group;
+the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none.
+Pressing a chip with a suggestion adds it to the end of that group at once. Pressing one without
+opens a bar, `Add Redis to`, with a button per existing group and `Cancel`; with no groups, the bar
+asks for a group to be named first. Any of them can also be dragged to a group.
+
+**Folded by usage.** A candidate named once (one fact, or one certification) and not in the last five
+years, or never dated, is folded away under the chips: `7 more, each named once and not in the last
+5 years.` with `Show them` / `Hide them` (`isFolded`, `src/shared/skills.ts`).
 
 ### The stale skill
 
 A curated skill that no accepted, render-eligible fact and no certification names any longer is
-**flagged and kept**: its row carries an amber dot and `IN NO FACT` in place of the count, and it
-keeps its position. It does not reach a render — a document may not name a technology no fact
-states — but the author's choice is not undone by the record changing underneath it. `Remove` is
-the only way it leaves.
+**flagged and kept**: its chip is amber with an amber dot and `in no fact` in place of the count,
+and it keeps its position. It does not reach a render — a document may not name a technology no fact
+states — so the preview leaves it out, but the author's choice is not undone by the record changing
+underneath it. Removing it is the only way it leaves.
 
 ### Rules
 
-- **Saving is immediate**, as it is on Screen 4. Every change sends the whole curated list; there is
-  no draft and no `Save`.
+- **Saving is immediate** once a move is placed, as it is on Screen 4. Every change sends the whole
+  curated list; there is no draft and no `Save`.
 - A group exists on the server only while it holds a skill. A group just added holds none, and
-  reads `Add a skill to keep this group.` beneath its heading until one arrives; leaving the screen
-  first discards it.
+  reads `Add a skill to keep this group. Drag one here, or pick one up and move it here.` until one
+  arrives; leaving the screen first discards it.
 - Removing a group's last skill removes the group.
 - One curated list serves every render with a skills section. There is no per-render setting here.
 
@@ -1084,11 +1125,11 @@ the only way it leaves.
 
 | State | Behaviour |
 |---|---|
-| **Loading** | Panel skeletons |
-| **Could not be read** | Both panels replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the Loading state returns. Only a first read shows this. |
-| **Could not refresh** | Both panels stay on screen. A later read that fails puts one dim line above them, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
-| **No candidates** | Both panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
-| **Not curated** | Curated panel reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field. This is the default and not an error |
+| **Loading** | The three panels, each reading `Loading…` |
+| **Could not be read** | The panels replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the Loading state returns. Only a first read shows this. |
+| **Could not refresh** | The panels stay on screen. A later read that fails puts one dim line above them, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
+| **No candidates** | The panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
+| **Not curated** | Your groups reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field, and the preview shows the résumé's uncurated line. This is the default and not an error |
 | **Save refused** | The server's `422` beneath the panel that caused it. The list re-reads from the server, so what is shown is what is stored |
 
 ---
@@ -2080,7 +2121,7 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-Outside Applications, Quick capture and reading a document, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -2098,11 +2139,16 @@ its header actions remain reachable under 1024px; the destination screens retain
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
 surface without re-laying-out the application.
 
+**Skills (Screen 7) is the fourth exception** (decision log, 2026-10-22, #114). It opens at any
+width and follows the Applications table under 720px: its two panels fall to one column under the
+preview, and a chip is moved by tapping it and using the bar under the groups, since a phone has
+neither arrow keys nor a reliable drag.
+
 ### Applications at phone width · specified 2026-10-11, built by #75
 
 **The first exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
-`/applications`, are not behind the wider-window message. Every other route except Quick capture and reading a document (Screen 17)
-keeps it under 1024px.
+`/applications`, are not behind the wider-window message. Every other route except Quick capture, reading a document (Screen 17)
+and Skills (Screen 7) keeps it under 1024px.
 Designed at **390px**; the prototype's `Phone` width is the reference.
 
 Under **720px** of width these screens change as follows, and above it they are the desktop layout:
@@ -2110,7 +2156,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Part | At phone width |
 |---|---|
 | Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
-| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; the sentence `On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.`; then the Theme control |
+| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; its guidance names the phone-capable routes described above; then the Theme control |
 | Header | 12px side padding; the contextual note is not shown |
 | Content column | `16px 12px` padding, 16px between blocks |
 | List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
