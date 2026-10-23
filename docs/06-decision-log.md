@@ -7252,3 +7252,18 @@ nothing on it said it was the résumé's Skills section (#114, evaluation §3.6)
   screens the gate exists for.
 - **Not changed:** the stale-skill rule. A curated skill nothing names any more stays in place,
   amber, `in no fact`, and is left out of every render and of the preview.
+
+### [2026-10-23] Skills explains its suggestions as they are chosen, and the phone menu names Skills
+
+Supersedes the 2026-10-22 rule that "one named beside no listed skill gets no suggestion"; the entry
+above stays as written. Review fix round 4 of #140 added two fallbacks to `suggestedGroup`, and the
+screen, the API comment and that entry still described only the first rule (#114 follow-up).
+
+- **Decision:** a candidate's suggested group is the group whose skills it is named beside on the
+  most facts; failing that, the group whose skills' facts share the most employers with its own;
+  failing that, the largest group. The earlier group wins every tie. None only while there is no
+  group. The Skills screen, `src/client/api.ts` and `src/server/routes/skills.ts` say so. Copy only;
+  `suggestedGroup` is unchanged.
+- **Decision:** the phone menu's guidance names Applications, Quick capture and Skills, the three
+  rows that work at phone width. Reading a document works there too but is reached from a document
+  row, not the menu.

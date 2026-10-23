@@ -293,7 +293,7 @@ describe("the way in", () => {
     );
     expect(
       menu.getByText(
-        "On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.",
+        "On a phone, Applications, Quick capture and Skills are the parts that work. The other screens still ask for a wider window.",
       ),
     ).toBeTruthy();
     await user.click(menu.getByRole("link", { name: "Quick capture" }));

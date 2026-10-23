@@ -600,8 +600,8 @@ function Curation({ data }: { data: SkillCuration }) {
             Found in your record, not listed yet
           </h2>
           <p className="mb-12 text-smaller text-text-dim">
-            Most used first. Each goes to the group its achievements name it beside; press it to add it there, or
-            drag it to another. Drag a listed skill here to take it off the list.
+            Most used first. Each is offered the group whose skills its achievements name it beside; failing that, the
+            group at the same employers, then the largest. Press it to add it there, or drag it to another. Drag a listed skill here to take it off the list.
           </p>
           {suggestions.length === 0 ? (
             <p className="text-smaller text-text-dim">Every skill your record names is listed.</p>

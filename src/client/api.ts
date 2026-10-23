@@ -727,7 +727,11 @@ export interface SkillCandidate {
   certificationCount: number;
   lastUsed: LastUsed;
   curated: boolean;
-  /** The group it is most often named beside. Null when curated, or named beside none. */
+  /**
+ * The group it is offered: the one it is most often named beside, else the one
+ * sharing the most employers, else the largest. Null when curated, or when
+ * there is no group.
+ */
   suggestedGroup: string | null;
 }
 

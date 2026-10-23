@@ -120,7 +120,7 @@ describe("the menu at phone width", () => {
     expect(menu.getByRole("link", { name: "Applications" }).getAttribute("aria-current")).toBe("page");
     expect(
       menu.getByText(
-        "On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.",
+        "On a phone, Applications, Quick capture and Skills are the parts that work. The other screens still ask for a wider window.",
       ),
     ).toBeTruthy();
     expect(menu.getByRole("radiogroup", { name: "Theme" })).toBeTruthy();

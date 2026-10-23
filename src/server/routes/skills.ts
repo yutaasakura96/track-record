@@ -5,7 +5,8 @@
  * record no longer names it, and with every candidate marked whether it is
  * curated. Staleness is computed on this read, never stored (`services/skills`).
  * Each name carries when it was last used, each candidate not yet curated the
- * group it is most often named beside, and the answer carries what the English
+ * group it is offered (most often named beside, else the most shared
+ * employers, else the largest), and the answer carries what the English
  * résumé may name, ranked — from which the screen previews the Skills section
  * the next résumé prints, by the résumé's own rule (issue #114).
  *
