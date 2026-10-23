@@ -5,4 +5,4 @@
 -- Only a technical row is moved, so running it again changes nothing.
 UPDATE "certifications" SET "kind" = 'language'::"certification_kind"
 WHERE "kind" = 'technical'
-  AND concat_ws(' ', "name", "name_ja") ~* '(^|[^A-Za-z])JLPTN[1-5]($|[^A-Za-z])';
+  AND concat_ws(' ', "name", "name_ja") ~* '(^|[^A-Za-z])JLPTN[1-5]($|[^A-Za-z0-9])';
