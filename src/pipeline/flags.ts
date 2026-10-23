@@ -15,7 +15,6 @@
  *     promotes from there, one fact at a time.
  */
 import type { FactGrade } from "~/model/types";
-import { figures } from "~/shared/master-document";
 import { scrub } from "./scrub";
 
 export type FlagKind = "confidential" | "number" | "unsure" | "repeat";
@@ -124,11 +123,14 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
 /**
  * Does the claim state a number its passage does not (issue #115)?
  *
- * A figure is what the career record sets apart (`figures`): a year alone, a
+ * A figure is read much as the career record reads one (`figures`,
+ * `src/shared/master-document.ts`), with patterns of its own: a year alone, a
  * digit inside a word, a version or address, and a technology's own digits
- * (`S3`, `Java 17`) are not figures. A figure counts as sourced when each of
- * its number, scale and next token stand in the quote on their own. With
- * no quote there is nothing to check a figure against, and any figure counts.
+ * (`S3`, `Java 17`) are not figures, but a year followed by a word or a counter
+ * is a quantity (`2023 tickets`), and a scale belongs to its word number
+ * (`five hundred engineers`). A figure counts as sourced when each of its
+ * number, scale and next token stand in the quote on their own. With no quote
+ * there is nothing to check a figure against, and any figure counts.
  *
  * Flagging every claim with a digit in it flagged half the record, a talk
  * given "in 2023" among them, and a list where almost everything is flagged
@@ -136,8 +138,51 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  */
 export function unsourcedNumber(claim: string, quote: string | null, technologies: string[]): boolean {
   const passage = plain(quote ?? "");
-  const parts = figures(claim, technologies, { quantityYears: true });
-  return parts.some((part, index) => part.figure && !sourcedFigure(plain(part.text), plain(parts[index + 1]?.text ?? ""), passage));
+  const text = plain(claim);
+  return numberFigures(text, technologies.map(plain)).some(([start, end]) => !sourcedFigure(text.slice(start, end), text.slice(end), passage));
+}
+
+const UNIT =
+  "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|" +
+  "kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|" +
+  "customers?|participants?|countries|languages|releases?|times)";
+const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
+const SCALE = "(?:hundred|thousand|million|billion)";
+const WORD_NUMBER =
+  `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
+  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: ${SCALE})?|hundreds|thousands|millions)`;
+const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
+const NUMBER_FIGURE = new RegExp(
+  [
+    `(?:one|\\d+) in (?:${WORD_NUMBER}|\\d+)`,
+    `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
+    `[¥$€£]?\\d+(?:\\.\\d+)?(?:\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
+    "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|%)",
+  ].join("|"),
+  "gu",
+);
+const YEAR = /^(?:19|20)\d{2}年?$/u;
+const QUANTITY_AFTER_YEAR = new RegExp(`^(?:\\s+[a-z]|${COUNTER})`, "u");
+
+/** The figures of a plain claim, as `[start, end]`, with a technology's own digits left out. */
+function numberFigures(text: string, technologies: string[]): [number, number][] {
+  const named: [number, number][] = [];
+  for (const name of technologies) {
+    const trimmed = name.trim();
+    if (trimmed === "" || !/\d/u.test(trimmed)) continue;
+    for (const match of text.matchAll(new RegExp(escapePattern(trimmed), "g"))) named.push([match.index, match.index + match[0].length]);
+  }
+  const found: [number, number][] = [];
+  for (const match of text.matchAll(NUMBER_FIGURE)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (/[a-z0-9_]/u.test(text[start - 1] ?? "") || /[a-z0-9_]/u.test(text[end] ?? "")) continue;
+    if (/^(?:[.:]\d|-[a-z0-9])/u.test(text.slice(end, end + 2)) || /(?:\d[.:]|[a-z0-9]-)$/u.test(text.slice(Math.max(0, start - 2), start))) continue;
+    if (YEAR.test(match[0]) && !QUANTITY_AFTER_YEAR.test(text.slice(end))) continue;
+    if (named.some(([from, to]) => start < to && end > from)) continue;
+    found.push([start, end]);
+  }
+  return found;
 }
 
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

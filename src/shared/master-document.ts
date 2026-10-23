@@ -227,19 +227,19 @@ const UNIT =
   "customers?|participants?|countries|languages|releases?|times)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const WORD_NUMBER =
-  `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
-  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: (?:hundred|thousand|million|billion))?|hundreds|thousands|millions)`;
+  `(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
+  `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS}|hundreds|thousands|millions)`;
 /** The counters a Japanese figure is written with: 30%, 3倍, 5名, 2年. */
 const COUNTER = "(?:%|％|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 // Thousands commas, and at most one decimal point: `1,200`, `0.42`.
-const DIGITS = "[¥$€£]?(?:\\p{Nd}{1,3}(?:[,，]\\p{Nd}{3})+|\\p{Nd}+)(?:\\.\\p{Nd}+)?";
+const DIGITS = "[¥$€£]?(?:\\p{Nd}{1,3}(?:,\\p{Nd}{3})+|\\p{Nd}+)(?:\\.\\p{Nd}+)?";
 const FIGURE = new RegExp(
   [
     // `1 in 5`, `one in twenty`: a rate, read as one figure.
     `(?:one|\\p{Nd}+) in (?:${WORD_NUMBER}|five|\\p{Nd}+)`,
     `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
     `${DIGITS}(?:\\s?${COUNTER}|x(?![\\p{L}]))?(?: (?:hundred|thousand|million|billion))?(?: ?${UNIT}(?![\\p{L}]))?`,
-    // A figure written in kanji, with the counter that makes it one.
+    // A figure written in kanji, with the counter that makes it one (`src/pipeline/flags.ts`).
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|％|%)",
   ].join("|"),
   "giu",
@@ -252,7 +252,6 @@ const LATIN_WORD = /[A-Za-z0-9_]/;
 const JOINED_AFTER = /^(?:[.:]\p{Nd}|-[A-Za-z0-9])/u;
 const JOINED_BEFORE = /(?:\p{Nd}[.:]|[A-Za-z0-9]-)$/u;
 const YEAR = /^(?:19|20)\d{2}年?$/;
-const COUNTER_AFTER_YEAR = new RegExp(`^${COUNTER}`, "u");
 
 /**
  * A claim cut where its figures are, so they can be set apart: the numbers are
@@ -260,16 +259,9 @@ const COUNTER_AFTER_YEAR = new RegExp(`^${COUNTER}`, "u");
  *
  * Not a figure: a digit inside a word (`EC2`, `K8s`, `2FA`), a year alone, an
  * address or a version (`10.20.4.15`), or a digit inside a technology the fact
- * names (`Java 17`). The importer's number flag reads figures with this
- * (`unsourcedNumber`), so the two agree on what a figure is. The flag alone
- * passes `quantityYears`: a year followed by a word or a counter is then a
- * quantity (`2023 tickets`), not a year alone.
+ * names (`Java 17`).
  */
-export function figures(
-  claim: string,
-  technologies: string[] = [],
-  { quantityYears = false }: { quantityYears?: boolean } = {},
-): { text: string; figure: boolean }[] {
+export function figures(claim: string, technologies: string[] = []): { text: string; figure: boolean }[] {
   const named: [number, number][] = [];
   for (const name of technologies) {
     const trimmed = name.trim();
@@ -285,7 +277,7 @@ export function figures(
     const end = start + match[0].length;
     if (LATIN_WORD.test(claim[start - 1] ?? "") || LATIN_WORD.test(claim[end] ?? "")) continue;
     if (JOINED_AFTER.test(claim.slice(end, end + 2)) || JOINED_BEFORE.test(claim.slice(Math.max(0, start - 2), start))) continue;
-    if (YEAR.test(match[0]) && !(quantityYears && (/^\s+[A-Za-z]/u.test(claim.slice(end)) || COUNTER_AFTER_YEAR.test(claim.slice(end))))) continue;
+    if (YEAR.test(match[0])) continue;
     if (named.some(([from, to]) => start < to && end > from)) continue;
     if (start > at) parts.push({ text: claim.slice(at, start), figure: false });
     parts.push({ text: match[0], figure: true });

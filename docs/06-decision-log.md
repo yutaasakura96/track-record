@@ -7232,14 +7232,15 @@ Issue #115, from the evaluation of 2026-10-17: `States a number` sat on 27 of 59
 flagged points nowhere.
 
 - **Decision:** a fact is flagged when its claim holds a figure whose number its quote does not
-  (`unsourcedNumber`, `src/pipeline/flags.ts`). The figures are the ones the career record sets apart
-  (`figures`), so a year alone, a digit inside a word, a version and a technology's own digits never
+  (`unsourcedNumber`, `src/pipeline/flags.ts`). The flag reads figures with patterns of its own, kept
+  in `flags.ts` so the career record's `figures` and its bolding do not change: a year alone, a digit inside a word, a version and a technology's own digits never
   count. A number matches only on its own (`140` is not `40`), after
   full-width digits and thousands commas are read as plain digits. Its scale and immediate next
   token must also match, whether that token is a word or a counter character. A descriptive word
-  between the number and its noun makes the figure unsourced and prompts a look. For the flag
-  alone, a 19xx/20xx number followed by a word is a quantity (`2023 tickets`); a standalone year is
-  not. The page keeps its own rule and sets no year in bold. With no quote, any figure is flagged,
+  between the number and its noun makes the figure unsourced and prompts a look. A 19xx/20xx
+  number followed by a word is a quantity (`2023 tickets`); a standalone year is not. Thousands
+  commas in full width and scale words after a word number (`five hundred`) are read too. The page
+  keeps its own rules. With no quote, any figure is flagged,
   as before.
 - **Backfilled:** migration 0031 settles untouched, automatically set number flags when SQL can
   establish that every digit run is a standalone year or matches the quote's number, scale and

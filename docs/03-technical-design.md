@@ -277,7 +277,9 @@ and it is not a judgement about the claim: a quote that is not in the document i
 quote does not, when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
 flag is a row with a reason (`04` §3.13); it gates nothing.
 
-**A number** is a figure as the career record finds one (`figures`, `src/shared/master-document.ts`):
+**A number** is a figure as the flag reads one (`unsourcedNumber`, `src/pipeline/flags.ts`, with
+patterns of its own so the career record's bolding is unchanged): a year followed by a word or a
+counter (`2023 tickets`) is a quantity, and a word number keeps its scale (`five hundred`); but
 not a year alone, a digit inside a word, a version or address, or a technology's own digits, so
 `in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
 is flagged only when the quote does not hold the same number on its own (`1,200` and `１２００` match
