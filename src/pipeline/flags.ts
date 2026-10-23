@@ -127,8 +127,8 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  * A figure is what the career record sets apart (`figures`): a year alone, a
  * digit inside a word, a version or address, and a technology's own digits
  * (`S3`, `Java 17`) are not figures. A figure counts as sourced when each of
- * its numbers stands in the quote on its own, not inside a longer one; a
- * figure written in words or kanji, when the quote holds the same words. With
+ * its number and scale stand in the quote on their own; a figure written in
+ * words may have descriptive words before its unit. With
  * no quote there is nothing to check a figure against, and any figure counts.
  *
  * Flagging every claim with a digit in it flagged half the record, a talk
@@ -139,10 +139,26 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
   const passage = plain(quote ?? "");
   return figures(claim, technologies)
     .filter((part) => part.figure)
-    .some(({ text }) => {
-      const figure = plain(text);
-      const numbers = figure.match(/\d+(?:\.\d+)?/g);
-      if (!numbers) return !passage.includes(figure);
-      return numbers.some((n) => !new RegExp(`(?<![\\d.])${n.replace(".", "\\.")}(?!\\d|\\.\\d)`).test(passage));
-    });
+    .some(({ text }) => !figurePattern(plain(text)).test(passage));
+}
+
+const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const SCALE = "(?:hundred|thousand|million|billion|万|億)";
+
+function figurePattern(figure: string): RegExp {
+  const numeric = figure.match(/^([¥$€£]?\d+(?:\.\d+)?)(.*)$/u);
+  if (numeric) {
+    const [, number, rest] = numeric;
+    const scale = rest!.match(new RegExp(`(?:^| )(${SCALE})(?: |$)`, "u"))?.[1];
+    const suffix = scale ? rest!.replace(scale, "").trim() : rest!.trim();
+    const scalePattern = scale ? ` ?${escapePattern(scale)}` : `(?! ?${SCALE})`;
+    const unitPattern = suffix ? ` ?${escapePattern(suffix)}` : "";
+    return new RegExp(`(?<![A-Za-z0-9_.])${escapePattern(number!)}(?![\\d.]|,\\d)${scalePattern}${unitPattern}(?![A-Za-z0-9])`, "u");
+  }
+  const words = figure.match(/^([a-z]+(?:-[a-z]+)?) ([a-z]+)$/u);
+  if (words) {
+    return new RegExp(`(?<![\\p{L}\\p{N}])${escapePattern(words[1]!)}(?: [a-z]+){0,4} ${escapePattern(words[2]!)}(?![\\p{L}\\p{N}])`, "u");
+  }
+  const before = /^[〇一二三四五六七八九十百千万億]/u.test(figure) ? "(?<![〇一二三四五六七八九十百千万億])" : "(?<![\\p{L}\\p{N}])";
+  return new RegExp(`${before}${escapePattern(figure)}(?![〇一二三四五六七八九十百千万億])`, "u");
 }
