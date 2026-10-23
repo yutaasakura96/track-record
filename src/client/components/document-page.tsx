@@ -62,16 +62,38 @@ export function DocumentPage({ page, language, trace }: { page: SentPage; langua
             </header>
           )}
           {page.sections.map((section, index) => (
-            <section key={index}>
-              <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
-                {section.heading}
-              </h3>
-              {trace ? <TracedBlocks blocks={section.blocks} section={index} trace={trace} /> : <Blocks blocks={section.blocks} />}
-            </section>
+            <DocumentSection key={index} section={section}>
+              {trace ? <TracedBlocks blocks={section.blocks} section={index} trace={trace} /> : undefined}
+            </DocumentSection>
           ))}
         </>
       )}
     </article>
+  );
+}
+
+/**
+ * One section of a page: its heading, then its blocks. Exported for the Skills
+ * screen's preview (issue #114), so the section it shows is set as the
+ * document's page sets it. `children` stands in for the blocks.
+ */
+export function DocumentSection({
+  section,
+  flush = false,
+  children,
+}: {
+  section: SentPage["sections"][number];
+  /** Shown alone rather than under a name: no space above the heading. */
+  flush?: boolean;
+  children?: ReactNode;
+}) {
+  return (
+    <section>
+      <h3 className={`${flush ? "mt-0" : "mt-20"} mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim`}>
+        {section.heading}
+      </h3>
+      {children ?? <Blocks blocks={section.blocks} />}
+    </section>
   );
 }
 

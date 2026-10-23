@@ -4,6 +4,11 @@
  * `GET` answers with the curated groups, each skill flagged `stale` when the
  * record no longer names it, and with every candidate marked whether it is
  * curated. Staleness is computed on this read, never stored (`services/skills`).
+ * Each name carries when it was last used, each candidate not yet curated the
+ * group it is offered (most often named beside, else the most shared
+ * employers, else the largest), and the answer carries what the English
+ * résumé may name, ranked — from which the screen previews the Skills section
+ * the next résumé prints, by the résumé's own rule (issue #114).
  *
  * `PUT` replaces the whole list. The screen saves on every change and always
  * sends everything, so there is no partial update for the two sides to disagree
@@ -18,7 +23,8 @@ import { validationFailed } from "../http/errors";
 import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
-import { curatedGroups, skillCandidates, type CuratedGroup } from "../services/skills";
+import { resumeSkillPool } from "../services/resume";
+import { curatedGroups, skillCandidates, skillPool, suggestedGroup, type CuratedGroup } from "../services/skills";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
@@ -66,9 +72,10 @@ export function registerSkillRoutes(app: Hono<AppEnv>) {
 }
 
 async function curationView(db: Db, userId: string) {
-  const [groups, candidates] = await Promise.all([
+  const [groups, { candidates, together }, printable] = await Promise.all([
     curatedGroups(db, userId),
-    skillCandidates(db, userId),
+    skillPool(db, userId),
+    resumeSkillPool(db, userId),
   ]);
   const byName = new Map(candidates.map((candidate) => [candidate.name, candidate]));
   const curated = new Set(groups.flatMap((g) => g.skills));
@@ -82,11 +89,20 @@ async function curationView(db: Db, userId: string) {
           name,
           factCount: candidate?.factCount ?? 0,
           certificationCount: candidate?.certificationCount ?? 0,
+          lastUsed: candidate?.lastUsed ?? null,
           stale: candidate === undefined,
         };
       }),
     })),
-    candidates: candidates.map((candidate) => ({ ...candidate, curated: curated.has(candidate.name) })),
+    candidates: candidates.map((candidate) => {
+      const listed = curated.has(candidate.name);
+      return {
+        ...candidate,
+        curated: listed,
+        suggestedGroup: listed ? null : suggestedGroup(candidate.name, groups, together),
+      };
+    }),
+    printable,
   };
 }
 

@@ -21,6 +21,7 @@ import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
 import type { NamedVersion, SendableKind } from "~/shared/application-documents";
 import type { FactEvidence } from "~/shared/evidence";
+import type { LastUsed } from "~/shared/skills";
 import type { SentPage } from "~/render/sent-page";
 
 export interface ApiErrorBody {
@@ -714,6 +715,8 @@ export interface CuratedSkill {
   name: string;
   factCount: number;
   certificationCount: number;
+  /** The latest a fact or certification naming it reaches. */
+  lastUsed: LastUsed;
   /** No accepted, render-eligible fact and no certification names it any longer. Flagged, never removed. */
   stale: boolean;
 }
@@ -722,12 +725,21 @@ export interface SkillCandidate {
   name: string;
   factCount: number;
   certificationCount: number;
+  lastUsed: LastUsed;
   curated: boolean;
+  /**
+   * The group it is offered: the one it is most often named beside, else the one
+   * sharing the most employers, else the largest. Null when curated, or when
+   * there is no group.
+   */
+  suggestedGroup: string | null;
 }
 
 export interface SkillCuration {
   groups: { name: string; skills: CuratedSkill[] }[];
   candidates: SkillCandidate[];
+  /** What the English résumé may name in its Skills section, ranked as its uncurated line is. */
+  printable: string[];
 }
 
 /** What `PUT /api/skills/curation` takes: the whole list, names only. */

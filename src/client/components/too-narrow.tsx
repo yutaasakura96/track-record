@@ -9,9 +9,9 @@
  * Between 1024 and 1280 the panes simply narrow: the layout is fluid, and the
  * desktop gate is a product decision rather than a layout limitation.
  *
- * Three exceptions open at any width and are laid out for a phone under 720px:
- * everything under `/applications` (issue #75), Quick capture (issue #95), and
- * reading a document (issue #106). Nothing else does.
+ * Four exceptions open at any width and are laid out for a phone under 720px:
+ * everything under `/applications` (issue #75), Quick capture (issue #95),
+ * reading a document (issue #106), and Skills (issue #114). Nothing else does.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { useRouterState } from "@tanstack/react-router";
@@ -21,12 +21,19 @@ const MINIMUM = 1024;
 /** Quick capture's route (issue #95). */
 export const CAPTURE_PATH = "/capture";
 
+/** Skills' route (issue #114). */
+const SKILLS_PATH = "/skills";
+
 /** Reading a document: `/renders/<ref>/view`, and none of that document's other screens. */
 const VIEW_PATH = /^\/renders\/[^/]+\/view$/;
 
-/** The screens that work at phone width: under `/applications`, Quick capture, and reading a document. */
+/** The screens that work at phone width: under `/applications`, Quick capture, reading a document, and Skills. */
 export const opensOnAPhone = (path: string) =>
-  path === "/applications" || path.startsWith("/applications/") || path === CAPTURE_PATH || VIEW_PATH.test(path);
+  path === "/applications" ||
+  path.startsWith("/applications/") ||
+  path === CAPTURE_PATH ||
+  path === SKILLS_PATH ||
+  VIEW_PATH.test(path);
 
 /**
  * Whether the window is wide enough for every screen. Where it is not, a control
