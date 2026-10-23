@@ -167,9 +167,6 @@ describe("a claim that states a number its passage does not", () => {
     ["a number joined to a word", "Processed 5 tickets", "Processed 5tickets.", []],
     ["a year-shaped count with an unlisted word", "Processed 2023 tickets", "Processed tickets.", []],
     ["a year-shaped count with a listed word", "Mentored 2023 engineers", "Mentored engineers.", []],
-    ["a word figure with a modifier", "Mentored five engineers", "Mentored five senior engineers.", []],
-    ["a scaled figure with a modifier", "Served 5 million users", "The service reached 5 million active users.", []],
-    ["a numeric figure with a modifier", "Served 5 users", "The service reached 5 active users.", []],
     ["a rate denominator inside a longer number", "Resolved one in 5 reports", "Resolved one in 50 reports.", []],
     ["a bare number inside a percentage", "Handled 5", "Handled 5% of requests.", []],
     ["a complete unit inside a longer word", "Reached 50 percent", "Reached 50 percentage points.", []],
@@ -191,6 +188,28 @@ describe("a claim that states a number its passage does not", () => {
     ["a compound period", "Ran 2-week sprints", "Ran sprints.", []],
     ["a compound with a different word", "Led a 5-person team", "Led a 5-member team.", []],
     ["any figure, when there is no passage", "Led a team of 5 engineers", null, []],
+    // Each case the #115 review named, the other way round too.
+    ["a scale the claim adds", "Served 5 million users", "Served 5 users.", []],
+    ["a word scale the passage adds", "Mentored five engineers", "Mentored five hundred engineers.", []],
+    ["a rate's denominator the passage shortens", "Resolved one in 50 reports", "Resolved one in 5 reports.", []],
+    ["a percentage the passage states as a bare number", "Handled 5%", "Handled 5 of the requests.", []],
+    ["a kanji number the passage shortens", "十五名のチームを率いた", "五名のチームを率いた。", []],
+    ["a counter of months the passage counts in countries", "3カ月で導入した", "3カ国で導入した。", []],
+    ["a counter of countries the passage counts in months", "3カ国で導入した", "3カ月で導入した。", []],
+    ["a different unit the other way", "Processed 5 orders", "Processed 5 tickets.", []],
+    ["a year-shaped count the passage has as a year", "Processed 2023 tickets", "Processed tickets in 2023.", []],
+    // What stays flagged because it is not the same quantity.
+    ["a quantity-changing word before the unit", "Served 5 users", "Served 5 more users.", []],
+    ["a modifier before a different unit", "Served 5 active users", "Served 5 active orders.", []],
+    ["a scale written as a word in the claim and a letter in the passage", "Saved $2.5 million", "Saved $2.5M.", []],
+    ["a currency sign the claim does not have", "Handled 5 requests", "Saved $5 requests.", []],
+    ["a count the passage has only as a rate's denominator", "Resolved 5 reports", "Resolved one in 5 reports.", []],
+    ["a hyphenated word that only starts the same", "Hired 5 full-time engineers", "Hired 5 full-stack engineers.", []],
+    ["a kanji counter the passage spells as a longer one", "3人の作業", "3人月の作業。", []],
+    ["a kanji number inside a longer one, before its counter", "五名のチームを率いた", "五十名のチームを率いた。", []],
+    ["a word number followed by a modifier and its unit", "Mentored five senior engineers", "Mentored senior engineers.", []],
+    ["a kanji count of countries", "三カ国で展開した", "展開した。", []],
+    ["a sign after the number", "Grew to 5+ teams", "Grew to 5 teams.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -228,6 +247,17 @@ describe("a claim that states a number its passage does not", () => {
     ["a number inside a hyphenated name in the claim", "Treated COVID-19 patients", "Treated patients.", []],
     ["a claim with no figure", "Introduced code review for the billing service", null, []],
     ["a kanji numeral that is part of a word", "一部の画面を再設計した", "画面を再設計した。", []],
+    // A plain descriptive word may stand between a number and its unit, on either side.
+    ["a scaled figure the passage gives a modifier", "Served 5 million users", "The service reached 5 million active users.", []],
+    ["a scaled figure with a modifier the passage leaves out", "Served 5 million active users", "The service reached 5 million users.", []],
+    ["a word figure the passage gives a modifier", "Mentored five engineers", "Mentored five senior engineers.", []],
+    ["a numeric figure the passage gives a modifier", "Served 5 users", "The service reached 5 active users.", []],
+    ["a word figure with its modifier in both", "Mentored five senior engineers", "I mentored five senior engineers.", []],
+    ["a counter of countries the passage states", "3カ国で導入した", "3カ国で導入した。", []],
+    ["a counter of months the passage states", "3カ月で導入した", "期間は3カ月で導入した。", []],
+    ["a kanji counter the passage follows with more kanji", "3名のチームを率いた", "3名体制のチームを率いた。", []],
+    ["a scale in kanji before its counter", "3万人が利用した", "3万人が利用した。", []],
+    ["a sign after the number the passage states", "Grew to 5+ teams", "Grew to 5+ teams.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));

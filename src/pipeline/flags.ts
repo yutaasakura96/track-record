@@ -128,9 +128,13 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  * digit inside a word, a version or address, and a technology's own digits
  * (`S3`, `Java 17`) are not figures, but a year followed by a word or a counter
  * is a quantity (`2023 tickets`), and a scale belongs to its word number
- * (`five hundred engineers`). A figure counts as sourced when each of its
- * number, scale and next token stand in the quote on their own. With no quote
- * there is nothing to check a figure against, and any figure counts.
+ * (`five hundred engineers`). A figure counts as sourced only when the quote
+ * holds the same complete quantity: the same number on its own, the same scale
+ * or none, and the same unit or counter (`unitAfter`). A plain descriptive word
+ * may stand before the unit on either side (`5 million active users`); a word
+ * that changes the quantity never does. Anything less certain stays flagged.
+ * With no quote there is nothing to check a figure against, and any figure
+ * counts.
  *
  * Flagging every claim with a digit in it flagged half the record, a talk
  * given "in 2023" among them, and a list where almost everything is flagged
@@ -146,6 +150,14 @@ const UNIT =
   "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|" +
   "kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|" +
   "customers?|participants?|countries|languages|releases?|times)";
+/**
+ * Words that say what is counted without changing how many: `5 million active
+ * users` is `5 million users`. A scale, a comparison (`more`, `over`) or an
+ * amount (`additional`, `dozen`) is never one.
+ */
+const MODIFIER =
+  "(?:active|senior|junior|new|unique|paying|registered|daily|monthly|weekly|internal|external|enterprise|" +
+  "production|full-time|part-time|concurrent|distinct)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const SCALE = "(?:hundred|thousand|million|billion)";
 const WORD_NUMBER =
@@ -155,9 +167,9 @@ const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|�
 const NUMBER_FIGURE = new RegExp(
   [
     `(?:one|\\d+) in (?:${WORD_NUMBER}|\\d+)`,
-    `\\b${WORD_NUMBER} ${UNIT}(?![\\p{L}])`,
+    `\\b${WORD_NUMBER}(?: ${MODIFIER})* ${UNIT}(?![\\p{L}])`,
     `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
-    "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|ヶ月|か月|カ月|週間|時間|秒|社|台|円|回|%)",
+    "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|[ヶヵカか](?:月|国|所)|箇所|週間|時間|秒|社|台|円|回|%)",
   ].join("|"),
   "gu",
 );
@@ -188,12 +200,42 @@ function numberFigures(text: string, technologies: string[]): [number, number][]
 const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 
-function nextToken(tail: string): string {
-  const first = tail.trimStart().replace(/^-(?=[a-z])/u, "");
-  const word = first.match(/^[a-z]+/u);
-  if (word) return word[0];
-  const character = [...first][0] ?? "";
-  return character === "%" || character === "×" || (character !== "" && !/[\p{P}\p{S}]/u.test(character)) ? character : "";
+const MODIFIER_WORD = new RegExp(`^${MODIFIER}$`, "u");
+/** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
+const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
+/** Han and katakana, written out so `migrations/0032` reads the same characters. */
+const COUNTER_RUN = /^[㐀-䶿一-鿿々゠-ヿ]+/u;
+/** What ends a quantity without being part of it. Any other character after a number is its unit. */
+const PUNCTUATION = ".,;:!?'\"()[]{}<>/\\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’";
+const SCALE_AFTER = /^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])/u;
+
+/**
+ * The unit a number counts, read from the text after it and its scale: the
+ * next word (`users`), a compound's noun (`5-person`), a counter (`名`, `カ国`)
+ * or the run of kanji and katakana it starts, or a sign (`%`, `×`, `+`).
+ * Descriptive words are passed over; nothing at all, or punctuation, is `""`.
+ */
+function unitAfter(tail: string): string {
+  let rest = tail;
+  for (;;) {
+    const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
+    const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
+    if (word && MODIFIER_WORD.test(word) && /^\s/u.test(first.slice(word.length))) {
+      rest = first.slice(word.length);
+      continue;
+    }
+    if (word) return word;
+    const counter = first.match(COUNTER_UNIT)?.[0] ?? first.match(COUNTER_RUN)?.[0];
+    if (counter) return counter;
+    const character = [...first][0] ?? "";
+    return character === "" || PUNCTUATION.includes(character) ? "" : character;
+  }
+}
+
+/** A number's scale (`million`, `万`, `k`) and the text after it; a kanji number carries its own. */
+function splitScale(tail: string, scaled: boolean): [string, string] {
+  const scale = scaled ? tail.match(SCALE_AFTER)?.[0] ?? "" : "";
+  return [scale.trim(), tail.slice(scale.length)];
 }
 
 function sourcedFigure(figure: string, following: string, passage: string): boolean {
@@ -202,23 +244,20 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
     ?? figure.match(new RegExp(`^[${KANJI_NUMBER}]+`, "u"))
     ?? figure.match(/^[a-z]+(?:-[a-z]+)?/u);
   if (!head) return false;
-  let number = head[0];
-  let tail = figure.slice(number.length);
-  if (/^[¥$€£]?\d/u.test(number) || /^[a-z]/u.test(number)) {
-    const scale = tail.match(/^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])/u);
-    if (scale) {
-      number += scale[0];
-      tail = tail.slice(scale[0].length);
-    }
-  }
-  const claimTail = tail + following;
-  const expected = nextToken(claimTail);
-  const before = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number) ? `(?<![${KANJI_NUMBER}])` : "(?<![A-Za-z0-9_.])(?<![a-z]-)";
-  const pattern = new RegExp(`${before}${escapePattern(number)}(?!\\d|[.,]\\d)`, "gu");
+  const number = head[0];
+  const kanji = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number);
+  const [scale, claimTail] = splitScale(figure.slice(number.length) + following, !kanji);
+  const unit = unitAfter(claimTail);
+  // On its own: not inside a longer number or word, not after a currency sign
+  // the claim does not have, and not the denominator of a rate (`one in 5`).
+  const pattern = kanji
+    ? new RegExp(`(?<![${KANJI_NUMBER}])${escapePattern(number)}(?![${KANJI_NUMBER}])`, "gu")
+    : new RegExp(`(?<![a-z0-9_.¥$€£])(?<![a-z]-)(?<!(?:one|\\d) in )${escapePattern(number)}${/[a-z]$/u.test(number) ? "(?![a-z])" : ""}(?!\\d|[.,]\\d)`, "gu");
   for (const match of passage.matchAll(pattern)) {
-    const quoteTail = passage.slice(match.index + match[0].length);
+    const [quoteScale, quoteTail] = splitScale(passage.slice(match.index + match[0].length), !kanji);
+    if (quoteScale !== scale) continue;
     if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
-    if (nextToken(quoteTail) === expected) return true;
+    if (unitAfter(quoteTail) === unit) return true;
   }
   return false;
 }

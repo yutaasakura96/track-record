@@ -7297,6 +7297,8 @@ screen, the API comment and that entry still described only the first rule (#114
   rows that work at phone width. Reading a document works there too but is reached from a document
   row, not the menu.
 
+---
+
 ### [2026-10-24] The 履歴書's 退社, 現在に至る and 免許・資格 rows read as a Japanese reader expects
 
 Supersedes the `docs/04` §4 rules that the 退社 row reads `<reason>` + employer + `を退社` and that
@@ -7350,3 +7352,31 @@ Supersedes the `docs/04` §4 note that "the break falls wherever the rows land".
   is still drawn: it is the form's, and the sent copy's citations read it.
 - **Not changed:** row wording (退社, 現在に至る, 免許・資格 verbs) and the 以上 row. Those are the
   rows fix in #117's first item.
+
+---
+
+### [2026-10-23] The number flag compares the whole quantity, and 0032 re-raises what 0031 settled too early
+
+The #115 review, after #141 landed: the comparison still read `3カ月` as sourced by `3カ国` (it compared
+one character after the number), and it flagged `5 million users` against `5 million active users`.
+This supersedes the matching and backfill bullets of 2026-10-22 above.
+
+- **Decision:** a figure is sourced only when the quote holds the same complete quantity
+  (`unsourcedNumber`, `src/pipeline/flags.ts`): the same number on its own, the same scale or none,
+  and the same unit. The unit is the next word, the whole counter (`カ月`, `人月`) or the run of kanji
+  and katakana it starts, or a sign (`%`, `+`). A plain descriptive word (`active`, `senior`, from a
+  short list) may stand before the unit on either side; a scale, a comparison or an amount
+  (`million`, `more`, `additional`) never does, so `5 more users` stays flagged. A number in the quote
+  does not count after a currency sign the claim lacks (`$5`) or as a rate's denominator (`one in 5`).
+  A word number followed by a descriptive word and its unit (`five senior engineers`) is a figure.
+  Anything outside these rules stays flagged.
+- **Backfilled:** migration 0032 re-raises a number flag 0031 settled when the new rule keeps it. It
+  ports the rule as functions it drops at the end, and `tests/number-flag-reraise-migration.test.ts`
+  holds it to the code case by case. It reads only flags that are system-settled, unexplained and not
+  updated since. It settles nothing and writes no fact, and it re-raises any claim with a number word
+  or a kanji figure, which 0031 never settled.
+- **Decision:** the restricted rationale in the diff reads `From N restricted fact · Restricted, so check
+  the wording names no client or system`. The old `written in general terms, without the client or
+  system named` claimed a check that nothing makes: only the fact's disclosure is known.
+- **Revisit if:** the descriptive-word list misses a word the record uses often; each miss flags the
+  fact, which errs toward a look.
