@@ -283,8 +283,14 @@ counter (`2023 tickets`) is a quantity, a number keeps its scale (`five hundred`
 each end of a range counts (`30-40%`), and a compound's next word is its noun (`5-person`); but
 not a year alone, a digit inside a word or after a word and a hyphen (`COVID-19`), a version or
 address, or a technology's own digits, so `in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
-is flagged only when the quote does not hold the same number on its own (`1,200` and `１２００` match
-`1200`; `140` does not match `40`), or when there is no quote (issue #115).
+is flagged unless the quote holds the same complete quantity: the same number on its own (`1,200`
+and `１２００` match `1200`; `140` does not match `40`, nor `5` the `5` of `one in 5` or `$5`), the same
+scale or none (`5 million` is not `5`), and the same quantity phrase through its following words
+and trailing qualifier (`3カ月` is not `3カ国`, `5` is not `5%`, `5 users per month` is not
+`5 users per year`). Only `active` and `senior` may be inserted within the phrase on either side
+(`5 million active users` sources `5 million users`); a word that changes the quantity never does.
+A ratio denominator never sources a plain count. It is also
+flagged when there is no quote (issue #115).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through
 `gradeFacts`, twenty-five to a call, accepts them and writes the same flags; the client asks

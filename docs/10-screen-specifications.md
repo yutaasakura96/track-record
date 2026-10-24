@@ -361,7 +361,8 @@ Every change states where it came from. This is PRD S6 (traceability) at the poi
 - `From 1 attested fact · <source>, L63`
 - `Removed — no fact in your record supports it`
 - `Removed — the supporting fact is unverified (Generated) and is never rendered`
-- `From 1 restricted fact · written in general terms, without the client or system named`
+- `From 1 restricted fact · Restricted, so check the wording names no client or system` — it says
+  where the change came from and what to look for; nothing checks the wording itself
 
 A change with no explanation is a defect.
 
