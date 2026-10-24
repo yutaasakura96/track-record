@@ -34,6 +34,7 @@ import { employerChapterKey, employerIdOfChapter } from "./chapters";
 import { identityLines, type RenderIdentity } from "./identity";
 import { hasJapaneseScript } from "./language";
 import type { SentPage } from "./sent-page";
+import { isExpired } from "./shikaku";
 
 /* ------------------------------------------------------------ section keys */
 
@@ -279,13 +280,6 @@ export const monthSpan = (startedOn: string, endedOn: string | null): string =>
   `${monthYear(startedOn)} – ${endedOn ? monthYear(endedOn) : "Present"}`;
 
 const yearOf = (isoDate: string) => isoDate.slice(0, 4);
-
-/**
- * A certification whose expiry month has passed is left out. One expiring this
- * month is still held this month.
- */
-const isExpired = (expiresOn: string | null, today: string) =>
-  expiresOn !== null && expiresOn.slice(0, 7) < today.slice(0, 7);
 
 export interface AssembleArgs {
   content: RenderContent;

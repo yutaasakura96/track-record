@@ -14,7 +14,7 @@ export const RIREKISHO_DATA: RirekishoTemplateData = {
   addressKana: "かくうけんかくうし", postalCode: "000-0000", address: "架空県架空市0-0-0",
   contactPostalCode: "", contactLine: "同上",
   gakureki: [{ year: "2017", month: "3", text: "架空大学　架空学部　卒業" }],
-  shokureki: [{ year: "2020", month: "4", text: "架空商事　入社" }],
+  shokureki: [{ year: "2020", month: "4", text: "架空商事　入社" }, { year: "", month: "", text: "現在に至る" }],
   shikaku: [{ year: "2018", month: "6", text: "架空資格　取得" }],
   motivation: "架空の志望動機です。", kibou: "貴社規定に従います。",
 };
@@ -33,7 +33,7 @@ const spacer = (afterTwips: number) => ({ kind: "line" as const, line: line("", 
 export const RIREKISHO_SHEET: Sheet = {
   blocks: [
     { kind: "line", line: line("履 歴 書", { align: "center", size: "title", bold: true, afterTwips: 200 }) },
-    { kind: "line", line: line("2026年 10月 6日 ", { align: "end", afterTwips: 200 }) },
+    { kind: "line", line: line("2026年 10月 6日現在", { align: "end", afterTwips: 200 }) },
     {
       kind: "table",
       columns: [2000 / 9360, 5360 / 9360, 2000 / 9360],
@@ -59,7 +59,8 @@ export const RIREKISHO_SHEET: Sheet = {
         row("2017", "3", "架空大学　架空学部　卒業"),
         [shaded([heading("職歴")], 3)],
         row("2020", "4", "架空商事　入社"),
-        [cell([line("以上", { align: "center" })], 3)],
+        row("", "", "現在に至る"),
+        [cell([line("以上", { align: "end" })], 3)],
       ],
     },
     spacer(200),

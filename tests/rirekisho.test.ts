@@ -74,7 +74,7 @@ const RECORD: RirekishoRecord = {
     },
   ],
   certifications: [
-    { name: "Kakuu Certificate", nameJa: "架空技術者試験", issuedOn: "2094-06-01" },
+    { name: "Kakuu Certificate", nameJa: "架空技術者試験", issuedOn: "2094-06-01", expiresOn: null },
   ],
 };
 
@@ -215,8 +215,11 @@ describe("the three tables", () => {
       "架空大学　架空学部　入学",
       "架空大学　架空学部　卒業",
     ]);
-    expect(filled.shokureki.map((r) => r.text)).toEqual(["架空株式会社　架空業　架空職として入社"]);
-    expect(filled.shikaku.map((r) => r.text)).toEqual(["架空技術者試験　取得"]);
+    expect(filled.shokureki.map((r) => r.text)).toEqual([
+      "架空株式会社　架空業　架空職として入社",
+      "現在に至る",
+    ]);
+    expect(filled.shikaku.map((r) => r.text)).toEqual(["架空技術者試験　合格"]);
     expect(filled.gakureki.every((r) => r.text !== "以上")).toBe(true);
   });
 });

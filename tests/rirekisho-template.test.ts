@@ -47,10 +47,10 @@ const DATA: RirekishoTemplateData = {
   ],
   shokureki: [
     { year: "2089", month: "4", text: "架空株式会社 入社" },
-    { year: "2095", month: "3", text: "一身上の都合により架空株式会社を退社" },
+    { year: "2095", month: "3", text: "一身上の都合により退社" },
   ],
   shikaku: [
-    { year: "2090", month: "6", text: "架空技術者試験 合格 取得" },
+    { year: "2090", month: "6", text: "架空技術者試験　合格" },
     { year: "2092", month: "9", text: "架空講習課程 修了" },
   ],
   motivation: "架空の志望動機。",

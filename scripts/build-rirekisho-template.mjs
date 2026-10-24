@@ -100,7 +100,8 @@ const T = [
     [2, (r) => setRow(r, { 0: ['{#gakureki}{year}'], 1: ['{month}'], 2: ['{text}{/gakureki}'] })],
     [8, (r) => setRow(r, { 0: ['職歴'] })],
     [9, (r) => setRow(r, { 0: ['{#shokureki}{year}'], 1: ['{month}'], 2: ['{text}{/shokureki}'] })],
-    [17, (r) => setRow(r, { 0: ['以上'] })],
+    // 以上 closes the table on the right, as the convention sets it (#117 R4).
+    [17, (r) => setRow(r, { 0: ['以上'] }).replace('<w:jc w:val="center"/>', '<w:jc w:val="right"/>')],
   ]), new Set([3, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 16])),
   // T3 免許・資格
   (t) => editRows(t, new Map([
@@ -126,7 +127,8 @@ xml = rebuild(xml, tableSpans, new Map(T.map((fn, i) => [i, fn])));
 // title block: everything before the first table
 {
   const head = xml.slice(0, xml.indexOf('<w:tbl>'));
-  xml = setCell(head, ['履 歴 書', '{submitYear}年 {submitMonth}月 {submitDay}日 ']) + xml.slice(head.length);
+  // 「年　月　日現在」 is the 厚労省様式例's date cell (#117 R5).
+  xml = setCell(head, ['履 歴 書', '{submitYear}年 {submitMonth}月 {submitDay}日現在']) + xml.slice(head.length);
 }
 
 // strip the photo; lock column widths so a long value cannot move 年/月
@@ -155,7 +157,7 @@ fs.writeFileSync(`${WORK}/docProps/core.xml`,
 // --- HARD GATE: the template may contain nothing but furniture + placeholders
 const norm = (s) => s.replace(/[ 　]/g, '');
 const ALLOWED = new Set(['履 歴 書', 'ふりがな', '名前', '現住所', '連絡先', '年', '月',
-  '学歴・職歴', '学歴', '職歴', '以上', '免許・資格',
+  '学歴・職歴', '学歴', '職歴', '以上', '免許・資格', '現在',
   '志望動機・特技・アピールポイントなど', '本人希望欄'].map(norm));
 const leaks = [...xml.matchAll(/<w:t(?: [^>]*)?>([\s\S]*?)<\/w:t>/g)]
   .map((m) => m[1])

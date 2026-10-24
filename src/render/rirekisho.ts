@@ -291,7 +291,7 @@ export function rirekishoWarnings(record: {
 export function rirekishoTemplateData(inputs: RirekishoInputs): RirekishoTemplateData {
   const { profile, record, submittedOn, content } = inputs;
   const birth = ymd(profile.dateOfBirth);
-  const tables = rirekishoTables(record);
+  const tables = rirekishoTables(record, submittedOn);
 
   return {
     ...submissionStamp(submittedOn),

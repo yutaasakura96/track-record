@@ -34,7 +34,7 @@ const DATA: RirekishoTemplateData = {
     { year: "2085", month: "4", text: "架空大学 架空学部 入学" },
   ],
   shokureki: [{ year: "2089", month: "4", text: "架空株式会社 入社" }],
-  shikaku: [{ year: "2090", month: "6", text: "架空技術者試験 合格 取得" }],
+  shikaku: [{ year: "2090", month: "6", text: "架空技術者試験　合格" }],
   motivation: "架空の志望動機 & <その理由>。",
   kibou: "貴社規定に従います。",
 };
@@ -48,7 +48,7 @@ describe("a filled 履歴書, read back out of its file", () => {
   it("opens with the title spaced as the file spaces it, then the date on the right", () => {
     const lines = sheet.blocks.flatMap((block) => (block.kind === "line" && block.line.text.trim() ? [block.line] : []));
     expect(lines[0]).toEqual({ text: "履 歴 書", align: "center", size: "title", bold: true, beforeTwips: 0, afterTwips: 200 });
-    expect(lines[1]).toMatchObject({ text: "2099年 4月 1日 ", align: "end" });
+    expect(lines[1]).toMatchObject({ text: "2099年 4月 1日現在", align: "end" });
   });
 
   it("lays the identity out in cells, every template field in its place, beside one 写真 cell three rows tall", () => {
@@ -79,9 +79,12 @@ describe("a filled 履歴書, read back out of its file", () => {
       ["以上"],
     ]);
     for (const at of [1, 4, 6]) expect(history!.rows[at]![0]).toMatchObject({ colSpan: 3, rowSpan: 1 });
+    // 以上 closes the table on the right; the two bands stay centred.
+    expect(history!.rows[6]![0]!.lines[0]!.align).toBe("end");
+    expect(history!.rows[1]![0]!.lines[0]!.align).toBe("center");
     expect(history!.rows[0]!.every((cell) => cell.lines[0]!.bold && cell.shaded)).toBe(true);
     expect(history!.rows[2]!.some((cell) => cell.shaded)).toBe(false);
-    expect(licences!.rows.map(texts)).toEqual([["年", "月", "免許・資格"], ["2090", "6", "架空技術者試験 合格 取得"]]);
+    expect(licences!.rows.map(texts)).toEqual([["年", "月", "免許・資格"], ["2090", "6", "架空技術者試験　合格"]]);
   });
 
   it("is the sheet the client suite draws, so a screen test reads what the file holds", () => {
