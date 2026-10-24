@@ -24,6 +24,7 @@ import { employerSetByHand } from "../db/fact-employer";
 import { requireOwnedEmployer } from "./record";
 import { flagsOf, repeatFlagged, type FlagResponse } from "./flags";
 import { classifyClaim, sortFact } from "~/pipeline/flags";
+import { creditsExhaustedError } from "../services/model-credits";
 import { ModelUnavailableError, type ModelUsage } from "~/model";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
@@ -218,6 +219,8 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       );
     } catch (err) {
       if (!(err instanceof ModelUnavailableError)) throw err;
+      const outOfCredits = creditsExhaustedError(err, "grade");
+      if (outOfCredits) throw outOfCredits;
       throw new ApiError("upstream_unavailable", "The facts could not be sorted just now. Nothing was changed; try again.");
     }
 

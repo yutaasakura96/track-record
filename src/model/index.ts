@@ -27,7 +27,7 @@ export type {
   RenderFact,
   RenderSpec,
 } from "./types";
-export { ModelUnavailableError } from "./types";
+export { CREDITS_EXHAUSTED_MESSAGE, ModelCreditsExhaustedError, ModelUnavailableError } from "./types";
 
 /**
  * The Worker bindings the model seam reads. `src/server/env.ts` extends the
