@@ -242,6 +242,16 @@ describe("a claim that states a number its passage does not", () => {
     ["a digit ratio missing from the passage", "Resolved 2 of 5 reports", "Resolved 5 reports.", []],
     ["a word ratio against a different denominator", "Resolved two in 5 reports", "Resolved two in 50 reports.", []],
     ["a digit ratio against a different denominator", "Resolved 2 of 5 reports", "Resolved 2 of 50 reports.", []],
+    ["a Japanese daily divisor against monthly", "Handled 5件/日", "Handled 5件/月.", []],
+    ["a Japanese monthly divisor against daily", "Handled 5件/月", "Handled 5件/日.", []],
+    ["a percentage of users against revenue", "Reached 5% of users", "Reached 5% of revenue.", []],
+    ["a percentage of revenue against users", "Reached 5% of revenue", "Reached 5% of users.", []],
+    ["a percentage qualifier absent from the passage", "Reached 5% of users", "Reached 5%.", []],
+    ["a percentage qualifier absent from the claim", "Reached 5%", "Reached 5% of users.", []],
+    ["a count found only in an out-of ratio", "Resolved 5 reports", "Resolved 3 out of 5 reports.", []],
+    ["a word count found only in an out-of ratio", "Resolved 5 reports", "Resolved three out of 5 reports.", []],
+    ["an out-of ratio absent from the passage", "Resolved 3 out of 5 reports", "Resolved 5 reports.", []],
+    ["an out-of ratio with a different denominator", "Resolved 3 out of 5 reports", "Resolved 3 out of 50 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -300,6 +310,11 @@ describe("a claim that states a number its passage does not", () => {
     ["the same monthly suffix", "Served 5 users monthly", "Served 5 users monthly.", []],
     ["the same word ratio", "Resolved two in 5 reports", "Resolved two in 5 reports.", []],
     ["the same digit ratio", "Resolved 2 of 5 reports", "Resolved 2 of 5 reports.", []],
+    ["the same Japanese divisor", "Handled 5件/日", "Handled 5件/日.", []],
+    ["the same percentage qualifier", "Reached 5% of users", "Reached 5% of users.", []],
+    ["the same bare percentage with an adverb", "Reached 5%", "Reached 5% overall.", []],
+    ["the same out-of ratio", "Resolved 3 out of 5 reports", "Resolved 3 out of 5 reports.", []],
+    ["the same word out-of ratio", "Resolved three out of 5 reports", "Resolved three out of 5 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));

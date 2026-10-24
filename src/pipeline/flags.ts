@@ -160,7 +160,7 @@ const WORD_NUMBER =
 const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 const NUMBER_FIGURE = new RegExp(
   [
-    `(?:${WORD_NUMBER}|\\d+) (?:in|of) (?:${WORD_NUMBER}|\\d+)`,
+    `(?:${WORD_NUMBER}|\\d+) (?:in|of|out of) (?:${WORD_NUMBER}|\\d+)`,
     `\\b${WORD_NUMBER}\\b`,
     `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?`,
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|[ヶヵカか](?:月|国|所)|箇所|週間|時間|秒|社|台|円|回|%)",
@@ -195,7 +195,7 @@ const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\
 const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 
 const MODIFIER_WORD = new RegExp(`^${MODIFIER}$`, "u");
-const STOP_WORD = /^(?:and|or|but|in|on|at|by|from|to|of|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had)$/u;
+const STOP_WORD = /^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$/u;
 const JAPANESE_RATE = /^\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
@@ -223,6 +223,10 @@ function quantityAfter(tail: string): string {
       rest = first.slice(counter.length);
       const rate = rest.match(JAPANESE_RATE)?.[0];
       if (rate) words.push(rate);
+      else if (rest.startsWith("/")) {
+        const divisor = rest.slice(1).match(COUNTER_UNIT)?.[0] ?? rest.slice(1).match(COUNTER_RUN)?.[0];
+        if (divisor) words.push(`/${divisor}`);
+      }
       break;
     }
     const character = [...first][0] ?? "";
@@ -233,7 +237,6 @@ function quantityAfter(tail: string): string {
     }
     if (character === "+" || character === "%" || character === "×" || character === "x") {
       words.push(character);
-      if (character === "%") break;
       rest = first.slice(character.length);
       continue;
     }
@@ -250,7 +253,7 @@ function splitScale(tail: string, scaled: boolean): [string, string] {
 }
 
 function sourcedFigure(figure: string, following: string, passage: string): boolean {
-  const head = figure.match(new RegExp(`^(?:${WORD_NUMBER}|\\d+) (?:in|of) (?:${WORD_NUMBER}|\\d+)`, "u"))
+  const head = figure.match(new RegExp(`^(?:${WORD_NUMBER}|\\d+) (?:in|of|out of) (?:${WORD_NUMBER}|\\d+)`, "u"))
     ?? figure.match(/^[¥$€£]?\d+(?:\.\d+)?/u)
     ?? figure.match(new RegExp(`^[${KANJI_NUMBER}]+`, "u"))
     ?? figure.match(/^[a-z]+(?:-[a-z]+)?/u);
@@ -265,7 +268,7 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
     ? new RegExp(`(?<![${KANJI_NUMBER}])${escapePattern(number)}(?![${KANJI_NUMBER}])`, "gu")
     : new RegExp(`(?<![a-z0-9_.¥$€£])(?<![a-z]-)${escapePattern(number)}${/[a-z]$/u.test(number) ? "(?![a-z])" : ""}(?!\\d|[.,]\\d)`, "gu");
   for (const match of passage.matchAll(pattern)) {
-    if (new RegExp(`(?:\\b${WORD_NUMBER}|\\b\\d+)\\s+(?:in|of)\\s+$`, "u").test(passage.slice(0, match.index))) continue;
+    if (new RegExp(`(?:\\b${WORD_NUMBER}|\\b\\d+)\\s+(?:in|of|out of)\\s+$`, "u").test(passage.slice(0, match.index))) continue;
     const [quoteScale, quoteTail] = splitScale(passage.slice(match.index + match[0].length), !kanji);
     if (quoteScale !== scale) continue;
     if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
