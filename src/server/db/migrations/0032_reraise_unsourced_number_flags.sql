@@ -25,18 +25,27 @@ DECLARE
 BEGIN
   LOOP
     first := regexp_replace(regexp_replace(rest, '^\s+', ''), '^-(?=[a-z])', '');
+    IF first ~ '^(?:(?:(?:per|a|an)\s+|/)(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\M|/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))' THEN
+      RETURN btrim(substring(first from '^(?:(?:(?:per|a|an)\s+|/)(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\M|/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))'));
+    END IF;
     word := substring(first from '^[a-z]+(?:-[a-z]+)*');
-    IF word ~ '^(?:active|senior|junior|new|unique|paying|registered|daily|monthly|weekly|internal|external|enterprise|production|full-time|part-time|concurrent|distinct)$'
+    IF word = 'active'
       AND substr(first, length(word) + 1) ~ '^\s' THEN
       rest := substr(first, length(word) + 1);
       CONTINUE;
     END IF;
-    IF word IS NOT NULL THEN RETURN word; END IF;
+    IF word IS NOT NULL THEN
+      RETURN word || coalesce(btrim(substring(substr(first, length(word) + 1) from '^(?:\s*(?:(?:per|a|an)\s+|/)(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\M|\s*/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))')), '');
+    END IF;
     counter := coalesce(
       substring(first from '^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)'),
       substring(first from '^[㐀-䶿一-鿿々゠-ヿ]+'));
-    IF counter IS NOT NULL THEN RETURN counter; END IF;
-    IF first = '' OR strpos('.,;:!?''"()[]{}<>/\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’', left(first, 1)) > 0 THEN RETURN ''; END IF;
+    IF counter IS NOT NULL THEN
+      RETURN counter || coalesce(btrim(substring(substr(first, length(counter) + 1) from '^(?:\s*(?:(?:per|a|an)\s+|/)(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\M|\s*/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))')), '');
+    END IF;
+    IF first = '' OR strpos('.,;:!?''"()[]{}<>/\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’', left(first, 1)) > 0 THEN
+      RETURN coalesce(btrim(substring(first from '^(?:\s+(?:per|a|an)\s+(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\M|\s*/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))')), '');
+    END IF;
     RETURN left(first, 1);
   END LOOP;
 END

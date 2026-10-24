@@ -146,18 +146,12 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
   return numberFigures(text, technologies.map(plain)).some(([start, end]) => !sourcedFigure(text.slice(start, end), text.slice(end), passage));
 }
 
-const UNIT =
-  "(?:percent|ms|milliseconds?|seconds?|secs?|s|minutes?|mins?|hours?|hrs?|days?|weeks?|months?|quarters?|years?|" +
-  "kb|mb|gb|tb|pb|requests?|users?|people|engineers?|developers?|members?|services?|teams?|squads?|clients?|" +
-  "customers?|participants?|countries|languages|releases?|times)";
 /**
  * Words that say what is counted without changing how many: `5 million active
  * users` is `5 million users`. A scale, a comparison (`more`, `over`) or an
  * amount (`additional`, `dozen`) is never one.
  */
-const MODIFIER =
-  "(?:active|senior|junior|new|unique|paying|registered|daily|monthly|weekly|internal|external|enterprise|" +
-  "production|full-time|part-time|concurrent|distinct)";
+const MODIFIER = "(?:active)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const SCALE = "(?:hundred|thousand|million|billion)";
 const WORD_NUMBER =
@@ -167,7 +161,7 @@ const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|�
 const NUMBER_FIGURE = new RegExp(
   [
     `(?:one|\\d+) in (?:${WORD_NUMBER}|\\d+)`,
-    `\\b${WORD_NUMBER}(?: ${MODIFIER})* ${UNIT}(?![\\p{L}])`,
+    `\\b${WORD_NUMBER}\\b`,
     `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?(?: ?${UNIT}(?![\\p{L}]))?`,
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|[ヶヵカか](?:月|国|所)|箇所|週間|時間|秒|社|台|円|回|%)",
   ].join("|"),
@@ -201,6 +195,7 @@ const escapePattern = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\
 const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 
 const MODIFIER_WORD = new RegExp(`^${MODIFIER}$`, "u");
+const RATE = /^(?:\s*(?:(?:per|a|an)\s+|\/)(?:seconds?|minutes?|hours?|days?|weeks?|months?|quarters?|years?)\b|\s*\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間))/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
 /** Han and katakana, written out so `migrations/0032` reads the same characters. */
@@ -219,16 +214,19 @@ function unitAfter(tail: string): string {
   let rest = tail;
   for (;;) {
     const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
+    const rate = first.match(RATE)?.[0].trim();
+    if (rate) return rate;
     const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (word && MODIFIER_WORD.test(word) && /^\s/u.test(first.slice(word.length))) {
       rest = first.slice(word.length);
       continue;
     }
-    if (word) return word;
+    if (word) return word + (first.slice(word.length).match(RATE)?.[0].trim() ?? "");
     const counter = first.match(COUNTER_UNIT)?.[0] ?? first.match(COUNTER_RUN)?.[0];
-    if (counter) return counter;
+    if (counter) return counter + (first.slice(counter.length).match(RATE)?.[0].trim() ?? "");
     const character = [...first][0] ?? "";
-    return character === "" || PUNCTUATION.includes(character) ? "" : character;
+    if (character === "" || PUNCTUATION.includes(character)) return first.match(RATE)?.[0].trim() ?? "";
+    return character;
   }
 }
 

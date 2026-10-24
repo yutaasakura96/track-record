@@ -210,6 +210,28 @@ describe("a claim that states a number its passage does not", () => {
     ["a word number followed by a modifier and its unit", "Mentored five senior engineers", "Mentored senior engineers.", []],
     ["a kanji count of countries", "三カ国で展開した", "展開した。", []],
     ["a sign after the number", "Grew to 5+ teams", "Grew to 5 teams.", []],
+    ["daily scope against monthly scope", "Served 5 daily users", "Served 5 monthly users.", []],
+    ["monthly scope against daily scope", "Served 5 monthly users", "Served 5 daily users.", []],
+    ["unique scope against new scope", "Served 5 unique users", "Served 5 new users.", []],
+    ["new scope against unique scope", "Served 5 new users", "Served 5 unique users.", []],
+    ["a word number with a daily scope", "Served five daily users", "Served five monthly users.", []],
+    ["a word number with a monthly scope", "Served five monthly users", "Served five daily users.", []],
+    ["a concurrent scope", "Served 5 concurrent users", "Served 5 users.", []],
+    ["a concurrent scope in the passage", "Served 5 users", "Served 5 concurrent users.", []],
+    ["a monthly rate against a yearly rate", "Served 5 users per month", "Served 5 users per year.", []],
+    ["a yearly rate against a monthly rate", "Served 5 users per year", "Served 5 users per month.", []],
+    ["a daily rate absent from the passage", "Served 5 users a day", "Served 5 users.", []],
+    ["a daily rate absent from the claim", "Served 5 users", "Served 5 users a day.", []],
+    ["a word number with a different rate", "Served five users per month", "Served five users per year.", []],
+    ["a word number with the opposite rate", "Served five users per year", "Served five users per month.", []],
+    ["a bare monthly rate against a yearly rate", "Served 5 per month", "Served 5 per year.", []],
+    ["a bare yearly rate against a monthly rate", "Served 5 per year", "Served 5 per month.", []],
+    ["a slash rate against another", "Served 5 users/month", "Served 5 users/year.", []],
+    ["the opposite slash rate", "Served 5 users/year", "Served 5 users/month.", []],
+    ["a Japanese monthly rate against a yearly rate", "5件毎月処理した", "5件毎年処理した。", []],
+    ["a Japanese yearly rate against a monthly rate", "5件毎年処理した", "5件毎月処理した。", []],
+    ["a Japanese month period absent from the passage", "5件月間処理した", "5件処理した。", []],
+    ["a Japanese month period absent from the claim", "5件処理した", "5件月間処理した。", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -217,8 +239,8 @@ describe("a claim that states a number its passage does not", () => {
 
   const sourced: [string, string, string | null, string[]][] = [
     ["a figure the passage states", "Raised coverage to 85%", "Coverage rose to 85% by spring.", []],
-    ["a figure the passage writes with a thousands comma", "Served 1200 users", "It served 1,200 users a day.", []],
-    ["a full-width thousands comma", "Served １，２００ users", "It served 1,200 users a day.", []],
+    ["a figure the passage writes with a thousands comma", "Served 1200 users", "It served 1,200 users.", []],
+    ["a full-width thousands comma", "Served １，２００ users", "It served 1,200 users.", []],
     ["full-width digits against half-width", "応答時間を３秒に短縮した", "応答時間を3秒に短縮した。", []],
     ["a figure in kanji the passage also has", "五名のチームを率いた", "五名のチームを率いた。", []],
     ["a figure in words the passage also has", "Mentored five engineers", "I mentored five engineers.", []],
@@ -237,7 +259,7 @@ describe("a claim that states a number its passage does not", () => {
     ["a technology name with a digit in it", "Moved the archive to S3 and EC2", "Moved the archive.", ["S3", "EC2"]],
     ["a versioned technology", "Upgraded the service to Java 17", "Upgraded the service.", ["Java 17"]],
     ["an abbreviated scale the passage states", "Saved $2.5M", "We saved $2.5M.", []],
-    ["a thousands abbreviation the passage states", "Handled 10k requests", "It handled 10k requests a day.", []],
+    ["a thousands abbreviation the passage states", "Handled 10k requests", "It handled 10k requests.", []],
     ["a range the passage states", "Cut response time by 30-40%", "Response time fell by 30-40% overall.", []],
     ["a count range the passage states", "Grew the team from 5-10 engineers", "The team grew from 5-10 engineers.", []],
     ["digits inside names and words", "Enabled 2FA on EC2 and K8s", "Enabled sign-in checks.", []],
@@ -258,6 +280,12 @@ describe("a claim that states a number its passage does not", () => {
     ["a kanji counter the passage follows with more kanji", "3名のチームを率いた", "3名体制のチームを率いた。", []],
     ["a scale in kanji before its counter", "3万人が利用した", "3万人が利用した。", []],
     ["a sign after the number the passage states", "Grew to 5+ teams", "Grew to 5+ teams.", []],
+    ["the same monthly rate", "Served 5 users per month", "Served 5 users per month.", []],
+    ["the same daily rate", "Served 5 users a day", "Served 5 users a day.", []],
+    ["the same bare rate", "Served 5 per month", "Served 5 per month.", []],
+    ["the same slash rate", "Served 5 users/month", "Served 5 users/month.", []],
+    ["the same Japanese monthly rate", "5件毎月処理した", "5件毎月処理した。", []],
+    ["the same Japanese month period", "5件月間処理した", "5件月間処理した。", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
