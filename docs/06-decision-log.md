@@ -7391,3 +7391,12 @@ normalisation, with only `active` and `senior` allowed as inserted descriptive w
 denominator, whether preceded by a word or digit numerator, does not source a plain count. Unknown
 qualifiers stay distinct, so an uncertain match remains flagged. Migration 0032 applies the same
 rule when re-evaluating system-settled digit flags.
+
+---
+
+### [2026-10-24] Clarification on the 0032 backfill scope
+
+The 2026-10-23 backfill bullet overstates what 0032 can re-raise. Migration 0031 left claims
+containing a number word or kanji figure open, so 0032 cannot encounter those claims among the
+flags it re-evaluates. It re-raises only previously system-settled digit flags that fail the new
+comparison; it does not settle or change other flags.
