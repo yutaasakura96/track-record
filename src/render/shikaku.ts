@@ -28,7 +28,7 @@ const ENDS_IN_VERB = /(合格|取得|登録)$/;
 const SCORE = /\d\s*点|スコア|\bscore\b/i;
 
 /** An examination or a 検定 is passed, not obtained. */
-const EXAMINATION = /試験|検定|\bexam(ination)?\b/i;
+const EXAMINATION = /試験|検定|英検|(?:^|[^A-Za-z])JLPT\s*N[1-5](?![A-Za-z0-9])|\bexam(ination)?\b/i;
 
 export type CertificationVerb = "合格" | "取得";
 
