@@ -29,7 +29,7 @@ BEGIN
     first := regexp_replace(regexp_replace(rest, '^\s+', ''), '^-(?=[a-z])', '');
     word := substring(first from '^[a-z]+(?:-[a-z]+)*');
     IF word IS NOT NULL THEN
-      EXIT WHEN phrase <> '' AND word ~ '^(?:and|or|but|in|on|at|by|from|to|of|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had)$';
+      EXIT WHEN phrase <> '' AND word ~ '^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$';
       IF word !~ '^(?:active|senior)$' THEN phrase := concat_ws(' ', nullif(phrase, ''), word); END IF;
       rest := substr(first, length(word) + 1);
       CONTINUE;
@@ -42,6 +42,12 @@ BEGIN
       rest := substr(first, length(counter) + 1);
       word := substring(rest from '^/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)');
       IF word IS NOT NULL THEN phrase := phrase || ' ' || word; END IF;
+      IF word IS NULL AND left(rest, 1) = '/' THEN
+        word := coalesce(
+          substring(substr(rest, 2) from '^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)'),
+          substring(substr(rest, 2) from '^[㐀-䶿一-鿿々゠-ヿ]+'));
+        IF word IS NOT NULL THEN phrase := phrase || ' /' || word; END IF;
+      END IF;
       EXIT;
     END IF;
     character := left(first, 1);
@@ -52,7 +58,6 @@ BEGIN
     END IF;
     IF character IN ('+', '%', '×', 'x') THEN
       phrase := concat_ws(' ', nullif(phrase, ''), character);
-      EXIT WHEN character = '%';
       rest := substr(first, 2);
       CONTINUE;
     END IF;
@@ -97,7 +102,7 @@ BEGIN
     RETURN true;
   END IF;
 
-  figure_pattern := '[0-9]+ (?:in|of) [0-9]+|[¥$€£]?[0-9]+(?:\.[0-9]+)?(?:(?:bn|[kmb])(?![0-9]|' || letter || ')|\s?' || counter
+  figure_pattern := '[0-9]+ (?:in|of|out of) [0-9]+|[¥$€£]?[0-9]+(?:\.[0-9]+)?(?:(?:bn|[kmb])(?![0-9]|' || letter || ')|\s?' || counter
     || '|x(?!' || letter || '))?(?: (?:hundred|thousand|million|billion))?';
 
   FOR n IN 1..regexp_count(claim_text, figure_pattern) LOOP
@@ -129,7 +134,7 @@ BEGIN
     CONTINUE WHEN named;
 
     -- The same complete quantity in the quote, or the figure is unsourced.
-    head := coalesce(substring(figure from '^[0-9]+ (?:in|of) [0-9]+'), substring(figure from '^[¥$€£]?[0-9]+(?:\.[0-9]+)?'));
+    head := coalesce(substring(figure from '^[0-9]+ (?:in|of|out of) [0-9]+'), substring(figure from '^[¥$€£]?[0-9]+(?:\.[0-9]+)?'));
     rest := substr(figure, length(head) + 1) || substr(claim_text, figure_end);
     scale := coalesce(substring(rest from '^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])'), '');
     claim_tail := substr(rest, length(scale) + 1);
@@ -140,7 +145,7 @@ BEGIN
     sourced := false;
     FOR occurrence IN 1..regexp_count(passage, occurrence_pattern) LOOP
       quote_prefix := left(passage, regexp_instr(passage, occurrence_pattern, 1, occurrence) - 1);
-      CONTINUE WHEN quote_prefix ~ '\m(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|[0-9]+)\M\s+(?:in|of)\s+$';
+      CONTINUE WHEN quote_prefix ~ '\m(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|[0-9]+)\M\s+(?:in|of|out of)\s+$';
       quote_rest := substr(passage, regexp_instr(passage, occurrence_pattern, 1, occurrence) + length(head));
       quote_scale := coalesce(substring(quote_rest from '^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])'), '');
       quote_rest := substr(quote_rest, length(quote_scale) + 1);
