@@ -1012,12 +1012,13 @@ ascending by date from **two** sources:
 
 **Every row ends in a verb.** The name alone is not a row. A vocational `educations` row takes
 **修了**. A `certifications` row takes **合格** when its name is an examination or a 検定 (試験,
-検定) and **取得** for a licence, a score or a vendor certification; a score (点, スコア) is 取得 even
-when the test calls itself one. A name that already ends in 合格, 取得 or 登録 is printed as given,
+検定, 英検 or JLPT with its level) and **取得** for a licence, a score or a vendor certification;
+score-based tests such as Versant, TOEIC, IELTS and TOEFL remain 取得. A score (点, スコア) is 取得 even
+when the test calls itself an examination. A name that already ends in 合格, 取得 or 登録 is printed as given,
 with no second verb, and the form's 資格名 field asks for the name alone. `kind` cannot make this
 choice — technical / language / other does not separate an examination from a licence — and the
-name a Japanese reader sees can. The rule is `src/render/shikaku.ts`, shared with the 職務経歴書's
-保有資格. The verb is composed by the render, not stored on `certifications` and not held in the
+name a Japanese reader sees can. The rule is `src/render/shikaku.ts`; the 職務経歴書's 保有資格 has
+not yet adopted it. The verb is composed by the render, not stored on `certifications` or held in the
 template, which carries a single `{text}` per row exactly as the 学歴・職歴 table does. A render that
 emits bare names is the failure mode `docs/03` §12 describes: invisible to the author, obvious to a
 Japanese reader.

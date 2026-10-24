@@ -749,7 +749,8 @@ Top to bottom in the 940px column:
    chip. The chip is read from `src/shared/education.ts`; the separate inclusion line reflects the
    author's per-render settings. A certification carries `expired YYYY-MM`,
    `expires this month` or `expires in N months` (three months ahead) as a neutral chip. Expired
-   certifications still print; the chip says so much and no more.
+   certifications remain visible in the Career timeline; the chip says so much and no more. Their
+   eligibility for generated documents follows each render's rule (`04` §4 for 履歴書).
 
 Counts come from `GET /api/career-timeline` (`07` §4): accepted facts only, called achievements
 here.
