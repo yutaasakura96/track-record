@@ -7380,3 +7380,14 @@ This supersedes the matching and backfill bullets of 2026-10-22 above.
   system named` claimed a check that nothing makes: only the fact's disclosure is known.
 - **Revisit if:** the descriptive-word list misses a word the record uses often; each miss flags the
   fact, which errs toward a look.
+
+---
+
+### [2026-10-24] The number flag retains trailing quantity qualifiers
+
+This supersedes the next-word matching detail of 2026-10-23. A quantity phrase carries its scale,
+following words and trailing rate or scope qualifier. The quote must hold the same phrase after
+normalisation, with only `active` and `senior` allowed as inserted descriptive words. A ratio
+denominator, whether preceded by a word or digit numerator, does not source a plain count. Unknown
+qualifiers stay distinct, so an uncertain match remains flagged. Migration 0032 applies the same
+rule when re-evaluating system-settled digit flags.

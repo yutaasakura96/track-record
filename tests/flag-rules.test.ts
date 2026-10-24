@@ -232,6 +232,16 @@ describe("a claim that states a number its passage does not", () => {
     ["a Japanese yearly rate against a monthly rate", "5件毎年処理した", "5件毎月処理した。", []],
     ["a Japanese month period absent from the passage", "5件月間処理した", "5件処理した。", []],
     ["a Japanese month period absent from the claim", "5件処理した", "5件月間処理した。", []],
+    ["requests per user against per server", "Handled 5 requests per user", "Handled 5 requests per server.", []],
+    ["requests per server against per user", "Handled 5 requests per server", "Handled 5 requests per user.", []],
+    ["monthly users against daily users", "Served 5 users monthly", "Served 5 users daily.", []],
+    ["daily users against monthly users", "Served 5 users daily", "Served 5 users monthly.", []],
+    ["a count found only in a word ratio", "Resolved 5 reports", "Resolved two in 5 reports.", []],
+    ["a count found only in a digit ratio", "Resolved 5 reports", "Resolved 2 of 5 reports.", []],
+    ["a word ratio missing from the passage", "Resolved two in 5 reports", "Resolved 5 reports.", []],
+    ["a digit ratio missing from the passage", "Resolved 2 of 5 reports", "Resolved 5 reports.", []],
+    ["a word ratio against a different denominator", "Resolved two in 5 reports", "Resolved two in 50 reports.", []],
+    ["a digit ratio against a different denominator", "Resolved 2 of 5 reports", "Resolved 2 of 50 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -286,6 +296,10 @@ describe("a claim that states a number its passage does not", () => {
     ["the same slash rate", "Served 5 users/month", "Served 5 users/month.", []],
     ["the same Japanese monthly rate", "5件毎月処理した", "5件毎月処理した。", []],
     ["the same Japanese month period", "5件月間処理した", "5件月間処理した。", []],
+    ["the same per-user rate", "Handled 5 requests per user", "Handled 5 requests per user.", []],
+    ["the same monthly suffix", "Served 5 users monthly", "Served 5 users monthly.", []],
+    ["the same word ratio", "Resolved two in 5 reports", "Resolved two in 5 reports.", []],
+    ["the same digit ratio", "Resolved 2 of 5 reports", "Resolved 2 of 5 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
