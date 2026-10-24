@@ -22,8 +22,7 @@ import { RENDER_DEFINITIONS } from "~/render/spec";
 import { REQUIRED_PROFILE_FIELDS } from "~/render/rirekisho";
 import { EXPERIENCE_SECTION as MEASURED_SECTION } from "~/render/metrics";
 import { EXPERIENCE_SECTION as ATTRIBUTED_SECTION } from "~/render/attribution";
-import { buildGenerationPrompt, capitalInJapanese } from "~/model/generate";
-import type { RenderSpec } from "~/model/types";
+import { capitalInJapanese } from "~/model/generate";
 import { documentDate, isDated } from "~/render/identity";
 import { nameInLanguage } from "~/server/services/render";
 import { checkAttribution, copiedPairs, copyIsPermitted, experienceGroups } from "~/render/attribution";
@@ -31,6 +30,7 @@ import { experienceBullets, measureBullets } from "~/render/metrics";
 import type { RenderContent } from "~/shared/render-content";
 import { RENDER_KINDS } from "~/shared/render-content";
 import { leavesOutEducation } from "~/shared/education";
+import { CERTIFICATIONS_SECTION, EDUCATION_SECTION } from "~/render/shokumu";
 
 const definition = RENDER_DEFINITIONS.shokumu_keirekisho;
 
@@ -88,9 +88,18 @@ describe("the register's contract with the rest of the codebase", () => {
   });
 
   it("names every section it claims to write", () => {
-    for (const key of ["summary", "skills", "experience", "certifications", "education", "self_pr"]) {
+    for (const key of ["summary", "skills", "experience", "self_pr"]) {
       expect(definition.register, `${key} is not named`).toContain(`"${key}"`);
     }
+  });
+
+  it("leaves 保有資格 and 学歴 to the record, and asks for no section for either", () => {
+    // Issue #117. The renderer writes both (`src/render/shokumu.ts`); a
+    // register still listing their keys would have the model write a copy
+    // that `withRecordSections` throws away.
+    expect(definition.register).toContain("保有資格 and 学歴 are not yours to write");
+    expect(definition.register).not.toContain(`"${CERTIFICATIONS_SECTION}"`);
+    expect(definition.register).not.toContain(`"${EDUCATION_SECTION}"`);
   });
 
   it("forbids converting the 資本金 figure, because the prompt converted it already", () => {
@@ -109,44 +118,11 @@ describe("the register's contract with the rest of the codebase", () => {
     expect(RENDER_DEFINITIONS.english_resume.register).toContain("past-tense action verb");
   });
 
-  it("keeps a vocational programme in 学歴 and drops lower secondary, as the timeline's chip says", () => {
-    const spec: RenderSpec = {
-      kind: "shokumu_keirekisho",
-      language: "ja",
-      subjectName: "山田太郎",
-      register: definition.register,
-      jobDescription: null,
-      employers: [],
-      projects: [],
-      workOutsideEmployment: false,
-      desiredRoleNote: null,
-      educations: [{
-        id: "edu_vocational",
-        institution: "架空技術専門学校",
-        faculty: null,
-        degree: null,
-        fieldOfStudy: null,
-        startedOn: "2015-04-01",
-        endedOn: "2017-03-01",
-        outcome: "completed",
-        level: "vocational",
-      }],
-      certifications: [],
-      curatedSkills: null,
-    };
-    const prompt = buildGenerationPrompt(spec);
-    expect(prompt).toContain("- id edu_vocational · 架空技術専門学校");
-    expect(prompt).toContain("level: post-secondary vocational, non-degree");
-    expect(prompt).toContain("omit one below upper-secondary level");
-    expect(prompt).toContain("keep every other entry including a vocational programme");
+  it("drops lower secondary, as the timeline's chip says", () => {
     expect(leavesOutEducation("shokumu_keirekisho", "secondary_lower")).toBe(true);
     for (const level of ["secondary_upper", "vocational", "tertiary", "postgraduate", null] as const) {
       expect(leavesOutEducation("shokumu_keirekisho", level), String(level)).toBe(false);
     }
-  });
-
-  it("puts a driving licence in 保有資格", () => {
-    expect(definition.register).toContain("A driving licence DOES belong here");
   });
 });
 

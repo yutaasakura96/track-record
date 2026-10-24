@@ -9,9 +9,9 @@ import { isFolded, laterUse, placeSkill, stepSkill, type CuratedGroup } from "~/
 import { rankedSkills, resumeSkills, skillsSectionPage } from "~/render/resume";
 
 const GROUPS: CuratedGroup[] = [
-  { name: "Qorvane stack", skills: ["Plinth", "Quillset", "Vorbit"] },
-  { name: "Zentrel tools", skills: ["Zentrel CLI"] },
-  { name: "Nimbrel", skills: ["Halvane", "Ostrum"] },
+  { name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset", "Vorbit"] },
+  { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI"] },
+  { name: "Nimbrel", nameJa: null, skills: ["Halvane", "Ostrum"] },
 ];
 
 describe("a picked-up skill's steps", () => {
@@ -39,7 +39,7 @@ describe("a picked-up skill's steps", () => {
 
   it("leaves a group it empties in place, for the save to drop", () => {
     const moved = stepSkill(GROUPS, "Zentrel CLI", "next group")!;
-    expect(moved[1]).toEqual({ name: "Zentrel tools", skills: [] });
+    expect(moved[1]).toEqual({ name: "Zentrel tools", nameJa: null, skills: [] });
   });
 });
 

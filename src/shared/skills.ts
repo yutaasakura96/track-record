@@ -10,6 +10,8 @@
 
 export interface CuratedGroup {
   name: string;
+  /** The name a Japanese document prints. Null = none given, and the model writes one (issue #117). */
+  nameJa: string | null;
   skills: string[];
 }
 
@@ -24,7 +26,7 @@ export type LastUsed = number | "now" | null;
  */
 export function curationForRender(groups: CuratedGroup[], available: Set<string>): CuratedGroup[] {
   return groups
-    .map((g) => ({ name: g.name, skills: g.skills.filter((s) => available.has(s)) }))
+    .map((g) => ({ ...g, skills: g.skills.filter((s) => available.has(s)) }))
     .filter((g) => g.skills.length > 0);
 }
 
@@ -77,12 +79,12 @@ export function placeOf(groups: CuratedGroup[], skill: string): SkillPlace | nul
  * the suggestions, when it was in no group). `to.index` past the end appends.
  */
 export function placeSkill(groups: CuratedGroup[], skill: string, to: SkillPlace): CuratedGroup[] {
-  const without = groups.map((g) => ({ name: g.name, skills: g.skills.filter((s) => s !== skill) }));
+  const without = groups.map((g) => ({ ...g, skills: g.skills.filter((s) => s !== skill) }));
   return without.map((g, i) => {
     if (i !== to.group) return g;
     const skills = [...g.skills];
     skills.splice(Math.min(Math.max(to.index, 0), skills.length), 0, skill);
-    return { name: g.name, skills };
+    return { ...g, skills };
   });
 }
 

@@ -39,6 +39,7 @@ const employer = (over: Partial<Employer> = {}): Employer => ({
   id: "emp_now",
   name: "Harbourline Systems Inc.",
   industry: "情報通信業",
+  employmentType: "full_time",
   startedOn: "2024-01-01",
   endedOn: null,
   businessDescription: null,

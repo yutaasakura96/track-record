@@ -49,6 +49,7 @@ const employer = (over: Partial<Employer> = {}): Employer => ({
   id: "emp_test",
   name: "架空商事株式会社",
   industry: null,
+  employmentType: "full_time",
   startedOn: "2024-10-01",
   endedOn: "2025-03-01",
   businessDescription: null,
@@ -83,8 +84,8 @@ describe("the curated skills list", () => {
     const prompt = buildGenerationPrompt(
       spec([], {
         curatedSkills: [
-          { name: "Data platforms", skills: ["CockroachDB", "Airflow"] },
-          { name: "Release work", skills: ["Pulumi"] },
+          { name: "Data platforms", nameJa: null, skills: ["CockroachDB", "Airflow"] },
+          { name: "Release work", nameJa: null, skills: ["Pulumi"] },
         ],
       }),
     );

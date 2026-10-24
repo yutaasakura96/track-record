@@ -37,6 +37,7 @@ interface Candidate {
 interface Curation {
   groups: {
     name: string;
+    nameJa: string | null;
     skills: { name: string; factCount: number; certificationCount: number; lastUsed: LastUsed; stale: boolean }[];
   }[];
   candidates: Candidate[];
@@ -102,7 +103,7 @@ async function seedRecord() {
 }
 
 const curation = () => client.json<Curation>("/api/skills/curation");
-const curate = (groups: { name: string; skills: string[] }[]) =>
+const curate = (groups: { name: string; nameJa?: string | null; skills: string[] }[]) =>
   client.put("/api/skills/curation", { groups });
 
 async function generated(kind: RenderKind) {
@@ -274,6 +275,30 @@ describe("a curation", () => {
   });
 });
 
+describe("a group's Japanese name", () => {
+  it("is kept with the group, cleared by a blank, and reaches the 職務経歴書", async () => {
+    await seedRecord();
+    await curate([
+      { name: "Data platforms", nameJa: "データ基盤", skills: ["CockroachDB", "Airflow"] },
+      { name: "Qualifications", nameJa: "  ", skills: ["SQL"] },
+    ]);
+    expect((await curation()).groups.map((g) => [g.name, g.nameJa])).toEqual([
+      ["Data platforms", "データ基盤"],
+      ["Qualifications", null],
+    ]);
+    expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual([
+      { name: "Data platforms", nameJa: "データ基盤", skills: ["CockroachDB", "Airflow"] },
+      { name: "Qualifications", nameJa: null, skills: ["SQL"] },
+    ]);
+  });
+
+  it("is optional, so a save that leaves it out stores none", async () => {
+    await seedRecord();
+    expect((await curate([{ name: "Qualifications", skills: ["SQL"] }])).status).toBe(200);
+    expect((await curation()).groups[0]!.nameJa).toBeNull();
+  });
+});
+
 describe("a curated skill the record stops naming", () => {
   it("is flagged, kept in place, and survives the list being saved again", async () => {
     const record = await seedRecord();
@@ -313,8 +338,8 @@ describe("a render with a skills section", () => {
     ]);
 
     const expected = [
-      { name: "Data platforms", skills: ["CockroachDB", "Airflow"] },
-      { name: "Qualifications", skills: ["SQL"] },
+      { name: "Data platforms", nameJa: null, skills: ["CockroachDB", "Airflow"] },
+      { name: "Qualifications", nameJa: null, skills: ["SQL"] },
     ];
     expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual(expected);
     expect((await generated("career_story_en")).curatedSkills).toBeNull();
@@ -336,7 +361,7 @@ describe("a render with a skills section", () => {
     });
 
     expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual([
-      { name: "Data platforms", skills: ["CockroachDB"] },
+      { name: "Data platforms", nameJa: null, skills: ["CockroachDB"] },
     ]);
   });
 
@@ -353,7 +378,7 @@ describe("a render with a skills section", () => {
     });
 
     expect((await generated("shokumu_keirekisho")).curatedSkills).toEqual([
-      { name: "Data platforms", skills: ["CockroachDB"] },
+      { name: "Data platforms", nameJa: null, skills: ["CockroachDB"] },
     ]);
     // Still stale nowhere: the record names it, one render simply leaves it out.
     expect((await curation()).groups[0]!.skills.every((s) => !s.stale)).toBe(true);

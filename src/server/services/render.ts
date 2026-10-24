@@ -29,9 +29,17 @@ import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } fr
 import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
-import { ENGLISH_DEFECT_REASON, MIXED_ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
+import {
+  ENGLISH_DEFECT_REASON,
+  MIXED_ENGLISH_DEFECT_REASON,
+  englishDefect,
+  hasJapaneseScript,
+  isEnglishOnly,
+} from "~/render/language";
 import { bulletBudget } from "~/render/resume";
 import { tokyoToday } from "~/render/rirekisho";
+import { isExpired } from "~/render/shikaku";
+import { withRecordSections } from "~/render/shokumu";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { curatedGroups } from "./skills";
@@ -222,9 +230,13 @@ export async function collectRenderInputs(
   // English prompt can label neither inside the facts' JSON. Repeated once per
   // fact, an unlabelled Japanese industry was the commonest Japanese in the
   // prompt of the English story that came back in Japanese (issue #104). The
-  // Employers and Projects lists still carry both, labelled.
-  const carried = (value: string | null) =>
-    definition.language === "en" && value !== null && hasJapaneseScript(value) ? null : value;
+  // Employers and Projects lists still carry both, labelled. A Japanese prompt
+  // drops an English-only one the same way (issue #117).
+  const carried = (value: string | null) => {
+    if (value === null) return null;
+    if (definition.language === "en") return hasJapaneseScript(value) ? null : value;
+    return isEnglishOnly(value) ? null : value;
+  };
   const renderFacts: RenderFact[] = usable.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
@@ -249,7 +261,7 @@ export async function collectRenderInputs(
         ? {
             project: {
               name: nameInLanguage(definition.language, project.nameJa, project.name),
-              summary: carried(project.summary),
+              summary: carried(definition.language === "ja" ? (project.summaryJa ?? project.summary) : project.summary),
             },
           }
         : {}),
@@ -278,6 +290,7 @@ export async function collectRenderInputs(
         startedOn: e.startedOn,
         endedOn: e.endedOn,
         businessDescription: e.businessDescription,
+        employmentType: e.employmentType,
         // 資本金 and 従業員数. Carried on the employer row since the schema was
         // first drawn and read by nothing until the 職務経歴書 register existed
         // (`docs/06`, 2026-08-12). Passed through as stored — in yen, and as a
@@ -307,7 +320,9 @@ export async function collectRenderInputs(
         // Japanese document wants the Japanese name where the record has one.
         name: nameInLanguage(definition.language, p.nameJa, p.name),
         employerId: p.employerId,
-        summary: p.summary,
+        // A Japanese document takes the Japanese summary, and otherwise the
+        // English one, which the prompt marks as English-only (issue #117).
+        summary: definition.language === "ja" ? (p.summaryJa ?? p.summary) : p.summary,
         startedOn: p.startedOn,
         endedOn: p.endedOn,
       })),
@@ -350,8 +365,12 @@ export async function collectRenderInputs(
       // The 履歴書 omits it outright, because 免許・資格 is 年 / 月 / 名称 and has
       // nowhere to put it (`docs/04` §4); that is the register's rule, not this
       // boundary's, and until it exists the tail is where the row does least.
+      // A lapsed certification is left off the Japanese documents (issue #117),
+      // so a 職務経歴書 summary cannot count one its 保有資格 does not list.
       certifications: inDocumentOrder(
-        certificationRows,
+        definition.language === "ja"
+          ? certificationRows.filter((c) => !isExpired(c.expiresOn, today))
+          : certificationRows,
         "newest_first",
         definition.chronology,
         (c) => c.issuedOn,
@@ -438,6 +457,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         throw new ModelUnavailableError(first === second ? ENGLISH_DEFECT_REASON[second] : MIXED_ENGLISH_DEFECT_REASON, second);
       }
     }
+    // Issue #117. 保有資格 and 学歴 are the record's rows, not the model's.
+    if (inputs.spec.kind === "shokumu_keirekisho") content = withRecordSections(content, inputs.spec, tokyoToday());
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)

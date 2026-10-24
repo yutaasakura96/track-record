@@ -147,13 +147,17 @@ function Curation({ data }: { data: SkillCuration }) {
   const [focusOn, setFocusOn] = useState<{ skill: string } | null>(null);
   const hint = useId();
 
-  const stored: SkillCurationInput = data.groups.map((g) => ({ name: g.name, skills: g.skills.map((s) => s.name) }));
+  const stored: SkillCurationInput = data.groups.map((g) => ({
+    name: g.name,
+    nameJa: g.nameJa,
+    skills: g.skills.map((s) => s.name),
+  }));
   // What was sent is shown until the server answers, so a placed chip does not
   // jump back for the length of a round trip. A refusal re-reads (`useSaveSkillCuration`).
   const saved = save.isPending && save.variables ? save.variables : stored;
   const working: CuratedGroup[] = [
     ...saved,
-    ...drafts.filter((d) => !saved.some((g) => g.name === d)).map((name) => ({ name, skills: [] })),
+    ...drafts.filter((d) => !saved.some((g) => g.name === d)).map((name) => ({ name, nameJa: null, skills: [] })),
   ];
   const groupNames = working.map((g) => g.name);
   const moving = held && !held.adding ? held : null;
@@ -238,7 +242,7 @@ function Curation({ data }: { data: SkillCuration }) {
   const remove = (skill: string) => {
     setHeld(null);
     commit(
-      working.map((g) => ({ name: g.name, skills: g.skills.filter((s) => s !== skill) })),
+      working.map((g) => ({ ...g, skills: g.skills.filter((s) => s !== skill) })),
       "groups",
     );
     setSaid(`${skill} removed from the list.`);
@@ -352,7 +356,7 @@ function Curation({ data }: { data: SkillCuration }) {
       <Panel heading="How it reads on your résumé">
         <p className="mb-12 text-smaller text-text-dim">
           The Skills section the next English résumé prints, from the groups below. The 職務経歴書 lists its
-          活かせるスキル in the same groups and order.
+          活かせるスキル in the same groups and order, under each group's Japanese name.
         </p>
         <div
           aria-label="Résumé preview"
@@ -438,6 +442,26 @@ function Curation({ data }: { data: SkillCuration }) {
                       />
                     ) : null}
                   </div>
+                  {stored ? (
+                    <label className="grid gap-4">
+                      <span className="text-smaller text-text-dim">
+                        Name in the 職務経歴書 — left blank, it is written in Japanese for you
+                      </span>
+                      <input
+                        lang="ja"
+                        defaultValue={group.nameJa ?? ""}
+                        disabled={locked !== undefined}
+                        title={locked}
+                        className={CONTROL}
+                        onBlur={(event) => {
+                          const nameJa = event.target.value.trim() || null;
+                          event.target.value = nameJa ?? "";
+                          if (nameJa === group.nameJa) return;
+                          commit(working.map((g, i) => (i === gi ? { ...g, nameJa } : g)), "groups");
+                        }}
+                      />
+                    </label>
+                  ) : null}
                   {group.skills.length === 0 ? (
                     <p className="text-smaller text-text-faint">
                       Add a skill to keep this group. Drag one here, or pick one up and move it here.

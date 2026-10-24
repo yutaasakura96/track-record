@@ -237,6 +237,14 @@ const PROJECTS: Section = {
     { name: "endedOn", label: "Ended", type: "month", optional: true },
     { name: "summary", label: "Summary", type: "textarea", optional: true, wide: true },
     {
+      name: "summaryJa",
+      label: "概要 · Summary (Japanese)",
+      type: "textarea",
+      optional: true,
+      wide: true,
+      hint: "What the 職務経歴書 writes. Left blank, the summary above is written in Japanese or left out.",
+    },
+    {
       name: "clientIsNamed",
       label: "The client may be named in documents",
       type: "checkbox",

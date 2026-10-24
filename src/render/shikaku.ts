@@ -2,8 +2,8 @@
  * How a Japanese document states a certification: the verb after its name,
  * and whether it is still held.
  *
- * The 履歴書's 免許・資格 rows (`./rirekisho-rows.ts`) use both rules. The
- * 職務経歴書's 保有資格 has yet to adopt them; see #117.
+ * The 履歴書's 免許・資格 rows (`./rirekisho-rows.ts`) use both rules, and the
+ * 職務経歴書's 保有資格 prints those same rows (`./shokumu.ts`, #117).
  *
  * ## The verb is read from the name
  *
@@ -43,9 +43,9 @@ export function certificationVerb(name: string): CertificationVerb | null {
 
 /**
  * A certification whose expiry month has passed is left out. One expiring this
- * month is still held this month. The English résumé and 履歴書 use this rule:
- * a lapsed certification listed under 免許・資格 is a claim to hold something
- * the author no longer holds.
+ * month is still held this month. The English résumé, the 履歴書 and the
+ * 職務経歴書 use this rule: a lapsed certification listed under 免許・資格 is a
+ * claim to hold something the author no longer holds.
  */
 export const isExpired = (expiresOn: string | null, today: string): boolean =>
   expiresOn !== null && expiresOn.slice(0, 7) < today.slice(0, 7);

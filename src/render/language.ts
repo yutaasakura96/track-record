@@ -39,6 +39,17 @@ export const hasJapaneseScript = (text: string): boolean => text.search(JAPANESE
 export const JAPANESE_ONLY_LABEL = "[recorded in Japanese only]";
 
 /**
+ * The same label the other way round (issue #117): what a Japanese prompt
+ * prints before a field the record holds only in English, and what the
+ * Japanese registers name. Unmarked, a project summary written in English was
+ * copied into the 職務経歴書 as English, because the register said to copy it.
+ */
+export const ENGLISH_ONLY_LABEL = "[recorded in English only]";
+
+/** Latin letters and no Japanese script: a field a Japanese document cannot copy. */
+export const isEnglishOnly = (text: string): boolean => /[A-Za-z]/.test(text) && !hasJapaneseScript(text);
+
+/**
  * Above this share, the headings or the blocks are not English. Proposed by the
  * 2026-10-17 evaluation that found the failure. A name the record holds only in
  * Japanese is excluded before the share is taken, so what this allows is the

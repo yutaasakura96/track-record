@@ -11,7 +11,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ModelUnavailableError, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
-import { JAPANESE_ONLY_LABEL, hasJapaneseScript } from "~/render/language";
+import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL, hasJapaneseScript, isEnglishOnly } from "~/render/language";
 import {
   chapterPlan,
   chapterPlanForPrompt,
@@ -98,7 +98,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
         .join("");
       return `- id ${e.id} · ${e.name}${e.industry ? ` (${field(e.industry)})` : ""} · ${monthOf(e.startedOn)} – ${
         e.endedOn ? monthOf(e.endedOn) : "present"
-      }${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${bulletsOf(e)}${held}`;
+      } · ${EMPLOYMENT_WORDING[spec.language][e.employmentType]}${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${bulletsOf(e)}${held}`;
     })
     .join("\n");
   const projects = spec.projects
@@ -126,6 +126,12 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     )
     .join("\n");
 
+  // A Japanese document is given the group's Japanese name where the author
+  // set one, and otherwise the English one, marked, to be written in Japanese
+  // (issue #117). Only the 職務経歴書 among the Japanese renders has a skills
+  // section to print it in.
+  const groupName = (g: { name: string; nameJa: string | null }) =>
+    spec.language === "ja" ? field(g.nameJa ?? g.name) : g.name;
   // S9. Printed only for a render handed a curation. An empty curation still
   // prints, because "the author curated and nothing survives for this render"
   // must not read as "nothing is curated", which would hand the section back
@@ -134,7 +140,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     spec.curatedSkills === null
       ? ""
       : `\nSkills, curated by the author. The skills section uses exactly these groups and these skills, in this order, and names no other technology:\n${
-          spec.curatedSkills.map((g) => `- ${g.name}: ${g.skills.join(", ")}`).join("\n") ||
+          spec.curatedSkills.map((g) => `- ${groupName(g)}: ${g.skills.join(", ")}`).join("\n") ||
           "- none this document may name, so omit the skills section"
         }\n`;
 
@@ -269,17 +275,48 @@ function companyScale(e: RenderSpec["employers"][number], language: RenderSpec["
 }
 
 /**
- * A free-text field, marked when an English document is given it in Japanese.
+ * 雇用形態, in the document's language (issue #117). A 職務経歴書 states it beside
+ * each employer, and for a 派遣 or 契約 entry it is a fact a reader needs rather
+ * than decoration; before this the record held it and no prompt carried it.
+ * The Japanese words are the ones the record form offers.
+ */
+const EMPLOYMENT_WORDING: Record<
+  RenderSpec["language"],
+  Record<RenderSpec["employers"][number]["employmentType"], string>
+> = {
+  en: {
+    full_time: "full-time",
+    contract: "contract",
+    dispatch: "agency dispatch",
+    part_time: "part-time",
+    independent: "self-employed",
+  },
+  ja: {
+    full_time: "雇用形態 正社員",
+    contract: "雇用形態 契約社員",
+    dispatch: "雇用形態 派遣",
+    part_time: "雇用形態 アルバイト",
+    independent: "雇用形態 個人事業主",
+  },
+};
+
+/**
+ * A free-text field, marked when it is not in the document's language.
  *
  * The record keeps one business description and one industry per employer, and
  * an author who keeps a 職務経歴書 writes them in Japanese. Unmarked, they read
  * to the model as the language of the record, and the first English story
  * written from such a record was written in Japanese (issue #104). Marked, the
  * English registers can say what to do with them: write them in English, or
- * leave them out. A Japanese prompt marks nothing.
+ * leave them out.
+ *
+ * A Japanese prompt marks the English-only fields the same way (issue #117):
+ * the 職務経歴書 copied an English project summary into a プロジェクト row
+ * because nothing told it the summary was not Japanese.
  */
 function labelled(language: RenderSpec["language"], value: string): string {
-  return language === "en" && hasJapaneseScript(value) ? `${JAPANESE_ONLY_LABEL} ${value}` : value;
+  if (language === "en") return hasJapaneseScript(value) ? `${JAPANESE_ONLY_LABEL} ${value}` : value;
+  return isEnglishOnly(value) ? `${ENGLISH_ONLY_LABEL} ${value}` : value;
 }
 
 

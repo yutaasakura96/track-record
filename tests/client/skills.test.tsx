@@ -44,8 +44,8 @@ const candidate = (
 
 const STORED: SkillCuration = {
   groups: [
-    { name: "Qorvane stack", skills: [skill("Plinth"), skill("Quillset", 1, "now")] },
-    { name: "Zentrel tools", skills: [skill("Zentrel CLI")] },
+    { name: "Qorvane stack", nameJa: null, skills: [skill("Plinth"), skill("Quillset", 1, "now")] },
+    { name: "Zentrel tools", nameJa: null, skills: [skill("Zentrel CLI")] },
   ],
   candidates: [
     candidate("Vorbit", 3, false),
@@ -62,7 +62,7 @@ const STORED: SkillCuration = {
 const stored = (call: Call): SkillCuration => {
   const groups = (call.body as { groups: SkillCurationInput }).groups;
   return {
-    groups: groups.map((g) => ({ name: g.name, skills: g.skills.map((s) => skill(s)) })),
+    groups: groups.map((g) => ({ name: g.name, nameJa: g.nameJa, skills: g.skills.map((s) => skill(s)) })),
     candidates: STORED.candidates.map((c) => ({
       ...c,
       curated: groups.some((g) => g.skills.includes(c.name)),
@@ -148,6 +148,7 @@ describe("a chip", () => {
       groups: [
         {
           name: "Qorvane stack",
+          nameJa: null,
           skills: [certified("Plinth", 0, 2, 2023), certified("Quillset", 1, 2, "now"), certified("Vorbit", 0, 1, 2023)],
         },
       ],
@@ -165,7 +166,7 @@ describe("a stale skill", () => {
   const WITH_STALE: SkillCuration = {
     ...STORED,
     groups: [
-      { name: "Qorvane stack", skills: [skill("Plinth"), { ...skill("Brennic", 0, null), stale: true }, skill("Quillset")] },
+      { name: "Qorvane stack", nameJa: null, skills: [skill("Plinth"), { ...skill("Brennic", 0, null), stale: true }, skill("Quillset")] },
       STORED.groups[1]!,
     ],
   };
@@ -190,7 +191,7 @@ describe("a stale skill", () => {
     await user.click(screen.getByRole("button", { name: "Place" }));
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)).toEqual([{ name: "Qorvane stack", skills: ["Plinth", "Brennic", "Quillset", "Zentrel CLI"] }]);
+    expect(sent(api)).toEqual([{ name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Brennic", "Quillset", "Zentrel CLI"] }]);
   });
 });
 
@@ -223,8 +224,8 @@ describe("the suggestions", () => {
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Plinth", "Quillset"] },
-      { name: "Zentrel tools", skills: ["Zentrel CLI", "Halvane"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI", "Halvane"] },
     ]);
   });
 
@@ -235,7 +236,7 @@ describe("the suggestions", () => {
     await user.click(within(choose).getByRole("button", { name: "Qorvane stack" }));
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Plinth", "Quillset", "Vorbit"] });
+    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset", "Vorbit"] });
   });
 });
 
@@ -256,9 +257,9 @@ describe("changing the list", () => {
     await user.click(within(screen.getByRole("group", { name: "Add Vorbit to" })).getByRole("button", { name: "Plinthworks" }));
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Plinth", "Quillset"] },
-      { name: "Zentrel tools", skills: ["Zentrel CLI"] },
-      { name: "Plinthworks", skills: ["Vorbit"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI"] },
+      { name: "Plinthworks", nameJa: null, skills: ["Vorbit"] },
     ]);
   });
 
@@ -268,7 +269,7 @@ describe("changing the list", () => {
     await user.click(within(screen.getByRole("group", { name: "Move Zentrel CLI" })).getByRole("button", { name: "Remove" }));
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)).toEqual([{ name: "Qorvane stack", skills: ["Plinth", "Quillset"] }]);
+    expect(sent(api)).toEqual([{ name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset"] }]);
   });
 
   it("moves a group", async () => {
@@ -289,7 +290,28 @@ describe("changing the list", () => {
     fireEvent.change(name, { target: { value: "Zentrel utilities" } });
     fireEvent.blur(name);
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[1]).toEqual({ name: "Zentrel utilities", skills: ["Zentrel CLI"] });
+    expect(sent(api)[1]).toEqual({ name: "Zentrel utilities", nameJa: null, skills: ["Zentrel CLI"] });
+  });
+
+  it("saves the group's 職務経歴書 name when its field loses focus, and clears it when blanked", async () => {
+    const { api } = open({ [PUT]: stored });
+    const nameJa = within(await group("Zentrel tools")).getByLabelText(/^Name in the 職務経歴書/);
+
+    fireEvent.blur(nameJa);
+    expect(api.writes()).toEqual([]);
+
+    fireEvent.change(nameJa, { target: { value: " 開発ツール " } });
+    fireEvent.blur(nameJa);
+    await waitFor(() => expect(api.writes()).toEqual([PUT]));
+    expect(sent(api)[1]).toEqual({ name: "Zentrel tools", nameJa: "開発ツール", skills: ["Zentrel CLI"] });
+
+    const after = within(await group("Zentrel tools")).getByLabelText(/^Name in the 職務経歴書/) as HTMLInputElement;
+    expect(after.value).toBe("開発ツール");
+    fireEvent.change(after, { target: { value: "  " } });
+    fireEvent.blur(after);
+    await waitFor(() => expect(api.writes()).toEqual([PUT, PUT]));
+    const last = api.calls.filter((c) => c.method === "PUT").at(-1)!.body as { groups: SkillCurationInput };
+    expect(last.groups[1]).toEqual({ name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI"] });
   });
 });
 
@@ -310,7 +332,7 @@ describe("moving a skill by keyboard", () => {
 
     await user.keyboard("{Enter}");
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Quillset", "Plinth"] });
+    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", nameJa: null, skills: ["Quillset", "Plinth"] });
   });
 
   it("carries it to another group with the down arrow, keeping focus on it", async () => {
@@ -325,8 +347,8 @@ describe("moving a skill by keyboard", () => {
     await user.keyboard("{Enter}");
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Quillset"] },
-      { name: "Zentrel tools", skills: ["Zentrel CLI", "Plinth"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Quillset"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI", "Plinth"] },
     ]);
   });
 
@@ -360,7 +382,7 @@ describe("moving a skill by keyboard", () => {
     await user.click(bar.getByRole("button", { name: "← Earlier" }));
     await user.click(bar.getByRole("button", { name: "Place" }));
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Quillset", "Plinth"] });
+    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", nameJa: null, skills: ["Quillset", "Plinth"] });
   });
 });
 
@@ -386,8 +408,8 @@ describe("the group controls while a skill is held", () => {
     await user.click(bar.getByRole("button", { name: "Place" }));
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Quillset", "Plinth"] },
-      { name: "Zentrel tools", skills: ["Zentrel CLI"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Quillset", "Plinth"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI"] },
     ]);
     expect(down.disabled).toBe(false);
   });
@@ -410,8 +432,8 @@ describe("dragging while a skill is held", () => {
     await user.click(within(screen.getByRole("group", { name: "Move Quillset" })).getByRole("button", { name: "Place" }));
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Quillset", "Plinth"] },
-      { name: "Zentrel tools", skills: ["Zentrel CLI"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Quillset", "Plinth"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Zentrel CLI"] },
     ]);
   });
 });
@@ -425,8 +447,8 @@ describe("dragging a skill", () => {
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
     expect(sent(api)).toEqual([
-      { name: "Qorvane stack", skills: ["Plinth"] },
-      { name: "Zentrel tools", skills: ["Quillset", "Zentrel CLI"] },
+      { name: "Qorvane stack", nameJa: null, skills: ["Plinth"] },
+      { name: "Zentrel tools", nameJa: null, skills: ["Quillset", "Zentrel CLI"] },
     ]);
   });
 
@@ -438,7 +460,7 @@ describe("dragging a skill", () => {
     );
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Plinth", "Quillset", "Halvane"] });
+    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", nameJa: null, skills: ["Plinth", "Quillset", "Halvane"] });
   });
 
   it("puts the preview back when the chip leaves a group for somewhere it cannot land", async () => {
@@ -464,7 +486,7 @@ describe("dragging a skill", () => {
     drag((await chip("Plinth")).closest("li")!, await panel(SUGGESTIONS));
 
     await waitFor(() => expect(api.writes()).toEqual([PUT]));
-    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", skills: ["Quillset"] });
+    expect(sent(api)[0]).toEqual({ name: "Qorvane stack", nameJa: null, skills: ["Quillset"] });
   });
 });
 
@@ -549,7 +571,7 @@ describe("a list that could not be read", () => {
   it("reads again on Retry after a later read fails, and the line goes once one arrives", async () => {
     const { api, user } = await failLaterRead(
       () => UNREACHABLE(),
-      () => ({ ...STORED, groups: [...STORED.groups, { name: "Vorbit kit", skills: [skill("Vorbit")] }] }),
+      () => ({ ...STORED, groups: [...STORED.groups, { name: "Vorbit kit", nameJa: null, skills: [skill("Vorbit")] }] }),
     );
     await screen.findByRole("status");
     await user.click(screen.getByRole("button", { name: "Retry" }));

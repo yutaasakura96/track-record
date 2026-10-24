@@ -32,6 +32,12 @@ const curationBody = z.object({
   groups: z.array(
     z.object({
       name: z.string().trim().min(1, "A group needs a name."),
+      // The 職務経歴書's name for the group (issue #117). Blank is none.
+      nameJa: z
+        .string()
+        .trim()
+        .nullish()
+        .transform((value) => value || null),
       skills: z
         .array(z.string().trim().min(1))
         .min(1, "A group needs at least one skill."),
@@ -53,7 +59,7 @@ export function registerSkillRoutes(app: Hono<AppEnv>) {
     await requireCuratable(db, userId, groups);
 
     const rows = groups.flatMap((group) =>
-      group.skills.map((skillName) => ({ skillName, groupName: group.name })),
+      group.skills.map((skillName) => ({ skillName, groupName: group.name, groupNameJa: group.nameJa })),
     );
     const clear = db.delete(skillCurations).where(eq(skillCurations.userId, userId));
     if (rows.length === 0) {
@@ -83,6 +89,7 @@ async function curationView(db: Db, userId: string) {
   return {
     groups: groups.map((group) => ({
       name: group.name,
+      nameJa: group.nameJa,
       skills: group.skills.map((name) => {
         const candidate = byName.get(name);
         return {

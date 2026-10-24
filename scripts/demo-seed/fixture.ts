@@ -46,7 +46,15 @@ export interface DemoEmployer {
   endedOn: string | null;
   leavingReasonJa: string | null;
   roles: { titleJa: string; titleLatin: string; shokushuJa: string; startedOn: string; endedOn: string | null }[];
-  projects: { key: string; name: string; nameJa: string; summary: string; startedOn: string; endedOn: string | null }[];
+  projects: {
+    key: string;
+    name: string;
+    nameJa: string;
+    summary: string;
+    summaryJa: string;
+    startedOn: string;
+    endedOn: string | null;
+  }[];
 }
 
 export const EMPLOYERS: DemoEmployer[] = [
@@ -73,6 +81,7 @@ export const EMPLOYERS: DemoEmployer[] = [
         name: "Night batch platform renewal for a regional bank",
         nameJa: "地方銀行向け夜間バッチ基盤刷新",
         summary: "Moved month-end batch jobs from COBOL to Spring Batch and parallelised them.",
+        summaryJa: "月末バッチをCOBOLからSpring Batchへ移行し、並列化。",
         startedOn: "2015-10",
         endedOn: "2017-03",
       },
@@ -101,6 +110,7 @@ export const EMPLOYERS: DemoEmployer[] = [
         name: "Payments ledger rebuild",
         nameJa: "決済元帳の再構築",
         summary: "Replaced an update-in-place balance table with a double-entry, append-only ledger.",
+        summaryJa: "上書き更新の残高テーブルを、複式・追記型の元帳に置き換え。",
         startedOn: "2017-06",
         endedOn: "2018-09",
       },
@@ -109,6 +119,7 @@ export const EMPLOYERS: DemoEmployer[] = [
         name: "Fraud rules engine",
         nameJa: "不正検知ルールエンジン",
         summary: "A rules engine the risk team edits without a deploy, with shadow-mode evaluation.",
+        summaryJa: "リスク管理チームがデプロイなしで編集できる、シャドーモード評価付きのルールエンジン。",
         startedOn: "2019-02",
         endedOn: "2020-03",
       },
@@ -137,6 +148,7 @@ export const EMPLOYERS: DemoEmployer[] = [
         name: "Checkout performance",
         nameJa: "チェックアウト高速化",
         summary: "Halved checkout time to interactive on mobile and put a performance budget in CI.",
+        summaryJa: "モバイルの決済画面が操作可能になるまでの時間を半減し、CIにパフォーマンス予算を導入。",
         startedOn: "2021-04",
         endedOn: "2022-03",
       },
@@ -169,6 +181,7 @@ export const INDEPENDENT_PROJECTS = [
     name: "kanjigrid (open source)",
     nameJa: "kanjigrid（オープンソース）",
     summary: "A TypeScript library for vertical Japanese text layout in the browser.",
+    summaryJa: "ブラウザで日本語の縦書きを組版するTypeScriptライブラリ。",
     startedOn: "2019-05",
     endedOn: null,
   },
@@ -228,10 +241,10 @@ export const CAPTURED = [
 
 /** The author's skills section. Every name must be a technology some fact or certification names. */
 export const SKILL_GROUPS = [
-  { name: "Languages", skills: ["Go", "TypeScript", "Kotlin", "Java", "Python"] },
-  { name: "Cloud and platform", skills: ["Azure", "Azure Kubernetes Service", "Kubernetes", "Terraform", "Argo CD", "AWS", "Google Cloud"] },
-  { name: "Data", skills: ["PostgreSQL", "Kafka", "BigQuery", "dbt", "Elasticsearch", "Oracle Database"] },
-  { name: "Frontend", skills: ["React", "Next.js", "Storybook"] },
+  { name: "Languages", nameJa: "言語", skills: ["Go", "TypeScript", "Kotlin", "Java", "Python"] },
+  { name: "Cloud and platform", nameJa: "クラウド・基盤", skills: ["Azure", "Azure Kubernetes Service", "Kubernetes", "Terraform", "Argo CD", "AWS", "Google Cloud"] },
+  { name: "Data", nameJa: "データ", skills: ["PostgreSQL", "Kafka", "BigQuery", "dbt", "Elasticsearch", "Oracle Database"] },
+  { name: "Frontend", nameJa: "フロントエンド", skills: ["React", "Next.js", "Storybook"] },
 ];
 
 const PLATFORM_JD = `Northwind Clinics Cloud — Staff Platform Engineer (Tokyo, hybrid)

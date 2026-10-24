@@ -209,7 +209,7 @@ export async function buildMasterDocument(
       .map((project) => ({
         id: project.id,
         name: nameInLanguage(language, project.nameJa, project.name),
-        summary: project.summary,
+        summary: language === "ja" ? (project.summaryJa ?? project.summary) : project.summary,
         facts: byProject?.get(project.id) ?? [],
       }));
   };

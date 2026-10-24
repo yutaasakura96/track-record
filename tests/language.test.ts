@@ -20,6 +20,7 @@ const employer = (id: string, name: string): RenderSpec["employers"][number] => 
   id,
   name,
   industry: null,
+  employmentType: "full_time",
   startedOn: "2020-04-01",
   endedOn: null,
   businessDescription: null,
