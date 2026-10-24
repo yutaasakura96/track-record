@@ -87,6 +87,13 @@ describe("a filled 履歴書, read back out of its file", () => {
     expect(licences!.rows.map(texts)).toEqual([["年", "月", "免許・資格"], ["2090", "6", "架空技術者試験　合格"]]);
   });
 
+  it("leaves out the blank rows that pad 学歴・職歴 for print, and keeps an empty 本人希望欄", () => {
+    const empty = readSheet(fillRirekishoTemplate({ ...DATA, kibou: "" }));
+    const [, history, , , kibou] = tables(empty);
+    expect(history!.rows.map(texts).at(-1)).toEqual(["以上"]);
+    expect(kibou!.rows.map(texts)).toEqual([["本人希望欄"], [""]]);
+  });
+
   it("is the sheet the client suite draws, so a screen test reads what the file holds", () => {
     expect(readSheet(fillRirekishoTemplate(RIREKISHO_DATA))).toEqual(RIREKISHO_SHEET);
   });

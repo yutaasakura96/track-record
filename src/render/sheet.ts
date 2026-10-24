@@ -217,13 +217,23 @@ export function sheetOf(xml: string): Sheet {
 /**
  * The table with its vertical merges folded: a `continue` cell is dropped and
  * the cell above it, in the same grid column, spans one row further.
+ *
+ * The blank 年 / 月 rows that close a table are not drawn: they are the
+ * 学歴・職歴 rows that fill page 1 and open page 2 in print
+ * (`./rirekisho-layout.ts`), and the screen is one page, where they would be a
+ * run of empty boxes under 以上. An empty cell standing alone in its row, such
+ * as an unwritten 本人希望欄, is the form's own and stays.
  */
 function closedTable(table: OpenTable): SheetBlock {
   const total = table.widths.reduce((sum, width) => sum + width, 0);
   const columns = table.widths.map((width) => (total > 0 ? width / total : 1 / table.widths.length));
   /** The cell that currently owns each grid column, for merges to extend. */
   const owner: (SheetCell | undefined)[] = [];
-  const rows = table.rows.map((row) => {
+  const blank = (row: OpenCell[]) =>
+    row.length > 1 && row.every((open) => open.merge === null && open.lines.every((line) => line.text === ""));
+  let end = table.rows.length;
+  while (end > 0 && blank(table.rows[end - 1]!)) end -= 1;
+  const rows = table.rows.slice(0, end).map((row) => {
     const out: SheetCell[] = [];
     let column = 0;
     for (const open of row) {

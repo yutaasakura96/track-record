@@ -1044,8 +1044,16 @@ Japanese reader.
 - **Render with `linebreaks: true` and generate with `compression: "DEFLATE"`.** PizZip stores by
   default, which yields a `.docx` around three times the necessary size that opens perfectly well
   and so never complains (`docs/06`, 2026-09-08).
-- The source document runs to two pages **with no explicit page break**, so the break falls wherever
-  the rows land. A render with a different row count breaks in a different place.
+- **Two fixed pages, as the 厚労省 様式例** (#117). The source document has no page break of its own,
+  and the template keeps none; `src/render/rirekisho-layout.ts` makes the break at fill time. Every
+  row is `cantSplit`, the two 年 / 月 header rows repeat on a new page (`tblHeader`), and every
+  paragraph has an exact line height of 1.3 times its size, which is Word's own spacing for MS Mincho
+  and holds whatever font Word substitutes. The filled document is then laid out and 学歴・職歴 is
+  padded with blank rows after 以上 until it runs three rows onto page 2, and the 志望動機 cell grows
+  into what page 2 has left. Page 1 is the identity block and 学歴・職歴 to the foot of the page;
+  page 2 opens with 学歴・職歴 continued under its header, then 免許・資格, 志望動機 and 本人希望欄.
+  A record too long for two pages runs on, unpadded. The in-app view does not draw the blank rows
+  (`src/render/sheet.ts`): the screen is not paged.
 
 ---
 

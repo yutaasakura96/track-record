@@ -551,8 +551,10 @@ to parse the `.docx` as JavaScript and the import fails before workerd sees it.
 
 `src/render/rirekisho-template.ts` is the whole of the seam: the `ArrayBuffer`, the placeholder
 shape, and one `fillRirekishoTemplate()` that renders with `linebreaks: true` and generates with
-`compression: "DEFLATE"`. Deriving the rows that go into it is the render's job and
-`docs/04` §4 is their contract.
+`compression: "DEFLATE"`. Around the render it calls `src/render/rirekisho-layout.ts`, which sets the
+two fixed pages: rows that cannot split and exact line heights before the fill, blank rows and the
+志望動機 cell's height after it (`docs/04` §4). Deriving the rows that go into it is the render's
+job and `docs/04` §4 is their contract.
 
 ### 6.3 The English résumé's PDF
 
