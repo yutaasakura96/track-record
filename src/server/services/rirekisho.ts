@@ -140,6 +140,7 @@ export async function collectRirekishoRecord(
       name: c.name,
       nameJa: c.nameJa,
       issuedOn: c.issuedOn,
+      expiresOn: c.expiresOn,
     })),
   };
 }

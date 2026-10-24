@@ -16,7 +16,9 @@
  *
  * The template already holds the column headers, the centred `学歴` and `職歴`
  * bands and the closing `以上`. They are not rows this module emits — a render
- * that emitted `以上` would print it twice. The loops carry entries only.
+ * that emitted `以上` would print it twice. The loops carry entries, and the one
+ * row that is not an entry: `現在に至る`, which only the record can say is
+ * true.
  *
  * ## The separator is U+3000
  *
@@ -27,8 +29,13 @@
  * and this module normalises rather than reproducing the inconsistency.
  */
 
+import { certificationVerb, isExpired } from "./shikaku";
+
 /** The ideographic space every row joins its parts with. */
 const SEP = "　";
+
+/** The undated row that closes 職歴 while the author still works somewhere. */
+export const CURRENT_EMPLOYMENT = "現在に至る";
 
 /** One row of a 年 / 月 / 内容 table, matching `RirekishoRow` in the template seam. */
 export interface DerivedRow {
@@ -88,7 +95,10 @@ export interface RirekishoEmployer {
   startedOn: string;
   /** Null = current employer, which contributes no 退社 row. */
   endedOn: string | null;
-  /** 退職理由. Leads the 退社 row when present. */
+  /**
+   * 退職理由, e.g. 一身上の都合により. Becomes the 退社 row when present; a
+   * reason the author ended in 退職 or 退社 is not given a second verb.
+   */
   leavingReasonJa: string | null;
 }
 
@@ -98,6 +108,8 @@ export interface RirekishoCertification {
   nameJa: string | null;
   /** Null rows are omitted: the table is dated by construction (`docs/04` §4). */
   issuedOn: string | null;
+  /** A month already passed omits the row: the table lists what is held. */
+  expiresOn: string | null;
 }
 
 /** The three loops, ready for `RirekishoTemplateData`. */
@@ -176,19 +188,17 @@ export function educationRows(educations: RirekishoEducation[]): DerivedRow[] {
 
 /**
  * The 職歴 rows, ascending — one 入社 row per employer and one 退社 row per
- * employer that has ended.
+ * employer that has ended, then `現在に至る` when one has not.
  *
  * The rows are sorted by date **across** employers rather than grouped by
  * employer. Two employments that overlap interleave, which is what the author's
  * file does and what the convention requires: the table is a chronology.
  *
  * The 入社 row is `employer　industry　職種として入社`, with the industry and
- * the 職種 each omitted when the record has none. The 退社 row leads with the
- * reason — `一身上の都合により` + employer + `を退社` — because that is the
- * order the convention puts it in, and reads `employer + を退社` when the
- * record holds no reason. It never invents one: `一身上の都合により` asserts a
- * voluntary departure, and asserting that about a contract that simply ended is
- * a misstatement on a document that is signed.
+ * the 職種 each omitted when the record has none. The 退社 row is
+ * {@link leavingText}. `現在に至る` is undated and last, above the template's
+ * `以上`, because it states that the chronology runs to today rather than
+ * stopping at a date.
  */
 export function employmentRows(employers: RirekishoEmployer[]): DerivedRow[] {
   const rows: DerivedRow[] = [];
@@ -197,34 +207,60 @@ export function employmentRows(employers: RirekishoEmployer[]): DerivedRow[] {
     const entry = e.shokushuJa === null ? "入社" : `${e.shokushuJa}として入社`;
     rows.push(row(e.startedOn, join(e.nameJa, e.industryJa, entry)));
 
-    if (e.endedOn !== null) {
-      rows.push(row(e.endedOn, `${e.leavingReasonJa ?? ""}${e.nameJa}を退社`));
-    }
+    if (e.endedOn !== null) rows.push(row(e.endedOn, leavingText(e)));
   }
 
-  return ascending(rows);
+  const sorted = ascending(rows);
+  if (!employers.some((e) => e.endedOn === null)) return sorted;
+  return [...sorted, { year: "", month: "", text: CURRENT_EMPLOYMENT }];
 }
 
 /**
- * The 免許・資格 rows, ascending — every certification with an issue date, plus
- * every finished vocational course.
+ * The 退社 row's text: `<reason>退社` when the record holds a reason, and
+ * `employer　退社` when it does not.
+ *
+ * With a reason the employer is not repeated — 「一身上の都合により退社」 is
+ * the convention, and the row above it already names the company. A reason the
+ * author ended in 退職 or 退社, which is the natural way to type it, loses that
+ * verb rather than doubling it.
+ *
+ * It never invents a reason: `一身上の都合により` asserts a voluntary
+ * departure, and asserting that about a contract that simply ended is a
+ * misstatement on a document that is signed.
+ */
+export function leavingText(e: Pick<RirekishoEmployer, "nameJa" | "leavingReasonJa">): string {
+  const reason = (e.leavingReasonJa ?? "")
+    .trim()
+    .replace(/[。．.]+$/, "")
+    .replace(/(退職|退社)$/, "")
+    .trim();
+  if (reason === "") return join(e.nameJa, "退社");
+  return `${reason}退社`;
+}
+
+/**
+ * The 免許・資格 rows, ascending — every certification with an issue date that
+ * has not expired by `on`, plus every finished vocational course.
  *
  * **Every row ends in a verb.** The name alone is not a row: a render that
  * emits bare names is the failure `docs/03` §12 describes, invisible to the
- * author and obvious to a Japanese reader. `取得` is the default and `修了` is
- * used for a course — an examination or licence is 取得, a completed course of
- * study is 修了 — which is why the two sources are distinguishable here and
- * why the verb is not a column on `certifications`.
+ * author and obvious to a Japanese reader. A certification's verb is
+ * {@link certificationVerb} — 合格 for an examination or 検定, 取得 otherwise,
+ * none when the name already ends in one — and a completed course of study is
+ * 修了, which is why the two sources are distinguishable here and why the verb
+ * is not a column on `certifications`.
  */
 export function shikakuRows(
   certifications: RirekishoCertification[],
-  educations: RirekishoEducation[] = [],
+  educations: RirekishoEducation[],
+  on: string,
 ): DerivedRow[] {
   const rows: DerivedRow[] = [];
 
   for (const c of certifications) {
-    if (c.issuedOn === null) continue;
-    rows.push(row(c.issuedOn, join(c.nameJa ?? c.name, "取得")));
+    if (c.issuedOn === null || isExpired(c.expiresOn, on)) continue;
+    const name = c.nameJa ?? c.name;
+    rows.push(row(c.issuedOn, join(name, certificationVerb(name))));
   }
 
   for (const e of educations) {
@@ -236,16 +272,23 @@ export function shikakuRows(
   return ascending(rows);
 }
 
-/** The three loops in one call — what a 履歴書 render actually wants. */
-export function rirekishoTables(record: {
-  educations: RirekishoEducation[];
-  employers: RirekishoEmployer[];
-  certifications: RirekishoCertification[];
-}): RirekishoTables {
+/**
+ * The three loops in one call — what a 履歴書 render actually wants. `on` is
+ * the submission date, `YYYY-MM-DD`: a certification is held or lapsed as of
+ * the day the document is handed over.
+ */
+export function rirekishoTables(
+  record: {
+    educations: RirekishoEducation[];
+    employers: RirekishoEmployer[];
+    certifications: RirekishoCertification[];
+  },
+  on: string,
+): RirekishoTables {
   return {
     gakureki: educationRows(record.educations),
     shokureki: employmentRows(record.employers),
-    shikaku: shikakuRows(record.certifications, record.educations),
+    shikaku: shikakuRows(record.certifications, record.educations, on),
   };
 }
 

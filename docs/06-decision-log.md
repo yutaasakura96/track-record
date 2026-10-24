@@ -7296,3 +7296,26 @@ screen, the API comment and that entry still described only the first rule (#114
 - **Decision:** the phone menu's guidance names Applications, Quick capture and Skills, the three
   rows that work at phone width. Reading a document works there too but is reached from a document
   row, not the menu.
+
+### [2026-10-24] The 履歴書's 退社, 現在に至る and 免許・資格 rows read as a Japanese reader expects
+
+Supersedes the `docs/04` §4 rules that the 退社 row reads `<reason>` + employer + `を退社` and that
+every certification row ends in 取得; the entries that set them stay as written. The #117 review
+found every user with a 退職理由 or a certification name carrying its verb got a visibly wrong
+履歴書 (「一身上の都合により退職株式会社…を退社」, 「…試験 合格　取得」), and every user lacked
+現在に至る.
+
+- **Decision:** the 退社 row is `<reason>退社` with the employer not repeated, and `employer　退社`
+  with no reason. A reason ending in 退職 or 退社 loses it, so either typing prints
+  「一身上の都合により退社」. No reason is ever supplied.
+- **Decision:** a current employer closes 職歴 with an undated 「現在に至る」 row, then the template's
+  以上, which is now right-aligned. The submission date reads 「YYYY年 M月 D日現在」.
+- **Decision:** a certification's verb is read from its name: 合格 for 試験 or 検定, 取得 for a
+  licence, a score or a vendor certification, none when the name already ends in 合格, 取得 or 登録.
+  `kind` cannot tell an examination from a licence; the name the reader sees can. A column was the
+  alternative and was not taken: it is one more field the author must get right for a rule the name
+  already carries. The rule is `src/render/shikaku.ts`, for the 職務経歴書's 保有資格 to use too.
+- **Decision (owner):** an expired certification is left off the 履歴書, by the English résumé's
+  rule, now shared from the same module.
+- **Not changed:** the template's two-page layout, and the 職務経歴書's 保有資格 rows. Both are
+  other #117 issues.

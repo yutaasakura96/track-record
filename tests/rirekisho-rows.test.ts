@@ -4,17 +4,19 @@
  * `docs/04-database-schema.md` §4 is the contract; this file is what holds the
  * render to it. The rules under test are the ones whose breach is **invisible
  * to the author and obvious to a Japanese reader** (`docs/03` §12): a
- * withdrawal printed as a graduation, a 免許・資格 row that stops at the name,
- * a 退社 row with the reason trailing, a record silently dropped for having no
- * entry month.
+ * withdrawal printed as a graduation, a 免許・資格 row that stops at the name
+ * or says its verb twice, a 退社 row that says 退職 and 退社 both, a record
+ * silently dropped for having no entry month.
  *
  * Every value below is invented and visibly so. None of it comes from the
  * author's record or from `local/`.
  */
 import { describe, expect, it } from "vitest";
 import {
+  CURRENT_EMPLOYMENT,
   educationRows,
   employmentRows,
+  leavingText,
   rirekishoTables,
   shikakuRows,
   type RirekishoCertification,
@@ -23,6 +25,9 @@ import {
 } from "~/render/rirekisho-rows";
 
 const SEP = "　";
+
+/** The submission date the 免許・資格 rows are held as of. */
+const TODAY = "2100-01-15";
 
 function education(over: Partial<RirekishoEducation> = {}): RirekishoEducation {
   return {
@@ -50,7 +55,7 @@ function employer(over: Partial<RirekishoEmployer> = {}): RirekishoEmployer {
 }
 
 function certification(over: Partial<RirekishoCertification> = {}): RirekishoCertification {
-  return { name: "Kakuu Engineer", nameJa: null, issuedOn: "2090-06-01", ...over };
+  return { name: "Kakuu Engineer", nameJa: null, issuedOn: "2090-06-01", expiresOn: null, ...over };
 }
 
 const texts = (rows: { text: string }[]) => rows.map((r) => r.text);
@@ -158,14 +163,27 @@ describe("職歴 rows", () => {
     expect(rows[0]?.text).toBe(`架空株式会社${SEP}架空製造業${SEP}入社`);
   });
 
-  /** The reason comes FIRST (`docs/04` §4) — trailing it is the common error. */
-  it("leads the 退社 row with the reason", () => {
+  /**
+   * The convention is the reason and the verb, with no company name: the row
+   * above already names it (`docs/04` §4).
+   */
+  it("reads <reason>退社 when the record holds a reason", () => {
     const rows = employmentRows([employer()]);
-    expect(rows[1]).toEqual({
-      year: "2095",
-      month: "3",
-      text: "一身上の都合により架空株式会社を退社",
-    });
+    expect(rows[1]).toEqual({ year: "2095", month: "3", text: "一身上の都合により退社" });
+  });
+
+  /**
+   * 退職 and 退社 are the same verb. A reason typed the natural way, ending in
+   * either, printed 「一身上の都合により退職架空株式会社を退社」 (#117 R1).
+   */
+  it.each([
+    ["一身上の都合により", "一身上の都合により退社"],
+    ["一身上の都合により退職", "一身上の都合により退社"],
+    ["一身上の都合により退社", "一身上の都合により退社"],
+    ["一身上の都合により退職。", "一身上の都合により退社"],
+    [" 契約期間満了により退職 ", "契約期間満了により退社"],
+  ])("never doubles the verb: %s → %s", (reason, text) => {
+    expect(leavingText({ nameJa: "架空株式会社", leavingReasonJa: reason })).toBe(text);
   });
 
   /**
@@ -173,15 +191,40 @@ describe("職歴 rows", () => {
    * default would state that about a contract that simply ended, on a document
    * that is signed.
    */
-  it("invents no reason when the record holds none", () => {
+  it("reads <会社名>　退社 and invents no reason when the record holds none", () => {
     const rows = employmentRows([employer({ leavingReasonJa: null })]);
-    expect(rows[1]?.text).toBe("架空株式会社を退社");
+    expect(rows[1]?.text).toBe(`架空株式会社${SEP}退社`);
   });
 
-  it("gives the current employer no 退社 row", () => {
+  it.each(["", "  ", "退職"])("treats a reason of %j as no reason", (reason) => {
+    expect(leavingText({ nameJa: "架空株式会社", leavingReasonJa: reason })).toBe(
+      `架空株式会社${SEP}退社`,
+    );
+  });
+
+  it("gives the current employer no 退社 row and closes with 現在に至る", () => {
     const rows = employmentRows([employer({ endedOn: null })]);
-    expect(rows).toHaveLength(1);
-    expect(texts(rows).join()).not.toContain("退社");
+    expect(texts(rows)).toEqual([
+      `架空株式会社${SEP}架空製造業${SEP}架空技術者として入社`,
+      "現在に至る",
+    ]);
+    expect(rows[1]).toEqual({ year: "", month: "", text: CURRENT_EMPLOYMENT });
+  });
+
+  /** Nothing runs to today when every employment has ended. */
+  it("writes no 現在に至る when no employment is current", () => {
+    const rows = employmentRows([employer()]);
+    expect(texts(rows)).not.toContain(CURRENT_EMPLOYMENT);
+  });
+
+  /** The row closes the chronology, so it follows a later employer's 退社 too. */
+  it("puts 現在に至る last, after every dated row", () => {
+    const rows = employmentRows([
+      employer({ nameJa: "架空本業社", startedOn: "2089-04-01", endedOn: null }),
+      employer({ nameJa: "架空副業社", startedOn: "2092-04-01", endedOn: "2094-03-01" }),
+    ]);
+    expect(texts(rows).at(-1)).toBe(CURRENT_EMPLOYMENT);
+    expect(texts(rows).filter((t) => t === CURRENT_EMPLOYMENT)).toHaveLength(1);
   });
 
   /**
@@ -196,8 +239,8 @@ describe("職歴 rows", () => {
     expect(texts(rows)).toEqual([
       `架空一社${SEP}架空製造業${SEP}架空技術者として入社`,
       `架空二社${SEP}架空製造業${SEP}架空技術者として入社`,
-      "一身上の都合により架空一社を退社",
-      "一身上の都合により架空二社を退社",
+      "一身上の都合により退社",
+      "一身上の都合により退社",
     ]);
   });
 });
@@ -205,19 +248,54 @@ describe("職歴 rows", () => {
 describe("免許・資格 rows", () => {
   /** A row that stops at the name is the failure `docs/03` §12 describes. */
   it("ends a certification row in 取得", () => {
-    expect(shikakuRows([certification()])).toEqual([
+    expect(shikakuRows([certification()], [], TODAY)).toEqual([
       { year: "2090", month: "6", text: `Kakuu Engineer${SEP}取得` },
     ]);
   });
 
   it("prefers the Japanese certification name where the record holds one", () => {
-    const rows = shikakuRows([certification({ nameJa: "架空技術者試験" })]);
-    expect(rows[0]?.text).toBe(`架空技術者試験${SEP}取得`);
+    const rows = shikakuRows([certification({ nameJa: "架空技術者免許" })], [], TODAY);
+    expect(rows[0]?.text).toBe(`架空技術者免許${SEP}取得`);
+  });
+
+  /**
+   * An examination is passed and a licence or a score is obtained, and a name
+   * the author already ended in a verb keeps it alone (#117 R2). The rule is
+   * `src/render/shikaku.ts`; this holds the 履歴書 to it.
+   */
+  it.each([
+    ["架空技術者試験", `架空技術者試験${SEP}合格`],
+    ["架空語能力検定　2級", `架空語能力検定　2級${SEP}合格`],
+    ["架空自動車運転免許", `架空自動車運転免許${SEP}取得`],
+    ["Kakuu Listening Test 865点", `Kakuu Listening Test 865点${SEP}取得`],
+    ["架空技術者試験 合格", "架空技術者試験 合格"],
+    ["架空自動車運転免許 取得", "架空自動車運転免許 取得"],
+    ["架空支援士 登録", "架空支援士 登録"],
+  ])("states %s once, with the verb its kind takes", (nameJa, text) => {
+    expect(texts(shikakuRows([certification({ nameJa })], [], TODAY))).toEqual([text]);
   });
 
   /** The table is dated by construction (`docs/04` §4). */
   it("omits a certification with no issue date", () => {
-    expect(shikakuRows([certification({ issuedOn: null })])).toEqual([]);
+    expect(shikakuRows([certification({ issuedOn: null })], [], TODAY)).toEqual([]);
+  });
+
+  /**
+   * 免許・資格 lists what is held, so a lapsed certification is left off, as
+   * the English résumé already leaves it off (#117 R6). One expiring in the
+   * submission month is still held that month.
+   */
+  it("leaves off a certification whose expiry month has passed", () => {
+    const rows = shikakuRows(
+      [
+        certification({ nameJa: "架空失効資格", expiresOn: "2099-12-01" }),
+        certification({ nameJa: "架空今月資格", expiresOn: "2100-01-01" }),
+        certification({ nameJa: "架空有効資格", expiresOn: "2102-01-01" }),
+      ],
+      [],
+      TODAY,
+    );
+    expect(texts(rows)).toEqual([`架空今月資格${SEP}取得`, `架空有効資格${SEP}取得`]);
   });
 
   /**
@@ -234,7 +312,7 @@ describe("免許・資格 rows", () => {
       startedOn: "2090-07-01",
       endedOn: "2090-08-01",
     });
-    expect(shikakuRows([], [course])).toEqual([
+    expect(shikakuRows([], [course], TODAY)).toEqual([
       { year: "2090", month: "8", text: `架空ウェブ講習${SEP}架空開発課程${SEP}修了` },
     ]);
     expect(educationRows([course])).toEqual([]);
@@ -249,7 +327,7 @@ describe("免許・資格 rows", () => {
       startedOn: "2090-07-01",
       endedOn: "2090-08-01",
     });
-    expect(shikakuRows([], [course])).toEqual([]);
+    expect(shikakuRows([], [course], TODAY)).toEqual([]);
     expect(texts(educationRows([course]))).toEqual([
       `架空ウェブ講習${SEP}入学`,
       `架空ウェブ講習${SEP}中退`,
@@ -268,8 +346,9 @@ describe("免許・資格 rows", () => {
           endedOn: "2090-08-01",
         }),
       ],
+      TODAY,
     );
-    expect(texts(rows)).toEqual([`架空講習${SEP}修了`, `架空後試験${SEP}取得`]);
+    expect(texts(rows)).toEqual([`架空講習${SEP}修了`, `架空後試験${SEP}合格`]);
   });
 });
 
@@ -297,7 +376,7 @@ describe("the three tables together", () => {
    * twice.
    */
   it("emits no furniture the template already holds", () => {
-    const tables = rirekishoTables(record);
+    const tables = rirekishoTables(record, TODAY);
     const all = [...tables.gakureki, ...tables.shokureki, ...tables.shikaku];
     for (const banned of ["以上", "学歴", "職歴", "年", "月", "免許・資格"]) {
       expect(texts(all)).not.toContain(banned);
@@ -308,14 +387,19 @@ describe("the three tables together", () => {
    * Every row ends in a verb. The name alone is not a row (`docs/04` §4).
    * `入学（在学中）` is the one row that closes on a bracket, and it closes on a
    * bracket around a state rather than trailing off after a name — so it is
-   * listed here explicitly rather than admitted by a loose pattern.
+   * listed here explicitly rather than admitted by a loose pattern, and so is
+   * 現在に至る, the one row that is not an entry.
    */
   it("ends every row in a verb", () => {
-    const tables = rirekishoTables(record);
+    const tables = rirekishoTables(
+      { ...record, employers: [employer(), employer({ nameJa: "架空現職社", endedOn: null })] },
+      TODAY,
+    );
     const all = [...tables.gakureki, ...tables.shokureki, ...tables.shikaku];
     expect(texts(all)).toContain(`架空大学${SEP}入学（在学中）`);
+    expect(texts(all)).toContain(CURRENT_EMPLOYMENT);
     for (const { text } of all) {
-      expect(text).toMatch(/(入学（在学中）|入学|卒業|修了|中退|入社|退社|取得)$/);
+      expect(text).toMatch(/(入学（在学中）|入学|卒業|修了|中退|入社|退社|取得|合格|現在に至る)$/);
     }
   });
 
@@ -324,10 +408,10 @@ describe("the three tables together", () => {
    * day is never rendered (CLAUDE.md). The month carries no leading zero.
    */
   it("renders the month without a leading zero and never the day", () => {
-    const tables = rirekishoTables({
-      ...record,
-      certifications: [certification({ issuedOn: "2090-06-01" })],
-    });
+    const tables = rirekishoTables(
+      { ...record, certifications: [certification({ issuedOn: "2090-06-01" })] },
+      TODAY,
+    );
     const all = [...tables.gakureki, ...tables.shokureki, ...tables.shikaku];
     for (const { year, month, text } of all) {
       expect(year).toMatch(/^\d{4}$/);

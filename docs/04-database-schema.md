@@ -458,7 +458,7 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 | `name_ja` | text | yes | e.g. 普通自動車第一種運転免許 |
 | `issuing_organization` | text | no | Required |
 | `issued_on` | date | yes | Month precision. Null is legal — some licences have no meaningful issue date |
-| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé leaves out a certification whose expiry month has passed |
+| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé and the 履歴書 leave out a certification whose expiry month has passed |
 | `kind` | `certification_kind` enum (`technical`, `language`, `other`) | no | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Migration `0027` classified existing rows by name; `0028` moved driving licences to `other` and missed language tests to `language`, set any remaining null to `technical`, and made the column required (`docs/06`, 2026-10-22); `0030` moved to `language` the `technical` rows naming JLPT with its level attached (`JLPTN1`), which `0028` missed. The Japanese documents print every kind |
 | `credential_id` | text | yes | **Not rendered in v1.** For the author's own reference at renewal |
 | `credential_url` | text | yes | **Not rendered in v1.** Same |
@@ -957,16 +957,23 @@ chosen. A 履歴書 render that omits the photo is a known gap, not a silent one
 5. Per employer, chronological ascending: an **入社** row reading
    **`name_ja` + `industry_ja` + `<職種>として入社`**, where the 職種 is the `shokushu_ja` of the role
    held **on entry**, and `industry_ja` and the 職種 are each dropped when the record has none; and,
-   where `ended_on` is set, a **退社** row reading **`<leaving_reason_ja>` + employer + `を退社`** —
-   the reason comes **first**, not last. A record with **no `leaving_reason_ja` renders
-   `employer + を退社`** and no reason is supplied: `一身上の都合により` asserts a voluntary
+   where `ended_on` is set, a **退社** row reading **`<leaving_reason_ja>退社`** — 「一身上の都合により退社」,
+   with the employer not repeated, since the 入社 row names it. A reason the author ended in 退職 or
+   退社 loses that verb rather than doubling it. A record with **no `leaving_reason_ja` renders
+   `employer　退社`** and no reason is supplied: `一身上の都合により` asserts a voluntary
    departure, and asserting that about a contract that simply ended is a misstatement on a document
    that is signed
-6. **Centred** final row `以上` · **template furniture**
+6. When any employer has no `ended_on`, an undated **`現在に至る`** row after every dated one: the
+   chronology runs to today rather than stopping at the last 入社
+7. **Right-aligned** final row `以上` · **template furniture**
 
-**Rows 1, 2, 4 and 6 are in the template, not in the render.** `templates/rirekisho.blank.docx`
+**Rows 1, 2, 4 and 7 are in the template, not in the render.** `templates/rirekisho.blank.docx`
 carries the column headers, both centred bands and the closing 以上; `{#gakureki}` and `{#shokureki}`
-carry entries only. A render that emitted them would print them twice.
+carry entries, and `現在に至る`, which only the record can say is true. A render that emitted the
+furniture would print it twice.
+
+**The submission date reads `YYYY年 M月 D日現在`**, the 厚労省様式例's 「年　月　日現在」. The 現在 is
+template furniture beside the three date placeholders.
 
 **Parts within a row are joined with an ideographic space (U+3000).** The author's file is not
 perfectly consistent about this — two rows use an ASCII space and one omits the separator after a
@@ -995,20 +1002,25 @@ The author's own file already opens 学歴 with a closing row that has no 入学
 ascending by date from **two** sources:
 
 - every `certifications` row, dated by `issued_on`. Rows with a null `issued_on` are omitted, because
-  the table is dated by construction
+  the table is dated by construction, and so are rows whose `expires_on` month is before the
+  submission month, by the English résumé's rule: the table lists what is held
 - every **finished vocational `educations` row** — `level = 'vocational'` with an `ended_on` and an
   outcome of `completed` or `graduated` — dated by `ended_on`. A completed non-degree programme is
   what the 履歴書 prints here rather than under 学歴 (`docs/06`, 2026-09-06), and the author's file
   does exactly that. The qualifier is *finished*: a vocational course left unfinished or still
   running stays in 学歴, because 免許・資格 is a list of things held
 
-**Every row ends in a verb.** The name alone is not a row. **`取得` is the default; `修了` is used
-for courses** — a completed course of study is 修了, an examination or licence is 取得. The two
-sources above are what makes that choice mechanical rather than a judgement: a `certifications` row
-takes 取得 and a vocational `educations` row takes 修了. The verb is
-composed by the render, not stored on `certifications` and not held in the template, which carries a
-single `{text}` per row exactly as the 学歴・職歴 table does. A render that emits bare names is the
-failure mode `docs/03` §12 describes: invisible to the author, obvious to a Japanese reader.
+**Every row ends in a verb.** The name alone is not a row. A vocational `educations` row takes
+**修了**. A `certifications` row takes **合格** when its name is an examination or a 検定 (試験,
+検定) and **取得** for a licence, a score or a vendor certification; a score (点, スコア) is 取得 even
+when the test calls itself one. A name that already ends in 合格, 取得 or 登録 is printed as given,
+with no second verb, and the form's 資格名 field asks for the name alone. `kind` cannot make this
+choice — technical / language / other does not separate an examination from a licence — and the
+name a Japanese reader sees can. The rule is `src/render/shikaku.ts`, shared with the 職務経歴書's
+保有資格. The verb is composed by the render, not stored on `certifications` and not held in the
+template, which carries a single `{text}` per row exactly as the 学歴・職歴 table does. A render that
+emits bare names is the failure mode `docs/03` §12 describes: invisible to the author, obvious to a
+Japanese reader.
 
 **Prose blocks** — generated from facts, subject to the diff gate:
 `志望動機・特技・アピールポイントなど` and `本人希望欄` (seeded from `desired_role_note`).

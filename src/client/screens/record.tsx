@@ -192,7 +192,13 @@ const EMPLOYERS: Section = {
       wide: true,
       hint: "One paragraph. The 職務経歴書 opens each employer with it.",
     },
-    { name: "leavingReasonJa", label: "退職理由 · Reason for leaving", optional: true, wide: true },
+    {
+      name: "leavingReasonJa",
+      label: "退職理由 · Reason for leaving",
+      optional: true,
+      wide: true,
+      hint: "The reason only, e.g. 一身上の都合により; the 履歴書 adds 退社.",
+    },
   ],
 };
 
@@ -289,7 +295,12 @@ const CERTIFICATIONS: Section = {
     "The same shape you already maintain elsewhere. Technologies named here feed the same skill pool your facts do.",
   fields: [
     { name: "name", label: "Name" },
-    { name: "nameJa", label: "資格名 · Name (Japanese)", optional: true },
+    {
+      name: "nameJa",
+      label: "資格名 · Name (Japanese)",
+      optional: true,
+      hint: "Name only; the 履歴書 adds 取得 or 合格.",
+    },
     { name: "issuingOrganization", label: "Issuing organization" },
     { name: "issuedOn", label: "取得 · Issued", type: "month", optional: true },
     { name: "expiresOn", label: "有効期限 · Expires", type: "month", optional: true },

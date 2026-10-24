@@ -474,7 +474,7 @@ describe("a sent copy", () => {
     const page = screen.getByRole("article");
     expect(page.getAttribute("lang")).toBe("ja");
     expect(within(page).getByRole("heading", { level: 2, name: "履歴書" })).toBeTruthy();
-    expect(within(page).getByText("2026年 10月 6日")).toBeTruthy();
+    expect(within(page).getByText("2026年 10月 6日現在")).toBeTruthy();
     const tables = within(page).getAllByRole("table");
     expect(tables).toHaveLength(5);
     const printedBlocks = [...page.firstElementChild!.children];
@@ -508,9 +508,10 @@ describe("a sent copy", () => {
       ["2017", "3", "架空大学　架空学部　卒業"],
       ["職歴"],
       ["2020", "4", "架空商事　入社"],
+      ["\u00a0", "\u00a0", "現在に至る"],
       ["以上"],
     ]);
-    for (const at of [1, 3, 5]) expect(cells(history[at]!)[0]!.getAttribute("colspan")).toBe("3");
+    for (const at of [1, 3, 6]) expect(cells(history[at]!)[0]!.getAttribute("colspan")).toBe("3");
     expect(within(tables[2]!).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["年", "月", "免許・資格"]);
     expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();
 
