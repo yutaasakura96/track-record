@@ -7400,3 +7400,16 @@ The 2026-10-23 backfill bullet overstates what 0032 can re-raise. Migration 0031
 containing a number word or kanji figure open, so 0032 cannot encounter those claims among the
 flags it re-evaluates. It re-raises only previously system-settled digit flags that fail the new
 comparison; it does not settle or change other flags.
+
+---
+
+### [2026-10-24] The number flag stops at the counted unit
+
+This supersedes the unlimited following-word scan of the earlier 2026-10-24 entry. A figure's
+quantity ends at its unit or counter, plus an immediately attached rate or comparison such as
+`per second`, `a day`, `/日`, `以上` or `% of requests`. The predicate after the unit does not
+change whether the number is sourced: `5 engineers built APIs` matches `5 engineers maintained
+APIs`. `active` and `senior` remain the explicitly ignored descriptive words; rates and scope
+words remain part of the quantity. The demo seed's cited figures keep the flag list quiet, while
+a captured fact with no quote still raises the number flag. Migration 0032 uses the same boundary
+for digit figures it re-evaluates.

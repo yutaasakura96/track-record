@@ -103,6 +103,8 @@ const digitCases: [string, string | null, string[]][] = [
   ["Resolved 3 out of 5 reports", "Resolved 5 reports.", []],
   ["Resolved 3 out of 5 reports", "Resolved 3 out of 50 reports.", []],
   ["Resolved 3 out of 5 reports", "Resolved 3 out of 5 reports.", []],
+  ["5 engineers built APIs", "5 engineers maintained APIs.", []],
+  ["5 engineers maintained APIs", "5 engineers built APIs.", []],
   ["Gave a talk on queue design in 2023", "Gave a talk on queue design.", []],
   ["2023年に社内勉強会で登壇した", "社内勉強会で登壇した。", []],
   ["Upgraded to version 3.12.1", "Upgraded the service.", []],

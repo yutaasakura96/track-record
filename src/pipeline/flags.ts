@@ -196,6 +196,8 @@ const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 
 const MODIFIER_WORD = new RegExp(`^${MODIFIER}$`, "u");
 const STOP_WORD = /^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$/u;
+const SCOPE_WORD = /^(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent|more|over|less|under|additional)$/u;
+const UNIT_WORD = /^(?:[a-z]+s|person|people|percent|ms|kb|mb|gb|tb|pb|second|minute|hour|day|week|month|quarter|year|engineer|developer|member|client|customer|user|request|report|ticket|order|payment|service|team|release|country|language)$/u;
 const JAPANESE_RATE = /^\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
@@ -208,12 +210,25 @@ const SCALE_AFTER = /^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb]
 function quantityAfter(tail: string): string {
   let rest = tail;
   const words: string[] = [];
+  let fallback = "";
   for (;;) {
     const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
+    const bareRate = first.match(/^(?:per\s+|a\s+|an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0];
+    if (bareRate && words.length === 0) return bareRate;
     const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (word) {
-      if (words.length && STOP_WORD.test(word)) break;
-      if (!MODIFIER_WORD.test(word)) words.push(word);
+      if (STOP_WORD.test(word) || (/ing$/u.test(word) && /^\s+(?:a|an|the)\b/u.test(first.slice(word.length)))) break;
+      if (UNIT_WORD.test(word) || tail.trimStart().startsWith(`-${word}`)) {
+        const unit = word === "ms" ? word : word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word;
+        words.push(unit);
+        rest = first.slice(word.length);
+        const rate = rest.match(/^(?:\s+per\s+|\s+a\s+|\s+an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0].trim()
+          ?? rest.match(/^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\b/u)?.[0].trim();
+        if (rate) words.push(rate);
+        break;
+      }
+      if (SCOPE_WORD.test(word) || word.includes("-")) words.push(word);
+      else if (!MODIFIER_WORD.test(word) && fallback === "") fallback = word;
       rest = first.slice(word.length);
       continue;
     }
@@ -221,7 +236,7 @@ function quantityAfter(tail: string): string {
     if (counter) {
       words.push(counter);
       rest = first.slice(counter.length);
-      const rate = rest.match(JAPANESE_RATE)?.[0];
+      const rate = rest.match(JAPANESE_RATE)?.[0] ?? rest.match(/^(?:以上|以下)/u)?.[0];
       if (rate) words.push(rate);
       else if (rest.startsWith("/")) {
         const divisor = rest.slice(1).match(COUNTER_UNIT)?.[0] ?? rest.slice(1).match(COUNTER_RUN)?.[0];
@@ -238,12 +253,17 @@ function quantityAfter(tail: string): string {
     if (character === "+" || character === "%" || character === "×" || character === "x") {
       words.push(character);
       rest = first.slice(character.length);
+      if (character === "%") {
+        const group = rest.match(/^\s+of\s+(?:(?:the|active|senior)\s+)*[a-z]+(?:-[a-z]+)*/u)?.[0].trim();
+        if (group) words.push(group);
+        break;
+      }
       continue;
     }
     if (character && !PUNCTUATION.includes(character)) words.push(character);
     break;
   }
-  return words.join(" ");
+  return words.length ? words.join(" ") : fallback;
 }
 
 /** A number's scale (`million`, `万`, `k`) and the text after it; a kanji number carries its own. */

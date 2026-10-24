@@ -24,13 +24,34 @@ DECLARE
   counter text;
   phrase text := '';
   character text;
+  fallback text := '';
+  rate text;
 BEGIN
   LOOP
     first := regexp_replace(regexp_replace(rest, '^\s+', ''), '^-(?=[a-z])', '');
+    rate := substring(first from '^(?:per\s+|a\s+|an\s+|/)[a-z]+(?:-[a-z]+)*');
+    IF rate IS NOT NULL AND phrase = '' THEN RETURN rate; END IF;
     word := substring(first from '^[a-z]+(?:-[a-z]+)*');
     IF word IS NOT NULL THEN
-      EXIT WHEN phrase <> '' AND word ~ '^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$';
-      IF word !~ '^(?:active|senior)$' THEN phrase := concat_ws(' ', nullif(phrase, ''), word); END IF;
+      EXIT WHEN word ~ '^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$'
+        OR (word ~ 'ing$' AND substr(first, length(word) + 1) ~ '^\s+(?:a|an|the)\M');
+      IF word ~ '^(?:[a-z]+s|person|people|percent|ms|kb|mb|gb|tb|pb|second|minute|hour|day|week|month|quarter|year|engineer|developer|member|client|customer|user|request|report|ticket|order|payment|service|team|release|country|language)$'
+        OR btrim(tail) LIKE '-' || word || '%' THEN
+        IF right(word, 3) = 'ies' THEN word := left(word, length(word) - 3) || 'y';
+        ELSIF word <> 'ms' AND right(word, 1) = 's' AND right(word, 2) <> 'ss' THEN word := left(word, length(word) - 1);
+        END IF;
+        phrase := concat_ws(' ', nullif(phrase, ''), word);
+        rest := substr(first, length(substring(first from '^[a-z]+(?:-[a-z]+)*')) + 1);
+        rate := coalesce(
+          btrim(substring(rest from '^(?:\s+per\s+|\s+a\s+|\s+an\s+|/)[a-z]+(?:-[a-z]+)*')),
+          btrim(substring(rest from '^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\M')));
+        IF rate IS NOT NULL THEN phrase := phrase || ' ' || rate; END IF;
+        EXIT;
+      END IF;
+      IF word ~ '^(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent|more|over|less|under|additional)$' OR strpos(word, '-') > 0 THEN
+        phrase := concat_ws(' ', nullif(phrase, ''), word);
+      ELSIF word !~ '^(?:active|senior)$' AND fallback = '' THEN fallback := word;
+      END IF;
       rest := substr(first, length(word) + 1);
       CONTINUE;
     END IF;
@@ -40,7 +61,7 @@ BEGIN
     IF counter IS NOT NULL THEN
       phrase := concat_ws(' ', nullif(phrase, ''), counter);
       rest := substr(first, length(counter) + 1);
-      word := substring(rest from '^/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)');
+      word := substring(rest from '^(?:/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)|以上|以下)');
       IF word IS NOT NULL THEN phrase := phrase || ' ' || word; END IF;
       IF word IS NULL AND left(rest, 1) = '/' THEN
         word := coalesce(
@@ -59,6 +80,11 @@ BEGIN
     IF character IN ('+', '%', '×', 'x') THEN
       phrase := concat_ws(' ', nullif(phrase, ''), character);
       rest := substr(first, 2);
+      IF character = '%' THEN
+        rate := btrim(substring(rest from '^\s+of\s+(?:(?:the|active|senior)\s+)*[a-z]+(?:-[a-z]+)*'));
+        IF rate IS NOT NULL THEN phrase := phrase || ' ' || rate; END IF;
+        EXIT;
+      END IF;
       CONTINUE;
     END IF;
     IF character <> '' AND strpos('.,;:!?''"()[]{}<>/\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’', character) = 0 THEN
@@ -66,7 +92,7 @@ BEGIN
     END IF;
     EXIT;
   END LOOP;
-  RETURN phrase;
+  RETURN coalesce(nullif(phrase, ''), fallback);
 END
 $fn$;
 --> statement-breakpoint

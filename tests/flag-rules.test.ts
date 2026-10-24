@@ -8,6 +8,8 @@
 import { describe, expect, it } from "vitest";
 import { repeatFlag, sortFact, unsourcedNumber } from "~/pipeline/flags";
 import type { FactGrade } from "~/model/types";
+import { DOCUMENTS } from "../scripts/demo-seed/documents";
+import { CAPTURED } from "../scripts/demo-seed/fixture";
 
 const QUOTE = "The intake queue was moved onto a job runner.";
 const fact = (claim: string, extra: Partial<{ quote: string | null; technologies: string[] }> = {}) => ({
@@ -315,10 +317,39 @@ describe("a claim that states a number its passage does not", () => {
     ["the same bare percentage with an adverb", "Reached 5%", "Reached 5% overall.", []],
     ["the same out-of ratio", "Resolved 3 out of 5 reports", "Resolved 3 out of 5 reports.", []],
     ["the same word out-of ratio", "Resolved three out of 5 reports", "Resolved three out of 5 reports.", []],
+    ["a quantity followed by different predicates", "5 engineers built APIs", "5 engineers maintained APIs.", []],
+    ["the opposite predicate direction", "5 engineers maintained APIs", "5 engineers built APIs.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
   }
+
+  it("keeps the demo record's cited quantities off the attention list", () => {
+    const claims = [
+      "Wrote the runbook and trained two on-call engineers to take over the service",
+      "Led a team of three building a fraud rules engine the risk team could edit without a deploy",
+      "Reduced the chargeback rate from 0.42% to 0.18% over two quarters",
+      "The engine evaluates about 1,200 payments per second at peak with 18 ms p99 latency",
+      "Led the five-engineer checkout squad as tech lead",
+      "Set a 170 KB checkout bundle budget enforced in CI",
+      "Reduced mobile checkout abandonment from 31% to 22%, valued at about ¥140 million in annual GMV",
+      "Built an offline search evaluation set from six months of logs, labelled by click-through and purchase",
+      "Moved search ranking to learning-to-rank, raising search conversion by 9% in a four-week A/B test",
+      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
+      "Twelve teams adopted the design system within a year",
+      "Led a team of four migrating the platform from hand-managed VMs to Azure Kubernetes Service",
+      "Moved the booking API behind a traffic split, sending 5% of requests to the new cluster first",
+      "Moved all 23 services to AKS over nine months with no unplanned downtime",
+      "Defined the first five clinic reports with the operations team at Sakura Family Clinic",
+    ];
+    const candidates = DOCUMENTS.flatMap((document) => document.candidates);
+    for (const claim of claims) {
+      const candidate = candidates.find((entry) => entry.claim === claim);
+      expect(candidate, claim).toBeDefined();
+      expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(false);
+    }
+    expect(unsourcedNumber(CAPTURED[0]!.claim, null, CAPTURED[0]!.technologies)).toBe(true);
+  });
 });
 
 describe("a likely repeat", () => {
