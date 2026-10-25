@@ -219,11 +219,11 @@ const KANA_KANJI = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 const LATIN_WORD = /\p{Script=Latin}{2,}/u;
 
 /**
- * What divides one statement from the next inside a block. 、 is not here,
+ * What divides one statement from the next inside a line. 、 is not here,
  * because it divides the items of a list, and a list of technologies is Latin
  * by nature.
  */
-const STATEMENT_BREAK = /[：。！？\n　]/u;
+const STATEMENT_BREAK = /[：。！？　]/u;
 
 /**
  * What divides one run of Latin text from the next inside a statement that
@@ -297,27 +297,28 @@ const withoutTerms = (text: string, terms: readonly string[]): string =>
   terms.reduce((t, term) => t.replace(new RegExp(escaped(term), "giu"), " "), text);
 
 /**
- * A heading or a block written in English. Either the whole line has no kana
- * or kanji and something Latin is left once the record's own terms are taken
+ * A heading or a block written in English, judged one physical line at a
+ * time. Either a line has no kana or kanji and something Latin is left once the record's own terms are taken
  * out (E1: 「Languages」), or one statement inside it is an English sentence:
  * three or more Latin words carrying a function word when the statement holds
  * no Japanese, or a sentence-length run of Latin words beside the Japanese
  * when it does (E2: a Japanese name, then the summary in English).
  */
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
-  const rest = withoutTerms(text, terms);
-  if (!KANA_KANJI.test(rest) && LATIN_WORD.test(rest)) return true;
-  return rest.split(STATEMENT_BREAK).some((statement) => {
-    if (!KANA_KANJI.test(statement)) {
-      const words = latinWords(statement);
-      return words.length > MAX_LATIN_WORDS_IN_JAPANESE && functionWordCount(words) > 0;
-    }
-    return statement.split(LATIN_RUN_BREAK).some((run) => {
-      const words = latinWords(run);
-      return (
-        words.length >= MIN_SENTENCE_WORDS_BESIDE_JAPANESE &&
-        functionWordCount(words) >= MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE
-      );
+  return withoutTerms(text, terms).split("\n").some((line) => {
+    if (!KANA_KANJI.test(line) && LATIN_WORD.test(line)) return true;
+    return line.split(STATEMENT_BREAK).some((statement) => {
+      if (!KANA_KANJI.test(statement)) {
+        const words = latinWords(statement);
+        return words.length > MAX_LATIN_WORDS_IN_JAPANESE && functionWordCount(words) > 0;
+      }
+      return statement.split(LATIN_RUN_BREAK).some((run) => {
+        const words = latinWords(run);
+        return (
+          words.length >= MIN_SENTENCE_WORDS_BESIDE_JAPANESE &&
+          functionWordCount(words) >= MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE
+        );
+      });
     });
   });
 }

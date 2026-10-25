@@ -137,6 +137,15 @@ describe("a line in English", () => {
     expect(japaneseDefect(heading, spec({ kind: "career_story_ja" }))).toBe("english");
   });
 
+  it("is a defect on one line of a block or heading that holds Japanese on another", () => {
+    expect(japaneseDefect(withBlock("skills", 0, block("row", "日本語の説明\nLanguages")), spec(), FACTS)).toBe("english");
+    const heading = doc({ key: "opening", heading: "決済に移った理由\nWhy payments", blocks: [block("paragraph", "決済に移った理由です。")] });
+    expect(japaneseDefect(heading, spec({ kind: "career_story_ja" }))).toBe("english");
+    const terms = latinTerms(spec(), FACTS);
+    expect(isEnglishLine("決済基盤の刷新\nTypeScript, Go, PostgreSQL", terms)).toBe(false);
+    expect(isEnglishLine("決済基盤の刷新\nREST APIとgRPCの設計", terms)).toBe(false);
+  });
+
   it("passes what a Japanese document is right to print in Latin script", () => {
     const terms = latinTerms(spec(), FACTS);
     for (const line of [
