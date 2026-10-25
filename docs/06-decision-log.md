@@ -7637,8 +7637,8 @@ Word.
   stays 0.4 for both languages. English still aligns on words.
 - **Decision:** what is shown stays BudouX phrases. Bigrams decide only which blocks are the same
   block; a mark on two characters is the scatter Screen 2 rules out.
-- **Decision:** every change carries a `location`: the section heading on the side it is read on
-  (the current version's for a removal), and, inside an `experience` section, the opening paragraph
+- **Decision:** every change carries a `location`: the current version's section heading for a
+  removal, the proposal's otherwise, and, inside an `experience` section, the opening paragraph
   of the employer group the block falls under, as `src/render/attribution.ts` reads the groups. A
   職務経歴書 holds every employer in that one section, and a changed bullet could not be placed
   without opening the document. The employer line is the document's own words, not a record lookup,

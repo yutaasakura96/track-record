@@ -544,9 +544,9 @@ the name written before the period (NFKC, corporate form dropped, cut at a brack
 digit). Each pair of groups aligns its own rows and bullets; any other section is one group. A block
 moved to another employer is a removal and an addition.
 
-**Location:** every change names the section heading it sits under and, in an `experience` section,
-the opening paragraph of its employer group, so a 職務経歴書 bullet can be placed without opening
-the document.
+**Location:** each change carries its section heading. An `experience` block also carries its
+employer group's opening paragraph, except when the changed block is that opening paragraph itself.
+Heading changes and blocks outside an employer group carry no employer line.
 
 Verified end to end on the author's real 職務経歴書 prose:
 
