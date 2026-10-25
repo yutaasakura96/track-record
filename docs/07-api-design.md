@@ -832,7 +832,7 @@ Other model failures use `generation_failed`.
 withheld, never what.
 
 **`GET /api/proposals/:id/diff` → 200** — changes for the split view and a preview for a first
-version. Two passes have already run server-side: paragraphs aligned, then tokens diffed
+version. Two passes have already run server-side: blocks aligned, then tokens diffed
 (`03-technical-design.md` §6.1).
 
 ```json

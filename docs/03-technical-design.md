@@ -521,11 +521,13 @@ changes no claim (#59).
 
 Two passes, because one pass is unreadable:
 
-1. **Align paragraphs** between the current and proposed versions by similarity, not by position.
-   Unmatched blocks are genuine additions or removals. Without this, a single inserted sentence
-   shifts everything after it and the whole document reads as changed.
+1. **Align blocks** between the current and proposed versions by similarity within each group, not
+   by position. In an `experience` section, opening paragraphs establish employer groups by identity
+   before blocks within them are compared. Unmatched blocks are genuine additions or removals.
+   Without alignment, a single inserted sentence shifts everything after it and the whole document
+   reads as changed.
 2. **Diff tokens inside each matched pair** using jsdiff `diffArrays` — Myers, the same algorithm
-   git uses, at word granularity instead of line granularity.
+   git uses, at word or phrase granularity instead of line granularity.
 
 Visible section headings are compared by section key before that section's blocks. A changed,
 added or removed heading becomes its own change; headings of sections with no blocks are omitted.
