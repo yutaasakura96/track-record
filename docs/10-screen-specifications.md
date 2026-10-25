@@ -1066,7 +1066,10 @@ in the `No candidates` state, which says the same thing itself.
    column at phone width.
 
 **Your groups.** One card per group, in order. Its heading is its name, editable in place, with `↑`
-`↓` to move the group. Beneath it the group's skills as **chips**, wrapping. A chip reads the name,
+`↓` to move the group. Under the name, a field labelled `Name in the 職務経歴書 — left blank, it is
+written in Japanese for you`, saved on leaving it as the name is (#117): the 活かせるスキル row
+prints it, and without one the model writes the group's name in Japanese, never in English. Beneath
+it the group's skills as **chips**, wrapping. A chip reads the name,
 then in small text the achievements behind it and the last year one of them reaches — `Go 3 · 2020`,
 `Azure 1 + 1 cert · now` — and is named in full for a screen reader (`Go: 3 achievements, last used
 2020`). The year is the latest of: the month a quick capture carries; else the end of the fact's

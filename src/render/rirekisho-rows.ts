@@ -259,8 +259,7 @@ export function shikakuRows(
 
   for (const c of certifications) {
     if (c.issuedOn === null || isExpired(c.expiresOn, on)) continue;
-    const name = c.nameJa ?? c.name;
-    rows.push(row(c.issuedOn, join(name, certificationVerb(name))));
+    rows.push(row(c.issuedOn, certificationText(c)));
   }
 
   for (const e of educations) {
@@ -270,6 +269,16 @@ export function shikakuRows(
   }
 
   return ascending(rows);
+}
+
+/**
+ * One certification as a 免許・資格 row words it, without its date: the name
+ * and {@link certificationVerb}. Exported for the 職務経歴書's 保有資格, which
+ * prints the same rows (issue #117) and, unlike this table, keeps an undated one.
+ */
+export function certificationText(c: Pick<RirekishoCertification, "name" | "nameJa">): string {
+  const name = c.nameJa ?? c.name;
+  return join(name, certificationVerb(name));
 }
 
 /**

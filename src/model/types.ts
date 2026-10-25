@@ -153,6 +153,8 @@ export interface RenderSpec {
     startedOn: string;
     endedOn: string | null;
     businessDescription: string | null;
+    /** 雇用形態. Printed beside the employer in every prompt; the 職務経歴書 writes it (issue #117). */
+    employmentType: "full_time" | "contract" | "dispatch" | "part_time" | "independent";
     /**
      * 資本金, in yen, and 従業員数. Conventional required fields of a 職務経歴書
      * with no English-résumé equivalent (`docs/06`, 2026-08-12), which is why
@@ -178,6 +180,7 @@ export interface RenderSpec {
     name: string;
     employerId: string | null;
     summary: string | null;
+    summaryJa: string | null;
     startedOn: string | null;
     endedOn: string | null;
   }[];
@@ -250,7 +253,7 @@ export interface RenderSpec {
    * a skill no fact given to this render states is not written, however it was
    * chosen (`docs/06`, 2026-09-13).
    */
-  curatedSkills: { name: string; skills: string[] }[] | null;
+  curatedSkills: { name: string; nameJa: string | null; skills: string[] }[] | null;
   /**
    * The job a tailored résumé is written toward (issue #57), as the author
    * pasted it. `null` for a main document, which is tailored to nothing.

@@ -277,6 +277,8 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   nameJa: text("name_ja"),
   summary: text("summary"),
+  /** The summary a Japanese document writes. Null = none; never translated from `summary` on read. */
+  summaryJa: text("summary_ja"),
   startedOn: date("started_on", { mode: "string" }),
   endedOn: date("ended_on", { mode: "string" }),
   /** Per-project override of the "client identity is not named" default. */
@@ -939,6 +941,8 @@ export const skillCurations = pgTable("skill_curations", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   skillName: text("skill_name").notNull(),
   groupName: text("group_name"),
+  /** The group's name in a Japanese document, repeated on every row of the group as `group_name` is. */
+  groupNameJa: text("group_name_ja"),
   sortOrder: integer("sort_order").notNull().default(0),
   /** A curated skill in no fact is FLAGGED, never removed (S9). */
   isStale: boolean("is_stale").notNull().default(false),

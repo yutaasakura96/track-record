@@ -171,7 +171,11 @@ function highest(groups: CuratedGroup[], score: (group: CuratedGroup) => number)
 /** The stored curation, grouped in the order its rows were saved. Empty when nothing is curated. */
 export async function curatedGroups(db: Db, userId: string): Promise<CuratedGroup[]> {
   const rows = await db
-    .select({ skillName: skillCurations.skillName, groupName: skillCurations.groupName })
+    .select({
+      skillName: skillCurations.skillName,
+      groupName: skillCurations.groupName,
+      groupNameJa: skillCurations.groupNameJa,
+    })
     .from(skillCurations)
     .where(eq(skillCurations.userId, userId))
     .orderBy(asc(skillCurations.sortOrder));
@@ -181,7 +185,7 @@ export async function curatedGroups(db: Db, userId: string): Promise<CuratedGrou
     const name = row.groupName ?? "";
     const last = groups.at(-1);
     if (last && last.name === name) last.skills.push(row.skillName);
-    else groups.push({ name, skills: [row.skillName] });
+    else groups.push({ name, nameJa: row.groupNameJa, skills: [row.skillName] });
   }
   return groups;
 }

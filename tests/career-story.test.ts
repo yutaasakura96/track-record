@@ -53,6 +53,7 @@ const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
     startedOn: "2020-04-01",
     endedOn: null,
     businessDescription: null,
+    employmentType: "full_time",
     capitalYen: null,
     headcount: null,
     roles: [],

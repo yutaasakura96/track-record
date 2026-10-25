@@ -43,6 +43,7 @@ const PLINTH: Project = {
   nameJa: null,
   employerId: null,
   summary: null,
+  summaryJa: null,
   startedOn: null,
   endedOn: null,
   clientIsNamed: false,

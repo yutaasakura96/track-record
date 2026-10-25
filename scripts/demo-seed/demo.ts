@@ -182,6 +182,7 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
         name: project.name,
         nameJa: project.nameJa,
         summary: project.summary,
+        summaryJa: project.summaryJa,
         startedOn: month(project.startedOn),
         endedOn: month(project.endedOn),
       });
@@ -197,6 +198,7 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
       name: project.name,
       nameJa: project.nameJa,
       summary: project.summary,
+      summaryJa: project.summaryJa,
       startedOn: month(project.startedOn),
       endedOn: month(project.endedOn),
     });
@@ -292,6 +294,7 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
         userId,
         skillName: skill,
         groupName: group.name,
+        groupNameJa: group.nameJa,
         sortOrder: order++,
       });
     }

@@ -7520,3 +7520,52 @@ above; the boundary it set, the unit or counter plus an attached rate or compari
   carrying the number flag.
 - **Revisit if:** a count-neutral word the record uses often is missing from the list; each miss
   flags the fact, which errs toward a look.
+
+---
+
+### [2026-10-24] The 職務経歴書 prints no English and no doubled verbs (#117, item 4)
+
+The Japanese documents review found three kinds of English in the 職務経歴書 and a doubled verb in
+保有資格, each ordered by an instruction rather than slipped by a model: skill group names copied "as
+given" from a curation that holds English names, a project summary copied from a column that holds
+English, and 保有資格 written 「名称（YYYY年M月取得）」 against names that already carried 合格.
+
+- **Decision:** a curated group carries an optional Japanese name (`skill_curations.group_name_ja`),
+  edited on Skills. A 職務経歴書 prompt gives it; without one it gives the English name marked
+  `[recorded in English only]`, and the register says to write it in Japanese, never to copy it.
+- **Decision:** a project carries an optional Japanese summary (`projects.summary_ja`). Every
+  Japanese prompt marks an English-only field with that label, the way the English prompts mark a
+  Japanese-only one, and the three Japanese registers say to write it in Japanese or leave it out.
+  Names and technology names are the exception, as they are in English.
+- **Decision:** 保有資格 and 学歴 are filled from the record, by the 履歴書's own row functions
+  (`src/render/rirekisho-rows.ts`), and spliced into the generated content before it is stored
+  (`src/render/shokumu.ts`). The two documents sent together cannot disagree on a name or a month,
+  and the review, the view and the file all show the rows. They read newest first, as the rest of
+  the document does. A certification's verb is the 履歴書's (`src/render/shikaku.ts`): 合格 or 取得
+  read from the name, none when the name already ends in one. A finished vocational course moves
+  from 学歴 to 保有資格 as 修了, as it is on the 履歴書. An undated certification, which the 履歴書
+  cannot print, closes 保有資格 undated.
+- **Decision:** a lapsed certification — one whose expiry month has passed — is left off the
+  Japanese documents and out of their prompts (owner, 2026-10-23). The English documents are
+  unchanged.
+- **Decision:** the employer list sent to every prompt states 雇用形態, and the 職務経歴書 register
+  copies it into each employer's opening paragraph.
+- **Not changed:** the 職務経歴書's headings (経歴要約, 活かせるスキル・経験, 学歴 and the rest), by the
+  owner's choice; and its typography, which is a later change.
+
+---
+
+### [2026-10-25] Role titles and certification names are copied into a Japanese document (#117)
+
+Supersedes the names exception in "The 職務経歴書 prints no English and no doubled verbs"
+(2026-10-24), which named employers, schools, projects and technologies only. A role title or a
+certification name held only in English was marked `[recorded in English only]` in the Japanese
+prompts, so the register told the model to translate it or leave it out, while the experience rule
+copies role titles and 保有資格 prints certification names verbatim.
+
+- **Decision:** in a Japanese prompt a role title and a certification name are given as recorded —
+  the Japanese form when one is recorded, otherwise the English — and never labelled. The names
+  exception in the Japanese registers names them, so they are copied, never translated or omitted.
+  The English prompts still label a Japanese-only title or name.
+- **Decision:** a blank `projects.summary_ja` is stored as `null`, as a blank group name in Japanese
+  is, so it falls back to the English summary rather than hiding it.

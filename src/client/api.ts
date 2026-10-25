@@ -260,6 +260,7 @@ export interface Project {
   nameJa: string | null;
   employerId: string | null;
   summary: string | null;
+  summaryJa: string | null;
   startedOn: string | null;
   endedOn: string | null;
   clientIsNamed: boolean;
@@ -750,14 +751,14 @@ export interface SkillCandidate {
 }
 
 export interface SkillCuration {
-  groups: { name: string; skills: CuratedSkill[] }[];
+  groups: { name: string; nameJa: string | null; skills: CuratedSkill[] }[];
   candidates: SkillCandidate[];
   /** What the English résumé may name in its Skills section, ranked as its uncurated line is. */
   printable: string[];
 }
 
 /** What `PUT /api/skills/curation` takes: the whole list, names only. */
-export type SkillCurationInput = { name: string; skills: string[] }[];
+export type SkillCurationInput = { name: string; nameJa: string | null; skills: string[] }[];
 
 /** The skills curation (S9). An empty `groups` means nothing is curated. */
 export const useSkillCuration = () =>

@@ -68,6 +68,7 @@ const LEDGER: Project = {
   nameJa: null,
   employerId: QORVANE.id,
   summary: null,
+  summaryJa: null,
   startedOn: "2022-01-01",
   endedOn: "2023-06-01",
   clientIsNamed: false,
