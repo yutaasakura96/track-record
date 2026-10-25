@@ -1313,7 +1313,7 @@ reason`. Content column as Screen 3.
 |---|---|
 | **Loading** | `Loading the list…` |
 | **Nothing flagged** | One panel: `Nothing is flagged. Facts that need a look appear here as documents are imported.` Under `Checked`: `Nothing is marked as checked yet.` |
-| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. The flag and its reason are unchanged and the button is still there |
+| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. Exhausted credits show the server's pause message (`12` §9). The flag and its reason are unchanged and the button is still there |
 | **Read failed** | The shared read failure, with retry. A refresh that fails over a list already shown keeps the list and says so above it |
 
 ---
@@ -1617,7 +1617,7 @@ that is wrong, then save.` `Next:` `check the three fields, then save the applic
 | **Text over 20,000 characters** | `Read it` is refused with the limit and the length named: `A job description can be at most 20,000 characters. This one is 20,412.` |
 | **Company and position not found** | Step 2 with both fields empty, placeholder `Not found in the text. Type it in.`, and `Next:` `the company and the position could not be found in the text. Type them in, then save.` |
 | **Only one of the two not found** | Step 2 with what was found, the other empty with the same placeholder, and `Next:` naming it: `the position could not be found in the text. Type it in, then save.` |
-| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` That holds after an earlier reading that succeeded: its fields are not left under the failure |
+| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` For exhausted credits, that line shows the server's pause message (`12` §9). That holds after an earlier reading that succeeded: its fields are not left under the failure |
 | **Saving without a company or a position** | `Give it a company and a position first.` |
 | **Save failed** | The reason under the actions; nothing typed is lost |
 
@@ -2045,7 +2045,7 @@ Quick capture` open `/capture?fact=<id>` with that card's controls open.
 | State | Behaviour |
 |---|---|
 | **Text missing** | `Type what you did first. A sentence or two is enough.` under the actions, `role="alert"`, in the `removed` tone |
-| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` |
+| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` For exhausted credits, that line shows the server's pause message (`12` §9). |
 | **The reading found nothing** | The same, with `No claim could be found in what you typed. Fill it in yourself; your text is kept.` |
 | **A claim emptied** | `A claim cannot be empty. Fill it in, or remove it.` on save |
 | **Save failed** | The reason under the actions; the draft is kept |

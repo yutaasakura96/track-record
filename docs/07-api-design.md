@@ -71,7 +71,7 @@ switches on. `details` is optional and shape-varies by code.
 | `validation_failed` | 422 | Zod rejected the body. `details.fields` names the offenders |
 | `conflict` | 409 | The action contradicts current state — deleting an employer with facts, accepting an already-decided proposal |
 | `precondition_failed` | 428 | The action is legal but blocked by missing data — 履歴書 with no date of birth. `details.fields` names what is missing |
-| `upstream_unavailable` | 503 | Anthropic or Neon is unreachable. **Always retryable, and nothing was mutated** |
+| `upstream_unavailable` | 503 | Anthropic or Neon could not complete the call, including exhausted model credits. **Always retryable, and nothing was mutated by that call**. For exhausted credits, `details.reason` is `credits_exhausted` and `message` explains the pause (`12` §9) |
 | `internal` | 500 | Unhandled. Logged with an ID that is returned in `message` |
 
 **No error body ever contains source text, a fact claim, or render content** — that would put record
@@ -287,6 +287,9 @@ retained.
 
 PRD §7 requires this be reported as a **failure of extraction with the document retained**, never as
 an empty success.
+When the model service runs out of credits, the retryable import also has `status: "failed"`, but
+`error.code` is `credits_exhausted` and `error.message` explains the pause. Other model failures
+use `extraction_failed`.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -380,7 +383,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 - **`error`** is `null` unless the version is `failed`, and then it is the same object
   `GET /api/imports/:id` returns for that version, `code` and `message` both. One shape across the
   imports resources (§2): a failed version in the listing reads
-  `{ "code": "extraction_failed", "message": "…" }`, never a bare string. Screen 8 shows
+  `{ "code": "extraction_failed", "message": "…" }`, or `credits_exhausted` for a credit pause,
+  never a bare string. Screen 8 shows
   `message`.
 - **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
   number of that version's facts still `candidate`.
@@ -609,8 +613,8 @@ session's own candidates are read, and another user's `importId` sorts nothing.
 made because the author pressed the button.** The call is given the flag's kind and reason and the
 fact's claim, quote, provenance and disclosure. The answer and its token counts are stored on the
 flag, so a second press, a reload and the fact's own card all read the stored text and call nothing.
-`503 upstream_unavailable` when the model does not answer or returns nothing usable; nothing is
-stored, and the next press tries again. `404` for a flag that is not the session's.
+`503 upstream_unavailable` when the model does not answer, has no credits or returns nothing usable;
+nothing is stored, and the next press tries again. `404` for a flag that is not the session's.
 
 **`POST /api/flags/:id/check`** and **`/uncheck` → 200** with the flag. They stamp or clear
 `checked_at` and change nothing about the fact: a checked `confidential` flag leaves the fact
@@ -798,6 +802,10 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 2026-09-21).
 
 **`GET /api/proposals/:id` → 200**
+
+When generation is paused for lack of credits, the retryable proposal has
+`generationStatus: "failed"` and `error.code: "credits_exhausted"`, with the plain pause message.
+Other model failures use `generation_failed`.
 
 ```json
 {
@@ -1212,12 +1220,14 @@ screens read too.
   characters for the company and the position; 30 requirements of 300 characters), so a proposal is
   always one `POST /api/applications` accepts. It takes the text only: the link is never sent to
   it, and nothing is fetched. A failed reading is `503 upstream_unavailable`, `The job description
-  could not be read just now. Type the fields in; your text is kept.`
+  could not be read just now. Type the fields in; your text is kept.` unless credits are exhausted;
+  that case uses the shared pause message and `details.reason` (§2).
 - Every write answers with the application as it is afterwards. One that froze documents adds
   `frozen: [{ title, versionNo }]`, which is what the screen's notice names. Another user's
   application is `404` on every route.
 - Logged: `posting_read` with the text's length, whether a company and a position were found, the
-  number of requirements and the token counts, `posting_read_failed` with the length,
+  number of requirements and the token counts, `posting_read_failed` with the length for other
+  model failures, `model_credits_exhausted` with `step: "read_posting"` for exhausted credits,
   `application_created` with the id and the job description's length,
   `application_standing_set` with the id, `step`, `closedAs` and how many documents it froze, and
   `interview_added` with the two

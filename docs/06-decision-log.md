@@ -7413,3 +7413,40 @@ APIs`. `active` and `senior` remain the explicitly ignored descriptive words; ra
 words remain part of the quantity. The demo seed's cited figures keep the flag list quiet, while
 a captured fact with no quote still raises the number flag. Migration 0032 uses the same boundary
 for digit figures it re-evaluates.
+
+---
+
+### [2026-10-24] Model calls draw on the plan's included API credits, and running out is not an outage
+
+Issue #144. Track Record already calls `api.anthropic.com` with a server-side key, so Claude Max and
+Team plans' included monthly API credits apply with no change to the model path
+([API credits for Max and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers),
+read 2026-10-24). What was missing was the app's own behaviour when the balance reaches zero.
+
+- **Decision:** the production key is issued by the Console organisation linked to the plan, from a
+  workspace with its own spend limit. Linking, the workspace and the secret are the owner's steps
+  (`docs/12` §9); nothing in the repository holds a key or a balance.
+- **Decision:** `asModelError` reads 400 `invalid_request_error` with "credit balance is too low" as
+  `ModelCreditsExhaustedError`, a subclass of `ModelUnavailableError`. Status and type alone match
+  every malformed request, so the sentence is checked as well. The provider's body is still never
+  carried.
+- **Decision:** every place that surfaces a model failure says the same plain sentence: generation
+  is paused until credits are topped up or next month's arrive. Import and generation store it as
+  their error, so Retry and generating again behave as for any unavailable model; Explain this,
+  sorting facts, reading a posting and quick capture answer 503 `upstream_unavailable` with it.
+- **Decision:** the log event is `model_credits_exhausted` with a step name, in place of
+  `import_chunk_failed` or `generation_failed`, so the owner can tell no credit from an outage by
+  event name alone.
+- **Not changed:** the model, the effort settings and every prompt. No credit-balance read or
+  warning-before-zero: the API exposes no balance to a workspace key, and a billing alert on the
+  Console organisation (`docs/12` §7) is the early signal.
+
+---
+
+### [2026-10-25] Give credit pauses their own public reason
+
+Issue #144. Supersedes the response-code part of the 2026-10-24 decision above. A credit pause
+retains a retryable `failed` import or proposal state, but its public `error.code` is
+`credits_exhausted`, rather than `extraction_failed` or `generation_failed`. Stateless model calls
+still answer `503 upstream_unavailable` with `error.details.reason: "credits_exhausted"`. The
+member-facing message and distinct log event are unchanged; the API contract is in `07` §2, §5 and §7.

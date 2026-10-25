@@ -9,13 +9,23 @@
  * restated, so the verbatim-quote rule (`src/pipeline/quote.ts`) is exercised
  * against the bytes the browser uploaded.
  */
-import { ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
+import { ModelCreditsExhaustedError, ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
 import { CLAIM as DOCUMENT_VIEW_CLAIM, CLAIM_SENTENCE as DOCUMENT_VIEW_SENTENCE } from "./document-view-fixture";
 import { READING_EN, READING_JA } from "../fixtures/postings";
 
 export const e2eModel: ModelSeam = {
   async extractFacts(sourceText, ctx) {
+    if (sourceText.includes("credit-import-fixture")) throw new ModelCreditsExhaustedError();
+    if (sourceText.includes("credit-generation-fixture") || sourceText.includes("credit-explain-fixture")) {
+      const candidate = {
+        claim: sourceText.trim(), quote: sourceText.trim(), technologies: [],
+        provenance: "measured" as const, confidential: sourceText.includes("credit-explain-fixture"),
+        unsure: false, note: sourceText.includes("credit-explain-fixture") ? "Review the client name" : "",
+      };
+      ctx.onCandidate?.(candidate);
+      return [candidate];
+    }
     const fixture = sourceText.includes(CLAIM_SENTENCE)
       ? { claim: CLAIM, sentence: CLAIM_SENTENCE }
       : sourceText.includes(DOCUMENT_VIEW_SENTENCE)
@@ -36,6 +46,7 @@ export const e2eModel: ModelSeam = {
   },
 
   async generateRender(facts, spec) {
+    if (facts.some((fact) => fact.claim.includes("credit-generation-fixture"))) throw new ModelCreditsExhaustedError();
     if (spec.kind === "rirekisho") {
       return { sections: [
         { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
@@ -88,6 +99,7 @@ export const e2eModel: ModelSeam = {
   },
 
   async explainFlag(flag) {
+    if (flag.claim.includes("credit-explain-fixture")) throw new ModelCreditsExhaustedError();
     return `It was flagged because: ${flag.reason}`;
   },
 
@@ -104,6 +116,7 @@ export const e2eModel: ModelSeam = {
    * the plain form.
    */
   async captureClaims(text, context) {
+    if (text.includes("credit-pause-fixture")) throw new ModelCreditsExhaustedError();
     if (text.includes("unreadable")) throw new ModelUnavailableError("The stub was asked to fail.");
     const [year, month] = context.today.split("-").map(Number) as [number, number];
     const lastMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;

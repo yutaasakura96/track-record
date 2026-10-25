@@ -25,7 +25,8 @@ import {
   roles,
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
-import { ModelUnavailableError, type ModelUsage } from "~/model/types";
+import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
+import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
 import { ENGLISH_DEFECT_REASON, MIXED_ENGLISH_DEFECT_REASON, englishDefect, hasJapaneseScript } from "~/render/language";
@@ -458,8 +459,10 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
       .update(renderProposals)
       .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
       .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
-    // Ids only. Never the facts sent, never the content returned.
-    console.error(JSON.stringify({ event: "generation_failed", proposalId }));
+    // Ids only. Never the facts sent, never the content returned. Out of
+    // credits is its own event: not an outage, and the proposal can be retried.
+    if (err instanceof ModelCreditsExhaustedError) logCreditsExhausted("generate");
+    else console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
 }
 

@@ -26,6 +26,8 @@ import {
   E2E_SUITE,
   CAPTURE_IDENTITY,
   CAPTURE_STORAGE_STATE,
+  CREDIT_PAUSE_IDENTITY,
+  CREDIT_PAUSE_STORAGE_STATE,
   DIFF_REVIEW_IDENTITY,
   DIFF_REVIEW_STORAGE_STATE,
   EDUCATION_CHIPS_IDENTITY,
@@ -91,6 +93,15 @@ export default async function setup() {
     CAPTURE_IDENTITY,
   );
   writeFileSync(CAPTURE_STORAGE_STATE, `${JSON.stringify(storageState(captureSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const creditPauseSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    CREDIT_PAUSE_IDENTITY,
+  );
+  writeFileSync(CREDIT_PAUSE_STORAGE_STATE, `${JSON.stringify(storageState(creditPauseSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
   const diffReviewSession = await createDevSession(

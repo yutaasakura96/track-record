@@ -6,6 +6,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import {
+  ModelCreditsExhaustedError,
   ModelUnavailableError,
   type CandidateFact,
   type CaptureContext,
@@ -327,9 +328,24 @@ function readUsage(usage: Anthropic.Usage): ModelUsage {
   };
 }
 
+/**
+ * An organisation with no credits left answers 400 `invalid_request_error`
+ * with "Your credit balance is too low to access the Anthropic API"
+ * (https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers).
+ * Status and type alone would match every malformed request, so the sentence is
+ * checked too. Only a boolean leaves this function: the body is never carried.
+ */
+function isCreditsExhausted(err: InstanceType<typeof Anthropic.APIError>): boolean {
+  if (err.status !== 400 || err.type !== "invalid_request_error") return false;
+  const body = err.error as { error?: { message?: unknown } } | undefined;
+  const message = typeof body?.error?.message === "string" ? body.error.message : err.message;
+  return /credit balance is too low/i.test(message);
+}
+
 function asModelError(err: unknown): Error {
   if (err instanceof ModelUnavailableError) return err;
   if (err instanceof Anthropic.APIError) {
+    if (isCreditsExhausted(err)) return new ModelCreditsExhaustedError();
     // The provider and status are safe to carry. The response body is not — it
     // can echo the prompt, which is source text (`docs/03` §7, point 4).
     return new ModelUnavailableError(`The model service returned ${err.status}.`, err.status);

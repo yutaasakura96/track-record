@@ -15,7 +15,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import { factFlags, facts, importChunks, sourceDocumentVersions } from "~/server/db/schema";
 import { newId } from "~/server/http/ids";
-import { ModelUnavailableError, type ModelSeam, type ModelUsage } from "~/model/types";
+import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelSeam, type ModelUsage } from "~/model/types";
 import { planChunks } from "./chunk";
 import { anchorQuote } from "./quote";
 import { dedupeHash } from "./dedupe";
@@ -205,8 +205,15 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
         .set({ importStatus: "failed", importError: reason, updatedAt: new Date() })
         .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId))),
     ]);
-    // Provider, step and chunk index. No content, ever.
-    log({ event: "import_chunk_failed", versionId, chunkIndex: chunk.chunkIndex });
+    // Provider, step and chunk index. No content, ever. Out of credits is its
+    // own event: the chunk is `failed` so a retry can pick it up, but it is
+    // not an outage and the owner needs to tell the two apart.
+    log({
+      event: err instanceof ModelCreditsExhaustedError ? "model_credits_exhausted" : "import_chunk_failed",
+      versionId,
+      chunkIndex: chunk.chunkIndex,
+      ...(err instanceof ModelCreditsExhaustedError ? { step: "import" } : {}),
+    });
     return "failed";
   }
 

@@ -255,7 +255,7 @@ resumes where it left off.
 | Step | What can go wrong | What the author sees |
 |---|---|---|
 | 1 | Nothing is flagged | An empty state saying so, in a sentence. Not an error |
-| 4 | Anthropic unavailable | `503` and a line under the row: the explanation could not be written, try again. **The flag, its reason and the fact are unchanged**, and nothing was stored |
+| 4 | Anthropic unavailable | `503` and the failure reason under the row (Screen 9 in `10`), including the credit pause. **The flag, its reason and the fact are unchanged**, and nothing was stored |
 | 4 | The page is reloaded, or the fact's own card is opened | The stored explanation is shown, and the button is gone. **One model call a flag, ever** |
 | 5 | The fact has no source document | The row has no link to open |
 | 6 | Marked by mistake | The **Checked** pill lists it, with **Put back on the list** → `POST /api/flags/:id/uncheck` |

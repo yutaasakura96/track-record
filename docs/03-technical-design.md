@@ -668,11 +668,13 @@ that filtering is asserted by test — not by convention.
 
 ## 9. Error handling
 
-**The governing rule: a failure never destroys or mutates a stored version.**
+**The governing rule: a failure never destroys stored content or overwrites an accepted render;
+retryable import and proposal failures record their status.**
 
 | Failure | What the author sees | What is logged |
 |---|---|---|
 | Model unavailable / unusable response | Stated reason + retry. Current version untouched and readable | Provider, status, workflow step, chunk index. **No content** |
+| Model credits exhausted | Plain pause reason + retry; import and proposal keep retryable `failed` states (`07` §5, §7). Accepted render untouched | `model_credits_exhausted` with step, and import identifiers (`12` §9). **No content** |
 | Import extracts zero facts | Reported as an extraction *failure*, document retained. Retry or capture manually | Document ID, byte size, chunk count |
 | Deduplication drops every candidate of a re-import | Zero new candidates, reported as a success with the number of repeats. **Not** the zero-facts failure above | Count only, per import |
 | Quote verification rejects a candidate | Nothing — silently discarded | Count only, per import |

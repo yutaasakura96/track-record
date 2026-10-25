@@ -47,6 +47,15 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The server's own words when a model call failed for want of credits, else
+ * `null`. Screens that word a model failure themselves (and fall back to
+ * typing it in) use it so the member is told the true reason (`docs/12` §9).
+ */
+export function creditsMessage(error: unknown): string | null {
+  return error instanceof ApiError && error.details.reason === "credits_exhausted" ? error.message : null;
+}
+
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,

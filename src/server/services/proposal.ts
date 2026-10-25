@@ -14,6 +14,8 @@ import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
 import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
+import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
+import { CREDITS_REASON } from "./model-credits";
 
 export async function proposalResponse(
   db: Db,
@@ -54,7 +56,10 @@ export async function proposalResponse(
     generationStatus: proposal.generationStatus,
     error:
       proposal.generationStatus === "failed"
-        ? { code: "generation_failed", message: proposal.generationError ?? "Generation failed." }
+        ? {
+            code: proposal.generationError === CREDITS_EXHAUSTED_MESSAGE ? CREDITS_REASON : "generation_failed",
+            message: proposal.generationError ?? "Generation failed.",
+          }
         : null,
     basedOnVersionNo,
     proposedVersionNo: (basedOnVersionNo ?? 0) + 1,
@@ -205,4 +210,3 @@ export function regenerationReason(
   if (!entered && !withdrawn) return "Regenerated on request";
   return `Regenerated after ${[entered, withdrawn].filter(Boolean).join(" and ")}`;
 }
-

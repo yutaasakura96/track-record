@@ -28,6 +28,7 @@ import {
   useCapturedFacts,
   useEntities,
   useFactAction,
+  creditsMessage,
   useReadCapture,
   useSaveCapture,
   type CaptureQuestion,
@@ -67,6 +68,8 @@ interface Draft {
   claims: DraftClaim[];
   /** How the reading went: what the check step says above the claims. */
   reading: "read" | "failed" | "empty" | "plain";
+  /** The server's own words when the reading failed for want of credits; replaces the note for `failed`. */
+  creditsNote?: string;
 }
 
 const EMPTY: Draft = { step: "text", text: "", filed: "", claims: [], reading: "read" };
@@ -198,8 +201,13 @@ export function CaptureScreen() {
           }),
         });
       }
-    } catch {
-      update({ step: "check", claims: [plainClaim(text, draft.filed)], reading: "failed" });
+    } catch (error) {
+      update({
+        step: "check",
+        claims: [plainClaim(text, draft.filed)],
+        reading: "failed",
+        creditsNote: creditsMessage(error) ?? undefined,
+      });
     }
   };
 
@@ -311,7 +319,7 @@ export function CaptureScreen() {
             <form ref={checkForm} onSubmit={(event) => void saveIt(event)} noValidate className="grid gap-16">
               {draft.reading === "read" ? null : (
                 <p role="status" className="text-small text-text-secondary">
-                  {READING_NOTE[draft.reading]}
+                  {(draft.reading === "failed" && draft.creditsNote) || READING_NOTE[draft.reading]}
                 </p>
               )}
               {draft.claims.map((claim, index) => (

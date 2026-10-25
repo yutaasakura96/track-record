@@ -27,6 +27,7 @@ import { requireOwnedEmployer, requireOwnedProject } from "./record";
 import { monthDate } from "./profile";
 import { toResponse } from "./facts";
 import { classifyClaim } from "~/pipeline/flags";
+import { creditsExhaustedError } from "../services/model-credits";
 import { ModelUnavailableError, type CapturedClaim, type ModelUsage } from "~/model";
 import { CAPTURE_TEXT_MAX, CAPTURED_CLAIMS_MAX, CLAIM_MAX } from "~/shared/capture";
 import type { AppEnv } from "../env";
@@ -120,6 +121,8 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
       );
     } catch (err) {
       if (!(err instanceof ModelUnavailableError)) throw err;
+      const outOfCredits = creditsExhaustedError(err, "capture");
+      if (outOfCredits) throw outOfCredits;
       // A length and the failure. Never the text.
       console.log(JSON.stringify({ event: "capture_read_failed", characters: text.length }));
       throw new ApiError(

@@ -355,3 +355,25 @@ export class ModelUnavailableError extends Error {
     this.detail = detail;
   }
 }
+
+/**
+ * Said to the member wherever a model call fails for want of credits. Plain
+ * words, no provider name, and it promises nothing the member has to wait on
+ * us for: the owner tops up, or the next month's credits arrive (`docs/06`,
+ * 2026-10-24).
+ */
+export const CREDITS_EXHAUSTED_MESSAGE =
+  "Generation is paused: the model service has run out of credits. It resumes once credits are topped up or next month's credits arrive. Nothing was lost; try again then.";
+
+/**
+ * The provider refused because the organisation has no credits left. A kind of
+ * {@link ModelUnavailableError}, so every place that already treats an
+ * unavailable model as retryable keeps doing so; the ones that tell the member
+ * why look for this subclass first.
+ */
+export class ModelCreditsExhaustedError extends ModelUnavailableError {
+  constructor() {
+    super(CREDITS_EXHAUSTED_MESSAGE, 400);
+    this.name = "ModelCreditsExhaustedError";
+  }
+}

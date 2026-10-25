@@ -16,6 +16,7 @@ import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle
 import { factFlags, facts, sourceDocumentVersions, sourceDocuments } from "../db/schema";
 import { ApiError, notFound, pathParam } from "../http/errors";
 import { routes } from "../http/registry";
+import { creditsExhaustedError } from "../services/model-credits";
 import { ModelUnavailableError, type ModelUsage } from "~/model";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
@@ -164,6 +165,8 @@ export function registerFlagRoutes(app: Hono<AppEnv>) {
       );
     } catch (err) {
       if (!(err instanceof ModelUnavailableError)) throw err;
+      const outOfCredits = creditsExhaustedError(err, "explain");
+      if (outOfCredits) throw outOfCredits;
       throw new ApiError("upstream_unavailable", "The explanation could not be written just now. Try again.");
     }
 
