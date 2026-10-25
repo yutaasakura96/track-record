@@ -140,7 +140,7 @@ export function diffRenders(
     const employerBefore = employerLines(currentSection);
     const employerAfter = employerLines(section);
 
-    for (const pair of alignBlocks(before, section.blocks, options.language)) {
+    for (const pair of alignSection(before, section, options.language)) {
       const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
 
@@ -286,6 +286,61 @@ function employerLines(section: RenderSection | undefined): Map<string, string> 
 interface AlignedPair {
   current: Block | null;
   proposed: Block | null;
+}
+
+interface EmployerGroup {
+  opening: Block;
+  rest: Block[];
+}
+
+/**
+ * Splits an `experience` section's blocks the way {@link employerLines} reads
+ * them: whatever comes before the first paragraph, then one group per opening
+ * paragraph.
+ */
+function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup[] } {
+  const lead: Block[] = [];
+  const groups: EmployerGroup[] = [];
+  for (const block of blocks) {
+    if (block.kind === "paragraph") groups.push({ opening: block, rest: [] });
+    else if (groups.length > 0) groups[groups.length - 1]!.rest.push(block);
+    else lead.push(block);
+  }
+  return { lead, groups };
+}
+
+/**
+ * Alignment for one section. Outside an `experience` section the whole section
+ * is one group. Inside one, a block only pairs with a block under the same
+ * employer: the opening paragraphs are aligned first, and each pair of groups
+ * then aligns its own rows and bullets. A 職務経歴書 repeats the same template
+ * rows (資本金, 従業員数, 技術スタック) under every employer, and on bigrams two
+ * employers' rows are alike enough to pair, which would label one employer's
+ * old figures as another's. A block that moved to another employer is one
+ * removal and one addition, each under its own employer.
+ */
+function alignSection(current: Block[], proposed: RenderSection, language: DiffLanguage): AlignedPair[] {
+  if (proposed.key !== EXPERIENCE_SECTION) return alignBlocks(current, proposed.blocks, language);
+
+  const before = employerGroups(current);
+  const after = employerGroups(proposed.blocks);
+  const restOf = (groups: EmployerGroup[]) => new Map(groups.map((g) => [g.opening, g.rest]));
+  const restBefore = restOf(before.groups);
+  const restAfter = restOf(after.groups);
+  const openings = alignBlocks(
+    before.groups.map((g) => g.opening),
+    after.groups.map((g) => g.opening),
+    language,
+  );
+
+  const pairs = alignBlocks(before.lead, after.lead, language);
+  for (const { current: c, proposed: p } of openings) {
+    pairs.push({ current: c, proposed: p });
+    if (c && p) pairs.push(...alignBlocks(restBefore.get(c)!, restAfter.get(p)!, language));
+    else if (c) pairs.push(...restBefore.get(c)!.map((block) => ({ current: block, proposed: null })));
+    else pairs.push(...restAfter.get(p!)!.map((block) => ({ current: null, proposed: block })));
+  }
+  return pairs;
 }
 
 /**

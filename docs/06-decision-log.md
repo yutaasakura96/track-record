@@ -7646,3 +7646,23 @@ Word.
   headings.
 - **Revisit if:** two unrelated Japanese bullets in one section align. Bigrams of a shared stem
   (`削減`, `プロジェクト`) are where a false pair would come from.
+
+---
+
+### [2026-10-25] Blocks align only within their employer group (#117)
+
+Supersedes the alignment scope of "Japanese blocks align on character bigrams, and every change says
+where it sits" (2026-10-25), which aligned blocks across the whole section.
+
+- **Decision:** a block pairs only with a block in the same employer group. Inside an `experience`
+  section the opening paragraphs align first, and each pair of groups then aligns its own rows and
+  bullets; outside one, the whole section is one group. A 職務経歴書 repeats its template rows
+  (資本金, 従業員数, 技術スタック) under every employer, and two employers' 資本金 rows scored 0.52 on
+  bigrams, so dropping one employer and adding another paired the old row with the new one and
+  labelled the old figures with the new employer.
+- **Decision:** a block that moves to another employer is one removal and one addition, the removal
+  under the current version's employer and the addition under the proposal's. An employer whose
+  opening paragraph is reworded (a period extended) is still the same group, because the opening
+  paragraphs align on the same similarity as any block.
+- **Revisit if:** two different employers' opening paragraphs align. They carry the company name and
+  period, and a false pair there would put one employer's bullets under another.

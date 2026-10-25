@@ -537,6 +537,10 @@ added or removed heading becomes its own change; headings of sections with no bl
 particle loses half its phrase matches and would show as a whole line out and another in. One Jaccard
 threshold, 0.4, serves both (decision log 2026-10-25). What is shown stays phrases.
 
+**Alignment scope:** a block pairs only with a block in the same employer group. In an `experience`
+section the opening paragraphs align first and each pair of groups aligns its own rows and bullets;
+any other section is one group. A block moved to another employer is a removal and an addition.
+
 **Location:** every change names the section heading it sits under and, in an `experience` section,
 the opening paragraph of its employer group, so a 職務経歴書 bullet can be placed without opening
 the document.

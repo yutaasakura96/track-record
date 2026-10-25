@@ -309,6 +309,57 @@ describe("where a change sits", () => {
     ]);
   });
 
+  it("does not pair one employer's template row with another's", () => {
+    // Two employers' 資本金 rows share most of their bigrams. With one employer
+    // dropped and another added, the dropped row must not read as the added
+    // employer's row, edited.
+    const experience = (...groups: [opening: Block, row: Block][]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks: groups.flat() }],
+    });
+    const alpha: [Block, Block] = [
+      block("blk_a", "paragraph", "架空商事株式会社（2016年4月〜2018年3月）"),
+      block("blk_a1", "row", "資本金：1億円 従業員数：300名"),
+    ];
+    const beta: [Block, Block] = [
+      block("blk_b", "paragraph", "空想工業株式会社（2018年4月〜2021年3月）"),
+      block("blk_b1", "row", "資本金：3億円 従業員数：800名"),
+    ];
+    const gamma: [Block, Block] = [
+      block("blk_g", "paragraph", "夢見ソフト合同会社（2021年4月〜現在）"),
+      block("blk_g1", "row", "資本金：5000万円 従業員数：120名"),
+    ];
+    const result = diffRenders(experience(alpha, beta), experience(beta, gamma), {
+      language: "ja",
+      explain: rationale,
+    });
+    const rows = result.changes.filter((c) => c.currentBlockId?.endsWith("1") || c.proposedBlockId?.endsWith("1"));
+    expect(rows.map((c) => [c.currentBlockId, c.proposedBlockId, c.location.employer])).toEqual([
+      ["blk_a1", null, "架空商事株式会社（2016年4月〜2018年3月）"],
+      [null, "blk_g1", "夢見ソフト合同会社（2021年4月〜現在）"],
+    ]);
+  });
+
+  it("shows a bullet moved to another employer as a removal and an addition", () => {
+    const opening = (id: string, text: string) => block(id, "paragraph", text);
+    const first = opening("blk_e1", "架空商事株式会社（2018年4月〜2021年3月）");
+    const second = opening("blk_e2", "空想工業株式会社（2021年4月〜現在）");
+    const kept = block("blk_k", "bullet", "社外向けの勉強会を企画・運営（参加者40名）");
+    const content = (blocks: Block[]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks }],
+    });
+    const result = diffRenders(
+      content([first, block("blk_m", "bullet", "受注処理を8時間から3時間へ短縮"), second, kept]),
+      content([first, second, kept, block("blk_m2", "bullet", "受注処理の所要時間を8時間から3時間に短縮")]),
+      { language: "ja", explain: rationale },
+    );
+    expect(result.removals).toBe(1);
+    expect(result.additions).toBe(1);
+    expect(result.changes.map((c) => [c.currentBlockId, c.proposedBlockId, c.location.employer])).toEqual([
+      ["blk_m", null, "架空商事株式会社（2018年4月〜2021年3月）"],
+      [null, "blk_m2", "空想工業株式会社（2021年4月〜現在）"],
+    ]);
+  });
+
   it("names the heading a heading change would leave the section with", () => {
     const before = paragraphs(["The nightly batch."]);
     const after = { sections: [{ ...before.sections[0]!, heading: "Work" }] };

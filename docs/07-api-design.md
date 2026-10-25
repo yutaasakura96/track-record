@@ -887,7 +887,9 @@ version. Two passes have already run server-side: paragraphs aligned, then token
   removal, otherwise the proposal's), and `employer` is the opening paragraph of the employer group
   the block falls under in an `experience` section, null anywhere else, for the opening paragraph
   itself and for a heading change. Block alignment compares English on words and Japanese on
-  character bigrams; only the shown tokens are phrases (decision log 2026-10-25).
+  character bigrams; only the shown tokens are phrases (decision log 2026-10-25). A block pairs only
+  within its employer group, so a block moved to another employer is a removal under the current
+  version's employer and an addition under the proposal's.
 - `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
   `removed_unverified` · `from_restricted`.
 - `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,
