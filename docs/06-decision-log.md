@@ -7675,3 +7675,18 @@ where it sits" (2026-10-25), which aligned blocks across the whole section.
 - **Revisit if:** an employer is renamed in the record, or an opening names a company the record does
   not hold and writes it differently in two versions. Either group shows as removed and added in
   full, every bullet with it.
+
+---
+
+### [2026-10-26] The company-name fallback cuts at the period, not at any digit
+
+Supersedes the cut in "Blocks align only within their employer group" (2026-10-25), which cut the
+fallback name at the first digit of any kind.
+
+- **Decision:** the name written before the period is cut at the first bracket, `—`, `・`, `·`, `｜`
+  or the period's first digit: a four-digit year, or one or two digits followed by 年 or 月. A digit
+  inside the company name stays in it.
+- **Why:** cutting at any digit left a name that begins with one (3M) empty, so an employer the
+  record does not hold had no identity, and its opening and rows showed as a removal and an addition
+  whenever only its period changed. `tests/diff.test.ts` holds the case.
+- **Revisit if:** an opening writes its period in a form neither pattern reads, such as `'21`.

@@ -543,7 +543,7 @@ threshold, 0.4, serves both (decision log 2026-10-25). What is shown stays phras
 section the opening paragraphs pair when they name the same company: the record employer each
 resolves to, as `resolveEmployer` reads an attribution heading, or, where the record matches none,
 the name written before the period (NFKC, corporate form dropped, cut at a bracket, separator or
-digit). Each pair of groups aligns its own rows and bullets; any other section is one group. A block
+the period's first digit, so a digit inside the name stays in it; decision log 2026-10-26). Each pair of groups aligns its own rows and bullets; any other section is one group. A block
 moved to another employer is a removal and an addition.
 
 **Location:** each change carries its section heading. An `experience` block also carries its

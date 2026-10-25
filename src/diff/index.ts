@@ -314,6 +314,9 @@ function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup
   return { lead, groups };
 }
 
+/** Where a company name ends: a bracket, a heading separator, or the period's first digit. */
+const PERIOD_OR_SEPARATOR = /[()—・·|]|\d{4}(?!\d)|\d{1,2}\s*[年月]/u;
+
 /**
  * Which employer an opening paragraph names. The opening paragraph also carries
  * the period, the 雇用形態 and the role titles, and two employers share most of
@@ -322,8 +325,9 @@ function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup
  * The record decides first, as {@link resolveEmployer} reads a heading. Only
  * when no record employer matches does the company name written before the
  * period stand in: width-normalised, corporate form dropped, and cut at the
- * first bracket, heading separator or digit. Null when neither names anyone,
- * and a group with no identity pairs with nothing.
+ * first bracket, heading separator or the period's first digit — a year or a
+ * number of months, so a digit inside the name (3M) stays in it. Null when
+ * neither names anyone, and a group with no identity pairs with nothing.
  */
 function employerIdentity(opening: string, employers: readonly EmployerNames[]): string | null {
   const id = resolveEmployer(opening, employers);
@@ -332,7 +336,7 @@ function employerIdentity(opening: string, employers: readonly EmployerNames[]):
     .normalize("NFKC")
     .replace(/\((?:株|有|合|同)\)/gu, " ")
     .replace(CORPORATE_FORM, " ");
-  const cut = text.search(/[()—・·|\d]/u);
+  const cut = text.search(PERIOD_OR_SEPARATOR);
   const name = (cut === -1 ? text : text.slice(0, cut)).replace(/\s+/gu, " ").trim().toLowerCase();
   return name === "" ? null : `name:${name}`;
 }
