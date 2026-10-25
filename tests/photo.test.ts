@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import PizZip from "pizzip";
 import { harness, settle, stubModel, type Client, type Harness, type StubModel } from "./helpers/harness";
 import { EDUCATION_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, postJob, seedAllowedUser, uploadForm } from "./helpers/seed";
-import { jpegHeader, pngPhoto } from "./helpers/photo";
+import { jpegPhoto, pngPhoto } from "./helpers/photo";
 import type { CandidateFact } from "~/model/types";
 import { readSheet, sheetHasPhoto, type Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
@@ -99,6 +99,8 @@ describe("putting a photo on the profile", () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
     expect((await putPhoto(PHOTO, client, "image/jpeg")).status).toBe(200);
     expect((await client.get("/api/profile/photo")).headers.get("content-type")).toBe("image/png");
+    expect((await putPhoto(jpegPhoto(300, 400))).status).toBe(200);
+    expect((await client.get("/api/profile/photo")).headers.get("content-type")).toBe("image/jpeg");
   });
 
   it("refuses what is not a JPEG or PNG, and keeps nothing", async () => {
@@ -109,18 +111,34 @@ describe("putting a photo on the profile", () => {
     expect((await client.json<Profile>("/api/profile")).hasPhoto).toBe(false);
   });
 
-  it("refuses a photo that is not cropped to 3:4, or too small to print, by its header", async () => {
+  it("refuses a photo that is not cropped to 3:4, or too small to print", async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
     expect(await refusal(await putPhoto(pngPhoto(400, 300)))).toContain("3:4");
-    expect(await refusal(await putPhoto(jpegHeader(600, 600), client, "image/jpeg"))).toContain("3:4");
+    expect(await refusal(await putPhoto(jpegPhoto(600, 600), client, "image/jpeg"))).toContain("3:4");
     expect(await refusal(await putPhoto(pngPhoto(150, 200)))).toContain("too small");
+    expect((await client.json<Profile>("/api/profile")).hasPhoto).toBe(false);
+  });
+
+  it("refuses incomplete PNG and JPEG files with the plain image error", async () => {
+    await client.put("/api/profile", PROFILE_FIXTURE);
+    const badCrc = PHOTO.slice();
+    badCrc[29] ^= 1;
+    for (const bytes of [
+      PHOTO.subarray(0, 24),
+      PHOTO.subarray(0, PHOTO.length - 8),
+      badCrc,
+      jpegPhoto(300, 400).subarray(0, 39),
+      jpegPhoto(300, 400).subarray(0, -2),
+    ]) {
+      expect(await refusal(await putPhoto(bytes))).toBe("That file is not a JPEG or PNG image, so it was not kept.");
+    }
     expect((await client.json<Profile>("/api/profile")).hasPhoto).toBe(false);
   });
 
   it("refuses a file over the limit, whatever its header says", async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
     const big = new Uint8Array(PHOTO_MAX_BYTES + 1);
-    big.set(jpegHeader(600, 800));
+    big.set(jpegPhoto(600, 800));
     expect(await refusal(await putPhoto(big, client, "image/jpeg"))).toContain("over 2 MB");
   });
 
@@ -276,9 +294,9 @@ describe("the 写真 on the 履歴書", () => {
 describe("reading a photo's header", () => {
   it("reads a PNG's size from IHDR and a JPEG's from its first frame, past the segments before it", () => {
     expect(photoInfo(pngPhoto(300, 400))).toEqual({ type: "image/png", width: 300, height: 400 });
-    expect(photoInfo(jpegHeader(600, 800))).toEqual({ type: "image/jpeg", width: 600, height: 800 });
+    expect(photoInfo(jpegPhoto(600, 800))).toEqual({ type: "image/jpeg", width: 600, height: 800 });
     // A progressive frame (SOF2), behind fill bytes and a second APP segment.
-    const progressive = jpegHeader(450, 600);
+    const progressive = jpegPhoto(450, 600);
     progressive[21] = 0xc2;
     const padded = new Uint8Array([...progressive.subarray(0, 20), 0xff, 0xff, 0xe1, 0x00, 0x04, 0x00, 0x00, ...progressive.subarray(20)]);
     expect(photoInfo(padded)).toEqual({ type: "image/jpeg", width: 450, height: 600 });
@@ -286,7 +304,7 @@ describe("reading a photo's header", () => {
 
   it("reads nothing out of what is not a JPEG or PNG, or stops before its frame", () => {
     expect(photoInfo(new TextEncoder().encode("GIF89a"))).toBeNull();
-    expect(photoInfo(jpegHeader(600, 800).subarray(0, 22))).toBeNull();
+    expect(photoInfo(jpegPhoto(600, 800).subarray(0, 22))).toBeNull();
     expect(photoInfo(new Uint8Array())).toBeNull();
   });
 

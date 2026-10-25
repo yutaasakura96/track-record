@@ -8,7 +8,7 @@
  * only part that has to be right. Every image is invented.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { mount, Refusal } from "./harness";
 import { INITIAL_CROP, MAX_ZOOM, clampCrop, coverScale, sourceRect } from "~/client/photo-crop";
 import { PHOTO_TOO_SMALL } from "~/shared/photo";
@@ -59,9 +59,16 @@ function decodingAs(size: { width: number; height: number } | "unreadable") {
 }
 
 let drawn: number[][];
+let resized: (() => void) | undefined;
 
 beforeEach(() => {
   drawn = [];
+  resized = undefined;
+  vi.stubGlobal("ResizeObserver", class {
+    constructor(callback: () => void) { resized = callback; }
+    observe() {}
+    disconnect() {}
+  });
   vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: () => "blob:photo-test", revokeObjectURL: () => {} }));
   vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(
     () => ({ drawImage: (...args: unknown[]) => drawn.push(args.slice(1) as number[]) }) as unknown as CanvasRenderingContext2D,
@@ -121,6 +128,27 @@ describe("the photo on the profile", () => {
     // Saved: the cropper gives way to the photo and its controls.
     expect(await photo.findByRole("img", { name: "Your 履歴書 photo" })).toBeTruthy();
     expect(photo.getByRole("img", { name: "Your 履歴書 photo" }).getAttribute("src")).toBe("/api/profile/photo?v=a1b2c3d4e5f6");
+  });
+
+  it("saves the displayed region after the frame narrows", async () => {
+    decodingAs({ width: 600, height: 800 });
+    let frameSize = FRAME;
+    vi.spyOn(HTMLDivElement.prototype, "getBoundingClientRect").mockImplementation(() => ({
+      width: frameSize.width, height: frameSize.height,
+    }) as DOMRect);
+    const { api } = mount("/profile", { "GET /api/profile": PROFILE, "PUT /api/profile/photo": WITH_PHOTO });
+    const photo = await panel();
+    choose();
+    const frame = await photo.findByRole("img", { name: /The part of the photo that is kept/ });
+    fireEvent.change(photo.getByRole("slider"), { target: { value: "2" } });
+    for (let i = 0; i < 10; i++) fireEvent.keyDown(frame, { key: "ArrowRight" });
+    frameSize = { width: 120, height: 160 };
+    act(() => resized?.());
+    const image = frame.querySelector("img")!;
+    expect(image.style.left).toBe("0px");
+    fireEvent.click(photo.getByRole("button", { name: "Save photo" }));
+    await waitFor(() => expect(api.writes()).toEqual(["PUT /api/profile/photo"]));
+    expect(drawn[0]!.slice(0, 4)).toEqual([0, 200, 300, 400]);
   });
 
   it("refuses a photo too small to print before sending anything", async () => {

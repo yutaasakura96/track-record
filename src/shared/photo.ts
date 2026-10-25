@@ -46,8 +46,7 @@ export interface PhotoInfo {
 
 /**
  * A stored photo's kind and pixel size, read from its bytes, or null when it is
- * not a JPEG or PNG this can read the size of. Nothing past the header is
- * decoded.
+ * not a structurally complete JPEG or PNG this can read the size of.
  */
 export function photoInfo(bytes: Uint8Array): PhotoInfo | null {
   return pngInfo(bytes) ?? jpegInfo(bytes);
@@ -77,13 +76,51 @@ const PNG_SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 const u16 = (bytes: Uint8Array, at: number) => (bytes[at]! << 8) | bytes[at + 1]!;
 const u32 = (bytes: Uint8Array, at: number) => u16(bytes, at) * 0x10000 + u16(bytes, at + 2);
 
-/** The signature, then the IHDR chunk, which the format puts first. */
+const crcTable = Array.from({ length: 256 }, (_, n) => {
+  let c = n;
+  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+  return c >>> 0;
+});
+
+function crc32(bytes: Uint8Array): number {
+  let c = 0xffffffff;
+  for (const byte of bytes) c = crcTable[(c ^ byte) & 0xff]! ^ (c >>> 8);
+  return (c ^ 0xffffffff) >>> 0;
+}
+
 function pngInfo(bytes: Uint8Array): PhotoInfo | null {
-  if (bytes.length < 24 || PNG_SIGNATURE.some((byte, i) => bytes[i] !== byte)) return null;
-  if (String.fromCharCode(...bytes.subarray(12, 16)) !== "IHDR") return null;
-  const width = u32(bytes, 16);
-  const height = u32(bytes, 20);
-  return width > 0 && height > 0 ? { type: "image/png", width, height } : null;
+  if (bytes.length < 8 || PNG_SIGNATURE.some((byte, i) => bytes[i] !== byte)) return null;
+  let at = 8;
+  let width = 0;
+  let height = 0;
+  let hasData = false;
+  let dataEnded = false;
+  while (at + 12 <= bytes.length) {
+    const length = u32(bytes, at);
+    const end = at + 12 + length;
+    if (end > bytes.length) return null;
+    const type = String.fromCharCode(...bytes.subarray(at + 4, at + 8));
+    if (!/^[A-Za-z]{4}$/.test(type)) return null;
+    if (u32(bytes, end - 4) !== crc32(bytes.subarray(at + 4, end - 4))) return null;
+    if (at === 8) {
+      if (type !== "IHDR" || length !== 13) return null;
+      width = u32(bytes, at + 8);
+      height = u32(bytes, at + 12);
+      if (!width || !height || bytes[at + 16] !== 8 || ![0, 2, 3, 4, 6].includes(bytes[at + 17]!) ||
+        bytes[at + 18] !== 0 || bytes[at + 19] !== 0 || bytes[at + 20] !== 0) return null;
+    } else if (type === "IHDR") {
+      return null;
+    }
+    if (type === "IDAT") {
+      if (dataEnded || length === 0) return null;
+      hasData = true;
+    } else if (hasData) {
+      dataEnded = true;
+    }
+    if (type === "IEND") return hasData && length === 0 && end === bytes.length ? { type: "image/png", width, height } : null;
+    at = end;
+  }
+  return null;
 }
 
 /**
@@ -93,28 +130,38 @@ function pngInfo(bytes: Uint8Array): PhotoInfo | null {
 function jpegInfo(bytes: Uint8Array): PhotoInfo | null {
   if (bytes.length < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8) return null;
   let at = 2;
-  while (at + 4 <= bytes.length) {
+  let width = 0;
+  let height = 0;
+  let hasScan = false;
+  let scanning = false;
+  while (at < bytes.length) {
+    if (scanning && bytes[at] !== 0xff) {
+      at++;
+      continue;
+    }
     if (bytes[at] !== 0xff) return null;
-    const marker = bytes[at + 1]!;
-    // Fill bytes, and the markers that carry no length.
-    if (marker === 0xff) {
-      at += 1;
-      continue;
-    }
-    if (marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) {
-      at += 2;
-      continue;
-    }
-    if (marker === 0xd9 || marker === 0xda) return null;
-    const length = u16(bytes, at + 2);
-    if (length < 2) return null;
+    while (bytes[at] === 0xff) at++;
+    if (at >= bytes.length) return null;
+    const marker = bytes[at++]!;
+    if (scanning && (marker === 0x00 || (marker >= 0xd0 && marker <= 0xd7))) continue;
+    scanning = false;
+    if (marker === 0xd9) return hasScan && width > 0 && height > 0 && at === bytes.length
+      ? { type: "image/jpeg", width, height } : null;
+    if (marker === 0xd8 || marker === 0x00 || marker === 0x01 || (marker >= 0xd0 && marker <= 0xd7)) return null;
+    if (at + 2 > bytes.length) return null;
+    const length = u16(bytes, at);
+    if (length < 2 || at + length > bytes.length) return null;
     if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) {
-      if (at + 9 > bytes.length) return null;
-      const height = u16(bytes, at + 5);
-      const width = u16(bytes, at + 7);
-      return width > 0 && height > 0 ? { type: "image/jpeg", width, height } : null;
+      if (width || length < 8) return null;
+      height = u16(bytes, at + 3);
+      width = u16(bytes, at + 5);
     }
-    at += 2 + length;
+    if (marker === 0xda) {
+      if (!width || !height || length < 6) return null;
+      hasScan = true;
+      scanning = true;
+    }
+    at += length;
   }
   return null;
 }

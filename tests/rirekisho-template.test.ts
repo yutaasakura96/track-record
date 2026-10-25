@@ -19,7 +19,7 @@ import {
   type RirekishoTemplateData,
 } from "~/render/rirekisho-template";
 import { PHOTO_HEIGHT_EMU, PHOTO_WIDTH_EMU, photoOf } from "~/render/rirekisho-photo";
-import { jpegHeader, pngPhoto } from "./helpers/photo";
+import { jpegPhoto, pngPhoto } from "./helpers/photo";
 
 const ZIP_LOCAL_HEADER = [0x50, 0x4b, 0x03, 0x04];
 
@@ -185,7 +185,7 @@ describe("the 写真 cell (issue #117)", () => {
   });
 
   it("names a JPEG as one", () => {
-    const zip = new PizZip(fillRirekishoTemplate(DATA, { bytes: jpegHeader(600, 800), type: "image/jpeg" }));
+    const zip = new PizZip(fillRirekishoTemplate(DATA, { bytes: jpegPhoto(600, 800), type: "image/jpeg" }));
     expect(zip.file("word/media/photo.jpeg")).not.toBeNull();
     expect(zip.file("[Content_Types].xml")!.asText()).toContain('<Default Extension="jpeg" ContentType="image/jpeg"/>');
   });

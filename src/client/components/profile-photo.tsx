@@ -169,10 +169,21 @@ function Cropper({
   const drag = useRef<{ x: number; y: number; from: Crop["offset"] } | null>(null);
 
   useEffect(() => {
-    const box = frameRef.current?.getBoundingClientRect();
-    if (box && box.width > 0) setFrame({ width: box.width, height: box.height });
-    frameRef.current?.focus();
-  }, []);
+    const element = frameRef.current;
+    if (!element) return;
+    const measure = () => {
+      const box = element.getBoundingClientRect();
+      if (box.width <= 0 || box.height <= 0) return;
+      const size = { width: box.width, height: box.height };
+      setFrame(size);
+      setCrop((current) => clampCrop(chosen.size, size, current));
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(element);
+    element.focus();
+    return () => observer.disconnect();
+  }, [chosen.size]);
 
   const held = clampCrop(chosen.size, frame, crop);
   const drawn = drawnSize(chosen.size, frame, held.zoom);
