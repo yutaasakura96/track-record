@@ -11,7 +11,7 @@
  */
 import { ModelCreditsExhaustedError, ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
-import { CLAIM as DOCUMENT_VIEW_CLAIM, CLAIM_SENTENCE as DOCUMENT_VIEW_SENTENCE } from "./document-view-fixture";
+import { CLAIM as DOCUMENT_VIEW_CLAIM, CLAIM_SENTENCE as DOCUMENT_VIEW_SENTENCE, RIREKISHO_MOTIVATION } from "./document-view-fixture";
 import { READING_EN, READING_JA } from "../fixtures/postings";
 
 export const e2eModel: ModelSeam = {
@@ -50,7 +50,7 @@ export const e2eModel: ModelSeam = {
     if (spec.kind === "rirekisho") {
       return { sections: [
         { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
-          { id: "blk_motivation", kind: "paragraph" as const, text: facts[0]?.claim ?? "", factIds: facts.map((fact) => fact.id) },
+          { id: "blk_motivation", kind: "paragraph" as const, text: RIREKISHO_MOTIVATION, factIds: facts.map((fact) => fact.id) },
         ] },
         { key: "kibou", heading: "本人希望記入欄", blocks: [] },
       ] };

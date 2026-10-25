@@ -2,6 +2,8 @@
 export const CLAIM_SENTENCE =
   "Automating the inventory reconciliation reduced the weekly review from six hours to forty minutes.";
 export const CLAIM = "Reduced the weekly inventory review from six hours to forty minutes";
+/** What the stubbed model writes in a 履歴書's prose cell: Japanese, as the register requires. */
+export const RIREKISHO_MOTIVATION = "在庫照合を自動化し、週次の確認作業を6時間から40分に短縮しました。";
 export const SOURCE_FILENAME = "harbor-inventory.md";
 export const SOURCE_TEXT = `# Harbor inventory reconciliation
 
