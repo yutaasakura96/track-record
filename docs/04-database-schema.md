@@ -1035,10 +1035,9 @@ Japanese reader.
 - A4 portrait, 12.7 mm margins, five tables each exactly 9360 twips wide, `MS Mincho` / `MS Gothic`.
 - The three repeating tables each keep **one** loop row: `{#gakureki}`, `{#shokureki}`, `{#shikaku}`,
   every one of them `{year}` / `{month}` / `{text}`.
-- **Column layout is `fixed`, where the author's file was autofit.** This is the one deliberate
-  departure from the source: under autofit a long certification name widens the 年 and 月 columns
-  away from the widths the author's own document shows. Fixed layout is the more faithful choice
-  under substitution, not the less.
+- **Column layout is `fixed`, where the author's file was autofit.** Under autofit a long
+  certification name widens the 年 and 月 columns away from the widths the author's own document
+  shows. Fixed layout is the more faithful choice under substitution, not the less.
 - **The Worker loads it as a `Data` module**, not from a filesystem it does not have —
   `docs/03` §6.2 for the rule, which `wrangler.toml` and `vitest.config.ts` each state once.
 - **Render with `linebreaks: true` and generate with `compression: "DEFLATE"`.** PizZip stores by
