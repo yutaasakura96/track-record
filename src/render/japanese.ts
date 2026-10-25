@@ -227,13 +227,13 @@ const STATEMENT_BREAK = /[：。！？\n　]/u;
 
 /**
  * What divides one run of Latin text from the next inside a statement that
- * holds Japanese: kana, kanji and the full-width brackets, so an abbreviation
- * and its gloss, 「SaaS（Software as a Service）」, are two terms. E2's row was
+ * holds Japanese: kana, kanji and brackets, full-width or half-width, so an
+ * abbreviation and its gloss, 「SaaS（Software as a Service）」, are two terms. E2's row was
  * 「プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table…」:
  * an English sentence after the Japanese name, with an ASCII space, an
  * ideographic one or nothing between them.
  */
-const LATIN_RUN_BREAK = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}（）]+/u;
+const LATIN_RUN_BREAK = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}（）()]+/u;
 
 /**
  * Words a technology name or a label never is and an English sentence always

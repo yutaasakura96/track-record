@@ -474,7 +474,7 @@ reason. A line is English when it has no kana or kanji and something Latin is le
 record's own Latin terms are taken out (names, titles held, qualifications, technologies and
 curated skills, but not a skill group's name), or when one statement inside it is an English
 sentence: three or more Latin words carrying an English function word when the statement has no
-kana or kanji, or, beside kana or kanji, a run between them and the full-width brackets of at least five Latin words carrying at least two
+kana or kanji, or, beside kana or kanji, a run between them and any brackets, full-width or half-width, of at least five Latin words carrying at least two
 function words, so 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a Japanese
 project name does not. The rest are advisories in the review footer and
 never block: 貴社 outside the 履歴書's 本人希望欄, full-width digits, a 職務経歴書 bullet over 120

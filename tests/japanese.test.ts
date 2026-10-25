@@ -168,6 +168,9 @@ describe("a line in English", () => {
       "POS（Point of Sale）システムの刷新",
       "Single Sign-Onを導入",
       "SaaS（Software as a Service）の導入支援",
+      "SaaS (Software as a Service) の導入支援",
+      "IaaS (Infrastructure as a Service) 基盤の構築",
+      "Software as a Service (SaaS) 型の基盤",
     ]) {
       expect(isEnglishLine(line, terms), line).toBe(false);
     }
