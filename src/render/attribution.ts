@@ -90,15 +90,15 @@ export interface RecordFact {
   employerId: string | null;
 }
 
-/**
- * `names` is every string that identifies this employer in a heading — 日本語
- * and Latin both, because a render writes whichever its language calls for.
- */
 /** What {@link resolveEmployer} reads of an employer: its id and the names it goes by. */
 export type EmployerNames = Pick<RecordEmployer, "id" | "names">;
 
 export interface RecordEmployer {
   id: string;
+  /**
+   * Every string that identifies this employer in a heading — 日本語 and Latin
+   * both, because a render writes whichever its language calls for.
+   */
   names: string[];
   /**
    * Every value this employer's copied rows may carry, from the entity lists

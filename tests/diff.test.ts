@@ -426,6 +426,27 @@ describe("where a change sits", () => {
       staysOneGroup(opening, reworded);
     });
 
+    it.each([
+      ["brackets", "3M架空株式会社（2021年4月〜現在）正社員", "3M架空株式会社（2021年4月〜2026年9月）正社員"],
+      ["・", "3M架空株式会社 ・ 2021年4月〜現在 ・ 正社員", "3M架空株式会社 ・ 2021年4月〜2026年9月 ・ 契約社員"],
+      ["—", "3M架空株式会社 — 2021年4月〜現在 — 正社員", "3M架空株式会社 — 2021年4月〜2026年9月 — 正社員"],
+    ])("keeps one group for a company with a digit in its name, separated by %s", (_, opening, reworded) => {
+      staysOneGroup(opening, reworded);
+    });
+
+    it("never pairs two companies whose names differ after the digit", () => {
+      const dropped = "3M架空株式会社（2016年4月〜2018年3月）正社員";
+      const added = "3M空想株式会社（2018年4月〜2021年3月）正社員";
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
     it("keeps one group when the role changes", () => {
       staysOneGroup(
         "空想工業株式会社（2021年4月〜現在）正社員／バックエンドエンジニア",
