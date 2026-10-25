@@ -1313,7 +1313,7 @@ reason`. Content column as Screen 3.
 |---|---|
 | **Loading** | `Loading the list…` |
 | **Nothing flagged** | One panel: `Nothing is flagged. Facts that need a look appear here as documents are imported.` Under `Checked`: `Nothing is marked as checked yet.` |
-| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. The flag and its reason are unchanged and the button is still there |
+| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. Exhausted credits show the server's pause message (`12` §9). The flag and its reason are unchanged and the button is still there |
 | **Read failed** | The shared read failure, with retry. A refresh that fails over a list already shown keeps the list and says so above it |
 
 ---

@@ -160,7 +160,7 @@ should not drift toward perimeter hardening as the interesting-sounding work.
 
 | Credential | Scope | Could be tighter? |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Full account API access | **Yes** — use a workspace-scoped key with its own spend limit, not the default account key (`12` §9) |
+| `ANTHROPIC_API_KEY` | Track Record workspace in the linked Console organisation (`12` §9) | **No** — the workspace spend limit caps this project's usage; the organisation's credit balance is shared |
 | `DATABASE_URL` | Owner on one database | **Yes, eventually** — a role restricted to DML on application tables, with DDL reserved for migrations |
 | Google OAuth client | `openid email profile` only | Already minimal. **Never request Drive, Gmail or Calendar scopes** — nothing in this product needs them |
 | `CLOUDFLARE_API_TOKEN` (CI) | Edit Workers on one zone | **Yes** — scope to the single zone and Workers Scripts:Edit, never a Global API Key |

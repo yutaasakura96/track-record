@@ -391,7 +391,7 @@ notice an outage. Alerting on uptime would be alerting the person already using 
 
 | Signal | Where | Why it earns its place |
 |---|---|---|
-| **Anthropic spend** | Provider dashboard, **with a billing alert set** | The only uncapped cost. Also the first sign of a leaked key |
+| **Anthropic spend and credit balance** | Provider dashboard, **with a billing alert set** | Signals approaching the workspace limit or exhausting the shared credits (§9); unexpected spend can signal a leaked key |
 | Worker errors and CPU time | Cloudflare dashboard | CPU headroom for `.docx` assembly is an open question (`03` §11) |
 | Failed Workflow instances | Cloudflare Workflows dashboard | A silently failing import is invisible from inside the app |
 | Neon storage and compute hours | Neon dashboard | Free-tier ceiling |
