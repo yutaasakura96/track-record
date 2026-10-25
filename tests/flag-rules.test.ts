@@ -280,6 +280,8 @@ describe("a claim that states a number its passage does not", () => {
     ["a percentage with a different attached rate", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per year.", []],
     ["a separate count in the passage", "Wrote 5 reports", "Wrote 5 separate reports.", []],
     ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
+    ["a descriptive word before a bare rate the passage never uses", "Hired 5 within a year", "Hired 5 a year.", []],
+    ["a descriptive word the passage adds before a bare rate", "Hired 5 a year", "We hired 5 within a year.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -352,6 +354,10 @@ describe("a claim that states a number its passage does not", () => {
     ["the same word before the unit", "Wrote 5 clinic reports", "Wrote 5 clinic reports.", []],
     ["the same percentage of all users", "Reached 5% of all users", "Reached 5% of all users.", []],
     ["the same percentage of all clinic reports", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per month.", []],
+    ["a percentage of users against active users", "Reached 5% of users", "Reached 5% of active users.", []],
+    ["a percentage of active users against users", "Reached 5% of active users", "Reached 5% of users.", []],
+    ["a percentage of all active users against all users", "Reached 5% of all active users", "Reached 5% of all users.", []],
+    ["a percentage of all users against all active users", "Reached 5% of all users", "Reached 5% of all active users.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));

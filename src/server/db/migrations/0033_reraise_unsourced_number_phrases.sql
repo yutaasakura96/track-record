@@ -29,7 +29,7 @@ BEGIN
   LOOP
     first := regexp_replace(regexp_replace(rest, '^\s+', ''), '^-(?=[a-z])', '');
     rate := substring(first from '^(?:per\s+|a\s+|an\s+|/)[a-z]+(?:-[a-z]+)*');
-    IF rate IS NOT NULL AND phrase = '' THEN RETURN ARRAY[rate]; END IF;
+    IF rate IS NOT NULL AND phrase = '' THEN RETURN ARRAY[rate] || descriptive; END IF;
     word := substring(first from '^[a-z]+(?:-[a-z]+)*');
     IF word IS NOT NULL THEN
       EXIT WHEN word ~ '^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$'

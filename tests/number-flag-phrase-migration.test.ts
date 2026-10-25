@@ -54,6 +54,12 @@ const cases: [string, string | null, string[], boolean][] = [
   ["Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per month.", [], false],
   ["Wrote 5 reports", "Wrote 5 separate reports.", [], true],
   ["Reached 5% of all users", "Reached 5% of all users.", [], false],
+  ["Reached 5% of users", "Reached 5% of active users.", [], false],
+  ["Reached 5% of active users", "Reached 5% of users.", [], false],
+  ["Reached 5% of all active users", "Reached 5% of all users.", [], false],
+  ["Reached 5% of all users", "Reached 5% of all active users.", [], false],
+  ["Hired 5 within a year", "Hired 5 a year.", [], true],
+  ["Hired 5 a year", "We hired 5 within a year.", [], true],
   ["Handled 5", "Handled 5.", [], false],
   ["Led a team of 5 engineers", null, [], true],
   // The demo record's sourced lines, their number words written as digits.

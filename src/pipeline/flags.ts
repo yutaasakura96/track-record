@@ -281,7 +281,7 @@ function quantityAfter(tail: string): Quantity {
         const noun = rest.slice(prefix.length);
         if (prefix && /^[a-z]/u.test(noun)) {
           const quantity = quantityAfter(noun);
-          const keptPrefix = prefix.trim().replace(/\b(?:active|senior)\s+/gu, "").trim();
+          const keptPrefix = prefix.replace(/\b(?:active|senior)\s+/gu, "").trim();
           return { phrase: [...words, keptPrefix, quantity.phrase].join(" "), descriptive: [...descriptive, ...quantity.descriptive] };
         }
         break;
