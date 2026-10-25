@@ -7467,8 +7467,11 @@ for want of an image module; the entries that recorded the gap stay as written.
 - **Decision:** the browser crops. The chosen image is moved and zoomed under a 3:4 frame and only
   the framed part is sent, re-encoded as a 600 × 800 JPEG, so the original file and its metadata
   never leave the browser and any image the browser can open (HEIC on Safari, WebP) is accepted. The
-  server does not trust that: it reads the type from the first bytes (JPEG or PNG), the size from the
-  header, and refuses anything not 3:4 to within a pixel, under 300 × 400 or over 2 MB.
+  server does not trust that: it reads the type from the first bytes (JPEG or PNG) and the size from
+  the header, and checks the whole file's structure without decoding it — for a PNG, a chunk
+  sequence with valid CRCs, IHDR first, at least one IDAT and a final IEND with nothing after it; for
+  a JPEG, SOI at the start, a SOF carrying the size, an SOS and EOI at the end. It refuses anything
+  else with the plain error, and anything not 3:4 to within a pixel, under 300 × 400 or over 2 MB.
 - **Decision:** the photo goes into the cell as an **inline** picture at 30 × 40 mm, centred, by
   string edits after the fill (`src/render/rirekisho-photo.ts`), not through a docxtemplater
   image module and not as a floating picture. Inline, the cell grows to hold it and the layout model
