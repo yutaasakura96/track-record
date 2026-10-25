@@ -460,6 +460,8 @@ nothing is recorded as a model fault:
 | Generation | The proposal is `failed` with the message below; generating again is allowed |
 | Explain this, sorting facts, reading a posting, quick capture | `503 upstream_unavailable` with the message below; pressing again works once credits are back |
 
+The public credit-pause reason codes are specified in `07` §2, §5 and §7.
+
 > Generation is paused: the model service has run out of credits. It resumes once credits are
 > topped up or next month's credits arrive. Nothing was lost; try again then.
 

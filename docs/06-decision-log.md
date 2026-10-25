@@ -7440,3 +7440,13 @@ read 2026-10-24). What was missing was the app's own behaviour when the balance 
 - **Not changed:** the model, the effort settings and every prompt. No credit-balance read or
   warning-before-zero: the API exposes no balance to a workspace key, and a billing alert on the
   Console organisation (`docs/12` §7) is the early signal.
+
+---
+
+### [2026-10-25] Give credit pauses their own public reason
+
+Issue #144. Supersedes the response-code part of the 2026-10-24 decision above. A credit pause
+retains a retryable `failed` import or proposal state, but its public `error.code` is
+`credits_exhausted`, rather than `extraction_failed` or `generation_failed`. Stateless model calls
+still answer `503 upstream_unavailable` with `error.details.reason: "credits_exhausted"`. The
+member-facing message and distinct log event are unchanged; the API contract is in `07` §2, §5 and §7.
