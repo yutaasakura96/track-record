@@ -122,7 +122,7 @@ describe("putting a photo on the profile", () => {
   it("refuses incomplete PNG and JPEG files with the plain image error", async () => {
     await client.put("/api/profile", PROFILE_FIXTURE);
     const badCrc = PHOTO.slice();
-    badCrc[29] ^= 1;
+    badCrc[29] = badCrc[29]! ^ 1;
     for (const bytes of [
       PHOTO.subarray(0, 24),
       PHOTO.subarray(0, PHOTO.length - 8),
