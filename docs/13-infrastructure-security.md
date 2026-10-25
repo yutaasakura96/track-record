@@ -38,25 +38,19 @@ changes.
 | Cloudflare Workflows | **$0.00** | 500k steps included; **waiting on the model is not billed** |
 | Neon | **$0.00** | Free tier: 0.5 GB, 100 CU-hours, scale-to-zero |
 | Cloudflare R2 | **$0.00** | Free tier: 10 GB-month of storage, 1M writes and 10M reads a month, no egress charge (pricing read 2026-10-15). At 90 MB a file at most, that is over a hundred recordings |
-| Anthropic | **~$1–2** | Bursty. The whole 2.4 MB corpus extracts once for ~$3. Paid first from the plan's included monthly API credits when the key's organisation is linked to one (below) |
+| Anthropic | **~$1–2** | Bursty. The whole 2.4 MB corpus extracts once for ~$3. Included monthly credits can cover this usage (`12` §9) |
 | Domain | ~$1 | Amortised, already owned |
 | **Total** | **≈ $6–8/month** | Flat, and does not expire after twelve months |
 
-**Included credits.** A Claude Max or Team plan includes monthly Claude API credits ($100 on Max 5x,
-$200 on Max 20x) that are spent before purchased credits, and expire at the end of each billing
-cycle ([API credits for Max and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers),
-read 2026-10-24). They apply to the organisation linked to the plan, so the production key must be
-issued by that organisation, and every key and workspace in it shares one balance — which is why the
-Track Record workspace keeps its own spend limit (§5). Past the credit, calls stop with "credit balance
-is too low" unless purchased credits or auto-reload exist; the app reports that case in plain words
-and logs `model_credits_exhausted` (`12` §9). Setup and behaviour are in `12` §9. No credential or
-balance is ever stored in the repository.
+The total counts API usage before any included credit is applied. The plan's credit terms, setup and
+out-of-credits behaviour are in `12` §9.
 
 **What breaks first under 10× load** — meaning ten invited users, since there is no other growth
 path:
 
-1. **Anthropic spend.** Uncapped and linear in users. **The first thing to break and the only one
-   with no ceiling.** This is why `08` §2.2 makes a per-user spend cap a gate on open registration.
+1. **Anthropic capacity.** Usage grows with users and can exhaust the linked organisation's monthly
+   credits or reach Track Record's workspace spend limit (`12` §9), pausing model calls. This is why
+   `08` §2.2 makes a per-user spend cap a gate on open registration.
 2. **Neon storage**, 0.5 GB free. Source documents in `bytea` dominate; ten users would approach it.
    The paid tier is the answer, or object storage at that point.
 3. **Neon compute**, 100 CU-hours across the account — shared with the author's other project.
@@ -166,7 +160,7 @@ should not drift toward perimeter hardening as the interesting-sounding work.
 
 | Credential | Scope | Could be tighter? |
 |---|---|---|
-| `ANTHROPIC_API_KEY` | Full account API access | **Yes** — use a workspace-scoped key with its own spend limit, not the default account key. The workspace limit is the only cap inside an organisation whose credits are shared (§2) |
+| `ANTHROPIC_API_KEY` | Full account API access | **Yes** — use a workspace-scoped key with its own spend limit, not the default account key (`12` §9) |
 | `DATABASE_URL` | Owner on one database | **Yes, eventually** — a role restricted to DML on application tables, with DDL reserved for migrations |
 | Google OAuth client | `openid email profile` only | Already minimal. **Never request Drive, Gmail or Calendar scopes** — nothing in this product needs them |
 | `CLOUDFLARE_API_TOKEN` (CI) | Edit Workers on one zone | **Yes** — scope to the single zone and Workers Scripts:Edit, never a Global API Key |
