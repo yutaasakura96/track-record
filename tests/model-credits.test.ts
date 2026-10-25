@@ -108,11 +108,16 @@ describe("an import that runs out of credits", () => {
     ).json()) as { importId: string };
     await settle();
 
-    const failed = await client.json<{ status: string; error: { message: string } | null }>(
+    const failed = await client.json<{ status: string; error: { code: string; message: string } | null }>(
       `/api/imports/${created.importId}`,
     );
     expect(failed.status).toBe("failed");
-    expect(failed.error?.message).toBe(CREDITS_EXHAUSTED_MESSAGE);
+    expect(failed.error).toEqual({ code: "credits_exhausted", message: CREDITS_EXHAUSTED_MESSAGE });
+    const listing = await client.json<{ documents: { versions: { importId: string; error: { code: string; message: string } | null }[] }[] }>(
+      "/api/imports",
+    );
+    expect(listing.documents.flatMap((document) => document.versions).find((version) => version.importId === created.importId)?.error)
+      .toEqual(failed.error);
     expect(creditEvents()).toHaveLength(1);
     expect(captured.join("\n")).not.toContain('"import_chunk_failed"');
     expect(captured.join("\n")).not.toContain("Meridian");
@@ -145,11 +150,11 @@ describe("a generation that runs out of credits", () => {
     };
     await settle();
 
-    const proposal = await client.json<{ generationStatus: string; error: { message: string } | null }>(
+    const proposal = await client.json<{ generationStatus: string; error: { code: string; message: string } | null }>(
       `/api/proposals/${started.proposalId}`,
     );
     expect(proposal.generationStatus).toBe("failed");
-    expect(proposal.error?.message).toBe(CREDITS_EXHAUSTED_MESSAGE);
+    expect(proposal.error).toEqual({ code: "credits_exhausted", message: CREDITS_EXHAUSTED_MESSAGE });
     expect(creditEvents()).toHaveLength(1);
     expect(captured.join("\n")).not.toContain('"generation_failed"');
 

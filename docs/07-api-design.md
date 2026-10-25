@@ -287,6 +287,9 @@ retained.
 
 PRD §7 requires this be reported as a **failure of extraction with the document retained**, never as
 an empty success.
+When the model service runs out of credits, the retryable import also has `status: "failed"`, but
+`error.code` is `credits_exhausted` and `error.message` explains the pause. Other model failures
+use `extraction_failed`.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -380,7 +383,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 - **`error`** is `null` unless the version is `failed`, and then it is the same object
   `GET /api/imports/:id` returns for that version, `code` and `message` both. One shape across the
   imports resources (§2): a failed version in the listing reads
-  `{ "code": "extraction_failed", "message": "…" }`, never a bare string. Screen 8 shows
+  `{ "code": "extraction_failed", "message": "…" }`, or `credits_exhausted` for a credit pause,
+  never a bare string. Screen 8 shows
   `message`.
 - **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
   number of that version's facts still `candidate`.
@@ -798,6 +802,10 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 2026-09-21).
 
 **`GET /api/proposals/:id` → 200**
+
+When generation is paused for lack of credits, the retryable proposal has
+`generationStatus: "failed"` and `error.code: "credits_exhausted"`, with the plain pause message.
+Other model failures use `generation_failed`.
 
 ```json
 {
