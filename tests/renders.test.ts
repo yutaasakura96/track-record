@@ -1359,6 +1359,74 @@ describe("the 履歴書 is generable, and is generated in Japanese", () => {
 });
 
 /**
+ * The Japanese check (issue #117, review issue 5), at the route: a defect is
+ * retried once and then refused, as an English document in Japanese is, and an
+ * advisory reaches the footer of a proposal that is still offered. The rules
+ * themselves are `tests/japanese.test.ts`.
+ */
+describe("a Japanese document is checked before it is offered", () => {
+  const ONSHA = rirekishoFrom("御社の受発注データの移行を担当しました。", []);
+  const ENGLISH = rirekishoFrom("架空商事で受発注データの移行を担当しました。", [], "I would like to work remotely.");
+  const CLEAN = rirekishoFrom("架空商事で受発注データの移行を担当しました。", []);
+
+  async function generateAttempts(...attempts: RenderContent[]) {
+    model.generations = attempts;
+    const response = await client.post("/api/renders/rirekisho/generate");
+    expect(response.status).toBe(202);
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    await settle();
+    const proposal = await client.json<{ generationStatus: string; error: { message: string } | null; warnings: string[] }>(
+      `/api/proposals/${proposalId}`,
+    );
+    return { proposalId, proposal };
+  }
+
+  it("retries 御社 once, and the clean document that follows is the proposal", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(ONSHA, CLEAN);
+    expect(model.generationInputs).toHaveLength(2);
+    expect(proposal.generationStatus).toBe("ready");
+  });
+
+  it("marks a twice-English document failed with a plain reason, and never offers it", async () => {
+    await seedRecord();
+    const { proposalId, proposal } = await generateAttempts(ENGLISH, ENGLISH);
+    expect(model.generationInputs).toHaveLength(2);
+    expect(proposal.generationStatus).toBe("failed");
+    expect(proposal.error!.message).toMatch(/part of this Japanese document in English, twice, so it was not offered for review/);
+    expect(proposal.error!.message).not.toContain("remotely");
+    expect((await client.request(`/api/proposals/${proposalId}/diff`)).status).toBe(409);
+  });
+
+  it("names neither defect when the two attempts fail differently", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(ONSHA, ENGLISH);
+    expect(proposal.generationStatus).toBe("failed");
+    expect(proposal.error!.message).toMatch(/different errors/);
+    expect(proposal.error!.message).not.toContain("twice");
+  });
+
+  it("offers a document with a register slip, and says so in the footer", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(rirekishoFrom("貴社の受発注データの移行を２件担当しました。", []));
+    expect(model.generationInputs).toHaveLength(1);
+    expect(proposal.generationStatus).toBe("ready");
+    expect(proposal.warnings).toContain(MOTIVATION_NOTICE);
+    expect(proposal.warnings).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^貴社 appears in 志望動機/), expect.stringMatching(/^Full-width digits in 志望動機/)]),
+    );
+  });
+
+  it("is not run on an English document", async () => {
+    await seedRecord();
+    const response = await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    expect(model.generationInputs).toHaveLength(1);
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${proposalId}`)).warnings).toEqual([]);
+  });
+});
+
+/**
  * A hand edit (`docs/02` S16).
  *
  * The second writer of `render_versions`, and the first that no model touches.

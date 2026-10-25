@@ -35,7 +35,9 @@ import {
   englishDefect,
   hasJapaneseScript,
   isEnglishOnly,
+  type EnglishDefect,
 } from "~/render/language";
+import { JAPANESE_DEFECT_REASON, MIXED_JAPANESE_DEFECT_REASON, japaneseDefect, type JapaneseDefect } from "~/render/japanese";
 import { bulletBudget } from "~/render/resume";
 import { tokyoToday } from "~/render/rirekisho";
 import { isExpired } from "~/render/shikaku";
@@ -447,15 +449,18 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     // Issue #104. An English document that comes back in Japanese, or with a
     // checked record name changed, is retried once and then refused —
     // never lands as reviewable content. When this failure was found, the
-    // review screen did not show heading changes.
-    const first = inputs.spec.language === "en" ? englishDefect(content, inputs.spec) : null;
+    // review screen did not show heading changes. A Japanese document is held
+    // to its own check the same way (issue #117): 御社, or a line in English.
+    const defectOf = (c: RenderContent) =>
+      inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
+    const first = defectOf(content);
     if (first !== null) {
       // Ids and the defect's name only.
       console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
       content = await generate();
-      const second = englishDefect(content, inputs.spec);
+      const second = defectOf(content);
       if (second !== null) {
-        throw new ModelUnavailableError(first === second ? ENGLISH_DEFECT_REASON[second] : MIXED_ENGLISH_DEFECT_REASON, second);
+        throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
       }
     }
     // Issue #117. 保有資格 and 学歴 are the record's rows, not the model's.
@@ -487,6 +492,12 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     else console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
 }
+
+/** The two checks name their defects apart, so one table reads either. */
+const DEFECT_REASON: Record<EnglishDefect | JapaneseDefect, string> = { ...ENGLISH_DEFECT_REASON, ...JAPANESE_DEFECT_REASON };
+
+const mixedDefectReason = (language: "en" | "ja"): string =>
+  language === "en" ? MIXED_ENGLISH_DEFECT_REASON : MIXED_JAPANESE_DEFECT_REASON;
 
 function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
   return {

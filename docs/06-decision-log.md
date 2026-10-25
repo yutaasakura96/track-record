@@ -7690,3 +7690,33 @@ fallback name at the first digit of any kind.
   record does not hold had no identity, and its opening and rows showed as a removal and an addition
   whenever only its period changed. `tests/diff.test.ts` holds the case.
 - **Revisit if:** an opening writes its period in a form neither pattern reads, such as `'21`.
+
+---
+
+### [2026-10-25] Japanese renders are checked before review
+
+The 2026-10-17 entry left Japanese documents without an equivalent of the English check. The
+2026-10-23 review of the Japanese documents (#117, §4.4) found every rule of the three Japanese
+registers enforced by the prompt alone, and English printed in a 職務経歴書: curated skill group
+names copied as given (E1), and a project's English summary after its Japanese プロジェクト label
+(E2).
+
+- **Decision:** `src/render/japanese.ts` checks every Japanese proposal at the place the English
+  check runs. 御社 anywhere and a line in English are defects, retried once and then refused with a
+  plain reason, as `englishDefect` is. 貴社 outside the 履歴書's 本人希望欄, full-width digits, a
+  職務経歴書 bullet over 120 characters and a 職務経歴 bullet ending in です・ます are advisories, read
+  off the stored content when the proposal is read and stated in the review footer beside the
+  履歴書's own warnings.
+- **Decision:** "English" is decided per line and per statement, not as a share. The share the
+  English check uses cannot see E2, a Japanese label followed by one English sentence. A heading or
+  block is English when it has no kana or kanji and something Latin is left once the record's own
+  Latin terms are taken out, or when a statement inside it (split at ：。！？, the ideographic space
+  and a newline, never at 、) is three or more Latin words carrying an English function word. The
+  terms are the record's names, titles held, qualifications, every technology a fact names and the
+  curated skills, but never a skill group's name, which is the label E1 printed.
+- **Decision:** an advisory names the section by the register's own name for it (職務経歴, 本人希望欄)
+  or, for a story chapter, by its place, and counts blocks. It never quotes the document.
+- **Rejected:** blocking on the advisories. Each is a slip the author can see and fix in one word,
+  and a 職務経歴書 refused for one long bullet costs two model calls and a regeneration.
+- **Revisit if:** a legitimate Japanese line trips the English rule (a technology no fact names,
+  printed alone on a line), or the advisories prove common enough to be worth retrying for.
