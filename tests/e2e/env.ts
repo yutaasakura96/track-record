@@ -39,6 +39,12 @@ export const CAPTURE_IDENTITY = {
   name: "Capture Test",
 };
 
+export const CREDIT_PAUSE_IDENTITY = {
+  sub: "e2e-credit-pause-local",
+  email: "e2e-credit-pause@example.invalid",
+  name: "Credit Pause Test",
+};
+
 export const DIFF_REVIEW_IDENTITY = {
   sub: "e2e-diff-review-local",
   email: "e2e-diff-review@example.invalid",
@@ -75,7 +81,7 @@ export const EDUCATION_CHIPS_IDENTITY = {
   name: "Education Chips Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -100,6 +106,14 @@ export const CAPTURE_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-capture-storage-state.json",
+);
+
+export const CREDIT_PAUSE_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-credit-pause-storage-state.json",
 );
 
 export const DIFF_REVIEW_STORAGE_STATE = join(

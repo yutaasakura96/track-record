@@ -1,13 +1,13 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import { PROFILE } from "./fixture";
-import { CAPTURE_STORAGE_STATE } from "./env";
+import { CREDIT_PAUSE_STORAGE_STATE } from "./env";
 import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
 
 test("credit pauses are specific across capture, import, generation and Explain this", async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
   const eventually = expect.configure({ timeout: 30_000 });
-  const context = await browser.newContext({ baseURL, storageState: CAPTURE_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: CREDIT_PAUSE_STORAGE_STATE });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
