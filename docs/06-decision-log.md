@@ -7655,14 +7655,17 @@ Supersedes the alignment scope of "Japanese blocks align on character bigrams, a
 where it sits" (2026-10-25), which aligned blocks across the whole section.
 
 - **Decision:** a block pairs only with a block in the same employer group. Inside an `experience`
-  section the opening paragraphs align first, and each pair of groups then aligns its own rows and
+  section the opening paragraphs pair first, and each pair of groups then aligns its own rows and
   bullets; outside one, the whole section is one group. A 職務経歴書 repeats its template rows
   (資本金, 従業員数, 技術スタック) under every employer, and two employers' 資本金 rows scored 0.52 on
   bigrams, so dropping one employer and adding another paired the old row with the new one and
   labelled the old figures with the new employer.
+- **Decision:** two opening paragraphs are the same employer when they name the same company: the
+  text before the bracket that opens the period, NFKC-normalised with whitespace collapsed. Not
+  bigram similarity: an opening carries the name, period, 雇用形態 and role titles, and two
+  employers' openings sharing 正社員 and a role title scored 0.45–0.73. The same company with a
+  changed period, 雇用形態 or role stays one group, and its opening pairs as an edit.
 - **Decision:** a block that moves to another employer is one removal and one addition, the removal
-  under the current version's employer and the addition under the proposal's. An employer whose
-  opening paragraph is reworded (a period extended) is still the same group, because the opening
-  paragraphs align on the same similarity as any block.
-- **Revisit if:** two different employers' opening paragraphs align. They carry the company name and
-  period, and a false pair there would put one employer's bullets under another.
+  under the current version's employer and the addition under the proposal's.
+- **Revisit if:** the author renames an employer in the record. The renamed group shows as removed
+  and added in full, every bullet with it.

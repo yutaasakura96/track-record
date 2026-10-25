@@ -339,6 +339,64 @@ describe("where a change sits", () => {
     ]);
   });
 
+  describe("employer identity, with openings shaped as the spec writes them", () => {
+    // Name, period, 雇用形態 and role titles, as src/render/spec.ts has every
+    // opening paragraph carry them. Two employers share most of that.
+    const group = (id: string, opening: string, ...rest: [kind: Block["kind"], text: string][]): Block[] => [
+      block(id, "paragraph", opening),
+      ...rest.map(([kind, text], i) => block(`${id}_${i + 1}`, kind, text)),
+    ];
+    const experience = (...groups: Block[][]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks: groups.flat() }],
+    });
+    const pairsOf = (before: RenderContent, after: RenderContent) =>
+      diffRenders(before, after, { language: "ja", explain: rationale }).changes.map((c) => [
+        c.currentBlockId,
+        c.proposedBlockId,
+        c.location.employer,
+      ]);
+
+    it.each([
+      [
+        "架空商事株式会社（2016年4月〜2018年3月）正社員／バックエンドエンジニア、テックリード",
+        "空想工業株式会社（2018年4月〜2021年3月）正社員／バックエンドエンジニア、テックリード",
+      ],
+      [
+        "架空商事株式会社（2016年4月〜2019年3月）正社員／バックエンドエンジニア、プロダクトマネージャー",
+        "空想工業株式会社（2019年4月〜2023年9月）正社員／バックエンドエンジニア、スクラムマスター",
+      ],
+    ])("never pairs %s with another company's opening", (dropped, added) => {
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
+    it("keeps one group when the same company's period changes", () => {
+      const opening = "空想工業株式会社（2018年4月〜2021年3月）正社員／バックエンドエンジニア";
+      const extended = "空想工業株式会社 (2018年4月〜現在) 正社員／バックエンドエンジニア、テックリード";
+      const before = experience(
+        group("blk_b", opening, ["row", "資本金：3億円　従業員数：800名"], ["bullet", "受注処理を8時間から3時間へ短縮"]),
+      );
+      const after = experience(
+        group(
+          "blk_b",
+          extended,
+          ["row", "資本金：3億円　従業員数：800名"],
+          ["bullet", "受注処理の所要時間を8時間から3時間に短縮"],
+        ),
+      );
+      expect(pairsOf(before, after)).toEqual([
+        ["blk_b", "blk_b", null],
+        ["blk_b_2", "blk_b_2", extended],
+      ]);
+    });
+  });
+
   it("shows a bullet moved to another employer as a removal and an addition", () => {
     const opening = (id: string, text: string) => block(id, "paragraph", text);
     const first = opening("blk_e1", "架空商事株式会社（2018年4月〜2021年3月）");

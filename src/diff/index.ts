@@ -310,14 +310,26 @@ function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup
 }
 
 /**
+ * The company an opening paragraph names: the text before the bracket that
+ * opens its period, with width and whitespace normalised. The opening paragraph
+ * also carries the period, the 雇用形態 and the role titles, and two employers
+ * share most of those, so similarity cannot say which employer a group is.
+ */
+function employerName(opening: string): string {
+  const text = opening.normalize("NFKC");
+  const bracket = text.indexOf("(");
+  return (bracket === -1 ? text : text.slice(0, bracket)).replace(/\s+/gu, " ").trim();
+}
+
+/**
  * Alignment for one section. Outside an `experience` section the whole section
  * is one group. Inside one, a block only pairs with a block under the same
- * employer: the opening paragraphs are aligned first, and each pair of groups
- * then aligns its own rows and bullets. A 職務経歴書 repeats the same template
- * rows (資本金, 従業員数, 技術スタック) under every employer, and on bigrams two
- * employers' rows are alike enough to pair, which would label one employer's
- * old figures as another's. A block that moved to another employer is one
- * removal and one addition, each under its own employer.
+ * employer: opening paragraphs pair when they name the same company, and each
+ * pair of groups then aligns its own rows and bullets. A 職務経歴書 repeats the
+ * same template rows (資本金, 従業員数, 技術スタック) under every employer, and on
+ * bigrams two employers' rows are alike enough to pair, which would label one
+ * employer's old figures as another's. A block that moved to another employer
+ * is one removal and one addition, each under its own employer.
  */
 function alignSection(current: Block[], proposed: RenderSection, language: DiffLanguage): AlignedPair[] {
   if (proposed.key !== EXPERIENCE_SECTION) return alignBlocks(current, proposed.blocks, language);
@@ -327,14 +339,21 @@ function alignSection(current: Block[], proposed: RenderSection, language: DiffL
   const restOf = (groups: EmployerGroup[]) => new Map(groups.map((g) => [g.opening, g.rest]));
   const restBefore = restOf(before.groups);
   const restAfter = restOf(after.groups);
-  const openings = alignBlocks(
-    before.groups.map((g) => g.opening),
-    after.groups.map((g) => g.opening),
-    language,
-  );
+
+  const currentOpenings = before.groups.map((g) => g.opening);
+  const proposedOpenings = after.groups.map((g) => g.opening);
+  const matchOf = new Map<number, number>();
+  const claimed = new Set<number>();
+  proposedOpenings.forEach((p, pi) => {
+    const name = employerName(p.text);
+    const ci = currentOpenings.findIndex((c, i) => !claimed.has(i) && employerName(c.text) === name);
+    if (ci === -1) return;
+    claimed.add(ci);
+    matchOf.set(pi, ci);
+  });
 
   const pairs = alignBlocks(before.lead, after.lead, language);
-  for (const { current: c, proposed: p } of openings) {
+  for (const { current: c, proposed: p } of inDocumentOrder(currentOpenings, proposedOpenings, matchOf)) {
     pairs.push({ current: c, proposed: p });
     if (c && p) pairs.push(...alignBlocks(restBefore.get(c)!, restAfter.get(p)!, language));
     else if (c) pairs.push(...restBefore.get(c)!.map((block) => ({ current: block, proposed: null })));
@@ -382,9 +401,16 @@ export function alignBlocks(
     proposedTaken.add(p);
     matchOf.set(p, c);
   }
+  return inDocumentOrder(current, proposed, matchOf);
+}
 
-  // Walk the proposal in document order, emitting removals from the current
-  // version at the point they used to sit.
+/**
+ * Walks the proposal in document order, emitting removals from the current
+ * version at the point they used to sit. `matchOf` maps a proposed index to
+ * the current index it pairs with.
+ */
+function inDocumentOrder(current: Block[], proposed: Block[], matchOf: Map<number, number>): AlignedPair[] {
+  const currentTaken = new Set(matchOf.values());
   const pairs: AlignedPair[] = [];
   let nextCurrent = 0;
   proposed.forEach((p, pi) => {
