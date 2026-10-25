@@ -47,6 +47,37 @@ export const e2eModel: ModelSeam = {
 
   async generateRender(facts, spec) {
     if (facts.some((fact) => fact.claim.includes("credit-generation-fixture"))) throw new ModelCreditsExhaustedError();
+    if (spec.kind === "shokumu_keirekisho" && spec.desiredRoleNote?.startsWith("jp-check-shokumu-")) {
+      const note = spec.desiredRoleNote;
+      const skills = note === "jp-check-shokumu-e1" ? "Languages" : "プログラミング言語";
+      const row = note === "jp-check-shokumu-e2"
+        ? "プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table with a double-entry, append-only ledger."
+        : "プロジェクト：決済元帳の再構築";
+      const bullet = note === "jp-check-shokumu-advisory" ? `${"決済基盤を改善し、".repeat(14)}成果を確認しました。` : "決済基盤を改善";
+      return { sections: [
+        { key: "skills", heading: "活かせるスキル・経験", blocks: [{ id: "blk_skills", kind: "row" as const, text: skills, factIds: [] }] },
+        { key: "experience", heading: "職務経歴", blocks: [
+          { id: "blk_project", kind: "row" as const, text: row, factIds: [] },
+          { id: "blk_outcome", kind: "bullet" as const, text: bullet, factIds: facts.map((fact) => fact.id) },
+        ] },
+      ] };
+    }
+    if (spec.kind === "rirekisho" && spec.desiredRoleNote?.startsWith("jp-check-")) {
+      const note = spec.desiredRoleNote;
+      const text = note === "jp-check-onsha"
+        ? "御社の業務改善に貢献します。"
+        : note === "jp-check-english"
+          ? "日本語の説明\nLanguages"
+          : note === "jp-check-advisory"
+            ? "貴社の業務を２件改善しました。"
+            : "SaaS (Software as a Service) の導入支援とPostgreSQLの設計を担当しました。";
+      return { sections: [
+        { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
+          { id: "blk_motivation", kind: "paragraph" as const, text, factIds: [] },
+        ] },
+        { key: "kibou", heading: "本人希望記入欄", blocks: [] },
+      ] };
+    }
     if (spec.kind === "rirekisho") {
       return { sections: [
         { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [

@@ -372,6 +372,8 @@ A change with no explanation is a defect.
 - `Accepting replaces your <render> with v<n>.`
 - `v<n-1> and every earlier version stay restorable from version history.`
 - A withholding notice when applicable: `N private facts in your record were not used.` — states that something was withheld, never what.
+- Advisory warnings from the proposal response appear here, one line each. For Japanese documents
+  these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
 
 ### First version (v0 → v1)
@@ -385,7 +387,8 @@ then accept it or discard it.` No toolbar, no
 change navigation, no rationale bar. While the preview loads, the body says `Loading the
 document…`; a failed read shows its error. **Accept stays unavailable until the preview arrives.** The
 footer reads `Accepting saves this as v1 of your <render>.` and `Nothing is saved until you accept
-it.`, with `Discard draft` (secondary, dismisses the proposal) and `Accept as v1` (primary). There
+it.`, with any advisory warnings as above, `Discard draft` (secondary, dismisses the proposal) and
+`Accept as v1` (primary). There
 is no current version for a button to keep, so it does not say `Keep current version`. Once
 discarded, the result bar reads `Draft discarded — nothing was saved`.
 

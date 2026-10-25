@@ -353,9 +353,8 @@ function Review({
               ? `Accepting saves this as v${proposal.proposedVersionNo} of your ${proposal.title}.`
               : `Accepting replaces your ${proposal.title} with v${proposal.proposedVersionNo}.`}
           </p>
-          {/* Advisory findings about the record — an unexplained gap in the
-              学歴・職歴 table, or the half of a cell the register refuses to
-              write. Never blocking, and never silent. */}
+          {/* Proposal advisories include record and Japanese register findings.
+              They never block review. */}
           {proposal.warnings.map((warning) => (
             <p key={warning} className="text-smaller text-text-secondary">
               {warning}
