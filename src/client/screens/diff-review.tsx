@@ -18,6 +18,7 @@ import {
   useDecideProposal,
   useDiff,
   useGenerate,
+  useProfilePhotoSrc,
   useProposal,
   type DiffChange,
   type Proposal,
@@ -401,13 +402,14 @@ function FirstVersion({
   diffFailure: ReactNode;
 }) {
   const japanese = RENDER_LANGUAGE[proposal.renderKind] === "ja";
+  const photo = useProfilePhotoSrc();
   return (
     <main className="flex-1 min-h-0 overflow-y-auto">
       <p className="h-strip flex items-center px-20 border-b border-border-subtle text-small text-text-secondary">
         This is the first version of your {proposal.title}. Read it through, then accept it or discard it.
       </p>
       {preview?.page.sheet || preview?.page.title === null ? (
-        <DocumentPage page={preview.page} language={RENDER_LANGUAGE[proposal.renderKind]} />
+        <DocumentPage page={preview.page} language={RENDER_LANGUAGE[proposal.renderKind]} photo={photo} />
       ) : preview ? (
         <article
           lang={japanese ? "ja" : "en"}

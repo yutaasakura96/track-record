@@ -16,19 +16,23 @@
  */
 import type { Hono } from "hono";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import PizZip from "pizzip";
 import { z } from "zod";
 import { applicationDocuments, applicationSentCopies, renders } from "../db/schema";
+import { storedBytes } from "../db/bytes";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { documentTitle, freezeDocuments, liveCopies } from "../services/application-documents";
 import { mainRender } from "../services/render-ref";
+import { photoResponse } from "../services/rirekisho";
 import { detail, markActivity, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
 import { tokyoToday } from "~/render/rirekisho";
 import type { SentPage } from "~/render/sent-page";
 import { readSheet } from "~/render/sheet";
+import { photoOf } from "~/render/rirekisho-photo";
 import { SENDABLE_KINDS, SENDABLE_TITLE, isSendableKind } from "~/shared/application-documents";
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import type { AppEnv } from "../env";
@@ -262,6 +266,32 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
       },
     });
   });
+
+  /**
+   * The 写真 a 履歴書 copy was sent with, read out of its stored file: the
+   * photo as it was that day, which the profile's may no longer be. `404` for a
+   * copy that carries none. Never cached, as the profile's is not.
+   */
+  api.get("/api/applications/:id/sent-copies/:copyId/photo", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    await requireApplication(db, user.id, id);
+    const [copy] = await db
+      .select({ file: applicationSentCopies.file, kind: applicationSentCopies.kind })
+      .from(applicationSentCopies)
+      .where(and(liveCopies(user.id, id), eq(applicationSentCopies.id, pathParam(c, "copyId"))))
+      .limit(1);
+    if (!copy || copy.kind !== "rirekisho") throw notFound("That photo");
+    let photo: ReturnType<typeof photoOf> = null;
+    try {
+      photo = photoOf(new PizZip(storedBytes(copy.file)));
+    } catch {
+      photo = null;
+    }
+    if (!photo) throw notFound("That photo");
+    return photoResponse(photo);
+  });
 }
 
 /* ------------------------------------------------------------------ shared */
@@ -347,16 +377,4 @@ async function withSheet(db: Db, userId: string, copy: { id: string; kind: strin
     console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", userId, copyId: copy.id, errorKind: error instanceof Error ? error.constructor.name : typeof error }));
     return { ...page, readFailure: "original_file_unreadable" as const };
   }
-}
-
-/**
- * `bytea` as the driver hands it back. Over Neon's HTTP protocol that is the
- * hex text Postgres prints (`\x504b…`); a driver that parses it gives bytes.
- */
-function storedBytes(file: unknown): Uint8Array {
-  if (typeof file === "string") {
-    const hex = file.startsWith("\\x") ? file.slice(2) : file;
-    return Uint8Array.from(hex.match(/../g) ?? [], (pair) => Number.parseInt(pair, 16));
-  }
-  return new Uint8Array(file as ArrayBufferLike);
 }

@@ -171,7 +171,7 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `contact_postal_code` | text | yes | `null` | Required when the above is false |
 | `contact_address` | text | yes | `null` | " |
 | `contact_address_kana` | text | yes | `null` | " |
-| `photo` | bytea | yes | `null` | 写真. 30×40 mm conventionally |
+| `photo` | bytea | yes | `null` | 写真 (#117). A JPEG or PNG at 3:4, at least 300 × 400 and at most 2 MB, cropped in the browser; printed at 30 × 40 mm. Removable by the author |
 | `desired_role_note` | text | yes | `null` | 本人希望欄 |
 | `resume_headline` | text | yes | `null` | English résumé header, under the name (#108) |
 | `resume_city` | text | yes | `null` | " — printed `City, Country` |
@@ -911,12 +911,15 @@ column feeds which cell.**
 |---|---|
 | Title `履 歴 書` (ideographic spaces) | Fixed |
 | Submission date (`YYYY年 M月 D日`, space after 年 and 月) | **Stamped at generation.** Not stored |
-| 写真 cell | `profiles.photo` — **anchored, 35.1 × 34.1 mm**, merged across identity rows 1–3 |
+| 写真 cell | `profiles.photo` — **inline, 30 × 40 mm, centred**, in the cell merged across identity rows 1–3 |
 
-The 写真 cell is a floating (`wp:anchor`) image, not an inline one, and it is nearly square rather
-than the conventional 30 × 40 mm. **The template ships with the cell empty.** Filling it is not text
-substitution — docxtemplater needs a separate image module — and that dependency has not been
-chosen. A 履歴書 render that omits the photo is a known gap, not a silent one.
+The template ships with the 写真 cell empty: a shaded cell, 2000 twips wide, holding one empty
+paragraph. With a photo, `src/render/rirekisho-photo.ts` puts it into that paragraph as an inline
+picture at the conventional 30 × 40 mm (#117, decision log 2026-10-25), with the image, its
+relationship and its content type added to the package. It is placed after the fill and before the
+pagination, because the cell then stands taller than the three rows it spans and the identity block
+grows by about 8 mm. Without a photo the cell is left empty, and the review footer and View say
+`写真欄は空欄です。必要な場合はWordで貼付してください`: a known gap, not a silent one.
 
 **Identity block** — a five-row table
 
@@ -1127,11 +1130,11 @@ technologies: {AWS, VPC, IAM}
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
 | `interviews`, `interview_questions` | **Never deleted.** An entry or question the author removes is stamped `removed_at`; both remain in the export (#81) |
-| `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). An upload's file is deleted from R2; the link and its label, or the file's name, size, type and length, are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
+| `interview_recordings` | **Removable by the author, and with the profile photo the only thing that is** (`06`, 2026-10-11). An upload's file is deleted from R2; the link and its label, or the file's name, size, type and length, are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
-| `profiles.photo` | Deletable by the author. Nothing else expires |
+| `profiles.photo` | Deletable by the author (`DELETE /api/profile/photo`), set to `null` for good. A sent copy keeps the photo inside its stored file. Nothing else expires |
 | Anything | **No general soft-delete column.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight. The stamps that exist each record one named act: `superseded_at`, `removed_at`, `undone_at` |
 
 **Export (S15)** reads every table above except `sessions`, `accounts` and `interview_recordings`

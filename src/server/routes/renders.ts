@@ -7,7 +7,7 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -36,7 +36,8 @@ import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
-import { collectRirekishoProfile, collectRirekishoRecord } from "../services/rirekisho";
+import { fillRirekishoTemplate } from "~/render/rirekisho-template";
+import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord, hasProfilePhoto } from "../services/rirekisho";
 import {
   buildDocumentFile,
   buildDocumentPage,
@@ -87,8 +88,12 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const waiting = await waitingProposalId(db, user.id, target);
     if (waiting) throw proposalWaiting(target, waiting);
 
+    // Every column but the photo, which no required field is and no
+    // generation request may carry.
+    const { photo: _photo, ...profileColumns } = getTableColumns(profiles);
+    void _photo;
     const [profile] = await db
-      .select()
+      .select(profileColumns)
       .from(profiles)
       .where(eq(profiles.userId, user.id))
       .limit(1);
@@ -138,7 +143,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // complete: the English résumé's register drops entries by level. The
     // notice is unconditional and comes last, so a gap — which is about this
     // record, and may not be there next time — is read first.
-    const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [];
+    const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, user.id) }) : [];
 
     const render = await ensureRender(db, user.id, target);
     const proposalId = newId("renderProposal");
@@ -264,15 +269,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const kind = render.kind as RenderKind;
     const today = tokyoToday();
     const page = kind === "rirekisho"
-      ? rirekishoSentPage(
-          rirekishoTemplateData({
-            profile: await collectRirekishoProfile(db, user.id),
-            record: await collectRirekishoRecord(db, user.id),
-            submittedOn: today,
-            content: proposed,
-          }),
-          proposed,
-        )
+      ? await rirekishoPreviewPage(db, user.id, proposed, today)
       : kind === "english_resume"
         ? await resumePreviewPage(db, user.id, proposed, today)
         : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
@@ -1130,6 +1127,20 @@ async function requireVersion(db: Db, userId: string, target: RenderRef, id: str
     .limit(1);
   if (!version) throw notFound("That version");
   return version;
+}
+
+/**
+ * A first 履歴書 read as its file lays it out, its 写真 included, as the
+ * document view reads a version (`../services/document-file`).
+ */
+async function rirekishoPreviewPage(db: Db, userId: string, content: RenderContent, today: string): Promise<SentPage> {
+  const data = rirekishoTemplateData({
+    profile: await collectRirekishoProfile(db, userId),
+    record: await collectRirekishoRecord(db, userId),
+    submittedOn: today,
+    content,
+  });
+  return rirekishoSentPage(data, content, fillRirekishoTemplate(data, await collectRirekishoPhoto(db, userId)));
 }
 
 /**

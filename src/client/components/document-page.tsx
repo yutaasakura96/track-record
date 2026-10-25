@@ -24,8 +24,14 @@ export interface Trace {
   behind: (block: PageBlock) => ReactNode;
 }
 
-/** The document at the reading measure. A 履歴書 or 職務経歴書 is set with the Japanese stack. */
-export function DocumentPage({ page, language, trace }: { page: SentPage; language: "en" | "ja"; trace?: Trace }) {
+/**
+ * The document at the reading measure. A 履歴書 or 職務経歴書 is set with the Japanese stack.
+ *
+ * `photo` is where the 履歴書's 写真 is read from, when its file carries one:
+ * the profile's for a page built today, the stored file's for a sent copy. The
+ * page says only that the cell holds a photo, never the photo itself.
+ */
+export function DocumentPage({ page, language, trace, photo = null }: { page: SentPage; language: "en" | "ja"; trace?: Trace; photo?: string | null }) {
   const japanese = language === "ja";
   return (
     <article
@@ -36,7 +42,7 @@ export function DocumentPage({ page, language, trace }: { page: SentPage; langua
         <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>
       ) : null}
       {page.sheet ? (
-        <SheetPage sheet={page.sheet} trace={trace} />
+        <SheetPage sheet={page.sheet} trace={trace} photo={photo} />
       ) : (
         <>
           {page.title ? (
@@ -115,11 +121,11 @@ const AFTER: Record<number, string> = { 0: "mb-0", 20: "mb-2", 40: "mb-4", 80: "
  * which field is which, so the screen cannot set out a form the file does not.
  * The empty lines that space the file's tables are the gap between them.
  */
-function SheetPage({ sheet, trace }: { sheet: Sheet; trace?: Trace }) {
+function SheetPage({ sheet, trace, photo }: { sheet: Sheet; trace?: Trace; photo: string | null }) {
   return (
     <div className="text-text-body">
       {sheet.blocks.map((block, index) => {
-        if (block.kind === "table") return <SheetTable key={index} table={block} index={index} trace={trace} />;
+        if (block.kind === "table") return <SheetTable key={index} table={block} index={index} trace={trace} photo={photo} />;
         if (block.line.text.trim() === "") return <p key={index} aria-hidden="true" className={lineClass(block.line)}>&nbsp;</p>;
         if (trace) {
           const key = `sheet.${index}`;
@@ -162,7 +168,7 @@ const lineClass = (line: SheetLine) =>
 const headed = (row: SheetCell[]) =>
   row.length > 1 && row.every((cell) => cell.lines.some((line) => line.text.trim() !== "") && cell.lines.every((line) => line.bold || line.text.trim() === ""));
 
-function SheetTable({ table, index, trace }: { table: Extract<Sheet["blocks"][number], { kind: "table" }>; index: number; trace?: Trace }) {
+function SheetTable({ table, index, trace, photo }: { table: Extract<Sheet["blocks"][number], { kind: "table" }>; index: number; trace?: Trace; photo: string | null }) {
   const id = useId();
   return (
     <div className="min-w-0 max-w-full overflow-x-auto">
@@ -188,7 +194,10 @@ function SheetTable({ table, index, trace }: { table: Extract<Sheet["blocks"][nu
                     rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
                     className={`border border-border-active px-8 py-6 align-top font-normal ${cell.shaded ? "bg-shade" : ""}`}
                   >
-                    {trace ? (
+                    {cell.photo ? (
+                      // The file's 30 × 40 mm, at the cell's width. Not a line to trace: nothing is written in it.
+                      photo ? <img src={photo} alt="写真" className="block w-full aspect-photo object-cover" /> : <span className="sr-only">写真</span>
+                    ) : trace ? (
                       <>
                         <button type="button" aria-expanded={open} aria-controls={open ? panel : undefined}
                           onClick={() => trace.onSelect(open ? null : key)}

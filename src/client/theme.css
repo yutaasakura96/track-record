@@ -199,8 +199,15 @@
   /* A document card's page picture on Home (issue #111). Composed from the
    * scale, 60 + 60 + 40. */
   --spacing-thumbnail: 160px;
+  /* The 写真 on the profile (issue #117): the crop frame, and the saved photo
+   * beside its controls. Both at `--aspect-photo`. 60 × 4, and 60 + 60. */
+  --spacing-photo: 240px;
+  --spacing-photo-preview: 120px;
   --spacing-full: 100%;
   --spacing-screen: 100vh;
+
+  /* The 履歴書 photo's 30 × 40 mm, width to height (issue #117). */
+  --aspect-photo: 3 / 4;
 
   /* --------------------------------------------------------------- radius */
   --radius-mark: 2px;

@@ -15,7 +15,7 @@
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router";
-import { ApiError, useGenerate, useRenderPage, type RenderPage } from "../api";
+import { ApiError, useGenerate, useProfilePhotoSrc, useRenderPage, type RenderPage } from "../api";
 import { PhoneFrame } from "../components/application-chrome";
 import { DocumentPage, type Trace } from "../components/document-page";
 import { generateFailure, JobHeaderLinks } from "../components/generate-failure";
@@ -25,12 +25,15 @@ import { ReadFailure } from "../components/read-failure";
 import { Button, Chip, Dot } from "../components/ui";
 import { absolute } from "../format";
 import { BY_HAND, WORTH_WORDS, type FactEvidence } from "~/shared/evidence";
+import { PHOTO_NOTICE } from "~/shared/photo";
+import { sheetHasPhoto } from "~/render/sheet";
 
 export function DocumentViewScreen() {
   const { ref } = useParams({ from: "/renders/$ref/view" });
   const { version } = useSearch({ from: "/renders/$ref/view" });
   const read = useRenderPage(ref, version);
   const data = read.data;
+  const photo = useProfilePhotoSrc();
   const [tracing, setTracing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   // Another version is another page: the line chosen on the last one is not on it.
@@ -68,6 +71,15 @@ export function DocumentViewScreen() {
           download is.
         </p>
       ) : null}
+      {/* The 写真 cell is read out of the file, so this says what the download holds. */}
+      {data.page.sheet && data.renderKind === "rirekisho" && !sheetHasPhoto(data.page.sheet) ? (
+        <p lang="ja" className="text-smaller text-text-secondary">
+          {PHOTO_NOTICE}{" "}
+          <Link to="/profile" className={QUIET}>
+            Add a photo
+          </Link>
+        </p>
+      ) : null}
       <div className="flex flex-wrap items-center gap-x-12 gap-y-6">
           <Button
             variant="ghost"
@@ -88,6 +100,7 @@ export function DocumentViewScreen() {
         <DocumentPage
           page={data.page}
           language={data.language}
+          photo={photo}
           trace={tracing ? trace(data.evidence, selected, setSelected) : undefined}
         />
       </div>

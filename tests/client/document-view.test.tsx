@@ -389,6 +389,33 @@ describe("where each line comes from", () => {
     expect(page.getByText(/No fact behind this line/)).toBeTruthy();
   });
 
+  const rirekishoPage = (sheet: typeof RIREKISHO_SHEET) =>
+    view({
+      renderKind: "rirekisho", renderRef: "rirekisho", language: "ja",
+      page: { title: "履 歴 書", stamp: null, name: "架空　花子", contact: [], sections: [], sheet },
+    });
+
+  it("says when a 履歴書's 写真 cell is empty, in the owner's words, with the way to add one (issue #117)", async () => {
+    mount("/renders/rirekisho/view", { "GET /api/renders/rirekisho/page": rirekishoPage(RIREKISHO_SHEET) });
+    const note = await screen.findByText(/写真欄は空欄です。必要な場合はWordで貼付してください/);
+    expect(within(note).getByRole("link", { name: "Add a photo" }).getAttribute("href")).toBe("/profile");
+    expect(within(screen.getByRole("article")).queryByRole("img")).toBeNull();
+  });
+
+  it("draws the photo in the 写真 cell when the file holds one, and says nothing of an empty cell (issue #117)", async () => {
+    const sheet = structuredClone(RIREKISHO_SHEET);
+    const identity = sheet.blocks.find((block) => block.kind === "table")!;
+    identity.rows[0]![2]!.photo = true;
+    mount("/renders/rirekisho/view", {
+      "GET /api/profile": { id: "profile-test-1", hasPhoto: true, photoVersion: "a1b2c3d4e5f6" },
+      "GET /api/renders/rirekisho/page": rirekishoPage(sheet),
+    });
+    const photo = await within(await screen.findByRole("article")).findByRole("img", { name: "写真" });
+    expect(photo.getAttribute("src")).toBe("/api/profile/photo?v=a1b2c3d4e5f6");
+    expect(photo.closest("td")?.getAttribute("rowspan")).toBe("3");
+    expect(screen.queryByText(/写真欄は空欄です/)).toBeNull();
+  });
+
   it("says a captured fact was added by hand, with no passage, and opens its card", async () => {
     const { user, page } = await tracing();
     await user.click(page.getByRole("button", { name: MEASURED.claim }));

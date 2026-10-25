@@ -23,6 +23,7 @@ import {
   type RirekishoRow,
   type RirekishoTemplateData,
 } from "~/render/rirekisho-template";
+import { pngPhoto } from "./helpers/photo";
 
 const template = new PizZip(RIREKISHO_TEMPLATE_BYTES);
 const BODY = defaultHalfPoints(template.file("word/styles.xml")!.asText());
@@ -164,5 +165,29 @@ describe("how many lines a cell's text takes, in MS Mincho", () => {
   it("counts a line break as a line", () => {
     expect(lineCount("一行目\n二行目", WIDTH, EM)).toBe(2);
     expect(lineCount("", WIDTH, EM)).toBe(1);
+  });
+});
+
+describe("a filled 履歴書 with its 写真 (issue #117)", () => {
+  const BLANK = blankRowOf(PREPARED);
+  const PHOTO = { bytes: pngPhoto(300, 400), type: "image/png" as const };
+  const blanks = (bytes: Uint8Array) => {
+    const rows = rowsOf(tablesOf(documentXml(bytes))[1]!);
+    return rows.length - rows.findIndex((row) => textOf(row) === "以上") - 1;
+  };
+
+  for (const employers of [1, 8]) {
+    it(`still runs 学歴・職歴 onto page 2 with 志望動機 there, with ${employers} employer(s)`, () => {
+      const xml = documentXml(fillRirekishoTemplate(data(employers), PHOTO));
+      expect(paginateXml(xml, BLANK, BODY).layout).toEqual({ blankRows: 0, motivationPage: 2, pages: 2 });
+    });
+  }
+
+  it("counts the photo's 40 mm, so page 1 holds fewer rows of 学歴・職歴 than without it", () => {
+    const without = blanks(fillRirekishoTemplate(data(1)));
+    const withPhoto = blanks(fillRirekishoTemplate(data(1), PHOTO));
+    // The cell is about 8 mm taller than the three rows it spans: one or two rows of 学歴・職歴.
+    expect(without - withPhoto).toBeGreaterThanOrEqual(1);
+    expect(without - withPhoto).toBeLessThanOrEqual(2);
   });
 });

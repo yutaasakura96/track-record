@@ -19,10 +19,10 @@
  * 本人希望欄 are generated, and they arrive as `RenderContent` under the two
  * keys in {@link PROSE_SECTION_KEYS}.
  *
- * **The 写真 cell is not filled.** It is an anchored image and docxtemplater
- * cannot place one without an image module; the template ships with the cell
- * empty and this module leaves it that way (`docs/04` §4). A known gap, not a
- * silent one.
+ * **The 写真 cell holds the profile's photo when there is one** (issue #117,
+ * review issue 8), placed by `./rirekisho-photo.ts`. Without one the cell is
+ * left empty and {@link rirekishoWarnings} says so, in the review footer and
+ * on View: a known gap, not a silent one.
  */
 import {
   fillRirekishoTemplate,
@@ -34,7 +34,9 @@ import {
   type RirekishoEducation,
   type RirekishoEmployer,
 } from "./rirekisho-rows";
+import type { RirekishoPhoto } from "./rirekisho-photo";
 import type { RenderContent } from "~/shared/render-content";
+import { PHOTO_NOTICE } from "~/shared/photo";
 
 /**
  * The ideographic space the 名前 and ふりがな cells join on.
@@ -49,8 +51,9 @@ const SEP = "　";
 
 /**
  * The profile columns the 履歴書 reads. A narrow projection rather than the
- * `profiles` row, which is what keeps `photo` — and the two `updated_at`s
- * nobody wants on a document — out of reach.
+ * `profiles` row, which is what keeps the two `updated_at`s nobody wants on a
+ * document out of reach. The photo is not text and travels on its own, as
+ * {@link RirekishoInputs.photo}.
  */
 export interface RirekishoProfile {
   familyNameKanji: string;
@@ -124,6 +127,8 @@ export interface RirekishoInputs {
   submittedOn: string;
   /** The accepted version's content. The two prose blocks are read from it. */
   content?: RenderContent | null;
+  /** The 写真, or null when the profile has none and the cell is left empty. */
+  photo?: RirekishoPhoto | null;
 }
 
 /* ------------------------------------------------------------------ dates */
@@ -275,14 +280,17 @@ export function gapWarnings(record: {
  * screen is where the decision is taken.
  *
  * The gaps come first because a gap is a finding about THIS record and may not
- * be there next time; the notice is unconditional and true of every 履歴書 this
- * tool will ever produce.
+ * be there next time; the 志望動機 notice is unconditional and true of every
+ * 履歴書 this tool will ever produce. The photo notice is last, and only there
+ * while the profile has no photo: most employers still expect one where the
+ * form has a cell, and an author who never opens Word would otherwise send the
+ * empty box.
  */
-export function rirekishoWarnings(record: {
-  educations: CareerSpan[];
-  employers: CareerSpan[];
-}): string[] {
-  return [...gapWarnings(record), MOTIVATION_NOTICE];
+export function rirekishoWarnings(
+  record: { educations: CareerSpan[]; employers: CareerSpan[] },
+  { hasPhoto }: { hasPhoto: boolean },
+): string[] {
+  return [...gapWarnings(record), MOTIVATION_NOTICE, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
 }
 
 /* -------------------------------------------------------------- assembly */
@@ -319,7 +327,7 @@ export function rirekishoTemplateData(inputs: RirekishoInputs): RirekishoTemplat
 
 /** The filled `.docx` bytes. Assembled on every download and never stored. */
 export function buildRirekisho(inputs: RirekishoInputs): Uint8Array {
-  return fillRirekishoTemplate(rirekishoTemplateData(inputs));
+  return fillRirekishoTemplate(rirekishoTemplateData(inputs), inputs.photo ?? null);
 }
 
 /* -------------------------------------------------------------- internals */
