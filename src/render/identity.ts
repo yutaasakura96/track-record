@@ -161,15 +161,16 @@ export const isDated = (kind: RenderKind): boolean => STAMPS_A_DATE[kind];
  * The 作成日 line, or null for a kind that carries none.
  *
  * `today` is `YYYY-MM-DD` in Japan Standard Time — see `tokyoToday`, and the
- * reason the zone is fixed rather than the Worker's. Written 2026年9月12日 with
- * no leading zeros, which is how a Japanese document writes a date and how the
- * author's own 職務経歴書 writes it.
+ * reason the zone is fixed rather than the Worker's. Written 2026年9月12日現在
+ * with no leading zeros, which is how a Japanese document writes a date. The
+ * 現在 says the document is true as of that day, as doda's sample and the
+ * 履歴書's own 「年　月　日現在」 cell write it (issue #117, review S5).
  */
 export function documentDate(kind: RenderKind, today: string): string | null {
   if (!STAMPS_A_DATE[kind]) return null;
   const [year, month, day] = today.split("-");
   if (!year || !month || !day) return null;
-  return `${Number(year)}年${Number(month)}月${Number(day)}日`;
+  return `${Number(year)}年${Number(month)}月${Number(day)}日現在`;
 }
 
 /**

@@ -163,7 +163,7 @@ Voice:
 
 "experience" — the structure is FIXED, and getting it wrong silently breaks the checks that read this section:
 - Each employer is a GROUP. A group opens with exactly ONE block of kind "paragraph" and contains no other paragraph anywhere in it. Every other block in the group is "row" or "bullet". A second paragraph does not read as a sub-heading; it starts a new employer.
-- The opening paragraph carries the employer's name, the employment period, the 雇用形態 and the role titles held there, all copied from the Employers list rather than written from the facts. factIds empty.
+- The opening paragraph is the employer's name, exactly as the Employers list writes it, and nothing else. The document prints each employer's header — the name, the 雇用形態, the employment period and the roles held there — from the record in its place, so do not write the period, the 雇用形態 or a role anywhere in the group. factIds empty.
 - Then, in this order:
   - "row" 事業内容：… — the employer's business description, copied from the Employers list. A description marked ${ENGLISH_ONLY_LABEL} is written in Japanese or the row is omitted, never copied. Omit the row entirely when the list gives none. factIds empty.
   - "row" 資本金：…　従業員数：…名 — copied from the Employers list. **The list gives 資本金 already written the way this document writes it — copy that string and never convert the yen figure yourself.** Omit whichever of the two the list does not give, and omit the row when it gives neither.
@@ -334,11 +334,12 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
    * The third buildable render, and the second Japanese one.
    *
    * Unlike the 履歴書 it is a FLOWING document with nothing fixed to preserve,
-   * so it takes the generic `toDocx` path the English résumé takes rather than
-   * a template (`docs/06`, 2026-08-20). Almost all of it is generated: the
-   * renderer writes the title and the 氏名 header (`src/render/identity.ts`)
-   * and, since #117, 保有資格 and 学歴 (`src/render/shokumu.ts`);
-   * {@link SHOKUMU_REGISTER} writes the rest.
+   * so it is built rather than filled (`docs/06`, 2026-08-20), by its own
+   * Japanese renderer since #117 (`src/render/japanese.ts`). Almost all of it
+   * is generated: the renderer writes the title, the 作成日 and 氏名 header
+   * (`src/render/identity.ts`), each employer's header from the record, and
+   * 保有資格 and 学歴 (`src/render/shokumu.ts`); {@link SHOKUMU_REGISTER}
+   * writes the rest.
    *
    * The flip to `buildable` waited on the two things the other flips waited on
    * and one more: a register that is not empty, a chronology, and 資本金 and

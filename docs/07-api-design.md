@@ -699,7 +699,7 @@ back to the application it came from.
 | `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
-| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` only; `pdf` is the English résumé's only (#109) |
+| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` or `pdf`; `pdf` is the English résumé's, the 履歴書's and the 職務経歴書's only (#109, #117) |
 | `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page, evidence }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Cited section blocks carry their `factIds`; a 履歴書's motivation and kibou sheet cells also carry them. Blocks and cells copied from the record may omit `factIds` (treated as `[]`). `evidence` is every cited fact once, `{ id, claim, provenance, employer, quote, source: { importId, filename, lineNumber } \| null }`, the employer named in the document's language and `source` null on a fact added by hand (#110). Refused at `409` on a withheld fact exactly as the download is, before anything is looked up |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
@@ -901,7 +901,10 @@ Accepting an already-decided proposal → `409 conflict`.
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
 `Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.docx"`: the profile's Latin
 name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
-the same way (#107). Every other kind is `<kind>-<YYYY-MM-DD>.docx`, e.g. `shokumu-keirekisho-2026-08-12.docx`.
+the same way (#107). A Japanese document is `<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it
+is built (#117): `Content-Disposition: attachment; filename="shokumu-keirekisho_Yosuke-Aoki_20261023.docx";
+filename*=UTF-8''%E8%81%B7…` (RFC 6266), the ASCII name for a client that cannot read `filename*`. The
+English story is `career-story-en-<YYYY-MM-DD>.md`.
 Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
 certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
 assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
@@ -913,8 +916,17 @@ The same document in the same layout, with selectable, tagged text and the title
 `<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
 as the `.docx` is, and also when any text holds a character the embedded Carlito cannot draw →
 `409 conflict` (`The PDF cannot show “✓” (U+2713) in the Experience section. Remove it, or download
-the Word file instead.`); the `.docx` and Markdown are unaffected. A tailored résumé has one too. `?format=pdf` on any other kind → `409 conflict`
-(`Only the English résumé is produced as a PDF.`), before a version is read.
+the Word file instead.`); the `.docx` and Markdown are unaffected. A tailored résumé has one too. `?format=pdf` on either story → `409 conflict`
+(`Only the résumé, the 履歴書 and the 職務経歴書 are produced as a PDF.`), before a version is read.
+
+**`GET /api/renders/{rirekisho,shokumu_keirekisho}/download?format=pdf` → 200** (#117) ·
+`Content-Type: application/pdf` · named as the `.docx` is (`履歴書_青木陽介_20261023.pdf`, by
+`filename*`). The 履歴書's is its filled `.docx` drawn; the 職務経歴書's is set from the same document
+as its `.docx`, with each employer's header from the record. Both embed BIZ UD faces cut to the
+characters drawn, are tagged, carry `<title>　<kanji name>` as their title, the kanji name as their
+author and `ja-JP` as their language (`docs/03` §6.4). Refused as the `.docx` is, and when a character
+is not in the face → `409 conflict` (`The PDF cannot show “🚚” (U+1F69A) in the 経歴要約 section. Remove
+it, or download the Word file instead.`).
 
 **A download obeys today's record, not the day the version was accepted.** Every download
 re-checks the facts its stored content cites, before the 履歴書 branch and so for every kind. A
@@ -926,7 +938,7 @@ current state will not allow. The way out is the hand-edit route, which lifts th
 produces a version that downloads; the version that cited the fact stays stored and stays refused
 (decision log, 2026-09-12).
 
-**`GET /api/renders/rirekisho/download` is `.docx` only** — `?format=md` → `409 conflict`. The other
+**`GET /api/renders/rirekisho/download` is `.docx` or PDF** — `?format=md` → `409 conflict`. The other
 renders are documents built as text, and markdown is a readable form of one; a 履歴書 is a form whose
 meaning is its grid, and a markdown table of it is not a 履歴書. It is also the one download assembled
 from the **record** rather than from the stored version: the 学歴・職歴 and 免許・資格 tables are
@@ -938,8 +950,10 @@ prose cells (`docs/04` §4).
 stored version like the résumé, with one addition: a **作成日 stamped in Tokyo at download**, above a
 right-aligned 氏名. It is stamped rather than stored for the same reason the identity block is — a
 submission date is not a claim about a career, and storing one would make an accepted version go
-stale on the day after it was accepted. Both formats take it from one function, so the `.docx` and
-the `.md` of one version cannot disagree about when it was submitted.
+stale on the day after it was accepted. Every format takes it from one function, so the files of one
+version cannot disagree about when it was submitted. It reads `2026年10月23日現在` (#117). Each
+employer's header — 会社名, 雇用形態, period and roles — is read from the record at download too,
+in place of the group's opening paragraph (`docs/03` §6.4).
 
 **`POST /api/renders/:kind/versions` refuses four ways and warns a fifth.** It edits the CURRENT
 version and nothing else: an edit whose `basedOnVersionId` is not current → `409 conflict` with

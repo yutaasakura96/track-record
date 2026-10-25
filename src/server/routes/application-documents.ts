@@ -29,6 +29,7 @@ import { mainRender } from "../services/render-ref";
 import { photoResponse } from "../services/rirekisho";
 import { detail, markActivity, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
+import { attachment } from "../http/disposition";
 import { tokyoToday } from "~/render/rirekisho";
 import type { SentPage } from "~/render/sent-page";
 import { readSheet } from "~/render/sheet";
@@ -253,7 +254,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const id = pathParam(c, "id");
     await requireApplication(db, user.id, id);
     const [copy] = await db
-      .select({ file: applicationSentCopies.file, filename: applicationSentCopies.filename })
+      .select({ file: applicationSentCopies.file, filename: applicationSentCopies.filename, kind: applicationSentCopies.kind })
       .from(applicationSentCopies)
       .where(and(liveCopies(user.id, id), eq(applicationSentCopies.id, pathParam(c, "copyId"))))
       .limit(1);
@@ -262,7 +263,9 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     return new Response(storedBytes(copy.file) as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${copy.filename}"`,
+        // A Japanese document's copy is named in Japanese (issue #117); the
+        // ASCII name beside it is its kind and its date.
+        "content-disposition": attachment(copy.filename, asciiCopyName(copy.kind, copy.filename)),
       },
     });
   });
@@ -377,4 +380,11 @@ async function withSheet(db: Db, userId: string, copy: { id: string; kind: strin
     console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", userId, copyId: copy.id, errorKind: error instanceof Error ? error.constructor.name : typeof error }));
     return { ...page, readFailure: "original_file_unreadable" as const };
   }
+}
+
+/** `rirekisho_20261023.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
+function asciiCopyName(kind: string, filename: string): string {
+  const date = /_(\d{8})\.[a-z]+$/.exec(filename)?.[1];
+  const extension = /\.([a-z]+)$/.exec(filename)?.[1] ?? "docx";
+  return `${kind.replace(/_/g, "-")}${date ? `_${date}` : ""}.${extension}`;
 }

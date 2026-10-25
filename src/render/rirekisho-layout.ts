@@ -53,7 +53,7 @@ const PAGE_TWO_SLACK_TWIPS = 600;
  * What a row's borders add to its height in Word: measured at 0.2pt a row
  * against the Word-printed PDF, and rounded up. Forty rows of it is a row.
  */
-const ROW_BORDER_TWIPS = 5;
+export const ROW_BORDER_TWIPS = 5;
 
 /** `w:pPr` children that follow `w:spacing` (CT_PPrBase), so the new one goes before the first. */
 const AFTER_SPACING = ["w:ind", "w:contextualSpacing", "w:mirrorIndents", "w:suppressOverlap", "w:jc",

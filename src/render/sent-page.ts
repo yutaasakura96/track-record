@@ -13,6 +13,7 @@ import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind } fro
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
 import { fillRirekishoTemplate, type RirekishoRow, type RirekishoTemplateData } from "./rirekisho-template";
 import { readSheet, type Sheet } from "./sheet";
+import { blockLines, type JapaneseDocument } from "./japanese";
 
 export interface SentPage {
   /**
@@ -48,6 +49,28 @@ const sectionsOf = (content: RenderContent, citations: boolean): SentPage["secti
       heading: section.heading,
       blocks: section.blocks.map((block) => ({ kind: block.kind, text: block.text, ...(citations ? { factIds: block.factIds } : {}) })),
     }));
+
+/**
+ * The page of a 職務経歴書 or a Japanese story (`./japanese.ts`): each
+ * employer's header as the line {@link headerLine} writes, and its roles as a
+ * row under it, as the files print them.
+ */
+export function japaneseSentPage(doc: JapaneseDocument, citations = false): SentPage {
+  return {
+    title: doc.title,
+    stamp: doc.stamp,
+    name: doc.name,
+    contact: doc.contact,
+    sections: doc.sections.map((section) => ({
+      heading: section.heading,
+      blocks: section.blocks.flatMap(blockLines).map((block) => ({
+        kind: block.kind,
+        text: block.text,
+        ...(citations ? { factIds: block.factIds } : {}),
+      })),
+    })),
+  };
+}
 
 /** The page of a document `toDocx` assembles, from what `toDocx` is given. */
 export function sentPage(kind: RenderKind, content: RenderContent, identity: RenderIdentity, today: string, citations = false): SentPage {

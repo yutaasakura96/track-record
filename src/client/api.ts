@@ -1772,8 +1772,20 @@ async function saveResponse(url: string, fallbackName: string, failure: string):
   URL.revokeObjectURL(objectUrl);
 }
 
-/** The server names the file; this is the fallback when the header is absent. */
-function filenameFrom(disposition: string | null, fallback: string): string {
+/**
+ * The server names the file; this is the fallback when the header is absent.
+ * A Japanese name arrives as RFC 6266's `filename*`, UTF-8 and percent-encoded,
+ * beside an ASCII `filename`, and is preferred over it (issue #117).
+ */
+export function filenameFrom(disposition: string | null, fallback: string): string {
+  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim());
+    } catch {
+      // A malformed encoding falls through to the plain name.
+    }
+  }
   const match = disposition?.match(/filename="([^"]+)"/);
   return match?.[1] ?? fallback;
 }
