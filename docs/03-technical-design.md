@@ -294,8 +294,11 @@ only when the passage uses it as a whole word (`5 clinic reports` from a passage
 5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`); a percentage's
 `of` reads through determiners to its unit and attached rate (`5% of all clinic reports` is not
 `5% of all clinic revenue`).
-A predicate after the unit does not change the quantity. A ratio (`one in 5`, `3 out of 5`, `2/5`) is
-one figure, and neither of its numbers sources a plain count. It is also
+A predicate after the unit does not change the quantity, and with no unit the first word after the
+number stands for one and the clause after it is not compared (`a team of 5 shipped the app` sources
+`a team of 5 shipped the mobile app`). A ratio (`one in 5`, `3 out of 5`, `2/5`) is
+one figure, and neither of its numbers sources a plain count; a year after `in` dates a count and is
+no denominator (`top 3 in 2022` sources `top 3`). It is also
 flagged when there is no quote (issue #115).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through

@@ -282,6 +282,7 @@ describe("a claim that states a number its passage does not", () => {
     ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
     ["a descriptive word before a bare rate the passage never uses", "Hired 5 within a year", "Hired 5 a year.", []],
     ["a descriptive word the passage adds before a bare rate", "Hired 5 a year", "We hired 5 within a year.", []],
+    ["a count found only as a word ratio's numerator over a year-shaped denominator", "Resolved one", "Resolved one of 2022 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -358,6 +359,12 @@ describe("a claim that states a number its passage does not", () => {
     ["a percentage of active users against users", "Reached 5% of active users", "Reached 5% of users.", []],
     ["a percentage of all active users against all users", "Reached 5% of all active users", "Reached 5% of all users.", []],
     ["a percentage of all users against all active users", "Reached 5% of all users", "Reached 5% of all active users.", []],
+    ["a count the passage dates with a year after in", "Ranked in the top 3", "Ranked in the top 3 in 2022.", []],
+    ["a count dated with a year after in that the passage leaves undated", "Ranked in the top 3 in 2022", "Ranked in the top 3.", []],
+    ["a hire count the passage dates", "Hired 5", "Hired 5 in 2023.", []],
+    ["a dated hire count against a passage that dates it first", "Hired 5 in 2023", "In 2023, we hired 5.", []],
+    ["a unitless count whose clause the passage extends", "A team of 5 shipped the app", "A team of 5 shipped the mobile app.", []],
+    ["a unitless count whose clause the claim extends", "A team of 5 shipped the mobile app", "A team of 5 shipped the app.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));

@@ -7506,6 +7506,10 @@ above; the boundary it set, the unit or counter plus an attached rate or compari
   like `one in 5` and `3 out of 5`, and
   neither number of any ratio sources a plain count. `以上` and `以下` after a counter were already
   compared; tests now hold both directions.
+- **Decision:** the words held to the passage are only those before a unit or counter that is found.
+  With none, the first word stands for the unit as before and the clause after it is not compared, so
+  `a team of 5 shipped the app` is sourced by `a team of 5 shipped the mobile app`. A year after `in`
+  dates a count rather than dividing it, so `top 3 in 2022` still sources `top 3`.
 - **Decision:** only `active` and `senior` are ignored when the passage adds a word before a unit.
   Other words remain part of the quantity, so `three diverging component libraries` and
   `21 consecutive days` flag two demo facts whose passages add a word.

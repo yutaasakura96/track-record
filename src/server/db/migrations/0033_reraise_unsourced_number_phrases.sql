@@ -45,7 +45,7 @@ BEGIN
           btrim(substring(rest from '^(?:\s+per\s+|\s+a\s+|\s+an\s+|/)[a-z]+(?:-[a-z]+)*')),
           btrim(substring(rest from '^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\M')));
         IF rate IS NOT NULL THEN phrase := phrase || ' ' || rate; END IF;
-        EXIT;
+        RETURN ARRAY[phrase] || descriptive;
       END IF;
       IF word ~ '^(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent|more|over|less|under|additional)$' OR strpos(word, '-') > 0 THEN
         phrase := concat_ws(' ', nullif(phrase, ''), word);
@@ -68,7 +68,7 @@ BEGIN
           substring(substr(rest, 2) from '^[㐀-䶿一-鿿々゠-ヿ]+'));
         IF word IS NOT NULL THEN phrase := phrase || ' /' || word; END IF;
       END IF;
-      EXIT;
+      RETURN ARRAY[phrase] || descriptive;
     END IF;
     character := left(first, 1);
     IF character = '/' AND substr(first, 2, 1) ~ '^[a-z]' THEN
@@ -91,13 +91,13 @@ BEGIN
       CONTINUE;
     END IF;
     IF character <> '' AND strpos('.,;:!?''"()[]{}<>/\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’', character) = 0 THEN
-      phrase := concat_ws(' ', nullif(phrase, ''), character);
+      RETURN ARRAY[concat_ws(' ', nullif(phrase, ''), character)] || descriptive;
     END IF;
     EXIT;
   END LOOP;
   -- With no unit, the first other word stands for it.
-  IF phrase <> '' THEN RETURN ARRAY[phrase] || descriptive; END IF;
-  RETURN ARRAY[coalesce(descriptive[1], '')] || descriptive[2:];
+  IF phrase <> '' THEN RETURN ARRAY[phrase]; END IF;
+  RETURN ARRAY[coalesce(descriptive[1], '')];
 END
 $fn$;
 --> statement-breakpoint
@@ -151,7 +151,7 @@ BEGIN
     RETURN true;
   END IF;
 
-  figure_pattern := '[0-9]+ (?:in|of|out of) [0-9]+|[0-9]+/[0-9]+|[¥$€£]?[0-9]+(?:\.[0-9]+)?(?:(?:bn|[kmb])(?![0-9]|' || letter || ')|\s?' || counter
+  figure_pattern := '[0-9]+ (?:in(?!\s+(?:19|20)[0-9]{2}(?![0-9]))|of|out of) [0-9]+|[0-9]+/[0-9]+|[¥$€£]?[0-9]+(?:\.[0-9]+)?(?:(?:bn|[kmb])(?![0-9]|' || letter || ')|\s?' || counter
     || '|x(?!' || letter || '))?(?: (?:hundred|thousand|million|billion))?';
 
   FOR n IN 1..regexp_count(claim_text, figure_pattern) LOOP
@@ -183,7 +183,7 @@ BEGIN
     CONTINUE WHEN named;
 
     -- The same complete quantity in the quote, or the figure is unsourced.
-    head := coalesce(substring(figure from '^(?:[0-9]+ (?:in|of|out of) [0-9]+|[0-9]+/[0-9]+)'), substring(figure from '^[¥$€£]?[0-9]+(?:\.[0-9]+)?'));
+    head := coalesce(substring(figure from '^(?:[0-9]+ (?:in(?!\s+(?:19|20)[0-9]{2}(?![0-9]))|of|out of) [0-9]+|[0-9]+/[0-9]+)'), substring(figure from '^[¥$€£]?[0-9]+(?:\.[0-9]+)?'));
     rest := substr(figure, length(head) + 1) || substr(claim_text, figure_end);
     scale := coalesce(substring(rest from '^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])'), '');
     claim_tail := substr(rest, length(scale) + 1);
@@ -198,7 +198,7 @@ BEGIN
       quote_prefix := left(passage, quote_start - 1);
       quote_rest := substr(passage, quote_start + length(head));
       CONTINUE WHEN quote_prefix ~ '(?:\m(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds|thousands|millions|[0-9]+)\M\s+(?:in|of|out of)\s+|[0-9]/)$';
-      CONTINUE WHEN quote_rest ~ '^(?:\s+(?:in|of|out of)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds|thousands|millions|[0-9]+)\M|/[0-9])';
+      CONTINUE WHEN quote_rest ~ '^(?:\s+(?:in(?!\s+(?:19|20)[0-9]{2}(?![0-9]))|of|out of)\s+(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety|hundreds|thousands|millions|[0-9]+)\M|/[0-9])';
       quote_scale := coalesce(substring(quote_rest from '^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])'), '');
       quote_rest := substr(quote_rest, length(quote_scale) + 1);
       CONTINUE WHEN btrim(quote_scale) <> scale;

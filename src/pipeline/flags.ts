@@ -161,8 +161,10 @@ const SCALE = "(?:hundred|thousand|million|billion)";
 const WORD_NUMBER =
   `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
   `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: ${SCALE})?|hundreds|thousands|millions)`;
+/** A year after `in` is when, never a denominator: `top 3 in 2022` is a count of 3. */
+const RATIO_JOIN = "(?:in(?!\\s+(?:19|20)\\d{2}(?!\\d))|of|out of)";
 /** `one in 5`, `3 out of 5`, `2/5`: one figure, never a plain count. */
-const RATIO = `(?:${WORD_NUMBER}|\\d+) (?:in|of|out of) (?:${WORD_NUMBER}|\\d+)|\\d+/\\d+`;
+const RATIO = `(?:${WORD_NUMBER}|\\d+) ${RATIO_JOIN} (?:${WORD_NUMBER}|\\d+)|\\d+/\\d+`;
 const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 const NUMBER_FIGURE = new RegExp(
   [
@@ -177,7 +179,7 @@ const YEAR = /^(?:19|20)\d{2}年?$/u;
 const QUANTITY_AFTER_YEAR = new RegExp(`^(?:\\s+[a-z]|${COUNTER})`, "u");
 /** What a ratio's denominator follows, and what its numerator precedes. */
 const RATIO_BEFORE = new RegExp(`(?:(?:\\b${WORD_NUMBER}|\\b\\d+)\\s+(?:in|of|out of)\\s+|\\d/)$`, "u");
-const RATIO_AFTER = new RegExp(`^(?:\\s+(?:in|of|out of)\\s+(?:${WORD_NUMBER}|\\d+)\\b|/\\d)`, "u");
+const RATIO_AFTER = new RegExp(`^(?:\\s+${RATIO_JOIN}\\s+(?:${WORD_NUMBER}|\\d+)\\b|/\\d)`, "u");
 
 /** The figures of a plain claim, as `[start, end]`, with a technology's own digits left out. */
 function numberFigures(text: string, technologies: string[]): [number, number][] {
@@ -248,7 +250,7 @@ function quantityAfter(tail: string): Quantity {
         const rate = rest.match(/^(?:\s+per\s+|\s+a\s+|\s+an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0].trim()
           ?? rest.match(/^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\b/u)?.[0].trim();
         if (rate) words.push(rate);
-        break;
+        return { phrase: words.join(" "), descriptive };
       }
       if (SCOPE_WORD.test(word) || word.includes("-")) words.push(word);
       else if (!MODIFIER_WORD.test(word)) descriptive.push(word);
@@ -265,7 +267,7 @@ function quantityAfter(tail: string): Quantity {
         const divisor = rest.slice(1).match(COUNTER_UNIT)?.[0] ?? rest.slice(1).match(COUNTER_RUN)?.[0];
         if (divisor) words.push(`/${divisor}`);
       }
-      break;
+      return { phrase: words.join(" "), descriptive };
     }
     const character = [...first][0] ?? "";
     if (character === "/" && /^[a-z]/u.test(first.slice(1))) {
@@ -288,11 +290,11 @@ function quantityAfter(tail: string): Quantity {
       }
       continue;
     }
-    if (character && !PUNCTUATION.includes(character)) words.push(character);
+    if (character && !PUNCTUATION.includes(character)) return { phrase: [...words, character].join(" "), descriptive };
     break;
   }
   // With no unit, the first other word stands for it.
-  return words.length ? { phrase: words.join(" "), descriptive } : { phrase: descriptive[0] ?? "", descriptive: descriptive.slice(1) };
+  return { phrase: words.length ? words.join(" ") : descriptive[0] ?? "", descriptive: [] };
 }
 
 /**
