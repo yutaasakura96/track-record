@@ -161,9 +161,9 @@ describe("the 作成日", () => {
   });
 
   it("writes the date the way a Japanese document writes it", () => {
-    // No leading zeros. The author's own 職務経歴書 is headed 2026年8月11日.
-    expect(documentDate("shokumu_keirekisho", "2026-08-11")).toBe("2026年8月11日");
-    expect(documentDate("shokumu_keirekisho", "2026-09-12")).toBe("2026年9月12日");
+    // No leading zeros, and 現在: the document is true as of that day (issue #117).
+    expect(documentDate("shokumu_keirekisho", "2026-08-11")).toBe("2026年8月11日現在");
+    expect(documentDate("shokumu_keirekisho", "2026-09-12")).toBe("2026年9月12日現在");
   });
 
   it("gives an undated kind nothing rather than a blank line", () => {

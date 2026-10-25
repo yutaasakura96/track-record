@@ -35,14 +35,18 @@ import { DOCX_MIME } from "~/render/docx";
 import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
-import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
+import { japaneseSentPage, rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { fillRirekishoTemplate } from "~/render/rirekisho-template";
+import { assembleJapanese, japaneseMarkdown } from "~/render/japanese";
+import { attachment } from "../http/disposition";
 import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord, hasProfilePhoto } from "../services/rirekisho";
 import {
   buildDocumentFile,
   buildDocumentPage,
-  buildResumePdf,
+  buildDocumentPdf,
+  collectJapaneseEmployers,
   filenameFor,
+  PDF_KINDS,
   refuseWithheldCitations,
   renderIdentity,
   resumeRefusal,
@@ -272,7 +276,17 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       ? await rirekishoPreviewPage(db, user.id, proposed, today)
       : kind === "english_resume"
         ? await resumePreviewPage(db, user.id, proposed, today)
-        : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
+        : kind === "shokumu_keirekisho" || kind === "career_story_ja"
+          ? japaneseSentPage(
+              assembleJapanese({
+                kind,
+                content: proposed,
+                identity: await renderIdentity(db, user.id),
+                today,
+                employers: await collectJapaneseEmployers(db, user.id),
+              }),
+            )
+          : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
     return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
   });
 
@@ -827,12 +841,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const db = c.get("db");
     const target = await resolveRender(db, user.id, pathParam(c, "ref"));
     const { kind, render } = target;
-    // `.docx` unless asked otherwise. Only the English résumé has a PDF, and
-    // the screen asks for it by default there (issue #109).
+    // `.docx` unless asked otherwise. The English résumé, the 履歴書 and the
+    // 職務経歴書 have a PDF, and the screen asks for it by default for each
+    // (issues #109, #117).
     const asked = c.req.query("format");
     const format = asked === "md" || asked === "pdf" ? asked : "docx";
-    if (format === "pdf" && kind !== "english_resume") {
-      throw new ApiError("conflict", "Only the English résumé is produced as a PDF.");
+    if (format === "pdf" && !PDF_KINDS.includes(kind)) {
+      throw new ApiError("conflict", "Only the résumé, the 履歴書 and the 職務経歴書 are produced as a PDF.");
     }
 
     const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
@@ -854,40 +869,38 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       // because a phone number changed (`src/render/identity.ts`).
       const identity = await renderIdentity(db, user.id);
       // The résumé's Markdown is the same document its `.docx` is (issue #107).
+      const today = tokyoToday();
       let markdown: string;
       try {
         markdown = kind === "english_resume"
           ? resumeMarkdown(
-              assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today: tokyoToday() }),
+              assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today }),
             )
-          : toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday());
+          : kind === "shokumu_keirekisho" || kind === "career_story_ja"
+            ? japaneseMarkdown(
+                assembleJapanese({ kind, content, identity, today, employers: await collectJapaneseEmployers(db, user.id) }),
+              )
+            : toMarkdown(content, RENDER_TITLE[kind], kind, identity, today);
       } catch (error) {
         if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
         throw error;
       }
+      const names = filenameFor(kind, format, version, identity, today);
       return new Response(markdown, {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filenameFor(kind, format, version, identity)}"`,
+          "content-disposition": attachment(names.filename, names.asciiFilename),
         },
       });
     }
 
-    if (format === "pdf") {
-      const file = await buildResumePdf(db, user.id, kind, version);
-      return new Response(file.bytes as BodyInit, {
-        headers: {
-          "content-type": PDF_MIME,
-          "content-disposition": `attachment; filename="${file.filename}"`,
-        },
-      });
-    }
-
-    const file = await buildDocumentFile(db, user.id, kind, version);
+    const file = format === "pdf"
+      ? await buildDocumentPdf(db, user.id, kind, version)
+      : await buildDocumentFile(db, user.id, kind, version);
     return new Response(file.bytes as BodyInit, {
       headers: {
-        "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${file.filename}"`,
+        "content-type": format === "pdf" ? PDF_MIME : DOCX_MIME,
+        "content-disposition": attachment(file.filename, file.asciiFilename),
       },
     });
   });

@@ -91,8 +91,9 @@ export function DownloadButton({
   const [busy, setBusy] = useState<DownloadFormat | null>(null);
   // The two career stories are read on screen and are not submission documents,
   // so what they offer is the Markdown they are read in rather than a `.docx`
-  // nobody will be sent (`~/shared/render-content`). The English résumé is a
-  // PDF by default, with its Word file beside it (issue #109).
+  // nobody will be sent (`~/shared/render-content`). The English résumé, the
+  // 履歴書 and the 職務経歴書 are a PDF by default, with the Word file beside
+  // it (issues #109, #117).
   const format = RENDER_DOWNLOAD_FORMAT[kind];
   const alternative = RENDER_DOWNLOAD_ALTERNATIVE[kind];
 

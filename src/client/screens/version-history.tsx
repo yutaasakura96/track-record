@@ -110,7 +110,7 @@ function History({ doc }: { doc: Doc }) {
           </span>
         )}
         {current ? (
-          // A flex row: the résumé's download is two controls, its PDF and its Word file.
+          // A flex row: a submission document's download is two controls, its PDF and its Word file.
           <span className="ml-auto flex items-center gap-10">
             <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={current.id} label="Download current" />
           </span>
@@ -258,7 +258,7 @@ function VersionRow({
         >
           View
         </Link>
-        {/* `?versionId=` serves any version, and a 履歴書 is `.docx` only —
+        {/* `?versionId=` serves any version, in the formats its kind has —
             the download rules are the ones that already exist. */}
         <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={version.id} label="Download" />
         {comparable ? (

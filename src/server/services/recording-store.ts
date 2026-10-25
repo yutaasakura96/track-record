@@ -138,14 +138,3 @@ export async function recordingResponse(
   headers.set("content-length", String(range.length));
   return new Response(object.body, { status: 206, headers });
 }
-
-/**
- * `Content-Disposition` for a file of the author's naming: the name for
- * browsers that read RFC 6266's `filename*`, encoded as RFC 8187's attr-char
- * allows, and a plain-ASCII one beside it.
- */
-export function dispositionOf(kind: "inline" | "attachment", fileName: string): string {
-  // eslint-disable-next-line no-control-regex
-  const plain = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
-  return `${kind}; filename="${plain}"; filename*=UTF-8''${encodeURIComponent(fileName).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`)}`;
-}

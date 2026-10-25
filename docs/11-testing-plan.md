@@ -708,6 +708,17 @@ eight employers, zero to six certifications, one- and two-line addresses and a �
 usual length. This is the paper half of item 2 done on screen; printing to A4 is still not run, and
 the owner's own check of item 1 is still outstanding.
 
+**Item 1 was run for the Japanese PDFs and the 職務経歴書's new `.docx` on 2026-10-25** (#117). The
+issue worker generated the demo record's 履歴書 and 職務経歴書 with an invented scripted model,
+accepted both, and pressed each card's `Download` and `Word`: the files saved as
+`履歴書_森山健二_20261025.pdf`, `職務経歴書_森山健二_20261025.pdf` and the two `.docx`. Both `.docx`
+opened in Microsoft Word 16.114.1 on macOS with no error or repair prompt and were saved to PDF from
+Word. That Mac has no BIZ UDPGothic; Word set the 職務経歴書 in 游ゴシック for Latin and Japanese alike,
+with no Times New Roman, and on the same three pages as the app's PDF. Select All and Copy in
+PDFKit (what Preview uses) gave each app PDF's text whole and in reading order: the 職務経歴書's
+header as `会社名 雇用形態 期間`, the 履歴書's cells row by row. The owner's own check of item 1 is
+still outstanding.
+
 The employer-name fault above did NOT reach it. The 履歴書 builds its 学歴・職歴 rows from its own
 input builder in `src/server/services/rirekisho.ts`, which reads `nameJa` directly and always has;
 `collectRenderInputs` supplies only the prompt behind 志望動機. So the table a reader sees was correct

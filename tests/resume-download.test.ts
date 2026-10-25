@@ -287,12 +287,13 @@ describe("the English résumé's PDF (issue #109)", () => {
     expect(await pdfText(await response.arrayBuffer())).toContain("Aozora Logistics K.K. · Yokohama");
   });
 
-  it("is offered for the English résumé only", async () => {
-    for (const kind of ["rirekisho", "shokumu_keirekisho", "career_story_en"]) {
+  it("is not offered for the stories, which are read as Markdown", async () => {
+    // The 履歴書 and the 職務経歴書 have one too (issue #117, `tests/japanese-download.test.ts`).
+    for (const kind of ["career_story_en", "career_story_ja"]) {
       const response = await client.get(`/api/renders/${kind}/download?format=pdf`);
       expect(response.status).toBe(409);
       expect(((await response.json()) as { error: { message: string } }).error.message).toBe(
-        "Only the English résumé is produced as a PDF.",
+        "Only the résumé, the 履歴書 and the 職務経歴書 are produced as a PDF.",
       );
     }
   });

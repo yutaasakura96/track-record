@@ -570,9 +570,10 @@ to parse the `.docx` as JavaScript and the import fails before workerd sees it.
 
 ### 6.3 The English résumé's PDF
 
-**PDF is the résumé's default download, Word the second** (#109, `06` 2026-10-22). Only the English
-résumé has one: `?format=pdf` on any other kind is `409`. Like the `.docx` it is assembled on each
-request from the same assembled document and never stored; a sent copy keeps the `.docx`.
+**PDF is the résumé's default download, Word the second** (#109, `06` 2026-10-22). The 履歴書 and
+the 職務経歴書 have one too since #117 (§6.4); the two stories do not, and `?format=pdf` on either is
+`409`. Like the `.docx` it is assembled on each request from the same assembled document and never
+stored; a sent copy keeps the `.docx`.
 
 **Built with `pdf-lib` and `@pdf-lib/fontkit`**, pure JavaScript with no filesystem, canvas or
 browser. The suite builds and reads back every PDF inside workerd (`tests/resume-pdf.test.ts`,
@@ -600,7 +601,73 @@ Word file, rather than drawing a blank the `.docx` would print.
 **Tagged, so the text copies in reading order.** The content is drawn top to bottom, and the file
 carries a structure tree (`Document` › `H1` name, `P`, `H2` headings, `L` › `LI` › `Lbl`/`LBody`
 bullets; the heading rules are artifacts). Without it Preview's copy took the right-aligned dates for
-a second column and gave them back after each job's bullets.
+a second column and gave them back after each job's bullets. The structure tree is
+`src/render/pdf-tags.ts`, shared with the Japanese PDFs.
+
+### 6.4 The Japanese documents: typography, PDFs and file names
+
+#117 (`06` 2026-10-25). The 職務経歴書 and the Japanese story left the generic `toDocx` for their own
+renderer, and the 履歴書 and the 職務経歴書 download as a PDF by default, with Word beside it. The
+English story still takes `toDocx`.
+
+**One document, four outputs.** `src/render/japanese.ts` assembles the 職務経歴書 or the story from
+the version and the record; the `.docx` (`src/render/japanese-docx.ts`), the PDF
+(`src/render/japanese-pdf.ts`), the Markdown and the page on the screen are all set from it. Its one
+addition to the content is **each employer's header, from the record**. A 職務経歴 group still opens
+with one paragraph (§4.2), which the register now asks to be the employer's name and nothing else;
+the paragraph is joined to an employer by the attribution check's name resolution and printed as a
+header: 会社名 in bold, 雇用形態 beside it, the period at the right margin, and the roles held there
+on the line under it, all as the record holds them on the day of the download. A version written
+before #117, whose opener also carries a period and roles in the model's words, resolves the same
+way. A paragraph naming no employer prints as written. The 職務経歴書's 作成日 reads
+`2026年10月23日現在` (`src/render/identity.ts`).
+
+**Typography.** Every run names BIZ UDPGothic for its ASCII, high-ANSI, East Asian and
+complex-script text and is marked `ja-JP`; `word/fontTable.xml` carries an entry for the face (its
+Japanese name, character set 80, a sans-serif PANOSE) for a Word without it to substitute by, and no
+part names Times New Roman. Headings are black, bold, 12 pt, over a 0.75 pt rule; the body is
+10.5 pt on A4 with 20 mm margins; every line height is exact (1.5 × the size), so Word and the PDF
+break lines and pages from the same numbers. Bullets are `・` with a one-character hang.
+
+**The faces.** `templates/fonts/` holds BIZ UDPGothic Regular and Bold and BIZ UDMincho Regular
+(Morisawa, SIL OFL 1.1, `OFL-BIZUDPGothic.txt` and `OFL-BIZUDMincho.txt` beside them), `Data`
+modules by the same `**/*.ttf` rule as Carlito. Each is cut down from the published face by
+`scripts/build-japanese-fonts.py`: the CP932 repertoire (JIS X 0208 with the NEC and IBM extensions,
+so 髙 and 﨑 are kept) plus the Latin, punctuation and symbol blocks, no hinting, and no GSUB, GPOS or
+vertical metrics. Whole, the three would have taken the Worker past its 10 MiB limit; cut, the
+Worker is 7.6 MiB gzipped.
+
+**A face is cut again for each file** (`src/render/font-subset.ts`). `pdf-lib`'s own subsetting draws
+these faces blank in Preview, Quick Look and Ghostscript, as it drew Carlito. Instead every glyph
+keeps its id and the outline of each one the page does not draw is emptied, so `cmap`, the widths
+and `pdf-lib`'s layout are untouched and only the needed outlines travel. A two-page 職務経歴書 is
+about 200 KB; a 履歴書 about 300 KB. A character the face does not hold refuses the PDF with `409`,
+naming it and where it sits, as the résumé's does; the Word file still prints it.
+
+**Japanese line breaking** (`src/render/pdf-text.ts`). A line may break between any two Japanese
+characters except where 禁則 forbids it (never before `、。」` or a small kana, never after `「（`);
+a run of Latin letters and digits is a word and is kept whole.
+
+**The 職務経歴書's PDF** is laid out as the résumé's is: exact line heights, keep-with-next chains,
+three-line paragraphs kept whole, the larger of space-after and space-before. It is tagged
+(`H1` title, `H2` headings, `H3` each employer's header, `L` › `LI` bullets), and the period is drawn
+after its company, so copied text reads `会社名 雇用形態 期間`.
+
+**The 履歴書's PDF is drawn from its filled `.docx`** (`src/render/rirekisho-pdf.ts`), the same bytes
+the Word download hands over and the screen reads its form out of (`src/render/sheet.ts`). It reads
+the grid, row height rules, spans, vertical merges, borders, fills, vertical alignment, paragraph
+alignment and spacing, run sizes and weights, and a picture in a cell, and places rows as Word does:
+a row that does not fit starts the next page, which repeats the table's 年 / 月 header row as an
+artifact. MS Mincho is drawn in BIZ UDMincho, fixed-pitch as MS Mincho is, so a cell wraps where the
+layout model (`src/render/rirekisho-layout.ts`) counts it; MS Gothic in BIZ UDPGothic; bold Mincho,
+which has no bold face here, is stroked as Word emboldens it. It is tagged as a table of rows of
+cells in reading order.
+
+**File names** are `履歴書_森山健二_20261023.pdf`: the document, the author's kanji name, and the
+day it is built, which is the date it prints. The header carries it as RFC 6266 `filename*`, with an
+ASCII `rirekisho_Kenji-Moriyama_20261023.pdf` beside it (`src/server/http/disposition.ts`, shared
+with recordings). The Japanese story and the Markdown downloads follow the same pattern; the English
+story keeps its old name. A sent copy keeps the name it was stored under.
 
 ---
 

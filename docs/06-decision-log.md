@@ -7569,3 +7569,59 @@ copies role titles and 保有資格 prints certification names verbatim.
   The English prompts still label a Japanese-only title or name.
 - **Decision:** a blank `projects.summary_ja` is stored as `null`, as a blank group name in Japanese
   is, so it falls back to the English summary rather than hiding it.
+
+---
+
+### [2026-10-25] The 履歴書 and the 職務経歴書 download as PDF, in one Japanese face embedded from BIZ UD
+
+Issue #117, the review's issue 3 (S1, S2, S5–S8). The 職務経歴書 and the Japanese story printed in
+Word's defaults (Times New Roman beside a Japanese font, blue headings, each employer's line running
+into the employer before it), no Japanese document had a PDF, and every file was named in romaji.
+doda and Recruit both recommend sending a Japanese application as a PDF unless the employer asks for
+Word.
+
+- **Decision:** `?format=pdf` for the 履歴書 and the 職務経歴書, the default download for both with
+  Word beside it, built in the Worker with `pdf-lib` as the résumé's is (2026-10-22): assembled on
+  request, never stored, tagged, text selectable in reading order (`03` §6.4). The stories stay
+  Markdown.
+- **Decision: the face is Morisawa's BIZ UD family.** BIZ UDPGothic Regular and Bold for the
+  職務経歴書 and the story, named in their `.docx` for every script and embedded in the PDF; BIZ
+  UDMincho Regular for the 履歴書's PDF, standing in for the template's MS Mincho. Licence verified
+  before use: both are published by Google Fonts under the SIL OFL 1.1, which permits embedding,
+  redistribution and modified versions, and their `OFL.txt` names **no Reserved Font Name**, so a
+  cut-down face may keep its name; every face's OS/2 `fsType` is 0 (installable embedding). Both
+  licence files are committed beside the faces. BIZ UDPGothic ships with Windows 10 and later; a Word
+  without it substitutes a Japanese gothic by the `fontTable` entry the file carries. BIZ UDMincho
+  is fixed-pitch, as MS Mincho is, which is what keeps the 履歴書's cells wrapping where the layout
+  model (2026-10-24) counts them. Not chosen: 游ゴシック, licensed with Windows and macOS and not
+  ours to commit to a public repository or ship inside a Worker;
+  Noto Sans JP, a different design from anything Word would show beside it; embedding the face in
+  the `.docx` (a cut face would draw blanks where the author types a new character in Word, and a
+  whole one is 2 MB a face).
+- **Decision: the faces are cut twice.** At build time, by `scripts/build-japanese-fonts.py`
+  (fonttools 4.67.0), to the CP932 repertoire plus the Latin, punctuation and symbol blocks, with no
+  hinting, GSUB, GPOS or vertical metrics: whole, the three faces are 15 MB and would have taken the
+  Worker past the 10 MiB a paid Worker may be; cut, the Worker is 7.6 MiB gzipped. Per file, by
+  `src/render/font-subset.ts`, to the outlines the page draws, keeping every glyph id: `pdf-lib`'s
+  own subsetting drew most characters of these faces blank in Preview, Quick Look and Ghostscript,
+  the fault 2026-10-22 found with Carlito. A 職務経歴書 is about 200 KB, a 履歴書 about 300 KB.
+- **Decision: the 履歴書's PDF is its filled `.docx`, drawn** (`src/render/rirekisho-pdf.ts`): the grid,
+  borders, fills, merges and exact line heights read from the same bytes the Word download and the
+  screen's form come from, so the three cannot disagree, and a photo placed in the 写真 cell is drawn
+  where the file holds it. Not chosen: a second layout of the form in PDF terms, which would be a
+  second grid to keep in step with the template.
+- **Decision: each employer's header in the 職務経歴書 is the record's.** The register now asks for
+  the employer's name alone as each 職務経歴 group's opening paragraph; the renderer joins it to the
+  record by the attribution check's name resolution and prints 会社名 in bold, 雇用形態 beside it,
+  the period at the right margin and the roles under it, as the record holds them at download. A
+  version written before this resolves the same way, so it downloads with the record's header in
+  place of the model's line. The headings stay the author's own (経歴要約, 活かせるスキル・経験, …):
+  the owner kept them.
+- **Decision:** the 職務経歴書's 作成日 reads `YYYY年M月D日現在`. File names are
+  `履歴書_<kanji name>_<YYYYMMDD>.<ext>` for the three Japanese documents, dated the day they are
+  built, sent as RFC 6266 `filename*` with an ASCII `rirekisho_<Latin name>_<YYYYMMDD>.<ext>` beside
+  it; one helper serves documents and recordings.
+- **Revisit if:** a name or a 職務経歴書 needs a character outside CP932 and the Latin blocks (the PDF
+  refuses it by name and the Word file prints it), the Worker's size approaches its limit (a face
+  could be fetched from the static assets instead of bundled), or the owner's Word check of the new
+  `.docx` (`11` §3 item 1) finds the face or its fallback wrong.
