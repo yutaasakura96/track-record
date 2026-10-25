@@ -123,6 +123,13 @@ describe("a line in English", () => {
   it("is a defect when an English summary follows a Japanese label (E2)", () => {
     const leaked = block("row", "プロジェクト：決済元帳の再構築　Replaced an update-in-place balance table with a double-entry, append-only ledger.");
     expect(japaneseDefect(withBlock("experience", 1, leaked), spec(), FACTS)).toBe("english");
+    for (const row of [
+      "プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table with a double-entry, append-only ledger.",
+      "プロジェクト：決済元帳の再構築Replaced an update-in-place balance table with a double-entry, append-only ledger.",
+      "プロジェクト：決済元帳の再構築（Replaced an update-in-place balance table with a double-entry, append-only ledger.）",
+    ]) {
+      expect(japaneseDefect(withBlock("experience", 1, block("row", row)), spec(), FACTS), row).toBe("english");
+    }
   });
 
   it("is a defect in a heading", () => {

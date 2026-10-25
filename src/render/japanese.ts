@@ -219,13 +219,15 @@ const KANA_KANJI = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 const LATIN_WORD = /\p{Script=Latin}{2,}/u;
 
 /**
- * What divides one statement from the next inside a block. E2's row was
- * 「プロジェクト：決済元帳の再構築　Replaced an update-in-place balance table…」:
- * Japanese as a whole, and an English sentence after the ideographic space.
- * 、 is not here, because it divides the items of a list, and a list of
- * technologies is Latin by nature.
+ * What divides one run of Latin text from the next inside a block: the
+ * sentence breaks, and any kana or kanji. E2's row was
+ * 「プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table…」:
+ * Japanese as a whole, and an English sentence after the Japanese name, with
+ * an ASCII space, an ideographic one or nothing between them. 、 is not here,
+ * because it divides the items of a list, and a list of technologies is Latin
+ * by nature.
  */
-const STATEMENT_BREAK = /[：。！？\n　]/u;
+const LATIN_RUN_BREAK = /[：。！？\n　\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/u;
 
 /**
  * Words a technology name or a label never is and an English sentence always
@@ -279,15 +281,14 @@ const withoutTerms = (text: string, terms: readonly string[]): string =>
 /**
  * A heading or a block written in English. Either the whole line has no kana
  * or kanji and something Latin is left once the record's own terms are taken
- * out (E1: 「Languages」), or one statement inside it is an English sentence
- * (E2: a Japanese label, then the summary in English).
+ * out (E1: 「Languages」), or one run of Latin text inside it is an English
+ * sentence (E2: a Japanese name, then the summary in English).
  */
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
   const rest = withoutTerms(text, terms);
   if (!KANA_KANJI.test(rest) && LATIN_WORD.test(rest)) return true;
-  return rest.split(STATEMENT_BREAK).some((statement) => {
-    if (KANA_KANJI.test(statement)) return false;
-    const words = (statement.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
+  return rest.split(LATIN_RUN_BREAK).some((run) => {
+    const words = (run.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
     return words.length > MAX_LATIN_WORDS_IN_JAPANESE && words.some((w) => FUNCTION_WORDS.has(w));
   });
 }
