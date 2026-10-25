@@ -7552,3 +7552,20 @@ English, and 保有資格 written 「名称（YYYY年M月取得）」 against na
   copies it into each employer's opening paragraph.
 - **Not changed:** the 職務経歴書's headings (経歴要約, 活かせるスキル・経験, 学歴 and the rest), by the
   owner's choice; and its typography, which is a later change.
+
+---
+
+### [2026-10-25] Role titles and certification names are copied into a Japanese document (#117)
+
+Supersedes the names exception in "The 職務経歴書 prints no English and no doubled verbs"
+(2026-10-24), which named employers, schools, projects and technologies only. A role title or a
+certification name held only in English was marked `[recorded in English only]` in the Japanese
+prompts, so the register told the model to translate it or leave it out, while the experience rule
+copies role titles and 保有資格 prints certification names verbatim.
+
+- **Decision:** in a Japanese prompt a role title and a certification name are given as recorded —
+  the Japanese form when one is recorded, otherwise the English — and never labelled. The names
+  exception in the Japanese registers names them, so they are copied, never translated or omitted.
+  The English prompts still label a Japanese-only title or name.
+- **Decision:** a blank `projects.summary_ja` is stored as `null`, as a blank group name in Japanese
+  is, so it falls back to the English summary rather than hiding it.
