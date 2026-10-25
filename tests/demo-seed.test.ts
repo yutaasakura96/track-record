@@ -100,7 +100,7 @@ describe("seeding a user", () => {
       projects: 5,
       documents: 7,
       facts: 59,
-      flags: 15,
+      flags: 14,
       skills: 21,
       applications: 4,
       interviews: 2,

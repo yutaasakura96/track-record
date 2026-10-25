@@ -8,6 +8,7 @@ async function screenshot(page: Page, name: string) {
 }
 
 test("first proposal previews the document; regeneration shows a heading change", async ({ browser, baseURL }) => {
+  test.setTimeout(180_000);
   const context = await browser.newContext({ baseURL, storageState: DIFF_REVIEW_STORAGE_STATE });
   const page = await context.newPage();
   await page.goto("/");
@@ -18,7 +19,33 @@ test("first proposal previews the document; regeneration shows a heading change"
     mimeType: "text/markdown",
     buffer: Buffer.from(SOURCE_TEXT),
   });
-  await expect(page.locator("article[data-fact-card]").filter({ hasText: CLAIM })).toBeVisible();
+  const card = page.locator("article[data-fact-card]").filter({ hasText: CLAIM });
+  await expect(card).toBeVisible({ timeout: 30_000 });
+  await expect(card).not.toContainText("Check where the number came from");
+  const factId = await card.getAttribute("data-fact-card");
+  expect(factId).toBeTruthy();
+  const changed = await context.request.patch(`/api/facts/${factId}`, {
+    data: { claim: "Cut the overnight settlement job from eight hours to forty minutes" },
+  });
+  expect(changed.ok()).toBeTruthy();
+  await page.reload();
+  const changedCard = page.locator(`article[data-fact-card="${factId}"]`);
+  await expect(changedCard).toContainText("Check where the number came from");
+  await screenshot(page, "unsourced-number-flag.png");
+  await changedCard.getByText("Check where the number came from").scrollIntoViewIfNeeded();
+  if (evidence) await changedCard.screenshot({ path: `${evidence}/unsourced-number-card.png` });
+  const year = await context.request.patch(`/api/facts/${factId}`, { data: { claim: "Gave a talk in 2023" } });
+  expect(year.ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.locator(`article[data-fact-card="${factId}"]`)).not.toContainText("Check where the number came from");
+  const count = await context.request.patch(`/api/facts/${factId}`, { data: { claim: "Processed 2023 tickets" } });
+  expect(count.ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.locator(`article[data-fact-card="${factId}"]`)).toContainText("Check where the number came from");
+  const restored = await context.request.patch(`/api/facts/${factId}`, { data: { claim: CLAIM } });
+  expect(restored.ok()).toBeTruthy();
+  await page.reload();
+  await expect(page.locator(`article[data-fact-card="${factId}"]`)).not.toContainText("Check where the number came from");
   await page.getByRole("button", { name: "Done", exact: true }).first().click();
   // An independent project's section is headed by its record name, the one
   // résumé heading a record edit can rewrite.
@@ -52,6 +79,10 @@ test("first proposal previews the document; regeneration shows a heading change"
   await page.getByRole("button", { name: "Accept as v1" }).click();
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
 
+  const reworded = "Shortened the overnight settlement job from eight hours to fifty minutes";
+  const reword = await context.request.patch(`/api/facts/${factId}`, { data: { claim: reworded } });
+  expect(reword.ok()).toBeTruthy();
+
   const renameResponse = await context.request.patch(`/api/projects/${project.id}`, { data: { name: "Route Optimizer" } });
   expect(renameResponse.ok()).toBeTruthy();
   const generation = await context.request.post("/api/renders/english_resume/generate");
@@ -64,8 +95,12 @@ test("first proposal previews the document; regeneration shows a heading change"
   await page.goto(`/proposals/${proposalId}`);
   await expect(page.getByText("Planner", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Optimizer", { exact: true }).first()).toBeVisible();
+  await page.getByText("Optimizer", { exact: true }).first().click();
   await expect(page.getByText(/Heading rewritten/)).toBeVisible();
   await screenshot(page, "heading-change-review.png");
+  await page.getByText(reworded).last().click();
+  await expect(page.getByText("Restricted, so check the wording names no client or system")).toBeVisible();
+  await screenshot(page, "restricted-rationale-review.png");
 
   const profileResponse = await context.request.get("/api/profile");
   expect(profileResponse.ok()).toBeTruthy();
