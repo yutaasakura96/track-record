@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { createDb } from "~/server/db/client";
 import { employers, renders, renderVersions, users } from "~/server/db/schema";
 import type { RenderContent } from "~/shared/render-content";
-import { DIFF_REVIEW_IDENTITY, DIFF_REVIEW_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
+import { JAPANESE_DIFF_IDENTITY, JAPANESE_DIFF_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
 import { PROFILE } from "./fixture";
 
 const before: RenderContent = { sections: [{ key: "experience", heading: "職務経歴", blocks: [
@@ -22,7 +22,7 @@ const after: RenderContent = { sections: [{ key: "experience", heading: "職務�
 
 test("Japanese version comparison pairs one employer and separates another", async ({ browser, baseURL }) => {
   const db = createDb(E2E_DATABASE_URL);
-  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, DIFF_REVIEW_IDENTITY.email));
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, JAPANESE_DIFF_IDENTITY.email));
   expect(user).toBeTruthy();
   const userId = user!.id;
   await db.insert(employers).values([
@@ -36,7 +36,7 @@ test("Japanese version comparison pairs one employer and separates another", asy
     { id: "version-2", userId, renderId: "render-ja", versionNo: 2, content: after, factCountAt: 0 },
   ]);
 
-  const context = await browser.newContext({ baseURL, storageState: DIFF_REVIEW_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: JAPANESE_DIFF_STORAGE_STATE });
   const onboarding = await context.newPage();
   await onboarding.goto("/");
   for (const [label, value] of Object.entries(PROFILE)) await onboarding.getByLabel(label).fill(value);

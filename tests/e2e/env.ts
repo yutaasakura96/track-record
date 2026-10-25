@@ -51,6 +51,12 @@ export const DIFF_REVIEW_IDENTITY = {
   name: "Diff Review Test",
 };
 
+export const JAPANESE_DIFF_IDENTITY = {
+  sub: "e2e-japanese-diff-local",
+  email: "e2e-japanese-diff@example.invalid",
+  name: "Japanese Diff Test",
+};
+
 export const DOCUMENT_VIEW_IDENTITY = {
   sub: "e2e-document-view-local",
   email: "e2e-document-view@example.invalid",
@@ -81,7 +87,7 @@ export const EDUCATION_CHIPS_IDENTITY = {
   name: "Education Chips Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${JAPANESE_DIFF_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -122,6 +128,14 @@ export const DIFF_REVIEW_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-diff-review-storage-state.json",
+);
+
+export const JAPANESE_DIFF_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-japanese-diff-storage-state.json",
 );
 
 export const DOCUMENT_VIEW_STORAGE_STATE = join(
