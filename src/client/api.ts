@@ -126,6 +126,11 @@ export interface Profile {
   /** The English résumé's page. */
   paperSize: "a4" | "letter";
   hasPhoto: boolean;
+  /**
+   * Changes whenever the photo does, and null when there is none. The photo's
+   * address carries it, so a page asks for the new photo and not a kept one.
+   */
+  photoVersion: string | null;
   /** The English résumé's header (issue #108); each null until filled. */
   resumeHeadline: string | null;
   resumeCity: string | null;
@@ -1459,6 +1464,45 @@ export function useSaveProfile() {
       void queryClient.invalidateQueries({ queryKey: keys.overview });
       void queryClient.invalidateQueries({ queryKey: keys.renders });
     },
+  });
+}
+
+/**
+ * The profile photo's address for an `<img>`, or null when there is none. The
+ * image is fetched on its own and never rides in a JSON body (`docs/07` §4).
+ */
+export function useProfilePhotoSrc(): string | null {
+  const profile = useProfile();
+  const version = profile.data?.photoVersion;
+  return version ? `/api/profile/photo?v=${version}` : null;
+}
+
+/**
+ * A photo saved or removed changes the 履歴書 everywhere it is read: its page
+ * on View and on Home's card, the first-version preview, and the review
+ * footer's note that the cell is empty.
+ */
+function photoChanged(queryClient: ReturnType<typeof useQueryClient>, saved: Profile) {
+  queryClient.setQueryData(keys.profile, saved);
+  void queryClient.invalidateQueries({ queryKey: keys.renders });
+  void queryClient.invalidateQueries({ queryKey: ["proposal"] });
+}
+
+/** Puts the cropped photo on the profile. The body is the JPEG itself, never a form. */
+export function useSaveProfilePhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (photo: Blob) =>
+      api<Profile>("/api/profile/photo", { method: "PUT", body: photo, headers: { "content-type": photo.type || "image/jpeg" } }),
+    onSuccess: (saved) => photoChanged(queryClient, saved),
+  });
+}
+
+export function useRemoveProfilePhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Profile>("/api/profile/photo", { method: "DELETE" }),
+    onSuccess: (saved) => photoChanged(queryClient, saved),
   });
 }
 

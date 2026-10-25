@@ -129,9 +129,9 @@ six-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
   text; a parser upgrade creates a new version.
 - **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
   Calendar scope. Release blocker, not a hardening task.
-- **Nothing is ever deleted, except a recording** — render versions, source documents and rejected
-  facts are permanent; a recording on an interview entry is the one thing the author can remove
-  for good; deleted interview entries and omitted questions are stamped and kept (`docs/04` §3.15, §3.16).
+- **Nothing is ever deleted, except a recording and the profile photo** — render versions, source
+  documents and rejected facts are permanent; a recording on an interview entry and the 履歴書
+  photo are the things the author can remove for good; deleted interview entries and omitted questions are stamped and kept (`docs/04` §3.15, §3.16).
   This is correct for one user and becomes wrong at the second: account deletion that actually
   deletes is a gate before the second invite (`08` §6, `13` §8).
 

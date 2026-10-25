@@ -11,20 +11,24 @@
  * not claims about it, which is why the 履歴書 can be assembled from a stored
  * version whose only generated content is two prose blocks.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { certifications, educations, employers, profiles, roles } from "../db/schema";
 import { preconditionFailed } from "../http/errors";
+import { storedBytes } from "../db/bytes";
 import type { RirekishoProfile, RirekishoRecord } from "~/render/rirekisho";
+import type { RirekishoPhoto } from "~/render/rirekisho-photo";
+import { photoInfo, photoRefusal } from "~/shared/photo";
 import { exclusionsFor } from "./inclusion";
 
 /**
  * The profile, narrowed to the columns the form has cells for.
  *
- * The select list is the enforcement: `photo` and every column the 履歴書 does
- * not print are never read, so they cannot reach a document by accident. This
- * is the one query in the codebase that may name `date_of_birth`, `phone`,
- * `postal_code`, `address` and `contact_*` (`docs/04` §3.2).
+ * The select list is the enforcement: every column the 履歴書 does not print
+ * is never read, so it cannot reach a document by accident. This is the one
+ * query in the codebase that may name `date_of_birth`, `phone`,
+ * `postal_code`, `address` and `contact_*` (`docs/04` §3.2); the photo, the
+ * last restricted column, is read by {@link collectRirekishoPhoto} beside it.
  */
 export async function collectRirekishoProfile(
   db: Db,
@@ -61,6 +65,47 @@ export async function collectRirekishoProfile(
     );
   }
   return profile;
+}
+
+/**
+ * The 写真, for the 履歴書's cell, or null when the profile has none.
+ *
+ * Apart from {@link collectRirekishoProfile} because it is a picture and not a
+ * field, and is placed in the file rather than filled into it. The stored
+ * bytes are checked again here: a photo the route would refuse today is left
+ * out rather than placed at a size it does not have.
+ */
+export async function collectRirekishoPhoto(db: Db, userId: string): Promise<RirekishoPhoto | null> {
+  const [row] = await db
+    .select({ photo: profiles.photo })
+    .from(profiles)
+    .where(and(eq(profiles.userId, userId), isNotNull(profiles.photo)))
+    .limit(1);
+  if (!row?.photo) return null;
+  const bytes = storedBytes(row.photo);
+  const info = photoInfo(bytes);
+  if (!info || photoRefusal(info)) return null;
+  return { bytes, type: info.type };
+}
+
+/**
+ * A photo as a response, to the owner's page and nowhere else. `no-store`: it
+ * is the author's face, and must not stay in a cache after it is removed.
+ * `nosniff`, so it is only ever drawn as the image it is.
+ */
+export const photoResponse = (photo: RirekishoPhoto) =>
+  new Response(photo.bytes as BodyInit, {
+    headers: { "content-type": photo.type, "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
+  });
+
+/** Whether the profile has a photo, without reading it: for the 履歴書's warnings. */
+export async function hasProfilePhoto(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(and(eq(profiles.userId, userId), isNotNull(profiles.photo)))
+    .limit(1);
+  return Boolean(row);
 }
 
 /**

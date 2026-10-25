@@ -7,8 +7,8 @@
  * the file a download would have produced that day. Reading a version on a
  * screen (issue #106) takes the same inputs and builds only the page.
  *
- * The name and contact lines come from the profile and a 履歴書's tables from
- * the record, both read here and now. That is why a version alone cannot stand
+ * The name and contact lines come from the profile and a 履歴書's tables and
+ * 写真 from the record and the profile, all read here and now. That is why a version alone cannot stand
  * in for what was sent.
  */
 import { eq } from "drizzle-orm";
@@ -16,11 +16,12 @@ import type { Db } from "../db/client";
 import { profiles, type renderVersions } from "../db/schema";
 import { ApiError, preconditionFailed, type ErrorCode } from "../http/errors";
 import { badCitations, citationMessage, collectEditableRecord } from "./version-edit";
-import { collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
+import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
 import { citedFactIds } from "~/render/edit";
 import { downloadFilename, toDocx } from "~/render/docx";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
 import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
+import type { RirekishoPhoto } from "~/render/rirekisho-photo";
 import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { assembleResume, ResumeAssemblyError, ResumeJobHeaderError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
 import { resumeDocx, type PaperSize } from "~/render/resume-docx";
@@ -88,7 +89,7 @@ export async function buildDocumentFile(
   switch (inputs.kind) {
     case "rirekisho": {
       const filename = downloadFilename(kind, "docx", version.acceptedAt);
-      return assembled(version, () => rirekishoFile(inputs.data, inputs.content, filename));
+      return assembled(version, () => rirekishoFile(inputs.data, inputs.content, inputs.photo, filename));
     }
     case "resume": {
       const { document, paper } = inputs;
@@ -138,8 +139,8 @@ export async function buildResumePdf(
 const resumeMetadata = (document: ResumeDocument) => ({ title: `${document.name} – Résumé`, author: document.name });
 
 /** One filling, so the page is read out of the very bytes that are handed over. */
-function rirekishoFile(data: RirekishoTemplateData, content: RenderContent, filename: string): DocumentFile {
-  const bytes = fillRirekishoTemplate(data);
+function rirekishoFile(data: RirekishoTemplateData, content: RenderContent, photo: RirekishoPhoto | null, filename: string): DocumentFile {
+  const bytes = fillRirekishoTemplate(data, photo);
   return { bytes, filename, page: rirekishoSentPage(data, content, bytes) };
 }
 
@@ -153,7 +154,7 @@ export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind
   const inputs = await assemblyInputs(db, userId, kind, version);
   switch (inputs.kind) {
     case "rirekisho":
-      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content, undefined, true));
+      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content, fillRirekishoTemplate(inputs.data, inputs.photo), true));
     case "resume":
       return assembled(version, () => resumeSentPage(inputs.document, true));
     case "built":
@@ -162,7 +163,7 @@ export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind
 }
 
 type AssemblyInputs =
-  | { kind: "rirekisho"; content: RenderContent; data: RirekishoTemplateData }
+  | { kind: "rirekisho"; content: RenderContent; data: RirekishoTemplateData; photo: RirekishoPhoto | null }
   | { kind: "resume"; identity: RenderIdentity; document: ResumeDocument; paper: PaperSize }
   | { kind: "built"; content: RenderContent; identity: RenderIdentity; today: string };
 
@@ -180,10 +181,12 @@ async function assemblyInputs(db: Db, userId: string, kind: RenderKind, version:
   if (kind === "rirekisho") {
     const profile = await collectRirekishoProfile(db, userId);
     const record = await collectRirekishoRecord(db, userId);
+    const photo = await collectRirekishoPhoto(db, userId);
     return assembled(version, () => ({
       kind: "rirekisho" as const,
       content,
       data: rirekishoTemplateData({ profile, record, submittedOn: today, content }),
+      photo,
     }));
   }
 

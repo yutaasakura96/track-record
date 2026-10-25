@@ -4,7 +4,8 @@
  * The screen shows a 履歴書 "as it will print", and the only thing that knows
  * how it prints is the filled template. So the page is read back out of the
  * `.docx` bytes a download hands over: its lines and its tables, cell by cell,
- * with the spans and the merged 写真 cell where the file has them. A field the
+ * with the spans and the merged 写真 cell where the file has them, and whether
+ * that cell holds the photo. A field the
  * template gains, a row it splits or a heading it respaces reaches the screen
  * with no change here, and a sent copy stored before any of this is read from
  * its own stored file.
@@ -40,6 +41,12 @@ export interface SheetCell {
   factIds?: string[];
   /** The file fills the cell, as it greys the 年 / 月 headings, 学歴 / 職歴 and the 写真 cell. */
   shaded: boolean;
+  /**
+   * The cell holds a picture: the 写真 (`./rirekisho-photo.ts`). Only that it
+   * does, never the picture, which a page would otherwise carry into every
+   * response and cache it passes through; the screen fetches it on its own.
+   */
+  photo?: true;
 }
 
 export type SheetBlock =
@@ -65,6 +72,7 @@ interface OpenCell {
   lines: SheetLine[];
   colSpan: number;
   shaded: boolean;
+  photo: boolean;
   /** `restart` begins a vertical merge; `continue` is a cell the one above covers. */
   merge: "restart" | "continue" | null;
 }
@@ -130,7 +138,7 @@ export function sheetOf(xml: string): Sheet {
         if (closing) {
           if (cell && table) table.rows[table.rows.length - 1]?.push(cell);
           cell = null;
-        } else cell = { lines: [], colSpan: 1, shaded: false, merge: null };
+        } else cell = { lines: [], colSpan: 1, shaded: false, photo: false, merge: null };
         continue;
       case "w:gridSpan":
         if (cell) cell.colSpan = Math.max(1, Number(attribute(attributes, "val") ?? 1));
@@ -141,6 +149,9 @@ export function sheetOf(xml: string): Sheet {
         if (cell && !paragraph) cell.shaded = fill !== undefined && fill !== "auto" && fill !== "ffffff";
         continue;
       }
+      case "w:drawing":
+        if (cell && !closing) cell.photo = true;
+        continue;
       case "w:vMerge":
         if (cell) cell.merge = attribute(attributes, "val") === "restart" ? "restart" : "continue";
         continue;
@@ -240,7 +251,7 @@ function closedTable(table: OpenTable): SheetBlock {
       if (open.merge === "continue" && owner[column]) {
         owner[column]!.rowSpan += 1;
       } else {
-        const cell: SheetCell = { lines: open.lines, colSpan: open.colSpan, rowSpan: 1, shaded: open.shaded };
+        const cell: SheetCell = { lines: open.lines, colSpan: open.colSpan, rowSpan: 1, shaded: open.shaded, ...(open.photo ? { photo: true as const } : {}) };
         out.push(cell);
         for (let at = column; at < column + open.colSpan; at++) owner[at] = cell;
       }
@@ -250,3 +261,7 @@ function closedTable(table: OpenTable): SheetBlock {
   });
   return { kind: "table", columns, rows };
 }
+
+/** Whether a sheet's file carries a photo: a 履歴書 whose 写真 cell is filled. */
+export const sheetHasPhoto = (sheet: Sheet) =>
+  sheet.blocks.some((block) => block.kind === "table" && block.rows.some((row) => row.some((cell) => cell.photo)));

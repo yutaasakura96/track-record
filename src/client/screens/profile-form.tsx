@@ -12,6 +12,7 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ApiError, useProfile, useSaveProfile, type Profile } from "../api";
 import { Button, Panel } from "../components/ui";
+import { ProfilePhoto } from "../components/profile-photo";
 import { fromMonth, toMonth } from "~/shared/calendar";
 
 interface FieldSpec {
@@ -134,6 +135,8 @@ export function ProfileForm() {
               ))}
             </div>
           </Panel>
+
+          <ProfilePhoto />
 
           <Panel heading="On your English résumé">
             <p className="text-small text-text-dim">

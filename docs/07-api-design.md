@@ -98,7 +98,10 @@ rejected with `403 forbidden` — the only 403 in the API.
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` | `/api/profile` | M1 | `404` when no profile exists — the client redirects to the profile form (PRD §7) |
-| `PUT` | `/api/profile` | M1 | Full replace. Creates on first call |
+| `PUT` | `/api/profile` | M1 | Full replace. Creates on first call. Leaves the photo as it is |
+| `GET` | `/api/profile/photo` | #117 | The 履歴書's 写真, its type read from its bytes, `cache-control: private, no-store`. `404` when there is none |
+| `PUT` | `/api/profile/photo` | #117 | The raw body is the image, already cropped to 3:4 in the browser; never a form. `200` + the profile. `404` with no profile; `422` (`fields: ["photo"]`) for anything that is not a JPEG or PNG by its first bytes, not 3:4 by its header to within a pixel, under 300 × 400, or over 2 MB however the request counts it. Logged as its type, pixel size and byte count, never its bytes |
+| `DELETE` | `/api/profile/photo` | #117 | Takes it off for good. `200` + the profile; removing none is not an error |
 | `GET` | `/api/employers` | M1 | Reverse chronological |
 | `POST` | `/api/employers` | M1 | |
 | `PATCH` | `/api/employers/:id` | M1 | |
@@ -126,6 +129,7 @@ rejected with `403 forbidden` — the only 403 in the API.
   "addressKana": "とうきょうと しぶやく じんぐうまえ",
   "contactSameAsAddress": true,
   "hasPhoto": true,
+  "photoVersion": "3f9c1a7b2e04",
   "resumeHeadline": "Backend Engineer",
   "resumeCity": "Tokyo", "resumeCountry": "Japan",
   "resumePhone": null,
@@ -146,7 +150,10 @@ rejected with `403 forbidden` — the only 403 in the API.
 
 > **`photo` is never inlined.** The response reports `hasPhoto`; the image is fetched from
 > `GET /api/profile/photo`. Base64 in a JSON body would put the author's face in every cache and
-> log of that response.
+> log of that response. `photoVersion` (null without a photo) changes whenever the photo does, and
+> the client puts it on the image's address, so a page draws the new photo rather than a kept one.
+> The same rule holds for a 履歴書's page: its sheet marks the 写真 cell `photo: true` and carries
+> none of the image.
 
 **`POST /api/employers` → 201**
 
@@ -1255,6 +1262,7 @@ other document.
 | `POST` | `/api/applications/:id/sent-copies` | Body `{ documents: ref[] }`, a kind or the tailored résumé's id, each once. **Record another sent copy**: freezes each as a further copy dated today, with no comparison against earlier ones, and puts on the application any that was not. `201` + the application with `frozen`. `409` at Not applied, where the move does the freezing; `422` for a document with no version; `409` when a file cannot be built, with nothing saved |
 | `GET` | `/api/applications/:id/sent-copies/:copyId` | One copy to read: `{ id, kind, title, versionNo, sentOn, recordedAt, filename, language, applicationId, company, page }` |
 | `GET` | `/api/applications/:id/sent-copies/:copyId/download` | The stored `.docx`, byte for byte. Never a fresh one |
+| `GET` | `/api/applications/:id/sent-copies/:copyId/photo` | The 写真 a 履歴書 copy was sent with, read out of its stored file, `no-store`. `404` for a copy with none, or of another kind (#117) |
 
 - **`documents`** are the ones on the application, the tailored résumé first and then the three
   in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,

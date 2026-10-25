@@ -16,6 +16,7 @@ import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
 import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
 import { CREDITS_REASON } from "./model-credits";
+import { hasProfilePhoto } from "./rirekisho";
 
 export async function proposalResponse(
   db: Db,
@@ -67,7 +68,7 @@ export async function proposalResponse(
     reason: proposal.reason,
     // Advisory and never blocking, and stated HERE as well as on the 202,
     // because this is the response the review screen reads.
-    warnings: kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [],
+    warnings: kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, userId) }) : [],
     /**
      * Told when nothing changed, rather than shown an empty diff — a no-op
      * regeneration must not look like a broken screen.

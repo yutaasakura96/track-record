@@ -14,8 +14,10 @@ import {
   REQUIRED_PROFILE_FIELDS,
   ageOn,
   buildRirekisho,
+  MOTIVATION_NOTICE,
   gapWarnings,
   rirekishoTemplateData,
+  rirekishoWarnings,
   submissionStamp,
   tokyoToday,
   unexplainedGaps,
@@ -24,6 +26,8 @@ import {
 } from "~/render/rirekisho";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import type { RenderContent } from "~/shared/render-content";
+import { PHOTO_NOTICE } from "~/shared/photo";
+import { pngPhoto } from "./helpers/photo";
 
 const PROFILE: RirekishoProfile = {
   familyNameKanji: "架空",
@@ -342,5 +346,27 @@ describe("the whole chain", () => {
     expect(document).toContain("架空大学　架空学部　卒業");
     // Every placeholder is consumed: none survives into the output.
     expect(document).not.toMatch(/\{[a-zA-Z#/]/);
+  });
+});
+
+describe("the 写真 (issue #117)", () => {
+  const record = {
+    educations: [{ startedOn: "2093-04-01", endedOn: "2094-03-01" }],
+    employers: [{ startedOn: "2095-04-01", endedOn: null }],
+  };
+
+  it("says the cell is empty, in the owner's words and after everything else, only while there is no photo", () => {
+    const without = rirekishoWarnings(record, { hasPhoto: false });
+    expect(without.at(-1)).toBe("写真欄は空欄です。必要な場合はWordで貼付してください");
+    expect(without.at(-1)).toBe(PHOTO_NOTICE);
+    expect(without.at(-2)).toBe(MOTIVATION_NOTICE);
+    expect(rirekishoWarnings(record, { hasPhoto: true })).not.toContain(PHOTO_NOTICE);
+  });
+
+  it("is placed by the whole chain when the inputs carry one, and only then", () => {
+    const inputs = { profile: PROFILE, record: RECORD, submittedOn: SUBMITTED, content: null };
+    const media = (bytes: Uint8Array) => new PizZip(bytes).file(/word\/media\//).map((file) => file.name);
+    expect(media(buildRirekisho(inputs))).toEqual([]);
+    expect(media(buildRirekisho({ ...inputs, photo: { bytes: pngPhoto(300, 400), type: "image/png" } }))).toEqual(["word/media/photo.png"]);
   });
 });

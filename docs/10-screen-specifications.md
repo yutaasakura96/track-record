@@ -2072,12 +2072,16 @@ Read-only.
    proposal is waiting: `A new version is waiting for you. This page stays as it is until you
    accept it.`
 2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
-   filled from your record as it is now, as the download is.`
+   filled from your record as it is now, as the download is.` When the file's 写真 cell is empty, a
+   second line in the owner's words, `写真欄は空欄です。必要な場合はWordで貼付してください`, and the link
+   `Add a photo` to the profile form (#117, review issue 8). The review footer (Screen 2) carries
+   the same sentence among its advisory lines while the profile has no photo.
 3. **The document**, on a `card` at the reading measure: the page its download would hold today.
    Built documents show the printed title above the centered identity block, then sections in file
    order. The English résumé prints no title, so its page leads with the name, left-aligned and large,
    its headline in the accent and then its contact line, as its file does. A 履歴書 is the form its download would hold today, read back out of that file, as in
-   Screen 15. Both themes use the theme's tokens.
+   Screen 15, its 写真 cell holding the profile's photo at the cell's width and 3:4 when the file
+   carries one; a sent copy's is read out of its stored file. Both themes use the theme's tokens.
 4. **Where each line comes from** (#110, S6). Above the card, the ghost toggle `Show where each line
    comes from` (`aria-pressed`); while it is on, the sentence `Choose a line to see the facts behind
    it and where each is quoted from.` beside it. On, each section block and each nonempty 履歴書
@@ -2109,6 +2113,23 @@ Read-only.
 | **Under 1024px** | The notice wraps and keeps `Download`, `History`, `Edit` and the new-version action reachable; destination screens retain their own width gate. |
 
 ---
+
+## The profile form's 写真 · built by #117
+
+A panel `写真 · Photo` between Contact and `On your English résumé`, saved on its own rather than with
+the form. Before a profile exists it says `Optional. Save your details first, then add a photo here.`
+Otherwise: `Optional. Placed in the 履歴書's 写真 cell at 30 × 40 mm, and in no other document. Without
+one the cell is left empty for you to fill in Word.`, then the saved photo at 120px and 3:4 (an empty
+`shade` box reading `写真` when there is none) beside `Add a photo` or `Replace photo` (secondary) and
+`Remove photo` (ghost). Under a saved photo: `A copy already recorded as sent keeps the photo it was
+sent with.`
+
+Choosing a file opens the crop in place: a 3:4 frame 240px wide (never wider than the column) over
+the image, which covers it at zoom 1; drag or the arrow keys move it, the `Zoom` slider enlarges it to
+3×, and the image never leaves part of the frame empty. `Save photo` (primary) sends the framed part
+alone, 600 × 800 as a JPEG; `Cancel` (bare) sends nothing. A framed part under 300 pixels wide is
+refused before anything is sent, as is a file the browser cannot open; the server's refusal (type,
+3:4, size) shows under the panel in `removed`, and the crop stays.
 
 ## Screens not yet designed
 

@@ -4,16 +4,24 @@
  * `GET` returns 404 when no profile exists, and the client redirects to the
  * profile form from that — every render needs a name to put on it, so nothing
  * else in the app is reachable until identity exists.
+ *
+ * The 履歴書's 写真 (issue #117) has routes of its own under
+ * `/api/profile/photo`: it is the raw body of one request, never a form and
+ * never base64 in JSON, and it is read back only by its owner. No log line
+ * carries it, nor anything about it but its type and size.
  */
 import type { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { z } from "zod";
 import { profiles } from "../db/schema";
-import { notFound } from "../http/errors";
+import { storedBytes } from "../db/bytes";
+import { notFound, validationFailed } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
+import { photoResponse } from "../services/rirekisho";
 import { MONTH_DATE_PATTERN } from "~/shared/calendar";
+import { PHOTO_MAX_BYTES, PHOTO_TOO_LARGE, photoInfo, photoRefusal } from "~/shared/photo";
 import type { AppEnv } from "../env";
 
 /** Month precision, from the one place the rule lives. */
@@ -119,7 +127,7 @@ export function registerProfileRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const [profile] = await c
       .get("db")
-      .select()
+      .select(RESPONSE_COLUMNS)
       .from(profiles)
       .where(eq(profiles.userId, user.id))
       .limit(1);
@@ -145,25 +153,121 @@ export function registerProfileRoutes(app: Hono<AppEnv>) {
       updatedAt: new Date(),
     };
 
+    // The photo is not in `values`, so saving the form keeps it.
     const [saved] = await db
       .insert(profiles)
       .values({ id: newId("profile"), ...values })
       .onConflictDoUpdate({ target: profiles.userId, set: values })
-      .returning();
+      .returning(RESPONSE_COLUMNS);
 
     return c.json(toResponse(saved!));
   });
+
+  /** The photo, to show in the page. `404` when there is none. Never cached. */
+  api.get("/api/profile/photo", async (c) => {
+    const user = c.get("user");
+    const [row] = await c
+      .get("db")
+      .select({ photo: profiles.photo })
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
+    const bytes = row?.photo ? storedBytes(row.photo) : null;
+    const info = bytes ? photoInfo(bytes) : null;
+    if (!bytes || !info) throw notFound("A photo");
+    return photoResponse({ bytes, type: info.type });
+  });
+
+  /**
+   * Puts the photo on the profile, replacing any before it. The body is the
+   * image, already cropped to 3:4 by the browser; its first bytes decide its
+   * type, and its header its size. `200` + the profile. A profile has to exist
+   * first, since the photo is one of its columns.
+   */
+  api.put("/api/profile/photo", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const [profile] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.userId, user.id)).limit(1);
+    if (!profile) throw notFound("A profile");
+
+    const declared = c.req.header("content-length");
+    if (declared && /^\d+$/.test(declared) && Number(declared) > PHOTO_MAX_BYTES) {
+      throw validationFailed(PHOTO_TOO_LARGE, ["photo"]);
+    }
+    const bytes = await readAtMost(c.req.raw.body, PHOTO_MAX_BYTES);
+    if (bytes === "too_large") throw validationFailed(PHOTO_TOO_LARGE, ["photo"]);
+    const info = photoInfo(bytes);
+    const refusal = photoRefusal(info);
+    if (refusal) throw validationFailed(refusal, ["photo"]);
+
+    const [saved] = await db
+      .update(profiles)
+      .set({ photo: Buffer.from(bytes), updatedAt: new Date() })
+      .where(eq(profiles.userId, user.id))
+      .returning(RESPONSE_COLUMNS);
+    // The type, the pixel size and the byte count. Never the image.
+    console.log(JSON.stringify({ event: "profile_photo_saved", type: info!.type, width: info!.width, height: info!.height, bytes: bytes.byteLength }));
+    return c.json(toResponse(saved!));
+  });
+
+  /** Takes the photo off the profile, for good. `200` + the profile; removing none is not an error. */
+  api.delete("/api/profile/photo", async (c) => {
+    const user = c.get("user");
+    const [saved] = await c
+      .get("db")
+      .update(profiles)
+      .set({ photo: null, updatedAt: new Date() })
+      .where(eq(profiles.userId, user.id))
+      .returning(RESPONSE_COLUMNS);
+    if (!saved) throw notFound("A profile");
+    console.log(JSON.stringify({ event: "profile_photo_removed" }));
+    return c.json(toResponse(saved));
+  });
 }
+
+/** A request body, or `too_large` as soon as it passes `limit` bytes, whatever its header said. */
+async function readAtMost(body: ReadableStream<Uint8Array> | null, limit: number): Promise<Uint8Array | "too_large"> {
+  if (!body) return new Uint8Array();
+  const reader = body.getReader();
+  const parts: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => {});
+      return "too_large";
+    }
+    parts.push(value);
+  }
+  const bytes = new Uint8Array(total);
+  let at = 0;
+  for (const part of parts) {
+    bytes.set(part, at);
+    at += part.byteLength;
+  }
+  return bytes;
+}
+
+/**
+ * Every column the response is made from. Not the photo itself, which would be
+ * read on every request for no use: its digest stands in, as `photoVersion`,
+ * so a page showing the photo asks for a new one when it changes.
+ */
+const { photo: _photo, ...withoutPhoto } = getTableColumns(profiles);
+void _photo;
+const RESPONSE_COLUMNS = { ...withoutPhoto, photoDigest: sql<string | null>`md5(${profiles.photo})` };
 
 /**
  * `photo` is NEVER inlined. The response reports `hasPhoto`; the image is
  * fetched separately, because base64 in a JSON body would put the author's face
  * in every cache and log of that response.
  */
-function toResponse(profile: typeof profiles.$inferSelect) {
-  const { photo, userId, createdAt, updatedAt, ...rest } = profile;
+function toResponse(profile: Omit<typeof profiles.$inferSelect, "photo"> & { photoDigest: string | null }) {
+  const { photoDigest, userId, createdAt, updatedAt, ...rest } = profile;
   void userId;
   void createdAt;
   void updatedAt;
-  return { ...rest, hasPhoto: photo !== null };
+  return { ...rest, hasPhoto: photoDigest !== null, photoVersion: photoDigest?.slice(0, 12) ?? null };
 }

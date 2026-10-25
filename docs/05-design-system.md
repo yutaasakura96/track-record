@@ -229,6 +229,9 @@ Common applications:
 - Contents column, beside a rendered document: **212px**, the sidebar's width and the same token
 - Page picture on a document card (Home, #111): **160px** tall, the page drawn at **36%** of its
   size from the top left, so it keeps its own measure. Composed from the scale, 60 + 60 + 40
+- 写真 on the profile (issue #117): cropped in a frame **240px** wide and shown saved at **120px**,
+  both at **3:4** (`aspect-photo`), the 履歴書 photo's 30 × 40 mm. Composed from the scale, 60 × 4
+  and 60 + 60
 - Label column, where a row aligns its notes behind a word: **80px**. The longest label
   this has to hold is `Generated` at 13px/medium, which measures 67.33px; 60px broke it
   mid-word (issue #9). Composed from the scale, 40 + 40

@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMasterDocument, useRenderPage, type RenderRow } from "../api";
+import { useMasterDocument, useProfilePhotoSrc, useRenderPage, type RenderRow } from "../api";
 import { relative } from "../format";
 import { DocumentPage } from "./document-page";
 import { Action, QUIET, SECONDARY } from "./document-row";
@@ -53,8 +53,9 @@ function RenderThumbnail({ row }: { row: RenderRow }) {
   // Read only once there is a version; a page refused for a withheld fact, or
   // one that fails to read, leaves the blank page, which says nothing wrong.
   const read = useRenderPage(row.ref, undefined, Boolean(row.currentVersionId));
+  const photo = useProfilePhotoSrc();
   return (
-    <Thumbnail>{read.data ? <DocumentPage page={read.data.page} language={read.data.language} /> : null}</Thumbnail>
+    <Thumbnail>{read.data ? <DocumentPage page={read.data.page} language={read.data.language} photo={photo} /> : null}</Thumbnail>
   );
 }
 

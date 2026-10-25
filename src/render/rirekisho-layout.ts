@@ -225,7 +225,12 @@ interface Paragraph {
   line: number;
   halfPoints: number;
   text: string;
+  /** The tallest inline picture on its line, in twips: the 写真 (`./rirekisho-photo.ts`). */
+  picture: number;
 }
+
+/** DrawingML sizes in EMU; a twip is 635 of them. */
+const EMU_PER_TWIP = 635;
 
 function readParagraph(xml: string, fallback: number): Paragraph {
   const properties = /<w:pPr>[\s\S]*?<\/w:pPr>/.exec(xml)?.[0] ?? "";
@@ -240,11 +245,13 @@ function readParagraph(xml: string, fallback: number): Paragraph {
     line: exact ? Number(attr(properties, "w:spacing", "line")) : lineTwips(halfPoints),
     halfPoints,
     text,
+    picture: Math.max(0, ...[...xml.matchAll(/<wp:extent\b[^>]*\bcy="(\d+)"/g)].map((m) => Math.ceil(Number(m[1]) / EMU_PER_TWIP))),
   };
 }
 
+/** A picture's line is as tall as the picture: the paragraph that holds one is never an exact height. */
 const paragraphHeight = (p: Paragraph, width: number) =>
-  p.before + p.after + p.line * lineCount(p.text, width, p.halfPoints * 10);
+  p.before + p.after + Math.max(p.line * lineCount(p.text, width, p.halfPoints * 10), p.picture);
 
 interface Row {
   height: number;

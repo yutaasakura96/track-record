@@ -7450,3 +7450,39 @@ retains a retryable `failed` import or proposal state, but its public `error.cod
 `credits_exhausted`, rather than `extraction_failed` or `generation_failed`. Stateless model calls
 still answer `503 upstream_unavailable` with `error.details.reason: "credits_exhausted"`. The
 member-facing message and distinct log event are unchanged; the API contract is in `07` §2, §5 and §7.
+
+---
+
+### [2026-10-25] The 履歴書's 写真: an optional photo on the profile, placed in the cell
+
+The 写真 cell always printed empty and nothing said so (#117 review §3.2). The owner chose option
+(a): an optional photo upload, cropped to 3:4 and placed in the cell, and a plain note when there is
+none. Supersedes the `docs/04` §4 note that the cell is an anchored 35.1 × 34.1 mm image left empty
+for want of an image module; the entries that recorded the gap stay as written.
+
+- **Decision:** the photo is stored in `profiles.photo`, the `bytea` column the schema has carried
+  since the first migration. No new store and no new cloud resource: the 2026-08-12 reasoning that
+  keeps documents out of object storage holds for one photo of a few hundred kilobytes, and the R2
+  bucket is the recordings' alone.
+- **Decision:** the browser crops. The chosen image is moved and zoomed under a 3:4 frame and only
+  the framed part is sent, re-encoded as a 600 × 800 JPEG, so the original file and its metadata
+  never leave the browser and any image the browser can open (HEIC on Safari, WebP) is accepted. The
+  server does not trust that: it reads the type from the first bytes (JPEG or PNG), the size from the
+  header, and refuses anything not 3:4 to within a pixel, under 300 × 400 or over 2 MB.
+- **Decision:** the photo goes into the cell as an **inline** picture at 30 × 40 mm, centred, by
+  string edits after the fill (`src/render/rirekisho-photo.ts`), not through a docxtemplater
+  image module and not as a floating picture. Inline, the cell grows to hold it and the layout model
+  counts its height; floating, it would sit over the rows below wherever the reader's Word put it.
+  The cell is 31.75 mm wide inside its margins, so 30 mm fits; it is about 8 mm taller than the three
+  rows it spans, and page 1 holds a row of 学歴・職歴 fewer. Its paragraph is the one line in the file
+  that is not an exact height, because an exact line clips an inline picture.
+- **Decision:** a page never carries the image. The sheet marks the cell `photo: true`; the screen
+  draws `/api/profile/photo?v=<photoVersion>` for a page built today and the stored file's photo for
+  a sent copy, which is read out of that file by its own route. Both answer `private, no-store`.
+- **Decision:** without a photo the review footer and View say, in the owner's words,
+  「写真欄は空欄です。必要な場合はWordで貼付してください」. The footer's line follows the profile as it
+  is when the proposal is read; View's follows the file.
+- **Decision:** Remove sets the column to `null` for good. A sent copy keeps the photo inside its
+  stored file, as it keeps every other line it was sent with; the form says so under the photo.
+- **Not changed:** the export, which already carries `hasPhoto` and not the bytes. No PDF of the
+  履歴書 exists yet; when one does, it is set from the same file.

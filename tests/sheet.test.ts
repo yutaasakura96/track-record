@@ -8,7 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
-import { readSheet, sheetOf, type Sheet, type SheetCell } from "~/render/sheet";
+import { readSheet, sheetHasPhoto, sheetOf, type Sheet, type SheetCell } from "~/render/sheet";
+import { pngPhoto } from "./helpers/photo";
 import { RIREKISHO_DATA, RIREKISHO_SHEET } from "./client/rirekisho-sheet";
 
 const DATA: RirekishoTemplateData = {
@@ -161,5 +162,23 @@ describe("reading a sheet", () => {
         `<w:del><w:r><w:delText>消</w:delText></w:r></w:del><w:r><w:br w:type="page"/></w:r></w:p>`,
     ));
     expect(sheet.blocks).toEqual([{ kind: "line", line: { text: "一\n二\t三", align: "end", size: "body", bold: false, beforeTwips: 0, afterTwips: 0 } }]);
+  });
+});
+
+describe("the 写真 cell, read back (issue #117)", () => {
+  it("marks the merged cell as holding the photo, and nothing else, and carries none of its bytes", () => {
+    const sheet = readSheet(fillRirekishoTemplate(DATA, { bytes: pngPhoto(300, 400), type: "image/png" }));
+    const cells = tables(sheet).flatMap((table) => table.rows.flat());
+    expect(cells.filter((cell) => cell.photo)).toEqual([
+      { lines: [expect.objectContaining({ text: "" })], colSpan: 1, rowSpan: 3, shaded: true, photo: true },
+    ]);
+    expect(sheetHasPhoto(sheet)).toBe(true);
+    expect(JSON.stringify(sheet).length).toBeLessThan(20_000);
+  });
+
+  it("says nothing of a photo when the cell is empty", () => {
+    const sheet = readSheet(fillRirekishoTemplate(DATA));
+    expect(sheetHasPhoto(sheet)).toBe(false);
+    expect(JSON.stringify(sheet)).not.toContain("photo");
   });
 });
