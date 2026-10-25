@@ -36,6 +36,8 @@ import {
   EDUCATION_CHIPS_STORAGE_STATE,
   DOCUMENT_VIEW_IDENTITY,
   DOCUMENT_VIEW_STORAGE_STATE,
+  JAPANESE_CHECK_IDENTITY,
+  JAPANESE_CHECK_STORAGE_STATE,
   RESUME_IDENTITY,
   RESUME_STORAGE_STATE,
   INTERVIEW_IDENTITY,
@@ -132,6 +134,15 @@ export default async function setup() {
     DOCUMENT_VIEW_IDENTITY,
   );
   writeFileSync(DOCUMENT_VIEW_STORAGE_STATE, `${JSON.stringify(storageState(documentViewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const japaneseCheckSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    JAPANESE_CHECK_IDENTITY,
+  );
+  writeFileSync(JAPANESE_CHECK_STORAGE_STATE, `${JSON.stringify(storageState(japaneseCheckSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
   // The résumé header's own author (issue #108), so the smoke test's record still starts with no profile.

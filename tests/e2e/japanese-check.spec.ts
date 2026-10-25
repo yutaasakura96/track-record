@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
-import { DOCUMENT_VIEW_STORAGE_STATE } from "./env";
+import { JAPANESE_CHECK_STORAGE_STATE } from "./env";
 
 test("Japanese proposals refuse hard defects and show register advisories", async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  const context = await browser.newContext({ baseURL, storageState: DOCUMENT_VIEW_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: JAPANESE_CHECK_STORAGE_STATE });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
