@@ -22,6 +22,7 @@ import { generateFailure, JobHeaderLinks } from "../components/generate-failure"
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
+import { GapNotices } from "../components/gap-notices";
 import { Button, Chip, Dot } from "../components/ui";
 import { absolute } from "../format";
 import { BY_HAND, WORTH_WORDS, type FactEvidence } from "~/shared/evidence";
@@ -71,6 +72,10 @@ export function DocumentViewScreen() {
           download is.
         </p>
       ) : null}
+      {/* The gaps its table has now, said here and not only in the review:
+          accepting the document does not close one (issue #117, G1). Every
+          version's tables are today's, so every version says them. */}
+      {data.renderKind === "rirekisho" ? <GapNotices /> : null}
       {/* The 写真 cell is read out of the file, so this says what the download holds. */}
       {data.page.sheet && data.renderKind === "rirekisho" && !sheetHasPhoto(data.page.sheet) ? (
         <p lang="ja" className="text-smaller text-text-secondary">

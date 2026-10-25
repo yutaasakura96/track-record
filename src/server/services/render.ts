@@ -39,7 +39,9 @@ import {
 } from "~/render/language";
 import { JAPANESE_DEFECT_REASON, MIXED_JAPANESE_DEFECT_REASON, japaneseDefect, type JapaneseDefect } from "~/render/japanese";
 import { bulletBudget } from "~/render/resume";
-import { tokyoToday } from "~/render/rirekisho";
+import { careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
+import { isChapteredStory } from "~/render/chapters";
+import { collectRirekishoRecord } from "./rirekisho";
 import { isExpired } from "~/render/shikaku";
 import { withRecordSections } from "~/render/shokumu";
 import { excludesProject, exclusionsFor } from "./inclusion";
@@ -224,6 +226,19 @@ export async function collectRenderInputs(
   // THIS render is given: the technologies on the facts that survived every
   // filter above, and on the certifications, which no render leaves out.
   const curation = definition.skillsSection ? await curatedGroups(db, userId) : [];
+  // The 履歴書's gaps, for the stories alone (`RenderSpec.careerGaps`). Read
+  // through the 履歴書's own record so they are the gaps its table shows,
+  // after ITS exclusions rather than this render's.
+  const gapRecord = isChapteredStory(kind) ? await collectRirekishoRecord(db, userId) : null;
+  const explained = gapRecord ? explainedGaps(gapRecord) : [];
+  const gaps = gapRecord
+    ? careerGaps(gapRecord).map((gap) => ({
+        from: gap.from,
+        to: gap.to,
+        months: gap.months,
+        explanation: explained.find((e) => e.gap.from === gap.from)?.note.text ?? null,
+      }))
+    : [];
   const renderable = new Set([
     ...usable.flatMap((f) => f.technologies),
     ...certificationRows.flatMap((c) => c.technologies),
@@ -343,6 +358,7 @@ export async function collectRenderInputs(
       // the profile form writes `null`, but a whitespace-only note would
       // otherwise reach the prompt as a stated preference.
       desiredRoleNote: profileRow?.desiredRoleNote?.trim() || null,
+      careerGaps: gaps,
       // The same language rule a role title follows, with one difference: the
       // Latin name is required by the schema and the Japanese one is optional,
       // so only the Japanese render needs a fallback.

@@ -207,6 +207,19 @@ export interface RenderSpec {
    */
   desiredRoleNote: string | null;
   /**
+   * The gaps in the 履歴書's 学歴・職歴 chronology, for the two career stories
+   * alone and empty on every other render (issue #117, review §5 G4).
+   *
+   * A Japanese interviewer's first question about a gap is 「この5か月は何を
+   * していましたか」, and a story whose routing table cannot ask it leaves the
+   * author to meet it cold. The gaps are the 履歴書's — computed over the rows
+   * it prints — because that is the table the interviewer is holding. An
+   * explained gap is still sent, with the author's ※ note: it is still asked
+   * about, and the note is the answer to start from. The note is the author's
+   * own words, not a fact, and carries no fact id.
+   */
+  careerGaps: { from: string; to: string; months: number; explanation: string | null }[];
+  /**
    * 学歴 as rows rather than as prose, for the same reason `employers` is a
    * list: the institution, the dates and the OUTCOME are data. An outcome
    * inferred from the wording of a fact is a misrepresentation, not a

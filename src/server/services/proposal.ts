@@ -18,7 +18,7 @@ import { rirekishoWarnings } from "~/render/rirekisho";
 import { japaneseAdvisories } from "~/render/japanese";
 import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
 import { CREDITS_REASON } from "./model-credits";
-import { hasProfilePhoto } from "./rirekisho";
+import { collectRirekishoRecord, hasProfilePhoto } from "./rirekisho";
 
 export async function proposalResponse(
   db: Db,
@@ -73,7 +73,7 @@ export async function proposalResponse(
     // document's register slips are read off the content, so they exist only
     // once it does.
     warnings: [
-      ...(kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, userId) }) : []),
+      ...(kind === "rirekisho" ? rirekishoWarnings(await collectRirekishoRecord(db, userId), { hasPhoto: await hasProfilePhoto(db, userId) }) : []),
       ...(RENDER_LANGUAGE[kind] === "ja" && proposal.generationStatus === "ready" ? japaneseAdvisories(content, inputs.spec) : []),
     ],
     /**

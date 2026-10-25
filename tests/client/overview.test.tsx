@@ -722,6 +722,25 @@ describe("the English documents and the Japanese ones, apart", () => {
     expect(screen.getByRole("tabpanel", { name: "English" })).toBeTruthy();
   });
 
+  it("carries the 履歴書's current gaps on its card, each with the way to explain it (issue #117, G1)", async () => {
+    const gap = { after: "2096-01", before: "2096-07", from: "2096-02", to: "2096-06", months: 5 };
+    const { user } = open(
+      [row(), row({ kind: "rirekisho", language: "ja", title: "履歴書", status: "up_to_date", currentVersionId: "ver-test-1" })],
+      { "GET /api/career-timeline": { employers: [], projects: [], gaps: [gap], explained: [], staleNotes: [] } },
+    );
+    await documentRow();
+    await user.click(screen.getByRole("tab", { name: "日本語" }));
+
+    const card = (await screen.findByText("2096年2月〜6月（5か月）は、学歴・職歴のどの行にも含まれていません。")).closest(
+      'li:has(h3)',
+    )!;
+    expect(within(card as HTMLElement).getByRole("heading", { name: "履歴書" })).toBeTruthy();
+    expect(within(card as HTMLElement).getByText("February–June 2096 (5 months) is covered by no 学歴・職歴 entry.")).toBeTruthy();
+    expect(within(card as HTMLElement).getByRole("button", { name: "Add an explanation" })).toBeTruthy();
+    // Only the 履歴書 has the 学歴・職歴 table, so only its card says so.
+    expect(screen.getAllByText(/学歴・職歴のどの行にも含まれていません/)).toHaveLength(1);
+  });
+
   it("shows the Japanese documents under 日本語, led by the Japanese master document", async () => {
     const { user } = open(ROWS);
     await documentRow();

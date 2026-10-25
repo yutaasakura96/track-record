@@ -73,6 +73,7 @@ const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSp
   projects: [],
   workOutsideEmployment: false,
   desiredRoleNote: null,
+  careerGaps: [],
   educations,
   certifications: [],
   curatedSkills: null,

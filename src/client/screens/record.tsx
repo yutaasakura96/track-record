@@ -50,11 +50,11 @@ import {
   duration,
   expiry,
   gapPosition,
-  gapText,
   inclusionSummary,
+  outsideEmployer,
   type CareerTimeline,
-  type TimelineGap,
 } from "~/shared/career-timeline";
+import { ExplainedGap, GapNotice, StaleGapNote } from "../components/gap-notices";
 
 /* ------------------------------------------------------------------ fields */
 
@@ -485,24 +485,18 @@ function Work({
   const ordered = [...employers].sort(newestFirst);
 
   // Each gap sits above the first card that started before it ended, so it
-  // reads between the two jobs it falls between.
-  const gapsAt = new Map<number, TimelineGap[]>();
-  for (const gap of timeline?.gaps ?? []) {
+  // reads between the two jobs it falls between. An explained gap keeps its
+  // place, and shows the ※ row the 履歴書 prints for it instead of a warning.
+  const gapsAt = new Map<number, ReactNode[]>();
+  const place = (gap: { from: string; before: string }, row: ReactNode) => {
     const at = gapPosition(gap, ordered.map((e) => e.startedOn));
-    gapsAt.set(at, [...(gapsAt.get(at) ?? []), gap]);
-  }
-  const gapRows = (at: number) =>
-    (gapsAt.get(at) ?? []).map((gap) => (
-      <li key={`gap-${gap.after}-${gap.before}`} className="flex gap-14">
-        <span aria-hidden className="w-14 shrink-0 flex justify-center">
-          <span className="border-l border-dashed border-border-dashed" />
-        </span>
-        <p className="flex-1 border border-dashed border-border-dashed rounded-control px-10 py-8 text-smaller text-text-dim">
-          {gapText(gap)}
-        </p>
-      </li>
-    ));
+    gapsAt.set(at, [...(gapsAt.get(at) ?? []), <GapRow key={`gap-${gap.from}`}>{row}</GapRow>]);
+  };
+  for (const gap of timeline?.gaps ?? []) place(gap, <GapNotice gap={gap} />);
+  for (const { gap, note } of timeline?.explained ?? []) place(gap, <ExplainedGap gap={gap} note={note} />);
+  const gapRows = (at: number) => gapsAt.get(at) ?? [];
   const emptyGaps = gapRows(0);
+  const stale = timeline?.staleNotes ?? [];
 
   return (
     <section aria-labelledby={heading} className="grid gap-12">
@@ -517,6 +511,16 @@ function Work({
         <div className="bg-surface-raised border border-border rounded-panel">
           <EntityForm section={EMPLOYERS} employers={employers} item={null} onDone={() => setAdding(false)} />
         </div>
+      ) : null}
+
+      {stale.length > 0 ? (
+        <ul aria-label="Explanations of gaps that have closed" className="grid gap-6">
+          {stale.map((note) => (
+            <li key={note.id} className="border border-dashed border-border-dashed rounded-control px-10 py-8">
+              <StaleGapNote note={note} />
+            </li>
+          ))}
+        </ul>
       ) : null}
 
       {ordered.length === 0 && !adding ? (
@@ -545,6 +549,18 @@ function Work({
         </ol>
       )}
     </section>
+  );
+}
+
+/** A gap on the rail: dashed, because nothing was happening there. */
+function GapRow({ children }: { children: ReactNode }) {
+  return (
+    <li className="flex gap-14">
+      <span aria-hidden className="w-14 shrink-0 flex justify-center">
+        <span className="border-l border-dashed border-border-dashed" />
+      </span>
+      <div className="flex-1 min-w-0 border border-dashed border-border-dashed rounded-control px-10 py-8">{children}</div>
+    </li>
   );
 }
 
@@ -639,6 +655,7 @@ function EmployerCard({
         </header>
 
         {conflict ? <Conflict text={conflict} /> : null}
+        <DatesOutside employer={employer} roles={roles} projects={projects} />
 
         <div className="grid grid-cols-2 gap-20">
           <div>
@@ -738,6 +755,33 @@ function EmployerCard({
         )}
       </article>
     </>
+  );
+}
+
+/**
+ * The roles and projects dated outside this job (issue #117, review §5 G5).
+ * Said on the card for as long as it is true, so the edit that caused it is
+ * answered the moment it is saved, and a clash nobody noticed is still said.
+ */
+function DatesOutside({ employer, roles, projects }: { employer: Employer; roles: Role[]; projects: Project[] }) {
+  const clashes = [
+    ...roles.map((role) => ({ kind: "role" as const, name: role.titleLatin ?? role.titleJa ?? "Untitled role", ...role })),
+    ...projects.map((project) => ({ kind: "project" as const, ...project })),
+  ].flatMap((row) => {
+    const why = outsideEmployer(employer, row);
+    return why ? [`${row.kind === "role" ? "Role" : "Project"} ${row.name} (${span(row.startedOn, row.endedOn)}) ${why}.`] : [];
+  });
+  if (clashes.length === 0) return null;
+  return (
+    <div role="status" className="grid gap-4 border border-border-control rounded-control px-10 py-8 text-smaller text-text-secondary">
+      {clashes.map((clash) => (
+        <p key={clash}>{clash}</p>
+      ))}
+      <p className="text-text-dim">
+        The 職務経歴書 would print dates that contradict each other. Change the dates on the job, or on the{" "}
+        {clashes.length === 1 ? "row" : "rows"} named.
+      </p>
+    </div>
   );
 }
 

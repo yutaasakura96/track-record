@@ -85,7 +85,17 @@ const PROFILE = {
   resumeCountry: "Japan",
 };
 
-const NO_COUNTS: CareerTimeline = { employers: [], projects: [], gaps: [] };
+const NO_COUNTS: CareerTimeline = { employers: [], projects: [], gaps: [], explained: [], staleNotes: [] };
+
+/**
+ * The element holding exactly `text`. A ※ row joins on U+3000, which Testing
+ * Library's default whitespace collapse would turn into an ASCII space.
+ */
+const exactly = (text: string) => (_: string, element: Element | null) =>
+  element?.textContent === text && element.children.length === 0;
+
+/** Between Bristel's end and Qorvane's start: April 2017 to March 2021. */
+const GAP = { after: "2017-03", before: "2021-04", from: "2017-04", to: "2021-03", months: 48 };
 
 const open = (
   routes: Routes = {},
@@ -187,22 +197,21 @@ describe("the timeline", () => {
     expect(qorvane.textContent).not.toMatch(/\d+ achievements?|Nothing imported yet|No projects or achievements/);
   });
 
-  it("shows the 履歴書's gap between the two cards it falls between", async () => {
-    const gap = { after: "2017-03", before: "2021-04", months: 48 };
-    open({ "GET /api/career-timeline": { ...NO_COUNTS, gaps: [gap] } }, [BRISTEL, QORVANE]);
+  it("shows the 履歴書's gap between the two cards it falls between, in Japanese and in English", async () => {
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] } }, [BRISTEL, QORVANE]);
 
-    const text = await screen.findByText(
-      "48 months between 2017-03 and 2021-04 are covered by no 学歴・職歴 entry. The 履歴書 will warn about it.",
-    );
+    const ja = await screen.findByText("2017年4月〜2021年3月（48か月）は、学歴・職歴のどの行にも含まれていません。");
+    const en = screen.getByText("April 2017–March 2021 (48 months) is covered by no 学歴・職歴 entry.");
+    expect(ja.getAttribute("lang")).toBe("ja");
     const qorvane = await card();
     const bristel = await card("Bristel Inc.");
-    expect(qorvane.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(text.compareDocumentPosition(bristel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(toneOf(text)).toBe("text-dim");
+    expect(qorvane.compareDocumentPosition(ja) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(en.compareDocumentPosition(bristel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toneOf(en)).toBe("text-dim");
   });
 
   it("shows the 履歴書's gap when education is recorded without an employer", async () => {
-    const gap = { after: "2011-03", before: "2015-04", months: 48 };
+    const gap = { after: "2011-03", before: "2015-04", from: "2011-04", to: "2015-03", months: 48 };
     const school: Education = {
       id: "edu-test-school", institution: "Kitamachi High School", institutionJa: null,
       faculty: null, degree: null, fieldOfStudy: null, startedOn: "2008-04-01",
@@ -215,9 +224,94 @@ describe("the timeline", () => {
 
     const work = await panel("Work");
     expect(within(work).getByText(/No jobs yet/)).toBeTruthy();
-    expect(await within(work).findByText(
-      "48 months between 2011-03 and 2015-04 are covered by no 学歴・職歴 entry. The 履歴書 will warn about it.",
-    )).toBeTruthy();
+    expect(await within(work).findByText("April 2011–March 2015 (48 months) is covered by no 学歴・職歴 entry.")).toBeTruthy();
+  });
+
+  it("writes an explanation of a gap as the ※ row the 履歴書 prints, with the gap's own months", async () => {
+    const { api, user } = open(
+      { "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] }, "POST /api/gap-notes": { id: "gap-test-1" } },
+      [BRISTEL, QORVANE],
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add an explanation" }));
+    const form = screen.getByRole("form", { name: "Explain April 2017–March 2021 (48 months)" });
+    await user.type(within(form).getByRole("textbox"), "資格取得のため学習");
+    // The row as it will print, while it is typed: the months are not typed at all.
+    expect(within(form).getByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"))).toBeTruthy();
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/gap-notes"]));
+    expect(api.bodyOf("POST", "/api/gap-notes")).toEqual({
+      fromOn: "2017-04-01",
+      toOn: "2021-03-01",
+      text: "資格取得のため学習",
+    });
+  });
+
+  it("says a refused explanation beside Save, in the server's words", async () => {
+    const { user } = open(
+      {
+        "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] },
+        "POST /api/gap-notes": new Refusal(422, "validation_failed", "Keep it to 80 characters: it is one row of the 履歴書."),
+      },
+      [BRISTEL, QORVANE],
+    );
+    await user.click(await screen.findByRole("button", { name: "Add an explanation" }));
+    await user.type(screen.getByRole("textbox"), "資格取得のため学習");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Keep it to 80 characters: it is one row of the 履歴書.");
+    expect(toneOf(alert)).toBe("removed");
+  });
+
+  it("shows an explained gap as its ※ row, in its place, and takes it back on Remove", async () => {
+    const note = { id: "gap-test-1", fromOn: "2017-04-01", toOn: "2021-03-01", text: "資格取得のため学習" };
+    const { api, user } = open(
+      {
+        "GET /api/career-timeline": { ...NO_COUNTS, explained: [{ gap: GAP, note }] },
+        "DELETE /api/gap-notes/gap-test-1": undefined,
+      },
+      [BRISTEL, QORVANE],
+    );
+
+    const row = await screen.findByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"));
+    expect(row.compareDocumentPosition(await card("Bristel Inc.")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/is covered by no 学歴・職歴 entry/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Remove the explanation of April 2017–March 2021 (48 months)" }));
+    await waitFor(() => expect(api.writes()).toEqual(["DELETE /api/gap-notes/gap-test-1"]));
+  });
+
+  it("keeps an explanation whose gap has closed, says it is not printed, and offers to remove it", async () => {
+    const note = { id: "gap-test-old", fromOn: "2017-04-01", toOn: "2021-03-01", text: "資格取得のため学習" };
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, staleNotes: [note] } }, [BRISTEL, QORVANE]);
+
+    const list = await screen.findByRole("list", { name: "Explanations of gaps that have closed" });
+    expect(within(list).getByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"))).toBeTruthy();
+    expect(within(list).getByText(/so the 履歴書 does not print this/)).toBeTruthy();
+    expect(within(list).getByRole("button", { name: "Remove" })).toBeTruthy();
+  });
+
+  it("says when a role or project now falls outside its job's dates (review §5 G5)", async () => {
+    // The job shortened to end in 2020-01, leaving a role and a project running past it.
+    const shortened = { ...QORVANE, startedOn: "2017-04-01", endedOn: "2020-01-01" };
+    const senior = { ...LEAD, titleLatin: "Senior Backend Engineer", startedOn: "2019-01-01", endedOn: "2020-06-01" };
+    const early = { ...LEAD, id: "role-test-early", titleLatin: "Backend Engineer", startedOn: "2017-04-01", endedOn: "2018-12-01" };
+    const rules = { ...LEDGER, name: "Fraud rules engine", startedOn: "2019-02-01", endedOn: "2020-03-01" };
+    open({}, [shortened], [], { roles: [senior, early], projects: [rules] });
+
+    const qorvane = await card();
+    const status = within(qorvane).getByRole("status");
+    expect(status.textContent).toContain("Role Senior Backend Engineer (2019-01 – 2020-06) runs past this job's end, 2020-01.");
+    expect(status.textContent).toContain("Project Fraud rules engine (2019-02 – 2020-03) runs past this job's end, 2020-01.");
+    expect(status.textContent).not.toContain("Backend Engineer (2017-04");
+    expect(status.textContent).toContain("The 職務経歴書 would print dates that contradict each other.");
+  });
+
+  it("says nothing about dates when every role and project sits inside its job", async () => {
+    open({}, [QORVANE], [], { roles: [LEAD], projects: [LEDGER] });
+    expect(within(await card()).queryByRole("status")).toBeNull();
   });
 
   it("calls out expired certifications and each education rung's render exclusions", async () => {

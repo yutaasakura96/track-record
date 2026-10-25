@@ -11,6 +11,7 @@ import { harness, settle, stubModel, type Client, type Harness, type SeededUser,
 import { EDUCATION_FIXTURE, EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
 import type { CandidateFact } from "~/model/types";
 import type { CareerTimeline } from "~/shared/career-timeline";
+import { GAP_NOTE_MAX } from "~/shared/career-gap";
 
 const fact = (claim: string): CandidateFact => ({
   claim,
@@ -79,7 +80,9 @@ describe("the career timeline", () => {
     expect(await timeline()).toEqual({
       employers: [{ id: employerId, achievements: 4, unfiled: 2, documents: 2 }],
       projects: [{ id: projectId, achievements: 2 }],
-      gaps: [{ after: "2017-03", before: "2022-04", months: 60 }],
+      gaps: [{ after: "2017-03", before: "2022-04", from: "2017-04", to: "2022-03", months: 60 }],
+      explained: [],
+      staleNotes: [],
     });
   });
 
@@ -106,7 +109,7 @@ describe("the career timeline", () => {
   });
 
   it("answers an empty record with nothing to count", async () => {
-    expect(await timeline()).toEqual({ employers: [], projects: [], gaps: [] });
+    expect(await timeline()).toEqual({ employers: [], projects: [], gaps: [], explained: [], staleNotes: [] });
   });
 
   it("counts nothing of another user's record", async () => {
@@ -118,5 +121,82 @@ describe("the career timeline", () => {
     expect(mine.employers.map((e) => e.id)).toEqual([employerId]);
     expect(JSON.stringify(mine)).not.toContain(theirs.employerId);
     expect(JSON.stringify(mine)).not.toContain(theirs.projectId);
+  });
+});
+
+/**
+ * Answering a gap (issue #117, review §5 G2): the author's ※ row, stored on the
+ * record against the months it explains. The months are the gap's, never typed.
+ */
+describe("an explanation of a gap", () => {
+  const GAP = { fromOn: "2017-04-01", toOn: "2022-03-01" };
+  const explain = (text: string, as: Client = client, months = GAP) => as.post("/api/gap-notes", { ...months, text });
+
+  it("is stored on the record, and the gap it explains no longer warns", async () => {
+    await seedRecord();
+    const response = await explain("資格取得のため学習");
+    expect(response.status).toBe(201);
+    const note = (await response.json()) as { id: string };
+
+    const after = await timeline();
+    expect(after.gaps).toEqual([]);
+    expect(after.explained).toEqual([
+      {
+        gap: { after: "2017-03", before: "2022-04", from: "2017-04", to: "2022-03", months: 60 },
+        note: { id: note.id, ...GAP, text: "資格取得のため学習" },
+      },
+    ]);
+    expect(after.staleNotes).toEqual([]);
+  });
+
+  it("is replaced, not doubled, when the same months are explained again", async () => {
+    await seedRecord();
+    await explain("資格取得のため学習");
+    await explain("家業の手伝い");
+
+    const { explained } = await timeline();
+    expect(explained.map((e) => e.note.text)).toEqual(["家業の手伝い"]);
+  });
+
+  it("warns again once it is removed", async () => {
+    await seedRecord();
+    const note = (await (await explain("資格取得のため学習")).json()) as { id: string };
+
+    expect((await client.delete(`/api/gap-notes/${note.id}`)).status).toBe(204);
+    const after = await timeline();
+    expect(after.gaps.map((g) => g.from)).toEqual(["2017-04"]);
+    expect(after.explained).toEqual([]);
+  });
+
+  it("is kept, and explains nothing, once its gap has moved", async () => {
+    const { educationId } = await seedRecord();
+    const note = (await (await explain("資格取得のため学習")).json()) as { id: string };
+
+    // A later graduation moves the gap's first month, so the note's months
+    // would no longer be true on the 履歴書.
+    await client.patch(`/api/educations/${educationId}`, { ...EDUCATION_FIXTURE, endedOn: "2018-03-01" });
+
+    const after = await timeline();
+    expect(after.gaps.map((g) => [g.from, g.to])).toEqual([["2018-04", "2022-03"]]);
+    expect(after.explained).toEqual([]);
+    expect(after.staleNotes.map((n) => n.id)).toEqual([note.id]);
+  });
+
+  it("refuses an empty note, a note too long for its row, and months that run backwards", async () => {
+    expect((await explain("   ")).status).toBe(422);
+    expect((await explain("あ".repeat(GAP_NOTE_MAX + 1))).status).toBe(422);
+    expect((await explain("資格取得のため学習", client, { fromOn: "2022-03-01", toOn: "2017-04-01" })).status).toBe(422);
+    expect((await explain("資格取得のため学習", client, { fromOn: "2017-04-15", toOn: "2022-03-01" })).status).toBe(422);
+  });
+
+  it("is the author's own: another user can neither see nor remove it", async () => {
+    await seedRecord();
+    const note = (await (await explain("資格取得のため学習")).json()) as { id: string };
+    const other = app.as(await seedAllowedUser(SECOND_EMAIL));
+
+    expect(JSON.stringify(await timeline(other))).not.toContain("資格取得");
+    const refused = await other.delete(`/api/gap-notes/${note.id}`);
+    expect(refused.status).toBe(404);
+    expect((await timeline()).explained).toHaveLength(1);
   });
 });

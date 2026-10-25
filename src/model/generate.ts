@@ -21,6 +21,7 @@ import {
 
 export { capitalInJapanese };
 import { shapeResumeContent } from "~/render/resume";
+import { gapLabelEn, gapLabelJa } from "~/shared/career-gap";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export const EMIT_RENDER_TOOL = {
@@ -160,6 +161,21 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${field(spec.desiredRoleNote)}\n`
     : "";
 
+  // Printed only for the two stories, and only when the 履歴書 has a gap
+  // (issue #117, review §5 G4). Each is named the way the document's reader
+  // names it, and the author's ※ note is their words, marked as such.
+  const gapName = (g: RenderSpec["careerGaps"][number]) =>
+    spec.language === "ja" ? gapLabelJa(g) : gapLabelEn(g);
+  const careerGaps =
+    spec.careerGaps.length > 0
+      ? `
+Gaps in the 履歴書's 学歴・職歴 chronology: months covered by no school and no job. An interviewer holding the 履歴書 asks about each one. The routing table gives every gap a row of its own, asking what the author was doing in those months, and answers it from the author's note where there is one and otherwise from the chapters either side. A note is the author's own words, not a fact, and a row answered from it lists no fact id for it:
+${spec.careerGaps
+          .map((g) => `- ${gapName(g)}${g.explanation ? ` · the author's note: ${field(g.explanation)}` : " · not explained"}`)
+          .join("\n")}
+`
+      : "";
+
   // Printed only for a tailored résumé (issue #57). The posting is somebody
   // else's text, pasted in: it is fenced and named as data, so a line in it
   // that reads like an instruction is not one.
@@ -204,7 +220,7 @@ ${educations || "- none recorded"}
 
 Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
-${curatedSkills}${desiredRoleNote}${tailoring}
+${curatedSkills}${desiredRoleNote}${careerGaps}${tailoring}
 Call emit_render exactly once.`;
 }
 

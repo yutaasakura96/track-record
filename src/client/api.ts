@@ -15,7 +15,7 @@ import {
 import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type DownloadFormat, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
-import type { CareerTimeline } from "~/shared/career-timeline";
+import type { CareerTimeline, TimelineGapNote } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
@@ -727,6 +727,31 @@ export const useCareerTimeline = () =>
     queryKey: keys.careerTimeline,
     queryFn: () => api<CareerTimeline>("/api/career-timeline"),
   });
+
+/**
+ * Explaining a gap, and taking the explanation back (issue #117). A ※ row is
+ * part of the 履歴書's 学歴・職歴 table, which every page and review of it reads
+ * from the record, so both refresh the timeline, the documents and the
+ * proposals whose warnings it silences.
+ */
+export function useGapNoteActions() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
+    void queryClient.invalidateQueries({ queryKey: ["proposal"] });
+  };
+  const save = useMutation({
+    mutationFn: (body: { fromOn: string; toOn: string; text: string }) =>
+      api<TimelineGapNote>("/api/gap-notes", { method: "POST", ...json(body) }),
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>(`/api/gap-notes/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
+  });
+  return { save, remove };
+}
 
 export interface CuratedSkill {
   name: string;

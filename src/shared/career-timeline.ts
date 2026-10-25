@@ -7,6 +7,7 @@
  * warn of a gap. Counts and months only, never a claim.
  */
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "./render-content";
+import type { CareerGap, GapNote } from "./career-gap";
 
 export interface TimelineEmployer {
   id: string;
@@ -25,17 +26,22 @@ export interface TimelineProject {
 }
 
 /** One stretch the 履歴書 would warn about: months as `YYYY-MM`. */
-export interface TimelineGap {
-  after: string;
-  before: string;
-  months: number;
+export type TimelineGap = CareerGap;
+
+/** An explanation as stored: months as `YYYY-MM-01`. */
+export interface TimelineGapNote extends GapNote {
+  id: string;
 }
 
 export interface CareerTimeline {
   employers: TimelineEmployer[];
   projects: TimelineProject[];
-  /** The 履歴書's own gap warning, over the rows it would print. */
+  /** The 履歴書's own gap warning, over the rows it would print: the gaps nobody has explained. */
   gaps: TimelineGap[];
+  /** Each gap the author has explained, with the ※ row that explains it. */
+  explained: { gap: TimelineGap; note: TimelineGapNote }[];
+  /** Explanations whose gap has since moved or closed. Kept, and printed nowhere. */
+  staleNotes: TimelineGapNote[];
 }
 
 /* ---------------------------------------------------------------- duration */
@@ -91,6 +97,40 @@ export function expiry(expiresOn: string | null, today: string): { text: string;
   return null;
 }
 
+/* ------------------------------------------------------- dates that clash */
+
+/** A dated row filed under an employer: a role, or a project. */
+export interface DatedUnder {
+  name: string;
+  startedOn: string | null;
+  /** On a role, null is a role still held. On a project, null is an end not recorded. */
+  endedOn: string | null;
+}
+
+/**
+ * Why a role or project is dated outside its employer, or null when it is not
+ * (issue #117, review §5 G5). Months only, compared as `YYYY-MM`.
+ *
+ * Shortening an employer's dates used to leave its roles and projects running
+ * past the new end with nothing said anywhere, and the 職務経歴書 then printed
+ * dates that contradict each other. A role with no end under an employer that
+ * has ended is outside it: the role reads as held today. A project with no end
+ * is not, because a project's end is often simply not recorded.
+ */
+export function outsideEmployer(
+  employer: { startedOn: string; endedOn: string | null },
+  row: DatedUnder & { kind: "role" | "project" },
+): string | null {
+  const month = (date: string) => date.slice(0, 7);
+  const start = month(employer.startedOn);
+  const end = employer.endedOn ? month(employer.endedOn) : null;
+  if (row.startedOn && month(row.startedOn) < start) return `starts before this job did, ${start}`;
+  if (end === null) return null;
+  if (row.startedOn && month(row.startedOn) > end) return `starts after this job ended, ${end}`;
+  if (row.endedOn ? month(row.endedOn) > end : row.kind === "role") return `runs past this job's end, ${end}`;
+  return null;
+}
+
 /* -------------------------------------------------------------------- gaps */
 
 /**
@@ -99,11 +139,7 @@ export function expiry(expiresOn: string | null, today: string): { text: string;
  * follows the gap; `starts.length` puts it after the oldest, between the work
  * and the schooling.
  */
-export function gapPosition(gap: TimelineGap, starts: string[]): number {
+export function gapPosition(gap: Pick<TimelineGap, "before">, starts: string[]): number {
   const index = starts.findIndex((startedOn) => monthIndex(startedOn) < monthIndex(gap.before));
   return index === -1 ? starts.length : index;
 }
-
-/** The 履歴書's sentence for a gap, as its warning words it. */
-export const gapText = (gap: TimelineGap) =>
-  `${gap.months} months between ${gap.after} and ${gap.before} are covered by no 学歴・職歴 entry. The 履歴書 will warn about it.`;

@@ -67,7 +67,8 @@ users (Better Auth)
  │    └── application_sent_copies 0:N  (each document as it was sent: the file, kept whole)
  ├── skill_curations             1:N   [M2]
  ├── render_inclusions           1:N   [M2]
- └── capture_prompt_dismissals   0:1   (the month Home's capture prompt was put away for)
+ ├── capture_prompt_dismissals   0:1   (the month Home's capture prompt was put away for)
+ └── career_gap_notes            0:N   (the ※ row explaining a gap in 学歴・職歴)
 ```
 
 PRD entities map as: **Profile** → `profiles`, **Employer** → `employers`, **Role** → `roles`,
@@ -895,6 +896,27 @@ than a `profiles` column because a member with no profile is asked too, and must
 | `dismissed_on` | date | no | — | The month, day pinned to `01`. Written only by `POST /api/capture/prompt/dismiss`, which overwrites it |
 | `created_at`, `updated_at` | timestamptz | no | `now()` | |
 
+### 3.19 `career_gap_notes` · migration 0035, 2026-10-26 (#117)
+
+The author's explanation of a gap in the 履歴書's 学歴・職歴 chronology: the ※ row doda's convention
+puts under the 退社 line, `※2020年2月〜2020年6月　資格取得のため学習`. Record, not a fact: the
+author's own words about their own chronology, printed as typed, sent to no model but the two
+career stories' (`RenderSpec.careerGaps`), and in the export.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | text | no | — | `gap_…` |
+| `user_id` | text | no | — | FK → `users.id`, `on delete cascade` |
+| `from_on` | date | no | — | The gap's first uncovered month, day pinned to `01` |
+| `to_on` | date | no | — | Its last uncovered month. Check: `from_on <= to_on` |
+| `text` | text | no | — | At most 80 characters, enforced by the route |
+| `created_at`, `updated_at` | timestamptz | no | `now()` | |
+
+Unique on (`user_id`, `from_on`, `to_on`): a gap has one explanation, and writing it again replaces
+the text. Keyed by months rather than by the row above, because a gap may follow a job or a school.
+A note explains the gap whose months are **exactly** its own (§4); one whose gap has moved or closed
+is kept and printed nowhere.
+
 ---
 
 ## 4. The 履歴書 field contract
@@ -1003,7 +1025,16 @@ The author's own file already opens 学歴 with a closing row that has no 入学
   fields, `date_of_birth`, `phone`, `postal_code` or `address` is missing. **The missing fields are
   named.** A 履歴書 missing conventional fields is worse than no 履歴書 at all (PRD §8).
 - An **unexplained gap** between consecutive 学歴・職歴 entries produces a **warning, not a block**.
-  The convention treats gaps as a defect.
+  The convention treats gaps as a defect. A gap is three or more months covered by no entry, and is
+  named by those months, Japanese then English: `2020年2月〜6月（5か月）`, `February–June 2020
+  (5 months)`. The warning is read from the record wherever the 履歴書 is shown — the review, View,
+  Home and the career timeline — not from the version (#117).
+- An **explained gap** does not warn. Its `career_gap_notes` row (§3.19) is printed as a row with
+  empty 年 and 月 cells: `※<from 年月>〜<to 年月>　<text>`, both years written. It goes under the
+  last row dated at or before the month the gap follows — in 職歴 under the 退社 row when a job
+  ended that month, otherwise in 学歴 under the closing row of the schooling that did. A note whose
+  months are not exactly a current gap's is not printed: its months would be untrue on a signed
+  document.
 
 **免許・資格 table** — column header `年` / `月` / `免許・資格` (**template furniture**), then rows
 ascending by date from **two** sources:
@@ -1138,6 +1169,7 @@ technologies: {AWS, VPC, IAM}
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
+| `career_gap_notes` | Deletable by the author (`DELETE /api/gap-notes/:id`), as a role or an education is: hand-entered record, not evidence or history. The gap warns again |
 | `profiles.photo` | Deletable by the author (`DELETE /api/profile/photo`), set to `null` for good. A sent copy keeps the photo inside its stored file. Nothing else expires |
 | Anything | **No general soft-delete column.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight. The stamps that exist each record one named act: `superseded_at`, `removed_at`, `undone_at` |
 

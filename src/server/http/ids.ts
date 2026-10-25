@@ -22,6 +22,7 @@ export const ID_PREFIXES = {
   fact: "fct",
   education: "edu",
   certification: "crt",
+  careerGapNote: "gap",
   render: "rnd",
   renderVersion: "rvr",
   renderProposal: "prp",

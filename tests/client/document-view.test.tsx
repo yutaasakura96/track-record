@@ -402,6 +402,34 @@ describe("where each line comes from", () => {
     expect(within(screen.getByRole("article")).queryByRole("img")).toBeNull();
   });
 
+  it("says the 履歴書's current gaps once it is accepted, and takes an explanation for each (issue #117, G1)", async () => {
+    const gap = { after: "2096-01", before: "2096-07", from: "2096-02", to: "2096-06", months: 5 };
+    const { api, user } = mount("/renders/rirekisho/view", {
+      "GET /api/renders/rirekisho/page": rirekishoPage(RIREKISHO_SHEET),
+      "GET /api/career-timeline": { employers: [], projects: [], gaps: [gap], explained: [], staleNotes: [] },
+      "POST /api/gap-notes": { id: "gap-test-1" },
+    });
+
+    const gaps = await screen.findByRole("list", { name: "Gaps in 学歴・職歴" });
+    expect(within(gaps).getByText("2096年2月〜6月（5か月）は、学歴・職歴のどの行にも含まれていません。")).toBeTruthy();
+    expect(within(gaps).getByText("February–June 2096 (5 months) is covered by no 学歴・職歴 entry.")).toBeTruthy();
+
+    await user.click(within(gaps).getByRole("button", { name: "Add an explanation" }));
+    await user.type(within(gaps).getByRole("textbox"), "資格取得のため学習");
+    await user.click(within(gaps).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/gap-notes"]));
+    expect(api.bodyOf("POST", "/api/gap-notes")).toEqual({ fromOn: "2096-02-01", toOn: "2096-06-01", text: "資格取得のため学習" });
+  });
+
+  it("says nothing of gaps on a 履歴書 whose record has none", async () => {
+    mount("/renders/rirekisho/view", {
+      "GET /api/renders/rirekisho/page": rirekishoPage(RIREKISHO_SHEET),
+      "GET /api/career-timeline": { employers: [], projects: [], gaps: [], explained: [], staleNotes: [] },
+    });
+    await screen.findByRole("article");
+    expect(screen.queryByRole("list", { name: "Gaps in 学歴・職歴" })).toBeNull();
+  });
+
   it("draws the photo in the 写真 cell when the file holds one, and says nothing of an empty cell (issue #117)", async () => {
     const sheet = structuredClone(RIREKISHO_SHEET);
     const identity = sheet.blocks.find((block) => block.kind === "table")!;

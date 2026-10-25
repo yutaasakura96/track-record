@@ -62,6 +62,7 @@ const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
   projects: [],
   workOutsideEmployment: false,
   desiredRoleNote: null,
+  careerGaps: [],
   educations: [],
   certifications: [],
   ...over,
@@ -147,6 +148,42 @@ describe("the prompt", () => {
 
   it("prints no chapter list for a render that has none", () => {
     expect(buildGenerationPrompt(spec({ kind: "english_resume" }))).not.toContain("Chapters, in this order");
+  });
+});
+
+/**
+ * The 履歴書's gaps reach the stories (issue #117, review §5 G4), so the routing
+ * table can carry the first question a Japanese interviewer asks about one.
+ */
+describe("the gaps in the stories' prompt", () => {
+  const GAPS: RenderSpec["careerGaps"] = [
+    { from: "2096-02", to: "2096-06", months: 5, explanation: "資格取得のため学習" },
+    { from: "2098-11", to: "2099-02", months: 4, explanation: null },
+  ];
+
+  it("names every gap, in the story's language, with the author's note where there is one", () => {
+    const ja = buildGenerationPrompt(spec({ kind: "career_story_ja", language: "ja", careerGaps: GAPS }));
+    expect(ja).toContain("- 2096年2月〜6月（5か月） · the author's note: 資格取得のため学習");
+    expect(ja).toContain("- 2098年11月〜2099年2月（4か月） · not explained");
+
+    // An English prompt marks the Japanese note for what it is, as it does any
+    // Japanese field (issue #104).
+    const en = buildGenerationPrompt(spec({ careerGaps: GAPS }));
+    expect(en).toContain("- February–June 2096 (5 months) · the author's note: ");
+    expect(en).toContain("資格取得のため学習");
+    expect(en).toContain("- November 2098–February 2099 (4 months) · not explained");
+  });
+
+  it("asks for a routing row for every gap, in both registers", () => {
+    const prompt = buildGenerationPrompt(spec({ careerGaps: GAPS }));
+    expect(prompt).toContain("The routing table gives every gap a row of its own");
+    for (const kind of ["career_story_en", "career_story_ja"] as const) {
+      expect(RENDER_DEFINITIONS[kind].register).toContain("**Every gap the Gaps list below names gets a row**");
+    }
+  });
+
+  it("prints no gaps section when there is none", () => {
+    expect(buildGenerationPrompt(spec())).not.toContain("Gaps in the 履歴書");
   });
 });
 

@@ -7725,3 +7725,39 @@ names copied as given (E1), and a project's English summary after its Japanese �
   and a 職務経歴書 refused for one long bullet costs two model calls and a regeneration.
 - **Revisit if:** a legitimate Japanese line trips the English rule (a technology no fact names,
   printed alone on a line), or the advisories prove common enough to be worth retrying for.
+
+---
+
+### [2026-10-26] A gap is answered with a ※ row on the record, and warns wherever the 履歴書 is (#117)
+
+From the Japanese documents review (§5, G1–G5).
+
+- **Decision:** the gap warning is read from the record, not from the review. It was raised only on
+  the generation response and the proposal, so an accepted 履歴書 said nothing about a gap still in
+  the table being sent. View and Home now read the same gaps the career timeline does, over the rows
+  the download prints.
+- **Decision:** a gap is answered by the author's own ※ row, stored in `career_gap_notes` (`04`
+  §3.19), and an explained gap no longer warns. doda's convention puts the note in the 職歴 column
+  under the 退職 line; the app had no free row, so its own advice could not be followed in it. The
+  row is `※2020年2月〜2020年6月　<text>` with empty 年 and 月 cells, under the row the gap follows: in
+  職歴 after a job, in 学歴 after schooling with no job ending that month.
+- **Decision:** a note is keyed by the gap's first and last uncovered months and explains only the gap
+  with exactly those months. Not keyed to the employer row above it, because a gap may follow a
+  school. Not "covers the gap", because the months are printed on a signed document: a note written
+  for 2020年2月〜6月 is not true of a gap that has since become 2020年3月〜6月. Such a note is kept,
+  listed on the timeline as no longer printed, and the gap warns again.
+- **Decision:** a gap is named by the months nobody covers, in Japanese and English:
+  `2020年2月〜6月（5か月）` and `February–June 2020 (5 months)`, not "between 2020-01 and 2020-07".
+  Full-width brackets around the count, as Japanese text sets them. One module
+  (`src/shared/career-gap.ts`) words it for every screen and both prompts.
+- **Decision:** the two career stories receive the 履歴書's gaps (`RenderSpec.careerGaps`), explained
+  or not, with the author's note as their words and not a fact, and the routing table gets a row for
+  each. An interviewer holding the 履歴書 asks about an explained gap too. The 職務経歴書 is not given
+  them: it has no row a gap belongs in.
+- **Decision:** an employer card says when a role or project is dated outside the employer, for as
+  long as it is true, rather than refusing the edit that caused it: the author shortens the employer
+  first and the role second, and a refusal would make that order impossible. A role with no end under
+  an ended employer is outside it; a project with no end is not, because a project's end is often not
+  recorded.
+- **Revisit if:** an author needs a ※ row that explains something other than a gap, such as a
+  leave of absence inside an employment. That is a free row in 学歴・職歴, which this is not.
