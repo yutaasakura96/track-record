@@ -20,7 +20,7 @@
  * character is drawn with is its `cmap` entry and nothing else, and the set to
  * keep is known from the text alone. A composite glyph keeps its components.
  */
-import fontkit from "@pdf-lib/fontkit";
+import type fontkit from "@pdf-lib/fontkit";
 
 /** Tables no PDF reader needs: the original's signature, and device-metric caches that describe glyphs no longer there. */
 const DROPPED = new Set(["DSIG", "hdmx", "LTSH", "VDMX"]);
@@ -32,11 +32,15 @@ interface Table {
 
 /**
  * The font with only the outlines of `text`'s characters, and `.notdef`'s.
- * The ids of the characters' glyphs are the font's own.
+ * The ids of the characters' glyphs are the font's own. `font` is `bytes`
+ * already parsed.
  */
-export function subsetFont(bytes: ArrayBuffer | Uint8Array, text: Iterable<string>): Uint8Array {
+export function subsetFont(
+  bytes: ArrayBuffer | Uint8Array,
+  font: ReturnType<typeof fontkit.create>,
+  text: Iterable<string>,
+): Uint8Array {
   const source = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
-  const font = fontkit.create(source);
   const keep = new Set<number>([0]);
   for (const char of new Set(text)) {
     const id = font.glyphForCodePoint(char.codePointAt(0)!).id;

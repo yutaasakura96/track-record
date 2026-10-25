@@ -177,5 +177,5 @@ export function refuseMissing(face: ArrayBuffer, text: string, where: string) {
 
 /** Embeds a face holding only the outlines of `text`'s characters. */
 export async function embedFace(pdf: PDFDocument, face: ArrayBuffer, text: string): Promise<PDFFont> {
-  return pdf.embedFont(subsetFont(face, text + " "), { subset: false });
+  return pdf.embedFont(subsetFont(face, open(face), text + " "), { subset: false });
 }

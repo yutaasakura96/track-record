@@ -62,7 +62,7 @@ const document = (groups: number) =>
 describe("a face cut to the page", () => {
   it("keeps every glyph id, and the outlines of the characters asked for alone", async () => {
     const whole = fontkit.create(new Uint8Array(gothic));
-    const cut = fontkit.create(subsetFont(gothic, "職務A"));
+    const cut = fontkit.create(subsetFont(gothic, whole, "職務A"));
     expect(cut.numGlyphs).toBe(whole.numGlyphs);
     for (const char of "職務A") {
       const code = char.codePointAt(0)!;

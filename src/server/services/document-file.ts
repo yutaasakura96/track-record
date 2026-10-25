@@ -174,7 +174,7 @@ export async function buildDocumentPdf(
       return assembled(version, async () => ({
         // Drawn from the very file the Word download is: one filling, so a
         // photo or a row placed in it reaches both.
-        bytes: await rirekishoPdf(rirekishoFile(inputs.data, inputs.content, inputs.photo).bytes, japaneseMetadata(kind, inputs.identity)),
+        bytes: await rirekishoPdf(fillRirekishoTemplate(inputs.data, inputs.photo), japaneseMetadata(kind, inputs.identity)),
         ...names,
       }));
     case "japanese":
