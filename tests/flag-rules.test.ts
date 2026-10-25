@@ -254,6 +254,27 @@ describe("a claim that states a number its passage does not", () => {
     ["a word count found only in an out-of ratio", "Resolved 5 reports", "Resolved three out of 5 reports.", []],
     ["an out-of ratio absent from the passage", "Resolved 3 out of 5 reports", "Resolved 5 reports.", []],
     ["an out-of ratio with a different denominator", "Resolved 3 out of 5 reports", "Resolved 3 out of 50 reports.", []],
+    // A ratio is one figure: neither of its numbers sources a plain count.
+    ["a count found only as a slash ratio's denominator", "Resolved 5 reports", "Resolved 2/5 reports.", []],
+    ["a count found only as a slash ratio's numerator", "Resolved 2 reports", "Resolved 2/5 reports.", []],
+    ["a slash ratio missing from the passage", "Resolved 2/5 reports", "Resolved 5 reports.", []],
+    ["a slash ratio against a different denominator", "Resolved 2/5 reports", "Resolved 2/50 reports.", []],
+    ["a bare count found only as a word ratio's numerator", "Resolved one", "Resolved one in 5 reports.", []],
+    ["a count found only as a word ratio's numerator", "Resolved two reports", "Resolved two in 5 reports.", []],
+    ["a count found only as an out-of ratio's numerator", "Resolved 3 reports", "Resolved 3 out of 5 reports.", []],
+    // A bound after a counter is part of the quantity.
+    ["a Japanese lower bound against an upper bound", "5件以上を処理した", "5件以下を処理した。", []],
+    ["a Japanese upper bound against a lower bound", "5件以下を処理した", "5件以上を処理した。", []],
+    ["a Japanese lower bound absent from the passage", "5件以上を処理した", "5件を処理した。", []],
+    ["a Japanese lower bound absent from the claim", "5件を処理した", "5件以上を処理した。", []],
+    // Every other word before the unit is held to the passage.
+    ["a different word before the same unit", "Wrote 5 clinic reports", "Wrote 5 hospital reports.", []],
+    ["the other different word before the same unit", "Wrote 5 hospital reports", "Wrote 5 clinic reports.", []],
+    ["a word before the unit the passage never uses", "Wrote 5 clinic reports", "Wrote 5 reports.", []],
+    ["a word the passage adds before the unit", "Wrote 5 reports", "Wrote 5 clinic reports.", []],
+    ["a word the passage adds before a word number's unit", "Mentored five engineers", "Mentored five platform engineers.", []],
+    ["a percentage of all users against all revenue", "Reached 5% of all users", "Reached 5% of all revenue.", []],
+    ["a percentage of all revenue against all users", "Reached 5% of all revenue", "Reached 5% of all users.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -319,6 +340,13 @@ describe("a claim that states a number its passage does not", () => {
     ["the same word out-of ratio", "Resolved three out of 5 reports", "Resolved three out of 5 reports.", []],
     ["a quantity followed by different predicates", "5 engineers built APIs", "5 engineers maintained APIs.", []],
     ["the opposite predicate direction", "5 engineers maintained APIs", "5 engineers built APIs.", []],
+    ["the same slash ratio", "Resolved 2/5 reports", "Resolved 2/5 reports.", []],
+    ["the same Japanese lower bound", "5件以上を処理した", "5件以上を処理した。", []],
+    ["the same Japanese upper bound", "5件以下を処理した", "5件以下を処理した。", []],
+    ["a word before the unit the passage uses elsewhere", "Wrote 5 clinic reports", "For the clinic, I wrote 5 reports.", []],
+    ["the same word before the unit", "Wrote 5 clinic reports", "Wrote 5 clinic reports.", []],
+    ["the same percentage of all users", "Reached 5% of all users", "Reached 5% of all users.", []],
+    ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
@@ -341,6 +369,7 @@ describe("a claim that states a number its passage does not", () => {
       "Moved the booking API behind a traffic split, sending 5% of requests to the new cluster first",
       "Moved all 23 services to AKS over nine months with no unplanned downtime",
       "Defined the first five clinic reports with the operations team at Sakura Family Clinic",
+      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
     ];
     const candidates = DOCUMENTS.flatMap((document) => document.candidates);
     for (const claim of claims) {
