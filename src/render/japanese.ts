@@ -236,8 +236,9 @@ const STATEMENT_BREAK = /[：。！？　]/u;
 const LATIN_RUN_BREAK = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}（）()]+/u;
 
 /**
- * Words a technology name or a label never is and an English sentence always
- * holds. A run of three or more Latin words carrying one is prose.
+ * Words used to distinguish English prose from Latin terms. A statement
+ * without Japanese needs three Latin words and one of these; a Latin run
+ * beside Japanese needs five words and two.
  */
 const FUNCTION_WORDS = new Set([
   "a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "by", "for", "from", "with", "into", "over",

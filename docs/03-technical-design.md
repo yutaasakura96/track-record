@@ -470,15 +470,16 @@ offered for review (`src/render/language.ts`).
 
 A Japanese output is held to its own check the same way (`src/render/japanese.ts`). 御社 anywhere,
 or a heading or block in English, is a defect: generated once more, then refused with a plain
-reason. A line is English when it has no kana or kanji and something Latin is left once the
-record's own Latin terms are taken out (names, titles held, qualifications, technologies and
-curated skills, but not a skill group's name), or when one statement inside it is an English
-sentence: three or more Latin words carrying an English function word when the statement has no
-kana or kanji, or, beside kana or kanji, a run between them and any brackets, full-width or half-width, of at least five Latin words carrying at least two
-function words, so 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a Japanese
-project name does not. The rest are advisories in the review footer and
-never block: 貴社 outside the 履歴書's 本人希望欄, full-width digits, a 職務経歴書 bullet over 120
-characters, and a 職務経歴 bullet ending in です・ます.
+reason. Each physical line of a heading or block is checked separately. A line is English when it
+has no kana or kanji and something Latin is left once the record's own Latin terms are taken out
+(names, titles held, qualifications, technologies and curated skills, but not a skill group's name),
+or when one statement inside it is an English sentence: three or more Latin words carrying an
+English function word when the statement has no kana or kanji, or, beside kana or kanji, a run
+between them and brackets (full-width or half-width) of at least five Latin words carrying at least
+two function words. Thus 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a
+Japanese project name does not. The rest are advisories in the review footer and never block: 貴社
+outside the 履歴書's 本人希望欄, full-width digits, a 職務経歴書 bullet over 120 characters, and a 職務経歴
+bullet ending in です・ます.
 
 The name check requires a recorded employer name as a whole word in each named résumé experience
 heading, a school name in each education row, and an independent project name in each project row.

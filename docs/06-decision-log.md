@@ -7707,17 +7707,18 @@ names copied as given (E1), and a project's English summary after its Japanese �
   職務経歴書 bullet over 120 characters and a 職務経歴 bullet ending in です・ます are advisories, read
   off the stored content when the proposal is read and stated in the review footer beside the
   履歴書's own warnings.
-- **Decision:** "English" is decided per line and per statement, not as a share. The share the
-  English check uses cannot see E2, a Japanese label followed by one English sentence. A heading or
-  block is English when it has no kana or kanji and something Latin is left once the record's own
-  Latin terms are taken out, or when a statement inside it (split at ：。！？, the ideographic space
-  and a newline, never at 、) is an English sentence. A statement with no kana or kanji is one when
-  it is three or more Latin words carrying an English function word. In a statement with kana or
-  kanji, each Latin run between them and any brackets, full-width or half-width, is judged alone and is a sentence only at five or more words
-  carrying two or more function words: E2's summary after a Japanese name with an ASCII space is
-  caught, and 「Infrastructure as Code」 or 「Software as a Service」 inside Japanese is not. The
-  terms are the record's names, titles held, qualifications, every technology a fact names and the
-  curated skills, but never a skill group's name, which is the label E1 printed.
+- **Decision:** "English" is decided per physical line of each heading or block, then per statement,
+  not as a share. The share the English check uses cannot see E2, a Japanese label followed by one
+  English sentence. A line with no kana or kanji is English when something Latin remains after the
+  record's own terms are taken out, even when another line of the block is Japanese. Otherwise a
+  statement inside the line (split at ：。！？ and the ideographic space, never at 、) is English when
+  it has no kana or kanji and three or more Latin words carrying an English function word. In a
+  statement with kana or kanji, each Latin run between them and brackets (full-width or half-width)
+  is judged alone and is a sentence only at five or more words carrying two or more function words:
+  E2's summary after a Japanese name with an ASCII space is caught, and 「Infrastructure as Code」 or
+  「Software as a Service」 inside Japanese is not. The terms are the record's names, titles held,
+  qualifications, every technology a fact names and the curated skills, but never a skill group's
+  name, which is the label E1 printed.
 - **Decision:** an advisory names the section by the register's own name for it (職務経歴, 本人希望欄)
   or, for a story chapter, by its place, and counts blocks. It never quotes the document.
 - **Rejected:** blocking on the advisories. Each is a slip the author can see and fix in one word,
