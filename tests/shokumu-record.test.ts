@@ -259,4 +259,39 @@ describe("the Japanese prompt and the English the record holds", () => {
       "2020-04 – present · agency dispatch",
     );
   });
+
+  it("copies an English-only role title and certification name unlabelled, and still labels Japanese ones in English", () => {
+    const employer = {
+      id: "emp_a",
+      name: "架空派遣株式会社",
+      industry: null,
+      startedOn: "2020-04-01",
+      endedOn: null,
+      businessDescription: null,
+      employmentType: "dispatch" as const,
+      capitalYen: null,
+      headcount: null,
+      roles: [{ title: "Tech Lead", startedOn: "2020-04-01", endedOn: null }],
+      city: null,
+    };
+    const japanese = buildGenerationPrompt(
+      spec({ employers: [employer], certifications: [certification({ name: "Fictional Cloud Architect" })] }),
+    );
+    expect(japanese).toContain("    - Tech Lead · 2020-04 – present");
+    expect(japanese).toContain(" · Fictional Cloud Architect · ");
+    expect(japanese).not.toContain(`${ENGLISH_ONLY_LABEL} Tech Lead`);
+    expect(japanese).not.toContain(`${ENGLISH_ONLY_LABEL} Fictional Cloud Architect`);
+
+    const english = buildGenerationPrompt(
+      spec({
+        kind: "english_resume",
+        language: "en",
+        register: "REGISTER",
+        employers: [{ ...employer, roles: [{ ...employer.roles[0]!, title: "主任" }] }],
+        certifications: [certification({ name: "架空情報技術者試験" })],
+      }),
+    );
+    expect(english).toContain(`${JAPANESE_ONLY_LABEL} 主任`);
+    expect(english).toContain(`${JAPANESE_ONLY_LABEL} 架空情報技術者試験`);
+  });
 });

@@ -73,7 +73,7 @@ const ENGLISH_FROM_A_BILINGUAL_RECORD = `Language — English, throughout:
  */
 const JAPANESE_FROM_A_BILINGUAL_RECORD = `Language — Japanese, throughout:
 - The record behind this document is partly English. A field in the lists below that opens with ${ENGLISH_ONLY_LABEL} is held only in English. Write what it says in Japanese, or leave it out. Never copy an English sentence or phrase into the document.
-- Names are the exception: an employer, a school or a project is named exactly as its list below writes it, and a technology, product or service keeps its own name (Java, AWS, Kubernetes).`;
+- Names are the exception: an employer, a school, a project, a role title or a certification is named exactly as its list below writes it, even where that is English, and a technology, product or service keeps its own name (Java, AWS, Kubernetes).`;
 
 const RESUME_REGISTER = `Write the summary and the bullets of a résumé for a technical audience reading in English, and nothing else.
 

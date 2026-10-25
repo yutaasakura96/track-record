@@ -88,12 +88,15 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // free-text fields in these record lists go through `field`, which marks
   // Japanese in an English prompt for what it is (issue #104).
   const field = (value: string) => labelled(spec.language, value);
+  // A role title and a certification name are copied as recorded into a
+  // Japanese document, like the names above (issue #117).
+  const titled = (value: string) => (spec.language === "ja" ? value : field(value));
   const employers = spec.employers
     .map((e) => {
       const held = e.roles
         .map(
           (r) =>
-            `\n    - ${field(r.title)} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
+            `\n    - ${titled(r.title)} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
         )
         .join("");
       return `- id ${e.id} · ${e.name}${e.industry ? ` (${field(e.industry)})` : ""} · ${monthOf(e.startedOn)} – ${
@@ -126,7 +129,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   const certifications = spec.certifications
     .map(
       (c) =>
-        `- id ${c.id} · ${field(c.name)} · ${field(c.issuingOrganization)}${
+        `- id ${c.id} · ${titled(c.name)} · ${field(c.issuingOrganization)}${
           c.issuedOn ? ` · issued ${monthOf(c.issuedOn)}` : ""
         }${c.expiresOn ? ` · expires ${monthOf(c.expiresOn)}` : ""}`,
     )

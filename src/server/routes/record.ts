@@ -63,7 +63,11 @@ const projectBody = z.object({
   employerId: z.string().trim().nullish(),
   summary: z.string().trim().nullish(),
   /** What the 職務経歴書 writes for the summary (issue #117). */
-  summaryJa: z.string().trim().nullish(),
+  summaryJa: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((value) => (value === "" ? null : value)),
   startedOn: monthDate.nullish(),
   endedOn: monthDate.nullish(),
   clientIsNamed: z.boolean().default(false),

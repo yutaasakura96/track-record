@@ -97,6 +97,10 @@ describe("the spec a 職務経歴書 is written from", () => {
     expect(patched.status).toBe(200);
     expect(((await patched.json()) as { summaryJa: string }).summaryJa).toBe("残高更新型のテーブルを追記型の台帳に作り直した");
     expect((await generate("shokumu_keirekisho")).spec.projects[0]!.summaryJa).toBe("残高更新型のテーブルを追記型の台帳に作り直した");
+    const blanked = await client.patch(`/api/projects/${id}`, { summaryJa: "   " });
+    expect(((await blanked.json()) as { summaryJa: string | null }).summaryJa).toBeNull();
+    const { spec } = await generate("shokumu_keirekisho");
+    expect(spec.projects[0]).toMatchObject({ summary: PROJECT.summary, summaryJa: null });
     // An English render keeps the English summary.
     expect((await generate("career_story_en")).spec.projects[0]).toMatchObject({ summary: PROJECT.summary, summaryJa: null });
   });
