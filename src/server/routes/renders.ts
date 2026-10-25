@@ -16,6 +16,7 @@ import { collectRenderInputs, generateIntoProposal } from "../services/render";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
+  diffEmployers,
   proposalResponse,
   rationaleFor,
   regenerationReason,
@@ -266,6 +267,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const diff = diffRenders(current, proposed, {
       language: RENDER_LANGUAGE[render.kind as RenderKind],
       explain,
+      employers: await diffEmployers(db, user.id),
     });
     // A first version has nothing to be a diff against, so the screen shows the
     // document itself. Sent only then: every other review reads the changes.
@@ -463,7 +465,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const explain = await rationaleFor(db, user.id, beforeContent, afterContent);
 
     return c.json(
-      diffRenders(beforeContent, afterContent, { language: RENDER_LANGUAGE[kind], explain }),
+      diffRenders(beforeContent, afterContent, {
+        language: RENDER_LANGUAGE[kind],
+        explain,
+        employers: await diffEmployers(db, user.id),
+      }),
     );
   });
 

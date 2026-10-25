@@ -889,7 +889,8 @@ version. Two passes have already run server-side: paragraphs aligned, then token
   itself and for a heading change. Block alignment compares English on words and Japanese on
   character bigrams; only the shown tokens are phrases (decision log 2026-10-25). A block pairs only
   within its employer group, and two groups are the same employer when their opening paragraphs
-  name the same company, so a block moved to another employer is a removal under the current
+  resolve to the same record employer (or, where the record matches neither, write the same company
+  name before the period), so a block moved to another employer is a removal under the current
   version's employer and an addition under the proposal's.
 - `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
   `removed_unverified` · `from_restricted`.

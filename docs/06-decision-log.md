@@ -7660,12 +7660,18 @@ where it sits" (2026-10-25), which aligned blocks across the whole section.
   (資本金, 従業員数, 技術スタック) under every employer, and two employers' 資本金 rows scored 0.52 on
   bigrams, so dropping one employer and adding another paired the old row with the new one and
   labelled the old figures with the new employer.
-- **Decision:** two opening paragraphs are the same employer when they name the same company: the
-  text before the bracket that opens the period, NFKC-normalised with whitespace collapsed. Not
-  bigram similarity: an opening carries the name, period, 雇用形態 and role titles, and two
-  employers' openings sharing 正社員 and a role title scored 0.45–0.73. The same company with a
-  changed period, 雇用形態 or role stays one group, and its opening pairs as an edit.
+- **Decision:** two opening paragraphs are the same employer when they name the same company, and
+  the record decides which company that is: each opening resolves to a record employer as
+  `resolveEmployer` resolves an attribution heading, and that employer's id is the group's identity.
+  The route loads the user's employers for it. Only an opening no record employer matches falls back
+  to the name written before the period: NFKC-normalised, corporate form (株式会社, ㈱ and the like)
+  dropped, cut at the first bracket, `—`, `・`, `·`, `｜` or digit, and trimmed. An opening with
+  nothing left names no one, and its group pairs with nothing.
+- **Decision:** not bigram similarity: an opening carries the name, period, 雇用形態 and role
+  titles, and two employers' openings sharing 正社員 and a role title scored 0.45–0.73. The same
+  company with a changed period, 雇用形態 or role stays one group, and its opening pairs as an edit.
 - **Decision:** a block that moves to another employer is one removal and one addition, the removal
   under the current version's employer and the addition under the proposal's.
-- **Revisit if:** the author renames an employer in the record. The renamed group shows as removed
-  and added in full, every bullet with it.
+- **Revisit if:** an employer is renamed in the record, or an opening names a company the record does
+  not hold and writes it differently in two versions. Either group shows as removed and added in
+  full, every bullet with it.

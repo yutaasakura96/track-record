@@ -21,7 +21,7 @@
  */
 import { diffArrays } from "diff";
 import { segmentJapanese } from "~/segment";
-import { EXPERIENCE_SECTION } from "~/render/attribution";
+import { CORPORATE_FORM, EXPERIENCE_SECTION, resolveEmployer, type EmployerNames } from "~/render/attribution";
 import type { Block, RenderContent, RenderSection } from "~/shared/render-content";
 
 /**
@@ -110,6 +110,11 @@ export interface DiffOptions {
     currentBlock: Block | null;
     proposedBlock: Block | null;
   }) => Rationale;
+  /**
+   * The record's employers, which decide which employer an `experience`
+   * group's opening paragraph names. Loaded for the render's own user.
+   */
+  employers: readonly EmployerNames[];
 }
 
 export function diffRenders(
@@ -140,7 +145,7 @@ export function diffRenders(
     const employerBefore = employerLines(currentSection);
     const employerAfter = employerLines(section);
 
-    for (const pair of alignSection(before, section, options.language)) {
+    for (const pair of alignSection(before, section, options)) {
       const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
 
@@ -310,28 +315,43 @@ function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup
 }
 
 /**
- * The company an opening paragraph names: the text before the bracket that
- * opens its period, with width and whitespace normalised. The opening paragraph
- * also carries the period, the 雇用形態 and the role titles, and two employers
- * share most of those, so similarity cannot say which employer a group is.
+ * Which employer an opening paragraph names. The opening paragraph also carries
+ * the period, the 雇用形態 and the role titles, and two employers share most of
+ * those, so similarity cannot say which employer a group is.
+ *
+ * The record decides first, as {@link resolveEmployer} reads a heading. Only
+ * when no record employer matches does the company name written before the
+ * period stand in: width-normalised, corporate form dropped, and cut at the
+ * first bracket, heading separator or digit. Null when neither names anyone,
+ * and a group with no identity pairs with nothing.
  */
-function employerName(opening: string): string {
-  const text = opening.normalize("NFKC");
-  const bracket = text.indexOf("(");
-  return (bracket === -1 ? text : text.slice(0, bracket)).replace(/\s+/gu, " ").trim();
+function employerIdentity(opening: string, employers: readonly EmployerNames[]): string | null {
+  const id = resolveEmployer(opening, employers);
+  if (id !== null) return `record:${id}`;
+  const text = opening
+    .normalize("NFKC")
+    .replace(/\((?:株|有|合|同)\)/gu, " ")
+    .replace(CORPORATE_FORM, " ");
+  const cut = text.search(/[()—・·|\d]/u);
+  const name = (cut === -1 ? text : text.slice(0, cut)).replace(/\s+/gu, " ").trim().toLowerCase();
+  return name === "" ? null : `name:${name}`;
 }
 
 /**
  * Alignment for one section. Outside an `experience` section the whole section
  * is one group. Inside one, a block only pairs with a block under the same
- * employer: opening paragraphs pair when they name the same company, and each
+ * employer: opening paragraphs pair when they name the same employer, and each
  * pair of groups then aligns its own rows and bullets. A 職務経歴書 repeats the
  * same template rows (資本金, 従業員数, 技術スタック) under every employer, and on
  * bigrams two employers' rows are alike enough to pair, which would label one
  * employer's old figures as another's. A block that moved to another employer
  * is one removal and one addition, each under its own employer.
  */
-function alignSection(current: Block[], proposed: RenderSection, language: DiffLanguage): AlignedPair[] {
+function alignSection(
+  current: Block[],
+  proposed: RenderSection,
+  { language, employers }: DiffOptions,
+): AlignedPair[] {
   if (proposed.key !== EXPERIENCE_SECTION) return alignBlocks(current, proposed.blocks, language);
 
   const before = employerGroups(current);
@@ -344,9 +364,11 @@ function alignSection(current: Block[], proposed: RenderSection, language: DiffL
   const proposedOpenings = after.groups.map((g) => g.opening);
   const matchOf = new Map<number, number>();
   const claimed = new Set<number>();
+  const currentIdentities = currentOpenings.map((c) => employerIdentity(c.text, employers));
   proposedOpenings.forEach((p, pi) => {
-    const name = employerName(p.text);
-    const ci = currentOpenings.findIndex((c, i) => !claimed.has(i) && employerName(c.text) === name);
+    const identity = employerIdentity(p.text, employers);
+    if (identity === null) return;
+    const ci = currentIdentities.findIndex((c, i) => !claimed.has(i) && c === identity);
     if (ci === -1) return;
     claimed.add(ci);
     matchOf.set(pi, ci);

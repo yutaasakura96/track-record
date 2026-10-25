@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { alignmentKeys, diffRenders } from "~/diff";
 import { segmentJapanese } from "~/segment";
+import type { EmployerNames } from "~/render/attribution";
 import type { Block, RenderContent } from "~/shared/render-content";
 
 const rationale = () => ({ kind: "from_facts" as const, text: "From 1 measured fact", factIds: [] });
@@ -30,10 +31,10 @@ const paragraphs = (texts: string[]): RenderContent => ({
 });
 
 const diff = (before: string[], after: string[]) =>
-  diffRenders(paragraphs(before), paragraphs(after), { language: "en", explain: rationale });
+  diffRenders(paragraphs(before), paragraphs(after), { language: "en", explain: rationale, employers: [] });
 
 const diffJa = (before: string[], after: string[]) =>
-  diffRenders(paragraphs(before), paragraphs(after), { language: "ja", explain: rationale });
+  diffRenders(paragraphs(before), paragraphs(after), { language: "ja", explain: rationale, employers: [] });
 
 describe("paragraph alignment", () => {
   const a = "The nightly settlement batch had grown to six hours.";
@@ -270,7 +271,7 @@ describe("where a change sits", () => {
     const result = diffRenders(
       shokumu("夜間バッチの分散処理への移行で、サーバー費用を35%削減"),
       shokumu("夜間バッチの分散処理移行により、サーバーコストを35%削減"),
-      { language: "ja", explain: rationale },
+      { language: "ja", explain: rationale, employers: [] },
     );
     expect(result.changes).toHaveLength(1);
     expect(result.changes[0]!.location).toEqual({
@@ -282,7 +283,7 @@ describe("where a change sits", () => {
   it("places a removal where it sat in the current version", () => {
     const extra = block("blk_b3", "bullet", "社外向けの勉強会を企画・運営（参加者40名）");
     const bullet = "夜間バッチの分散処理への移行で、サーバー費用を35%削減";
-    const result = diffRenders(shokumu(bullet, [extra]), shokumu(bullet), { language: "ja", explain: rationale });
+    const result = diffRenders(shokumu(bullet, [extra]), shokumu(bullet), { language: "ja", explain: rationale, employers: [] });
     expect(result.changes).toHaveLength(1);
     expect(result.changes[0]!.proposedBlockId).toBeNull();
     expect(result.changes[0]!.location.employer).toBe("空想工業株式会社（2021年4月〜現在）");
@@ -302,7 +303,7 @@ describe("where a change sits", () => {
         ),
       })),
     };
-    const result = diffRenders(before, after, { language: "ja", explain: rationale });
+    const result = diffRenders(before, after, { language: "ja", explain: rationale, employers: [] });
     expect(result.changes.map((c) => c.location)).toEqual([
       { section: "職務要約", employer: null },
       { section: "職務経歴", employer: null },
@@ -330,7 +331,7 @@ describe("where a change sits", () => {
     ];
     const result = diffRenders(experience(alpha, beta), experience(beta, gamma), {
       language: "ja",
-      explain: rationale,
+      explain: rationale, employers: [],
     });
     const rows = result.changes.filter((c) => c.currentBlockId?.endsWith("1") || c.proposedBlockId?.endsWith("1"));
     expect(rows.map((c) => [c.currentBlockId, c.proposedBlockId, c.location.employer])).toEqual([
@@ -349,8 +350,8 @@ describe("where a change sits", () => {
     const experience = (...groups: Block[][]): RenderContent => ({
       sections: [{ key: "experience", heading: "職務経歴", blocks: groups.flat() }],
     });
-    const pairsOf = (before: RenderContent, after: RenderContent) =>
-      diffRenders(before, after, { language: "ja", explain: rationale }).changes.map((c) => [
+    const pairsOf = (before: RenderContent, after: RenderContent, employers: EmployerNames[] = []) =>
+      diffRenders(before, after, { language: "ja", explain: rationale, employers }).changes.map((c) => [
         c.currentBlockId,
         c.proposedBlockId,
         c.location.employer,
@@ -395,6 +396,82 @@ describe("where a change sits", () => {
         ["blk_b_2", "blk_b_2", extended],
       ]);
     });
+
+    // One group, one edited opening and one edited bullet: what a reworded
+    // employer line must come back as, whatever separates its parts.
+    const staysOneGroup = (opening: string, reworded: string, employers: EmployerNames[] = []) => {
+      const before = experience(
+        group("blk_b", opening, ["row", "資本金：3億円　従業員数：800名"], ["bullet", "受注処理を8時間から3時間へ短縮"]),
+      );
+      const after = experience(
+        group(
+          "blk_b",
+          reworded,
+          ["row", "資本金：3億円　従業員数：800名"],
+          ["bullet", "受注処理の所要時間を8時間から3時間に短縮"],
+        ),
+      );
+      expect(pairsOf(before, after, employers)).toEqual([
+        ["blk_b", "blk_b", null],
+        ["blk_b_2", "blk_b_2", reworded],
+      ]);
+    };
+
+    it.each([
+      ["brackets", "空想工業株式会社（2021年4月〜現在）正社員／テックリード", "空想工業株式会社（2021年4月〜2026年9月）正社員／テックリード"],
+      ["・", "空想工業株式会社 ・ 2021年4月〜現在 ・ 正社員", "空想工業株式会社 ・ 2021年4月〜2026年9月 ・ 正社員"],
+      ["—", "空想工業株式会社 — 2021年4月〜現在 — 正社員", "空想工業株式会社 — 2021年4月〜2026年9月 — 正社員"],
+      ["a ㈱ prefix", "㈱空想工業（2021年4月〜現在）正社員", "㈱空想工業（2021年4月〜2026年9月）正社員"],
+    ])("keeps one group when the period ends, separated by %s", (_, opening, reworded) => {
+      staysOneGroup(opening, reworded);
+    });
+
+    it("keeps one group when the role changes", () => {
+      staysOneGroup(
+        "空想工業株式会社（2021年4月〜現在）正社員／バックエンドエンジニア",
+        "空想工業株式会社（2021年4月〜現在）契約社員／プロダクトマネージャー",
+      );
+    });
+
+    it.each([
+      ["㈱架空商事（2016年4月〜2018年3月）正社員", "㈱空想工業（2018年4月〜2021年3月）正社員"],
+      ["架空商事株式会社 ・ 2016年4月〜2018年3月 ・ 正社員", "空想工業株式会社 ・ 2018年4月〜2021年3月 ・ 正社員"],
+    ])("never pairs %s with another company written the same way", (dropped, added) => {
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
+    it("lets the record say two differently written names are one employer", () => {
+      staysOneGroup("空想工業（2021年4月〜現在）正社員", "Kuusou Kogyo K.K. ・ 2021年4月〜2026年9月 ・ 正社員", [
+        { id: "emp_1", names: ["空想工業株式会社", "Kuusou Kogyo K.K."] },
+      ]);
+    });
+
+    it("lets the record tell apart two employers whose written names agree", () => {
+      // Both lines write 空想工業 before the first bracket; the record knows
+      // them as two employers, and the record wins.
+      const dropped = "空想工業（東日本）株式会社（2016年4月〜2018年3月）正社員";
+      const added = "空想工業（西日本）株式会社（2018年4月〜2021年3月）正社員";
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(
+        pairsOf(before, after, [
+          { id: "emp_e", names: ["空想工業（東日本）株式会社"] },
+          { id: "emp_w", names: ["空想工業（西日本）株式会社"] },
+        ]),
+      ).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
   });
 
   it("shows a bullet moved to another employer as a removal and an addition", () => {
@@ -408,7 +485,7 @@ describe("where a change sits", () => {
     const result = diffRenders(
       content([first, block("blk_m", "bullet", "受注処理を8時間から3時間へ短縮"), second, kept]),
       content([first, second, kept, block("blk_m2", "bullet", "受注処理の所要時間を8時間から3時間に短縮")]),
-      { language: "ja", explain: rationale },
+      { language: "ja", explain: rationale, employers: [] },
     );
     expect(result.removals).toBe(1);
     expect(result.additions).toBe(1);
@@ -421,7 +498,7 @@ describe("where a change sits", () => {
   it("names the heading a heading change would leave the section with", () => {
     const before = paragraphs(["The nightly batch."]);
     const after = { sections: [{ ...before.sections[0]!, heading: "Work" }] };
-    const renamed = diffRenders(before, after, { language: "en", explain: rationale });
+    const renamed = diffRenders(before, after, { language: "en", explain: rationale, employers: [] });
     expect(renamed.changes[0]!.target).toBe("heading");
     expect(renamed.changes[0]!.location).toEqual({ section: "Work", employer: null });
   });
@@ -433,7 +510,7 @@ describe("section headings", () => {
     sections: sections.map(([key, heading, blocks]) => ({ key, heading, blocks })),
   });
   const run = (before: RenderContent | null, after: RenderContent) =>
-    diffRenders(before, after, { language: "en", explain: rationale });
+    diffRenders(before, after, { language: "en", explain: rationale, employers: [] });
 
   const body = block("blk_1", "The nightly settlement batch had grown to six hours.");
 
