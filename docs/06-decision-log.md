@@ -7711,7 +7711,11 @@ names copied as given (E1), and a project's English summary after its Japanese �
   English check uses cannot see E2, a Japanese label followed by one English sentence. A heading or
   block is English when it has no kana or kanji and something Latin is left once the record's own
   Latin terms are taken out, or when a statement inside it (split at ：。！？, the ideographic space
-  and a newline, never at 、) is three or more Latin words carrying an English function word. The
+  and a newline, never at 、) is an English sentence. A statement with no kana or kanji is one when
+  it is three or more Latin words carrying an English function word. In a statement with kana or
+  kanji, each Latin run between them and the full-width brackets is judged alone and is a sentence only at five or more words
+  carrying two or more function words: E2's summary after a Japanese name with an ASCII space is
+  caught, and 「Infrastructure as Code」 or 「Software as a Service」 inside Japanese is not. The
   terms are the record's names, titles held, qualifications, every technology a fact names and the
   curated skills, but never a skill group's name, which is the label E1 printed.
 - **Decision:** an advisory names the section by the register's own name for it (職務経歴, 本人希望欄)

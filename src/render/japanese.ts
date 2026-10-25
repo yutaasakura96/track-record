@@ -219,15 +219,21 @@ const KANA_KANJI = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
 const LATIN_WORD = /\p{Script=Latin}{2,}/u;
 
 /**
- * What divides one run of Latin text from the next inside a block: the
- * sentence breaks, and any kana or kanji. E2's row was
- * 「プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table…」:
- * Japanese as a whole, and an English sentence after the Japanese name, with
- * an ASCII space, an ideographic one or nothing between them. 、 is not here,
+ * What divides one statement from the next inside a block. 、 is not here,
  * because it divides the items of a list, and a list of technologies is Latin
  * by nature.
  */
-const LATIN_RUN_BREAK = /[：。！？\n　\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/u;
+const STATEMENT_BREAK = /[：。！？\n　]/u;
+
+/**
+ * What divides one run of Latin text from the next inside a statement that
+ * holds Japanese: kana, kanji and the full-width brackets, so an abbreviation
+ * and its gloss, 「SaaS（Software as a Service）」, are two terms. E2's row was
+ * 「プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table…」:
+ * an English sentence after the Japanese name, with an ASCII space, an
+ * ideographic one or nothing between them.
+ */
+const LATIN_RUN_BREAK = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}（）]+/u;
 
 /**
  * Words a technology name or a label never is and an English sentence always
@@ -238,8 +244,20 @@ const FUNCTION_WORDS = new Set([
   "is", "are", "was", "were", "as", "that", "which",
 ]);
 
-/** The longest run of Latin words a statement may hold before it is read as an English sentence. */
+/** The longest run of Latin words a statement with no Japanese may hold before it is read as an English sentence. */
 const MAX_LATIN_WORDS_IN_JAPANESE = 2;
+
+/**
+ * Beside kana or kanji, a Latin run is a term until it is sentence-length:
+ * 「Software as a Service」 is four words and two function words, E2's summary
+ * fourteen and four.
+ */
+const MIN_SENTENCE_WORDS_BESIDE_JAPANESE = 5;
+const MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE = 2;
+
+const latinWords = (text: string): string[] => (text.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
+
+const functionWordCount = (words: readonly string[]): number => words.filter((w) => FUNCTION_WORDS.has(w)).length;
 
 /**
  * The 職務経歴書's bound on a bullet, stated by its register. Counted in code
@@ -281,15 +299,26 @@ const withoutTerms = (text: string, terms: readonly string[]): string =>
 /**
  * A heading or a block written in English. Either the whole line has no kana
  * or kanji and something Latin is left once the record's own terms are taken
- * out (E1: 「Languages」), or one run of Latin text inside it is an English
- * sentence (E2: a Japanese name, then the summary in English).
+ * out (E1: 「Languages」), or one statement inside it is an English sentence:
+ * three or more Latin words carrying a function word when the statement holds
+ * no Japanese, or a sentence-length run of Latin words beside the Japanese
+ * when it does (E2: a Japanese name, then the summary in English).
  */
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
   const rest = withoutTerms(text, terms);
   if (!KANA_KANJI.test(rest) && LATIN_WORD.test(rest)) return true;
-  return rest.split(LATIN_RUN_BREAK).some((run) => {
-    const words = (run.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
-    return words.length > MAX_LATIN_WORDS_IN_JAPANESE && words.some((w) => FUNCTION_WORDS.has(w));
+  return rest.split(STATEMENT_BREAK).some((statement) => {
+    if (!KANA_KANJI.test(statement)) {
+      const words = latinWords(statement);
+      return words.length > MAX_LATIN_WORDS_IN_JAPANESE && functionWordCount(words) > 0;
+    }
+    return statement.split(LATIN_RUN_BREAK).some((run) => {
+      const words = latinWords(run);
+      return (
+        words.length >= MIN_SENTENCE_WORDS_BESIDE_JAPANESE &&
+        functionWordCount(words) >= MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE
+      );
+    });
   });
 }
 

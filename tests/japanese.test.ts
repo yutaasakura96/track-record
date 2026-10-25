@@ -162,6 +162,15 @@ describe("a line in English", () => {
     const terms = latinTerms(spec(), FACTS);
     expect(isEnglishLine("REST APIとgRPCの設計", terms)).toBe(false);
     expect(isEnglishLine("技術スタック：Kubernetes, Terraform", terms)).toBe(false);
+    for (const line of [
+      "Infrastructure as Code（IaC）によるインフラ構築の自動化",
+      "PoC（Proof of Concept）を実施",
+      "POS（Point of Sale）システムの刷新",
+      "Single Sign-Onを導入",
+      "SaaS（Software as a Service）の導入支援",
+    ]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
     // Three Latin words, one of them a function word, with no Japanese: a sentence.
     expect(isEnglishLine("担当：design of the ledger", terms)).toBe(true);
   });
