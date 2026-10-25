@@ -549,10 +549,9 @@ which would also pull in bindings the suite deliberately replaces. So `vitest.co
 `modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }]`. Without it Vite tries
 to parse the `.docx` as JavaScript and the import fails before workerd sees it.
 
-`src/render/rirekisho-template.ts` is the whole of the seam: the `ArrayBuffer`, the placeholder
-shape, and one `fillRirekishoTemplate()` that renders with `linebreaks: true` and generates with
-`compression: "DEFLATE"`. Deriving the rows that go into it is the render's job and
-`docs/04` §4 is their contract.
+`src/render/rirekisho-template.ts` owns the `ArrayBuffer`, placeholder shape and
+`fillRirekishoTemplate()`; it calls `src/render/rirekisho-layout.ts` before and after the fill.
+`docs/04` §4 owns the template and page-layout contract. Deriving the rows remains the render's job.
 
 ### 6.3 The English résumé's PDF
 

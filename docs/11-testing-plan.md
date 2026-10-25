@@ -698,6 +698,16 @@ a judgement item: it is the only check that reads the document as a document.
 **Item 2 is runnable and has not been run.** 履歴書 became buildable on 2026-09-11, so it has
 something to print. It is in the state "never been run" rather than "cannot be run yet".
 
+**Item 1 was run for the 履歴書 on 2026-10-24** (#117, the two-page layout). The issue worker
+downloaded the demo record's 履歴書 from the app, and again after adding four invented employers to
+make eight, and opened both in Microsoft Word 16.114.1 on macOS, saving each to A4 PDF from Word.
+Both opened with no error or repair prompt. Both are two pages: page 1 ends inside 学歴・職歴, page 2
+opens with its 年 / 月 header repeated, then 免許・資格, and 志望動機 and 本人希望欄 are on page 2. No
+row splits across the break. The same check passed on 66 records built from the template with none to
+eight employers, zero to six certifications, one- and two-line addresses and a 志望動機 four times the
+usual length. This is the paper half of item 2 done on screen; printing to A4 is still not run, and
+the owner's own check of item 1 is still outstanding.
+
 The employer-name fault above did NOT reach it. The 履歴書 builds its 学歴・職歴 rows from its own
 input builder in `src/server/services/rirekisho.ts`, which reads `nameJa` directly and always has;
 `collectRenderInputs` supplies only the prompt behind 志望動機. So the table a reader sees was correct

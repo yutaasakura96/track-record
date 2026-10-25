@@ -7319,3 +7319,34 @@ found every user with a 退職理由 or a certification name carrying its verb g
   rule, now shared from the same module.
 - **Not changed:** the template's two-page layout, and the 職務経歴書's 保有資格 rows. Both are
   other #117 issues.
+
+### [2026-10-24] The 履歴書 is two fixed pages, as the 厚労省 form is
+
+The template is one flowing document, so the page break fell wherever the row count put it: through
+the 免許・資格 table with no header on page 2, and page 2 otherwise empty (#117 review §3.2).
+Supersedes the `docs/04` §4 note that "the break falls wherever the rows land".
+
+- **Decision:** page 1 is the identity block and 学歴・職歴 to the foot of the page; page 2 opens with
+  学歴・職歴 continued under its repeated 年 / 月 header, then 免許・資格, 志望動機 and 本人希望欄. That is
+  the 厚労省 様式例's page 1 and page 2. 学歴・職歴 is padded with blank rows after 以上 until it runs
+  three rows onto page 2, and the 志望動機 cell grows into what page 2 has left. A record too long for
+  this runs on, unpadded.
+- **Decision:** the break is computed, not left to Word. A conditional page break before 免許・資格
+  sends it to page 3 whenever 学歴・職歴 already overran page 1, and no Word construct breaks only
+  when the previous table did not. So `src/render/rirekisho-layout.ts` lays the filled document out —
+  fixed-pitch MS Mincho, Japanese and Latin wrapping, Word's ¼-em autospace, 0.2pt of border a row —
+  and pads to the page it computes. Three continued rows and a row and a half left under 本人希望欄
+  absorb the model's error, which was one row at most across 66 records printed by Word.
+- **Decision:** every paragraph gets an exact line height of 1.3 times its size, the height Word gives
+  MS Mincho at single spacing. Nothing moves on the page; the height stops depending on which font
+  Word finds, which is what makes the count hold.
+- **Decision:** every row is `cantSplit` and the two 年 / 月 header rows are `tblHeader`, so a row
+  never breaks across the pages and a continued table names its columns.
+- **Decision:** the layout is applied to the template's XML at fill time, not baked into
+  `templates/rirekisho.blank.docx`. The template is rebuilt only from the author's file, on the
+  author's machine; a pass in code holds for any template that build produces.
+- **Decision:** the in-app view does not draw the blank rows that close a table. They are the print's
+  page fill, and the screen is one page. An empty single-cell row, such as an unwritten 本人希望欄,
+  is still drawn: it is the form's, and the sent copy's citations read it.
+- **Not changed:** row wording (退社, 現在に至る, 免許・資格 verbs) and the 以上 row. Those are the
+  rows fix in #117's first item.

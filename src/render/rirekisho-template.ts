@@ -16,6 +16,7 @@
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import blankTemplate from "../../templates/rirekisho.blank.docx";
+import { blankRowOf, defaultHalfPoints, paginateXml, prepareTemplateXml } from "./rirekisho-layout";
 
 /** One row of a 年 / 月 / 内容 table. Every value is pre-composed text. */
 export interface RirekishoRow {
@@ -62,8 +63,14 @@ export interface RirekishoTemplateData {
 /** The stripped grid, as loaded by the runtime. Never mutated. */
 export const RIREKISHO_TEMPLATE_BYTES: ArrayBuffer = blankTemplate;
 
+const DOCUMENT = "word/document.xml";
+
 /**
  * Fill the template. Returns the `.docx` bytes; nothing is written anywhere.
+ *
+ * The grid is prepared for two fixed pages before the fill and paginated after
+ * it (`./rirekisho-layout.ts`): the page break depends on how many rows the
+ * record fills and how far each wraps, which only the filled text knows.
  *
  * `linebreaks: true` is required by the address field. `compression: "DEFLATE"`
  * is required because PizZip stores by default, which yields a file around
@@ -71,10 +78,16 @@ export const RIREKISHO_TEMPLATE_BYTES: ArrayBuffer = blankTemplate;
  * complains (`docs/06`, 2026-09-08).
  */
 export function fillRirekishoTemplate(data: RirekishoTemplateData): Uint8Array {
-  const doc = new Docxtemplater(new PizZip(RIREKISHO_TEMPLATE_BYTES), {
+  const zip = new PizZip(RIREKISHO_TEMPLATE_BYTES);
+  const bodyHalfPoints = defaultHalfPoints(zip.file("word/styles.xml")!.asText());
+  const prepared = prepareTemplateXml(zip.file(DOCUMENT)!.asText(), bodyHalfPoints);
+  zip.file(DOCUMENT, prepared);
+  const doc = new Docxtemplater(zip, {
     paragraphLoop: true,
     linebreaks: true,
   });
   doc.render(data);
-  return doc.getZip().generate({ type: "uint8array", compression: "DEFLATE" });
+  const filled = doc.getZip();
+  filled.file(DOCUMENT, paginateXml(filled.file(DOCUMENT)!.asText(), blankRowOf(prepared), bodyHalfPoints).xml);
+  return filled.generate({ type: "uint8array", compression: "DEFLATE" });
 }
