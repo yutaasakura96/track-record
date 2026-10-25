@@ -7625,3 +7625,53 @@ Word.
   refuses it by name and the Word file prints it), the Worker's size approaches its limit (a face
   could be fetched from the static assets instead of bundled), or the owner's Word check of the new
   `.docx` (`11` §3 item 1) finds the face or its fallback wrong.
+---
+
+### [2026-10-25] Japanese blocks align on character bigrams, and every change says where it sits
+
+- **Decision:** the diff's alignment pass compares Japanese blocks on character bigrams (whitespace
+  removed), not on the BudouX phrases it shows. A phrase carries its particle, so a short bullet that
+  changes one particle loses half its phrase matches: three lightly reworded bullets in the #117
+  review scored 0.23–0.33 on phrases against the 0.4 threshold and showed as a whole line removed
+  and another added. On bigrams they scored 0.50–0.67, and an unrelated pair 0.00, so the threshold
+  stays 0.4 for both languages. English still aligns on words.
+- **Decision:** what is shown stays BudouX phrases. Bigrams decide only which blocks are the same
+  block; a mark on two characters is the scatter Screen 2 rules out.
+- **Decision:** every change carries a `location`: the current version's section heading for a
+  removal, the proposal's otherwise, and, inside an `experience` section, the opening paragraph
+  of the employer group the block falls under, as `src/render/attribution.ts` reads the groups. A
+  職務経歴書 holds every employer in that one section, and a changed bullet could not be placed
+  without opening the document. The employer line is the document's own words, not a record lookup,
+  so the restore preview gets it too. The line is null for the opening paragraph itself and for
+  headings.
+- **Revisit if:** two unrelated Japanese bullets in one section align. Bigrams of a shared stem
+  (`削減`, `プロジェクト`) are where a false pair would come from.
+
+---
+
+### [2026-10-25] Blocks align only within their employer group (#117)
+
+Supersedes the alignment scope of "Japanese blocks align on character bigrams, and every change says
+where it sits" (2026-10-25), which aligned blocks across the whole section.
+
+- **Decision:** a block pairs only with a block in the same employer group. Inside an `experience`
+  section the opening paragraphs pair first, and each pair of groups then aligns its own rows and
+  bullets; outside one, the whole section is one group. A 職務経歴書 repeats its template rows
+  (資本金, 従業員数, 技術スタック) under every employer, and two employers' 資本金 rows scored 0.52 on
+  bigrams, so dropping one employer and adding another paired the old row with the new one and
+  labelled the old figures with the new employer.
+- **Decision:** two opening paragraphs are the same employer when they name the same company, and
+  the record decides which company that is: each opening resolves to a record employer as
+  `resolveEmployer` resolves an attribution heading, and that employer's id is the group's identity.
+  The route loads the user's employers for it. Only an opening no record employer matches falls back
+  to the name written before the period: NFKC-normalised, corporate form (株式会社, ㈱ and the like)
+  dropped, cut at the first bracket, `—`, `・`, `·`, `｜` or digit, and trimmed. An opening with
+  nothing left names no one, and its group pairs with nothing.
+- **Decision:** not bigram similarity: an opening carries the name, period, 雇用形態 and role
+  titles, and two employers' openings sharing 正社員 and a role title scored 0.45–0.73. The same
+  company with a changed period, 雇用形態 or role stays one group, and its opening pairs as an edit.
+- **Decision:** a block that moves to another employer is one removal and one addition, the removal
+  under the current version's employer and the addition under the proposal's.
+- **Revisit if:** an employer is renamed in the record, or an opening names a company the record does
+  not hold and writes it differently in two versions. Either group shows as removed and added in
+  full, every bullet with it.

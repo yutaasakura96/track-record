@@ -30,6 +30,8 @@ import {
   CREDIT_PAUSE_STORAGE_STATE,
   DIFF_REVIEW_IDENTITY,
   DIFF_REVIEW_STORAGE_STATE,
+  JAPANESE_DIFF_IDENTITY,
+  JAPANESE_DIFF_STORAGE_STATE,
   EDUCATION_CHIPS_IDENTITY,
   EDUCATION_CHIPS_STORAGE_STATE,
   DOCUMENT_VIEW_IDENTITY,
@@ -111,6 +113,15 @@ export default async function setup() {
     DIFF_REVIEW_IDENTITY,
   );
   writeFileSync(DIFF_REVIEW_STORAGE_STATE, `${JSON.stringify(storageState(diffReviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const japaneseDiffSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    JAPANESE_DIFF_IDENTITY,
+  );
+  writeFileSync(JAPANESE_DIFF_STORAGE_STATE, `${JSON.stringify(storageState(japaneseDiffSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
   // The reader's own author (issue #106), so the smoke test's record still starts with no profile.

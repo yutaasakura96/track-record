@@ -351,6 +351,7 @@ generation safe.
 - An addition with no counterpart shows `no matching line` in the opposite column, on a hatched empty cell; a removal shows `removed`.
 - Changed rows carry a 5%-opacity tone tint; the marks themselves carry 11% idle / 26% selected.
 - Clicking any mark selects that change and updates the rationale bar. Prev/next cycles in document order.
+- **Every block change says where it sits** in a micro line above its text wherever that block appears: the section heading and, for a block under an experience employer's opening paragraph, `· <employer line>`. The opening paragraph itself shows only the section heading; an unmatched placeholder shows no location line. The line is cut to one line with its full text on hover. A 職務経歴書 holds every employer in one section, and a changed bullet with no employer above it cannot be placed (#117).
 - **A section heading is a change like any block.** It is set at the heading size, labelled `Heading`, and carries its own rationale (`Heading rewritten · headings are written with the section, not from a fact`): a heading cites no fact. It comes before the changes to its section's blocks, counts in the additions and removals, and a heading that only exists on one side shows `no matching line` opposite. A section with no blocks is not in the document, so its heading is not diffed. Without this a regeneration could retitle every chapter of a career story and the review showed nothing (#105).
 
 ### The rationale bar — required, not decorative

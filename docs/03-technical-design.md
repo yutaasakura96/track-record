@@ -521,16 +521,34 @@ changes no claim (#59).
 
 Two passes, because one pass is unreadable:
 
-1. **Align paragraphs** between the current and proposed versions by similarity, not by position.
-   Unmatched blocks are genuine additions or removals. Without this, a single inserted sentence
-   shifts everything after it and the whole document reads as changed.
+1. **Align blocks** between the current and proposed versions by similarity within each group, not
+   by position. In an `experience` section, opening paragraphs establish employer groups by identity
+   before blocks within them are compared. Unmatched blocks are genuine additions or removals.
+   Without alignment, a single inserted sentence shifts everything after it and the whole document
+   reads as changed.
 2. **Diff tokens inside each matched pair** using jsdiff `diffArrays` — Myers, the same algorithm
-   git uses, at word granularity instead of line granularity.
+   git uses, at word or phrase granularity instead of line granularity.
 
 Visible section headings are compared by section key before that section's blocks. A changed,
 added or removed heading becomes its own change; headings of sections with no blocks are omitted.
 
 **Tokens:** words and punctuation for English; **BudouX phrases** for Japanese.
+
+**Alignment keys:** English blocks are compared on the same words. Japanese blocks are compared on
+**character bigrams**, not phrases: a phrase carries its particle, so a short bullet that changes one
+particle loses half its phrase matches and would show as a whole line out and another in. One Jaccard
+threshold, 0.4, serves both (decision log 2026-10-25). What is shown stays phrases.
+
+**Alignment scope:** a block pairs only with a block in the same employer group. In an `experience`
+section the opening paragraphs pair when they name the same company: the record employer each
+resolves to, as `resolveEmployer` reads an attribution heading, or, where the record matches none,
+the name written before the period (NFKC, corporate form dropped, cut at a bracket, separator or
+digit). Each pair of groups aligns its own rows and bullets; any other section is one group. A block
+moved to another employer is a removal and an addition.
+
+**Location:** each change carries its section heading. An `experience` block also carries its
+employer group's opening paragraph, except when the changed block is that opening paragraph itself.
+Heading changes and blocks outside an employer group carry no employer line.
 
 Verified end to end on the author's real 職務経歴書 prose:
 

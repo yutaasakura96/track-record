@@ -832,7 +832,7 @@ Other model failures use `generation_failed`.
 withheld, never what.
 
 **`GET /api/proposals/:id/diff` → 200** — changes for the split view and a preview for a first
-version. Two passes have already run server-side: paragraphs aligned, then tokens diffed
+version. Two passes have already run server-side: blocks aligned, then tokens diffed
 (`03-technical-design.md` §6.1).
 
 ```json
@@ -845,6 +845,7 @@ version. Two passes have already run server-side: paragraphs aligned, then token
       "changeId": "chg_1",
       "target": "block",
       "sectionKey": "experience",
+      "location": { "section": "Experience", "employer": "Aozora Logistics K.K. · Backend Engineer · 2019–2023" },
       "currentBlockId": "blk_88",
       "proposedBlockId": "blk_91",
       "tokens": [
@@ -862,6 +863,7 @@ version. Two passes have already run server-side: paragraphs aligned, then token
       "changeId": "chg_2",
       "target": "block",
       "sectionKey": "experience",
+      "location": { "section": "Experience", "employer": "Aozora Logistics K.K. · Backend Engineer · 2019–2023" },
       "currentBlockId": "blk_90",
       "proposedBlockId": null,
       "tokens": [{ "op": "remove", "text": "Improved system performance by ~30%" }],
@@ -881,6 +883,12 @@ version. Two passes have already run server-side: paragraphs aligned, then token
   new section or removed with one: `currentBlockId` and `proposedBlockId` are null, `tokens` diff
   the heading text, and it comes before the changes to that section's blocks. A section with no
   blocks is not in the document, so its heading is not diffed.
+- `location` places the change: `section` is the section's heading (the current version's for a
+  removal, otherwise the proposal's), and `employer` is the opening paragraph of the employer group
+  the block falls under in an `experience` section, null anywhere else, for the opening paragraph
+  itself and for a heading change. The alignment and employer-group rules are in `03` §6.1; a block
+  moved to another employer is a removal under the current version's employer and an addition under
+  the proposal's.
 - `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
   `removed_unverified` · `from_restricted`.
 - `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,

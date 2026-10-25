@@ -8,8 +8,9 @@
  */
 import { and, eq, inArray } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { facts, renderProposals, renderVersions, renders, sourceDocuments, sourceDocumentVersions } from "../db/schema";
+import { employers, facts, renderProposals, renderVersions, renders, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import type { Rationale } from "~/diff";
+import type { EmployerNames } from "~/render/attribution";
 import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
 import { refOf, titleOf } from "./render-ref";
@@ -94,6 +95,22 @@ export async function currentContent(
     .where(and(eq(renderVersions.userId, userId), eq(renderVersions.id, versionId)))
     .limit(1);
   return (version?.content as RenderContent | undefined) ?? null;
+}
+
+/**
+ * The record's employers by the names a render writes them under, 日本語 and
+ * Latin both — what the diff reads to tell which employer an `experience`
+ * group's opening paragraph names.
+ */
+export async function diffEmployers(db: Db, userId: string): Promise<EmployerNames[]> {
+  const rows = await db
+    .select({ id: employers.id, nameJa: employers.nameJa, nameLatin: employers.nameLatin })
+    .from(employers)
+    .where(eq(employers.userId, userId));
+  return rows.map((e) => ({
+    id: e.id,
+    names: [e.nameJa, e.nameLatin].filter((n): n is string => n !== null && n !== ""),
+  }));
 }
 
 /**

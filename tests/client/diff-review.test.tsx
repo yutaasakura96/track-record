@@ -44,6 +44,7 @@ const DIFF: RenderDiff = {
       changeId: "chg-test-1",
       target: "block",
       sectionKey: "experience",
+      location: { section: "Experience", employer: "Zentrel Works · Engineer" },
       currentBlockId: "blk-test-1",
       proposedBlockId: "blk-test-2",
       tokens: [
@@ -142,6 +143,13 @@ describe("a pending proposal", () => {
 
     expect(await screen.findByText("Change 1 of 1")).toBeTruthy();
     expect(screen.getByText("A fact was edited.")).toBeTruthy();
+  });
+
+  it("places each change under its section and employer, on both sides", async () => {
+    open(proposal());
+
+    await screen.findByText("Change 1 of 1");
+    expect(screen.getAllByText("Experience · Zentrel Works · Engineer")).toHaveLength(2);
   });
 });
 
@@ -270,6 +278,7 @@ describe("a heading change", () => {
       changeId: "chg-test-h",
       target: "heading",
       sectionKey: "chapter-1",
+      location: { section: "Building the ledger", employer: null },
       currentBlockId: null,
       proposedBlockId: null,
       tokens: [

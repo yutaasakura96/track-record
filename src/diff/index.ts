@@ -13,12 +13,15 @@
  *
  * **Both languages, and the language is the only thing that differs.** Tokens
  * are words and punctuation for English and BudouX phrases for Japanese
- * (`docs/03` §6.1, `docs/07` §API). Everything downstream of the tokenizer —
- * alignment, Myers, the rationale — is identical, which is the point: Japanese
- * support is a different token list, not a different engine.
+ * (`docs/03` §6.1, `docs/07` §API). Myers and the rationale are identical
+ * downstream of the tokenizer, which is the point: Japanese support is a
+ * different token list, not a different engine. Alignment compares Japanese on
+ * character bigrams rather than phrases, and only there — see
+ * {@link alignmentKeys}.
  */
 import { diffArrays } from "diff";
 import { segmentJapanese } from "~/segment";
+import { CORPORATE_FORM, EXPERIENCE_SECTION, resolveEmployer, type EmployerNames } from "~/render/attribution";
 import type { Block, RenderContent, RenderSection } from "~/shared/render-content";
 
 /**
@@ -57,11 +60,29 @@ export interface Rationale {
  */
 export type ChangeTarget = "block" | "heading";
 
+/**
+ * Where in the document a change sits. The split view shows changed blocks
+ * only, so without this a reworded bullet in a 職務経歴書 — where every
+ * employer is inside the one `experience` section — cannot be placed under its
+ * company without opening the document (#117, review D2).
+ */
+export interface ChangeLocation {
+  /** The section's heading, on the side the change is read on. */
+  section: string;
+  /**
+   * The opening paragraph of the employer group the block falls under, in an
+   * `experience` section. Null outside one, for a heading change, and for the
+   * opening paragraph itself, which is the employer line already.
+   */
+  employer: string | null;
+}
+
 export interface DiffChange {
   changeId: string;
   /** `heading` changes carry null block ids and read the heading's own tokens. */
   target: ChangeTarget;
   sectionKey: string;
+  location: ChangeLocation;
   currentBlockId: string | null;
   proposedBlockId: string | null;
   tokens: DiffToken[];
@@ -89,6 +110,11 @@ export interface DiffOptions {
     currentBlock: Block | null;
     proposedBlock: Block | null;
   }) => Rationale;
+  /**
+   * The record's employers, which decide which employer an `experience`
+   * group's opening paragraph names. Loaded for the render's own user.
+   */
+  employers: readonly EmployerNames[];
 }
 
 export function diffRenders(
@@ -116,7 +142,10 @@ export function diffRenders(
       changes.push(headingEntry(++n, section.key, heading, currentSection, section));
     }
 
-    for (const pair of alignBlocks(before, section.blocks, options.language)) {
+    const employerBefore = employerLines(currentSection);
+    const employerAfter = employerLines(section);
+
+    for (const pair of alignSection(before, section, options)) {
       const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
 
@@ -131,6 +160,14 @@ export function diffRenders(
         changeId: `chg_${++n}`,
         target: "block",
         sectionKey: section.key,
+        // A removal is placed where it sat in the current version; anything
+        // else where it would sit in the proposal.
+        location: pair.proposed
+          ? { section: section.heading, employer: employerAfter.get(pair.proposed.id) ?? null }
+          : {
+              section: currentSection?.heading ?? section.heading,
+              employer: employerBefore.get(pair.current!.id) ?? null,
+            },
         currentBlockId: pair.current?.id ?? null,
         proposedBlockId: pair.proposed?.id ?? null,
         tokens,
@@ -148,12 +185,14 @@ export function diffRenders(
       removals++;
       changes.push(headingEntry(++n, key, heading, section, undefined));
     }
+    const employers = employerLines(section);
     for (const block of section.blocks) {
       removals++;
       changes.push({
         changeId: `chg_${++n}`,
         target: "block",
         sectionKey: key,
+        location: { section: section.heading, employer: employers.get(block.id) ?? null },
         currentBlockId: block.id,
         proposedBlockId: null,
         tokens: [{ op: "remove", text: block.text }],
@@ -204,6 +243,9 @@ function headingEntry(
     changeId: `chg_${n}`,
     target: "heading",
     sectionKey,
+    // The tokens show both wordings; the location names the one the document
+    // would carry, or the one it loses with the section.
+    location: { section: (shownAfter ? proposed?.heading : current?.heading) ?? "", employer: null },
     currentBlockId: null,
     proposedBlockId: null,
     tokens,
@@ -221,11 +263,125 @@ function headingEntry(
   };
 }
 
+/**
+ * Block id → the employer line it falls under, in an `experience` section.
+ *
+ * The section carries no employer ids: a `paragraph` opens an employer group
+ * and every row and bullet after it belongs to that group, the same reading
+ * `src/render/attribution.ts` checks against. The opening paragraph is the
+ * employer's name, period and roles, so it is the line that places a change,
+ * in the document's own words.
+ */
+function employerLines(section: RenderSection | undefined): Map<string, string> {
+  const lines = new Map<string, string>();
+  if (section?.key !== EXPERIENCE_SECTION) return lines;
+  let employer: string | null = null;
+  for (const block of section.blocks) {
+    if (block.kind === "paragraph") {
+      employer = block.text;
+      continue;
+    }
+    if (employer !== null) lines.set(block.id, employer);
+  }
+  return lines;
+}
+
 /* -------------------------------------------------------- pass 1: alignment */
 
 interface AlignedPair {
   current: Block | null;
   proposed: Block | null;
+}
+
+interface EmployerGroup {
+  opening: Block;
+  rest: Block[];
+}
+
+/**
+ * Splits an `experience` section's blocks the way {@link employerLines} reads
+ * them: whatever comes before the first paragraph, then one group per opening
+ * paragraph.
+ */
+function employerGroups(blocks: Block[]): { lead: Block[]; groups: EmployerGroup[] } {
+  const lead: Block[] = [];
+  const groups: EmployerGroup[] = [];
+  for (const block of blocks) {
+    if (block.kind === "paragraph") groups.push({ opening: block, rest: [] });
+    else if (groups.length > 0) groups[groups.length - 1]!.rest.push(block);
+    else lead.push(block);
+  }
+  return { lead, groups };
+}
+
+/**
+ * Which employer an opening paragraph names. The opening paragraph also carries
+ * the period, the 雇用形態 and the role titles, and two employers share most of
+ * those, so similarity cannot say which employer a group is.
+ *
+ * The record decides first, as {@link resolveEmployer} reads a heading. Only
+ * when no record employer matches does the company name written before the
+ * period stand in: width-normalised, corporate form dropped, and cut at the
+ * first bracket, heading separator or digit. Null when neither names anyone,
+ * and a group with no identity pairs with nothing.
+ */
+function employerIdentity(opening: string, employers: readonly EmployerNames[]): string | null {
+  const id = resolveEmployer(opening, employers);
+  if (id !== null) return `record:${id}`;
+  const text = opening
+    .normalize("NFKC")
+    .replace(/\((?:株|有|合|同)\)/gu, " ")
+    .replace(CORPORATE_FORM, " ");
+  const cut = text.search(/[()—・·|\d]/u);
+  const name = (cut === -1 ? text : text.slice(0, cut)).replace(/\s+/gu, " ").trim().toLowerCase();
+  return name === "" ? null : `name:${name}`;
+}
+
+/**
+ * Alignment for one section. Outside an `experience` section the whole section
+ * is one group. Inside one, a block only pairs with a block under the same
+ * employer: opening paragraphs pair when they name the same employer, and each
+ * pair of groups then aligns its own rows and bullets. A 職務経歴書 repeats the
+ * same template rows (資本金, 従業員数, 技術スタック) under every employer, and on
+ * bigrams two employers' rows are alike enough to pair, which would label one
+ * employer's old figures as another's. A block that moved to another employer
+ * is one removal and one addition, each under its own employer.
+ */
+function alignSection(
+  current: Block[],
+  proposed: RenderSection,
+  { language, employers }: DiffOptions,
+): AlignedPair[] {
+  if (proposed.key !== EXPERIENCE_SECTION) return alignBlocks(current, proposed.blocks, language);
+
+  const before = employerGroups(current);
+  const after = employerGroups(proposed.blocks);
+  const restOf = (groups: EmployerGroup[]) => new Map(groups.map((g) => [g.opening, g.rest]));
+  const restBefore = restOf(before.groups);
+  const restAfter = restOf(after.groups);
+
+  const currentOpenings = before.groups.map((g) => g.opening);
+  const proposedOpenings = after.groups.map((g) => g.opening);
+  const matchOf = new Map<number, number>();
+  const claimed = new Set<number>();
+  const currentIdentities = currentOpenings.map((c) => employerIdentity(c.text, employers));
+  proposedOpenings.forEach((p, pi) => {
+    const identity = employerIdentity(p.text, employers);
+    if (identity === null) return;
+    const ci = currentIdentities.findIndex((c, i) => !claimed.has(i) && c === identity);
+    if (ci === -1) return;
+    claimed.add(ci);
+    matchOf.set(pi, ci);
+  });
+
+  const pairs = alignBlocks(before.lead, after.lead, language);
+  for (const { current: c, proposed: p } of inDocumentOrder(currentOpenings, proposedOpenings, matchOf)) {
+    pairs.push({ current: c, proposed: p });
+    if (c && p) pairs.push(...alignBlocks(restBefore.get(c)!, restAfter.get(p)!, language));
+    else if (c) pairs.push(...restBefore.get(c)!.map((block) => ({ current: block, proposed: null })));
+    else pairs.push(...restAfter.get(p!)!.map((block) => ({ current: null, proposed: block })));
+  }
+  return pairs;
 }
 
 /**
@@ -243,10 +399,7 @@ export function alignBlocks(
   const tokensOf = (block: Block) => {
     let set = tokenSets.get(block);
     if (!set) {
-      // The same tokenizer pass 2 uses. On Japanese, `tokenize` returns the
-      // whole paragraph as a single token — every similarity would be 0 or 1,
-      // and alignment would degrade to exact-match.
-      set = new Set(tokensFor(block.text, language).map((t) => t.trim()).filter(Boolean));
+      set = new Set(alignmentKeys(block.text, language));
       tokenSets.set(block, set);
     }
     return set;
@@ -270,9 +423,16 @@ export function alignBlocks(
     proposedTaken.add(p);
     matchOf.set(p, c);
   }
+  return inDocumentOrder(current, proposed, matchOf);
+}
 
-  // Walk the proposal in document order, emitting removals from the current
-  // version at the point they used to sit.
+/**
+ * Walks the proposal in document order, emitting removals from the current
+ * version at the point they used to sit. `matchOf` maps a proposed index to
+ * the current index it pairs with.
+ */
+function inDocumentOrder(current: Block[], proposed: Block[], matchOf: Map<number, number>): AlignedPair[] {
+  const currentTaken = new Set(matchOf.values());
   const pairs: AlignedPair[] = [];
   let nextCurrent = 0;
   proposed.forEach((p, pi) => {
@@ -291,6 +451,30 @@ export function alignBlocks(
     if (!currentTaken.has(i)) pairs.push({ current: current[i]!, proposed: null });
   }
   return pairs;
+}
+
+/**
+ * What two blocks are compared on to decide whether they are the same block.
+ *
+ * English compares the words pass 2 diffs. Japanese does not compare the BudouX
+ * phrases pass 2 diffs: a phrase carries its particle, so 「締めを」 and
+ * 「締めの」 are different tokens, and a four-phrase bullet that changes one
+ * particle loses half its matches. Short bullets reworded that lightly scored
+ * 0.2–0.3 on phrases and showed as one whole line removed and another added
+ * (#117, review D1). Character bigrams survive a changed particle — only the
+ * bigrams touching it change — and still share next to nothing between two
+ * unrelated bullets, so one threshold serves both languages. (`tokenize` is
+ * worse still on Japanese: it returns a whole paragraph as one token, and
+ * alignment would degrade to exact match.)
+ *
+ * Only alignment reads this. What is shown stays BudouX phrases: a mark on two
+ * characters is the scatter `docs/10` Screen 2 rules out.
+ */
+export function alignmentKeys(text: string, language: DiffLanguage): string[] {
+  if (language === "en") return tokensFor(text, language).map((t) => t.trim()).filter(Boolean);
+  const chars = Array.from(text.replace(/\s+/gu, ""));
+  if (chars.length < 2) return chars;
+  return chars.slice(1).map((char, i) => chars[i]! + char);
 }
 
 function jaccard(a: Set<string>, b: Set<string>): number {
