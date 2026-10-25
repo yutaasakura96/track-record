@@ -1,0 +1,5 @@
+services:
+  postgres:
+    ports: !override ["55439:5432"]
+  neon-proxy:
+    ports: !override ["45439:4444"]
