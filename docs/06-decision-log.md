@@ -7501,18 +7501,18 @@ above; the boundary it set, the unit or counter plus an attached rate or compari
   dropped, so `5 clinic reports` was sourced by `5 hospital reports`. Each such word is now kept: the
   claim may carry one only when the passage uses it as a whole word elsewhere (`five clinic reports`
   from a passage about the clinic), and the passage may carry none the claim lacks. A percentage's `of`
-  reads through a determiner (`all`, `the`, `our`) to its noun, so `5% of all users` is not
-  `5% of all revenue`. A slash ratio (`2/5`) is one figure, like `one in 5` and `3 out of 5`, and
+  reads through determiners (`all`, `the`, `our`) to its unit and attached rate, so
+  `5% of all clinic reports` is not `5% of all clinic revenue`. A slash ratio (`2/5`) is one figure,
+  like `one in 5` and `3 out of 5`, and
   neither number of any ratio sources a plain count. `以上` and `以下` after a counter were already
   compared; tests now hold both directions.
-- **Decision:** the descriptive list grows by words that say what is counted without changing how
-  many (`junior`, `existing`, `separate`, `diverging`, `consecutive`). Held to `active` and `senior`
-  alone, `three diverging component libraries` and `21 consecutive days` flagged two demo facts whose
-  passage states the number.
+- **Decision:** only `active` and `senior` are ignored when the passage adds a word before a unit.
+  Other words remain part of the quantity, so `three diverging component libraries` and
+  `21 consecutive days` flag two demo facts whose passages add a word.
 - **Backfilled:** migration 0033 ports the rule and re-raises a number flag the system settled and
   nobody touched since when the rule now keeps it, as 0032 did. It settles nothing and writes no
   fact, and `tests/number-flag-phrase-migration.test.ts` holds it to the code case by case.
-- **Measured:** the demo seed's Flagged count is 14 before and after, with 7 of its 56 candidates
+- **Measured:** the demo seed's Flagged count rises from 14 to 16, with 9 of its 56 candidates
   carrying the number flag.
 - **Revisit if:** a count-neutral word the record uses often is missing from the list; each miss
   flags the fact, which errs toward a look.

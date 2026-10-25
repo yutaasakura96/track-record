@@ -24,6 +24,7 @@ DECLARE
   character text;
   descriptive text[] := '{}';
   rate text;
+  percentage_quantity text[];
 BEGIN
   LOOP
     first := regexp_replace(regexp_replace(rest, '^\s+', ''), '^-(?=[a-z])', '');
@@ -48,7 +49,7 @@ BEGIN
       END IF;
       IF word ~ '^(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent|more|over|less|under|additional)$' OR strpos(word, '-') > 0 THEN
         phrase := concat_ws(' ', nullif(phrase, ''), word);
-      ELSIF word !~ '^(?:active|senior|junior|existing|separate|diverging|consecutive)$' THEN descriptive := descriptive || word;
+      ELSIF word !~ '^(?:active|senior)$' THEN descriptive := descriptive || word;
       END IF;
       rest := substr(first, length(word) + 1);
       CONTINUE;
@@ -79,8 +80,12 @@ BEGIN
       phrase := concat_ws(' ', nullif(phrase, ''), character);
       rest := substr(first, 2);
       IF character = '%' THEN
-        rate := btrim(substring(rest from '^\s+of\s+(?:(?:the|a|an|all|our|their|its|his|her|my|your|this|that|these|those|each|every|both|some|any|active|senior|junior|existing|separate|diverging|consecutive)\s+)*[a-z]+(?:-[a-z]+)*'));
-        IF rate IS NOT NULL THEN phrase := phrase || ' ' || rate; END IF;
+        rate := substring(rest from '^\s+of\s+(?:(?:the|a|an|all|our|their|its|his|her|my|your|this|that|these|those|each|every|both|some|any|active|senior)\s+)*');
+        IF rate IS NOT NULL AND substr(rest, length(rate) + 1, 1) ~ '^[a-z]' THEN
+          percentage_quantity := number_flag_phrase(substr(rest, length(rate) + 1));
+          phrase := phrase || ' ' || btrim(regexp_replace(rate, '\m(?:active|senior)\M\s+', '', 'g')) || ' ' || percentage_quantity[1];
+          RETURN ARRAY[phrase] || descriptive || percentage_quantity[2:];
+        END IF;
         EXIT;
       END IF;
       CONTINUE;

@@ -275,6 +275,11 @@ describe("a claim that states a number its passage does not", () => {
     ["a word the passage adds before a word number's unit", "Mentored five engineers", "Mentored five platform engineers.", []],
     ["a percentage of all users against all revenue", "Reached 5% of all users", "Reached 5% of all revenue.", []],
     ["a percentage of all revenue against all users", "Reached 5% of all revenue", "Reached 5% of all users.", []],
+    ["a percentage of all clinic reports against revenue", "Reached 5% of all clinic reports", "Reached 5% of all clinic revenue.", []],
+    ["a percentage of all clinic revenue against reports", "Reached 5% of all clinic revenue", "Reached 5% of all clinic reports.", []],
+    ["a percentage with a different attached rate", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per year.", []],
+    ["a separate count in the passage", "Wrote 5 reports", "Wrote 5 separate reports.", []],
+    ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -346,7 +351,7 @@ describe("a claim that states a number its passage does not", () => {
     ["a word before the unit the passage uses elsewhere", "Wrote 5 clinic reports", "For the clinic, I wrote 5 reports.", []],
     ["the same word before the unit", "Wrote 5 clinic reports", "Wrote 5 clinic reports.", []],
     ["the same percentage of all users", "Reached 5% of all users", "Reached 5% of all users.", []],
-    ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
+    ["the same percentage of all clinic reports", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per month.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
@@ -363,19 +368,25 @@ describe("a claim that states a number its passage does not", () => {
       "Reduced mobile checkout abandonment from 31% to 22%, valued at about ¥140 million in annual GMV",
       "Built an offline search evaluation set from six months of logs, labelled by click-through and purchase",
       "Moved search ranking to learning-to-rank, raising search conversion by 9% in a four-week A/B test",
-      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
       "Twelve teams adopted the design system within a year",
       "Led a team of four migrating the platform from hand-managed VMs to Azure Kubernetes Service",
       "Moved the booking API behind a traffic split, sending 5% of requests to the new cluster first",
       "Moved all 23 services to AKS over nine months with no unplanned downtime",
       "Defined the first five clinic reports with the operations team at Sakura Family Clinic",
-      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
     ];
     const candidates = DOCUMENTS.flatMap((document) => document.candidates);
     for (const claim of claims) {
       const candidate = candidates.find((entry) => entry.claim === claim);
       expect(candidate, claim).toBeDefined();
       expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(false);
+    }
+    for (const claim of [
+      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
+      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
+    ]) {
+      const candidate = candidates.find((entry) => entry.claim === claim);
+      expect(candidate, claim).toBeDefined();
+      expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(true);
     }
     expect(unsourcedNumber(CAPTURED[0]!.claim, null, CAPTURED[0]!.technologies)).toBe(true);
   });

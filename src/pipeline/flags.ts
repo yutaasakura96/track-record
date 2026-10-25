@@ -151,11 +151,11 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
 
 /**
  * Words that say what is counted without changing how many: `5 million active
- * users` is `5 million users`, and `21 consecutive days` is `21 days`. A
+ * users` is `5 million users`. A
  * scale, a comparison (`more`, `over`) or an amount (`additional`, `dozen`) is
  * never one.
  */
-const MODIFIER = "(?:active|senior|junior|existing|separate|diverging|consecutive)";
+const MODIFIER = "(?:active|senior)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
 const SCALE = "(?:hundred|thousand|million|billion)";
 const WORD_NUMBER =
@@ -218,7 +218,7 @@ const SCALE_AFTER = /^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb]
 
 /** Before a percentage's noun: `5% of all users` is of users, and not of revenue. */
 const DETERMINER = "(?:the|a|an|all|our|their|its|his|her|my|your|this|that|these|those|each|every|both|some|any)";
-const PERCENTAGE_OF = new RegExp(`^\\s+of\\s+(?:(?:${DETERMINER}|${MODIFIER})\\s+)*[a-z]+(?:-[a-z]+)*`, "u");
+const PERCENTAGE_OF_PREFIX = new RegExp(`^\\s+of\\s+(?:(?:${DETERMINER}|${MODIFIER})\\s+)*`, "u");
 
 /**
  * A number's quantity: the phrase compared as it is, and the other words read
@@ -277,8 +277,13 @@ function quantityAfter(tail: string): Quantity {
       words.push(character);
       rest = first.slice(character.length);
       if (character === "%") {
-        const group = rest.match(PERCENTAGE_OF)?.[0].trim();
-        if (group) words.push(group);
+        const prefix = rest.match(PERCENTAGE_OF_PREFIX)?.[0] ?? "";
+        const noun = rest.slice(prefix.length);
+        if (prefix && /^[a-z]/u.test(noun)) {
+          const quantity = quantityAfter(noun);
+          const keptPrefix = prefix.trim().replace(/\b(?:active|senior)\s+/gu, "").trim();
+          return { phrase: [...words, keptPrefix, quantity.phrase].join(" "), descriptive: [...descriptive, ...quantity.descriptive] };
+        }
         break;
       }
       continue;
