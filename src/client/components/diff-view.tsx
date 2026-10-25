@@ -109,6 +109,21 @@ export function DiffPanes({
 }
 
 /**
+ * Where a changed block sits. The columns show changed blocks only, so without
+ * this a reworded bullet in a 職務経歴書 cannot be placed under its employer
+ * without opening the document (#117). The employer line can be long; it is
+ * cut to one line here, with the whole of it on hover.
+ */
+function Location({ location }: { location: DiffChange["location"] }) {
+  const where = location.employer ? `${location.section} · ${location.employer}` : location.section;
+  return (
+    <span className="block truncate text-micro text-text-dimmer" title={where}>
+      {where}
+    </span>
+  );
+}
+
+/**
  * One side of the split view. Unchanged content renders identically in both
  * columns at full opacity — this is a document being read, not a patch being
  * applied.
@@ -173,7 +188,9 @@ function Column({
               >
                 {heading ? (
                   <span className="block text-micro normal-case text-text-dimmer">Heading</span>
-                ) : null}
+                ) : (
+                  <Location location={change.location} />
+                )}
                 {change.tokens
                   .filter((token) => token.op === "equal" || token.op === keep)
                   .map((token, i) =>

@@ -13,12 +13,15 @@
  *
  * **Both languages, and the language is the only thing that differs.** Tokens
  * are words and punctuation for English and BudouX phrases for Japanese
- * (`docs/03` §6.1, `docs/07` §API). Everything downstream of the tokenizer —
- * alignment, Myers, the rationale — is identical, which is the point: Japanese
- * support is a different token list, not a different engine.
+ * (`docs/03` §6.1, `docs/07` §API). Myers and the rationale are identical
+ * downstream of the tokenizer, which is the point: Japanese support is a
+ * different token list, not a different engine. Alignment compares Japanese on
+ * character bigrams rather than phrases, and only there — see
+ * {@link alignmentKeys}.
  */
 import { diffArrays } from "diff";
 import { segmentJapanese } from "~/segment";
+import { EXPERIENCE_SECTION } from "~/render/attribution";
 import type { Block, RenderContent, RenderSection } from "~/shared/render-content";
 
 /**
@@ -57,11 +60,29 @@ export interface Rationale {
  */
 export type ChangeTarget = "block" | "heading";
 
+/**
+ * Where in the document a change sits. The split view shows changed blocks
+ * only, so without this a reworded bullet in a 職務経歴書 — where every
+ * employer is inside the one `experience` section — cannot be placed under its
+ * company without opening the document (#117, review D2).
+ */
+export interface ChangeLocation {
+  /** The section's heading, on the side the change is read on. */
+  section: string;
+  /**
+   * The opening paragraph of the employer group the block falls under, in an
+   * `experience` section. Null outside one, for a heading change, and for the
+   * opening paragraph itself, which is the employer line already.
+   */
+  employer: string | null;
+}
+
 export interface DiffChange {
   changeId: string;
   /** `heading` changes carry null block ids and read the heading's own tokens. */
   target: ChangeTarget;
   sectionKey: string;
+  location: ChangeLocation;
   currentBlockId: string | null;
   proposedBlockId: string | null;
   tokens: DiffToken[];
@@ -116,6 +137,9 @@ export function diffRenders(
       changes.push(headingEntry(++n, section.key, heading, currentSection, section));
     }
 
+    const employerBefore = employerLines(currentSection);
+    const employerAfter = employerLines(section);
+
     for (const pair of alignBlocks(before, section.blocks, options.language)) {
       const tokens = tokenDiff(pair.current, pair.proposed, options.language);
       if (tokens.every((t) => t.op === "equal")) continue;
@@ -131,6 +155,14 @@ export function diffRenders(
         changeId: `chg_${++n}`,
         target: "block",
         sectionKey: section.key,
+        // A removal is placed where it sat in the current version; anything
+        // else where it would sit in the proposal.
+        location: pair.proposed
+          ? { section: section.heading, employer: employerAfter.get(pair.proposed.id) ?? null }
+          : {
+              section: currentSection?.heading ?? section.heading,
+              employer: employerBefore.get(pair.current!.id) ?? null,
+            },
         currentBlockId: pair.current?.id ?? null,
         proposedBlockId: pair.proposed?.id ?? null,
         tokens,
@@ -148,12 +180,14 @@ export function diffRenders(
       removals++;
       changes.push(headingEntry(++n, key, heading, section, undefined));
     }
+    const employers = employerLines(section);
     for (const block of section.blocks) {
       removals++;
       changes.push({
         changeId: `chg_${++n}`,
         target: "block",
         sectionKey: key,
+        location: { section: section.heading, employer: employers.get(block.id) ?? null },
         currentBlockId: block.id,
         proposedBlockId: null,
         tokens: [{ op: "remove", text: block.text }],
@@ -204,6 +238,9 @@ function headingEntry(
     changeId: `chg_${n}`,
     target: "heading",
     sectionKey,
+    // The tokens show both wordings; the location names the one the document
+    // would carry, or the one it loses with the section.
+    location: { section: (shownAfter ? proposed?.heading : current?.heading) ?? "", employer: null },
     currentBlockId: null,
     proposedBlockId: null,
     tokens,
@@ -219,6 +256,29 @@ function headingEntry(
       factIds: [],
     },
   };
+}
+
+/**
+ * Block id → the employer line it falls under, in an `experience` section.
+ *
+ * The section carries no employer ids: a `paragraph` opens an employer group
+ * and every row and bullet after it belongs to that group, the same reading
+ * `src/render/attribution.ts` checks against. The opening paragraph is the
+ * employer's name, period and roles, so it is the line that places a change,
+ * in the document's own words.
+ */
+function employerLines(section: RenderSection | undefined): Map<string, string> {
+  const lines = new Map<string, string>();
+  if (section?.key !== EXPERIENCE_SECTION) return lines;
+  let employer: string | null = null;
+  for (const block of section.blocks) {
+    if (block.kind === "paragraph") {
+      employer = block.text;
+      continue;
+    }
+    if (employer !== null) lines.set(block.id, employer);
+  }
+  return lines;
 }
 
 /* -------------------------------------------------------- pass 1: alignment */
@@ -243,10 +303,7 @@ export function alignBlocks(
   const tokensOf = (block: Block) => {
     let set = tokenSets.get(block);
     if (!set) {
-      // The same tokenizer pass 2 uses. On Japanese, `tokenize` returns the
-      // whole paragraph as a single token — every similarity would be 0 or 1,
-      // and alignment would degrade to exact-match.
-      set = new Set(tokensFor(block.text, language).map((t) => t.trim()).filter(Boolean));
+      set = new Set(alignmentKeys(block.text, language));
       tokenSets.set(block, set);
     }
     return set;
@@ -291,6 +348,30 @@ export function alignBlocks(
     if (!currentTaken.has(i)) pairs.push({ current: current[i]!, proposed: null });
   }
   return pairs;
+}
+
+/**
+ * What two blocks are compared on to decide whether they are the same block.
+ *
+ * English compares the words pass 2 diffs. Japanese does not compare the BudouX
+ * phrases pass 2 diffs: a phrase carries its particle, so 「締めを」 and
+ * 「締めの」 are different tokens, and a four-phrase bullet that changes one
+ * particle loses half its matches. Short bullets reworded that lightly scored
+ * 0.2–0.3 on phrases and showed as one whole line removed and another added
+ * (#117, review D1). Character bigrams survive a changed particle — only the
+ * bigrams touching it change — and still share next to nothing between two
+ * unrelated bullets, so one threshold serves both languages. (`tokenize` is
+ * worse still on Japanese: it returns a whole paragraph as one token, and
+ * alignment would degrade to exact match.)
+ *
+ * Only alignment reads this. What is shown stays BudouX phrases: a mark on two
+ * characters is the scatter `docs/10` Screen 2 rules out.
+ */
+export function alignmentKeys(text: string, language: DiffLanguage): string[] {
+  if (language === "en") return tokensFor(text, language).map((t) => t.trim()).filter(Boolean);
+  const chars = Array.from(text.replace(/\s+/gu, ""));
+  if (chars.length < 2) return chars;
+  return chars.slice(1).map((char, i) => chars[i]! + char);
 }
 
 function jaccard(a: Set<string>, b: Set<string>): number {

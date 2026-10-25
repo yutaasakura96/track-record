@@ -532,6 +532,15 @@ added or removed heading becomes its own change; headings of sections with no bl
 
 **Tokens:** words and punctuation for English; **BudouX phrases** for Japanese.
 
+**Alignment keys:** English blocks are compared on the same words. Japanese blocks are compared on
+**character bigrams**, not phrases: a phrase carries its particle, so a short bullet that changes one
+particle loses half its phrase matches and would show as a whole line out and another in. One Jaccard
+threshold, 0.4, serves both (decision log 2026-10-25). What is shown stays phrases.
+
+**Location:** every change names the section heading it sits under and, in an `experience` section,
+the opening paragraph of its employer group, so a 職務経歴書 bullet can be placed without opening
+the document.
+
 Verified end to end on the author's real 職務経歴書 prose:
 
 ```

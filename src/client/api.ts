@@ -516,6 +516,8 @@ export interface DiffChange {
   /** A section heading is a change of its own, with no blocks behind it. */
   target: "block" | "heading";
   sectionKey: string;
+  /** The section heading, and in an experience section the employer line the block sits under. */
+  location: { section: string; employer: string | null };
   currentBlockId: string | null;
   proposedBlockId: string | null;
   tokens: { op: "equal" | "add" | "remove"; text: string }[];

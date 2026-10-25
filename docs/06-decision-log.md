@@ -7625,3 +7625,24 @@ Word.
   refuses it by name and the Word file prints it), the Worker's size approaches its limit (a face
   could be fetched from the static assets instead of bundled), or the owner's Word check of the new
   `.docx` (`11` §3 item 1) finds the face or its fallback wrong.
+---
+
+### [2026-10-25] Japanese blocks align on character bigrams, and every change says where it sits
+
+- **Decision:** the diff's alignment pass compares Japanese blocks on character bigrams (whitespace
+  removed), not on the BudouX phrases it shows. A phrase carries its particle, so a short bullet that
+  changes one particle loses half its phrase matches: three lightly reworded bullets in the #117
+  review scored 0.23–0.33 on phrases against the 0.4 threshold and showed as a whole line removed
+  and another added. On bigrams they scored 0.50–0.67, and an unrelated pair 0.00, so the threshold
+  stays 0.4 for both languages. English still aligns on words.
+- **Decision:** what is shown stays BudouX phrases. Bigrams decide only which blocks are the same
+  block; a mark on two characters is the scatter Screen 2 rules out.
+- **Decision:** every change carries a `location`: the section heading on the side it is read on
+  (the current version's for a removal), and, inside an `experience` section, the opening paragraph
+  of the employer group the block falls under, as `src/render/attribution.ts` reads the groups. A
+  職務経歴書 holds every employer in that one section, and a changed bullet could not be placed
+  without opening the document. The employer line is the document's own words, not a record lookup,
+  so the restore preview gets it too. The line is null for the opening paragraph itself and for
+  headings.
+- **Revisit if:** two unrelated Japanese bullets in one section align. Bigrams of a shared stem
+  (`削減`, `プロジェクト`) are where a false pair would come from.
