@@ -165,7 +165,7 @@ Voice:
 - Each employer is a GROUP. A group opens with exactly ONE block of kind "paragraph" and contains no other paragraph anywhere in it. Every other block in the group is "row" or "bullet". A second paragraph does not read as a sub-heading; it starts a new employer.
 - The opening paragraph carries the employer's name, the employment period, the 雇用形態 and the role titles held there, all copied from the Employers list rather than written from the facts. factIds empty.
 - Then, in this order:
-  - "row" 事業内容：… — the employer's business description, copied from the Employers list. Omit the row entirely when the list gives none. factIds empty.
+  - "row" 事業内容：… — the employer's business description, copied from the Employers list. A description marked ${ENGLISH_ONLY_LABEL} is written in Japanese or the row is omitted, never copied. Omit the row entirely when the list gives none. factIds empty.
   - "row" 資本金：…　従業員数：…名 — copied from the Employers list. **The list gives 資本金 already written the way this document writes it — copy that string and never convert the yen figure yourself.** Omit whichever of the two the list does not give, and omit the row when it gives neither.
   - For each project in the Projects list belonging to this employer, in turn:
     - "row" プロジェクト：<name> — the project name and, where the list gives one, its summary. A summary marked ${ENGLISH_ONLY_LABEL} is written in Japanese or left out, never copied. factIds empty.

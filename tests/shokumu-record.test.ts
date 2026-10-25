@@ -260,6 +260,28 @@ describe("the Japanese prompt and the English the record holds", () => {
     );
   });
 
+  it("marks an English-only business description, and leaves a Japanese one alone", () => {
+    const employer = {
+      id: "emp_a",
+      name: "架空派遣株式会社",
+      industry: null,
+      startedOn: "2020-04-01",
+      endedOn: null,
+      employmentType: "dispatch" as const,
+      capitalYen: null,
+      headcount: null,
+      roles: [],
+      city: null,
+    };
+    const english = buildGenerationPrompt(
+      spec({ employers: [{ ...employer, businessDescription: "Provides fictional payroll software." }] }),
+    );
+    expect(english).toContain(`· ${ENGLISH_ONLY_LABEL} Provides fictional payroll software.`);
+    const japanese = buildGenerationPrompt(spec({ employers: [{ ...employer, businessDescription: "架空の給与計算ソフトを提供" }] }));
+    expect(japanese).toContain("· 架空の給与計算ソフトを提供");
+    expect(japanese).not.toContain(`${ENGLISH_ONLY_LABEL} 架空の給与計算ソフトを提供`);
+  });
+
   it("copies an English-only role title and certification name unlabelled, and still labels Japanese ones in English", () => {
     const employer = {
       id: "emp_a",
