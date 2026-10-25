@@ -180,6 +180,7 @@ export interface RenderSpec {
     name: string;
     employerId: string | null;
     summary: string | null;
+    summaryJa: string | null;
     startedOn: string | null;
     endedOn: string | null;
   }[];

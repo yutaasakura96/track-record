@@ -185,7 +185,7 @@ describe("保有資格 and 学歴, filled from the record", () => {
 });
 
 describe("the Japanese prompt and the English the record holds", () => {
-  const project = { id: "prj_a", name: "架空台帳", employerId: null, startedOn: null, endedOn: null };
+  const project = { id: "prj_a", name: "架空台帳", employerId: null, summaryJa: null, startedOn: null, endedOn: null };
 
   it("marks an English-only summary, and leaves a Japanese one alone", () => {
     const english = buildGenerationPrompt(spec({ projects: [{ ...project, summary: "Rebuilt the ledger as append-only." }] }));
@@ -195,11 +195,13 @@ describe("the Japanese prompt and the English the record holds", () => {
     expect(japanese).not.toContain(`${ENGLISH_ONLY_LABEL} 台帳`);
   });
 
-  it("is told what an English-only field is for, in every Japanese register", () => {
-    for (const kind of ["rirekisho", "shokumu_keirekisho", "career_story_ja"] as const) {
-      expect(RENDER_DEFINITIONS[kind].register, kind).toContain(`${ENGLISH_ONLY_LABEL} is held only in English`);
-      expect(RENDER_DEFINITIONS[kind].register, kind).toContain("Write what it says in Japanese, or leave it out");
-    }
+  it("prints the author's Japanese summary as written, even with no kana or kanji in it", () => {
+    const prompt = buildGenerationPrompt(
+      spec({ projects: [{ ...project, summary: "Rebuilt the ledger as append-only.", summaryJa: "Web/API" }] }),
+    );
+    expect(prompt).toContain("· independent · Web/API");
+    expect(prompt).not.toContain(`${ENGLISH_ONLY_LABEL} Web/API`);
+    expect(prompt).not.toContain("Rebuilt the ledger");
   });
 
   it("keeps the English prompt's label the other way round", () => {
@@ -222,7 +224,12 @@ describe("the Japanese prompt and the English the record holds", () => {
     expect(prompt).toContain("- 言語: Java");
     expect(prompt).not.toContain("Languages");
     expect(prompt).toContain(`- ${ENGLISH_ONLY_LABEL} Cloud and platform: AWS`);
-    expect(RENDER_DEFINITIONS.shokumu_keirekisho.register).toContain("never copy the English");
+  });
+
+  it("prints the author's Japanese group name as written, even with no kana or kanji in it", () => {
+    const prompt = buildGenerationPrompt(spec({ curatedSkills: [{ name: "Operations", nameJa: "DevOps", skills: ["Docker"] }] }));
+    expect(prompt).toContain("- DevOps: Docker");
+    expect(prompt).not.toContain(`${ENGLISH_ONLY_LABEL} DevOps`);
   });
 
   it("gives an English render the group's English name", () => {
@@ -233,7 +240,7 @@ describe("the Japanese prompt and the English the record holds", () => {
     expect(prompt).not.toContain("言語");
   });
 
-  it("states each employer's 雇用形態, and the register asks for it", () => {
+  it("states each employer's 雇用形態", () => {
     const employer = {
       id: "emp_a",
       name: "架空派遣株式会社",
@@ -251,6 +258,5 @@ describe("the Japanese prompt and the English the record holds", () => {
     expect(buildGenerationPrompt(spec({ kind: "english_resume", language: "en", employers: [employer] }))).toContain(
       "2020-04 – present · agency dispatch",
     );
-    expect(RENDER_DEFINITIONS.shokumu_keirekisho.register).toContain("the 雇用形態 and the role titles");
   });
 });

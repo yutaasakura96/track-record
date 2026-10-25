@@ -91,14 +91,14 @@ describe("the spec a 職務経歴書 is written from", () => {
 
   it("takes a project's Japanese summary, and the English one only where there is none", async () => {
     const { id } = (await (await client.post("/api/projects", { ...PROJECT, employerId })).json()) as { id: string };
-    expect((await generate("shokumu_keirekisho")).spec.projects[0]!.summary).toBe(PROJECT.summary);
+    expect((await generate("shokumu_keirekisho")).spec.projects[0]).toMatchObject({ summary: PROJECT.summary, summaryJa: null });
 
     const patched = await client.patch(`/api/projects/${id}`, { summaryJa: "残高更新型のテーブルを追記型の台帳に作り直した" });
     expect(patched.status).toBe(200);
     expect(((await patched.json()) as { summaryJa: string }).summaryJa).toBe("残高更新型のテーブルを追記型の台帳に作り直した");
-    expect((await generate("shokumu_keirekisho")).spec.projects[0]!.summary).toBe("残高更新型のテーブルを追記型の台帳に作り直した");
+    expect((await generate("shokumu_keirekisho")).spec.projects[0]!.summaryJa).toBe("残高更新型のテーブルを追記型の台帳に作り直した");
     // An English render keeps the English summary.
-    expect((await generate("career_story_en")).spec.projects[0]!.summary).toBe(PROJECT.summary);
+    expect((await generate("career_story_en")).spec.projects[0]).toMatchObject({ summary: PROJECT.summary, summaryJa: null });
   });
 
   it("leaves a lapsed certification out of a Japanese prompt, and in an English one", async () => {

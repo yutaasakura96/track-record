@@ -261,7 +261,7 @@ export async function collectRenderInputs(
         ? {
             project: {
               name: nameInLanguage(definition.language, project.nameJa, project.name),
-              summary: carried(definition.language === "ja" ? (project.summaryJa ?? project.summary) : project.summary),
+              summary: (definition.language === "ja" ? project.summaryJa : null) ?? carried(project.summary),
             },
           }
         : {}),
@@ -322,7 +322,8 @@ export async function collectRenderInputs(
         employerId: p.employerId,
         // A Japanese document takes the Japanese summary, and otherwise the
         // English one, which the prompt marks as English-only (issue #117).
-        summary: definition.language === "ja" ? (p.summaryJa ?? p.summary) : p.summary,
+        summary: p.summary,
+        summaryJa: definition.language === "ja" ? p.summaryJa : null,
         startedOn: p.startedOn,
         endedOn: p.endedOn,
       })),

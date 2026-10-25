@@ -101,8 +101,14 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
       } · ${EMPLOYMENT_WORDING[spec.language][e.employmentType]}${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${bulletsOf(e)}${held}`;
     })
     .join("\n");
+  // A Japanese document takes the author's Japanese summary as written, and
+  // only the English fallback is marked (issue #117).
+  const projectSummary = (p: RenderSpec["projects"][number]) => p.summaryJa ?? (p.summary ? field(p.summary) : null);
   const projects = spec.projects
-    .map((p) => `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${p.summary ? ` · ${field(p.summary)}` : ""}`)
+    .map((p) => {
+      const summary = projectSummary(p);
+      return `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${summary ? ` · ${summary}` : ""}`;
+    })
     .join("\n");
   // 学歴 and 免許・資格. A row here is the ONLY source of an institution name,
   // an award date and — the one that matters — an education's outcome: 中退 is
@@ -131,7 +137,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // (issue #117). Only the 職務経歴書 among the Japanese renders has a skills
   // section to print it in.
   const groupName = (g: { name: string; nameJa: string | null }) =>
-    spec.language === "ja" ? field(g.nameJa ?? g.name) : g.name;
+    spec.language === "ja" ? (g.nameJa ?? field(g.name)) : g.name;
   // S9. Printed only for a render handed a curation. An empty curation still
   // prints, because "the author curated and nothing survives for this render"
   // must not read as "nothing is curated", which would hand the section back

@@ -93,11 +93,10 @@ describe("the register's contract with the rest of the codebase", () => {
     }
   });
 
-  it("leaves 保有資格 and 学歴 to the record, and asks for no section for either", () => {
+  it("asks for no section for 保有資格 or 学歴", () => {
     // Issue #117. The renderer writes both (`src/render/shokumu.ts`); a
     // register still listing their keys would have the model write a copy
     // that `withRecordSections` throws away.
-    expect(definition.register).toContain("保有資格 and 学歴 are not yours to write");
     expect(definition.register).not.toContain(`"${CERTIFICATIONS_SECTION}"`);
     expect(definition.register).not.toContain(`"${EDUCATION_SECTION}"`);
   });

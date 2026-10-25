@@ -66,8 +66,8 @@ const RECORD: ResumeRecord = {
     }),
   ],
   projects: [
-    { id: "prj_oss", name: "tategaki-js", employerId: null, summary: "A vertical text library.", startedOn: "2020-05-01", endedOn: null },
-    { id: "prj_work", name: "Ledger rebuild", employerId: "emp_before", summary: null, startedOn: null, endedOn: null },
+    { id: "prj_oss", name: "tategaki-js", employerId: null, summary: "A vertical text library.", summaryJa: null, startedOn: "2020-05-01", endedOn: null },
+    { id: "prj_work", name: "Ledger rebuild", employerId: "emp_before", summary: null, summaryJa: null, startedOn: null, endedOn: null },
   ],
   educations: [
     {
