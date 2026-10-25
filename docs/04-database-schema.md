@@ -1024,8 +1024,8 @@ score-based tests such as Versant, TOEIC, IELTS and TOEFL remain 取得. A score
 when the test calls itself an examination. A name that already ends in 合格, 取得 or 登録 is printed as given,
 with no second verb, and the form's 資格名 field asks for the name alone. `kind` cannot make this
 choice — technical / language / other does not separate an examination from a licence — and the
-name a Japanese reader sees can. The rule is `src/render/shikaku.ts`; the 職務経歴書's 保有資格 has
-not yet adopted it. The verb is composed by the render, not stored on `certifications` or held in the
+name a Japanese reader sees can. The rule is `src/render/shikaku.ts`; the 職務経歴書's 保有資格 prints the
+same rows (`src/render/shokumu.ts`, #117). The verb is composed by the render, not stored on `certifications` or held in the
 template, which carries a single `{text}` per row exactly as the 学歴・職歴 table does. A render that
 emits bare names is the failure mode `docs/03` §12 describes: invisible to the author, obvious to a
 Japanese reader.
