@@ -254,6 +254,35 @@ describe("a claim that states a number its passage does not", () => {
     ["a word count found only in an out-of ratio", "Resolved 5 reports", "Resolved three out of 5 reports.", []],
     ["an out-of ratio absent from the passage", "Resolved 3 out of 5 reports", "Resolved 5 reports.", []],
     ["an out-of ratio with a different denominator", "Resolved 3 out of 5 reports", "Resolved 3 out of 50 reports.", []],
+    // A ratio is one figure: neither of its numbers sources a plain count.
+    ["a count found only as a slash ratio's denominator", "Resolved 5 reports", "Resolved 2/5 reports.", []],
+    ["a count found only as a slash ratio's numerator", "Resolved 2 reports", "Resolved 2/5 reports.", []],
+    ["a slash ratio missing from the passage", "Resolved 2/5 reports", "Resolved 5 reports.", []],
+    ["a slash ratio against a different denominator", "Resolved 2/5 reports", "Resolved 2/50 reports.", []],
+    ["a bare count found only as a word ratio's numerator", "Resolved one", "Resolved one in 5 reports.", []],
+    ["a count found only as a word ratio's numerator", "Resolved two reports", "Resolved two in 5 reports.", []],
+    ["a count found only as an out-of ratio's numerator", "Resolved 3 reports", "Resolved 3 out of 5 reports.", []],
+    // A bound after a counter is part of the quantity.
+    ["a Japanese lower bound against an upper bound", "5件以上を処理した", "5件以下を処理した。", []],
+    ["a Japanese upper bound against a lower bound", "5件以下を処理した", "5件以上を処理した。", []],
+    ["a Japanese lower bound absent from the passage", "5件以上を処理した", "5件を処理した。", []],
+    ["a Japanese lower bound absent from the claim", "5件を処理した", "5件以上を処理した。", []],
+    // Every other word before the unit is held to the passage.
+    ["a different word before the same unit", "Wrote 5 clinic reports", "Wrote 5 hospital reports.", []],
+    ["the other different word before the same unit", "Wrote 5 hospital reports", "Wrote 5 clinic reports.", []],
+    ["a word before the unit the passage never uses", "Wrote 5 clinic reports", "Wrote 5 reports.", []],
+    ["a word the passage adds before the unit", "Wrote 5 reports", "Wrote 5 clinic reports.", []],
+    ["a word the passage adds before a word number's unit", "Mentored five engineers", "Mentored five platform engineers.", []],
+    ["a percentage of all users against all revenue", "Reached 5% of all users", "Reached 5% of all revenue.", []],
+    ["a percentage of all revenue against all users", "Reached 5% of all revenue", "Reached 5% of all users.", []],
+    ["a percentage of all clinic reports against revenue", "Reached 5% of all clinic reports", "Reached 5% of all clinic revenue.", []],
+    ["a percentage of all clinic revenue against reports", "Reached 5% of all clinic revenue", "Reached 5% of all clinic reports.", []],
+    ["a percentage with a different attached rate", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per year.", []],
+    ["a separate count in the passage", "Wrote 5 reports", "Wrote 5 separate reports.", []],
+    ["a descriptive word the passage adds before a period", "Stayed clean for 21 days", "Stayed clean for 21 consecutive days.", []],
+    ["a descriptive word before a bare rate the passage never uses", "Hired 5 within a year", "Hired 5 a year.", []],
+    ["a descriptive word the passage adds before a bare rate", "Hired 5 a year", "We hired 5 within a year.", []],
+    ["a count found only as a word ratio's numerator over a year-shaped denominator", "Resolved one", "Resolved one of 2022 reports.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -319,6 +348,23 @@ describe("a claim that states a number its passage does not", () => {
     ["the same word out-of ratio", "Resolved three out of 5 reports", "Resolved three out of 5 reports.", []],
     ["a quantity followed by different predicates", "5 engineers built APIs", "5 engineers maintained APIs.", []],
     ["the opposite predicate direction", "5 engineers maintained APIs", "5 engineers built APIs.", []],
+    ["the same slash ratio", "Resolved 2/5 reports", "Resolved 2/5 reports.", []],
+    ["the same Japanese lower bound", "5件以上を処理した", "5件以上を処理した。", []],
+    ["the same Japanese upper bound", "5件以下を処理した", "5件以下を処理した。", []],
+    ["a word before the unit the passage uses elsewhere", "Wrote 5 clinic reports", "For the clinic, I wrote 5 reports.", []],
+    ["the same word before the unit", "Wrote 5 clinic reports", "Wrote 5 clinic reports.", []],
+    ["the same percentage of all users", "Reached 5% of all users", "Reached 5% of all users.", []],
+    ["the same percentage of all clinic reports", "Reached 5% of all clinic reports per month", "Reached 5% of all clinic reports per month.", []],
+    ["a percentage of users against active users", "Reached 5% of users", "Reached 5% of active users.", []],
+    ["a percentage of active users against users", "Reached 5% of active users", "Reached 5% of users.", []],
+    ["a percentage of all active users against all users", "Reached 5% of all active users", "Reached 5% of all users.", []],
+    ["a percentage of all users against all active users", "Reached 5% of all users", "Reached 5% of all active users.", []],
+    ["a count the passage dates with a year after in", "Ranked in the top 3", "Ranked in the top 3 in 2022.", []],
+    ["a count dated with a year after in that the passage leaves undated", "Ranked in the top 3 in 2022", "Ranked in the top 3.", []],
+    ["a hire count the passage dates", "Hired 5", "Hired 5 in 2023.", []],
+    ["a dated hire count against a passage that dates it first", "Hired 5 in 2023", "In 2023, we hired 5.", []],
+    ["a unitless count whose clause the passage extends", "A team of 5 shipped the app", "A team of 5 shipped the mobile app.", []],
+    ["a unitless count whose clause the claim extends", "A team of 5 shipped the mobile app", "A team of 5 shipped the app.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
@@ -335,7 +381,6 @@ describe("a claim that states a number its passage does not", () => {
       "Reduced mobile checkout abandonment from 31% to 22%, valued at about ¥140 million in annual GMV",
       "Built an offline search evaluation set from six months of logs, labelled by click-through and purchase",
       "Moved search ranking to learning-to-rank, raising search conversion by 9% in a four-week A/B test",
-      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
       "Twelve teams adopted the design system within a year",
       "Led a team of four migrating the platform from hand-managed VMs to Azure Kubernetes Service",
       "Moved the booking API behind a traffic split, sending 5% of requests to the new cluster first",
@@ -347,6 +392,14 @@ describe("a claim that states a number its passage does not", () => {
       const candidate = candidates.find((entry) => entry.claim === claim);
       expect(candidate, claim).toBeDefined();
       expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(false);
+    }
+    for (const claim of [
+      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
+      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
+    ]) {
+      const candidate = candidates.find((entry) => entry.claim === claim);
+      expect(candidate, claim).toBeDefined();
+      expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(true);
     }
     expect(unsourcedNumber(CAPTURED[0]!.claim, null, CAPTURED[0]!.technologies)).toBe(true);
   });

@@ -287,9 +287,18 @@ is flagged unless the quote holds the same complete quantity: the same number on
 and `１２００` match `1200`; `140` does not match `40`, nor `5` the `5` of `one in 5` or `$5`), the same
 scale or none (`5 million` is not `5`), and the same unit or counter with an immediately attached
 rate or comparison (`3カ月` is not `3カ国`, `5` is not `5%`, `5 users per month` is not
-`5 users per year`). Only `active` and `senior` may be inserted within the phrase on either side
-(`5 million active users` sources `5 million users`); a word that changes the quantity never does.
-A predicate after the unit does not change the quantity. A ratio denominator never sources a plain count. It is also
+`5 users per year`). A plain descriptive word from a short list (`active`, `senior`)
+may be inserted within the phrase on either side (`5 million active users` sources `5 million users`);
+a word that changes the quantity never does. Any other word before the unit may stand in the claim
+only when the passage uses it as a whole word (`5 clinic reports` from a passage about the clinic's
+5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`); a percentage's
+`of` reads through determiners to its unit and attached rate (`5% of all clinic reports` is not
+`5% of all clinic revenue`).
+A predicate after the unit does not change the quantity, and with no unit the first word after the
+number stands for one and the clause after it is not compared (`a team of 5 shipped the app` sources
+`a team of 5 shipped the mobile app`). A ratio (`one in 5`, `3 out of 5`, `2/5`) is
+one figure, and neither of its numbers sources a plain count; a year after `in` dates a count and is
+no denominator (`top 3 in 2022` sources `top 3`). It is also
 flagged when there is no quote (issue #115).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through

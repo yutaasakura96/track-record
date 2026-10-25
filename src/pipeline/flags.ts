@@ -132,7 +132,10 @@ const plain = (text: string) => text.normalize("NFKC").replace(/(?<=\d),(?=\d{3}
  * holds the same complete quantity: the same number on its own, the same scale
  * or none, and the same following phrase. A plain descriptive word
  * may stand before the unit on either side (`5 million active users`); a word
- * that changes the quantity never does. Anything less certain stays flagged.
+ * that changes the quantity never does. Any other word before the unit is the
+ * claim's only if the passage uses it too (`five clinic reports`), and never
+ * the passage's alone. A ratio (`one in 5`, `2/5`) is one figure, and neither
+ * of its numbers sources a plain count. Anything less certain stays flagged.
  * With no quote there is nothing to check a figure against, and any figure
  * counts.
  *
@@ -148,8 +151,9 @@ export function unsourcedNumber(claim: string, quote: string | null, technologie
 
 /**
  * Words that say what is counted without changing how many: `5 million active
- * users` is `5 million users`. A scale, a comparison (`more`, `over`) or an
- * amount (`additional`, `dozen`) is never one.
+ * users` is `5 million users`. A
+ * scale, a comparison (`more`, `over`) or an amount (`additional`, `dozen`) is
+ * never one.
  */
 const MODIFIER = "(?:active|senior)";
 const TENS = "(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)";
@@ -157,10 +161,14 @@ const SCALE = "(?:hundred|thousand|million|billion)";
 const WORD_NUMBER =
   `(?:(?:${TENS}-(?:one|two|three|four|five|six|seven|eight|nine)|one|two|three|four|five|six|seven|eight|nine|ten|eleven|` +
   `twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|${TENS})(?: ${SCALE})?|hundreds|thousands|millions)`;
+/** A year after `in` is when, never a denominator: `top 3 in 2022` is a count of 3. */
+const RATIO_JOIN = "(?:in(?!\\s+(?:19|20)\\d{2}(?!\\d))|of|out of)";
+/** `one in 5`, `3 out of 5`, `2/5`: one figure, never a plain count. */
+const RATIO = `(?:${WORD_NUMBER}|\\d+) ${RATIO_JOIN} (?:${WORD_NUMBER}|\\d+)|\\d+/\\d+`;
 const COUNTER = "(?:%|×|倍|割|名|人|件|社|台|万円|億円|円|万|億|回|時間|日|週間|ヶ月|か月|カ月|年間|年|分|秒)";
 const NUMBER_FIGURE = new RegExp(
   [
-    `(?:${WORD_NUMBER}|\\d+) (?:in|of|out of) (?:${WORD_NUMBER}|\\d+)`,
+    RATIO,
     `\\b${WORD_NUMBER}\\b`,
     `[¥$€£]?\\d+(?:\\.\\d+)?(?:(?:bn|[kmb])(?![\\p{L}\\d])|\\s?${COUNTER}|x(?![\\p{L}]))?(?: ${SCALE})?`,
     "[〇一二三四五六七八九十百千万億]+(?:割|倍|名|人|件|年|[ヶヵカか](?:月|国|所)|箇所|週間|時間|秒|社|台|円|回|%)",
@@ -169,6 +177,9 @@ const NUMBER_FIGURE = new RegExp(
 );
 const YEAR = /^(?:19|20)\d{2}年?$/u;
 const QUANTITY_AFTER_YEAR = new RegExp(`^(?:\\s+[a-z]|${COUNTER})`, "u");
+/** What a ratio's denominator follows, and what its numerator precedes. */
+const RATIO_BEFORE = new RegExp(`(?:(?:\\b${WORD_NUMBER}|\\b\\d+)\\s+(?:in|of|out of)\\s+|\\d/)$`, "u");
+const RATIO_AFTER = new RegExp(`^(?:\\s+${RATIO_JOIN}\\s+(?:${WORD_NUMBER}|\\d+)\\b|/\\d)`, "u");
 
 /** The figures of a plain claim, as `[start, end]`, with a technology's own digits left out. */
 function numberFigures(text: string, technologies: string[]): [number, number][] {
@@ -201,20 +212,34 @@ const UNIT_WORD = /^(?:[a-z]+s|person|people|percent|ms|kb|mb|gb|tb|pb|second|mi
 const JAPANESE_RATE = /^\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
-/** Han and katakana, written out so `migrations/0032` reads the same characters. */
+/** Han and katakana, written out so migrations 0032 and 0033 read the same characters. */
 const COUNTER_RUN = /^[㐀-䶿一-鿿々゠-ヿ]+/u;
 /** What ends a quantity without being part of it. Any other character after a number is its unit. */
 const PUNCTUATION = ".,;:!?'\"()[]{}<>/\\|~_-。、・「」『』【】〔〕…‥〜—–‐“”‘’";
 const SCALE_AFTER = /^(?: (?:hundred|thousand|million|billion)|[万億]|bn|[kmb])(?=$|[^a-z])/u;
 
-function quantityAfter(tail: string): string {
+/** Before a percentage's noun: `5% of all users` is of users, and not of revenue. */
+const DETERMINER = "(?:the|a|an|all|our|their|its|his|her|my|your|this|that|these|those|each|every|both|some|any)";
+const PERCENTAGE_OF_PREFIX = new RegExp(`^\\s+of\\s+(?:(?:${DETERMINER}|${MODIFIER})\\s+)*`, "u");
+
+/**
+ * A number's quantity: the phrase compared as it is, and the other words read
+ * before its unit (`five clinic reports` has `clinic`), which `sameQuantity`
+ * holds to the passage.
+ */
+interface Quantity {
+  phrase: string;
+  descriptive: string[];
+}
+
+function quantityAfter(tail: string): Quantity {
   let rest = tail;
   const words: string[] = [];
-  let fallback = "";
+  const descriptive: string[] = [];
   for (;;) {
     const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
     const bareRate = first.match(/^(?:per\s+|a\s+|an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0];
-    if (bareRate && words.length === 0) return bareRate;
+    if (bareRate && words.length === 0) return { phrase: bareRate, descriptive };
     const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (word) {
       if (STOP_WORD.test(word) || (/ing$/u.test(word) && /^\s+(?:a|an|the)\b/u.test(first.slice(word.length)))) break;
@@ -225,10 +250,10 @@ function quantityAfter(tail: string): string {
         const rate = rest.match(/^(?:\s+per\s+|\s+a\s+|\s+an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0].trim()
           ?? rest.match(/^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\b/u)?.[0].trim();
         if (rate) words.push(rate);
-        break;
+        return { phrase: words.join(" "), descriptive };
       }
       if (SCOPE_WORD.test(word) || word.includes("-")) words.push(word);
-      else if (!MODIFIER_WORD.test(word) && fallback === "") fallback = word;
+      else if (!MODIFIER_WORD.test(word)) descriptive.push(word);
       rest = first.slice(word.length);
       continue;
     }
@@ -242,7 +267,7 @@ function quantityAfter(tail: string): string {
         const divisor = rest.slice(1).match(COUNTER_UNIT)?.[0] ?? rest.slice(1).match(COUNTER_RUN)?.[0];
         if (divisor) words.push(`/${divisor}`);
       }
-      break;
+      return { phrase: words.join(" "), descriptive };
     }
     const character = [...first][0] ?? "";
     if (character === "/" && /^[a-z]/u.test(first.slice(1))) {
@@ -254,16 +279,35 @@ function quantityAfter(tail: string): string {
       words.push(character);
       rest = first.slice(character.length);
       if (character === "%") {
-        const group = rest.match(/^\s+of\s+(?:(?:the|active|senior)\s+)*[a-z]+(?:-[a-z]+)*/u)?.[0].trim();
-        if (group) words.push(group);
+        const prefix = rest.match(PERCENTAGE_OF_PREFIX)?.[0] ?? "";
+        const noun = rest.slice(prefix.length);
+        if (prefix && /^[a-z]/u.test(noun)) {
+          const quantity = quantityAfter(noun);
+          const keptPrefix = prefix.replace(/\b(?:active|senior)\s+/gu, "").trim();
+          return { phrase: [...words, keptPrefix, quantity.phrase].join(" "), descriptive: [...descriptive, ...quantity.descriptive] };
+        }
         break;
       }
       continue;
     }
-    if (character && !PUNCTUATION.includes(character)) words.push(character);
+    if (character && !PUNCTUATION.includes(character)) return { phrase: [...words, character].join(" "), descriptive };
     break;
   }
-  return words.length ? words.join(" ") : fallback;
+  // With no unit, the first other word stands for it.
+  return { phrase: words.length ? words.join(" ") : descriptive[0] ?? "", descriptive: [] };
+}
+
+/**
+ * The same phrase, and no other word that only one side has: the passage may
+ * add none the claim lacks (`5 hospital reports` is not `5 reports`), and the
+ * claim may add one only when the passage uses it elsewhere as a whole word.
+ */
+function sameQuantity(claim: Quantity, quote: Quantity, passage: string): boolean {
+  if (claim.phrase !== quote.phrase) return false;
+  if (quote.descriptive.some((word) => !claim.descriptive.includes(word))) return false;
+  return claim.descriptive.every(
+    (word) => quote.descriptive.includes(word) || new RegExp(`(?<![a-z0-9-])${escapePattern(word)}(?![a-z0-9-])`, "u").test(passage),
+  );
 }
 
 /** A number's scale (`million`, `万`, `k`) and the text after it; a kanji number carries its own. */
@@ -273,7 +317,7 @@ function splitScale(tail: string, scaled: boolean): [string, string] {
 }
 
 function sourcedFigure(figure: string, following: string, passage: string): boolean {
-  const head = figure.match(new RegExp(`^(?:${WORD_NUMBER}|\\d+) (?:in|of|out of) (?:${WORD_NUMBER}|\\d+)`, "u"))
+  const head = figure.match(new RegExp(`^(?:${RATIO})`, "u"))
     ?? figure.match(/^[¥$€£]?\d+(?:\.\d+)?/u)
     ?? figure.match(new RegExp(`^[${KANJI_NUMBER}]+`, "u"))
     ?? figure.match(/^[a-z]+(?:-[a-z]+)?/u);
@@ -281,18 +325,19 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
   const number = head[0];
   const kanji = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number);
   const [scale, claimTail] = splitScale(figure.slice(number.length) + following, !kanji);
-  const phrase = quantityAfter(claimTail);
+  const quantity = quantityAfter(claimTail);
   // On its own: not inside a longer number or word, not after a currency sign
-  // the claim does not have, and not the denominator of a rate (`one in 5`).
+  // the claim does not have, and not either number of a ratio (`one in 5`, `2/5`).
   const pattern = kanji
     ? new RegExp(`(?<![${KANJI_NUMBER}])${escapePattern(number)}(?![${KANJI_NUMBER}])`, "gu")
     : new RegExp(`(?<![a-z0-9_.¥$€£])(?<![a-z]-)${escapePattern(number)}${/[a-z]$/u.test(number) ? "(?![a-z])" : ""}(?!\\d|[.,]\\d)`, "gu");
   for (const match of passage.matchAll(pattern)) {
-    if (new RegExp(`(?:\\b${WORD_NUMBER}|\\b\\d+)\\s+(?:in|of|out of)\\s+$`, "u").test(passage.slice(0, match.index))) continue;
+    if (RATIO_BEFORE.test(passage.slice(0, match.index))) continue;
+    if (RATIO_AFTER.test(passage.slice(match.index + match[0].length))) continue;
     const [quoteScale, quoteTail] = splitScale(passage.slice(match.index + match[0].length), !kanji);
     if (quoteScale !== scale) continue;
     if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
-    if (quantityAfter(quoteTail) === phrase) return true;
+    if (sameQuantity(quantity, quantityAfter(quoteTail), passage)) return true;
   }
   return false;
 }

@@ -7489,3 +7489,34 @@ for want of an image module; the entries that recorded the gap stay as written.
   stored file, as it keeps every other line it was sent with; the form says so under the photo.
 - **Not changed:** the export, which already carries `hasPhoto` and not the bytes. No PDF of the
   履歴書 exists yet; when one does, it is set from the same file.
+
+---
+
+### [2026-10-25] The number flag holds every word before the unit to the passage, and reads `2/5` as a ratio
+
+This supersedes the descriptive-word and ratio details of "The number flag stops at the counted unit"
+above; the boundary it set, the unit or counter plus an attached rate or comparison, stays.
+
+- **Decision:** a word before the unit that is neither a scope nor a listed descriptive word was
+  dropped, so `5 clinic reports` was sourced by `5 hospital reports`. Each such word is now kept: the
+  claim may carry one only when the passage uses it as a whole word elsewhere (`five clinic reports`
+  from a passage about the clinic), and the passage may carry none the claim lacks. A percentage's `of`
+  reads through determiners (`all`, `the`, `our`) to its unit and attached rate, so
+  `5% of all clinic reports` is not `5% of all clinic revenue`. A slash ratio (`2/5`) is one figure,
+  like `one in 5` and `3 out of 5`, and
+  neither number of any ratio sources a plain count. `以上` and `以下` after a counter were already
+  compared; tests now hold both directions.
+- **Decision:** the words held to the passage are only those before a unit or counter that is found.
+  With none, the first word stands for the unit as before and the clause after it is not compared, so
+  `a team of 5 shipped the app` is sourced by `a team of 5 shipped the mobile app`. A year after `in`
+  dates a count rather than dividing it, so `top 3 in 2022` still sources `top 3`.
+- **Decision:** only `active` and `senior` are ignored when the passage adds a word before a unit.
+  Other words remain part of the quantity, so `three diverging component libraries` and
+  `21 consecutive days` flag two demo facts whose passages add a word.
+- **Backfilled:** migration 0033 ports the rule and re-raises a number flag the system settled and
+  nobody touched since when the rule now keeps it, as 0032 did. It settles nothing and writes no
+  fact, and `tests/number-flag-phrase-migration.test.ts` holds it to the code case by case.
+- **Measured:** the demo seed's Flagged count rises from 14 to 16, with 9 of its 56 candidates
+  carrying the number flag.
+- **Revisit if:** a count-neutral word the record uses often is missing from the list; each miss
+  flags the fact, which errs toward a look.
