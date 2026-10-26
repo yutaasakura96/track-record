@@ -472,12 +472,16 @@ A Japanese output is held to its own check the same way (`src/render/japanese.ts
 or a heading or block in English, is a defect: generated once more, then refused with a plain
 reason. Each physical line of a heading or block is checked separately. A line is English when it
 has no kana or kanji and something Latin is left once the record's own Latin terms are taken out
-(names, titles held, qualifications, technologies and curated skills, but not a skill group's name),
+(names, titles held, qualifications, technologies and curated skills, but not a skill group's name;
+terms joined only by and, or, &, /, a comma, ・ or 、 go out together with what joins them),
 or when one statement inside it is an English sentence: three or more Latin words carrying an
 English function word when the statement has no kana or kanji, or, beside kana or kanji, a run
 between them and brackets (full-width or half-width) of at least five Latin words carrying at least
 two function words. Thus 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a
-Japanese project name does not. The rest are advisories in the review footer and never block: 貴社
+Japanese project name does not. A 職務経歴書 is checked as assembled, with the record's own 保有資格
+and 学歴 rows in place of the model's. Those rows are checked once before any model call, since no
+attempt can change them: one that fails refuses the proposal with a reason naming its section and
+row and the record entry to correct. The rest are advisories in the review footer and never block: 貴社
 outside the 履歴書's 本人希望欄, full-width digits, a 職務経歴書 bullet over 120 characters, and a 職務経歴
 bullet ending in です・ます.
 

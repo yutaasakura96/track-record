@@ -7761,3 +7761,23 @@ From the Japanese documents review (§5, G1–G5).
   recorded.
 - **Revisit if:** an author needs a ※ row that explains something other than a gap, such as a
   leave of absence inside an employment. That is a free row in 学歴・職歴, which this is not.
+
+---
+
+### [2026-10-26] A 職務経歴書's record rows are checked before generation
+
+The 2026-10-25 entry ran the Japanese check on the model's output, before `withRecordSections`
+put the record's 保有資格 and 学歴 rows in. A stored row carrying 御社 reached the proposal unchecked,
+and a row the model wrote, discarded anyway, could cause a refusal. Its English rule also read a
+line of recorded technology names joined by 「and」 as English, because the connector was all that
+remained once the terms were taken out.
+
+- **Decision:** the check reads the 職務経歴書 as assembled, on each attempt. The record's rows are
+  the same on every attempt, so they are checked once before any model call; one that fails refuses
+  the proposal without a model call, with a reason naming the section, the row and the record entry
+  to correct, never "the model wrote" or "generate again".
+- **Decision:** supersedes the 2026-10-25 entry's terms rule in one respect: recorded terms joined
+  only by and, or, &, /, a comma, ・ or 、 (an Oxford comma included) are taken out together with
+  what joins them, so 「React, TypeScript, and PostgreSQL」 passes.
+- **Revisit if:** a vocational course's 修了 row, which sits in 保有資格 but is kept under Education,
+  ever fails the check; the reason names Certifications for it.
