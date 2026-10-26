@@ -77,6 +77,47 @@ test("Japanese proposals refuse hard defects and show register advisories", asyn
   await expect(page.getByText("Loading the document...")).toHaveCount(0);
   await expect(page.getByRole("article")).toBeVisible();
   if (process.env.NO_MISTAKES_EVIDENCE_DIR) await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/japanese-bullet-advisories.png`, fullPage: true });
+  expect((await page.request.post(`/api/proposals/${bullet.proposalId}/dismiss`)).ok()).toBe(true);
+
+  // Recorded technology names joined only by connectors pass; a connector beside prose does not.
+  const shot = async (name: string) => {
+    if (process.env.NO_MISTAKES_EVIDENCE_DIR) await page.screenshot({ path: `${process.env.NO_MISTAKES_EVIDENCE_DIR}/${name}.png`, fullPage: true });
+  };
+  const cert = await page.request.post("/api/certifications", { data: {
+    name: "Kumo Certified Architect", nameJa: "クモ認定アーキテクト", issuingOrganization: "クモ協会",
+    issuedOn: "2019-06-01", kind: "technical", technologies: ["React", "TypeScript"],
+  } });
+  expect(cert.ok(), await cert.text()).toBe(true);
+  const connector = await generate("jp-check-shokumu-connector", "ready", "shokumu_keirekisho");
+  expect(connector.data.error).toBeNull();
+  await expect(page.getByText("React, TypeScript, and PostgreSQL")).toBeVisible();
+  await shot("shokumu-connector-accepted");
+  expect((await page.request.post(`/api/proposals/${connector.proposalId}/dismiss`)).ok()).toBe(true);
+  const prose = await generate("jp-check-shokumu-connector-prose", "failed", "shokumu_keirekisho");
+  expect(prose.data.error?.message).toContain("English");
+  await shot("shokumu-connector-prose-refused");
+
+  // A 保有資格 section the model wrote is replaced by the record's rows, so its 御社 does not refuse.
+  const modelCerts = await generate("jp-check-shokumu-model-certifications", "ready", "shokumu_keirekisho");
+  expect(modelCerts.data.error).toBeNull();
+  await expect(page.getByText("御社で役立つ資格を取得しました。")).toHaveCount(0);
+  await expect(page.getByText(/クモ認定アーキテクト/).first()).toBeVisible();
+  await shot("shokumu-model-certifications-replaced");
+  expect((await page.request.post(`/api/proposals/${modelCerts.proposalId}/dismiss`)).ok()).toBe(true);
+
+  // A stored row saying 御社 is refused before generation and named as the record's to fix.
+  const stored = await page.request.post("/api/certifications", { data: {
+    name: "Onsha Certified", nameJa: "御社認定資格", issuingOrganization: "架空協会",
+    issuedOn: "2021-04-01", kind: "technical", technologies: [],
+  } });
+  expect(stored.ok(), await stored.text()).toBe(true);
+  const refused = await generate("jp-check-shokumu-advisory", "failed", "shokumu_keirekisho");
+  expect(refused.data.error?.message).toMatch(/^Row 1 of 保有資格 comes from your record and contains 御社/);
+  expect(refused.data.error?.message).toMatch(/under Certifications on your record/);
+  expect(refused.data.error?.message).not.toMatch(/model wrote|generate again/);
+  await expect(page.getByText(/Row 1 of 保有資格 comes from your record/)).toBeVisible();
+  await shot("shokumu-stored-onsha-row-refused");
+  console.log(`record-row refusal: ${refused.data.error?.message}`);
   expect(errors).toEqual([]);
   await context.close();
 });
