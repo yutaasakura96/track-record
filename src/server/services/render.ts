@@ -489,14 +489,16 @@ export function stripUnknownFactIds(content: RenderContent, allowed: Set<string>
  */
 export function withDrafts(content: RenderContent, spec: Pick<RenderSpec, "kind" | "jobDescription">): RenderContent {
   const tailoredRirekisho = spec.kind === "rirekisho" && Boolean(spec.jobDescription);
+  const motivationIndex = content.sections.findIndex((section) => section.key === PROSE_SECTION_KEYS.motivation);
+  const kibouIndex = content.sections.findIndex((section) => section.key === PROSE_SECTION_KEYS.kibou);
   return {
-    sections: content.sections.map((section) => ({
+    sections: content.sections.map((section, sectionIndex) => ({
       ...section,
       blocks: section.blocks.map(({ drafted, ...block }, index) => {
         const draft =
           tailoredRirekisho &&
-          (section.key === PROSE_SECTION_KEYS.kibou ||
-            (section.key === PROSE_SECTION_KEYS.motivation && (index === 0 || drafted === true || block.factIds.length === 0)));
+          (sectionIndex === kibouIndex ||
+            (sectionIndex === motivationIndex && (index === 0 || drafted === true || block.factIds.length === 0)));
         return draft ? { ...block, drafted: true as const } : block;
       }),
     })),
@@ -572,10 +574,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
       }
     }
-    if (
-      inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription &&
-      !content.sections.some((section) => section.key === PROSE_SECTION_KEYS.motivation && section.blocks[0]?.kind === "paragraph")
-    ) {
+    const motivation = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.motivation)?.blocks[0];
+    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription && (motivation?.kind !== "paragraph" || !motivation.text.trim())) {
       throw new ModelUnavailableError("The tailored 履歴書 needs a 志望動機 to confirm. Generate it again.");
     }
     if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription) {
@@ -584,7 +584,9 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         const block = {
           id: `blk_${crypto.randomUUID()}`,
           kind: "paragraph" as const,
-          text: inputs.spec.application?.kibouNote?.trim() || inputs.spec.desiredRoleNote?.trim() || "貴社規定に従います。",
+          text: [inputs.spec.application?.kibouNote, inputs.spec.desiredRoleNote, "貴社規定に従います。"]
+            .map((text) => text?.trim())
+            .find((text) => text && defectOf({ sections: [{ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [{ id: "", kind: "paragraph", text, factIds: [] }] }] }) === null)!,
           factIds: [],
           drafted: true as const,
         };

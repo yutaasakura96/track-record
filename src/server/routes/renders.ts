@@ -44,7 +44,7 @@ import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { japaneseSentPage, rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { fillRirekishoTemplate } from "~/render/rirekisho-template";
-import { assembleJapanese, japaneseMarkdown } from "~/render/japanese";
+import { assembleJapanese, japaneseDefect, japaneseMarkdown } from "~/render/japanese";
 import { attachment } from "../http/disposition";
 import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord, hasProfilePhoto } from "../services/rirekisho";
 import {
@@ -412,11 +412,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const read = proposal.content as RenderContent;
     const found = draftedBlocks(read).find(({ block }) => block.id === blockId);
     if (!found) throw notFound("That drafted part");
-    // The one word no Japanese register allows, and the author is told so
-    // here rather than finding it refused later.
-    if (text.includes("御社")) {
+    const tailoring = await tailoringOf(db, user.id, render);
+    const inputs = await collectRenderInputs(db, user.id, "rirekisho", "", tailoring);
+    const defect = japaneseDefect({ sections: [{ ...found.section, blocks: [{ ...found.block, text }] }] }, inputs.spec, inputs.facts);
+    if (defect === "onsha") {
       throw validationFailed("御社 is the spoken form. A 履歴書 writes 貴社.", ["text"]);
     }
+    if (defect === "english") throw validationFailed("A 履歴書 draft must be written in Japanese.", ["text"]);
 
     const edited = text !== found.block.text;
     const content: RenderContent = {

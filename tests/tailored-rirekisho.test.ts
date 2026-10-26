@@ -378,10 +378,34 @@ describe("the drafts", () => {
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(409);
   });
 
+  it("refuses an empty first 志望動機 even when a duplicate section has a paragraph", async () => {
+    const made = await add();
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const duplicate = tailoredContent();
+    duplicate.sections.unshift({ key: "motivation", heading: "志望動機・特技・アピールポイントなど", blocks: [] });
+    const { proposalId } = await generate(ref, duplicate);
+    expect((await client.json<{ generationStatus: string }>(`/api/proposals/${proposalId}`)).generationStatus).toBe("failed");
+  });
+
+  it("marks the first rendered 志望動機 draft when the model repeats its section", async () => {
+    const made = await add();
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const duplicate = tailoredContent();
+    delete duplicate.sections[0]!.blocks[0]!.drafted;
+    duplicate.sections.splice(1, 0, {
+      key: "motivation", heading: "志望動機・特技・アピールポイントなど",
+      blocks: [{ id: "blk_extra", kind: "paragraph", text: "後の節です。", factIds: [factId] }],
+    });
+    const { proposal } = await generate(ref, duplicate);
+    expect(proposal.drafts.map((draft) => draft.blockId)).toEqual(["blk_1", "blk_3"]);
+  });
+
   it.each([
     ["application", "応募先の勤務条件を希望します。", null, "応募先の勤務条件を希望します。"],
     ["profile", null, "週4日の勤務を希望します。", "週4日の勤務を希望します。"],
     ["convention", null, null, "貴社規定に従います。"],
+    ["invalid application", "I want a remote role.", "週4日の勤務を希望します。", "週4日の勤務を希望します。"],
+    ["invalid profile", null, "I want a remote role.", "貴社規定に従います。"],
   ])("drafts a missing 本人希望欄 from the %s fallback", async (_source, applicationNote, profileNote, expected) => {
     if (profileNote) await client.put("/api/profile", { ...PROFILE_FIXTURE, desiredRoleNote: profileNote });
     const made = await add();
@@ -408,6 +432,9 @@ describe("the drafts", () => {
 
     expect((await confirmDraft(proposalId, "blk_1", "   ")).status).toBe(422);
     expect((await confirmDraft(proposalId, "blk_1", "御社に貢献します。")).status).toBe(422);
+    const english = await confirmDraft(proposalId, "blk_1", "I want this role at your company.");
+    expect(english.status).toBe(422);
+    expect(((await english.json()) as { error: { message: string } }).error.message).toContain("Japanese");
     expect((await confirmDraft(proposalId, "blk_2", "夜間処理を短縮しました。")).status).toBe(404);
     expect((await confirmDraft(proposalId, "blk_1", "あ".repeat(1201))).status).toBe(422);
 
