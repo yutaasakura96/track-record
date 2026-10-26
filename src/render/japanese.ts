@@ -294,8 +294,21 @@ export function latinTerms(spec: RenderSpec, facts: readonly Pick<RenderFact, "t
   return [...new Set(terms.filter((t): t is string => t !== null && LATIN_WORD.test(t)))].sort((a, b) => b.length - a.length);
 }
 
+/** Stands where a recorded term was, so a connector between two of them can be told from one beside prose. */
+const TERM_MARK = "\u0001";
+
+/** 「and」「or」 between words, or 「&」「/」「,」「・」「、」 beside them, joining two removed terms. */
+const TERM_CONNECTOR = new RegExp(`${TERM_MARK}(?:(?:\\s+(?:and|or)\\s+|\\s*[&/,・、]\\s*)${TERM_MARK})+`, "giu");
+
+/**
+ * The text with the record's terms taken out. Terms joined only by a connector
+ * go together: 「React and TypeScript」 is a list of names, not a sentence.
+ */
 const withoutTerms = (text: string, terms: readonly string[]): string =>
-  terms.reduce((t, term) => t.replace(new RegExp(escaped(term), "giu"), " "), text);
+  terms
+    .reduce((t, term) => t.replace(new RegExp(escaped(term), "giu"), TERM_MARK), text.replaceAll(TERM_MARK, " "))
+    .replace(TERM_CONNECTOR, TERM_MARK)
+    .replaceAll(TERM_MARK, " ");
 
 /**
  * A heading or a block written in English, judged one physical line at a

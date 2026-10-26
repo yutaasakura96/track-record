@@ -467,20 +467,24 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     // never lands as reviewable content. When this failure was found, the
     // review screen did not show heading changes. A Japanese document is held
     // to its own check the same way (issue #117): 御社, or a line in English.
+    // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
+    // author is shown, so the check reads the content as assembled — a stored
+    // row is held to it, and a row the model wrote that is discarded is not.
+    const assemble = (c: RenderContent) =>
+      inputs.spec.kind === "shokumu_keirekisho" ? withRecordSections(c, inputs.spec, tokyoToday()) : c;
     const defectOf = (c: RenderContent) =>
       inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
+    content = assemble(content);
     const first = defectOf(content);
     if (first !== null) {
       // Ids and the defect's name only.
       console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
-      content = await generate();
+      content = assemble(await generate());
       const second = defectOf(content);
       if (second !== null) {
         throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
       }
     }
-    // Issue #117. 保有資格 and 学歴 are the record's rows, not the model's.
-    if (inputs.spec.kind === "shokumu_keirekisho") content = withRecordSections(content, inputs.spec, tokyoToday());
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)

@@ -1418,6 +1418,47 @@ describe("a Japanese document is checked before it is offered", () => {
     );
   });
 
+  describe("a 職務経歴書, checked as assembled", () => {
+    const shokumuFrom = (...extra: { key: string; heading: string; text: string }[]): RenderContent => ({
+      sections: [
+        { key: "summary", heading: "経歴要約", text: "架空商事で受発注データの移行を担当しました。" },
+        ...extra,
+      ].map(({ key, heading, text }, i) => ({
+        key,
+        heading,
+        blocks: [{ id: `blk_${i + 1}`, kind: "paragraph" as const, text, factIds: [] }],
+      })),
+    });
+
+    async function generateShokumu(...attempts: RenderContent[]) {
+      model.generations = attempts;
+      const response = await client.post("/api/renders/shokumu_keirekisho/generate");
+      expect(response.status).toBe(202);
+      const { proposalId } = (await response.json()) as { proposalId: string };
+      await settle();
+      return client.json<{ generationStatus: string; error: { message: string } | null }>(`/api/proposals/${proposalId}`);
+    }
+
+    it("refuses a stored 保有資格 row that says 御社, which the model never wrote", async () => {
+      await seedRecord();
+      await client.post("/api/certifications", { ...CERTIFICATION_FIXTURE, nameJa: "御社認定資格" });
+      const proposal = await generateShokumu(shokumuFrom(), shokumuFrom());
+      expect(model.generationInputs).toHaveLength(2);
+      expect(proposal.generationStatus).toBe("failed");
+      expect(proposal.error!.message).toMatch(/御社/);
+    });
+
+    it("does not refuse for a 保有資格 section the model wrote that the record's rows replace", async () => {
+      await seedRecord();
+      await client.post("/api/certifications", CERTIFICATION_FIXTURE);
+      const proposal = await generateShokumu(
+        shokumuFrom({ key: "certifications", heading: "保有資格", text: "御社で役立つ資格を取得しました。" }),
+      );
+      expect(model.generationInputs).toHaveLength(1);
+      expect(proposal.generationStatus).toBe("ready");
+    });
+  });
+
   it("is not run on an English document", async () => {
     await seedRecord();
     const response = await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));

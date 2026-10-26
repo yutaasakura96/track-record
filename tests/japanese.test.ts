@@ -162,6 +162,29 @@ describe("a line in English", () => {
     }
   });
 
+  it("passes recorded technology names joined by a connector, and only those", () => {
+    const terms = latinTerms(spec(), [{ technologies: ["React", "PostgreSQL"] }]);
+    for (const line of [
+      "React and TypeScript",
+      "React or TypeScript",
+      "React & TypeScript",
+      "React / TypeScript",
+      "React, TypeScript",
+      "React・TypeScript",
+      "React and TypeScript and Go",
+      "REACT AND TYPESCRIPT",
+      "技術スタック：React and TypeScript",
+    ]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
+    // A connector with a word that is not a recorded term beside it, or with nothing recorded beside it.
+    for (const line of ["React and design", "and", "React and", "and TypeScript", "TypeScript and also a design"]) {
+      expect(isEnglishLine(line, terms), line).toBe(true);
+    }
+    // Words that merely end in a connector are not one.
+    expect(isEnglishLine("Reactandtypescript", terms)).toBe(true);
+  });
+
   it("does not take a skill group's name as one of the record's terms", () => {
     expect(latinTerms(spec(), FACTS)).not.toContain("Languages");
     expect(latinTerms(spec(), FACTS)).toContain("TypeScript");
