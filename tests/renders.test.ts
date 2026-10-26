@@ -1439,13 +1439,15 @@ describe("a Japanese document is checked before it is offered", () => {
       return client.json<{ generationStatus: string; error: { message: string } | null }>(`/api/proposals/${proposalId}`);
     }
 
-    it("refuses a stored 保有資格 row that says 御社, which the model never wrote", async () => {
+    it("refuses a stored 保有資格 row that says 御社 before any model call, and names the row", async () => {
       await seedRecord();
       await client.post("/api/certifications", { ...CERTIFICATION_FIXTURE, nameJa: "御社認定資格" });
-      const proposal = await generateShokumu(shokumuFrom(), shokumuFrom());
-      expect(model.generationInputs).toHaveLength(2);
+      const proposal = await generateShokumu(shokumuFrom());
+      expect(model.generationInputs).toHaveLength(0);
       expect(proposal.generationStatus).toBe("failed");
-      expect(proposal.error!.message).toMatch(/御社/);
+      expect(proposal.error!.message).toMatch(/^Row 1 of 保有資格 comes from your record and contains 御社/);
+      expect(proposal.error!.message).toMatch(/under Certifications on your record/);
+      expect(proposal.error!.message).not.toMatch(/model wrote|generate again/);
     });
 
     it("does not refuse for a 保有資格 section the model wrote that the record's rows replace", async () => {

@@ -21,7 +21,7 @@
  * naming no employer is printed as it was written rather than refused: the
  * 職務経歴書 has no other way to say which employer it is.
  */
-import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind, type RenderSection } from "~/shared/render-content";
 import type { RenderFact, RenderSpec } from "~/model/types";
 import { resolveEmployer } from "./attribution";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
@@ -297,8 +297,11 @@ export function latinTerms(spec: RenderSpec, facts: readonly Pick<RenderFact, "t
 /** Stands where a recorded term was, so a connector between two of them can be told from one beside prose. */
 const TERM_MARK = "\u0001";
 
-/** 「and」「or」 between words, or 「&」「/」「,」「・」「、」 beside them, joining two removed terms. */
-const TERM_CONNECTOR = new RegExp(`${TERM_MARK}(?:(?:\\s+(?:and|or)\\s+|\\s*[&/,・、]\\s*)${TERM_MARK})+`, "giu");
+/** 「and」「or」 between words or after a comma, or 「&」「/」「,」「・」「、」 beside them, joining two removed terms. */
+const TERM_CONNECTOR = new RegExp(
+  `${TERM_MARK}(?:(?:(?:\\s*[,、]\\s*|\\s+)(?:and|or)\\s+|\\s*[&/,・、]\\s*)${TERM_MARK})+`,
+  "giu",
+);
 
 /**
  * The text with the record's terms taken out. Terms joined only by a connector
@@ -423,6 +426,32 @@ export const JAPANESE_DEFECT_REASON: Record<JapaneseDefect, string> = {
   english:
     "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
 };
+
+/** Where on the record screen a row of the 職務経歴書's own sections is kept. */
+const RECORD_SCREEN_SECTION: Record<string, string> = { certifications: "Certifications", education: "Education" };
+
+/**
+ * The reason a 職務経歴書 is not generated when a row the record supplies
+ * (`withRecordSections`) fails the check, or null when every row passes. No
+ * model call can change such a row, so it is checked once, before any, and the
+ * reason names the section and row, never its text.
+ */
+export function recordRowDefectReason(
+  sections: readonly RenderSection[],
+  spec: RenderSpec,
+  facts: readonly Pick<RenderFact, "technologies">[] = [],
+): string | null {
+  for (const section of sections) {
+    for (const [i, block] of section.blocks.entries()) {
+      const defect = japaneseDefect({ sections: [{ ...section, blocks: [block] }] }, spec, facts);
+      if (defect === null) continue;
+      const found = defect === "onsha" ? "contains 御社, the spoken form" : "is in English";
+      const name = SECTION_NAMES.shokumu_keirekisho?.[section.key] ?? section.heading;
+      return `Row ${i + 1} of ${name} comes from your record and ${found}, so this document was not generated. Correct that entry under ${RECORD_SCREEN_SECTION[section.key] ?? name} on your record, then generate it. Your current version is unchanged.`;
+    }
+  }
+  return null;
+}
 
 export const MIXED_JAPANESE_DEFECT_REASON =
   "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Your current version is unchanged; generate again to retry.";

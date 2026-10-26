@@ -37,13 +37,19 @@ import {
   isEnglishOnly,
   type EnglishDefect,
 } from "~/render/language";
-import { JAPANESE_DEFECT_REASON, MIXED_JAPANESE_DEFECT_REASON, japaneseDefect, type JapaneseDefect } from "~/render/japanese";
+import {
+  JAPANESE_DEFECT_REASON,
+  MIXED_JAPANESE_DEFECT_REASON,
+  japaneseDefect,
+  recordRowDefectReason,
+  type JapaneseDefect,
+} from "~/render/japanese";
 import { bulletBudget } from "~/render/resume";
 import { careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
 import { isChapteredStory } from "~/render/chapters";
 import { collectRirekishoRecord } from "./rirekisho";
 import { isExpired } from "~/render/shikaku";
-import { withRecordSections } from "~/render/shokumu";
+import { recordSections, withRecordSections } from "~/render/shokumu";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { curatedGroups } from "./skills";
@@ -461,6 +467,23 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
           usage = usage === null ? u : addUsage(usage, u);
         },
       });
+    const today = tokyoToday();
+    // A row the record supplies is the same on every attempt, so one that
+    // fails the check is refused before any model call, and named as the
+    // record's to correct.
+    const recordDefect =
+      inputs.spec.kind === "shokumu_keirekisho"
+        ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
+        : null;
+    if (recordDefect !== null) {
+      await db
+        .update(renderProposals)
+        .set({ generationStatus: "failed", generationError: recordDefect, updatedAt: new Date() })
+        .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
+      // Ids only.
+      console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
+      return;
+    }
     let content = await generate();
     // Issue #104. An English document that comes back in Japanese, or with a
     // checked record name changed, is retried once and then refused —
@@ -468,10 +491,10 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     // review screen did not show heading changes. A Japanese document is held
     // to its own check the same way (issue #117): 御社, or a line in English.
     // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
-    // author is shown, so the check reads the content as assembled — a stored
-    // row is held to it, and a row the model wrote that is discarded is not.
+    // author is shown, so the check reads the content as assembled: a row the
+    // model wrote that is discarded is not held to it.
     const assemble = (c: RenderContent) =>
-      inputs.spec.kind === "shokumu_keirekisho" ? withRecordSections(c, inputs.spec, tokyoToday()) : c;
+      inputs.spec.kind === "shokumu_keirekisho" ? withRecordSections(c, inputs.spec, today) : c;
     const defectOf = (c: RenderContent) =>
       inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
     content = assemble(content);
