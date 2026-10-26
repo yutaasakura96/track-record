@@ -482,8 +482,8 @@ export function stripUnknownFactIds(content: RenderContent, allowed: Set<string>
  *
  * Only a tailored 履歴書 has any. In it, the 本人希望欄 is always a draft: it is
  * a request, and the author makes it. A 志望動機・特技・アピールポイント
- * paragraph is a draft when the model marked it one, and also when it cites no
- * fact, because then nothing in the record stands behind it. Every other
+ * first paragraph is always a draft; later prose is a draft when the model
+ * marked it one or it cites no fact. Every other
  * document drops the mark wherever the model put it: its blocks are written
  * from facts, and the accept gate must not be held by a flag nobody can clear.
  */
@@ -492,11 +492,11 @@ export function withDrafts(content: RenderContent, spec: Pick<RenderSpec, "kind"
   return {
     sections: content.sections.map((section) => ({
       ...section,
-      blocks: section.blocks.map(({ drafted, ...block }) => {
+      blocks: section.blocks.map(({ drafted, ...block }, index) => {
         const draft =
           tailoredRirekisho &&
           (section.key === PROSE_SECTION_KEYS.kibou ||
-            (section.key === PROSE_SECTION_KEYS.motivation && (drafted === true || block.factIds.length === 0)));
+            (section.key === PROSE_SECTION_KEYS.motivation && (index === 0 || drafted === true || block.factIds.length === 0)));
         return draft ? { ...block, drafted: true as const } : block;
       }),
     })),
@@ -571,6 +571,12 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
       if (second !== null) {
         throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
       }
+    }
+    if (
+      inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription &&
+      !content.sections.some((section) => section.key === PROSE_SECTION_KEYS.motivation && section.blocks[0]?.kind === "paragraph")
+    ) {
+      throw new ModelUnavailableError("The tailored 履歴書 needs a 志望動機 to confirm. Generate it again.");
     }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db

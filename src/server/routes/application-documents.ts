@@ -103,11 +103,16 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     if (added.length === 0 && removed.length === 0) return c.json(await detail(db, user.id, id));
 
     const now = new Date();
-    await db.batch([
-      markActivity(db, user.id, id, now),
-      ...removed.map((row) => takeOff(db, user.id, row.id, now)),
-      ...added.map((render) => putOn(db, user.id, id, render.id)),
-    ]);
+    try {
+      await db.batch([
+        markActivity(db, user.id, id, now),
+        ...removed.map((row) => takeOff(db, user.id, row.id, now)),
+        ...added.map((render) => putOn(db, user.id, id, render.id)),
+      ]);
+    } catch (error) {
+      if (violatesUnique(error, "application_one_rirekisho")) throw new ApiError("conflict", MAIN_RIREKISHO_HELD);
+      throw error;
+    }
     console.log(JSON.stringify({ event: "application_documents_set", applicationId: id, added: added.length, removed: removed.length }));
     return c.json(await detail(db, user.id, id));
   });
@@ -186,18 +191,18 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     if (!(await isOn(db, user.id, id, existing.id))) {
       // One 履歴書 before Applied: the main one makes way, and is still a
       // document on Home, untouched.
-      const main =
-        kind === "rirekisho" && application.currentStep === "not_applied"
-          ? await mainOn(db, user.id, id, "rirekisho")
-          : undefined;
       const now = new Date();
       try {
-        await db.batch([
-          markActivity(db, user.id, id, now),
-          ...(main ? [takeOff(db, user.id, main, now)] : []),
-          putOn(db, user.id, id, existing.id),
-        ]);
-        if (main) replaced.push(SENDABLE_TITLE.rirekisho);
+        if (kind === "rirekisho" && application.currentStep === "not_applied") {
+          const [, removed] = await db.batch([
+            markActivity(db, user.id, id, now),
+            takeOffMainRirekisho(db, user.id, id, now),
+            putOn(db, user.id, id, existing.id),
+          ]);
+          if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
+        } else {
+          await db.batch([markActivity(db, user.id, id, now), putOn(db, user.id, id, existing.id)]);
+        }
       } catch (error) {
         if (!violatesUnique(error, "application_documents_live_uq")) throw error;
       }
@@ -369,16 +374,14 @@ async function isOn(db: Db, userId: string, applicationId: string, renderId: str
   return row !== undefined;
 }
 
-/** The pointer row of the main document of a kind, when it is on this application. */
-async function mainOn(db: Db, userId: string, applicationId: string, kind: RenderKind): Promise<string | undefined> {
-  const [row] = await db
-    .select({ id: applicationDocuments.id })
-    .from(applicationDocuments)
-    .innerJoin(renders, and(eq(renders.id, applicationDocuments.renderId), mainRender(userId, kind)))
-    .where(onApplication(userId, applicationId))
-    .limit(1);
-  return row?.id;
-}
+const takeOffMainRirekisho = (db: Db, userId: string, applicationId: string, now: Date) =>
+  db.update(applicationDocuments)
+    .set({ removedAt: now, updatedAt: now })
+    .where(and(
+      onApplication(userId, applicationId),
+      inArray(applicationDocuments.renderId, db.select({ id: renders.id }).from(renders).where(mainRender(userId, "rirekisho"))),
+    ))
+    .returning({ id: applicationDocuments.id });
 
 /**
  * The document a ref names for this application: one of the three by its kind,

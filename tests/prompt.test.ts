@@ -400,9 +400,9 @@ describe("the tailoring of a 履歴書", () => {
   });
 
   it("is written in the tailored register, which drafts the reason and the request and names the 本人希望欄 order", () => {
-    const definition = RENDER_DEFINITIONS.rirekisho;
-    expect(definition.register).toContain("do not write a 志望動機");
-    const tailored = TAILORED_REGISTER.rirekisho!;
+    const main = buildGenerationPrompt(rirekisho({ jobDescription: null, application: null }));
+    const tailored = buildGenerationPrompt(rirekisho({ register: TAILORED_REGISTER.rirekisho! }));
+    expect(main).toContain("do not write a 志望動機");
     expect(tailored).not.toContain("do not write a 志望動機");
     expect(tailored).toContain('Mark every block holding one with "drafted": true.');
     expect(tailored).toContain("The FIRST paragraph is the 志望動機, and it is a draft");
@@ -413,7 +413,7 @@ describe("the tailoring of a 履歴書", () => {
     expect(tailored).toMatch(/the author's request for this application below; else the author's stated preference for every 履歴書 above; else a draft of your own from the posting/);
     expect(tailored).toContain("the cell is exactly 貴社規定に従います。");
     // The main register no longer describes the layout it had before the fixed two pages.
-    expect(definition.register).not.toContain("two pages with no page break");
+    expect(main).not.toContain("two pages with no page break");
   });
 
   it("lets the model mark a draft through the tool", () => {

@@ -254,6 +254,20 @@ describe("one 履歴書 an application, until Applied", () => {
     expect((await read(made.id)).choices.find((choice) => choice.ref === "rirekisho")!.heldBy).toBeNull();
   });
 
+  it("keeps one 履歴書 when choosing main and tailored in concurrent requests", async () => {
+    await acceptMain();
+    const made = await add();
+    const [main, tailored] = await Promise.all([choose(made.id, ["rirekisho"]), tailor(made.id)]);
+    expect(tailored.status).toBe(201);
+    expect([200, 409]).toContain(main.status);
+    if (main.status === 409) {
+      expect(((await main.json()) as { error: { message: string } }).error.message).toBe(MAIN_RIREKISHO_HELD);
+    }
+    const selected = (await read(made.id)).documents.filter((document) => document.kind === "rirekisho");
+    expect(selected).toHaveLength(1);
+    expect(selected[0]!.tailored).toBe(true);
+  });
+
   it("freezes on leaving Not applied, and from Applied onward records either as sent", async () => {
     await acceptMain();
     const made = await add();
@@ -320,6 +334,27 @@ describe("the drafts", () => {
     unmarked.sections[0]!.blocks[0] = { id: "blk_1", kind: "paragraph", text: "貴社の事業に関心を持ち志望しました。", factIds: [] };
     const { proposal } = await generate(ref, unmarked);
     expect(proposal.drafts.map((draft) => draft.blockId)).toEqual(["blk_1", "blk_3"]);
+  });
+
+  it("requires confirmation even when the first 志望動機 cites a fact but the model left it unmarked", async () => {
+    const made = await add();
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const unmarked = tailoredContent();
+    delete unmarked.sections[0]!.blocks[0]!.drafted;
+    const { proposalId, proposal } = await generate(ref, unmarked);
+    expect(proposal.drafts.map((draft) => draft.blockId)).toContain("blk_1");
+    expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(409);
+  });
+
+  it("refuses a tailored proposal without a first 志望動機 paragraph", async () => {
+    const made = await add();
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const empty = tailoredContent();
+    empty.sections = empty.sections.filter((section) => section.key !== "motivation");
+    const { proposalId } = await generate(ref, empty);
+    const proposal = await client.json<{ generationStatus: string }>(`/api/proposals/${proposalId}`);
+    expect(proposal.generationStatus).toBe("failed");
+    expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(409);
   });
 
   it("are refused empty, with 御社, on a block that is not one, and once decided", async () => {

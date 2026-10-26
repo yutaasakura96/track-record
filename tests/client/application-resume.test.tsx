@@ -15,6 +15,7 @@ import type { Application, ApplicationDocument, DocumentChoice, Proposal, SentCo
 import { figures, moveTo, type Standing } from "~/shared/application";
 import { mount, Refusal, type Call, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { PHOTO_NOTICE } from "~/shared/photo";
 
 const TODAY = "2026-10-10";
 const ID = "app-test-osprey";
@@ -314,6 +315,16 @@ describe("a tailored 履歴書", () => {
 
     await waitFor(() => expect(api.writes()).toEqual([`PATCH ${AT}`]));
     expect(api.bodyOf("PATCH", AT)).toEqual({ motivationNote: null, kibouNote: "週3日の出社を希望します。" });
+  });
+
+  it("shows the tailored 履歴書 photo notice when the profile has no photo", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }), {
+      "GET /api/profile": { id: "profile-test-1", hasPhoto: false },
+    });
+    const resume = await panel();
+    expect(resume.getByText((text) => text.includes(PHOTO_NOTICE))).toBeTruthy();
+    expect(resume.getByRole("link", { name: "Add a photo" }).getAttribute("href")).toBe("/profile");
   });
 });
 

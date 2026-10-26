@@ -35,7 +35,7 @@ type RenderRow = typeof renders.$inferSelect;
 export interface ApplicationRef {
   id: string;
   company: string;
-  currentStep?: string;
+  currentStep: string;
 }
 
 /** A document as an application lists it. */
@@ -140,7 +140,7 @@ export async function readDocuments(db: Db, userId: string, application: Applica
     .filter((row) => row.id !== null && ownIds.has(row.id))
     .sort((a, b) => placeOf(a.kind, true) - placeOf(b.kind, true));
   const tailoredRirekishoOn = ownDocuments.some((row) => row.kind === "rirekisho" && onApplication.has(row.id!));
-  const choosing = (application.currentStep ?? "not_applied") === "not_applied";
+  const choosing = application.currentStep === "not_applied";
   const choices: DocumentChoice[] = [
     ...ownDocuments.map((row) => ({ row, tailored: true })),
     ...SENDABLE_KINDS.map((kind) => ({ row: state.documents.find((row) => row.kind === kind)!, tailored: false })),

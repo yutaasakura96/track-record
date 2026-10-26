@@ -28,6 +28,7 @@ import {
   failureText,
   useApplicationActions,
   useGenerate,
+  useProfile,
   type Application,
   type ApplicationDocument,
   type ApplicationNotes,
@@ -45,6 +46,7 @@ import { QUIET, SECONDARY } from "./document-row";
 import { Button, Chip, Panel } from "./ui";
 import { isSendableKind, nameVersions, type TailoredKind } from "~/shared/application-documents";
 import { APPLICATION_NOTE_MAX } from "~/shared/application";
+import { PHOTO_NOTICE } from "~/shared/photo";
 
 const CARD = "min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-8 content-start";
 const ROW =
@@ -65,6 +67,7 @@ export function ResumePanel({
   onChanged: () => void;
 }) {
   const { documents: act, edit } = useApplicationActions(application.id);
+  const profile = useProfile();
   const generate = useGenerate();
   const navigate = useNavigate();
   const flash = useFlashStore((state) => state.show);
@@ -212,6 +215,7 @@ export function ResumePanel({
                       <NotesToggle application={application} busy={busy} onSave={(notes) => edit.mutateAsync(notes)} />
                     ) : null
                   }
+                  missingPhoto={profile.data?.hasPhoto === false}
                 />
               ))}
             </ul>
@@ -289,6 +293,7 @@ function DocumentLine({
   onWrite,
   onTakeOff,
   notes,
+  missingPhoto,
 }: {
   document: ApplicationDocument;
   canGenerate: boolean;
@@ -300,6 +305,7 @@ function DocumentLine({
   onTakeOff: () => void;
   /** A tailored 履歴書's notes, under its line. */
   notes?: ReactNode;
+  missingPhoto: boolean;
 }) {
   const version = document.currentVersionNo === null ? "No version yet" : `Version ${document.currentVersionNo}`;
   return (
@@ -313,6 +319,12 @@ function DocumentLine({
         {document.kind === "rirekisho" ? (
           <div className="mt-6">
             <GapNotices compact />
+            {document.tailored && missingPhoto ? (
+              <p lang="ja" className="text-smaller text-text-secondary">
+                {PHOTO_NOTICE}{" "}
+                <Link to="/profile" className={QUIET}>Add a photo</Link>
+              </p>
+            ) : null}
           </div>
         ) : null}
         {notes}
