@@ -18,6 +18,7 @@ import { preconditionFailed } from "../http/errors";
 import { storedBytes } from "../db/bytes";
 import type { RirekishoProfile, RirekishoRecord } from "~/render/rirekisho";
 import type { RirekishoPhoto } from "~/render/rirekisho-photo";
+import type { TimelineGapNote } from "~/shared/career-timeline";
 import { photoInfo, photoRefusal } from "~/shared/photo";
 import { exclusionsFor } from "./inclusion";
 
@@ -119,7 +120,7 @@ export async function hasProfilePhoto(db: Db, userId: string): Promise<boolean> 
 export async function collectRirekishoRecord(
   db: Db,
   userId: string,
-): Promise<RirekishoRecord> {
+): Promise<Omit<RirekishoRecord, "gapNotes"> & { gapNotes: TimelineGapNote[] }> {
   const educationRows = await db
     .select()
     .from(educations)
@@ -159,7 +160,7 @@ export async function collectRirekishoRecord(
   // Every note, matched to the gaps when the document is assembled: which gap
   // a note explains depends on the rows below, after the exclusions.
   const gapNoteRows = await db
-    .select({ fromOn: careerGapNotes.fromOn, toOn: careerGapNotes.toOn, text: careerGapNotes.text })
+    .select({ id: careerGapNotes.id, fromOn: careerGapNotes.fromOn, toOn: careerGapNotes.toOn, text: careerGapNotes.text })
     .from(careerGapNotes)
     .where(eq(careerGapNotes.userId, userId))
     .orderBy(asc(careerGapNotes.fromOn));

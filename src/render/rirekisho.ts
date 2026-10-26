@@ -193,11 +193,11 @@ export interface CareerSpan {
 }
 
 /** The gaps the record can hold explanations against. */
-interface GapRecord {
+interface GapRecord<N extends GapNote = GapNote> {
   educations: CareerSpan[];
   employers: CareerSpan[];
   /** Absent is none: a record with no explanation warns about every gap. */
-  gapNotes?: readonly GapNote[];
+  gapNotes?: readonly N[];
 }
 
 /**
@@ -272,7 +272,7 @@ export function unexplainedGaps(record: GapRecord): CareerGap[] {
  * the gaps. A note whose gap moved or closed is left out: its months would be
  * printed on a signed document, and they are no longer the gap.
  */
-export function explainedGaps(record: GapRecord): { gap: CareerGap; note: GapNote }[] {
+export function explainedGaps<N extends GapNote>(record: GapRecord<N>): { gap: CareerGap; note: N }[] {
   const notes = record.gapNotes ?? [];
   return careerGaps(record).flatMap((gap) => {
     const note = notes.find((n) => explains(n, gap));

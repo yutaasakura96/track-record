@@ -175,10 +175,12 @@ describe("the gaps in the stories' prompt", () => {
   });
 
   it("asks for a routing row for every gap, in both registers", () => {
-    const prompt = buildGenerationPrompt(spec({ careerGaps: GAPS }));
-    expect(prompt).toContain("The routing table gives every gap a row of its own");
     for (const kind of ["career_story_en", "career_story_ja"] as const) {
-      expect(RENDER_DEFINITIONS[kind].register).toContain("**Every gap the Gaps list below names gets a row**");
+      const prompt = buildGenerationPrompt(
+        spec({ kind, language: kind === "career_story_ja" ? "ja" : "en", register: RENDER_DEFINITIONS[kind].register, careerGaps: GAPS }),
+      );
+      expect(prompt).toContain("The routing table gives every gap a row of its own");
+      expect(prompt).toContain("**Every gap the Gaps list below names gets a row**");
     }
   });
 

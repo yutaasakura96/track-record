@@ -12,7 +12,7 @@
  * has one explanation, and editing it is writing it again.
  */
 import type { Hono } from "hono";
-import { and, asc, eq, isNotNull, sql } from "drizzle-orm";
+import { and, eq, isNotNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import { careerGapNotes, facts, sourceDocumentVersions } from "../db/schema";
 import { notFound, pathParam, validationFailed } from "../http/errors";
@@ -57,7 +57,7 @@ export function registerCareerTimelineRoutes(app: Hono<AppEnv>) {
 
     // The rows the 履歴書 prints, its exclusions applied, so the warning here
     // is the one its download would carry. Read beside the counts, not after.
-    const [[byEmployer, byProject], rirekisho, notes] = await Promise.all([
+    const [[byEmployer, byProject], rirekisho] = await Promise.all([
       db.batch([
         db
           .select({
@@ -80,20 +80,15 @@ export function registerCareerTimelineRoutes(app: Hono<AppEnv>) {
           .groupBy(facts.projectId),
       ]),
       collectRirekishoRecord(db, userId),
-      // With their ids, which the record's own read does not carry.
-      db.select(noteColumns).from(careerGapNotes).where(eq(careerGapNotes.userId, userId)).orderBy(asc(careerGapNotes.fromOn)),
     ]);
 
-    const explained = explainedGaps(rirekisho).map(({ gap, note }) => ({
-      gap,
-      note: notes.find((n) => n.fromOn === note.fromOn && n.toOn === note.toOn)!,
-    }));
+    const explained = explainedGaps(rirekisho);
     const body: CareerTimeline = {
       employers: byEmployer.map((row) => ({ ...row, id: row.id! })),
       projects: byProject.map((row) => ({ ...row, id: row.id! })),
       gaps: unexplainedGaps(rirekisho),
       explained,
-      staleNotes: notes.filter((n) => !explained.some((e) => e.note.id === n.id)),
+      staleNotes: rirekisho.gapNotes.filter((n) => !explained.some((e) => e.note.id === n.id)),
     };
     return c.json(body);
   });
