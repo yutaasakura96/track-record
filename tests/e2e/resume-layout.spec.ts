@@ -199,7 +199,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   if (evidence) await page.screenshot({ path: `${evidence}/rirekisho-tailored-review.png`, fullPage: true });
   await page.getByRole("button", { name: "Accept as v1" }).click();
   await expect(page).toHaveURL(new RegExp(`/applications/${japanese.id}$`));
-  await expect(page.getByText("Tailored 履歴書 for Osprey")).toBeVisible();
+  await expect(page.getByText("Tailored 履歴書 for Osprey", { exact: true })).toBeVisible();
   const japaneseDetail = await api.get(`/api/applications/${japanese.id}`).then((r) => r.json()) as { documents: { ref: string; kind: string; tailored: boolean; currentVersionNo: number | null }[] };
   const ownRirekisho = japaneseDetail.documents.find((document) => document.tailored && document.kind === "rirekisho")!;
   expect(ownRirekisho.currentVersionNo).toBe(1);
