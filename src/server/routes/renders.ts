@@ -12,7 +12,7 @@
  */
 import type { Hono } from "hono";
 import { and, desc, eq, getTableColumns, ne, sql } from "drizzle-orm";
-import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
+import { applications, facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
@@ -327,7 +327,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
               }),
             )
           : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
-    return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
+    const tailoring = render.jobDescription !== null ? await tailoringOf(db, user.id, render) : null;
+    return c.json({ ...diff, preview: { title: titleOf(render, tailoring?.application?.company), page } });
   });
 
   api.post("/api/proposals/:id/accept", async (c) => {
@@ -1113,7 +1114,10 @@ export async function renderState(
 ): Promise<{ documents: RenderState[]; tailored: RenderState[]; usableFacts: number }> {
   // One round trip, not four in a row: this backs the home screen (issue #58).
   const [rows, versions, pending, usable] = await db.batch([
-    db.select().from(renders).where(eq(renders.userId, userId)),
+    db.select({ ...getTableColumns(renders), applicationCompany: applications.company })
+      .from(renders)
+      .leftJoin(applications, and(eq(applications.id, renders.applicationId), eq(applications.userId, userId)))
+      .where(eq(renders.userId, userId)),
     // Each render's current version, by join rather than by a list of ids read
     // first, which is what made this a query that had to wait for another.
     db
@@ -1180,11 +1184,11 @@ export async function renderState(
       ref: row ? refOf(row) : kind,
       tailored:
         row && row.jobDescription !== null
-          ? { label: row.label ?? "", createdAt: row.createdAt.toISOString() }
+          ? { label: row.applicationCompany ?? row.label ?? "", createdAt: row.createdAt.toISOString() }
           : null,
       kind,
       language: RENDER_DEFINITIONS[kind].language,
-      title: row ? titleOf(row) : RENDER_TITLE[kind],
+      title: row ? titleOf(row, row.applicationCompany) : RENDER_TITLE[kind],
       buildable: RENDER_DEFINITIONS[kind].buildable,
       currentVersionId: row?.currentVersionId ?? null,
       currentVersionNo: version?.versionNo ?? null,

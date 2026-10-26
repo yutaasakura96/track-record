@@ -8,9 +8,9 @@
  * main document has (generate, history, compare, restore, edit, download) is
  * a route a tailored résumé has too, with nothing written twice.
  */
-import { and, eq, isNotNull, isNull, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, isNotNull, isNull, type SQL } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { renders } from "../db/schema";
+import { applications, renders } from "../db/schema";
 import { notFound } from "../http/errors";
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
 
@@ -52,17 +52,19 @@ export async function resolveRender(db: Db, userId: string, ref: string | undefi
     return { ref, kind: ref, render: render ?? null, title: RENDER_TITLE[ref], jobDescription: null };
   }
 
-  const [render] = await db
-    .select()
+  const [row] = await db
+    .select({ ...getTableColumns(renders), applicationCompany: applications.company })
     .from(renders)
+    .leftJoin(applications, and(eq(applications.id, renders.applicationId), eq(applications.userId, userId)))
     .where(and(eq(renders.userId, userId), eq(renders.id, ref), isNotNull(renders.jobDescription)))
     .limit(1);
-  if (!render) throw notFound("That document");
+  if (!row) throw notFound("That document");
+  const { applicationCompany, ...render } = row;
   return {
     ref,
     kind: render.kind as RenderKind,
     render,
-    title: tailoredTitle(render.kind, render.label),
+    title: titleOf(render, applicationCompany),
     jobDescription: render.jobDescription,
   };
 }
@@ -72,5 +74,5 @@ export const refOf = (render: Pick<typeof renders.$inferSelect, "id" | "kind" | 
   render.jobDescription === null ? render.kind : render.id;
 
 /** The title of a stored row, by the same rule {@link resolveRender} names it with. */
-export const titleOf = (render: Pick<typeof renders.$inferSelect, "kind" | "jobDescription" | "label">) =>
-  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.kind, render.label);
+export const titleOf = (render: Pick<typeof renders.$inferSelect, "kind" | "jobDescription" | "label">, company?: string | null) =>
+  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.kind, company ?? render.label);

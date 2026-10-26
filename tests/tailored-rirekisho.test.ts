@@ -225,6 +225,39 @@ describe("making a tailored 履歴書 from an application", () => {
     }
     expect((await confirmDraft(proposalId, "blk_1", "乗っ取り", other)).status).toBe(404);
   });
+
+  it("uses a corrected company for live titles and keeps sent-copy titles frozen", async () => {
+    const made = await add();
+    const japanese = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const english = own((await (await tailor(made.id, "english_resume")).json()) as Detail, "english_resume").ref;
+    await client.delete(`/api/applications/${made.id}/documents/${english}`);
+    await acceptTailored(japanese);
+    expect((await client.post(`/api/applications/${made.id}/steps`, { status: "applied" })).status).toBe(200);
+    expect((await client.patch(`/api/applications/${made.id}`, { company: "Harrowgate Marine" })).status).toBe(200);
+
+    const application = await read(made.id);
+    expect(application.documents.find((document) => document.ref === japanese)!.title).toBe("Tailored 履歴書 for Harrowgate Marine");
+    expect(application.sentCopies[0]!.title).toBe("Tailored 履歴書 for Harrowgate Signals");
+    const page = await client.json<{ title: string; document: { title: string } }>(`/api/renders/${japanese}/page`);
+    expect(page.title).toBe("Tailored 履歴書 for Harrowgate Marine");
+    expect(page.document.title).toBe(page.title);
+    const japaneseHistory = await client.json<{ title: string }>(`/api/renders/${japanese}/versions`);
+    const englishHistory = await client.json<{ title: string }>(`/api/renders/${english}/versions`);
+    expect(japaneseHistory.title).toBe("Tailored 履歴書 for Harrowgate Marine");
+    expect(englishHistory.title).toBe("Résumé for Harrowgate Marine");
+    const { proposal } = await generate(japanese, tailoredContent());
+    expect(proposal.title).toBe("Tailored 履歴書 for Harrowgate Marine");
+    const englishContent: RenderContent = {
+      sections: [{
+        key: "experience", heading: "Experience",
+        blocks: [{ id: "blk_en", kind: "bullet", text: "Cut the nightly settlement run from six hours to ninety minutes.", factIds: [factId] }],
+      }],
+    };
+    const englishProposal = await generate(english, englishContent);
+    expect(englishProposal.proposal.title).toBe("Résumé for Harrowgate Marine");
+    const diff = await client.json<{ preview: { title: string } }>(`/api/proposals/${englishProposal.proposalId}/diff`);
+    expect(diff.preview.title).toBe("Résumé for Harrowgate Marine");
+  });
 });
 
 describe("one 履歴書 an application, until Applied", () => {

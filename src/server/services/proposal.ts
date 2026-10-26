@@ -54,7 +54,7 @@ export async function proposalResponse(
     renderKind: kind,
     /** What the render routes address this document by, and what it is called. */
     renderRef: refOf(render),
-    title: titleOf(render),
+    title: titleOf(render, tailoring?.application?.company),
     /** The application a tailored document belongs to, which is where its review returns to. */
     applicationId: render.applicationId,
     /** The author's decision, once generation has produced something to decide. */
