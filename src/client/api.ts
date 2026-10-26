@@ -19,7 +19,7 @@ import type { CareerTimeline, TimelineGapNote } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
-import type { NamedVersion, SendableKind } from "~/shared/application-documents";
+import type { NamedVersion, SendableKind, TailoredKind } from "~/shared/application-documents";
 import type { FactEvidence } from "~/shared/evidence";
 import type { LastUsed } from "~/shared/skills";
 import type { SentPage } from "~/render/sent-page";
@@ -441,8 +441,22 @@ export interface Proposal {
   generatedAt: string;
   reason: string | null;
   warnings: string[];
+  /**
+   * The parts drafted for the author to confirm or edit (`docs/06`,
+   * 2026-10-26): a tailored 履歴書's 志望動機 and 本人希望欄. Accept is refused
+   * while any is left.
+   */
+  drafts: ProposalDraft[];
   unchanged: boolean;
   withheld: { privateFactCount: number; generatedFactCount: number };
+}
+
+/** One drafted part of a proposal, as the review shows it. */
+export interface ProposalDraft {
+  blockId: string;
+  sectionKey: string;
+  heading: string;
+  text: string;
 }
 
 /** One row of the version history (`docs/10` Screen 5). */
@@ -1034,9 +1048,11 @@ export interface ApplicationDocument {
   pendingProposalId: string | null;
 }
 
-/** A document that could be ticked: the three, and this application's tailored résumé. */
+/** A document that could be ticked: the three, and this application's tailored documents. */
 export interface DocumentChoice extends ApplicationDocument {
   onApplication: boolean;
+  /** Why it cannot be ticked now: the main 履歴書 while the application's own is on it. */
+  heldBy: string | null;
 }
 
 /** One copy that was sent. The file and its page are read from its own routes. */
@@ -1053,6 +1069,10 @@ export interface SentCopy {
 export interface Application extends ApplicationSummary {
   requirements: string[];
   jobDescription: string;
+  /** The author's reason for applying, for a tailored 履歴書. Their words, never a fact. */
+  motivationNote: string | null;
+  /** The author's request for a tailored 履歴書's 本人希望欄. */
+  kibouNote: string | null;
   documents: ApplicationDocument[];
   choices: DocumentChoice[];
   /** Every copy, most recently recorded first. */
@@ -1080,6 +1100,12 @@ export interface ApplicationFields {
   position: string;
   postingUrl: string | null;
   requirements: string[];
+}
+
+/** The author's two notes for a tailored 履歴書, saved with the application's `PATCH`. */
+export interface ApplicationNotes {
+  motivationNote: string | null;
+  kibouNote: string | null;
 }
 
 /** Every application, newest activity first. */
@@ -1238,7 +1264,7 @@ export function useApplicationActions(id: string) {
     void queryClient.invalidateQueries({ queryKey: keys.sentCopies(id) });
   };
   const edit = useMutation({
-    mutationFn: (body: ApplicationFields) => api<Application>(base, { method: "PATCH", ...json(body) }),
+    mutationFn: (body: ApplicationFields | ApplicationNotes) => api<Application>(base, { method: "PATCH", ...json(body) }),
     onSuccess: settled,
   });
   const stand = useMutation({
@@ -1260,7 +1286,7 @@ export function useApplicationActions(id: string) {
         : action.change === "take-off"
           ? api<Application>(`${base}/documents/${action.ref}`, { method: "DELETE" })
           : action.change === "tailor"
-            ? api<Application>(`${base}/tailored-resume`, { method: "POST" })
+            ? api<Application & { replaced: string[] }>(`${base}/tailored/${action.kind}`, { method: "POST" })
             : api<Application>(`${base}/sent-copies`, { method: "POST", ...json({ documents: action.refs }) }),
     onSuccess: settled,
   });
@@ -1327,8 +1353,8 @@ export type DocumentChange =
   /** Before Applied: which of the three are on the application, whole. */
   | { change: "choose"; kinds: SendableKind[] }
   | { change: "take-off"; ref: string }
-  /** Stores the tailored résumé and puts it on the application. Generating it is `useGenerate`. */
-  | { change: "tailor" }
+  /** Stores a tailored document of the kind and puts it on the application. Generating it is `useGenerate`. */
+  | { change: "tailor"; kind: TailoredKind }
   /** From Applied onward: each is frozen as a further sent copy, always. */
   | { change: "record"; refs: string[] };
 
@@ -1716,6 +1742,23 @@ export function useDecideProposal(proposalId: string) {
     onError: after,
   });
   return { accept, dismiss };
+}
+
+/**
+ * Confirms one drafted part, as drafted or as edited. The answer is the
+ * proposal afterwards, and the diff is read again: the document now says what
+ * the author confirmed.
+ */
+export function useConfirmDraft(proposalId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ blockId, text }: { blockId: string; text: string }) =>
+      api<Proposal>(`/api/proposals/${proposalId}/drafts/${blockId}`, { method: "POST", ...json({ text }) }),
+    onSuccess: (next) => {
+      queryClient.setQueryData(keys.proposal(proposalId), next);
+      void queryClient.invalidateQueries({ queryKey: keys.diff(proposalId) });
+    },
+  });
 }
 
 /**

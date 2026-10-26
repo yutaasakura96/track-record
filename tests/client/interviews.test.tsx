@@ -68,6 +68,8 @@ const application = (standing: Standing, lastActivityOn: string, interviews: Int
   ...figures(standing, lastActivityOn, TODAY),
   requirements: [],
   jobDescription: "Senior backend engineer for the fernhill warehouse fleet.",
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: [],
   sentCopies: [],

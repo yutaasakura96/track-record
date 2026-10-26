@@ -32,8 +32,13 @@ const isKind = (value: string): value is RenderKind => (RENDER_KINDS as readonly
 export const mainRender = (userId: string, kind: RenderKind): SQL =>
   and(eq(renders.userId, userId), eq(renders.kind, kind), isNull(renders.jobDescription))!;
 
-/** What a tailored résumé is called wherever a main document's title would stand. */
-export const tailoredTitle = (label: string | null) => `Résumé for ${label ?? "a job"}`;
+/**
+ * What a tailored document is called wherever a main document's title would
+ * stand. A 履歴書 says what it is (`docs/06`, 2026-10-26): "Tailored 履歴書 for
+ * Kestrel" in Diff Review is the only way to tell it from the main one there.
+ */
+export const tailoredTitle = (kind: string, label: string | null) =>
+  kind === "rirekisho" ? `Tailored 履歴書 for ${label ?? "a job"}` : `Résumé for ${label ?? "a job"}`;
 
 /**
  * A miss is a 404 either way, and so is another user's id: the read is
@@ -57,7 +62,7 @@ export async function resolveRender(db: Db, userId: string, ref: string | undefi
     ref,
     kind: render.kind as RenderKind,
     render,
-    title: tailoredTitle(render.label),
+    title: tailoredTitle(render.kind, render.label),
     jobDescription: render.jobDescription,
   };
 }
@@ -68,4 +73,4 @@ export const refOf = (render: Pick<typeof renders.$inferSelect, "id" | "kind" | 
 
 /** The title of a stored row, by the same rule {@link resolveRender} names it with. */
 export const titleOf = (render: Pick<typeof renders.$inferSelect, "kind" | "jobDescription" | "label">) =>
-  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.label);
+  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.kind, render.label);

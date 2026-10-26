@@ -168,7 +168,7 @@ describe("generating a tailored résumé", () => {
     const main = model.generationInputs.at(-1)!;
     expect(main.spec.jobDescription).toBeNull();
     expect(main.facts).toEqual(tailored.facts);
-    expect({ ...main.spec, jobDescription: POSTING }).toEqual(tailored.spec);
+    expect({ ...main.spec, jobDescription: POSTING, application: tailored.spec.application }).toEqual(tailored.spec);
   });
 
   it("is a proposal, read as a diff and accepted, like every other document", async () => {

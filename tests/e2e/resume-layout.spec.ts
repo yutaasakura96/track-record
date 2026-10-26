@@ -172,12 +172,41 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   expect(await after.text()).toBe(original);
 
   const application = await post("/api/applications", { company: "Kestrel", position: "Platform Engineer", jobDescription: "Kestrel seeks an engineer for an invented settlement platform." }) as { id: string };
-  const tailored = await api.post(`/api/applications/${application.id}/tailored-resume`);
+  const tailored = await api.post(`/api/applications/${application.id}/tailored/english_resume`);
   expect(tailored.status(), await tailored.text()).toBe(201);
   const detail = await api.get(`/api/applications/${application.id}`).then((r) => r.json()) as { documents: { ref: string; tailored: boolean }[] };
   const ref = detail.documents.find((document) => document.tailored)!.ref;
   await accept(ref);
   await checkDownload(ref, "resume-tailored");
+
+  // A tailored 履歴書, made from its own application through the screen
+  // (`docs/06`, 2026-10-26): its drafts are confirmed or edited before it is
+  // accepted, and it is then the application's 履歴書.
+  const japanese = await post("/api/applications", { company: "Osprey", position: "バックエンドエンジニア", jobDescription: "Osprey は架空の決済基盤のエンジニアを募集しています。" }) as { id: string };
+  await page.goto(`/applications/${japanese.id}`);
+  await page.getByLabel(/Why you are applying/).fill("決済の信頼性に関わり続けたいからです。");
+  await page.getByRole("button", { name: "Make a tailored 履歴書" }).click();
+  await expect(page).toHaveURL(/\/proposals\/[^/]+$/);
+  const drafts = page.getByRole("region", { name: "Drafted for you" });
+  await expect(drafts.getByText("Drafted for you: 2 parts to confirm")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Accept as v1" })).toBeDisabled();
+  await drafts.getByRole("button", { name: "Confirm as written" }).first().click();
+  await expect(drafts.getByText("Drafted for you: 1 part to confirm")).toBeVisible();
+  const kibou = drafts.getByRole("textbox", { name: /本人希望欄/ });
+  await kibou.fill("バックエンドエンジニア職を希望いたします。");
+  await drafts.getByRole("button", { name: "Save my wording" }).click();
+  await expect(drafts).toBeHidden();
+  if (evidence) await page.screenshot({ path: `${evidence}/rirekisho-tailored-review.png`, fullPage: true });
+  await page.getByRole("button", { name: "Accept as v1" }).click();
+  await expect(page).toHaveURL(new RegExp(`/applications/${japanese.id}$`));
+  await expect(page.getByText("Tailored 履歴書 for Osprey")).toBeVisible();
+  const japaneseDetail = await api.get(`/api/applications/${japanese.id}`).then((r) => r.json()) as { documents: { ref: string; kind: string; tailored: boolean; currentVersionNo: number | null }[] };
+  const ownRirekisho = japaneseDetail.documents.find((document) => document.tailored && document.kind === "rirekisho")!;
+  expect(ownRirekisho.currentVersionNo).toBe(1);
+  const rirekishoFile = await api.get(`/api/renders/${ownRirekisho.ref}/download?format=docx`);
+  expect(rirekishoFile.status()).toBe(200);
+  expect(decodeURIComponent(rirekishoFile.headers()["content-disposition"] ?? "")).toMatch(/履歴書_/);
+  expect(new PizZip(await rirekishoFile.body()).file("word/document.xml")!.asText()).toContain("バックエンドエンジニア職を希望いたします。");
   expect((await api.patch(`/api/projects/${independent.id}`, { data: { employerId: employer.id } })).status()).toBe(200);
   const reworded = { sections: version.content.sections.map((section) => section.key === "summary"
     ? { ...section, blocks: section.blocks.map((block) => ({ ...block, text: "Backend engineer improving dependable settlement services." })) }

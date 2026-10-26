@@ -17,26 +17,30 @@ import { newId } from "../http/ids";
 import { buildDocumentFile } from "./document-file";
 import { renderState, type RenderState } from "../routes/renders";
 import {
+  MAIN_RIREKISHO_HELD,
   SENDABLE_KINDS,
   SENDABLE_TITLE,
+  TAILORED_KINDS,
   isSendableKind,
-  tailoredResumeTitle,
+  tailoredDocumentTitle,
   type NamedVersion,
   type SendableKind,
 } from "~/shared/application-documents";
-import type { RenderKind } from "~/shared/render-content";
+import { draftedBlocks, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { ApiError } from "../http/errors";
 
 type RenderRow = typeof renders.$inferSelect;
 
-/** The application a read or a freeze is for: its id, and the name a tailored résumé takes from it. */
+/** The application a read or a freeze is for: its id, the name a tailored document takes from it, and its step. */
 export interface ApplicationRef {
   id: string;
   company: string;
+  currentStep?: string;
 }
 
 /** A document as an application lists it. */
 export interface ApplicationDocument {
-  /** What the render routes address it by: its kind, or the tailored résumé's id. */
+  /** What the render routes address it by: its kind, or a tailored document's id. */
   ref: string;
   kind: RenderKind;
   tailored: boolean;
@@ -52,9 +56,15 @@ export interface ApplicationDocument {
   pendingProposalId: string | null;
 }
 
-/** A document the owner could tick: the three, and this application's tailored résumé. */
+/** A document the owner could tick: the three, and this application's tailored documents. */
 export interface DocumentChoice extends ApplicationDocument {
   onApplication: boolean;
+  /**
+   * Why it cannot be ticked now, or null. Before Applied an application
+   * sends one 履歴書, and the main one is held back while the tailored one is
+   * on it (`docs/06`, 2026-10-26).
+   */
+  heldBy: string | null;
 }
 
 export interface SentCopySummary {
@@ -68,14 +78,15 @@ export interface SentCopySummary {
   recordedAt: string;
 }
 
-/** What an application is called for a document: the main documents by kind, its own résumé by company. */
+/** What an application is called for a document: the main documents by kind, its own by kind and company. */
 export const documentTitle = (render: Pick<RenderRow, "kind" | "jobDescription">, company: string) =>
   render.jobDescription === null && isSendableKind(render.kind)
     ? SENDABLE_TITLE[render.kind]
-    : tailoredResumeTitle(company);
+    : tailoredDocumentTitle(render.kind, company);
 
-/** Tailored first, then the three in the order they are offered. */
-const placeOf = (kind: string, tailored: boolean) => (tailored ? -1 : SENDABLE_KINDS.indexOf(kind as never));
+/** Tailored first, résumé then 履歴書, then the three in the order they are offered. */
+const placeOf = (kind: string, tailored: boolean) =>
+  tailored ? TAILORED_KINDS.indexOf(kind as never) - TAILORED_KINDS.length : SENDABLE_KINDS.indexOf(kind as never);
 
 /** Everything about a copy but the file and the page, which only its own routes read. */
 const COPY = {
@@ -119,21 +130,25 @@ export async function readDocuments(db: Db, userId: string, application: Applica
       db
         .select({ id: renders.id })
         .from(renders)
-        .where(and(eq(renders.userId, userId), eq(renders.applicationId, application.id)))
-        .limit(1),
+        .where(and(eq(renders.userId, userId), eq(renders.applicationId, application.id))),
     ]),
   ]);
 
   const onApplication = new Set(on.map((row) => row.renderId));
-  const ownResume = state.tailored.find((row) => row.id === own[0]?.id);
+  const ownIds = new Set(own.map((row) => row.id));
+  const ownDocuments = state.tailored
+    .filter((row) => row.id !== null && ownIds.has(row.id))
+    .sort((a, b) => placeOf(a.kind, true) - placeOf(b.kind, true));
+  const tailoredRirekishoOn = ownDocuments.some((row) => row.kind === "rirekisho" && onApplication.has(row.id!));
+  const choosing = (application.currentStep ?? "not_applied") === "not_applied";
   const choices: DocumentChoice[] = [
-    ...(ownResume ? [{ row: ownResume, tailored: true }] : []),
+    ...ownDocuments.map((row) => ({ row, tailored: true })),
     ...SENDABLE_KINDS.map((kind) => ({ row: state.documents.find((row) => row.kind === kind)!, tailored: false })),
   ].map(({ row, tailored }) => ({
     ref: row.ref,
     kind: row.kind,
     tailored,
-    title: tailored ? tailoredResumeTitle(application.company) : SENDABLE_TITLE[row.kind as SendableKind],
+    title: tailored ? tailoredDocumentTitle(row.kind, application.company) : SENDABLE_TITLE[row.kind as SendableKind],
     language: row.language,
     currentVersionId: row.currentVersionId,
     currentVersionNo: row.currentVersionNo,
@@ -142,15 +157,18 @@ export async function readDocuments(db: Db, userId: string, application: Applica
     withdrawnFactsSince: row.withdrawnFactsSince,
     pendingProposalId: row.pendingProposalId,
     onApplication: row.id !== null && onApplication.has(row.id),
+    heldBy: !tailored && row.kind === "rirekisho" && choosing && tailoredRirekishoOn ? MAIN_RIREKISHO_HELD : null,
   }));
 
   const refByRender = new Map<string, string>();
   for (const row of [...state.documents, ...state.tailored]) if (row.id) refByRender.set(row.id, row.ref);
   // Copies frozen by one move share a recorded time, and then read in document order.
-  const place = (copy: (typeof copies)[number]) => placeOf(copy.kind, copy.renderId === ownResume?.id);
+  const place = (copy: (typeof copies)[number]) => placeOf(copy.kind, ownIds.has(copy.renderId));
 
   return {
-    documents: choices.filter((choice) => choice.onApplication).map(({ onApplication: _, ...document }) => document),
+    documents: choices
+      .filter((choice) => choice.onApplication)
+      .map(({ onApplication: _, heldBy: __, ...document }) => document),
     choices,
     sentCopies: copies
       .sort((a, b) => b.recordedAt.getTime() - a.recordedAt.getTime() || place(a) - place(b))
@@ -285,6 +303,12 @@ export async function freezeDocuments(
   for (const render of documents) {
     const version = render.currentVersionId ? versionOf.get(render.currentVersionId) : undefined;
     if (!version) continue;
+    // Unreachable through accept, which refuses a draft, and checked here
+    // anyway: a sent 履歴書 whose reason for applying nobody confirmed would
+    // be the one thing this flow exists to prevent.
+    if (draftedBlocks(version.content as RenderContent).length > 0) {
+      throw new ApiError("conflict", `${documentTitle(render, application.company)} has drafted parts nobody confirmed, so it was not frozen.`);
+    }
     const kind = render.kind as RenderKind;
     // One at a time: each is a build, and a second's failure should name itself.
     const file = await buildDocumentFile(db, userId, kind, version);

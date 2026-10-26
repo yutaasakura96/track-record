@@ -253,6 +253,13 @@
       "when": 1793097600000,
       "tag": "0035_career_gap_notes",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793184000000,
+      "tag": "0036_tailored_rirekisho",
+      "breakpoints": true
     }
   ]
 }

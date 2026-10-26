@@ -296,6 +296,18 @@ export const MOTIVATION_NOTICE =
   "The cell states 特技 and アピールポイント; the 志望動機 sentence is yours to add.";
 
 /**
+ * What a tailored 履歴書 says instead (`docs/06`, 2026-10-26), and only when
+ * the application holds no reason of the author's own. The 志望動機 is then
+ * drafted from the posting and the record alone, and the reason it gives for
+ * choosing 貴社 is the model's reading of the posting rather than anything the
+ * author said. Confirming the draft is the author's to do either way; this
+ * says what the draft is made of, so the confirmation is an informed one.
+ */
+export const TAILORED_MOTIVATION_NOTICE =
+  "志望動機 is drafted from the posting and your record: the application holds no reason of your own. " +
+  "Confirm it only if it is a reason you would give, or edit it, or add your reason on the application and regenerate.";
+
+/**
  * The unexplained gaps as sentences, Japanese then English, naming the months
  * nobody covers (`~/shared/career-gap`). Never blocking.
  */
@@ -312,17 +324,25 @@ export function gapWarnings(record: GapRecord): string[] {
  * screen is where the decision is taken.
  *
  * The gaps come first because a gap is a finding about THIS record and may not
- * be there next time; the 志望動機 notice is unconditional and true of every
- * 履歴書 this tool will ever produce. The photo notice is last, and only there
+ * be there next time; the 志望動機 notice is true of every main 履歴書, and of a
+ * tailored one whose application holds no reason of the author's. The photo notice is last, and only there
  * while the profile has no photo: most employers still expect one where the
  * form has a cell, and an author who never opens Word would otherwise send the
  * empty box.
  */
 export function rirekishoWarnings(
   record: GapRecord,
-  { hasPhoto }: { hasPhoto: boolean },
+  {
+    hasPhoto,
+    tailored = null,
+  }: {
+    hasPhoto: boolean;
+    /** Set for a tailored 履歴書: whether its application holds the author's reason. */
+    tailored?: { motivationNote: string | null } | null;
+  },
 ): string[] {
-  return [...gapWarnings(record), MOTIVATION_NOTICE, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
+  const motivation = !tailored ? [MOTIVATION_NOTICE] : tailored.motivationNote?.trim() ? [] : [TAILORED_MOTIVATION_NOTICE];
+  return [...gapWarnings(record), ...motivation, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
 }
 
 /* -------------------------------------------------------------- assembly */

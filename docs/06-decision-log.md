@@ -7781,3 +7781,70 @@ remained once the terms were taken out.
   what joins them, so 「React, TypeScript, and PostgreSQL」 passes.
 - **Revisit if:** a vocational course's 修了 row, which sits in 保有資格 but is kept under Education,
   ever fails the check; the reason names Certifications for it.
+
+---
+
+### [2026-10-26] A tailored 履歴書 per application, with its 志望動機 and 本人希望欄 drafted for the author to confirm
+
+Item 9 of the Japanese documents review (#117). Applications already hold the posting, so a 履歴書
+made from one knows what its 志望動機 is for. The plan proposed that the author type their own reason
+and request, and that with no reason the cell state only the fit. The owner answered its four
+questions on 2026-10-26:
+
+- **Q1, the reason for applying.** "i like the suggested approach. but what if im not sure why i like
+  the company? can it be the other way around? like AI writes the reason, then asks me to confirm or
+  edit? if AI writes it i think AI can think of the best answer anyway based on the job description,
+  company info, and my info."
+- **Q2, 本人希望記入欄.** "i like the suggested approach. but what if im not sure what to request to
+  the company? can it be the other way around? like AI writes the request, then asks me to confirm or
+  edit? if AI writes it i think AI can think of the best answer anyway based on the job description,
+  company info, and my info."
+- **Q3.** The main and the tailored 履歴書 are one or the other on an application until it is marked
+  Applied.
+- **Q4.** Build it now.
+
+Decisions:
+
+- **Decision:** a tailored 履歴書 is a `renders` row of kind `rirekisho` with its application's job
+  description and `application_id`, made the way the tailored résumé is (2026-10-08, 2026-10-11).
+  `renders_application_uq` is unique on `(application_id, kind)` (migration 0036). Only the two prose
+  cells are tailored: the identity block, the dates, 学歴・職歴 with its ※ rows, 免許・資格 and 写真
+  are the main 履歴書's, from the same facts and the same record.
+- **Decision:** **supersedes "the register refuses to write a 志望動機" (2026-09-11) for a tailored
+  履歴書 only.** The main 履歴書 keeps that register and `MOTIVATION_NOTICE`, unchanged. A tailored one
+  has a register of its own (`TAILORED_REGISTER.rirekisho`) and a tailoring block of its own in the
+  prompt: the 志望動機 first, then アピールポイント, about 300 characters; 貴社, never the company's name
+  and never 御社; no requirement claimed that the facts do not support, and the posting not quoted.
+- **Decision, Q1 and Q2 as the owner asked:** the model **drafts** the reason for applying and the
+  本人希望欄 request from the posting, what the application knows about the company (its confirmed
+  position and requirements) and the record. An optional note per application, `motivation_note` and
+  `kibou_note`, leads the draft when the author writes one; the 本人希望欄 falls back to
+  `profiles.desired_role_note`, then to a draft from the posting, then to 「貴社規定に従います。」.
+  The register forbids inventing anything about the author: an experience, an interest, a value, a
+  memory or a feeling no fact or note states. The notes are the author's words, never facts, never
+  logged, exported with the application, and editing one is not activity and marks nothing stale.
+- **Decision:** a drafted part is marked on its block (`drafted: true`) in the proposal. The model
+  marks the 志望動機 paragraph; the server also marks every 本人希望欄 block and any 志望動機 paragraph
+  citing no fact, and strips the mark from every other document. Diff Review lists the drafts under
+  **Drafted for you**, each confirmed as written or edited (`POST /api/proposals/:id/drafts/:blockId`),
+  and **Accept is refused while any is left**. So no version carries a draft, and nothing reaches a
+  sent copy that the author did not confirm; the freeze checks it again. This is the one part of a
+  review confirmed piece by piece, and the 2026-08-12 all-or-nothing rule holds for everything else.
+- **Decision, Q3:** before Applied an application holds one 履歴書. Putting the tailored one on takes
+  the main one off in the same batch and says so; ticking the main one while the tailored one is on is
+  `409`, and the tick card shows it disabled with the reason. From Applied onward, `Record another
+  sent copy` takes either.
+- **Decision:** `POST /api/applications/:id/tailored/:kind` (`english_resume` | `rirekisho`)
+  replaces `…/tailored-resume`, with its semantics. Titles are `Tailored 履歴書 for <company>` on the
+  application and in sent copies, and in Diff Review. The download name stays
+  `履歴書_<氏名>_<YYYYMMDD>`, with no company.
+- **Decision:** a tailored 履歴書 says `TAILORED_MOTIVATION_NOTICE` only when its application holds no
+  reason of the author's, so the confirmation is an informed one. The proposal read passes the row's
+  tailoring to the checks: 貴社 in a tailored 志望動機 is no advisory, 御社 stays a defect, and the
+  company's name in either cell is an advisory that names the section and quotes nothing.
+- **Decision:** supersedes "Tailoring stays English only" (2026-10-11) for the 履歴書. A tailored
+  職務経歴書 and a tailored JA story are still later pieces. No new model function: `generateRender`
+  writes the cells, and the seam stays at six.
+- **Revisit if:** an author confirms drafts without reading them, which a review of real proposals
+  would show as drafts confirmed unchanged within seconds; or a company asks for a 志望動機 longer
+  than the cell's 300 characters, which the layout already holds at four times that.

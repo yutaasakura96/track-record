@@ -25,8 +25,23 @@ export const SENDABLE_TITLE: Record<SendableKind, string> = {
   shokumu_keirekisho: "職務経歴書",
 };
 
-/** What an application calls the résumé written for it. */
-export const tailoredResumeTitle = (company: string) => `Tailored résumé for ${company}`;
+/**
+ * The documents an application can have one of its own of, written toward its
+ * posting: a résumé (issue #57) and a 履歴書 (`docs/06`, 2026-10-26). A
+ * tailored 職務経歴書 is a later piece.
+ */
+export const TAILORED_KINDS = ["english_resume", "rirekisho"] as const satisfies readonly SendableKind[];
+export type TailoredKind = (typeof TAILORED_KINDS)[number];
+
+export const isTailoredKind = (value: string): value is TailoredKind =>
+  (TAILORED_KINDS as readonly string[]).includes(value);
+
+/** What an application calls a document written for it. */
+export const tailoredDocumentTitle = (kind: string, company: string) =>
+  kind === "rirekisho" ? `Tailored 履歴書 for ${company}` : `Tailored résumé for ${company}`;
+
+/** Why the main 履歴書 cannot be ticked while the application's own is on it, before Applied. */
+export const MAIN_RIREKISHO_HELD = "This application has its own 履歴書, written for this job. Take that one off to use this one.";
 
 export interface NamedVersion {
   title: string;

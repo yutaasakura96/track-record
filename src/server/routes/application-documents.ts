@@ -2,10 +2,12 @@
  * An application's documents and its sent copies (`docs/07-api-design.md` §9c,
  * issue #71).
  *
- * Before Applied the owner chooses: a tailored résumé made from the job
- * description, any of the main résumé, 履歴書 and 職務経歴書, or several. From
- * Applied onward nothing is chosen any more, only recorded: `Record another
- * sent copy` freezes whatever is ticked, always, and compares nothing.
+ * Before Applied the owner chooses: a tailored résumé or a tailored 履歴書 made
+ * from the job description, any of the main résumé, 履歴書 and 職務経歴書, or
+ * several. An application sends one 履歴書, so before Applied the main and the
+ * tailored one are never on it together (`docs/06`, 2026-10-26). From Applied
+ * onward nothing is chosen any more, only recorded: `Record another sent copy`
+ * freezes whatever is ticked, always, and compares nothing.
  *
  * Leaving Not applied for any step, by a move or by Undo, is the other moment
  * a copy is frozen. It lives with the status routes in `./applications.ts`,
@@ -34,7 +36,15 @@ import { tokyoToday } from "~/render/rirekisho";
 import type { SentPage } from "~/render/sent-page";
 import { readSheet } from "~/render/sheet";
 import { photoOf } from "~/render/rirekisho-photo";
-import { SENDABLE_KINDS, SENDABLE_TITLE, isSendableKind } from "~/shared/application-documents";
+import {
+  MAIN_RIREKISHO_HELD,
+  SENDABLE_KINDS,
+  SENDABLE_TITLE,
+  TAILORED_KINDS,
+  isSendableKind,
+  isTailoredKind,
+  type TailoredKind,
+} from "~/shared/application-documents";
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
@@ -48,7 +58,7 @@ const sentBody = z.strictObject({
   documents: z
     .array(z.string().min(1).max(64))
     .min(1, "Tick at least one document.")
-    .max(SENDABLE_KINDS.length + 1, "That is more documents than an application can send.")
+    .max(SENDABLE_KINDS.length + TAILORED_KINDS.length, "That is more documents than an application can send.")
     .refine(unique, "A document can be ticked once."),
 });
 
@@ -60,9 +70,10 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
   /**
    * Which of the main résumé, 履歴書 and 職務経歴書 this application uses: the
-   * ticked ones, whole. A document left unticked is taken off; the tailored
-   * résumé is not on this list and is left alone. Only before Applied: after
-   * that, what was sent is recorded, not chosen.
+   * ticked ones, whole. A document left unticked is taken off; a tailored
+   * document is not on this list and is left alone. Only before Applied: after
+   * that, what was sent is recorded, not chosen. The main 履歴書 is refused
+   * while the application's own 履歴書 is on it.
    */
   api.put("/api/applications/:id/documents", async (c) => {
     const user = c.get("user");
@@ -73,6 +84,10 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     refuseOnceApplied(application, "From Applied onward a document is added by recording it as sent.");
 
     const ticked = await requireDocuments(db, user.id, application, body.documents);
+    if (ticked.some((render) => render.kind === "rirekisho")) {
+      const own = await ownTailored(db, user.id, id, "rirekisho");
+      if (own && (await isOn(db, user.id, id, own.id))) throw new ApiError("conflict", MAIN_RIREKISHO_HELD);
+    }
     const [mains, on] = await db.batch([
       db
         .select({ id: renders.id })
@@ -122,22 +137,29 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
   });
 
   /**
-   * Stores this application's tailored résumé and puts it on the application.
-   * It generates nothing: the screen asks for the first version with the
-   * Generate every document has, so a refusal there (no usable fact, a missing
-   * profile field) is said the way it is said everywhere else, and the résumé
-   * is still on the application to generate later.
+   * Stores this application's tailored document of a kind, a résumé or a
+   * 履歴書, and puts it on the application. It generates nothing: the screen
+   * asks for the first version with the Generate every document has, so a
+   * refusal there (no usable fact, a missing profile field) is said the way it
+   * is said everywhere else, and the document is still on the application to
+   * generate later.
    *
-   * An application has one. Asked again, this answers with the one it has, put
-   * back on the application if it had been taken off.
+   * An application has one of each. Asked again, this answers with the one it
+   * has, put back on the application if it had been taken off. Before Applied,
+   * putting a tailored 履歴書 on takes the main 履歴書 off, in the same batch,
+   * and `replaced` names it so the screen can say so.
    */
-  api.post("/api/applications/:id/tailored-resume", async (c) => {
+  api.post("/api/applications/:id/tailored/:kind", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const id = pathParam(c, "id");
+    const kind = pathParam(c, "kind");
+    if (!isTailoredKind(kind)) {
+      throw validationFailed("An application can have its own résumé or its own 履歴書, and no other document.", ["kind"]);
+    }
     const application = await requireApplication(db, user.id, id);
 
-    let existing = await ownResume(db, user.id, id);
+    let existing = await ownTailored(db, user.id, id, kind);
     const created = !existing;
     if (!existing) {
       const renderId = newId("render");
@@ -145,35 +167,42 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
         await db.insert(renders).values({
           id: renderId,
           userId: user.id,
-          // English only for now (`docs/02` S21).
-          kind: "english_resume",
+          kind,
           label: application.company,
           jobDescription: application.jobDescription,
           applicationId: id,
         });
-        // An id and a length. Never the text: a job description names a company.
-        console.log(JSON.stringify({ event: "tailored_resume_created", renderId, applicationId: id, characters: application.jobDescription.length }));
+        // An id, a kind and a length. Never the text: a job description names a company.
+        console.log(JSON.stringify({ event: "tailored_document_created", renderId, applicationId: id, kind, characters: application.jobDescription.length }));
       } catch (error) {
-        // Two requests at once. The index let one in, and that one is the résumé.
+        // Two requests at once. The index let one in, and that one is the document.
         if (!violatesUnique(error, "renders_application_uq")) throw error;
       }
-      existing = await ownResume(db, user.id, id);
-      if (!existing) throw new ApiError("internal", "The résumé could not be stored. Try again.");
+      existing = await ownTailored(db, user.id, id, kind);
+      if (!existing) throw new ApiError("internal", "The document could not be stored. Try again.");
     }
 
-    const [on] = await db
-      .select({ id: applicationDocuments.id })
-      .from(applicationDocuments)
-      .where(and(onApplication(user.id, id), eq(applicationDocuments.renderId, existing.id)))
-      .limit(1);
-    if (!on) {
+    const replaced: string[] = [];
+    if (!(await isOn(db, user.id, id, existing.id))) {
+      // One 履歴書 before Applied: the main one makes way, and is still a
+      // document on Home, untouched.
+      const main =
+        kind === "rirekisho" && application.currentStep === "not_applied"
+          ? await mainOn(db, user.id, id, "rirekisho")
+          : undefined;
+      const now = new Date();
       try {
-        await db.batch([markActivity(db, user.id, id, new Date()), putOn(db, user.id, id, existing.id)]);
+        await db.batch([
+          markActivity(db, user.id, id, now),
+          ...(main ? [takeOff(db, user.id, main, now)] : []),
+          putOn(db, user.id, id, existing.id),
+        ]);
+        if (main) replaced.push(SENDABLE_TITLE.rirekisho);
       } catch (error) {
         if (!violatesUnique(error, "application_documents_live_uq")) throw error;
       }
     }
-    return c.json(await detail(db, user.id, id), created ? 201 : 200);
+    return c.json({ ...(await detail(db, user.id, id)), replaced }, created ? 201 : 200);
   });
 
   /**
@@ -320,28 +349,54 @@ function refuseOnceApplied(application: ApplicationRow, message: string) {
   if (application.currentStep !== "not_applied") throw new ApiError("conflict", message);
 }
 
-/** The tailored résumé written for this application, on it or taken off it. */
-async function ownResume(db: Db, userId: string, applicationId: string): Promise<RenderRow | undefined> {
+/** The tailored document of a kind written for this application, on it or taken off it. */
+async function ownTailored(db: Db, userId: string, applicationId: string, kind: TailoredKind): Promise<RenderRow | undefined> {
   const [render] = await db
     .select()
     .from(renders)
-    .where(and(eq(renders.userId, userId), eq(renders.applicationId, applicationId)))
+    .where(and(eq(renders.userId, userId), eq(renders.applicationId, applicationId), eq(renders.kind, kind)))
     .limit(1);
   return render;
 }
 
+/** Whether a document is on this application now. */
+async function isOn(db: Db, userId: string, applicationId: string, renderId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: applicationDocuments.id })
+    .from(applicationDocuments)
+    .where(and(onApplication(userId, applicationId), eq(applicationDocuments.renderId, renderId)))
+    .limit(1);
+  return row !== undefined;
+}
+
+/** The pointer row of the main document of a kind, when it is on this application. */
+async function mainOn(db: Db, userId: string, applicationId: string, kind: RenderKind): Promise<string | undefined> {
+  const [row] = await db
+    .select({ id: applicationDocuments.id })
+    .from(applicationDocuments)
+    .innerJoin(renders, and(eq(renders.id, applicationDocuments.renderId), mainRender(userId, kind)))
+    .where(onApplication(userId, applicationId))
+    .limit(1);
+  return row?.id;
+}
+
 /**
  * The document a ref names for this application: one of the three by its kind,
- * or this application's own tailored résumé by its id. Another application's
- * résumé is not one of this one's documents, and neither is a career story.
+ * or one of this application's own tailored documents by its id. Another
+ * application's tailored document is not one of this one's, and neither is a
+ * career story.
  */
 async function findDocument(db: Db, userId: string, application: ApplicationRow, ref: string): Promise<RenderRow | undefined> {
   if (isSendableKind(ref)) {
     const [render] = await db.select().from(renders).where(mainRender(userId, ref)).limit(1);
     return render;
   }
-  const own = await ownResume(db, userId, application.id);
-  return own?.id === ref ? own : undefined;
+  const [own] = await db
+    .select()
+    .from(renders)
+    .where(and(eq(renders.userId, userId), eq(renders.applicationId, application.id), eq(renders.id, ref)))
+    .limit(1);
+  return own;
 }
 
 /** Each ref as a document that has a version, in the order asked for. Otherwise a `422` naming the one that does not. */

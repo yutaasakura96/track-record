@@ -128,7 +128,7 @@ Voice:
 "motivation" — what it says, and what it may not:
 - This cell states 特技 and アピールポイント: what the author can do, evidenced by the facts.
 - **You are not told where the author is applying, so do not write a 志望動機.** The record holds no job posting, no company and no role being applied for. Naming one, characterising one, or writing 貴社 in this cell would be inventing the one thing this cell would otherwise be about. The heading ends in など and the other two headings under it are answerable from the record; answer those.
-- Two or three paragraphs, and about 300 characters for the whole cell. The cell grows to fit what it is given and the form is two pages with no page break, so a long one pushes the layout apart.
+- Two or three paragraphs, and about 300 characters for the whole cell. The cell grows into what the second page has left, so a long one crowds the 本人希望欄 below it.
 - Open with the through-line — the thing the career is consistently about — and then what the author can do that a reader should know. One concrete piece of evidence, not a tour of the employment history.
 - **All three tables are on the same page as this cell, and it must not restate any of them.** 職歴, 学歴 and 免許・資格 each print in full a few centimetres above. A paragraph listing qualifications, counting certifications or giving a graduation year spends the one free cell on the page saying what the form already says. Name a qualification only where the point is what it lets the author DO, and say that part.
 - Keep the number. A fact behind a sentence that carries a quantity, a duration, a count or a percentage keeps it.
@@ -140,6 +140,58 @@ Voice:
 - If the author's stated preference is given above, write it as one or two sentences in です・ます体 and add nothing it does not say. factIds is empty: a preference the author typed is not a fact drawn from the record.
 - If no preference is given, this cell is exactly 貴社規定に従います。 — the conventional wording, and correct rather than empty. factIds is empty.
 - Salary, hours, location and start date appear here only if the stated preference names them. Never invent a condition, and never soften or negotiate one the author wrote.`;
+
+/**
+ * The register of a 履歴書 made from an application (`docs/06`, 2026-10-26).
+ *
+ * The main 履歴書 refuses to write a 志望動機, because it is not told where the
+ * author is applying. This one is told: the application's posting, its
+ * confirmed position and requirements, and the author's notes if they wrote
+ * any. The owner asked for the reason and the request to be written FOR them
+ * and then confirmed, rather than left blank until they write them, so the
+ * two parts nothing in the record states are written as drafts: marked
+ * `drafted`, shown as drafts on the review, and refused acceptance until the
+ * author has confirmed or edited each one. The prompt's tailoring block
+ * (`src/model/generate.ts`) carries the posting and the notes; this carries
+ * the rules.
+ */
+const TAILORED_RIREKISHO_REGISTER = `Write the two prose cells of a Japanese 履歴書 that is being sent to one company, for one job, and nothing else.
+
+The rest of the form is not yours to write. The identity block, 学歴・職歴, 免許・資格 and both dates are filled from the record onto a committed template; anything you emit under another key is discarded unread.
+
+Sections, both of them, in this order:
+- "motivation": 志望動機・特技・アピールポイントなど. Blocks are paragraphs. key "motivation".
+- "kibou": 本人希望欄. One paragraph. key "kibou".
+
+Emit no third section, and no block of kind "bullet" or "row". Both cells are prose in a form that has no bullets anywhere on it.
+
+${JAPANESE_FROM_A_BILINGUAL_RECORD}
+
+Voice:
+- です・ます体, consistently. Never plain form, and never 体言止め in the middle of a です・ます passage.
+- The company this is sent to is 貴社, every time. Never its name, and never 御社, which is the spoken form.
+- Half-width digits for numbers, and full-width Japanese punctuation (、。).
+
+**Drafts.** Two parts of this form are not written from the record: the reason for applying, and the request in 本人希望欄. You write both as drafts for the author, who confirms or edits each before the document can be used. Mark every block holding one with "drafted": true. A block you do not mark is a block you are saying the facts alone support.
+
+"motivation" — 志望動機 first, then アピールポイント:
+- The FIRST paragraph is the 志望動機, and it is a draft: "drafted": true. It says why 貴社 and why this role, and what of the author's work carries over to it.
+  - When the author's own reason is given below, it leads: write the paragraph from it, in です・ます体, and add nothing it does not say about what the author wants or feels.
+  - When no reason is given, draft one from what the posting says about 貴社's business and this role, joined to what the facts show the author has done. Every sentence of it rests on the posting or on a fact. Do not invent an experience, an interest, a value, a memory or a feeling: not 幼い頃から, not 以前から憧れて, not 共感しました unless a note says so. A reason the author would have to disown is worse than a plain one.
+  - It lists the ids of any facts it was written from, in factIds.
+- Then one or two paragraphs of アピールポイント: what the author can do that this job asks for, evidenced by the facts. Not drafts: do not mark them. Every one lists its factIds.
+  - Aim them at the requirements the application lists, but claim no requirement the facts do not support, and use the posting's own word for a skill only where a fact supports that skill.
+  - Do not quote the posting, and do not restate it back to its reader.
+  - Keep the number. A fact behind a sentence that carries a quantity, a duration, a count or a percentage keeps it.
+  - **All three tables are on the same form as this cell, and it must not restate any of them.** Name a qualification only where the point is what it lets the author DO.
+- About 300 characters for the whole cell: roughly 200 for the 志望動機 and the rest for the アピールポイント. The cell grows into what the second page has left, so a long one crowds the 本人希望欄 below it.
+- No self-assessment: not 優秀, not 抜群, not 圧倒的, not 誰よりも, not 情熱を持って. State what was done and let it be the claim.
+
+"kibou" — 本人希望欄, a draft:
+- One paragraph, "drafted": true, factIds empty: a request the author confirms is not a fact drawn from the record.
+- Write it from, in this order, the first that is given: the author's request for this application below; else the author's stated preference for every 履歴書 above; else a draft of your own from the posting — the 希望職種, named exactly as the posting names the role when it names one, and then 「その他は貴社規定に従います。」.
+- With none of those to go on, the cell is exactly 貴社規定に従います。
+- Salary, hours, location and start date appear here only if the author's request or preference names them. Never invent a condition, and never soften or negotiate one the author wrote. Give no reason for a request.`;
 
 const SHOKUMU_REGISTER = `Write a 職務経歴書 for a Japanese hiring manager who already has the author's 履歴書 in front of them.
 
@@ -291,6 +343,16 @@ Register:
 - Keep the number. If a fact behind a paragraph carries a quantity, a duration, a count, a version or a percentage, the paragraph states it.
 - A paragraph runs about 200 characters. The hand-maintained story this one replaces runs about 8,500 characters across 39 paragraphs — half the English story's characters for the same content, because Japanese says in one character roughly what English says in two — and its longest chapter is the employer it has the most facts about. That is the shape to aim at, and it is reached by having something to say rather than by padding.
 - No chapter restates another, and no chapter summarises the whole story. The closing chapter is about what comes next, not a recap.`;
+
+/**
+ * The register a tailored document of a kind is written in, where it is not
+ * the main document's own. The tailored résumé shares the main résumé's and
+ * is steered by the prompt's tailoring block alone; the 履歴書's main register
+ * forbids the one thing its tailored form is for.
+ */
+export const TAILORED_REGISTER: Partial<Record<RenderKind, string>> = {
+  rirekisho: TAILORED_RIREKISHO_REGISTER,
+};
 
 export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
   english_resume: {

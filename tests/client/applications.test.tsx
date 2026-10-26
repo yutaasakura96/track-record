@@ -45,6 +45,8 @@ const application = (standing: Standing, lastActivityOn: string, over: Partial<A
   ...figures(standing, lastActivityOn, TODAY),
   requirements: ["Idempotent APIs and event streams"],
   jobDescription: POSTING,
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: [],
   sentCopies: [],

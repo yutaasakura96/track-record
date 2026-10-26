@@ -216,11 +216,14 @@ nobody rules on each fact.
 type RenderContent = {
   sections: { key: string; heading: string; blocks: Block[] }[]
 }
-type Block = { kind: 'paragraph' | 'bullet' | 'row'; text: string; factIds: string[] }
+type Block = { kind: 'paragraph' | 'bullet' | 'row'; text: string; factIds: string[]; drafted?: true }
 ```
 
 `factIds` is what makes S6 traceability and the diff screen's rationale bar possible. A block with
 no `factIds` is legal only for headings and for the fixed scaffolding of 履歴書.
+`drafted` marks a block written for the author to confirm: only a tailored 履歴書's 志望動機 and
+本人希望欄 carry it, it lives on a proposal only, and confirming the block clears it (decision log,
+2026-10-26).
 
 **Facts are sent plainly; register is applied by the spec.** The same fact renders as an
 action-verb bullet in the English résumé and in the flat factual voice 職務経歴書 expects. That is
