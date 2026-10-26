@@ -19,6 +19,7 @@ import type { CandidateFact } from "~/model/types";
 import type { Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 import { buildGenerationPrompt } from "~/model/generate";
+import { employerChapterKey } from "~/render/chapters";
 
 interface Document {
   ref: string;
@@ -247,9 +248,13 @@ describe("making a tailored 履歴書 from an application", () => {
     expect(englishHistory.title).toBe("Résumé for Harrowgate Marine");
     const { proposal } = await generate(japanese, tailoredContent());
     expect(proposal.title).toBe("Tailored 履歴書 for Harrowgate Marine");
+    // A first version's diff carries a preview, which refuses experience
+    // bullets that name no employer, so they sit under the employer's chapter,
+    // whose heading names it.
+    const [employer] = (await client.json<{ items: { id: string; nameLatin: string }[] }>("/api/employers")).items;
     const englishContent: RenderContent = {
       sections: [{
-        key: "experience", heading: "Experience",
+        key: employerChapterKey(employer!.id), heading: employer!.nameLatin,
         blocks: [{ id: "blk_en", kind: "bullet", text: "Cut the nightly settlement run from six hours to ninety minutes.", factIds: [factId] }],
       }],
     };
@@ -257,7 +262,9 @@ describe("making a tailored 履歴書 from an application", () => {
     expect(englishProposal.proposal.title).toBe("Résumé for Harrowgate Marine");
     const diff = await client.json<{ preview: { title: string } }>(`/api/proposals/${englishProposal.proposalId}/diff`);
     expect(diff.preview.title).toBe("Résumé for Harrowgate Marine");
-  });
+    // Two tailored documents, an acceptance and three generations: past the
+    // default test timeout on a busy local proxy.
+  }, 60_000);
 });
 
 describe("one 履歴書 an application, until Applied", () => {
