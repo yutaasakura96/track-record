@@ -12,6 +12,7 @@ import {
   japaneseAdvisories,
   japaneseDefect,
   latinTerms,
+  recordRowDefectReason,
 } from "~/render/japanese";
 import type { RenderSpec } from "~/model/types";
 import type { Block, RenderContent } from "~/shared/render-content";
@@ -160,6 +161,41 @@ describe("a line in English", () => {
     ]) {
       expect(isEnglishLine(line, terms), line).toBe(false);
     }
+  });
+
+  it("passes recorded technology names joined by a connector, and only those", () => {
+    const terms = latinTerms(spec(), [{ technologies: ["React", "PostgreSQL"] }]);
+    for (const line of [
+      "React and TypeScript",
+      "React or TypeScript",
+      "React & TypeScript",
+      "React / TypeScript",
+      "React, TypeScript",
+      "React・TypeScript",
+      "React and TypeScript and Go",
+      "React, TypeScript, and PostgreSQL",
+      "React, TypeScript, or Go",
+      "React、TypeScript、and Go",
+      "REACT AND TYPESCRIPT",
+      "技術スタック：React and TypeScript",
+    ]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
+    // A connector with a word that is not a recorded term beside it, or with nothing recorded beside it.
+    for (const line of ["React and design", "and", "React and", "and TypeScript", "TypeScript and also a design"]) {
+      expect(isEnglishLine(line, terms), line).toBe(true);
+    }
+    // Words that merely end in a connector are not one.
+    expect(isEnglishLine("Reactandtypescript", terms)).toBe(true);
+  });
+
+  it("names the record's own row that fails the check, by section and place, and passes clean rows", () => {
+    const rows = (key: string, heading: string, ...texts: string[]) => ({ key, heading, blocks: texts.map((t) => block("row", t)) });
+    expect(recordRowDefectReason([rows("certifications", "保有資格", "2018年4月　Kumo Certified Architect – Associate")], spec())).toBeNull();
+    const english = recordRowDefectReason([rows("education", "学歴", "2016年4月　白鷺工業大学　入学", "Graduated with honours")], spec());
+    expect(english).toMatch(/^Row 2 of 学歴 comes from your record and is in English/);
+    expect(english).toMatch(/under Education on your record/);
+    expect(english).not.toContain("Graduated");
   });
 
   it("does not take a skill group's name as one of the record's terms", () => {

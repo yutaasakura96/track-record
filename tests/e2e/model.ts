@@ -49,7 +49,13 @@ export const e2eModel: ModelSeam = {
     if (facts.some((fact) => fact.claim.includes("credit-generation-fixture"))) throw new ModelCreditsExhaustedError();
     if (spec.kind === "shokumu_keirekisho" && spec.desiredRoleNote?.startsWith("jp-check-shokumu-")) {
       const note = spec.desiredRoleNote;
-      const skills = note === "jp-check-shokumu-e1" ? "Languages" : "プログラミング言語";
+      const skills = note === "jp-check-shokumu-e1"
+        ? "Languages"
+        : note === "jp-check-shokumu-connector"
+          ? "React, TypeScript, and PostgreSQL"
+          : note === "jp-check-shokumu-connector-prose"
+            ? "React and design"
+            : "プログラミング言語";
       const row = note === "jp-check-shokumu-e2"
         ? "プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table with a double-entry, append-only ledger."
         : "プロジェクト：決済元帳の再構築";
@@ -60,6 +66,9 @@ export const e2eModel: ModelSeam = {
           { id: "blk_project", kind: "row" as const, text: row, factIds: [] },
           { id: "blk_outcome", kind: "bullet" as const, text: bullet, factIds: facts.map((fact) => fact.id) },
         ] },
+        ...(note === "jp-check-shokumu-model-certifications"
+          ? [{ key: "certifications", heading: "保有資格", blocks: [{ id: "blk_cert", kind: "row" as const, text: "御社で役立つ資格を取得しました。", factIds: [] }] }]
+          : []),
       ] };
     }
     if (spec.kind === "rirekisho" && spec.desiredRoleNote?.startsWith("jp-check-")) {
