@@ -320,12 +320,26 @@ try to create every table again.
 ## 5a. Resetting a record to the demo record
 
 `npm run db:seed:demo [-- --email <address>]` replaces one user's whole record with an invented one
-(Kenji Moriyama, four employers, seven documents, 59 facts, four applications) so every screen has
-something on it. Decision log, 2026-10-17. Renders are not seeded; press Generate afterwards.
+(Kenji Moriyama, four employers, seven documents, 59 facts, four applications) and finishes it, so
+every screen is filled in and nothing waits on the owner. Decision log, 2026-10-17 and 2026-10-26.
+
+**What a reset leaves:** a full profile with an invented 履歴書 photo and a 本人希望 note; every flag
+looked at (the two figures the importer invented are rejected, the other 12 flags are checked); the
+one gap in 学歴・職歴, October–December 2023, explained; 21 curated skills; the English résumé, the
+履歴書, the 職務経歴書 and both career stories each with an accepted v1, and the career record built
+from the facts; and four applications whose documents were chosen before Applied and frozen as sent
+on the day each was applied (Northwind with its own tailored résumé, Harbor Ledger the one gone
+quiet, Kumo Market rejected, Aozora not applied yet). Home says "You are up to date".
+
+The finishing steps go through the app's own routes, in the seed's process (`scripts/demo-seed/app.ts`):
+the documents are generated with a scripted model (`scripts/demo-seed/renders.ts`) and must pass every
+check a real generation does, the English and Japanese ones included, or the seed stops naming the
+document.
 
 **Locally**, against `track_record_dev` (`DATABASE_URL` from `.dev.vars`, user `dev-session@example.invalid`
 unless `--email` says otherwise): run `npm run dev:session` once so the user exists, then the command.
-Documents go through `runImport` with a scripted model, so it needs no API key. Two runs in a row print
+Documents are imported through `runImport` and rendered through the generate route, both with a scripted
+model, so it needs no API key; it takes about a minute against the local stack. Two runs in a row print
 identical counts. It refuses `track_record_test`, a remote host without `--remote-after-backup`, and a
 user with uploaded recordings unless `--recordings-deleted` is passed.
 
@@ -355,15 +369,16 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
    upload rows remain.
    A run that fails partway is recovered by running the same command again: it resets first.
 5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 16
-   flags, 21 skills, 4 applications, 2 interviews. Then, on the production database:
+   flags, 21 skills, 6 render versions, 4 applications, 6 sent copies, 2 interviews. Then, on the
+   production database:
 
    ```sql
    select count(*) from facts where user_id <> '<userId>';   -- 0 on a one-user database
    ```
 
-   Listing `<userId>/` in the bucket returns nothing. In the app, Home offers Generate for the résumé,
-   Flagged shows 16, Applications shows 4 with one gone quiet, and the sidebar shows Kenji Moriyama.
-   After generating a résumé, `npm run check:attribution -- --latest` exits 0.
+   Listing `<userId>/` in the bucket returns nothing. In the app, Home says "You are up to date" with
+   every document at v1, Flagged shows 0 to check and 12 checked, Applications shows 4 with one gone
+   quiet, and the sidebar shows Kenji Moriyama. `npm run check:attribution -- --latest` exits 0.
 
 ---
 
