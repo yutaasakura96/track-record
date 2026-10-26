@@ -16,12 +16,13 @@ import { env } from "cloudflare:test";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { harness, settle, stubModel, type Client, type Harness, type SeededUser, type StubModel } from "./helpers/harness";
-import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, SECOND_EMAIL, seedAllowedUser, seedTailoredResume, uploadForm } from "./helpers/seed";
+import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, postJob, SECOND_EMAIL, seedAllowedUser, seedTailoredResume, uploadForm } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
 import { renderVersions } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import type { CandidateFact } from "~/model/types";
 import type { RenderContent } from "~/shared/render-content";
+import { employerChapterKey } from "~/render/chapters";
 
 interface Tailored {
   ref: string;
@@ -74,13 +75,13 @@ beforeEach(async () => {
 /** A profile, an employer and three facts, of which one may be used. */
 async function seedRecord(as: Client = client) {
   await as.put("/api/profile", PROFILE_FIXTURE);
-  await as.post("/api/employers", EMPLOYER_FIXTURE);
+  const employerId = await postJob(as);
   model.extractions = [[USABLE, PRIVATE, GENERATED]];
   const text = `# Notes\n\n${[USABLE, PRIVATE, GENERATED].map((c) => c.quote).join("\n\n")}\n`;
   await as.request("/api/imports", { method: "POST", body: uploadForm(text) });
   await settle();
   const { items } = await as.json<{ items: { id: string; claim: string }[] }>("/api/facts");
-  return { usable: items.find((f) => f.claim === USABLE.claim)! };
+  return { usable: items.find((f) => f.claim === USABLE.claim)!, employerId };
 }
 
 const createdRow = (label = "Kestrel, platform engineer", jobDescription = POSTING, as: SeededUser = user): Promise<Seeded> =>
@@ -91,10 +92,19 @@ const shown = async (row: Seeded, as: Client = client) => {
   return { ...application.documents.find((document) => document.tailored)!, canGenerate: application.canGenerate };
 };
 
-function resumeFrom(text: string, factIds: string[]): RenderContent {
+function resumeFrom(text: string, factIds: string[], employerId: string): RenderContent {
   return {
     sections: [
-      { key: "experience", heading: "Experience", blocks: [{ id: "blk_1", kind: "bullet", text, factIds }] },
+      {
+        key: "summary",
+        heading: "Summary",
+        blocks: [{ id: "blk_summary", kind: "paragraph", text: "Platform engineer with batch systems experience.", factIds: [] }],
+      },
+      {
+        key: employerChapterKey(employerId),
+        heading: EMPLOYER_FIXTURE.nameLatin,
+        blocks: [{ id: "blk_1", kind: "bullet", text, factIds }],
+      },
     ],
   };
 }
@@ -162,10 +172,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("is a proposal, read as a diff and accepted, like every other document", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
 
     expect(await shown(row)).toMatchObject({ status: "proposal_pending", currentVersionNo: null });
@@ -177,11 +187,30 @@ describe("generating a tailored résumé", () => {
     expect(await shown(row)).toMatchObject({ status: "up_to_date", currentVersionNo: 1 });
   });
 
+  it("is not refused for a generic Experience heading, which names no employer", async () => {
+    const { usable } = await seedRecord();
+    const row = await createdRow();
+    const { proposalId } = (await (
+      await generate(row.id, {
+        sections: [{
+          key: "experience",
+          heading: "Experience",
+          blocks: [{ id: "blk_1", kind: "bullet", text: "Cut the nightly settlement run to 90 minutes.", factIds: [usable.id] }],
+        }],
+      })
+    ).json()) as { proposalId: string };
+
+    // One call: the English check found nothing to retry.
+    expect(model.generationInputs).toHaveLength(1);
+    const proposal = await client.json<{ generationStatus: string }>(`/api/proposals/${proposalId}`);
+    expect(proposal.generationStatus).toBe("ready");
+  });
+
   it("refuses a second proposal while one waits, and holds only its own document", async () => {
-    await seedRecord();
+    const { employerId } = await seedRecord();
     const row = await createdRow();
     const other = await createdRow("Plinth, backend engineer");
-    await generate(row.id, resumeFrom("One.", []));
+    await generate(row.id, resumeFrom("One.", [], employerId));
 
     expect((await generate(row.id)).status).toBe(409);
     // A waiting proposal on one résumé does not hold another, nor the main one.
@@ -190,10 +219,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("keeps its versions apart from the main résumé's, on every route that reads one", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const accept = async (ref: string, text: string) => {
-      const { proposalId } = (await (await generate(ref, resumeFrom(text, [usable.id]))).json()) as { proposalId: string };
+      const { proposalId } = (await (await generate(ref, resumeFrom(text, [usable.id], employerId))).json()) as { proposalId: string };
       await client.post(`/api/proposals/${proposalId}/accept`);
     };
     await accept(row.id, "Tailored bullet about the batch platform.");
@@ -209,12 +238,12 @@ describe("generating a tailored résumé", () => {
 
     const tailoredFile = await client.get(`/api/renders/${row.id}/download?format=md`);
     expect(await tailoredFile.text()).toContain("Tailored bullet about the batch platform.");
-    expect(tailoredFile.headers.get("content-disposition")).toMatch(
-      new RegExp(`filename="resume-kestrel-platform-engineer-${row.id}-\\d{4}-\\d{2}-\\d{2}\\.md"`),
-    );
+    // The file an employer receives carries the author's name, not the
+    // author's label for the job or the app's id for it (issue #107).
+    expect(tailoredFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
     const mainFile = await client.get("/api/renders/english_resume/download?format=md");
     expect(await mainFile.text()).toContain("Main bullet about the settlement run.");
-    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="resume-\d{4}-\d{2}-\d{2}\.md"/);
+    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
 
     // Neither document serves the other's version.
     expect((await client.get(`/api/renders/${row.id}/versions/${mainVersion!.id}`)).status).toBe(404);
@@ -225,23 +254,11 @@ describe("generating a tailored résumé", () => {
     ).toBe(404);
   });
 
-  it("gives distinct filenames to Japanese labels and labels sharing a long prefix", async () => {
-    const date = new Date("2026-10-10T00:00:00.000Z");
-    const { downloadFilename } = await import("~/render/docx");
-    for (const labels of [["開発職", "技術職"], ["a".repeat(40) + "one", "a".repeat(40) + "two"]]) {
-      const first = downloadFilename("english_resume", "docx", date, { label: labels[0]!, id: "rnd_first" });
-      const second = downloadFilename("english_resume", "docx", date, { label: labels[1]!, id: "rnd_second" });
-      expect(first).not.toBe(second);
-      expect(first).toMatch(/rnd_first-2026-10-10\.docx$/);
-      expect(second).toMatch(/rnd_second-2026-10-10\.docx$/);
-    }
-  });
-
   it("records the facts its version could use, and is out of date once one of them is withdrawn", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${proposalId}/accept`);
 
@@ -258,10 +275,10 @@ describe("generating a tailored résumé", () => {
   });
 
   it("withholds the file once a fact it cites is made Private, as the main résumé's is", async () => {
-    const { usable } = await seedRecord();
+    const { usable, employerId } = await seedRecord();
     const row = await createdRow();
     const { proposalId } = (await (
-      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id]))
+      await generate(row.id, resumeFrom("Cut the nightly settlement run to 90 minutes.", [usable.id], employerId))
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${proposalId}/accept`);
     expect((await client.get(`/api/renders/${row.id}/download?format=md`)).status).toBe(200);

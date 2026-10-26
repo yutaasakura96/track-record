@@ -25,6 +25,8 @@ import {
   facts,
   profiles,
   projects,
+  renderVersions,
+  renders,
   roles,
   sourceDocumentVersions,
   sourceDocuments,
@@ -33,8 +35,10 @@ import { routes } from "../http/registry";
 import { effectiveEmployerId } from "../services/employer";
 import { nameInLanguage } from "../services/render";
 import { masterMarkdown } from "~/render/master-document";
+import type { RenderContent } from "~/shared/render-content";
 import {
   MASTER_WORDS,
+  keptOut,
   masterLanguage,
   type MasterDocument,
   type MasterFact,
@@ -65,7 +69,7 @@ export function registerMasterRoutes(app: Hono<AppEnv>) {
     return new Response(masterMarkdown(doc), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",
-        "content-disposition": `attachment; filename="master-document-${doc.language}-${doc.builtAt.slice(0, 10)}.md"`,
+        "content-disposition": `attachment; filename="career-record-${doc.language}-${doc.builtAt.slice(0, 10)}.md"`,
         "cache-control": "no-store",
       },
     });
@@ -77,8 +81,18 @@ export async function buildMasterDocument(
   userId: string,
   language: MasterLanguage = "en",
 ): Promise<MasterDocument> {
-  const [profileRows, employerRows, roleRows, projectRows, factRows, flagRows, educationRows, certificationRows, [waiting]] =
-    await db.batch([
+  const [
+    profileRows,
+    employerRows,
+    roleRows,
+    projectRows,
+    factRows,
+    flagRows,
+    educationRows,
+    certificationRows,
+    [waiting],
+    currentVersions,
+  ] = await db.batch([
       db
         .select({
           nameLatin: profiles.nameLatin,
@@ -136,7 +150,22 @@ export async function buildMasterDocument(
         .select({ n: sql<number>`count(*)::int` })
         .from(facts)
         .where(and(eq(facts.userId, userId), eq(facts.status, "candidate"))),
+      // What every document cites now, tailored résumés included: a fact none
+      // of them cites is one the author has not used yet (issue #112).
+      db
+        .select({ content: renderVersions.content })
+        .from(renders)
+        .innerJoin(
+          renderVersions,
+          and(eq(renderVersions.id, renders.currentVersionId), eq(renderVersions.userId, userId)),
+        )
+        .where(eq(renders.userId, userId)),
     ]);
+
+  const cited = new Set<string>();
+  for (const { content } of currentVersions)
+    for (const section of (content as RenderContent).sections)
+      for (const block of section.blocks) for (const factId of block.factIds) cited.add(factId);
 
   const flagsByFact = new Map<string, MasterFact["flags"]>();
   for (const flag of flagRows) flagsByFact.set(flag.factId, [...(flagsByFact.get(flag.factId) ?? []), flag.kind]);
@@ -166,6 +195,7 @@ export async function buildMasterDocument(
           row.importId && row.filename
             ? { importId: row.importId, filename: row.filename, lineNumber: row.lineNumber }
             : null,
+        used: cited.has(row.id),
       },
     ]);
   }
@@ -188,17 +218,21 @@ export async function buildMasterDocument(
   // 姓 and 名 apart by a full-width space, as the 履歴書 writes them.
   const nameKanji = profile ? `${profile.familyNameKanji}　${profile.givenNameKanji}`.trim() : "";
 
+  const builtAt = new Date().toISOString();
   return {
     language,
-    builtAt: new Date().toISOString(),
+    builtAt,
     subjectName: profile ? (language === "ja" && nameKanji ? nameKanji : profile.nameLatin) : null,
     counts: {
       facts: factRows.length,
-      usable: factRows.filter((f) => f.disclosure !== "private" && f.provenance !== "generated").length,
+      usable: factRows.filter((f) => !keptOut(f)).length,
       private: factRows.filter((f) => f.disclosure === "private").length,
-      generated: factRows.filter((f) => f.provenance === "generated").length,
-      flagged: flagsByFact.size,
+      generated: factRows.filter((f) => f.provenance === "generated" && f.disclosure !== "private").length,
+      keptOut: factRows.filter((f) => keptOut(f)).length,
+      // Every open flag, as the sidebar counts them, not the facts carrying one.
+      flags: flagRows.length,
       waiting: waiting?.n ?? 0,
+      years: yearsCovered([...employerRows, ...projectRows], builtAt),
     },
     employers: employerRows.map((employer) => ({
       id: employer.id,
@@ -241,4 +275,18 @@ export async function buildMasterDocument(
       expiresOn: certification.expiresOn,
     })),
   };
+}
+
+/**
+ * Whole years from the first start to the last end, or to today while anything
+ * is still open: the `across 11 years` of the count line. Month precision, as
+ * every calendar column is.
+ */
+function yearsCovered(spans: { startedOn: string | null; endedOn: string | null }[], today: string): number | null {
+  const dated = spans.filter((span) => span.startedOn !== null);
+  if (dated.length === 0) return null;
+  const months = (date: string) => Number(date.slice(0, 4)) * 12 + Number(date.slice(5, 7)) - 1;
+  const first = Math.min(...dated.map((span) => months(span.startedOn!)));
+  const last = Math.max(...dated.map((span) => months(span.endedOn ?? today)));
+  return Math.floor((last - first + 1) / 12);
 }

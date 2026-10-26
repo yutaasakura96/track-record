@@ -52,6 +52,8 @@ export const RENDER_LANGUAGE: Record<RenderKind, "en" | "ja"> = {
   career_story_ja: "ja",
 };
 
+export type DownloadFormat = "docx" | "md" | "pdf";
+
 /**
  * The format a render is taken away in.
  *
@@ -62,15 +64,28 @@ export const RENDER_LANGUAGE: Record<RenderKind, "en" | "ja"> = {
  * Offering one a `.docx` button would be offering to produce a submission
  * document out of the one render that is not one.
  *
- * The download route serves either format for any kind — this decides which the
- * screen offers, so that the affordance and the decision agree.
+ * The download route serves `.docx` and Markdown for any kind (a 履歴書 is
+ * `.docx` and PDF only) and a PDF for the three submission documents — this
+ * decides which the screen offers first, so that the affordance and the
+ * decision agree.
  */
-export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, "docx" | "md"> = {
+export const RENDER_DOWNLOAD_FORMAT: Record<RenderKind, DownloadFormat> = {
+  // PDF is what employers and ATS guidance expect of an English résumé, so it
+  // is the default; Word is offered beside it for a posting that asks for one
+  // (issue #109). doda and Recruit say the same of a Japanese application
+  // unless the employer asks for Word (issue #117).
+  english_resume: "pdf",
+  rirekisho: "pdf",
+  shokumu_keirekisho: "pdf",
+  career_story_en: "md",
+  career_story_ja: "md",
+};
+
+/** The second format a submission document is offered in, beside its PDF: the Word file. */
+export const RENDER_DOWNLOAD_ALTERNATIVE: Partial<Record<RenderKind, DownloadFormat>> = {
   english_resume: "docx",
   rirekisho: "docx",
   shokumu_keirekisho: "docx",
-  career_story_en: "md",
-  career_story_ja: "md",
 };
 
 export const RENDER_TITLE: Record<RenderKind, string> = {

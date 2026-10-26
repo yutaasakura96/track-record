@@ -58,7 +58,7 @@ const PLAIN: CandidateFact = {
 };
 const NUMBERED: CandidateFact = {
   claim: "Cut the nightly settlement run from 6 hours to 90 minutes",
-  quote: "The nightly settlement run fell from 6 hours to 90 minutes.",
+  quote: "The nightly settlement run fell from 6 hours to about an hour and a half.",
   technologies: [],
   provenance: "measured",
 };
@@ -222,6 +222,28 @@ describe("what an import leaves behind", () => {
 });
 
 describe("the flagged list", () => {
+  it("shows only unsupported quantity phrases from an imported document", async () => {
+    const candidates: CandidateFact[] = [
+      { claim: "Resolved 5 reports", quote: "Resolved 2/5 reports.", technologies: [], provenance: "attested" },
+      { claim: "Resolved 2/5 reports", quote: "Resolved 2/5 reports.", technologies: [], provenance: "attested" },
+      { claim: "Processed 5件以上", quote: "Processed 5件以下.", technologies: [], provenance: "attested" },
+      { claim: "Reached 5% of all clinic reports", quote: "Reached 5% of all clinic revenue.", technologies: [], provenance: "attested" },
+      { claim: "Wrote 5 clinic reports", quote: "For the clinic, I wrote 5 reports.", technologies: [], provenance: "attested" },
+      { claim: "Wrote 5 reports", quote: "Wrote 5 separate reports.", technologies: [], provenance: "attested" },
+      { claim: "Presented in 2023", quote: "Presented in 2023.", technologies: [], provenance: "attested" },
+    ];
+
+    await imported(candidates);
+    const body = await listing();
+    expect(body.items.map((item) => item.fact.claim).sort()).toEqual([
+      "Processed 5件以上",
+      "Reached 5% of all clinic reports",
+      "Resolved 5 reports",
+      "Wrote 5 reports",
+    ]);
+    expect(body.items.every((item) => item.kind === "number" && !item.checked)).toBe(true);
+  });
+
   it("lists every open flag with its fact and where to open it, what keeps a fact out of documents first", async () => {
     const importId = await imported(EVERY);
     const body = await listing();
@@ -244,7 +266,7 @@ describe("the flagged list", () => {
       filename: "kestrel-notes.md",
     });
     expect(numbered.fact.lineNumber).toBeGreaterThan(0);
-    expect(numbered.reason).toBe("It states a number. Check the number against the passage it was read from.");
+    expect(numbered.reason).toBe("It states a number the passage it was read from does not. Check where the number came from.");
   });
 
   it("carries no passage from the source document", async () => {

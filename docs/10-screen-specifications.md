@@ -1,6 +1,6 @@
 # 10 — Screen Specifications
 
-**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77
+**Status:** Phase 3 · written 2026-08-12 · Screens 5 (version history) and 6 (edit a version) added 2026-09-12 · Screen 8 (documents) added 2026-09-15 · light theme, rendered Markdown, contents, extraction progress and screen intros added 2026-10-05 (issue #56) · Screen 3 (home) and the sidebar rewritten 2026-10-05 (#58) · the documents separated into English and 日本語 tabs, and a master document per language, 2026-10-10 (#59) · Screens 12 to 15 (Applications) specified 2026-10-11 (#60, #69), built by #70 to #77 · Screen 10 renamed Career record and laid out as a CV 2026-10-18 (#112) · Screen 4 renamed Career timeline and laid out as one card per employer 2026-10-19 (#113) · Screen 3 leads with the documents as cards, the record's counts one strip, and the provenance bar moved to Screen 10, 2026-10-22 (#111)
 **Visual reference:** `design/prototype/` — `fact-review.dc.html`, `diff-review.dc.html`,
 `diff-review-ja.dc.html`, `overview.dc.html`. The prototype shows the target look; **this document
 and `05-design-system.md` are the contract.** Where they disagree, the docs win.
@@ -15,8 +15,9 @@ Three screens carry v1. All values referenced here are defined in `05-design-sys
 ## Shared chrome
 
 **Sidebar** — 212px, `surface`, right border `border`. App mark + wordmark at 46px height. Nav
-rows: Home, Record, Skills, Documents, Flagged, Master document, Applications. Applications
-replaced Tailored résumés in #70. There is no separate Imports row: imports are versions of a
+rows: Home, Career timeline, Skills, Documents, Flagged, Career record, Applications. Applications
+replaced Tailored résumés in #70; Career timeline took the Record row in #113, its path `/record`
+kept. There is no separate Imports row: imports are versions of a
 document and are listed on Screen 8.
 Active row: `bg hover`, `color text`, weight 500. An inactive row is `text-muted`. Footer: 22px
 circular avatar, name, and the literal label `Personal record` — the single-user posture stated in
@@ -350,6 +351,8 @@ generation safe.
 - An addition with no counterpart shows `no matching line` in the opposite column, on a hatched empty cell; a removal shows `removed`.
 - Changed rows carry a 5%-opacity tone tint; the marks themselves carry 11% idle / 26% selected.
 - Clicking any mark selects that change and updates the rationale bar. Prev/next cycles in document order.
+- **Every block change says where it sits** in a micro line above its text wherever that block appears: the section heading and, for a block under an experience employer's opening paragraph, `· <employer line>`. The opening paragraph itself shows only the section heading; an unmatched placeholder shows no location line. The line is cut to one line with its full text on hover. A 職務経歴書 holds every employer in one section, and a changed bullet with no employer above it cannot be placed (#117).
+- **A section heading is a change like any block.** It is set at the heading size, labelled `Heading`, and carries its own rationale (`Heading rewritten · headings are written with the section, not from a fact`): a heading cites no fact. It comes before the changes to its section's blocks, counts in the additions and removals, and a heading that only exists on one side shows `no matching line` opposite. A section with no blocks is not in the document, so its heading is not diffed. Without this a regeneration could retitle every chapter of a career story and the review showed nothing (#105).
 
 ### The rationale bar — required, not decorative
 
@@ -359,7 +362,8 @@ Every change states where it came from. This is PRD S6 (traceability) at the poi
 - `From 1 attested fact · <source>, L63`
 - `Removed — no fact in your record supports it`
 - `Removed — the supporting fact is unverified (Generated) and is never rendered`
-- `From 1 restricted fact · included in this résumé, withheld from public outputs`
+- `From 1 restricted fact · Restricted, so check the wording names no client or system` — it says
+  where the change came from and what to look for; nothing checks the wording itself
 
 A change with no explanation is a defect.
 
@@ -368,7 +372,25 @@ A change with no explanation is a defect.
 - `Accepting replaces your <render> with v<n>.`
 - `v<n-1> and every earlier version stay restorable from version history.`
 - A withholding notice when applicable: `N private facts in your record were not used.` — states that something was withheld, never what.
+- Advisory warnings from the proposal response appear here, one line each. For Japanese documents
+  these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
+
+### First version (v0 → v1)
+
+When the render has no current version there is nothing to compare, and two columns against
+nothing is a wall of `no matching line`. The body is the proposed document itself, at the reading
+measure: title, document date where applicable, identity and contact lines, then its nonempty
+sections and headings. The English résumé has no title and leads with its name, as in Screen 17. A 履歴書 shows the filled template's form, as in Screen 15. Address line
+breaks remain visible. The strip says `This is the first version of your <render>. Read it through,
+then accept it or discard it.` No toolbar, no
+change navigation, no rationale bar. While the preview loads, the body says `Loading the
+document…`; a failed read shows its error. **Accept stays unavailable until the preview arrives.** The
+footer reads `Accepting saves this as v1 of your <render>.` and `Nothing is saved until you accept
+it.`, with any advisory warnings as above, `Discard draft` (secondary, dismisses the proposal) and
+`Accept as v1` (primary). There
+is no current version for a button to keep, so it does not say `Keep current version`. Once
+discarded, the result bar reads `Draft discarded — nothing was saved`.
 
 ### Decided state
 
@@ -397,8 +419,10 @@ Same layout, same components. Differences that are **requirements, not styling**
 
 ## Screen 3 — Home
 
-**Purpose.** Home, and the first thing the author sees. In this order: what to do next, what the
-record holds, what the documents say. **Rewritten 2026-10-05 (#58)**: the screen it replaces led
+**Purpose.** Home, and the first thing the author sees. In this order: what to do next, the
+documents, and the record at a glance. **Reordered 2026-10-22 (#111)**: the documents were the
+fourth panel, under two panels of the record's own counts, and nothing on them opened a document.
+**Rewritten 2026-10-05 (#58)**: the screen it replaces led
 with four counts and a chart of `Facts by provenance`, and the author could not say what they were
 looking at. The test of this screen is that a first-time author and a returning one can both say
 what it shows and what to do, without knowing a word of the product's vocabulary.
@@ -406,7 +430,7 @@ what it shows and what to do, without knowing a word of the product's vocabulary
 ### Layout
 
 Sidebar + header (`Home`, note `Last import <relative time>`, action `Import a document`
-(primary)). The title was `Your record`, which is Screen 4's title and the sidebar's `Record` row.
+(primary)). The title was `Your record`, which was then Screen 4's title and the sidebar's `Record` row.
 `Quick capture` (ghost), before `Import a document`, since #95; it opens Quick capture. Content column: `max-width 940px`,
 centred. Each section is a panel with a heading and, under it, one sentence saying what the
 section is.
@@ -429,6 +453,7 @@ the content column**, so the eye has one place to go. The step is the first of t
 | A proposal is waiting | `Check the new <document>` | `A new version is ready. Nothing changes until you accept it.` | `Review changes`, into Diff Review |
 | A proposal is still being written, and none is ready | `Wait for the new <document>` | `It is still being written. Open it to watch it arrive.` | `Open it`, into Diff Review |
 | Facts **the author accepted on a card** are still Generated. One the importer accepted is not counted: it carries a `Not sure` flag, and a flag is never a step (#57) | `Confirm N facts`, N counting only the newest version that holds any | `The importer wrote them and you have not confirmed them, so no document uses them.` With more in older versions: `… M more are in older imports.` | `Open them`, into Fact Review on that version |
+| The record has facts, and none was added in the last 30 days (#116) | `What did you ship this month at <current employer>?`, the employer with no end date (the one joined last, of two), by its Latin name or else its Japanese one. With no current employer: `What did you ship this month?` | `Nothing has been added to your record for N days. A sentence or two now is easier than remembering it at your next job search.` | `Quick capture`, into Screen 16 with that employer chosen (`/capture?employer=<id>`). Beside it, `Not this month` (bare) puts the step away until the author's month ends, on every device: it is kept on the member, not the browser. A refusal is said in this panel. No email and no notification, ever |
 | No accepted fact can be used in a document | `Import a document` | `Your documents are generated from facts, and facts come from a document you already have.` | `Import a document`, the header's control |
 | A buildable document was never generated | `Generate your <document>` | `Your record holds facts it can use. This makes the first version for you to check.` | `Generate` |
 | A document is out of date | `Update your <document>` | `N new facts since it was generated.` When it is out of date only by facts it may no longer use: `N facts it was generated from can no longer be used.` Both: `N new facts since it was generated, and M it was generated from can no longer be used.` | `Update` |
@@ -438,49 +463,15 @@ Every other step that applies is listed under it, below the line `Also waiting`,
 its title and a ghost button. So a returning author reads the whole of what is waiting in one
 place, in the order to take it. `Wait for the first facts`, `Import a document` and
 `You are up to date` are answers to "what now" and never appear in that list. One document stands
-for all of them in the two document steps, the first in the list that needs it; Section 4 says the
+for all of them in the two document steps, the first in the list that needs it; Section 2 says the
 rest. **The two document steps need a fact a document may use**; without one they are not offered,
 and `Import a document` stands only when nothing else is waiting, because the way to a usable fact
 is then to deal with what is. A Generate or Update pressed here that the server refuses says the
 server's reason in this panel, under the step.
 
-**Section 2 — Your record.** Heading `Your record`, sentence `What you entered by hand: where you
-worked, and what you hold.`, and a link `Open Record` to Screen 4. Under it a four-tile grid, 1px
-gaps over a `border` background so the tiles read as one object. Each tile: label, 23px value,
-sub-note (`2 current, 2 past` / `4 with measured outcomes` / `1 expires Mar 2027`). Entities:
-Employers · Roles · Projects · Credentials. **Credentials counts educations and certifications
-together** — the split is a storage decision (`04-database-schema.md` §3.8–3.9), not an interface
-one. **A tile at zero says so in words**: its sub-note reads `None added yet`, so a `0` reads as an
-answer and not as a failure to load.
-
-**Section 3 — Facts in your record.** Heading `Facts in your record`, sentence
-`A fact is one claim about your work, quoted from a document you imported. N accepted.` Then an
-8px stacked bar (green / accent / amber, 2px gaps) and one row per provenance value. **The row
-leads with plain words and names the product's term second**, because `Measured`, `Attested` and
-`Generated` are the words on the fact card and mean nothing at a glance (#58):
-
-| Row | Term | Description | At zero |
-|---|---|---|---|
-| `Backed by a number` | `Measured` | `A result with a figure, and the passage that proves it.` | `None yet` |
-| `Stated by you` | `Attested` | `True, and yours, with no figure behind it.` | `None yet` |
-| `Not confirmed` | `Generated` | `Written by the importer. Left out of every document until you confirm it.` | `Nothing waiting` |
-
-**Flags are a line under the rows, not a row and not a step** (#57). While any flag is open:
-`N are flagged for you to check when you want. Each says why.` and a ghost `Open the list` to Screen
-9. The section's heading carries a quiet `Open master document` link to Screen 10 once the record
-holds an accepted fact.
-
-Each row: dot, the plain words, the term in a chip, the description, and the count at the row-title
-size. **A zero is written as words, never as `0`.** `Measured 0` in the faintest text on the screen
-read as something broken; `None yet` is a state. **The Not confirmed row is the action row** — while
-the author has a fact of their own to confirm (above zero, until 2026-10-08) it takes an amber tint, an amber inset ring, and a ghost `Confirm N` that opens the same Fact
-Review the Next step does, N being that version's facts as it is in the step. With no accepted fact
-at all, the bar and the rows give way to one line:
-`No accepted facts yet. They are accepted for you as a document you import is read.`
-
-**Section 4 — Your career documents.** Heading `Your career documents`, sentence
-`Generated from your accepted facts, in English and in Japanese. Each one is a file you can
-download.` The heading is not `Documents`: that is the sidebar's word for the files facts are quoted
+**Section 2 — Your career documents.** Straight after the Next step (#111). Heading `Your career
+documents`, sentence `Written from your record, in English and in Japanese. View one to read it as it
+will print, or download it to send.` The heading is not `Documents`: that is the sidebar's word for the files facts are quoted
 *from*, and this section is what is generated *out*. **Japanese titles render in the mixed font
 stack.**
 
@@ -490,8 +481,8 @@ language, and one panel under it:
 
 | Tab | Rows, in order |
 |---|---|
-| `English` | The English master document, Résumé (English), the English career story |
-| `日本語` | The 日本語 master document, 履歴書, 職務経歴書, 職務経歴ストーリー |
+| `English` | The English career record, Résumé (English), the English career story |
+| `日本語` | The 日本語 career record, 履歴書, 職務経歴書, 職務経歴ストーリー |
 
 - **The tab list is a WAI-ARIA tab list**: one tab stop, the arrow keys, Home and End inside it,
   selection following focus, and the panel named by the tab that is open. It is drawn as the
@@ -500,12 +491,23 @@ language, and one panel under it:
   `localStorage` key `track-record:document-language`, as the theme is. It is not a column: it says
   which tab is open, and nothing about the record. **Screen 10 reads the same choice**, so the
   language open here is the language of the master document that opens.
-- **The first row of each tab is that language's master document** (Screen 10). Title
-  `Master document` or `マスタードキュメント`, note `English · everything in your record, and what
-  every English document is written from` (or `Japanese · … every Japanese document …`), the count
-  `N facts` (`No facts yet` at zero) and one secondary `Open`. It is not generated and has no
-  versions, so it has no status dot, no `History`, no button and no `Download`: the file is
-  downloaded on Screen 10, beside the note that it holds Private facts.
+- **Each document is a card** (#111), three across (one column under the phone breakpoint), with
+  8px between them. A card is a `card` surface with a `border` rule and the tile radius: on top, a
+  **picture of its first page** (`05` §3: 160px tall, the page drawn at 36%, on `surface-raised`, the
+  page itself on `bg` with its top corners rounded); under it the title at the row-title size, the
+  status, a muted line, and the controls at the foot. The picture is the current version's page as
+  Screen 17 opens it, read only once a version exists; before then, or when the page cannot be read
+  (a version citing a fact now Private is refused, `409`), the page is blank and nothing else
+  changes. It is hidden from assistive technology and `inert`, so it takes no tab stop: the title
+  and status beside it say what it shows.
+- **The first card of each tab is that language's career record** (Screen 10; the master document
+  until #112). Title `Career record` or `キャリア記録`, the line `N facts · everything in your record,
+  and what every English document is written from. Not for sending.` (`… every Japanese document …`;
+  `No facts yet` at zero) and one secondary `Open`, named `Open the English career record` (or
+  `Japanese`). Its picture is the record's own first lines: the name, then up to three employers,
+  each with its first two claims. It is not generated and has no versions, so it has no status
+  dot, no `History`, no button and no `Download`: the file is downloaded on Screen 10, beside the
+  note that it holds Private facts.
 
 **One line above the rows says which to act on** (#58), and it speaks for the rows of the tab that
 is open. Five rows each reading `N new facts since it was generated` beside the same three buttons
@@ -519,23 +521,49 @@ said nothing about where to start, and the honest answer is that they do not dep
 - None generated → `None generated yet. Generate the one you need first; each is made on its own.`
 - Otherwise → `Every document you have generated is up to date with your record.`
 
-Each row: name, `<language> · generated <relative time>`, status dot + text, then the quiet links
-`History` (Screen 5) and `Download`, offered once a version exists, and **one** button.
+Each document card: title, status dot + text in plain words, then a muted line `v<N> · written
+<relative time>` (the English résumé adds `· your main résumé, tailored to no job`). **View leads**:
+once a version exists, the first control is `View` (Screen 17), a secondary button named `View
+<document>`, then the quiet links `Download` and `History` (Screen 5), and the card's write set a
+step down at the right. **View is the card's primary action but is not drawn as a primary button**:
+the Next step keeps the only primary button in the content column, as #58 decided. Before a version
+exists there is nothing to view, and the write is the card's one secondary control.
 
-| Status | Dot and text | Button |
-|---|---|---|
-| Never generated | muted, `Not generated yet` | `Generate` (secondary) |
-| Proposal waiting | accent, `New version waiting` | `Review changes` (secondary) |
-| Proposal being written | accent, `Writing a new version` | `Open it` (secondary) |
-| Out of date | accent, `N new facts`, `N facts no longer usable`, or `N new facts, M no longer usable` | `Update` (secondary) |
-| Up to date | green, `Up to date` | `Regenerate` (ghost) |
-| Not built | muted, `Not available yet` | None |
+The 履歴書's card also carries the record's current gaps under the muted line, before a version
+exists and after, each with `Add an explanation` (Screen 4 item 3, #117). Accepting a 履歴書 does not
+close a gap, so the warning is read from the record, not from the review that first raised it.
 
-`Download` reads the same on every row so the rows line up; the file's type is the document's own
-and is in the name of what is saved. A Generate or Update the server refuses says the server's
-reason above the rows.
+| Status | Dot and text | Write, with a version | Write, before one |
+|---|---|---|---|
+| Never generated | muted, `Not written yet` | — | `Generate` (secondary) |
+| Proposal waiting | accent, `A new version is waiting for you to check` | `Review changes` (ghost) | `Review changes` (secondary) |
+| Proposal being written | accent, `A new version is being written` | `Open it` (ghost) | `Open it` (secondary) |
+| Out of date | accent, `N new facts since v<N>`, `N facts it was written from can no longer be used`, or `N new facts since v<N>, and M it was written from can no longer be used` | `Update` (ghost) | — |
+| Up to date | green, `Up to date with your record` | `Regenerate` (ghost) | — |
+| Not built | muted, `Not available yet` | None | None |
 
-**Section 5 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
+`Download` reads the same on every card so the cards line up; the file's type is the document's own
+and is in the name of what is saved. The English résumé's `Download` saves its PDF, and a second
+quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109); the
+履歴書's and the 職務経歴書's do the same (#117), and their files are saved under their Japanese names
+(`履歴書_青木陽介_20261023.pdf`). The stories have one format and one download link. A
+Generate or Update the server refuses says the server's reason above the cards.
+
+**Section 3 — Your record at a glance.** Under the documents (#111), heading `Your record at a
+glance`, sentence `Where you worked, what you hold, and the facts your documents are written from.`,
+and a quiet `Open career timeline` to Screen 4. **One strip** of five cells, 1px gaps over a
+`border` background so it reads as one object: `Employers`, `Roles`, `Projects`, `Credentials` and
+`Facts`, each a label, its count at the document-heading size, and a muted note (`2 current, 2
+past`; `Facts`: `N backed by a number`). **Credentials counts educations and certifications
+together**, a storage split (`04` §3.8–3.9) and not an interface one. `Facts` counts the accepted
+facts. **A count at zero says so in words**, `None added yet`, so a `0` reads as an answer and not
+as a failure to load. Two cells a row under the phone breakpoint.
+It replaced two panels: the four-tile `Your record` grid, and `Facts in your record`, whose stacked
+bar and rows of facts by provenance are on Screen 10 now. The `Confirm N` that row carried is the
+Next step's, and the flag line is the sidebar's count beside `Flagged` and Screen 10's count
+sentence.
+
+**Section 4 — Backup.** Heading `Backup`, sentence `Your whole record as one JSON file: everything
 you entered, every fact, and where each fact is quoted from. The imported documents themselves are
 not included, and neither are recordings of interviews or the links to them.`, and a secondary
 `Export my record`, which is `GET /api/export` (S15, S24).
@@ -669,22 +697,21 @@ so the frame does not change under a first-time author; it carries no note and n
 | State | Behaviour |
 |---|---|
 | **No profile** | Redirect to the profile form. Every render needs a name |
-| **Loading** | **The frame is drawn at once and filled as the reads answer** (#58): the sidebar, the header with `Home` and the note `Loading your record…`, and the four section headings over blank blocks the height of what they will hold. Nothing animates (`05` §8). It replaced a bare `Loading your record…` on an empty page that stood for about ten seconds. The session, the profile and the overview are read at the same time, not one after the other, and the screen shows this frame until all three have answered. After four seconds the note becomes `Still loading. This is taking longer than usual.` |
+| **Loading** | **The frame is drawn at once and filled as the reads answer** (#58): the sidebar, the header with `Home` and the note `Loading your record…`, and the section headings over blank blocks the height of what they will hold. Nothing animates (`05` §8). It replaced a bare `Loading your record…` on an empty page that stood for about ten seconds. The session, the profile and the overview are read at the same time, not one after the other, and the screen shows this frame until all three have answered. After four seconds the note becomes `Still loading. This is taking longer than usual.` |
 | **Could not be read** | Centred in the content area, with the sidebar beside it and the header above it: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the loading frame returns. Only a first read shows this. |
 | **Could not refresh** | The overview, populated or empty, stays on screen. A later read that fails puts one dim line above it, at the top of the content, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
 | **Import in progress** | A panel above the Next step, which carries the way into the review. First line: `Reading`, the document's filename in a mono chip, and the share done as a percentage at the row-title size. Then an 8px progress bar, twice the control's 4px because here it is the status and not a detail of a row. Then the sentence `Still working, please wait. N of M parts read.`, or `Still working, please wait. Getting the document ready.` before the document has been split; a part is a chunk, in the author's word for it. Then `A long document takes several minutes. You can leave this page and it carries on.` The percentage is how much of the document has been read, which is not the model certainty `05` §9 rule 12 forbids. The screen reads again every 1.5 s while it runs, so the bar moves. The first line stays one line: a filename too long for it is cut short with an ellipsis and shown whole on hover, and nothing else in it gives way |
 | **Read again after a write** | A write that changes what Home says (finishing a review, deciding a proposal, starting an import) marks the overview untrue. Until the read after it answers, the Next step and the import panel are **held back**: in their place stands the Next step's frame, its heading over a blank block, with the status line `Checking what is waiting for you now…`. The other sections stay as they were. A poll, during an import or while a proposal is being written, and a plain return to the page hold nothing back. Without this Home told the author to wait for an import they had just finished reviewing, for as long as the read took |
-| **All documents stale** | Normal. Five accent dots is a valid state, not an error, and the line above the rows says the rest can wait |
-| **Zero Generated facts** | The Not confirmed row renders in the resting style with `Nothing waiting` — no amber, no call to action |
+| **All documents stale** | Normal. Every card's accent dot is a valid state, not an error, and the line above the cards says the rest can wait |
 
 ---
 
-## Screen 4 — Your record
+## Screen 4 — Career timeline
 
-The five hand-entered entity types on one screen: employers, roles, projects, education and
-certifications. **Each is a plain form** — no import, no extraction, no diff review (S7). Sidebar
-chrome, one `Panel` per collection, each listing its rows with an inline form below the row being
-edited.
+**Renamed and laid out again 2026-10-19 (#113).** It was `Your record`, five separate lists. The
+five hand-entered entity types are still on one screen: employers, roles, projects, education and
+certifications. **Each is a plain form** — no import, no extraction, no diff review (S7). Route
+`/record`, unchanged.
 
 **Employer** carries 資本金 and 従業員数; **Education** carries an **outcome**, and a withdrawal must
 read 中退 rather than 卒業. **Education also carries a required level** — the rung the schooling sits
@@ -692,33 +719,85 @@ on, which is what the English résumé selects rows by; the field is required on
 alternative is a render classifying a school by its name. All calendar fields collect **month and
 year only**.
 
-**Intro** (Shared chrome, #56): `Your employers, roles, projects, education and certifications,
-entered by hand. Your documents take their headings and dates from here.` Then
-`Next: add an employer. Roles and imported documents are filed under one.` while the record holds no
-employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
+**Header:** title `Career timeline`, note `Where you worked, what you held, what you studied. Every
+document takes its names and dates from here.`
+
+**Intro** (Shared chrome, #56): `Your jobs with the roles and projects inside them, then your
+schooling and certifications, all entered by hand.` Then
+`Next: add a job. Roles, projects and imported documents are filed under one.` while the record holds
+no employer, and `Next: nothing is waiting here. Add or correct an entry when something changes.` once
 it does. The `Next:` line waits for the employers to be read: telling a record with three employers
 to add one is worse than saying nothing for a moment.
 
-Two rules the screen makes visible: **Add** on Roles is disabled with a stated reason until an
-employer exists, because a role belongs to one; and deleting an entry something still references
-surfaces the server's `409` message in place, rather than being pre-empted by a check the client
-would have to keep in step with the server. **Every one of the five collections deletes**, and each
+### Layout
+
+Top to bottom in the 940px column:
+
+1. **Profile card.** Initials, `nameLatin · 漢字名`, then the résumé headline, city and country, and
+   the email (#108's fields, each only when filled), a chip `Address and birth date: 履歴書 only`, and
+   a link `Edit profile` to the profile form (`Add your profile` when there is none). It shows what
+   the résumé header shows and nothing the 履歴書 alone prints; the résumé's opt-in phone and links
+   stay on the profile form.
+2. **Work.** Heading and `Add a job`. One card per employer on a vertical rail, newest first; the
+   current employer's dot is filled. A card: the Latin name with 会社名 beside it; a line of the
+   dates, the duration (`3 yrs 6 mos`, both end months counted, an open end running to this month),
+   the employment type, 業種 and `N people`; Edit and Delete. Inside, two columns: **Roles** (title,
+   dates, Edit, Delete, `Add a role`, which starts the form under this employer) and **Projects and
+   achievements** (name, `N achievements`, dates, its inclusion line, Edit, Delete, `Add a project`,
+   likewise), with a `Not filed under a project` row for the employer's facts on no project. A
+   footer: `From N imported documents`, `N achievements`, and the
+   employer's inclusion line. A form opens full width at the bottom of its card in the footer's place.
+3. **The 履歴書's gap warning, inline, and its answer** (#117). Each gap `unexplainedGaps` finds over
+   the rows the 履歴書 would print, its exclusions applied, sits between the two cards it falls
+   between, named by the months nobody covers, Japanese then English:
+   `2020年2月〜6月（5か月）は、学歴・職歴のどの行にも含まれていません。` and
+   `February–June 2020 (5 months) is covered by no 学歴・職歴 entry.` A dashed neutral box: it is
+   advice, and nothing is held back by it. A gap before every job, between schooling and the first
+   one, sits after the oldest card. Under it, `Add an explanation` opens one line for what the author
+   was doing, with the ※ row it becomes shown as it is typed
+   (`※2020年2月〜2020年6月　資格取得のため学習`); the months are the gap's and are not typed. An
+   explained gap keeps its place and shows its ※ row instead, with Edit and Remove. A note whose gap
+   has since moved or closed is listed above the cards, saying the 履歴書 does not print it, with
+   Remove. The same notice and form are on Home's 履歴書 card and on its View page (Screens 3 and 17).
+   An employer card whose role or project is dated outside the employer says so above its roles,
+   naming each and how (`runs past this job's end, 2020-01`), and that the 職務経歴書 would print
+   dates that contradict each other.
+4. **Independent projects.** Projects with no employer, as project rows, with `Add a project`.
+5. **Education and Certifications**, side by side. An education row carries its inclusion line, and
+   an upper-secondary rung the chip `Left out of: Résumé (English)`; a lower-secondary rung also names
+   `職務経歴書` as excluded. A vocational rung, and a row with no level, carry no level-exclusion
+   chip. The chip is read from `src/shared/education.ts`; the separate inclusion line reflects the
+   author's per-render settings. A certification carries `expired YYYY-MM`,
+   `expires this month` or `expires in N months` (three months ahead) as a neutral chip. Expired
+   certifications remain visible in the Career timeline; the chip says so much and no more. Their
+   eligibility for generated documents follows each render's rule (`04` §4 for 履歴書).
+
+Counts come from `GET /api/career-timeline` (`07` §4): accepted facts only, called achievements
+here.
+
+**Delete.** Deleting an entry something still references surfaces the server's `409` message at the
+top of the card or panel the row is in, rather than being pre-empted by a check the client would
+have to keep in step with the server. **Every one of the five collections deletes**, and each
 refusal names counts and never content: an employer counts the facts, roles and projects on it, and
 a project counts the facts and the source documents imported under it (Screen 3).
 **A project that has been imported under is refused until its documents are refiled**, and its
 refusal names Screen 8 rather than asking for a reassignment: a document's facts follow its project,
-so refiling the document from Documents is what moves them (`docs/06`, 2026-09-21).
+so refiling the document from Documents is what moves them (`docs/06`, 2026-09-21). Edit and Delete
+are named for their row (`Delete Platform Lead`), since a card holds several of each.
 
-**Per-render inclusion** (S13, added 2026-09-13). Employer, project and education rows carry an
-`Appears in` line beneath the row: one checkbox per render, labelled with the render's name and
-checked unless the author has unchecked it. Unchecking leaves the entry out of that render's
-generation input and nothing else — the row stays on this screen, every other render still reads it,
-and the facts filed under it leave that render with it. A project under an unchecked employer leaves
-too. Saving is immediate, as it is for the forms. Roles and certifications carry no setting: a role
-follows its employer, and S13 does not name certifications. Changing a setting does not mark a
-document out of date, because staleness compares facts a document may use, whatever one render
-leaves out (`docs/06`, 2026-09-13 and 2026-10-08). Deleting an entry
-takes its settings with it (`docs/06`, 2026-09-21).
+**Per-render inclusion** (S13, added 2026-09-13; one line since #113). Employer, project and
+education rows carry one line naming only the exceptions — `In all 5 documents` or `Left out of:
+履歴書`, listing every excluded document even when most are off — and `Change`, which opens a popover
+(`Appears in`, one checkbox per render, labelled with the render's name and checked unless the
+author has unchecked it). Escape closes it and returns focus to `Change`; a press outside closes it.
+A setting that does not save says `That setting was not saved.` and the reason beside the line.
+Unchecking leaves the entry out of that render's generation input and nothing else — the row stays
+on this screen, every other render still reads it, and the facts filed under it leave that render
+with it. A project under an unchecked employer leaves too. Saving is immediate, as it is for the
+forms. Roles and certifications carry no setting: a role follows its employer, and S13 does not name
+certifications. Changing a setting does not mark a document out of date, because staleness compares
+facts a document may use, whatever one render leaves out (`docs/06`, 2026-09-13 and 2026-10-08).
+Deleting an entry takes its settings with it (`docs/06`, 2026-09-21).
 
 The **employer picker on the fact card** lives on Screen 1, not here — filing a fact is part of
 reading it, and it appears on a resolved card as well as a candidate one so an already-reviewed
@@ -770,7 +849,9 @@ already spoken for (`05-design-system.md` §1).
 4. **Ancestry line** — present whenever `source_version_id` is set: `Restored from v2` /
    `Edited from v4`. A history that shows the origin but not the parent says an edit happened
    without saying to what.
-5. **Actions**, right-aligned — `Download` (ghost), `Compare` (ghost) and `Edit` (ghost).
+5. **Actions**, right-aligned — `View` (ghost), `Download` (ghost), `Compare` (ghost) and `Edit` (ghost).
+   `View` opens Screen 17 on that version; on the current version it names none, so the page follows
+   the document when a newer version is accepted (#106).
    `Compare` opens the restore preview; it is absent on the current version, which has nothing to
    be restored from. `Edit` opens Screen 6 and is present **only** on the current version, because
    the route refuses an edit made against any other and a control that is refused is not offered.
@@ -779,8 +860,9 @@ already spoken for (`05-design-system.md` §1).
 `DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
 existing proposal diff. They carry no version chip, because they never received a version number.
 
-**Download honours the existing rules** — `?versionId=` serves any version, and a 履歴書 offers
-`.docx` only.
+**Download honours the existing rules** — `?versionId=` serves any version in the formats its kind
+has. The English résumé's, the 履歴書's and the 職務経歴書's download is the PDF, with `Word` beside it
+for the `.docx`, on every screen that offers it (#109, #117).
 
 **A download can be refused, so it is a button and not a link.** Every download re-checks the facts
 its version cites, and a version citing a fact that is now Private, now Generated provenance, or no
@@ -973,49 +1055,93 @@ restructuring a section by hand may be right where the checker is wrong (`docs/0
 
 ## Screen 7 — Skills
 
-S9 (added 2026-09-13). The skills section of the English résumé and the 職務経歴書's 活かせるスキル・経験
-come from here once the author has curated anything. **Nothing on this screen is typed as a skill**:
-every name is a technology some accepted fact or certification already carries (`04`
-`skill_curations`), and the screen only chooses, groups and orders them.
+S9 (added 2026-09-13; reworked by #114, 2026-10-22). The skills section of the English résumé and
+the 職務経歴書's 活かせるスキル・経験 come from here once the author has curated anything. **Nothing
+on this screen is typed as a skill**: every name is a technology some accepted fact or certification
+already carries (`04` `skill_curations`), and the screen only chooses, groups and orders them.
 
-Sidebar chrome, with a `Skills` row under `Record`. Header title `Skills`, contextual note
-`Chosen from the technologies your facts and certifications name`.
+In the frame Applications uses, so it **works at phone width** (Responsive behaviour): the sidebar,
+and under 720px `Menu` in the header instead. Header title `Skills`, contextual note
+`The Skills section of your résumé and the 活かせるスキル of your 職務経歴書`.
 
 **Intro** (Shared chrome, #56): `Which technologies your documents list, and in what order. Every
 name comes from an accepted fact or a certification; nothing is typed here.` Then
-`Next: add a group on the left, then add skills to it from the candidates on the right.` while
-nothing is curated, and `Next: nothing is waiting here. Every change saves at once.` once something
-is. Absent in the `No candidates` state, which says the same thing itself.
+`Next: add a group, then add skills to it from the ones found in your record.` while nothing is
+curated, and `Next: nothing is waiting here. Every change saves at once.` once something is. Absent
+in the `No candidates` state, which says the same thing itself.
 
 ### Layout
 
-Two panels side by side, each half the content width.
+1. **How it reads on your résumé.** The Skills section the next English résumé prints, set as a
+   document's page sets a section (`DocumentSection`), inside a card. It is built by the résumé's
+   own rule (`resumeSkills`, `skillsSectionPage` in `src/render/resume.ts`) from the groups below
+   and the names the résumé may print, so it leaves out what the résumé leaves out — a stale skill,
+   and a skill whose only facts sit under an entry the résumé excludes. With nothing curated it is
+   the résumé's one uncurated line. **It is live:** it follows a chip being carried by keyboard or
+   dragged over a group, before anything is saved. A curation that leaves the résumé nothing reads
+   `Nothing to print. No skill in these groups is named by anything the résumé includes, so it has no
+   Skills section.`
+2. **Your groups** (left) and **Found in your record, not listed yet** (right), side by side, one
+   column at phone width.
 
-**Curated** (left). One block per group, in order. A group heading is its name, editable in place,
-with `↑` `↓` to move the group and nothing else. Beneath it, one row per skill: the name, a
-right-aligned mono count (`4 FACTS`, or `CERT` when only a certification names it), then `↑` `↓`
-and `Remove`. `↑` is disabled on the first row and `↓` on the last, stating why. Below the last
-group, a name field and `Add group`.
+**Your groups.** One card per group, in order. Its heading is its name, editable in place, with `↑`
+`↓` to move the group. Under the name, a field labelled `Name in the 職務経歴書 — left blank, it is
+written in Japanese for you`, saved on leaving it as the name is (#117): the 活かせるスキル row
+prints it, and without one the model writes the group's name in Japanese, never in English. Beneath
+it the group's skills as **chips**, wrapping. A chip reads the name,
+then in small text the achievements behind it and the last year one of them reaches — `Go 3 · 2020`,
+`Azure 1 + 1 cert · now` — and is named in full for a screen reader (`Go: 3 achievements, last used
+2020`). The year is the latest of: the month a quick capture carries; else the end of the fact's
+project; else the end of its employer's tenure (`effectiveEmployerId`); a certification's issue
+year. Not yet ended is `now`. A skill the résumé does not print although the record names it adds
+`left off`. Below the last group, a name field and `Add group`.
 
-**Candidates** (right). Every candidate not yet curated, most facts first, then by name. Each row:
-the name, the same mono count, and an `Add to` select listing the groups. The select is disabled
-with a stated reason while no group exists.
+**Moving a chip**, three ways to the same result, none of them the only one:
+
+- **Drag** it before another chip, onto a group (its end), or onto the suggestions panel to take it
+  off the list. A group under the pointer is outlined and a mark shows where it will land.
+- **Keyboard.** `Enter` or `Space` picks the chip up (`aria-pressed`). `←` `→` move it one place in
+  its group and stop at either end; `↑` `↓` carry it to the end of the group above or below. Focus
+  stays on it. `Enter` places it, `Escape` puts it back. Each step is said in a live region
+  (`Go: Data, 3 of 5.`), and a step that goes nowhere says so.
+- **Tap.** Picking a chip up opens a bar under the groups, `Moving Go`, with `← Earlier`, `Later →`,
+  `↑ Group above`, `↓ Group below` (each disabled at its end, saying why), `Remove`, `Cancel` and
+  `Place` (primary).
+
+A move is held on the screen until it is placed and is **written once**, on placing; the chip shows
+where it was placed while the save is in flight. While a chip is held it is the one pending change:
+the group names, the group `↑` `↓`, `Add group` and the suggestion chips are disabled, saying
+`Place or cancel the move of Go first.` A dragged chip that leaves a group for somewhere it cannot
+land clears the outline, the mark and the preview back to what is stored.
+
+**Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
+then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
+group whose skills it is named beside on the most facts; for one named beside no listed skill, the
+group whose skills were used at the most of the same employers, and failing that the largest group;
+the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none.
+Pressing a chip with a suggestion adds it to the end of that group at once. Pressing one without
+opens a bar, `Add Redis to`, with a button per existing group and `Cancel`; with no groups, the bar
+asks for a group to be named first. Any of them can also be dragged to a group.
+
+**Folded by usage.** A candidate named once (one fact, or one certification) and not in the last five
+years, or never dated, is folded away under the chips: `7 more, each named once and not in the last
+5 years.` with `Show them` / `Hide them` (`isFolded`, `src/shared/skills.ts`).
 
 ### The stale skill
 
 A curated skill that no accepted, render-eligible fact and no certification names any longer is
-**flagged and kept**: its row carries an amber dot and `IN NO FACT` in place of the count, and it
-keeps its position. It does not reach a render — a document may not name a technology no fact
-states — but the author's choice is not undone by the record changing underneath it. `Remove` is
-the only way it leaves.
+**flagged and kept**: its chip is amber with an amber dot and `in no fact` in place of the count,
+and it keeps its position. It does not reach a render — a document may not name a technology no fact
+states — so the preview leaves it out, but the author's choice is not undone by the record changing
+underneath it. Removing it is the only way it leaves.
 
 ### Rules
 
-- **Saving is immediate**, as it is on Screen 4. Every change sends the whole curated list; there is
-  no draft and no `Save`.
+- **Saving is immediate** once a move is placed, as it is on Screen 4. Every change sends the whole
+  curated list; there is no draft and no `Save`.
 - A group exists on the server only while it holds a skill. A group just added holds none, and
-  reads `Add a skill to keep this group.` beneath its heading until one arrives; leaving the screen
-  first discards it.
+  reads `Add a skill to keep this group. Drag one here, or pick one up and move it here.` until one
+  arrives; leaving the screen first discards it.
 - Removing a group's last skill removes the group.
 - One curated list serves every render with a skills section. There is no per-render setting here.
 
@@ -1023,11 +1149,11 @@ the only way it leaves.
 
 | State | Behaviour |
 |---|---|
-| **Loading** | Panel skeletons |
-| **Could not be read** | Both panels replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the Loading state returns. Only a first read shows this. |
-| **Could not refresh** | Both panels stay on screen. A later read that fails puts one dim line above them, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
-| **No candidates** | Both panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
-| **Not curated** | Curated panel reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field. This is the default and not an error |
+| **Loading** | The three panels, each reading `Loading…` |
+| **Could not be read** | The panels replaced by one line: the server's reason for a refusal, or `The server could not be reached.`, with a ghost `Retry` beside it that reads again. While it reads the Loading state returns. Only a first read shows this. |
+| **Could not refresh** | The panels stay on screen. A later read that fails puts one dim line above them, `Could not refresh:` then the same reason then `What is shown may be out of date.`, as a status rather than an alert, with a ghost `Retry` beside it that is disabled (`Retrying…`) while it reads. The line goes when a read succeeds |
+| **No candidates** | The panels replaced by one: `No skills yet. They come from the technologies named on accepted facts and on certifications.` |
+| **Not curated** | Your groups reads `Not curated. Documents list the technologies their facts name.` above the `Add group` field, and the preview shows the résumé's uncurated line. This is the default and not an error |
 | **Save refused** | The server's `422` beneath the panel that caused it. The list re-reads from the server, so what is shown is what is stored |
 
 ---
@@ -1049,8 +1175,8 @@ holds a project or an employer to offer.
 ### Layout
 
 **Intro** (Shared chrome, #56), at the top of the content column: `Every file you have imported,
-and every version of it. Importing reads a file and finds candidate facts in it; nothing enters
-your record until you review them.` Then the `Next:` line, the first of these that applies:
+and every version of it. Importing reads a file and adds the facts it finds to your record; review
+them to correct or reject any.` Then the `Next:` line, the first of these that applies:
 
 | State | `Next:` |
 |---|---|
@@ -1209,16 +1335,17 @@ reason`. Content column as Screen 3.
 |---|---|
 | **Loading** | `Loading the list…` |
 | **Nothing flagged** | One panel: `Nothing is flagged. Facts that need a look appear here as documents are imported.` Under `Checked`: `Nothing is marked as checked yet.` |
-| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. The flag and its reason are unchanged and the button is still there |
+| **Explain failed** | A line under the row, in the removed tone: the explanation could not be written, try again. Exhausted credits show the server's pause message (`12` §9). The flag and its reason are unchanged and the button is still there |
 | **Read failed** | The shared read failure, with retry. A refresh that fails over a list already shown keeps the list and says so above it |
 
 ---
 
-## Screen 10 — Master document
+## Screen 10 — Career record
 
-Added 2026-10-08 (issue #57). Everything in the record in one long readable piece: every accepted
-fact from every imported document, **Private and Generated ones included**, under the employer and
-project it belongs to. Every résumé is written from this.
+Added 2026-10-08 (issue #57) as the master document; renamed and laid out as a CV on 2026-10-18
+(#112, `06` 2026-10-18). Everything in the record in one long readable piece: every accepted fact
+from every imported document and every one added by hand, **Private and Generated ones included**,
+under the employer and project it belongs to. Every résumé is written from this.
 
 **There is one per language** (2026-10-10, #59), and both are this one view. The language decides
 what the record is *called*: an employer, a role, a project, a school and a certification each by
@@ -1231,82 +1358,129 @@ is a model's work and no model writes this.
 nowhere (`07` §9). It cannot be edited here, and there is no second copy to fall out of step: a fact
 is changed on its own card.
 
-Sidebar chrome, at `/master`. Header title `Master document`, note `Everything in your record, in
-one place`, and on the right, once the record holds anything the page lists, the note `The file includes
-Private facts. It is your copy.` and **`Download .md`**.
+Sidebar chrome, at `/master` (the path kept its old name). Header title `Career record`, note
+`Everything you have done, from every source`, and on the right, once the record holds anything the
+page lists, the note `The file includes Private facts. It is your copy.` and **`Download .md`**.
 
 ### Layout
 
 0. **The tabs `English` and `日本語`**, the tab list of Screen 3's documents section and the same
    stored choice: the one open on Home is the one open here, and choosing here changes it there.
    Everything under the intro is the tab's panel.
-1. **The screen intro.** Body: `Every fact you have accepted, from every document you imported,
-   including the ones a résumé leaves out. Your résumé and your career story are written from this.`
-   (under `日本語`: `Your 履歴書, 職務経歴書 and 職務経歴ストーリー are written from this.`) `It is
-   built from your record each time you open it, so it cannot be edited here: change a fact on its
-   own card. The tabs change the names and headings to the ones a document of that language uses;
-   each fact reads as it was written, and none is translated.`
-   Legend: `Private facts and Generated facts are listed here and marked. No résumé uses them.`
-2. **One line of counts:** `N facts: N a document may use, N Private, N Generated.` Then, when any,
-   `N flagged to check` as a link to Screen 9, and `N more are waiting to be sorted and are not
-   listed yet. Sort them from Home.`
-3. **One panel an employer**, headed with its name in the document's language, and its name in the
-   other language in brackets when the record holds both. Under it: its period to the month and its industry, its roles with
-   their periods, then each project as a sub-heading with its summary and its facts, then the facts
-   filed under the employer and no project, under `Other work here` when there are projects above.
-4. **`Work outside employment`**, for projects and facts under no employer.
-5. **`Education`** and **`Certifications`**, each a list, when the record holds any.
+1. **The screen intro.** Body: `Everything you have done, from every document you imported and
+   everything you added by hand, including what a résumé leaves out. Your résumé and your career
+   story are written from this.` (under `日本語`: `Your 履歴書, 職務経歴書 and 職務経歴ストーリー are
+   written from this.`) `It is built from your record each time you open it, so it cannot be edited
+   here: change an achievement on its own card. The tabs change the names and headings to the ones a
+   document of that language uses; each achievement reads as it was written, and none is
+   translated.` Legend: `A line marked Private or Not confirmed is kept out of every document. Point
+   at a line to see the document it came from, and open it to see its card.`
+2. **Contents**, a column on the left that stays in view as the page scrolls (above the record, as
+   one wrapped row, under the `wide` breakpoint): each employer by name with its years and the number
+   of achievements under it (`2024 – now · 15`), then `Work outside employment` and `Education and
+   certifications` when there are any. A line scrolls to its chapter.
+3. **One sentence of counts**, in a raised box: `59 achievements across 11 years. 53 can go into a
+   document. 4 are kept private, and 2 are not confirmed yet.` then **`Show those 6`**, which turns
+   on `Kept out of documents`; then, when any, `34 flags to check.` as a link to Screen 9, and `N more
+   are waiting to be sorted and are not listed yet. Sort them from Home.` **Flags are counted as the
+   sidebar counts them**, open flags rather than facts with a flag, so the two numbers agree.
+   `across N years` runs from the first employment or project to the last, or to today.
+   **Under it, what the facts rest on** (#111; it stood on Home until then), in a raised box named
+   `What your facts rest on`: an 8px stacked bar (green / accent / amber, 2px gaps) and, under it,
+   three columns (one under the `wide` breakpoint), one per provenance value: its dot, its count at
+   the row-title size (`None` in words at zero) and its plain words, then under them the product's
+   term in a chip and one sentence. `Backed by a number` · `Measured` · `A result with a figure, and
+   the passage that proves it.`, `Stated by you` · `Attested` · `True, and yours, with no figure
+   behind it.`, `Not confirmed` · `Generated` · `Written by the importer. Left out of every document
+   until you confirm it.` It counts every fact on the
+   page whatever the filter, and is absent while the record holds none. The way to confirm a fact is
+   Home's Next step, so nothing here is a button.
+4. **The filters**, filter pills in a group named `Show`: `Everything`, `Results with a number N`
+   (Measured facts whose claim contains a figure, using the same rule as highlighted numbers), `Kept out of documents N` (Private or Generated), and `Not used in any document yet N`
+   (usable, and cited by the current version of no document, tailored résumés included). The one on
+   is kept in the address as `?show=results`, `kept-out` or `unused`. Under a filter, a project or a
+   chapter with nothing to show is left out, with its contents line, and so is `Education and
+   certifications`; when nothing is left, `Nothing in your record matches this.`
+5. **A chapter an employer**, headed with its name in the document's language at the page size, and
+   its name in the other language in brackets when the record holds both. Under it: its period to
+   the month and its industry, its roles as chips with their periods, then each project as a section
+   with its summary and its facts, then the facts filed under the employer and no project, under
+   `Other work here` when there are projects above.
+6. **`Work outside employment`**, a chapter for projects and facts under no employer; facts under no
+   project there sit under `Not filed under a project`.
+7. **`Education and certifications`**, a chapter with `Education` and `Certifications`, each a list,
+   when the record holds any.
+
+**Within a project, or a chapter's other work, the facts split in two**, each under a mono label:
+**`Results`**, the Measured facts, and **`What I did`**, the rest.
 
 **Under `日本語` the document's own words are Japanese**, on the page and in the file, from one
 table (`MASTER_WORDS` in `src/shared/master-document.ts`):
 
 | English | 日本語 |
 |---|---|
+| `Career record` | `キャリア記録` |
+| `Contents` | `目次` |
+| `Results` | `成果` |
+| `What I did` | `取り組み` |
 | `Work outside employment` | `雇用外の活動` |
 | `Other work here` | `その他の業務` |
 | `Not filed under a project` | `プロジェクト未分類` |
+| `Education and certifications` | `学歴・資格` |
 | `Education` | `学歴` |
 | `Certifications` | `資格` |
-| `No facts filed here yet.` | `まだ事実がありません。` |
+| `Nothing filed here yet.` | `まだ何もありません。` |
 | `2022-04 to present` | `2022年4月〜現在` |
+| `2024 – now` (contents) | `2024年〜現在` |
 | `graduated`, `completed`, `withdrawn`, `expected` | `卒業`, `修了`, `中退`, `卒業見込み` |
 | `issued 2019-06` | `2019年6月取得` |
 
-The intro, the count line and the header stay English, as the application's own chrome is on every
-screen. `Measured`, `Attested`, `Generated`, `Public`, `Restricted`, `Private` and `Flagged` stay as
-they are in both: they are the words on the fact card, and a second word for each would be a second
-vocabulary.
+The intro, the count sentence, the filters and the header stay English, as the application's own
+chrome is on every screen. The marks `Private`, `Not confirmed` and `Added by hand` stay as they are
+in both: they are the product's words, and a second word for each would be a second vocabulary.
 
 ### The fact
 
-The claim, then one mono line: its Worth (`Measured` in the measured tone, `Generated` in the
-generated tone), its Who (`Private` in the private tone), `Flagged` when a flag is open on it, and
-its document and line as a link to that fact on Screen 1. **A Private or Generated fact's claim is
-set in `text-dim`**: it is here, and it is not what a résumé is written from.
+One line with a bullet. **The claim is the link to its card**, on Screen 1 beside its passage, or on
+Screen 16 for a fact added by hand, and its title names where it came from, shown on hover: `From
+quillset-notes.md, line 12`, or `Added by hand, on Quick capture`. **Figures are set apart**, in
+`measured-text` at the semibold weight: a number with its unit (`23 services`, `28%`, `6.8 s`, `¥140
+million`, `3日`), a written-out one with its unit (`nine months`), and a rate (`one in five`). A year
+alone, a digit inside a word (`EC2`, `2FA`), an address or version (`10.20.4.15`) and a technology's
+own digits are not figures.
+
+**A mark appears only where a fact is unusual**, after the claim: `Private` in the private tones,
+`Not confirmed` (Generated) in the generated tones, `Added by hand` (no source document) as a plain
+chip. Worth, Who and open flags are not printed on each line; `Restricted` stood on almost every one.
+**A Private or Generated fact's claim is set in `text-dim`**, and its figures are not coloured: it is
+here, and it is not what a résumé is written from.
 
 ### Rules
 
 - **Everything accepted is listed, and nothing else.** A rejected fact is not, and a fact still
-  waiting to be sorted is not yet; the count line says how many.
+  waiting to be sorted is not yet; the count sentence says how many.
 - **The download is the page**, as Markdown, **Private facts included**, by the owner's decision
   (`docs/06`, 2026-10-08). The page says so beside the button and the file says so in its first
-  lines, with an instruction not to send it to an employer.
+  lines, with an instruction not to send it to an employer. The file has the same contents,
+  chapters, `Results` and `What I did` (in bold), figures in bold and marks in brackets
+  (`*(Private)*`); a fact's document and line are an HTML comment at the end of its line.
 - **No source text**, on the page or in the file. A fact names its document and line.
 - **Month precision.** A period is `2022-04 to 2024-09`, or `2022年4月〜2024年9月`; the day is never
   shown.
 - **Nothing is translated.** The two documents hold the same facts with the same claims. Only the
   record's names, the headings and the dates differ.
-- **`Download .md` saves the file of the tab that is open**, `master-document-en-<date>.md` or
-  `master-document-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
+- **`Download .md` saves the file of the tab that is open**, `career-record-en-<date>.md` or
+  `career-record-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
   says that the claims are in the language they were written in.
 
 ### States
 
 | State | Behaviour |
 |---|---|
-| **Loading** | `Building the master document…`, again on the first visit to the other tab |
-| **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its facts appear here.` No Download |
-| **An employer or project with no fact** | Listed, with `No facts filed here yet.` |
+| **Loading** | `Building the career record…`, again on the first visit to the other tab |
+| **Nothing to list** (no accepted fact, employer, project, education or certification) | The intro's `Next:` reads `import a document. Its achievements appear here.` No Download |
+| **An employer or project with no fact** | Listed under `Everything`, with `Nothing filed here yet.` |
+| **Nothing matches a filter** | `Nothing in your record matches this.` |
 | **Download failed** | The reason replaces the note beside the button; the button stays |
 
 ---
@@ -1465,7 +1639,7 @@ that is wrong, then save.` `Next:` `check the three fields, then save the applic
 | **Text over 20,000 characters** | `Read it` is refused with the limit and the length named: `A job description can be at most 20,000 characters. This one is 20,412.` |
 | **Company and position not found** | Step 2 with both fields empty, placeholder `Not found in the text. Type it in.`, and `Next:` `the company and the position could not be found in the text. Type them in, then save.` |
 | **Only one of the two not found** | Step 2 with what was found, the other empty with the same placeholder, and `Next:` naming it: `the position could not be found in the text. Type it in, then save.` |
-| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` That holds after an earlier reading that succeeded: its fields are not left under the failure |
+| **The reading failed** | Step 2 with the fields empty, `Next:` `type in the company and the position, then save.`, and one line above the fields, `role="status"`: `The job description could not be read just now. Type the fields in; your text is kept.` For exhausted credits, that line shows the server's pause message (`12` §9). That holds after an earlier reading that succeeded: its fields are not left under the failure |
 | **Saving without a company or a position** | `Give it a company and a position first.` |
 | **Save failed** | The reason under the actions; nothing typed is lost |
 
@@ -1565,8 +1739,8 @@ says `Reopened at <step>.`
 
 - The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
   this job`, or `Version N · the same document as on Home`.
-- `History` (Screen 5) and `Download` (the current version), as links; `Regenerate` (ghost) on a
-  tailored one; and before Applied, `Take off` (bare), which removes the document from the
+- `View` (Screen 17), `History` (Screen 5) and `Download` (the current version), as links;
+  `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
   was taken off and generates only when it has neither a version nor a proposal waiting, and `Add a document you
@@ -1799,8 +1973,13 @@ Header `Applications / <company> / <title> as sent`. Read-only.
    it was that day. It cannot be edited, and later changes to the résumé or to your record do not
    reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
    (bare).
-2. **The document**, as it was sent, at the reading measure: the name and contact line it carried
-   that day, then its sections. A 履歴書 or 職務経歴書 is set with the Japanese stack.
+2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
+   sections in file order. A 履歴書 shows the filled form read from the stored file, including its
+   cell spans, merged 写真 cell, column proportions and typography. Its layout follows the
+   template (`04-database-schema.md` §4). An older sent copy is read from its own file when opened;
+   if that file cannot be read, its stored text shows under `The original file could not be read —
+   showing its text only.` Tables fit the width; a table that cannot
+   fit scrolls within its own box. A 履歴書 or 職務経歴書 uses the Japanese stack.
 
 There is no edit, no history and no regenerate here. Another user's copy, or one asked for under
 another application, is a 404.
@@ -1834,6 +2013,10 @@ is saved.` `Next:` `type what you did, then press Read it.` Panel `What did you 
 
 - `In your own words`, a five-row text area with an invented example as its placeholder. At most
   2,000 characters.
+- `Employer or project`, the same select as Step 2's, `Not said` unless the screen was opened from
+  Home's monthly prompt (`?employer=<id>`, #116), which chooses that employer; a draft kept from
+  before keeps its own choice. What is chosen files every claim the reading leaves unfiled, and
+  the plain form's claim, and those claims are not asked `Which employer, or which project?`.
 - `Nothing is saved until you save it.`, then `Fill it in yourself` (bare), which opens the plain
   form without a reading, and **`Read it`** (primary).
 - While it is read, the text is read-only and the actions give way to a `role="status"` line with
@@ -1863,7 +2046,7 @@ first. They are in your record; open one to change or reject it.` Each card show
 mono line `status · provenance · disclosure`, the month and where it is filed. `Change` opens the
 claim editor, `Worth` and `Who` as on Screen 1, `When`, `Employer`, and `Reject`; a rejected card is
 struck through with `Undo`, which returns it to the record. **A captured fact has no document, so
-this is its card**: the master document's `Quick capture` link and the Flagged list's `Open it in
+this is its card**: the career record's link on the claim (Screen 10) and the Flagged list's `Open it in
 Quick capture` open `/capture?fact=<id>` with that card's controls open.
 
 **Rules**
@@ -1884,12 +2067,94 @@ Quick capture` open `/capture?fact=<id>` with that card's controls open.
 | State | Behaviour |
 |---|---|
 | **Text missing** | `Type what you did first. A sentence or two is enough.` under the actions, `role="alert"`, in the `removed` tone |
-| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` |
+| **The reading failed** | Step 2, the plain form, and one line above the claim, `role="status"`: `What you typed could not be read just now. Fill the claim in yourself; your text is kept.` For exhausted credits, that line shows the server's pause message (`12` §9). |
 | **The reading found nothing** | The same, with `No claim could be found in what you typed. Fill it in yourself; your text is kept.` |
 | **A claim emptied** | `A claim cannot be empty. Fill it in, or remove it.` on save |
 | **Save failed** | The reason under the actions; the draft is kept |
 
 ---
+
+## Screen 17 — Reading a document · built by #106
+
+The sent-copy reader (Screen 15) for a version (decision log, 2026-10-18). Route
+`/renders/<ref>/view`, a kind or a tailored résumé's id; `?version=<id>` names an earlier version,
+and without it the page is the current one. Reached by `View` on Home's document rows, on every
+version in Screen 5, and on each document in Résumé for this job. Header `Home / <document>`, or
+`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses.
+Read-only.
+
+1. **One notice:** the chip `vN`, the `measured` dot and `Current` on the current version, then
+   `Accepted|Restored|Edited by hand <date>.` and `This is the document as its download holds it
+   today.`, or on an earlier version `An earlier version, as its download holds it today.` with the
+   link `Read the current version`. On its right `Download` (that version), `History`, `Edit` (the
+   current version only, as on Screen 5), and on the current version the one button Home's row
+   would have: `Regenerate` (ghost), `Update` (secondary) when out of date, `Review changes` or
+   `Open it` when a proposal is waiting or being written, and none when the document is not built
+   or no fact can be used. A tailored résumé also has `Back to the application` (bare). While a
+   proposal is waiting: `A new version is waiting for you. This page stays as it is until you
+   accept it.`
+2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
+   filled from your record as it is now, as the download is.` When the file's 写真 cell is empty, a
+   second line in the owner's words, `写真欄は空欄です。必要な場合はWordで貼付してください`, and the link
+   `Add a photo` to the profile form (#117, review issue 8). The review footer (Screen 2) carries
+   the same sentence among its advisory lines while the profile has no photo. Between the two, the
+   record's current gaps, each with `Add an explanation`, as on Screen 4 (#117, review §5 G1): every
+   version's tables are today's, so every version says them. An explained gap is not listed; its ※
+   row is in the table below.
+3. **The document**, on a `card` at the reading measure: the page its download would hold today.
+   Built documents show the printed title above the centered identity block, then sections in file
+   order. The English résumé prints no title, so its page leads with the name, left-aligned and large,
+   its headline in the accent and then its contact line, as its file does. A 履歴書 is the form its download would hold today, read back out of that file, as in
+   Screen 15, its 写真 cell holding the profile's photo at the cell's width and 3:4 when the file
+   carries one; a sent copy's is read out of its stored file. Both themes use the theme's tokens.
+4. **Where each line comes from** (#110, S6). Above the card, the ghost toggle `Show where each line
+   comes from` (`aria-pressed`); while it is on, the sentence `Choose a line to see the facts behind
+   it and where each is quoted from.` beside it. On, each section block and each nonempty 履歴書
+   sheet line or cell is a button (`aria-expanded`), bullets still a list, and one line at a time
+   is chosen; a second press or turning the toggle off closes it. A 履歴書 keeps its printed form,
+   with its cells and lines
+   selectable in place by pointer or keyboard, including at phone width. Its motivation and kibou
+   prose cells cite facts; table rows copied from the record cite none. The chosen line's evidence
+   opens **directly under it**, so it follows the line in reading order and a phone needs no
+   second pane (decision log, 2026-10-22). The panel, `Behind this line`, is interface chrome: English,
+   and without the Japanese tracking. It says `N facts from your record.`, then one card per fact
+   in the block's order when there are facts: the claim; its worth in plain words,
+   `Backed by a number` (Measured) or
+   `Stated by you, no number behind it` (Attested); `Added by hand` on a fact saved on Quick
+   capture; its employer, or `No employer`; then the quoted passage with `<file>` (and `line N` when
+   saved) and
+   `Open in source`, which opens Fact Review on that fact (`/imports/<id>?fact=<id>`). A fact added
+   by hand has no passage: `Saved on Quick capture, so there is no passage to quote.` and `Open it in
+   Quick capture`. A sourced fact without a saved quote says `No quoted passage was saved for this fact.`
+   and still offers `Open in source` to Fact Review. A line copied from the record, such as a job
+   header, a skills group or an
+   education row, says `No fact behind this line. It is copied from your record as it stands, not
+   written from a claim.` Fact Review keeps its own width gate, as every destination does.
+
+| State | Behaviour |
+|---|---|
+| **A fact it cites is withheld** | The download's refusal in place of the page: the server's sentence (`removed`), the ids when more than one, then `A document obeys your record as it is today, not as it was when this version was accepted. Change the fact in your record, or edit the block out into a new version.` and, on the current version, `Edit` |
+| **No version, or a version of another document** | `That document or version was not found.` |
+| **Under 1024px** | The notice wraps and keeps `Download`, `History`, `Edit` and the new-version action reachable; destination screens retain their own width gate. |
+
+---
+
+## The profile form's 写真 · built by #117
+
+A panel `写真 · Photo` between Contact and `On your English résumé`, saved on its own rather than with
+the form. Before a profile exists it says `Optional. Save your details first, then add a photo here.`
+Otherwise: `Optional. Placed in the 履歴書's 写真 cell at 30 × 40 mm, and in no other document. Without
+one the cell is left empty for you to fill in Word.`, then the saved photo at 120px and 3:4 (an empty
+`shade` box reading `写真` when there is none) beside `Add a photo` or `Replace photo` (secondary) and
+`Remove photo` (ghost). Under a saved photo: `A copy already recorded as sent keeps the photo it was
+sent with.`
+
+Choosing a file opens the crop in place: a 3:4 frame 240px wide (never wider than the column) over
+the image, which covers it at zoom 1; drag or the arrow keys move it, the `Zoom` slider enlarges it to
+3×, and the image never leaves part of the frame empty. `Save photo` (primary) sends the framed part
+alone, 600 × 800 as a JPEG; `Cancel` (bare) sends nothing. A framed part under 300 pixels wide is
+refused before anything is sent, as is a file the browser cannot open; the server's refusal (type,
+3:4, size) shows under the panel in `removed`, and the crop stays.
 
 ## Screens not yet designed
 
@@ -1897,14 +2162,14 @@ Needed before their milestones; not blocking M1.
 
 | Screen | Milestone | Note |
 |---|---|---|
-| Profile form | M2 | 履歴書 identity fields incl. PII. **Field list is now fixed** — see `04-database-schema.md` §4 |
+| Profile form | M2 | 履歴書 identity fields and the optional English résumé header fields; see `04-database-schema.md` §3.2 and `02-product-requirements.md` §6.2 |
 | Quick capture | M3 (#95) | **Built**, and specified under Screen 16 below |
 
 ---
 
 ## Responsive behaviour
 
-Outside Applications and Quick capture, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1280px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -1914,15 +2179,24 @@ unusable single column.
 The overview screen would adapt to narrow widths, but opening it would invite a next click into a
 screen that still needs a wider window.
 
+**Reading a document (Screen 17) is the third exception** (decision log, 2026-10-18). It opens at
+any width and follows the Applications table under 720px; Screens 2, 5 and 6 keep the message, so
+its header actions remain reachable under 1024px; the destination screens retain their own width gate.
+
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow
 surface without re-laying-out the application.
 
+**Skills (Screen 7) is the fourth exception** (decision log, 2026-10-22, #114). It opens at any
+width and follows the Applications table under 720px: its two panels fall to one column under the
+preview, and a chip is moved by tapping it and using the bar under the groups, since a phone has
+neither arrow keys nor a reliable drag.
+
 ### Applications at phone width · specified 2026-10-11, built by #75
 
 **The first exception** (decision log, 2026-10-11). Screens 12 to 15, everything under
-`/applications`, are not behind the wider-window message. Every other route except Quick capture
-keeps it under 1024px.
+`/applications`, are not behind the wider-window message. Every other route except Quick capture, reading a document (Screen 17)
+and Skills (Screen 7) keeps it under 1024px.
 Designed at **390px**; the prototype's `Phone` width is the reference.
 
 Under **720px** of width these screens change as follows, and above it they are the desktop layout:
@@ -1930,7 +2204,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 | Part | At phone width |
 |---|---|
 | Sidebar | Hidden. The header gains **`Menu`** (ghost, `aria-expanded`), first in the header |
-| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; the sentence `On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.`; then the Theme control |
+| Menu | A sheet under the header: `Applications` first, `Quick capture` second while the record holds anything (#95), then the other rows, the current one active; its guidance names the phone-capable routes described above; then the Theme control |
 | Header | 12px side padding; the contextual note is not shown |
 | Content column | `16px 12px` padding, 16px between blocks |
 | List row (Screen 12) | The status and the gone-quiet chip move under the text, left-aligned |
@@ -1955,6 +2229,6 @@ since none of them leaves Applications (decision log, 2026-10-14). Diff Review i
 **The second exception** (decision log, 2026-10-16): a win is written down on the way home, as an
 interview note is. The Quick capture route is not behind the wider-window message and follows the
 Applications table under 720px: no sidebar, `Menu` first in the header, one column, buttons at least
-36px tall. On a phone it is reached from the menu, whose sentence names both Applications and Quick
-capture as the parts that work there. Home and every other screen keep the message. Built by #95
+36px tall. On a phone it is reached from the menu, whose sentence names Applications, Quick capture
+and Skills as the parts that work there. Home and every other screen keep the message. Built by #95
 (Screen 16); nothing scrolls sideways at 390px, in either theme, with Japanese text.

@@ -29,6 +29,8 @@ const employerBody = z.object({
   nameJa: z.string().trim().min(1, "An employer name is required."),
   nameLatin: z.string().trim().nullish(),
   industryJa: z.string().trim().nullish(),
+  /** In English: the English résumé's job header prints it. */
+  city: z.string().trim().nullish(),
   businessDescription: z.string().trim().nullish(),
   /** 資本金 in YEN, not 万円. Formatting happens at render time. */
   capitalYen: z.number().int().nonnegative().nullish(),
@@ -60,6 +62,12 @@ const projectBody = z.object({
   /** Nullable, and load-bearing: `null` means an independent project. */
   employerId: z.string().trim().nullish(),
   summary: z.string().trim().nullish(),
+  /** What the 職務経歴書 writes for the summary (issue #117). */
+  summaryJa: z
+    .string()
+    .trim()
+    .nullish()
+    .transform((value) => (value === "" ? null : value)),
   startedOn: monthDate.nullish(),
   endedOn: monthDate.nullish(),
   clientIsNamed: z.boolean().default(false),

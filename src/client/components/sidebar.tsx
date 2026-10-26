@@ -24,12 +24,14 @@ import { Mono, SegmentedControl } from "./ui";
  */
 const NAV: { label: string; to: string; counts?: "openCandidates" | "openFlags" | "goneQuiet" }[] = [
   { label: "Home", to: "/" },
-  { label: "Record", to: "/record" },
+  // Issue #113 renamed the record screen; its path stays.
+  { label: "Career timeline", to: "/record" },
   { label: "Skills", to: "/skills" },
   { label: "Documents", to: "/documents", counts: "openCandidates" },
   // Issue #57: what the importer flagged, and everything it accepted.
   { label: "Flagged", to: "/flagged", counts: "openFlags" },
-  { label: "Master document", to: "/master" },
+  // Issue #112 renamed the master document; its path stays.
+  { label: "Career record", to: "/master" },
   // Issue #70: the jobs applied for. It took the Tailored résumés row, and
   // each of those résumés is inside its application.
   { label: "Applications", to: "/applications", counts: "goneQuiet" },
@@ -51,7 +53,7 @@ export function Sidebar({ name }: { name: string }) {
   // Waiting facts across every version of every document, and flags not yet
   // checked; each shown only above zero. Read from the summary, not the
   // listing: the badges are two numbers and this is the only query the chrome
-  // makes on Home, Record and Skills.
+  // makes on Home, Career timeline and Skills.
   const summary = useImportSummary().data;
   // Read where the list reads it, so the row and the list cannot disagree.
   const goneQuiet = useApplications().data?.items.filter((row) => row.quietDays !== null).length;
@@ -130,8 +132,8 @@ function ThemeControl() {
  * The sidebar at phone width, on the screens that work there (`docs/10`
  * Responsive behaviour, issues #75 and #95): a sheet under the header, opened
  * by `Menu`. Applications and Quick capture lead because they are the parts
- * that work on a phone; the other rows still go where they go, and say so
- * before they are followed. Quick capture is hidden while the record is empty,
+ * that work on a phone, with Skills among the rest; the other rows still go
+ * where they go, and say so before they are followed. Quick capture is hidden while the record is empty,
  * as it is on Home.
  */
 export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) {
@@ -168,8 +170,8 @@ export function MenuSheet({ id, onClose }: { id: string; onClose: () => void }) 
         })}
       </ul>
       <p className="px-20 text-small text-text-muted">
-        On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a
-        wider window.
+        On a phone, Applications, Quick capture and Skills are the parts that work. The other screens still ask
+        for a wider window.
       </p>
       <div className="mt-auto p-10 border-t border-border">
         <ThemeControl />

@@ -12,6 +12,7 @@
  */
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import { REQUIRED_PROFILE_FIELDS } from "./rirekisho";
+import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL } from "./language";
 
 export interface RenderDefinition {
   kind: RenderKind;
@@ -43,17 +44,56 @@ export interface RenderDefinition {
   requiredProfileFields: string[];
 }
 
-const RESUME_REGISTER = `Write a résumé for a technical audience reading in English.
+/**
+ * The language half of both English registers (issue #104).
+ *
+ * The record is bilingual and an author who keeps a 職務経歴書 keeps much of it
+ * in Japanese: business descriptions, industries, some facts. The first English
+ * stories written from such a record came back in Japanese, wholly or in every
+ * heading, with three names respelt. "Write the document in English" was one
+ * line below the register, which itself named no language. This states it
+ * inside the register, says what to do with the Japanese the prompt carries,
+ * and fences off the one thing that is never translated. `src/render/language.ts`
+ * checks what comes back against the same rules.
+ */
+const ENGLISH_FROM_A_BILINGUAL_RECORD = `Language — English, throughout:
+- Every heading, paragraph, bullet and row is written in English. A heading is part of the document and is English like the rest of it.
+- The record behind this document is partly Japanese. Some facts are written in Japanese, and a field in the lists below that opens with ${JAPANESE_ONLY_LABEL} is held only in Japanese. Write what it says in English, or leave it out. Never copy Japanese wording into the document, and never put a Japanese term beside its English one.
+- Names are the one exception. An employer, a school or a project is named exactly as its list below writes it, character for character and in the script the list gives: never translated, transliterated, shortened or respelt.`;
+
+/**
+ * The language half of the three Japanese registers, the counterpart of
+ * {@link ENGLISH_FROM_A_BILINGUAL_RECORD} (issue #117).
+ *
+ * The 職務経歴書 printed an English project summary and English skill group
+ * names, because the register said to copy them and nothing said they were
+ * not Japanese. The prompt now marks an English-only field, and this says what
+ * to do with one. Technology names are the exception a Japanese technical
+ * document always makes: Java is written Java.
+ */
+const JAPANESE_FROM_A_BILINGUAL_RECORD = `Language — Japanese, throughout:
+- The record behind this document is partly English. A field in the lists below that opens with ${ENGLISH_ONLY_LABEL} is held only in English. Write what it says in Japanese, or leave it out. Never copy an English sentence or phrase into the document.
+- Names are the exception: an employer, a school, a project, a role title or a certification is named exactly as its list below writes it, even where that is English, and a technology, product or service keeps its own name (Java, AWS, Kubernetes).`;
+
+const RESUME_REGISTER = `Write the summary and the bullets of a résumé for a technical audience reading in English, and nothing else.
+
+The rest of the page is not yours to write. The name and contact line, each employer's name, city, dates and titles, the skills, the education, the certifications and the languages are all filled in from the record when the file is built. Do not write any of them, and do not restate them in a bullet or in the summary.
+
+${ENGLISH_FROM_A_BILINGUAL_RECORD}
 
 Sections, in this order, omitting any with nothing behind it:
-- "summary": one short paragraph. key "summary".
-- "experience": one section per employer in the Employers list, in the order that list gives, and no employer that is not on it. The heading carries the employer's name, the role titles held there and the employer's dates, all copied from the list rather than written from the facts. Blocks are bullets. key "experience".
-- "projects": independent projects only — projects with no employer. key "projects".
-- "education": one row per entry in the Education list, in the order that list gives. Institution, qualification, outcome and dates are copied from the list. Each entry states its level, and the level decides whether the entry belongs here: omit one whose level is below university level, keep every other entry including one whose level is not recorded. Never decide the level from the institution's name. The level is a selector and is never written into the row. An entry whose outcome says the course was left unfinished is written as unfinished, never as a completion. An entry that gives only the month it finished is written with that month alone — do not supply a start month it does not give. key "education".
-- "certifications": technical certifications only, one row each, in the order the Certifications list gives. Name, issuer and date are copied from the list. A driving licence is not a technical certification and does not appear here; a language qualification belongs in "summary" if anywhere. One qualification appearing in both the Education list and the Certifications list is the same qualification recorded twice, not two achievements: write it once, under "education", and leave it out here. key "certifications".
-- "skills": one paragraph listing the technologies the facts and the Certifications list actually name. key "skills". When a curated Skills list is given below, it replaces that rule: one paragraph per group, in the order the list gives, opening with the group's name and naming exactly that group's skills in that order, and no technology the list does not name. factIds lists the facts naming those skills.
+- "summary": one paragraph of under 50 words — what the author does, and the strongest evidence for it. It names no employer, lists no certification, gives no language score and does not retell the employment history. key "summary".
+- One section per employer in the Employers list, in the order that list gives, and no employer that is not on it. Its key is "employer:" followed by that employer's id, exactly as the list gives it. Blocks are bullets and nothing else: no line naming the employer, the title or the dates, which are printed above the bullets from the record. The heading is the employer's name.
+- One section per independent project in the Projects list — a project marked independent. Its key is "project:" followed by that project's id. One or two bullets. The heading is the project's name.
+- "projects": independent work that has no project in the list — facts that carry no employer and describe work outside employment. Bullets. key "projects".
+
+The bullet budget:
+- The Employers list gives every employer its budget, and the budget is what keeps the résumé to two pages with the strongest work on the first: four or five bullets for the two most recent employers, one or two for work that ended more than about eight years ago, two or three for the employers between.
+- Write within it. Write at least the lower number when the facts support that many, and never more than the higher.
+- A budget smaller than the facts is chosen from, not compressed into. Keep the work with the largest measured outcome and the work a reader would ask about, and leave the rest out. Welding a second piece of work into a bullet to fit it in is the wrong fix.
 
 Register:
+- English only, with no Japanese script anywhere. A name the facts give in Japanese is written in its English or romanised form.
 - Bullets open with a past-tense action verb and state the outcome. "Reduced nightly batch runtime from 6 hours to 90 minutes."
 - No adjectives of self-assessment: no "successfully", "expertly", "cutting-edge", "passionate".
 - No first-person pronouns.
@@ -62,11 +102,11 @@ How to compose a bullet:
 - One bullet is written from SEVERAL facts, and usually should be. The facts arrive atomic — what was built, how it was built and what it changed each arrive as their own fact. Putting them back together is this document's job, not the record's.
 - Weld facts that describe the same piece of work at the same employer, and list every fact you used in factIds. Never weld across two employers, and never weld two unrelated pieces of work merely to make a longer bullet.
 - Keep the number. If any fact behind a bullet carries a quantity, a duration, a count, a version or a percentage, the finished bullet states it. Dropping a number to keep a bullet short is a defect, not concision.
-- A bullet is one sentence. A second sentence is permitted only when the result will not fit in the first, and it is the exception rather than the habit: across the whole document expect two or three bullets to need one, not most of them. Never three sentences.
+- A bullet is one sentence. A second sentence is permitted only when the result will not fit in the first, and it is the exception rather than the habit: across the whole document expect one or two bullets to need one, not most of them. Never three sentences.
 - No bullet runs longer than 240 characters — about 36 words. This bounds the whole bullet, not the sentence inside it: one sentence has no natural stopping point, and left unbounded these reach 400. Check each bullet against the bound as you finish writing it.
 - A bullet over the bound is over because it welded one fact too many, not because its wording is loose. Cut the least load-bearing fact — the background, the tooling aside, the second consequence — and leave the rest whole. Do not split it into two bullets, which undoes the composition. Do not drop the number, which is what the bullet is for.
-- The hand-maintained résumé this one replaces runs about 30 experience bullets averaging about 190 characters — about 28 words. That average is the shape to aim at: most bullets sit comfortably below the 240 bound, which is there for the few that do not. It is reached by composing — never by padding a thin bullet with words no fact supports. If you have written two bullets about one piece of work, that was one bullet.
-- A fact that carries no employer belongs in summary, projects, education or certifications. It is never placed under an employer.`;
+- The hand-maintained résumé this one replaces averages about 190 characters a bullet — about 28 words, two lines on the page. That average is the shape to aim at: most bullets sit comfortably below the 240 bound, which is there for the few that do not. It is reached by composing — never by padding a thin bullet with words no fact supports. If you have written two bullets about one piece of work, that was one bullet.
+- A fact that carries no employer belongs in the summary, under an independent project, or under "projects". It is never placed under an employer.`;
 
 const RIREKISHO_REGISTER = `Write the two prose cells of a Japanese 履歴書, and nothing else.
 
@@ -78,8 +118,10 @@ Sections, both of them, in this order:
 
 Emit no third section, and no block of kind "bullet" or "row". Both cells are prose in a form that has no bullets anywhere on it.
 
-Language:
-- Japanese, です・ます体, consistently. Never plain form, and never 体言止め in the middle of a です・ます passage.
+${JAPANESE_FROM_A_BILINGUAL_RECORD}
+
+Voice:
+- です・ます体, consistently. Never plain form, and never 体言止め in the middle of a です・ます passage.
 - No 御社 anywhere: it is the spoken form. The written form is 貴社.
 - Half-width digits for numbers, and full-width Japanese punctuation (、。).
 
@@ -105,12 +147,14 @@ Sections, in this order, omitting any with nothing behind it:
 - "summary": 経歴要約. One paragraph. key "summary".
 - "skills": 活かせるスキル・経験. key "skills".
 - "experience": 職務経歴. key "experience".
-- "certifications": 保有資格. One row per entry. key "certifications".
-- "education": 学歴. One row per entry. key "education".
 - "self_pr": 自己PR. Paragraphs. key "self_pr".
 
-Language and voice:
-- Japanese. Half-width digits, full-width Japanese punctuation (、。).
+保有資格 and 学歴 are not yours to write. They are filled from the record when the document is built, row for row as the 履歴書 writes them, between 職務経歴 and 自己PR. Emit no section for either, and do not restate them anywhere else.
+
+${JAPANESE_FROM_A_BILINGUAL_RECORD}
+
+Voice:
+- Half-width digits, full-width Japanese punctuation (、。).
 - TWO voices, and which goes where is convention rather than preference. "summary" and "self_pr" are written in です・ます体. "skills" and every bullet in "experience" are written 体言止め — the sentence ends on a noun or a 連用形 and never on です・ます. Never mix the two inside one section.
 - This document names no company it is being sent to. Neither 貴社 nor 御社 appears anywhere in it: 貴社 is the 履歴書's word for an employer it is addressed to, and this document is addressed to no one.
 - No self-assessment: not 優秀, not 抜群, not 圧倒的, not 誰よりも, not 情熱を持って. State what was done and let it be the claim.
@@ -119,12 +163,12 @@ Language and voice:
 
 "experience" — the structure is FIXED, and getting it wrong silently breaks the checks that read this section:
 - Each employer is a GROUP. A group opens with exactly ONE block of kind "paragraph" and contains no other paragraph anywhere in it. Every other block in the group is "row" or "bullet". A second paragraph does not read as a sub-heading; it starts a new employer.
-- The opening paragraph carries the employer's name, the employment period and the role titles held there, all copied from the Employers list rather than written from the facts. factIds empty.
+- The opening paragraph is the employer's name, exactly as the Employers list writes it, and nothing else. The document prints each employer's header — the name, the 雇用形態, the employment period and the roles held there — from the record in its place, so do not write the period, the 雇用形態 or a role anywhere in the group. factIds empty.
 - Then, in this order:
-  - "row" 事業内容：… — the employer's business description, copied from the Employers list. Omit the row entirely when the list gives none. factIds empty.
+  - "row" 事業内容：… — the employer's business description, copied from the Employers list. A description marked ${ENGLISH_ONLY_LABEL} is written in Japanese or the row is omitted, never copied. Omit the row entirely when the list gives none. factIds empty.
   - "row" 資本金：…　従業員数：…名 — copied from the Employers list. **The list gives 資本金 already written the way this document writes it — copy that string and never convert the yen figure yourself.** Omit whichever of the two the list does not give, and omit the row when it gives neither.
   - For each project in the Projects list belonging to this employer, in turn:
-    - "row" プロジェクト：<name> — the project name and, where the list gives one, its summary. factIds empty.
+    - "row" プロジェクト：<name> — the project name and, where the list gives one, its summary. A summary marked ${ENGLISH_ONLY_LABEL} is written in Japanese or left out, never copied. factIds empty.
     - "row" 技術的成果：
     - the bullets for that project.
   - "row" 主な実績： followed by the bullets written from this employer's facts that name no project — the employer-level outcomes. Omit the row and the bullets when every fact at this employer belongs to a project.
@@ -147,18 +191,8 @@ How to write a bullet:
 "skills" — 活かせるスキル・経験:
 - Three or four groups. Each group is a "row" holding a short noun-phrase label with factIds empty, followed by ONE "paragraph" of about 200 characters, 体言止め, listing factIds.
 - Group by what the author can DO, not by employer and not by technology family alone. The employment history is printed below and must not be restated here.
-- **When a curated Skills list is given below, the author has already grouped.** It replaces the two rules above: one "row" per group carrying the group's name as given, followed by ONE "paragraph", 体言止め, naming exactly that group's skills in the order given and listing factIds. The groups follow the list's order, and no technology the list does not name appears in this section.
-
-"certifications" — 保有資格:
-- One row per entry in the Certifications list, in the order the list gives, copied from it. factIds empty.
-- 名称（YYYY年M月取得）. A qualification with no date recorded is written with the name alone.
-- **A driving licence DOES belong here.** 保有資格 is its conventional home in a Japanese application, which is the opposite of the English résumé's rule and is deliberate. A language qualification belongs here too, with its score.
-
-"education" — 学歴:
-- One row per entry in the Education list, in the order the list gives, copied from it. Institution, faculty or programme, and dates.
-- The level decides whether an entry belongs: omit one below upper-secondary level, and keep every other entry including a vocational programme and one whose level is not recorded. Never decide the level from the institution's name, and never write the level into the row.
-- An entry whose outcome says the course was left unfinished is written 中退, never as a completion. An entry still in progress is written 在学中. An entry giving only the month it finished is written with that month alone — do not supply a start month it does not give.
-- factIds empty.
+- **When a curated Skills list is given below, the author has already grouped.** It replaces the two rules above: one "row" per group carrying the group's name, followed by ONE "paragraph", 体言止め, naming exactly that group's skills in the order given and listing factIds. The groups follow the list's order, and no technology the list does not name appears in this section.
+- A group's name is copied as the list gives it. A name marked ${ENGLISH_ONLY_LABEL} is the author's English one: write it as a short Japanese noun phrase meaning the same, and never copy the English.
 
 "self_pr" — 自己PR:
 - Three or four paragraphs, about 750 characters in total, です・ます体. Every paragraph lists the ids of the facts it was written from.
@@ -186,7 +220,7 @@ Blocks:
 - There are no bullets anywhere in this document. It is prose and two tables.
 
 The employer chapters, one per employer, keyed by that employer's id:
-- Open by placing the reader: when it was, what the employer does, and what the author was there to do. Those come from the Employers list, not from the facts.
+- Open by placing the reader: the employer, named exactly as the Employers list writes it, when it was, what the employer does, and what the author was there to do. Those come from the Employers list, not from the facts.
 - Then the work, written from THAT employer's facts and no other employer's.
 - An employer the facts are thin on gets a SHORT chapter, never no chapter. Write it from the Employers list alone, with factIds empty on those paragraphs. A story that skips an employment has a gap in it, and a gap is the first thing an interviewer asks about.
 - **A fact that carries no employer id is never cited in an employer's chapter**, however well it fits the moment being told. The commonest way to break this is the end of a chapter: the job ended, and the sentence that says what the author did next reaches for the fact that records it. Say the job ended and stop there. What came next is the opening's or the independent-work chapter's, and so is the fact behind it. Work done outside employment, a course taken, a qualification earned: those belong in the opening, in the independent-work chapter where the plan gives one, or in the closing chapters. A fact filed to nobody, told under somebody, is the story saying an employer paid for work they did not.
@@ -200,6 +234,7 @@ The employer chapters, one per employer, keyed by that employer's id:
 "routing" — where each question lands:
 - One row per question the author should expect: the question as a person would actually ask it, then the chapter that answers it and the evidence to reach for.
 - About fifteen rows. Cover the ones this record invites: why the direction changed, why each employer was left, the largest figure in the table above, the thing that went wrong, and what the author wants next.
+- **Every gap the Gaps list below names gets a row**, asking what the author was doing in those months, in the words an interviewer uses about a gap that length. These rows are in addition to the fifteen, and a story whose prompt lists no gaps has none.
 - A row points at a chapter by the heading you gave it above, and may not point at a chapter that does not exist.
 - Where a row names its evidence, list those fact ids.`;
 
@@ -210,9 +245,11 @@ The employer chapters, one per employer, keyed by that employer's id:
  * at all), which is what licenses the first person and the failures. Every
  * other register in this project writes for a reader who is screening.
  */
-const CAREER_STORY_EN_REGISTER = `Write a long-form career story for the author to read before an interview.
+const CAREER_STORY_EN_REGISTER = `Write a long-form career story in English for the author to read before an interview.
 
 It is prepared FOR the author and is sent to nobody. It is not a résumé in paragraphs and nobody screens on it. Its one job is to make the career recallable and defensible under questioning: what was walked into, what was actually done, what changed because of it, what it cost, and what was learned.
+
+${ENGLISH_FROM_A_BILINGUAL_RECORD}
 
 ${STORY_STRUCTURE}
 
@@ -241,8 +278,10 @@ An English story is written from these same facts, with these same chapters. **T
 
 ${STORY_STRUCTURE}
 
+${JAPANESE_FROM_A_BILINGUAL_RECORD}
+
 Register:
-- Japanese, です・ます体, consistently. Half-width digits, full-width Japanese punctuation (、。).
+- です・ます体, consistently. Half-width digits, full-width Japanese punctuation (、。).
 - First person. 私 and 自分 are correct here and are forbidden in every other document written from this record: this one is the author talking. Use them where a sentence needs them and drop them where Japanese would.
 - This document is addressed to nobody. 貴社 and 御社 appear nowhere in it.
 - 体言止め is the 職務経歴書's device and is not this document's. This is prose, and a chapter written in noun-stopped fragments reads as notes rather than as a story.
@@ -260,7 +299,9 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
     buildable: true,
     chronology: "newest_first",
     register: RESUME_REGISTER,
-    skillsSection: true,
+    // The skills line is filled from the author's curation when the file is
+    // built (`src/render/resume.ts`), not written by the model (issue #107).
+    skillsSection: false,
     requiredProfileFields: ["nameLatin"],
   },
   /**
@@ -294,10 +335,12 @@ export const RENDER_DEFINITIONS: Record<RenderKind, RenderDefinition> = {
    * The third buildable render, and the second Japanese one.
    *
    * Unlike the 履歴書 it is a FLOWING document with nothing fixed to preserve,
-   * so it takes the generic `toDocx` path the English résumé takes rather than
-   * a template (`docs/06`, 2026-08-20). Almost all of it is generated: the
-   * renderer writes only the title and the 氏名 header
-   * (`src/render/identity.ts`), and {@link SHOKUMU_REGISTER} writes the rest.
+   * so it is built rather than filled (`docs/06`, 2026-08-20), by its own
+   * Japanese renderer since #117 (`src/render/japanese.ts`). Almost all of it
+   * is generated: the renderer writes the title, the 作成日 and 氏名 header
+   * (`src/render/identity.ts`), each employer's header from the record, and
+   * 保有資格 and 学歴 (`src/render/shokumu.ts`); {@link SHOKUMU_REGISTER}
+   * writes the rest.
    *
    * The flip to `buildable` waited on the two things the other flips waited on
    * and one more: a register that is not empty, a chronology, and 資本金 and

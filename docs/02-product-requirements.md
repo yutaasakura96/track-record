@@ -37,7 +37,7 @@ Since 2026-10-11 a tailored résumé belongs to one application (§3a, S21).
 
 | Render | Language | Nature |
 |---|---|---|
-| English résumé | EN | Sections: profile summary, technical skills, professional experience, projects, education, certifications |
+| English résumé | EN | Employer-ready layout assembled from the record and model-written summary and bullets (`03` §6) |
 | 履歴書 | JA | Rigid conventional format. Requires the **complete** chronological 学歴・職歴 with no unexplained gaps, and the author's PII |
 | 職務経歴書 | JA | Per employer: business description + 資本金/従業員数, technical outcomes, 主な実績. Plus 経歴要約, 活かせるスキル・経験, 保有資格, 学歴, 自己PR |
 | Career story (EN) | EN | Long-form interview-prep narrative, chapter-structured, ending in an anchor-facts table and a question→chapter routing map |
@@ -104,7 +104,7 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S4 · Generate the English résumé** — `MUST` · M1
 > As the Author, I want the English résumé generated from accepted facts alone, so that producing it costs a click instead of an afternoon.
 
-**Acceptance:** The résumé is generated using only facts whose provenance is Measured or Attested and whose disclosure permits it. No Generated-provenance fact appears. The output is a `.docx` matching the existing document's section structure.
+**Acceptance:** The résumé is generated using only facts whose provenance is Measured or Attested and whose disclosure permits it. No Generated-provenance fact appears. The English résumé's layout and file are specified in `03` §6.
 
 ---
 
@@ -190,14 +190,14 @@ Priority is `MUST` / `SHOULD` / `LATER`. Milestone shows the earliest release it
 **S17 · Check what was flagged, when I want to** — `MUST` · M3
 > As the Author, I want the facts worth checking shown as a list with the reason for each, so that I look at the few that need me and not at every fact.
 
-**Acceptance:** Four things are flagged: a fact kept Private as confidential, a claim that states a number, a fact the importer was unsure of, and a fact that likely repeats one already in the record. **Every flag says why**, in a sentence. A flag is advice: nothing waits on it, and a flagged fact that is neither Private nor Generated is used by the next document unopened. The author opens a flagged fact only by choosing to, and marks a flag checked when they have looked. **`Explain this`** on a flag asks the AI to explain it in plain words; it is the only thing on the list that calls the AI, it does so only when pressed, and the answer is kept so that a second press costs nothing.
+**Acceptance:** Four things are flagged: a fact kept Private as confidential, a claim that states a number its quote does not, a fact the importer was unsure of, and a fact that likely repeats one already in the record. **Every flag says why**, in a sentence. A flag is advice: nothing waits on it, and a flagged fact that is neither Private nor Generated is used by the next document unopened. The author opens a flagged fact only by choosing to, and marks a flag checked when they have looked. **`Explain this`** on a flag asks the AI to explain it in plain words; it is the only thing on the list that calls the AI, it does so only when pressed, and the answer is kept so that a second press costs nothing.
 
 ---
 
 **S18 · Read everything in one document** — `MUST` · M3
 > As the Author, I want one long document holding everything I have ever done, from every source I imported, so that I can read my whole record and know every résumé is drawn from it.
 
-**Acceptance:** The master document lists every accepted fact, grouped by employer and project, with each fact's worth and disclosure, and the roles, education and certifications. It includes what a résumé leaves out: Private facts, Generated facts, and facts no document has used. It is **a view generated from the record** each time it is opened, by no AI call, and stored nowhere, so there is one source of truth; it cannot be edited, and a fact is changed on its own card. It can be downloaded in full, Private facts included, and the file says so in its first lines. It holds no source-document text. **There is one for English and one for Japanese** (#59), opened from the top of that language's tab on Home: the same facts, with the record's names, the headings and the dates as a document of that language writes them, and no claim translated.
+**Acceptance:** The master document, shown as the **Career record** since #112, lists every accepted fact, grouped by employer and project, and the roles, education and certifications. It reads like a CV the author wrote for themselves: contents, a chapter an employer, each project split into Results and What I did, figures set apart, and a mark only on a fact that is Private, not confirmed or added by hand. It includes what a résumé leaves out: Private facts, Generated facts, and facts no document has used. It is **a view generated from the record** each time it is opened, by no AI call, and stored nowhere, so there is one source of truth; it cannot be edited, and a fact is changed on its own card. It can be downloaded in full, Private facts included, and the file says so in its first lines. It holds no source-document text. **There is one for English and one for Japanese** (#59), opened from the top of that language's tab on Home: the same facts, with the record's names, the headings and the dates as a document of that language writes them, and no claim translated.
 
 ---
 
@@ -219,7 +219,7 @@ and neither does #60.
 **S20 · Keep track of each job I apply for** — `MUST` · #60
 > As the Author, I want each job I am looking at kept as one entry with where it stands, so that I know what I applied for, when, and what I am still waiting on, without a spreadsheet beside the app.
 
-**Acceptance:** A job is added by pasting its job description, with an optional link to the posting. The job is saved as **Not applied**. Its status is one of seven steps, in order: Not applied, Applied, Résumé passed, First interview, Second interview, Final interview, Offer. **Rejected** and **Withdrawn** close an application at the step it had reached, and a closed one can be reopened. Setting a step **saves that day's date**, the date can be corrected to any day up to today, and the last change can be undone. A step a company never went through is skipped and has no date unless one is added. The application shows **how many days since the résumé passed and since the first interview**, each only when that step has a date, and how many since the last change. Its one last-activity timestamp is updated by a status change, an added or corrected date, an interview entry added, corrected or deleted, and a document added or recorded as sent. Editing the company, position, link or requirements does not update it, and neither does a save that changes nothing. The list shows every application, **newest activity first** by that timestamp, with a filter by status. An application whose last activity was **14 or more days ago while the author is waiting to hear back** (Applied through Final interview, not closed) is marked **gone quiet**; nothing is emailed and nothing is sent to anyone. Event dates still govern the résumé-passed and first-interview figures; on a closed application the third figure counts from its close date. A status has no colour of its own. **An application is never deleted**; one added by mistake is marked Withdrawn. One user can never read or change another's applications. **The Applications screens work at phone width**; no other screen does.
+**Acceptance:** A job is added by pasting its job description, with an optional link to the posting. The job is saved as **Not applied**. Its status is one of seven steps, in order: Not applied, Applied, Résumé passed, First interview, Second interview, Final interview, Offer. **Rejected** and **Withdrawn** close an application at the step it had reached, and a closed one can be reopened. Setting a step **saves that day's date**, the date can be corrected to any day up to today, and the last change can be undone. A step a company never went through is skipped and has no date unless one is added. The application shows **how many days since the résumé passed and since the first interview**, each only when that step has a date, and how many since the last change. Its one last-activity timestamp is updated by a status change, an added or corrected date, an interview entry added, corrected or deleted, and a document added or recorded as sent. Editing the company, position, link or requirements does not update it, and neither does a save that changes nothing. The list shows every application, **newest activity first** by that timestamp, with a filter by status. An application whose last activity was **14 or more days ago while the author is waiting to hear back** (Applied through Final interview, not closed) is marked **gone quiet**; nothing is emailed and nothing is sent to anyone. Event dates still govern the résumé-passed and first-interview figures; on a closed application the third figure counts from its close date. A status has no colour of its own. **An application is never deleted**; one added by mistake is marked Withdrawn. One user can never read or change another's applications. **The Applications screens work at phone width**; other exceptions are specified in `10` under Responsive behaviour.
 
 ---
 
@@ -297,7 +297,7 @@ This replaces the rule of 2026-08-11, that anything a model produces starts Gene
 ## 6. Confidentiality rules
 
 1. **Source documents never render.** An imported case study is never emitted, exported or included in any output. It exists to prove facts.
-2. **The author's own PII is a per-render field rule, not a disclosure tier.** Address, phone and date of birth are required by 履歴書 convention and must appear in **no other render**.
+2. **The author's own PII is a per-render field rule, not a disclosure tier.** Address, phone and date of birth are required by 履歴書 convention and must appear in **no other render**. The English résumé's headline, city, links and phone are separate, opt-in profile fields (#108); its phone is never the 履歴書 one.
 3. **Defaults point toward secrecy** in every ambiguous case. The failure is asymmetric: an over-cautious résumé costs a sentence, a leaked client identifier costs a career.
 4. **Facts are stored plainly; impact framing is applied at render time.** The same fact renders as a strong action-verb bullet in English and in a flat factual register in 職務経歴書.
 
@@ -360,4 +360,4 @@ The ugliest case per feature, and what happens.
 6. **Multi-user anything** — accounts, sharing, roles, permission surfaces.
 7. **Consistency checking as a goal.** Welcome as a side effect of provenance; not a target.
 8. **A hand-maintained skills taxonomy.** Skills are derived and curated, never authored from scratch.
-9. **Mobile-first design.** Capture is the only plausibly mobile activity, and it is not the bottleneck. **One exception since 2026-10-11:** the Applications screens work at phone width, because noting an interview straight after it is a phone job (S20). **A second since 2026-10-16:** Quick capture (S12, #95), because a win is written down on the way home. Nothing else does.
+9. **Mobile-first design.** **One exception since 2026-10-11:** the Applications screens work at phone width, because noting an interview straight after it is a phone job (S20). **A second since 2026-10-16:** Quick capture (S12, #95), because a win is written down on the way home. See `10` Responsive behaviour for supported widths, including the document reader.

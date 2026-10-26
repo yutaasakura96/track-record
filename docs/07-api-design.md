@@ -71,7 +71,7 @@ switches on. `details` is optional and shape-varies by code.
 | `validation_failed` | 422 | Zod rejected the body. `details.fields` names the offenders |
 | `conflict` | 409 | The action contradicts current state — deleting an employer with facts, accepting an already-decided proposal |
 | `precondition_failed` | 428 | The action is legal but blocked by missing data — 履歴書 with no date of birth. `details.fields` names what is missing |
-| `upstream_unavailable` | 503 | Anthropic or Neon is unreachable. **Always retryable, and nothing was mutated** |
+| `upstream_unavailable` | 503 | Anthropic or Neon could not complete the call, including exhausted model credits. **Always retryable, and nothing was mutated by that call**. For exhausted credits, `details.reason` is `credits_exhausted` and `message` explains the pause (`12` §9) |
 | `internal` | 500 | Unhandled. Logged with an ID that is returned in `message` |
 
 **No error body ever contains source text, a fact claim, or render content** — that would put record
@@ -98,15 +98,21 @@ rejected with `403 forbidden` — the only 403 in the API.
 | Method | Path | M | Notes |
 |---|---|---|---|
 | `GET` | `/api/profile` | M1 | `404` when no profile exists — the client redirects to the profile form (PRD §7) |
-| `PUT` | `/api/profile` | M1 | Full replace. Creates on first call |
+| `PUT` | `/api/profile` | M1 | Full replace. Creates on first call. Leaves the photo as it is |
+| `GET` | `/api/profile/photo` | #117 | The 履歴書's 写真, its type read from its bytes, `cache-control: private, no-store`. `404` when there is none |
+| `PUT` | `/api/profile/photo` | #117 | The raw body is the image, already cropped to 3:4 in the browser; never a form. `200` + the profile. `404` with no profile; `422` (`fields: ["photo"]`) for anything that is not a structurally complete JPEG or PNG (a PNG: signature, IHDR first, an IDAT, valid chunk CRCs, nothing after IEND; a JPEG: SOI, a SOF carrying the size, an SOS, EOI at the end), not 3:4 by its header to within a pixel, under 300 × 400, or over 2 MB however the request counts it. Logged as its type, pixel size and byte count, never its bytes |
+| `DELETE` | `/api/profile/photo` | #117 | Takes it off for good. `200` + the profile; removing none is not an error |
 | `GET` | `/api/employers` | M1 | Reverse chronological |
 | `POST` | `/api/employers` | M1 | |
 | `PATCH` | `/api/employers/:id` | M1 | |
 | `DELETE` | `/api/employers/:id` | M2 | `409 conflict` when facts, roles, projects or source documents reference it. A fact counts only when its employer was set on it by hand; one reading through its document is counted as the document (`04` §3.12). A delete that succeeds clears the employer's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/roles[/:id]` | M2 | `employerId` required |
-| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
+| `GET` `POST` `PATCH` `DELETE` | `/api/projects[/:id]` | M1 | `employerId` **nullable** — independent projects. `summaryJa` is the summary a Japanese document writes, blank or absent for none (#117). `DELETE` answers `409 conflict` when facts or source documents reference it, and names the remedy: `Refile them from Documents before deleting.` (§5). A delete that succeeds clears the project's `render_inclusions` rows in the same batch |
 | `GET` `POST` `PATCH` `DELETE` | `/api/educations[/:id]` | M2 | `DELETE` clears the education's `render_inclusions` rows in the same batch |
-| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | |
+| `GET` `POST` `PATCH` `DELETE` | `/api/certifications[/:id]` | M2 | `kind` (`technical`, `language`, `other`) required on `POST`; a `PATCH` may omit it but not set it to null (`06`, 2026-10-22) |
+| `GET` | `/api/career-timeline` | #113 | What Screen 4 shows beside the rows: `employers[]` `{ id, achievements, unfiled, documents }` counting the accepted facts that resolve to each (`04` §3.12), how many are filed under no project and the documents they came from; `projects[]` `{ id, achievements }`; `gaps[]` `{ after, before, from, to, months }`, the 履歴書's own gap warning over the rows it would print, its exclusions applied: the gaps no note explains, `from` and `to` being the first and last uncovered months; `explained[]` `{ gap, note }`, each gap with the ※ row that explains it (#117); and `staleNotes[]`, notes whose months are no longer a gap, printed nowhere. **Ids, counts, months and the author's own ※ notes only**, built on the read |
+| `POST` | `/api/gap-notes` | #117 | `{ fromOn, toOn, text }`: the ※ row explaining the gap whose first and last uncovered months these are (`04` §3.19). `201` + `{ id, fromOn, toOn, text }`. Writing the same months again replaces the text. `422` for an empty text, one over 80 characters, a month not pinned to `01`, or `toOn` before `fromOn` |
+| `DELETE` | `/api/gap-notes/:id` | #117 | `204`. The gap warns again. `404` for a note that is not the caller's |
 
 **`GET /api/profile` → 200**
 
@@ -124,13 +130,32 @@ rejected with `403 forbidden` — the only 403 in the API.
   "address": "東京都渋谷区神宮前0-0-0",
   "addressKana": "とうきょうと しぶやく じんぐうまえ",
   "contactSameAsAddress": true,
-  "hasPhoto": true
+  "hasPhoto": true,
+  "photoVersion": "3f9c1a7b2e04",
+  "resumeHeadline": "Backend Engineer",
+  "resumeCity": "Tokyo", "resumeCountry": "Japan",
+  "resumePhone": null,
+  "resumeLinkedinUrl": "https://linkedin.com/in/example",
+  "resumeGithubUrl": null, "resumePortfolioUrl": null
 }
 ```
 
+> **The `resume*` fields are optional**, and blank is stored as `null`. A link needs a literal
+> `http://` or `https://` prefix to count as already schemed (case-insensitive); otherwise the API
+> supplies `https://`, including for a host with a port. It rejects embedded whitespace, control
+> characters, a backslash, credentials before the host (which is also how `mailto:a@example.com` is
+> refused) and addresses without a dotted hostname with `422` naming the field. After validation,
+> it stores the trimmed text as entered, plus any supplied scheme, without URL serialization. The résumé
+> prints the saved link with only `http://` or `https://` removed; `www.`, casing, path and trailing
+> slash remain as entered.
+> `resumePhone` is the English résumé's own number, never copied from `phone` (`04` §3.2).
+
 > **`photo` is never inlined.** The response reports `hasPhoto`; the image is fetched from
 > `GET /api/profile/photo`. Base64 in a JSON body would put the author's face in every cache and
-> log of that response.
+> log of that response. `photoVersion` (null without a photo) changes whenever the photo does, and
+> the client puts it on the image's address, so a page draws the new photo rather than a kept one.
+> The same rule holds for a 履歴書's page: its sheet marks the 写真 cell `photo: true` and carries
+> none of the image.
 
 **`POST /api/employers` → 201**
 
@@ -139,6 +164,7 @@ rejected with `403 forbidden` — the only 403 in the API.
   "nameJa": "株式会社アオゾラ物流",
   "nameLatin": "Aozora Logistics K.K.",
   "industryJa": "運輸業",
+  "city": "Yokohama",
   "businessDescription": "中堅の国内向け物流事業者。",
   "capitalYen": 50000000,
   "headcount": 320,
@@ -270,6 +296,9 @@ retained.
 
 PRD §7 requires this be reported as a **failure of extraction with the document retained**, never as
 an empty success.
+When the model service runs out of credits, the retryable import also has `status: "failed"`, but
+`error.code` is `credits_exhausted` and `error.message` explains the pause. Other model failures
+use `extraction_failed`.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -363,7 +392,8 @@ Documents are ordered by their newest `importedAt`, descending; versions newest 
 - **`error`** is `null` unless the version is `failed`, and then it is the same object
   `GET /api/imports/:id` returns for that version, `code` and `message` both. One shape across the
   imports resources (§2): a failed version in the listing reads
-  `{ "code": "extraction_failed", "message": "…" }`, never a bare string. Screen 8 shows
+  `{ "code": "extraction_failed", "message": "…" }`, or `credits_exhausted` for a credit pause,
+  never a bare string. Screen 8 shows
   `message`.
 - **`facts` is counted on the read.** Nothing records that a review finished, so `open` is the
   number of that version's facts still `candidate`.
@@ -563,7 +593,7 @@ session's own candidates are read, and another user's `importId` sorts nothing.
     {
       "id": "flg_8Hq2",
       "kind": "number",
-      "reason": "It states a number. Check the number against the passage it was read from.",
+      "reason": "It states a number the passage it was read from does not. Check where the number came from.",
       "explanation": null,
       "checked": false,
       "fact": {
@@ -592,8 +622,8 @@ session's own candidates are read, and another user's `importId` sorts nothing.
 made because the author pressed the button.** The call is given the flag's kind and reason and the
 fact's claim, quote, provenance and disclosure. The answer and its token counts are stored on the
 flag, so a second press, a reload and the fact's own card all read the stored text and call nothing.
-`503 upstream_unavailable` when the model does not answer or returns nothing usable; nothing is
-stored, and the next press tries again. `404` for a flag that is not the session's.
+`503 upstream_unavailable` when the model does not answer, has no credits or returns nothing usable;
+nothing is stored, and the next press tries again. `404` for a flag that is not the session's.
 
 **`POST /api/flags/:id/check`** and **`/uncheck` → 200** with the flag. They stamp or clear
 `checked_at` and change nothing about the fact: a checked `confidential` flag leaves the fact
@@ -640,6 +670,12 @@ set, `null` a chosen `No employer`; `projectId` files the fact through its proje
 fact is unfiled. **404** for an employer or a project the session does not own, and nothing is saved.
 **422** for an empty claim, a malformed month, or both an employer and a project on one claim.
 
+**`POST /api/capture/prompt/dismiss`** (#116) takes `{ month }`, the author's own month as
+`YYYY-MM-01`, and puts Home's monthly capture prompt away until that month ends, on every device:
+it is stored on the member, in `capture_prompt_dismissals` (`04` §3.18), so it answers with or
+without a profile. **200** `{ dismissedOn }`. **422** for a month that is not `YYYY-MM-01`, or one
+more than a month from the server's, so a dismissal never outlasts the month it was for.
+
 ---
 
 ## 7. Renders · M1 for the English résumé
@@ -662,16 +698,27 @@ back to the application it came from.
 | `GET` | `/api/renders` | M1 | All five, with status. Backs Home's `Your career documents` section |
 | `POST` | `/api/renders/:kind/generate` | M1 | → `202` + `proposalId` + `warnings` |
 | `GET` | `/api/proposals/:id` | M1 | Poll target, then the proposal itself |
-| `GET` | `/api/proposals/:id/diff` | M1 | The split view. **Computed server-side** |
+| `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
-| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). 履歴書 is `docx` only |
+| `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` or `pdf`; `pdf` is the English résumé's, the 履歴書's and the 職務経歴書's only (#109, #117) |
+| `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page, evidence }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Cited section blocks carry their `factIds`; a 履歴書's motivation and kibou sheet cells also carry them. Blocks and cells copied from the record may omit `factIds` (treated as `[]`). `evidence` is every cited fact once, `{ id, claim, provenance, employer, quote, source: { importId, filename, lineNumber } \| null }`, the employer named in the document's language and `source` null on a fact added by hand (#110). Refused at `409` on a withheld fact exactly as the download is, before anything is looked up |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
 | `POST` | `/api/renders/:kind/versions` | M1 | A **hand edit**. Body `{ basedOnVersionId, content }` → `201` + a new version with `origin: "edited"`. Appends; never mutates (S16) |
 | `GET` | `/api/renders/:kind/versions` | M1 | The version history. **Versions only** — the screen merges the dismissed proposals in, and a merged payload would hand every consumer a discriminated union to unpack (decision log, 2026-09-12) |
 | `GET` | `/api/proposals?kind=` | M1 | One render's proposals, decided and undecided. The other half of the history: a **dismissed** proposal is retained and is not a version |
 | `GET` | `/api/renders/:kind/diff` | M1 | `?from=&to=` — two **versions** of one render, the restore preview. `from` is the left column. Never names a proposal; proposals keep their own diff route |
 | `POST` | `/api/renders/:kind/versions/:id/restore` | M1 | Creates a **new** version with `origin: "restored"`; history is never erased. Refuses at `409` for a waiting proposal (not one whose generation `failed`) or a target already current, and at `422` when the target cites a fact that can no longer be rendered (S14) |
+
+`SentPage` carries `title`, `stamp`, `name`, `contact` lines and nonempty `sections` with their headings and
+blocks. `title` is the title the file prints above the name, and is `null` for the English résumé,
+which prints none; a sent copy stored before titles were kept has no `title`. The English résumé's page
+also carries `headline`, its line under the name, when the profile has one, and `contact` is then the
+contact line alone. A 履歴書 page also carries `sheet`: ordered line and table blocks read from its filled
+`.docx`, with cell spans, column widths, alignment, size, shading and each paragraph's before- and after-spacing
+in twips (`beforeTwips`, `afterTwips`). This applies to the render page, the first-version preview and sent copies;
+older sent copies gain `sheet` from their stored file when read, if that file is readable. Otherwise
+their stored text page is returned with `readFailure: "original_file_unreadable"`.
 
 `:kind` ∈ `english_resume` · `rirekisho` · `shokumu_keirekisho` · `career_story_en` ·
 `career_story_ja`.
@@ -680,8 +727,8 @@ Each item also carries `id` (`null` for a main document never generated), `ref` 
 tailored résumé's id) and `tailored` (`null`, or `{ label, createdAt }`).
 
 **A tailored résumé is generated from exactly the facts the main résumé is given**, and its job
-description reaches the model as text to read (`03` §6). Its download is named after it:
-`resume-<label>-<date>.docx`.
+description reaches the model as text to read (`03` §6). Its download uses the English résumé
+filename described below.
 
 **`GET /api/renders` → 200**
 
@@ -737,6 +784,21 @@ gap by contrast produces a **warning** on the resulting proposal, not a block.
 from the profile — none of the restricted PII the 履歴書 requires, because 生年月日, 現住所 and 連絡先
 belong to the 履歴書 it is submitted alongside (`docs/04` §3.2).
 
+**`POST /api/renders/english_resume/generate` → 428**, before the model is called, when a job it
+includes has no city or no role with a title, the parts of its header the record leaves optional.
+The message names each job and what it lacks; `details.fields` is `["employers"]` and
+`details.jobHeaders` is `[{ employerId, name, missing: ("city" | "role")[] }]`, which the screens
+turn into links to the career timeline (`06`, 2026-10-22). The same gap refuses a version
+already accepted: `GET /api/renders/:ref/download` (every format), the document page and a first
+proposal's preview answer **409 `conflict`** with the same message and `details`, for a version
+made before the check as for a city cleared after acceptance. Then **428** too when an employer,
+project or education name in the generation spec lacks a Latin letter or contains a non-Latin letter,
+or an assembled field would print Japanese script. The name check includes entries later omitted
+from the file. The message names the field needing an English or Latin-script value, with
+`details.fields: ["english_resume"]`. A tailored résumé is refused the same way. A download of
+either, and the first-version preview of the English résumé (`GET /api/proposals/:id/diff`), answers `409 conflict` when assembly finds Japanese script, a name with non-Latin letters,
+or a legacy experience heading naming no included employer (`docs/03` §6).
+
 **`POST /api/renders/:kind/generate` → 409 conflict** while that render has a proposal waiting —
 `pending` and still `generating` or `ready` — with `details.proposalId`, the same refusal the edit
 and restore routes give. Accepting either of two proposals would discard the other unread. It is
@@ -749,6 +811,10 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 2026-09-21).
 
 **`GET /api/proposals/:id` → 200**
+
+When generation is paused for lack of credits, the retryable proposal has
+`generationStatus: "failed"` and `error.code: "credits_exhausted"`, with the plain pause message.
+Other model failures use `generation_failed`.
 
 ```json
 {
@@ -767,18 +833,21 @@ insert through, and the other is refused with the winner's `details.proposalId` 
 **`withheld.privateFactCount` is a count and nothing else.** The footer states that something was
 withheld, never what.
 
-**`GET /api/proposals/:id/diff` → 200** — the exact structure the split view renders. Two passes
-have already run server-side: paragraphs aligned, then tokens diffed
+**`GET /api/proposals/:id/diff` → 200** — changes for the split view and a preview for a first
+version. Two passes have already run server-side: blocks aligned, then tokens diffed
 (`03-technical-design.md` §6.1).
 
 ```json
 {
   "additions": 4,
   "removals": 1,
+  "preview": null,
   "changes": [
     {
       "changeId": "chg_1",
+      "target": "block",
       "sectionKey": "experience",
+      "location": { "section": "Experience", "employer": "Aozora Logistics K.K. · Backend Engineer · 2019–2023" },
       "currentBlockId": "blk_88",
       "proposedBlockId": "blk_91",
       "tokens": [
@@ -794,7 +863,9 @@ have already run server-side: paragraphs aligned, then tokens diffed
     },
     {
       "changeId": "chg_2",
+      "target": "block",
       "sectionKey": "experience",
+      "location": { "section": "Experience", "employer": "Aozora Logistics K.K. · Backend Engineer · 2019–2023" },
       "currentBlockId": "blk_90",
       "proposedBlockId": null,
       "tokens": [{ "op": "remove", "text": "Improved system performance by ~30%" }],
@@ -810,8 +881,20 @@ have already run server-side: paragraphs aligned, then tokens diffed
 
 - `op` ∈ `equal` · `add` · `remove`. For Japanese renders, each token is a **BudouX phrase**; for
   English, a word or punctuation run.
-- `rationale.kind` ∈ `from_facts` · `removed_no_support` · `removed_unverified` ·
-  `from_restricted`.
+- `target` ∈ `block` · `heading`. A `heading` change is a section's heading rewritten, added with a
+  new section or removed with one: `currentBlockId` and `proposedBlockId` are null, `tokens` diff
+  the heading text, and it comes before the changes to that section's blocks. A section with no
+  blocks is not in the document, so its heading is not diffed.
+- `location` places the change: `section` is the section's heading (the current version's for a
+  removal, otherwise the proposal's), and `employer` is the opening paragraph of the employer group
+  the block falls under in an `experience` section, null anywhere else, for the opening paragraph
+  itself and for a heading change. The alignment and employer-group rules are in `03` §6.1; a block
+  moved to another employer is a removal under the current version's employer and an addition under
+  the proposal's.
+- `rationale.kind` ∈ `heading_changed` · `from_facts` · `removed_no_support` ·
+  `removed_unverified` · `from_restricted`.
+- `preview` is `{ "title": string, "page": SentPage }` when the render has no current version,
+  and null otherwise. The first-version screen reads `preview`; every other review reads `changes`.
 - **A change with no `rationale` is a defect**, not a tolerable gap
   (`10-screen-specifications.md`).
 
@@ -826,10 +909,34 @@ Accepting an already-decided proposal → `409 conflict`.
 
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
-`Content-Disposition: attachment; filename="resume-2026-08-12.docx"`.
-For a tailored résumé, the filename also includes an ASCII label slug when nonempty and its render ID before the date; the ID keeps Japanese labels and shared slug prefixes distinct.
-Assembled from stored `RenderContent` on each request. Failure → `500` with `code: "render_failed"`;
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.docx"`: the profile's Latin
+name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
+the same way (#107). A Japanese document is `<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it
+is built (#117): `Content-Disposition: attachment; filename="shokumu-keirekisho_Yosuke-Aoki_20261023.docx";
+filename*=UTF-8''%E8%81%B7…` (RFC 6266), the ASCII name for a client that cannot read `filename*`. The
+English story is `career-story-en-<YYYY-MM-DD>.md`.
+Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
+certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
+assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
+
+**`GET /api/renders/english_resume/download?format=pdf` → 200** · `Content-Type: application/pdf` ·
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.pdf"`, named as the `.docx` is.
+The same document in the same layout, with selectable, tagged text and the title
+`<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
+as the `.docx` is, and also when any text holds a character the embedded Carlito cannot draw →
+`409 conflict` (`The PDF cannot show “✓” (U+2713) in the Experience section. Remove it, or download
+the Word file instead.`); the `.docx` and Markdown are unaffected. A tailored résumé has one too. `?format=pdf` on either story → `409 conflict`
+(`Only the résumé, the 履歴書 and the 職務経歴書 are produced as a PDF.`), before a version is read.
+
+**`GET /api/renders/{rirekisho,shokumu_keirekisho}/download?format=pdf` → 200** (#117) ·
+`Content-Type: application/pdf` · named as the `.docx` is (`履歴書_青木陽介_20261023.pdf`, by
+`filename*`). The 履歴書's is its filled `.docx` drawn; the 職務経歴書's is set from the same document
+as its `.docx`, with each employer's header from the record. Both embed BIZ UD faces cut to the
+characters drawn, are tagged, carry `<title>　<kanji name>` as their title, the kanji name as their
+author and `ja-JP` as their language (`docs/03` §6.4). Refused as the `.docx` is, and when a character
+is not in the face → `409 conflict` (`The PDF cannot show “🚚” (U+1F69A) in the 経歴要約 section. Remove
+it, or download the Word file instead.`).
 
 **A download obeys today's record, not the day the version was accepted.** Every download
 re-checks the facts its stored content cites, before the 履歴書 branch and so for every kind. A
@@ -841,7 +948,7 @@ current state will not allow. The way out is the hand-edit route, which lifts th
 produces a version that downloads; the version that cited the fact stays stored and stays refused
 (decision log, 2026-09-12).
 
-**`GET /api/renders/rirekisho/download` is `.docx` only** — `?format=md` → `409 conflict`. The other
+**`GET /api/renders/rirekisho/download` is `.docx` or PDF** — `?format=md` → `409 conflict`. The other
 renders are documents built as text, and markdown is a readable form of one; a 履歴書 is a form whose
 meaning is its grid, and a markdown table of it is not a 履歴書. It is also the one download assembled
 from the **record** rather than from the stored version: the 学歴・職歴 and 免許・資格 tables are
@@ -853,8 +960,10 @@ prose cells (`docs/04` §4).
 stored version like the résumé, with one addition: a **作成日 stamped in Tokyo at download**, above a
 right-aligned 氏名. It is stamped rather than stored for the same reason the identity block is — a
 submission date is not a claim about a career, and storing one would make an accepted version go
-stale on the day after it was accepted. Both formats take it from one function, so the `.docx` and
-the `.md` of one version cannot disagree about when it was submitted.
+stale on the day after it was accepted. Every format takes it from one function, so the files of one
+version cannot disagree about when it was submitted. It reads `2026年10月23日現在` (#117). Each
+employer's header — 会社名, 雇用形態, period and roles — is read from the record at download too,
+in place of the group's opening paragraph (`docs/03` §6.4).
 
 **`POST /api/renders/:kind/versions` refuses four ways and warns a fifth.** It edits the CURRENT
 version and nothing else: an edit whose `basedOnVersionId` is not current → `409 conflict` with
@@ -862,7 +971,10 @@ version and nothing else: an edit whose `basedOnVersionId` is not current → `4
 `details.proposalId`, because accepting that proposal afterwards would silently discard the edit
 (a proposal whose generation `failed` is excluded: it can never be accepted).
 A payload that changes nothing → `409`; one that is malformed, empties the document, or has two
-blocks claiming one id → `422 validation_failed`. A block citing a fact the record does not hold,
+blocks claiming one id → `422 validation_failed`. An English résumé's edit is also `422` when it
+adds, drops or re-kinds a section of the version it edits, or breaks a bound a generation is held to:
+a summary of 50 words or more, a bullet over 240 characters, or more bullets under an employer than
+its budget, checked only for a section the edit grew. A block citing a fact the record does not hold,
 or one a generation would have been forbidden to use, → `422` with `details.facts` carrying
 `{ factId, problem }` — the same shape a refused download returns, and never any claim text.
 
@@ -876,7 +988,9 @@ beside the draft (`docs/10` Screen 6).
 
 **`warnings`** on the `202` is an array of strings, advisory and never blocking — it never delays or
 prevents the generation it is returned with. Today only 履歴書 produces one, for an unexplained gap
-between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`. The `warnings` on a hand
+between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`. The `warnings` on
+`GET /api/proposals/:id` repeat these and, for a Japanese document whose content is ready, add the
+register advisories read off that content (`03` §6). The `warnings` on a hand
 edit's `201` are a different set from a different check, described above, and share only the rule
 that neither ever blocks.
 
@@ -905,6 +1019,11 @@ and the home screen waited for all of them.
   "review": { "openCandidates": 23, "documents": 2, "importId": "sdv_…", "filename": "portfolio.md" },
   "unconfirmed": { "importId": "sdv_…", "count": 3, "total": 16 },
   "flagged": 14,
+  "capturePrompt": {
+    "lastFactAt": "2026-08-12T08:02:00Z",
+    "employer": { "id": "emp_…", "name": "Example Corp" },
+    "dismissedOn": null
+  },
   "documents": [],
   "canGenerate": true,
   "isEmpty": false
@@ -921,29 +1040,36 @@ they will be read, and `[]` when none is waiting.
 `batch_order`, as `{ importId, filename, status, chunksTotal, chunksDone, error }`; it stays after
 they finish, until the next set is submitted.
 While it is not `null` the request costs a second round trip, for that body.
-`factsByProvenance` counts accepted facts only. `generated` being non-zero is what turns the home
-screen's Not confirmed row amber.
+`factsByProvenance` counts accepted facts only; the home screen's at-a-glance strip sums it for its
+`Facts` cell and notes `measured` (#111).
 `review` is `null` when no candidate is waiting. Otherwise `openCandidates` is the same count
 `GET /api/imports/summary` gives the sidebar, `documents` is how many source documents they sit in,
 and `importId` and `filename` are the most recently imported version that holds any, which is where
 the Next step opens Fact Review (#58).
 `unconfirmed` is the most recently imported version holding a fact **the author accepted on its
 card** while it was still Generated, or `null`. Its `count` covers only that version and `total`
-every version. It is where the Not confirmed row and its step open Fact Review. A Generated fact
+every version. It is where the Next step's Confirm step opens Fact Review. A Generated fact
 the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
 a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
+`capturePrompt` (#116) is what the monthly capture prompt is decided from, by the client, since the
+month is the author's: `lastFactAt` is when the newest fact was created, by any road and in any
+state, or `null` for none; `employer` is the employer with no `ended_on`, the one started last when
+there are two, named by `name_latin` or else `name_ja`, or `null` when every job has ended; and
+`dismissedOn` is the member's `capture_prompt_dismissals.dismissed_on`, or `null` for none.
 
 ---
 
 ## 9. The master document · M3 (#57)
 
+Shown as the **Career record** since #112 (`10` Screen 10); the routes keep their names.
+
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
-| `GET` | `/api/master-document/download` | The same structure as Markdown, `master-document-<language>-<date>.md`, `cache-control: no-store` |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `career-record-<language>-<date>.md`, `cache-control: no-store` |
 
 Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
 value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
@@ -954,7 +1080,10 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
   "language": "en",
   "builtAt": "2026-10-08T03:00:00Z",
   "subjectName": "Yosuke Aoki",
-  "counts": { "facts": 214, "usable": 180, "private": 22, "generated": 12, "flagged": 14, "waiting": 0 },
+  "counts": {
+    "facts": 214, "usable": 180, "private": 22, "generated": 12, "keptOut": 34,
+    "flags": 17, "waiting": 0, "years": 11
+  },
   "employers": [
     {
       "id": "emp_2Kd9", "name": "Aozora Logistics K.K.", "alternateName": "株式会社アオゾラ物流",
@@ -970,8 +1099,15 @@ value, the answer is the English one: an unknown value is ignored, as an unknown
 }
 ```
 
-- A fact is `{ id, claim, provenance, disclosure, technologies, flags, source }`. `flags` is the
-  kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null`.
+- A fact is `{ id, claim, provenance, disclosure, technologies, flags, source, used }`. `flags` is
+  the kinds still open on it; `source` is `{ importId, filename, lineNumber }` or `null` (added by
+  hand); `used` is whether the current version of any document, tailored résumés included, cites it.
+- `counts.keptOut` is Private or Generated. Its reasons partition the total: `counts.private`
+  includes Private facts even when Generated, and `counts.generated` includes only Generated facts
+  that are not Private. **`counts.flags`
+  is open flags, in the unit `GET /api/imports/summary`'s `openFlags` counts** (#112): it counted
+  facts with a flag, and the page and the sidebar disagreed. `counts.years` is whole years from the
+  first employment or project to the last, or to today, and `null` with no dates.
 - **Every accepted fact is in it, Private and Generated included.** A rejected fact is not, and a
   fact still waiting to be sorted is not; `counts.waiting` says how many those are.
 - A fact sits under the employer it resolves to (`04` §3.12), then under its project. A project is
@@ -1117,12 +1253,14 @@ screens read too.
   characters for the company and the position; 30 requirements of 300 characters), so a proposal is
   always one `POST /api/applications` accepts. It takes the text only: the link is never sent to
   it, and nothing is fetched. A failed reading is `503 upstream_unavailable`, `The job description
-  could not be read just now. Type the fields in; your text is kept.`
+  could not be read just now. Type the fields in; your text is kept.` unless credits are exhausted;
+  that case uses the shared pause message and `details.reason` (§2).
 - Every write answers with the application as it is afterwards. One that froze documents adds
   `frozen: [{ title, versionNo }]`, which is what the screen's notice names. Another user's
   application is `404` on every route.
 - Logged: `posting_read` with the text's length, whether a company and a position were found, the
-  number of requirements and the token counts, `posting_read_failed` with the length,
+  number of requirements and the token counts, `posting_read_failed` with the length for other
+  model failures, `model_credits_exhausted` with `step: "read_posting"` for exhausted credits,
   `application_created` with the id and the job description's length,
   `application_standing_set` with the id, `step`, `closedAs` and how many documents it froze, and
   `interview_added` with the two
@@ -1150,6 +1288,7 @@ other document.
 | `POST` | `/api/applications/:id/sent-copies` | Body `{ documents: ref[] }`, a kind or the tailored résumé's id, each once. **Record another sent copy**: freezes each as a further copy dated today, with no comparison against earlier ones, and puts on the application any that was not. `201` + the application with `frozen`. `409` at Not applied, where the move does the freezing; `422` for a document with no version; `409` when a file cannot be built, with nothing saved |
 | `GET` | `/api/applications/:id/sent-copies/:copyId` | One copy to read: `{ id, kind, title, versionNo, sentOn, recordedAt, filename, language, applicationId, company, page }` |
 | `GET` | `/api/applications/:id/sent-copies/:copyId/download` | The stored `.docx`, byte for byte. Never a fresh one |
+| `GET` | `/api/applications/:id/sent-copies/:copyId/photo` | The 写真 a 履歴書 copy was sent with, read out of its stored file, `no-store`. `404` for a copy with none, or of another kind (#117) |
 
 - **`documents`** are the ones on the application, the tailored résumé first and then the three
   in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,
@@ -1168,7 +1307,8 @@ other document.
   frozen, dated with the day that step saved. Documents with a copy are left alone, and no other
   change of step freezes anything. A move made by `POST …/interviews` is a move: it freezes the
   same way and answers with `frozen`. The files are built first, and one that cannot be built (a citation withheld
-  since, `409`) refuses the move with nothing saved.
+  since, or an English résumé job header with a gap, `409` with the download's `details`) refuses the
+  move with nothing saved.
 - **A corrected date and an Undo reach only the copies that move froze.** `PATCH …/steps/:status`
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
@@ -1186,7 +1326,7 @@ other document.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, stale }] }], candidates: [{ name, factCount, certificationCount, curated }] }`; `stale` is computed on the read. `PUT` takes `{ groups: [{ name, skills: string[] }] }` and replaces the whole list; `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
+| `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, lastUsed, stale }] }], candidates: [{ name, factCount, certificationCount, lastUsed, curated, suggestedGroup }], printable: string[] }`; `stale` is computed on the read. `lastUsed` is the latest year a fact or certification naming it reaches, `"now"` while one is ongoing, or `null` (#114). `suggestedGroup` is the curated group a candidate is named beside on the most facts; failing that, the group whose skills' facts share the most employers (`effectiveEmployerId`) with the candidate's; failing that, the largest group; the earlier group on every tie. It is null only when the candidate is curated or no group exists. `printable` is what the English résumé may name in its Skills section, ranked as its uncurated line, from which the screen previews the section. `PUT` takes `{ groups: [{ name, nameJa?, skills: string[] }] }` and replaces the whole list; `nameJa` is the group's 職務経歴書 name, blank or absent for none, and `GET` returns it on each group (#117); `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
 | `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15). A sent copy is exported with its page and without its file |
 

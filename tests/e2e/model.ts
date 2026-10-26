@@ -9,16 +9,32 @@
  * restated, so the verbatim-quote rule (`src/pipeline/quote.ts`) is exercised
  * against the bytes the browser uploaded.
  */
-import { ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
+import { ModelCreditsExhaustedError, ModelUnavailableError, type CaptureQuestion, type ModelSeam } from "~/model";
 import { CLAIM, CLAIM_SENTENCE } from "./fixture";
+import { CLAIM as DOCUMENT_VIEW_CLAIM, CLAIM_SENTENCE as DOCUMENT_VIEW_SENTENCE, RIREKISHO_MOTIVATION } from "./document-view-fixture";
 import { READING_EN, READING_JA } from "../fixtures/postings";
 
 export const e2eModel: ModelSeam = {
   async extractFacts(sourceText, ctx) {
-    if (!sourceText.includes(CLAIM_SENTENCE)) return [];
+    if (sourceText.includes("credit-import-fixture")) throw new ModelCreditsExhaustedError();
+    if (sourceText.includes("credit-generation-fixture") || sourceText.includes("credit-explain-fixture")) {
+      const candidate = {
+        claim: sourceText.trim(), quote: sourceText.trim(), technologies: [],
+        provenance: "measured" as const, confidential: sourceText.includes("credit-explain-fixture"),
+        unsure: false, note: sourceText.includes("credit-explain-fixture") ? "Review the client name" : "",
+      };
+      ctx.onCandidate?.(candidate);
+      return [candidate];
+    }
+    const fixture = sourceText.includes(CLAIM_SENTENCE)
+      ? { claim: CLAIM, sentence: CLAIM_SENTENCE }
+      : sourceText.includes(DOCUMENT_VIEW_SENTENCE)
+        ? { claim: DOCUMENT_VIEW_CLAIM, sentence: DOCUMENT_VIEW_SENTENCE }
+        : null;
+    if (!fixture) return [];
     const candidate = {
-      claim: CLAIM,
-      quote: CLAIM_SENTENCE,
+      claim: fixture.claim,
+      quote: fixture.sentence,
       technologies: ["PostgreSQL"],
       provenance: "measured" as const,
       confidential: false,
@@ -29,7 +45,77 @@ export const e2eModel: ModelSeam = {
     return [candidate];
   },
 
-  async generateRender(facts) {
+  async generateRender(facts, spec) {
+    if (facts.some((fact) => fact.claim.includes("credit-generation-fixture"))) throw new ModelCreditsExhaustedError();
+    if (spec.kind === "shokumu_keirekisho" && spec.desiredRoleNote?.startsWith("jp-check-shokumu-")) {
+      const note = spec.desiredRoleNote;
+      const skills = note === "jp-check-shokumu-e1"
+        ? "Languages"
+        : note === "jp-check-shokumu-connector"
+          ? "React, TypeScript, and PostgreSQL"
+          : note === "jp-check-shokumu-connector-prose"
+            ? "React and design"
+            : "プログラミング言語";
+      const row = note === "jp-check-shokumu-e2"
+        ? "プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table with a double-entry, append-only ledger."
+        : "プロジェクト：決済元帳の再構築";
+      const bullet = note === "jp-check-shokumu-advisory" ? `${"決済基盤を改善し、".repeat(14)}成果を確認しました。` : "決済基盤を改善";
+      return { sections: [
+        { key: "skills", heading: "活かせるスキル・経験", blocks: [{ id: "blk_skills", kind: "row" as const, text: skills, factIds: [] }] },
+        { key: "experience", heading: "職務経歴", blocks: [
+          { id: "blk_project", kind: "row" as const, text: row, factIds: [] },
+          { id: "blk_outcome", kind: "bullet" as const, text: bullet, factIds: facts.map((fact) => fact.id) },
+        ] },
+        ...(note === "jp-check-shokumu-model-certifications"
+          ? [{ key: "certifications", heading: "保有資格", blocks: [{ id: "blk_cert", kind: "row" as const, text: "御社で役立つ資格を取得しました。", factIds: [] }] }]
+          : []),
+      ] };
+    }
+    if (spec.kind === "rirekisho" && spec.desiredRoleNote?.startsWith("jp-check-")) {
+      const note = spec.desiredRoleNote;
+      const text = note === "jp-check-onsha"
+        ? "御社の業務改善に貢献します。"
+        : note === "jp-check-english"
+          ? "日本語の説明\nLanguages"
+          : note === "jp-check-advisory"
+            ? "貴社の業務を２件改善しました。"
+            : "SaaS (Software as a Service) の導入支援とPostgreSQLの設計を担当しました。";
+      return { sections: [
+        { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
+          { id: "blk_motivation", kind: "paragraph" as const, text, factIds: [] },
+        ] },
+        { key: "kibou", heading: "本人希望記入欄", blocks: [] },
+      ] };
+    }
+    if (spec.kind === "rirekisho") {
+      return { sections: [
+        { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [
+          { id: "blk_motivation", kind: "paragraph" as const, text: RIREKISHO_MOTIVATION, factIds: facts.map((fact) => fact.id) },
+        ] },
+        { key: "kibou", heading: "本人希望記入欄", blocks: [] },
+      ] };
+    }
+    if (spec.kind === "english_resume") {
+      return {
+        sections: [
+          {
+            key: "summary",
+            heading: "Summary",
+            blocks: [{ id: "blk_summary", kind: "paragraph" as const, text: facts[0]?.claim ?? "Backend engineer improving reliable settlement systems.", factIds: facts.map((fact) => fact.id) }],
+          },
+          ...spec.employers.map((employer, index) => ({
+            key: `employer:${employer.id}`,
+            heading: employer.name,
+            blocks: [{ id: `blk_employer_${index}`, kind: "bullet" as const, text: CLAIM, factIds: facts.map((fact) => fact.id) }],
+          })),
+          ...spec.projects.filter((project) => project.employerId === null).map((project, index) => ({
+            key: `project:${project.id}`,
+            heading: project.name,
+            blocks: [{ id: `blk_project_${index}`, kind: "bullet" as const, text: "Built a route planner for invented delivery routes.", factIds: [] }],
+          })),
+        ],
+      };
+    }
     return {
       sections: [
         {
@@ -53,6 +139,7 @@ export const e2eModel: ModelSeam = {
   },
 
   async explainFlag(flag) {
+    if (flag.claim.includes("credit-explain-fixture")) throw new ModelCreditsExhaustedError();
     return `It was flagged because: ${flag.reason}`;
   },
 
@@ -69,6 +156,7 @@ export const e2eModel: ModelSeam = {
    * the plain form.
    */
   async captureClaims(text, context) {
+    if (text.includes("credit-pause-fixture")) throw new ModelCreditsExhaustedError();
     if (text.includes("unreadable")) throw new ModelUnavailableError("The stub was asked to fail.");
     const [year, month] = context.today.split("-").map(Number) as [number, number];
     const lastMonth = month === 1 ? `${year - 1}-12` : `${year}-${String(month - 1).padStart(2, "0")}`;

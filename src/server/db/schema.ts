@@ -60,6 +60,22 @@ export const educationOutcome = pgEnum("education_outcome", [
 export const educationLevel = pgEnum("education_level", [
   "secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate",
 ]);
+/**
+ * What a certification is, for the documents that sort them (issue #107). The
+ * English résumé lists `technical` ones under Certifications, writes `language`
+ * ones on its Languages line and leaves `other` out — a driving licence is not
+ * something an employer reading English screens on. The Japanese documents
+ * print every kind: 免許・資格 is where a licence belongs.
+ *
+ * Required. Migration 0027 classified rows by name but called every
+ * non-language row technical, a driving licence included, and left the column
+ * nullable, so a row added after it without a kind printed as technical — a
+ * TOEIC score under Certifications. Migration 0028 classified those rows again
+ * and made the column NOT NULL (`docs/06`, 2026-10-22).
+ */
+export const certificationKind = pgEnum("certification_kind", ["technical", "language", "other"]);
+/** The page an English document is laid out on. A4 unless the author says otherwise (issue #107). */
+export const paperSize = pgEnum("paper_size", ["a4", "letter"]);
 export const renderKind = pgEnum("render_kind", [
   "english_resume", "rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja",
 ]);
@@ -187,6 +203,32 @@ export const profiles = pgTable("profiles", {
   contactAddressKana: text("contact_address_kana"),
   photo: bytea("photo"),
   desiredRoleNote: text("desired_role_note"),
+  /**
+   * The English résumé's header (issue #108), each printed only when filled.
+   * Not the PII above: `resume_phone` is a second number the author opts into,
+   * and the 履歴書 `phone` never stands in for it (`docs/04` §3.2).
+   */
+  resumeHeadline: text("resume_headline"),
+  resumeCity: text("resume_city"),
+  resumeCountry: text("resume_country"),
+  resumePhone: text("resume_phone"),
+  resumeLinkedinUrl: text("resume_linkedin_url"),
+  resumeGithubUrl: text("resume_github_url"),
+  resumePortfolioUrl: text("resume_portfolio_url"),
+  /** The English résumé's page. Not PII, and read by that render alone. */
+  paperSize: paperSize("paper_size").notNull().default("a4"),
+  ...timestamps,
+});
+
+/**
+ * The month the author put Home's monthly capture prompt away for (issue
+ * #116), day pinned to `01`. Not PII. It holds until that month ends, and on
+ * every device, because it is the member's and not the browser's. Its own row
+ * and not a profile column, because a member with no profile is asked too.
+ */
+export const capturePromptDismissals = pgTable("capture_prompt_dismissals", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  dismissedOn: date("dismissed_on", { mode: "string" }).notNull(),
   ...timestamps,
 });
 
@@ -198,6 +240,8 @@ export const employers = pgTable("employers", {
   businessDescription: text("business_description"),
   /** e.g. 小売業 — appears on the 履歴書 職歴 line. */
   industryJa: text("industry_ja"),
+  /** Where the job was, in English — `Tokyo`. The English résumé's job header carries it. */
+  city: text("city"),
   /** 資本金, in YEN — not 万円. Formatted at render time. */
   capitalYen: bigint("capital_yen", { mode: "number" }),
   /** 従業員数 */
@@ -233,6 +277,8 @@ export const projects = pgTable("projects", {
   name: text("name").notNull(),
   nameJa: text("name_ja"),
   summary: text("summary"),
+  /** The summary a Japanese document writes. Null = none; never translated from `summary` on read. */
+  summaryJa: text("summary_ja"),
   startedOn: date("started_on", { mode: "string" }),
   endedOn: date("ended_on", { mode: "string" }),
   /** Per-project override of the "client identity is not named" default. */
@@ -503,6 +549,7 @@ export const certifications = pgTable("certifications", {
   issuingOrganization: text("issuing_organization").notNull(),
   issuedOn: date("issued_on", { mode: "string" }),
   expiresOn: date("expires_on", { mode: "string" }),
+  kind: certificationKind("kind").notNull(),
   /** Not rendered in v1 — for the author's own reference at renewal. */
   credentialId: text("credential_id"),
   credentialUrl: text("credential_url"),
@@ -513,6 +560,33 @@ export const certifications = pgTable("certifications", {
   index("certifications_user_issued_idx").on(t.userId, t.issuedOn),
   index("certifications_expiry_idx").on(t.userId, t.expiresOn)
     .where(sql`${t.expiresOn} is not null`),
+]);
+
+/**
+ * The author's explanation of a gap in 学歴・職歴 (issue #117, review §5 G2):
+ * the ※ row the 履歴書 prints under the 退社 line, 「※2020年2月〜2020年6月　
+ * 資格取得のため学習」. Record, not a fact: it is the author's own words about
+ * their own chronology, printed as typed.
+ *
+ * Keyed by the months it explains, not by the row above it, because a gap is a
+ * stretch of the chronology and may follow a job or a school. It explains the
+ * gap whose first and last uncovered months are exactly `from_on` and `to_on`;
+ * a note whose gap has moved or closed is kept, shown on the career timeline,
+ * and printed nowhere (`src/render/rirekisho.ts`).
+ */
+export const careerGapNotes = pgTable("career_gap_notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** The first uncovered month. Month precision. */
+  fromOn: date("from_on", { mode: "string" }).notNull(),
+  /** The last uncovered month. Month precision. */
+  toOn: date("to_on", { mode: "string" }).notNull(),
+  text: text("text").notNull(),
+  ...timestamps,
+}, (t) => [
+  // One explanation a gap: writing another for the same months replaces it.
+  uniqueIndex("career_gap_notes_user_months_uq").on(t.userId, t.fromOn, t.toOn),
+  check("career_gap_notes_months_ck", sql`${t.fromOn} <= ${t.toOn}`),
 ]);
 
 /* ---------------------------------------------------------------- renders */
@@ -894,6 +968,8 @@ export const skillCurations = pgTable("skill_curations", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   skillName: text("skill_name").notNull(),
   groupName: text("group_name"),
+  /** The group's name in a Japanese document, repeated on every row of the group as `group_name` is. */
+  groupNameJa: text("group_name_ja"),
   sortOrder: integer("sort_order").notNull().default(0),
   /** A curated skill in no fact is FLAGGED, never removed (S9). */
   isStale: boolean("is_stale").notNull().default(false),

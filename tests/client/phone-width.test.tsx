@@ -86,6 +86,16 @@ describe("the wider-window message at phone width", () => {
     expect(screen.queryByText(WIDER)).toBeNull();
   });
 
+  it("is not shown on Skills, which opens with the menu in its header", async () => {
+    mount("/skills", {
+      ...ROUTES,
+      "GET /api/skills/curation": { groups: [], candidates: [], printable: [] },
+    });
+    expect(await screen.findByRole("heading", { name: "Skills", level: 1 })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
+    expect(screen.queryByText(WIDER)).toBeNull();
+  });
+
   it("is still shown on every other screen", async () => {
     // What these would read is not stubbed: the message stands in front of it.
     for (const path of ["/", "/record", "/documents", "/proposals/prop-test-1", "/applicationsx"]) {
@@ -106,11 +116,11 @@ describe("the menu at phone width", () => {
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
     const menu = within(screen.getByRole("navigation", { name: "Menu" }));
     const rows = menu.getAllByRole("link").map((link) => link.textContent);
-    expect(rows).toEqual(["Applications", "Home", "Record", "Skills", "Documents", "Flagged", "Master document"]);
+    expect(rows).toEqual(["Applications", "Home", "Career timeline", "Skills", "Documents", "Flagged", "Career record"]);
     expect(menu.getByRole("link", { name: "Applications" }).getAttribute("aria-current")).toBe("page");
     expect(
       menu.getByText(
-        "On a phone, Applications and Quick capture are the parts that work. The other screens still ask for a wider window.",
+        "On a phone, Applications, Quick capture and Skills are the parts that work. The other screens still ask for a wider window.",
       ),
     ).toBeTruthy();
     expect(menu.getByRole("radiogroup", { name: "Theme" })).toBeTruthy();

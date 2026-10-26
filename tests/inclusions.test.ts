@@ -12,6 +12,7 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  postJob,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
@@ -74,8 +75,9 @@ async function acceptedFacts(
 }
 
 async function seedRecord() {
-  const later = await created("/api/employers", EMPLOYER_FIXTURE);
-  const earlier = await created("/api/employers", EARLIER_EMPLOYER);
+  // Each with a titled role, which an English résumé's job header needs.
+  const later = { id: await postJob(client) };
+  const earlier = { id: await postJob(client, EARLIER_EMPLOYER) };
   const education = await created("/api/educations", EDUCATION_FIXTURE);
 
   const fact = await acceptedFacts([LATER_QUOTE, EARLIER_QUOTE].join("\n\n"), [
@@ -196,13 +198,14 @@ describe("the 履歴書", () => {
     const before = await generate("rirekisho", {
       sections: [{ key: "motivation", heading: "志望動機", blocks: [] }],
     });
-    expect(before.warnings.some((w) => w.includes("2017-03"))).toBe(false);
+    expect(before.warnings.some((w) => w.includes("2017年4月"))).toBe(false);
 
     await setInclusion("employer", record.earlier.id, "rirekisho", false);
     const after = await generate("rirekisho", {
       sections: [{ key: "motivation", heading: "志望動機", blocks: [] }],
     });
-    expect(after.warnings.some((w) => w.includes("2017-03") && w.includes("2022-04"))).toBe(true);
+    // The months nobody covers, in both languages (issue #117, review §5 G3).
+    expect(after.warnings.some((w) => w.includes("2017年4月〜2022年3月") && w.includes("April 2017–March 2022"))).toBe(true);
   });
 
   it("builds its tables from what it includes", async () => {

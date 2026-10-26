@@ -109,6 +109,21 @@ export function DiffPanes({
 }
 
 /**
+ * Where a changed block sits. The columns show changed blocks only, so without
+ * this a reworded bullet in a 職務経歴書 cannot be placed under its employer
+ * without opening the document (#117). The employer line can be long; it is
+ * cut to one line here, with the whole of it on hover.
+ */
+function Location({ location }: { location: DiffChange["location"] }) {
+  const where = location.employer ? `${location.section} · ${location.employer}` : location.section;
+  return (
+    <span className="block truncate text-micro text-text-dimmer" title={where}>
+      {where}
+    </span>
+  );
+}
+
+/**
  * One side of the split view. Unchanged content renders identically in both
  * columns at full opacity — this is a document being read, not a patch being
  * applied.
@@ -139,7 +154,14 @@ function Column({
       <div className="flex-1 overflow-y-auto px-20 py-32">
         <div className="mx-auto w-measure max-w-full grid gap-14">
           {changes.map((change) => {
-            const absent = side === "current" ? change.currentBlockId === null : change.proposedBlockId === null;
+            const heading = change.target === "heading";
+            // A heading has no block id on either side; it is absent from the
+            // side its tokens never touch.
+            const absent = heading
+              ? !change.tokens.some((t) => t.op === "equal" || t.op === keep)
+              : side === "current"
+                ? change.currentBlockId === null
+                : change.proposedBlockId === null;
             const selected = change.changeId === selectedChangeId;
             if (absent) {
               return (
@@ -156,10 +178,19 @@ function Column({
               <p
                 key={change.changeId}
                 onClick={() => onSelect(change.changeId)}
-                className={`text-render-body text-text-body px-12 py-10 rounded-control cursor-pointer ${
+                className={`${
+                  heading
+                    ? "text-render-heading font-semibold uppercase tracking-heading text-text-dim"
+                    : "text-render-body text-text-body"
+                } px-12 py-10 rounded-control cursor-pointer ${
                   side === "current" ? "bg-remove-row" : "bg-add-row"
                 } ${selected ? "shadow-ring" : ""}`}
               >
+                {heading ? (
+                  <span className="block text-micro normal-case text-text-dimmer">Heading</span>
+                ) : (
+                  <Location location={change.location} />
+                )}
                 {change.tokens
                   .filter((token) => token.op === "equal" || token.op === keep)
                   .map((token, i) =>

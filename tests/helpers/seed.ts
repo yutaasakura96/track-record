@@ -8,7 +8,7 @@ import { createDb } from "~/server/db/client";
 import { eq, inArray } from "drizzle-orm";
 import { applicationDocuments, applicationSteps, applications, factFlags, facts, renders, users } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
-import type { SeededUser } from "./harness";
+import type { Client, SeededUser } from "./harness";
 
 const bindings = env as unknown as Bindings;
 
@@ -110,6 +110,7 @@ export const PROFILE_FIXTURE = {
 export const EMPLOYER_FIXTURE = {
   nameJa: "株式会社アオゾラ物流",
   nameLatin: "Aozora Logistics K.K.",
+  city: "Tokyo",
   industryJa: "運輸業",
   businessDescription: "中堅の国内向け物流事業者。",
   capitalYen: 50_000_000,
@@ -128,6 +129,17 @@ export const ROLE_FIXTURE = {
   endedOn: "2023-09-01",
 };
 
+/**
+ * A job an English résumé can head: the employer, which carries a city, and one
+ * titled role under it. Generation refuses a job without both (`docs/06`,
+ * 2026-10-22). Returns the employer's id.
+ */
+export async function postJob(client: Client, employer: Partial<typeof EMPLOYER_FIXTURE> = {}): Promise<string> {
+  const { id } = (await (await client.post("/api/employers", { ...EMPLOYER_FIXTURE, ...employer })).json()) as { id: string };
+  await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: id });
+  return id;
+}
+
 export const EDUCATION_FIXTURE = {
   institution: "Midorikawa Institute of Technology",
   institutionJa: "緑川工科大学",
@@ -145,6 +157,7 @@ export const CERTIFICATION_FIXTURE = {
   nameJa: "応用情報技術者試験",
   issuingOrganization: "情報処理推進機構",
   issuedOn: "2019-06-01",
+  kind: "technical" as const,
   technologies: ["SQL"],
 };
 

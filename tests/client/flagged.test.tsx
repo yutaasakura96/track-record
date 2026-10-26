@@ -14,7 +14,7 @@ import { mount, Refusal, type Routes } from "./harness";
 const item = (over: Partial<Omit<FlaggedItem, "fact">> & { fact?: Partial<FlaggedItem["fact"]> } = {}): FlaggedItem => ({
   id: "flg-test-1",
   kind: "number",
-  reason: "It states a number. Check the number against the passage it was read from.",
+  reason: "It states a number the passage it was read from does not. Check where the number came from.",
   explanation: null,
   checked: false,
   ...over,

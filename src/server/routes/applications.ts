@@ -56,6 +56,7 @@ import {
   type ClosedKind,
   type Standing,
 } from "~/shared/application";
+import { creditsExhaustedError } from "../services/model-credits";
 import { ModelUnavailableError, type ModelUsage, type PostingReading } from "~/model";
 import type { NamedVersion } from "~/shared/application-documents";
 import type { AppEnv } from "../env";
@@ -213,6 +214,8 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
       read = await c.get("model").readPosting(jobDescription, { onUsage: (u) => (usage = u) });
     } catch (err) {
       if (!(err instanceof ModelUnavailableError)) throw err;
+      const outOfCredits = creditsExhaustedError(err, "read_posting");
+      if (outOfCredits) throw outOfCredits;
       // A length and the failure. Never the text.
       console.log(JSON.stringify({ event: "posting_read_failed", characters: jobDescription.length }));
       throw new ApiError(

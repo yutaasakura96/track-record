@@ -66,7 +66,9 @@ users (Better Auth)
  │    ├── application_documents  0:N   (the documents chosen for it; taken off, never deleted)
  │    └── application_sent_copies 0:N  (each document as it was sent: the file, kept whole)
  ├── skill_curations             1:N   [M2]
- └── render_inclusions           1:N   [M2]
+ ├── render_inclusions           1:N   [M2]
+ ├── capture_prompt_dismissals   0:1   (the month Home's capture prompt was put away for)
+ └── career_gap_notes            0:N   (the ※ row explaining a gap in 学歴・職歴)
 ```
 
 PRD entities map as: **Profile** → `profiles`, **Employer** → `employers`, **Role** → `roles`,
@@ -170,13 +172,24 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `contact_postal_code` | text | yes | `null` | Required when the above is false |
 | `contact_address` | text | yes | `null` | " |
 | `contact_address_kana` | text | yes | `null` | " |
-| `photo` | bytea | yes | `null` | 写真. 30×40 mm conventionally |
+| `photo` | bytea | yes | `null` | 写真 (#117). A JPEG or PNG at 3:4, at least 300 × 400 and at most 2 MB, cropped in the browser; printed at 30 × 40 mm. Removable by the author |
 | `desired_role_note` | text | yes | `null` | 本人希望欄 |
+| `resume_headline` | text | yes | `null` | English résumé header, under the name (#108) |
+| `resume_city` | text | yes | `null` | " — printed `City, Country` |
+| `resume_country` | text | yes | `null` | " |
+| `resume_phone` | text | yes | `null` | " — **opt-in**, a number of its own; never filled from `phone` |
+| `resume_linkedin_url` | text | yes | `null` | " — stored with its scheme, printed without it |
+| `resume_github_url` | text | yes | `null` | " |
+| `resume_portfolio_url` | text | yes | `null` | " |
+| `paper_size` | `paper_size` enum (`a4`, `letter`) | no | `'a4'` | The English résumé's page (#107). Not PII; read by that render alone. A profile save that does not send it leaves it as it is |
 
 **Constraint:** `check (contact_same_as_address or (contact_postal_code is not null and contact_address is not null))`.
 
 **PII rule (enforced in code, not the schema):** `date_of_birth`, `phone`, `postal_code`,
 `address`, `contact_*` and `photo` are readable **only** by the 履歴書 render spec. Asserted by test.
+The `resume_*` columns are not on that list: they exist so the English résumé can carry a headline,
+a city, links and a phone without reading the 履歴書 PII, and only the English résumé prints them,
+each only when filled (decision log, 2026-10-18).
 
 ---
 
@@ -190,6 +203,7 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `name_latin` | text | yes | `null` | For the English résumé |
 | `business_description` | text | yes | `null` | 事業内容 — the 職務経歴書 paragraph |
 | `industry_ja` | text | yes | `null` | e.g. 小売業 — appears in the 履歴書 職歴 line |
+| `city` | text | yes | `null` | In English, e.g. `Tokyo`. The English résumé's job header prints it. Generation, the page and every download refuse when an included employer has none, or has no titled role; generation also refuses a value in Japanese script. Each message names the employer (#107, `docs/06` 2026-10-22) |
 | `capital_yen` | bigint | yes | `null` | **資本金**, in yen |
 | `headcount` | integer | yes | `null` | **従業員数** |
 | `employment_type` | employment_type | no | — | |
@@ -237,13 +251,13 @@ The only entity that uses the import pipeline.
 | `name` | text | no | |
 | `name_ja` | text | yes | |
 | `summary` | text | yes | One paragraph |
+| `summary_ja` | text | yes | The summary a Japanese document writes (#117). `null` = none: the Japanese prompts mark `summary` as English-only, to be written in Japanese or left out |
 | `started_on` | date | yes | |
 | `ended_on` | date | yes | |
 | `client_is_named` | boolean | no | Default `false`. Per-project override of the "client identity is not named" default |
 
-**The nullable `employer_id` is load-bearing.** The English résumé renders `PROJECTS` as a section
-separate from `PROFESSIONAL EXPERIENCE`; a model requiring every project to hang off an employer
-cannot render it.
+**The nullable `employer_id` is load-bearing.** The English résumé places independent projects in
+Projects, separate from Experience (`03` §6).
 
 **Index:** `(user_id, employer_id)`.
 
@@ -412,8 +426,9 @@ least one of `started_on` / `ended_on` is enforced in `credentials.ts`, not by t
 
 **`level` is nullable in the database and required by the API**, the same split `started_on` uses
 and for the same reason: a migration cannot classify rows that already exist. It exists because the
-English résumé register has to select rows below university level, and asking the model to classify
-a row by the institution's name is a question the record could not answer — `San Beda College
+English résumé has to exclude the two secondary levels while keeping vocational education
+(`src/shared/education.ts`), and asking the model to classify a row by the institution's name is a
+question the record could not answer — `San Beda College
 Alabang` survived a cut that `Westfield Science Oriented School` did not, on the word "College"
 alone. The enum is **stage-neutral rather than 中学校/高校/大学**, because most of this record's
 schooling is not Japanese; the 履歴書 register maps a rung to Japanese wording where Japanese
@@ -445,7 +460,8 @@ LinkedIn, minus two fields deliberately not adopted (see below).
 | `name_ja` | text | yes | e.g. 普通自動車第一種運転免許 |
 | `issuing_organization` | text | no | Required |
 | `issued_on` | date | yes | Month precision. Null is legal — some licences have no meaningful issue date |
-| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note |
+| `expires_on` | date | yes | Drives the overview tile's `1 expires Mar 2027` sub-note. The English résumé and the 履歴書 leave out a certification whose expiry month has passed |
+| `kind` | `certification_kind` enum (`technical`, `language`, `other`) | no | Where the English résumé puts it (#107): `technical` under Certifications, `language` on the Languages line, `other` (a driving licence) nowhere. Migration `0027` classified existing rows by name; `0028` moved driving licences to `other` and missed language tests to `language`, set any remaining null to `technical`, and made the column required (`docs/06`, 2026-10-22); `0030` moved to `language` the `technical` rows naming JLPT with its level attached (`JLPTN1`), which `0028` missed. The Japanese documents print every kind |
 | `credential_id` | text | yes | **Not rendered in v1.** For the author's own reference at renewal |
 | `credential_url` | text | yes | **Not rendered in v1.** Same |
 | `technologies` | text[] | no | Default `'{}'`. Feeds the **same** skill-candidate pool as `facts.technologies` |
@@ -537,7 +553,10 @@ different questions. Mixing them makes version history unreadable (decision log,
 
 ### 3.11 M2 tables
 
-**`skill_curations`** — `(user_id, skill_name, group_name, sort_order, is_stale)`. Candidates derive
+**`skill_curations`** — `(user_id, skill_name, group_name, group_name_ja, sort_order, is_stale)`.
+`group_name_ja` is the group's name in the 職務経歴書, optional and repeated on every row of the
+group as `group_name` is (#117); without it the prompt marks the English name for the model to write
+in Japanese. Candidates derive
 from the union of **`facts.technologies`** and **`certifications.technologies`**; the author selects
 and orders. A curated skill that no longer appears in either source is **flagged**, never removed
 (S9). There is exactly one candidate pool — nothing hand-authors a skill. Only accepted facts that
@@ -613,7 +632,7 @@ full order above, the document included.
 
 Why a fact is worth a look. Written when the fact is accepted by the importer, for `repeat`
 also when a later write makes a pair (`03` §5), and for `confidential` and `number` also when the
-author's edit of a claim gives it a confidential shape or a number (`07` §6) — never `number` on a
+author's edit of a claim gives it a confidential shape or an unsourced figure (`07` §6) — never `number` on a
 captured fact, which has no passage to check one against. **A flag gates nothing**: what keeps a fact out of a
 document is its own `disclosure` and `provenance`, which a flag only explains.
 
@@ -622,11 +641,11 @@ document is its own `disclosure` and `provenance`, which a flag only explains.
 | `id` | text | no | PK, `flg_…` |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `fact_id` | text | no | FK → `facts.id` **cascade** |
-| `kind` | fact_flag_kind | no | `confidential`: stored Private. `number`: the claim states one. `unsure`: the importer doubted it, graded it Generated, or gave no grade. `repeat`: it likely restates another fact at the same employer |
+| `kind` | fact_flag_kind | no | `confidential`: stored Private. `number`: the claim has a figure its quote does not support (`03` §4). `unsure`: the importer doubted it, graded it Generated, or gave no grade. `repeat`: it likely restates another fact at the same employer |
 | `reason` | text | no | **Always present.** One or two plain sentences. Names the kind of identifier found, never the identifier |
 | `explanation` | text | yes | What `Explain this` wrote. Null until it is pressed. Kept as written while the reason stands; cleared, with the token columns, when the reason is rewritten or a claim edit raises the flag again |
 | `input_tokens`, `output_tokens`, `cache_creation_input_tokens`, `cache_read_input_tokens` | integer | yes | What that one call cost. Null until then |
-| `checked_at` | timestamptz | yes | When the author marked it checked, when a `repeat` flag's pair went away, or when a claim edit removed the number or the confidential shape the flag was raised for. Null while it is on the list |
+| `checked_at` | timestamptz | yes | When the author marked it checked, when a `repeat` flag's pair went away, or when a claim edit removed the unsourced figure or the confidential shape the flag was raised for. Null while it is on the list |
 | `system_settled_at` | timestamptz | yes | Migration 0016. Set with `checked_at` when the system closes a `repeat` flag because its pair disappeared. Cleared when the pair returns or the author changes the check state. Null for deliberate author dismissal |
 
 **Unique:** `(fact_id, kind)`, so a fact carries at most one flag of a kind and a retried import
@@ -865,6 +884,39 @@ live rows.
   application. `down/0020_application_documents.sql` reverses it, and
   `tests/applications-migration.test.ts` runs both directions.
 
+### 3.18 `capture_prompt_dismissals` · migration 0029, 2026-10-22 (#116)
+
+One row per member at most: the month Home's monthly capture prompt was put away for. Not PII. It
+is kept on the member, not the browser, so it holds on every device, and it is its own table rather
+than a `profiles` column because a member with no profile is asked too, and must be able to answer.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `user_id` | text | no | — | Primary key; FK → `users.id`, `on delete cascade` |
+| `dismissed_on` | date | no | — | The month, day pinned to `01`. Written only by `POST /api/capture/prompt/dismiss`, which overwrites it |
+| `created_at`, `updated_at` | timestamptz | no | `now()` | |
+
+### 3.19 `career_gap_notes` · migration 0035, 2026-10-26 (#117)
+
+The author's explanation of a gap in the 履歴書's 学歴・職歴 chronology: the ※ row doda's convention
+puts under the 退社 line, `※2020年2月〜2020年6月　資格取得のため学習`. Record, not a fact: the
+author's own words about their own chronology, printed as typed, sent to no model but the two
+career stories' (`RenderSpec.careerGaps`), and in the export.
+
+| Column | Type | Null | Default | Notes |
+| --- | --- | --- | --- | --- |
+| `id` | text | no | — | `gap_…` |
+| `user_id` | text | no | — | FK → `users.id`, `on delete cascade` |
+| `from_on` | date | no | — | The gap's first uncovered month, day pinned to `01` |
+| `to_on` | date | no | — | Its last uncovered month. Check: `from_on <= to_on` |
+| `text` | text | no | — | At most 80 characters, enforced by the route |
+| `created_at`, `updated_at` | timestamptz | no | `now()` | |
+
+Unique on (`user_id`, `from_on`, `to_on`): a gap has one explanation, and writing it again replaces
+the text. Keyed by months rather than by the row above, because a gap may follow a job or a school.
+A note explains the gap whose months are **exactly** its own (§4); one whose gap has moved or closed
+is kept and printed nowhere.
+
 ---
 
 ## 4. The 履歴書 field contract
@@ -885,12 +937,15 @@ column feeds which cell.**
 |---|---|
 | Title `履 歴 書` (ideographic spaces) | Fixed |
 | Submission date (`YYYY年 M月 D日`, space after 年 and 月) | **Stamped at generation.** Not stored |
-| 写真 cell | `profiles.photo` — **anchored, 35.1 × 34.1 mm**, merged across identity rows 1–3 |
+| 写真 cell | `profiles.photo` — **inline, 30 × 40 mm, centred**, in the cell merged across identity rows 1–3 |
 
-The 写真 cell is a floating (`wp:anchor`) image, not an inline one, and it is nearly square rather
-than the conventional 30 × 40 mm. **The template ships with the cell empty.** Filling it is not text
-substitution — docxtemplater needs a separate image module — and that dependency has not been
-chosen. A 履歴書 render that omits the photo is a known gap, not a silent one.
+The template ships with the 写真 cell empty: a shaded cell, 2000 twips wide, holding one empty
+paragraph. With a photo, `src/render/rirekisho-photo.ts` puts it into that paragraph as an inline
+picture at the conventional 30 × 40 mm (#117, decision log 2026-10-25), with the image, its
+relationship and its content type added to the package. It is placed after the fill and before the
+pagination, because the cell then stands taller than the three rows it spans and the identity block
+grows by about 8 mm. Without a photo the cell is left empty, and the review footer and View say
+`写真欄は空欄です。必要な場合はWordで貼付してください`: a known gap, not a silent one.
 
 **Identity block** — a five-row table
 
@@ -931,16 +986,23 @@ chosen. A 履歴書 render that omits the photo is a known gap, not a silent one
 5. Per employer, chronological ascending: an **入社** row reading
    **`name_ja` + `industry_ja` + `<職種>として入社`**, where the 職種 is the `shokushu_ja` of the role
    held **on entry**, and `industry_ja` and the 職種 are each dropped when the record has none; and,
-   where `ended_on` is set, a **退社** row reading **`<leaving_reason_ja>` + employer + `を退社`** —
-   the reason comes **first**, not last. A record with **no `leaving_reason_ja` renders
-   `employer + を退社`** and no reason is supplied: `一身上の都合により` asserts a voluntary
+   where `ended_on` is set, a **退社** row reading **`<leaving_reason_ja>退社`** — 「一身上の都合により退社」,
+   with the employer not repeated, since the 入社 row names it. A reason the author ended in 退職 or
+   退社 loses that verb rather than doubling it. A record with **no `leaving_reason_ja` renders
+   `employer　退社`** and no reason is supplied: `一身上の都合により` asserts a voluntary
    departure, and asserting that about a contract that simply ended is a misstatement on a document
    that is signed
-6. **Centred** final row `以上` · **template furniture**
+6. When any employer has no `ended_on`, an undated **`現在に至る`** row after every dated one: the
+   chronology runs to today rather than stopping at the last 入社
+7. **Right-aligned** final row `以上` · **template furniture**
 
-**Rows 1, 2, 4 and 6 are in the template, not in the render.** `templates/rirekisho.blank.docx`
+**Rows 1, 2, 4 and 7 are in the template, not in the render.** `templates/rirekisho.blank.docx`
 carries the column headers, both centred bands and the closing 以上; `{#gakureki}` and `{#shokureki}`
-carry entries only. A render that emitted them would print them twice.
+carry entries, and `現在に至る`, which only the record can say is true. A render that emitted the
+furniture would print it twice.
+
+**The submission date reads `YYYY年 M月 D日現在`**, the 厚労省様式例's 「年　月　日現在」. The 現在 is
+template furniture beside the three date placeholders.
 
 **Parts within a row are joined with an ideographic space (U+3000).** The author's file is not
 perfectly consistent about this — two rows use an ASCII space and one omits the separator after a
@@ -951,9 +1013,9 @@ space sits visibly narrow beside the rest in `MS Mincho`.
 nowhere in the author's file; the third element of the 入社 row is the 職種.
 
 **The null-`started_on` rule is live here.** The English résumé cannot exercise it, because its
-register drops every entry below university level; 履歴書 is required to be complete, so the record's
-one such row reaches this table and contributes its closing row alone. The author's own file already
-opens 学歴 with a closing row that has no 入学 above it.
+assembly excludes this secondary-lower row (`src/shared/education.ts`); 履歴書 is required to be
+complete, so the record's one such row reaches this table and contributes its closing row alone.
+The author's own file already opens 学歴 with a closing row that has no 入学 above it.
 
 **Generation rules**
 
@@ -963,26 +1025,41 @@ opens 学歴 with a closing row that has no 入学 above it.
   fields, `date_of_birth`, `phone`, `postal_code` or `address` is missing. **The missing fields are
   named.** A 履歴書 missing conventional fields is worse than no 履歴書 at all (PRD §8).
 - An **unexplained gap** between consecutive 学歴・職歴 entries produces a **warning, not a block**.
-  The convention treats gaps as a defect.
+  The convention treats gaps as a defect. A gap is three or more months covered by no entry, and is
+  named by those months, Japanese then English: `2020年2月〜6月（5か月）`, `February–June 2020
+  (5 months)`. The warning is read from the record wherever the 履歴書 is shown — the review, View,
+  Home and the career timeline — not from the version (#117).
+- An **explained gap** does not warn. Its `career_gap_notes` row (§3.19) is printed as a row with
+  empty 年 and 月 cells: `※<from 年月>〜<to 年月>　<text>`, both years written. It goes under the
+  last row dated at or before the month the gap follows — in 職歴 under the 退社 row when a job
+  ended that month, otherwise in 学歴 under the closing row of the schooling that did. A note whose
+  months are not exactly a current gap's is not printed: its months would be untrue on a signed
+  document.
 
 **免許・資格 table** — column header `年` / `月` / `免許・資格` (**template furniture**), then rows
 ascending by date from **two** sources:
 
 - every `certifications` row, dated by `issued_on`. Rows with a null `issued_on` are omitted, because
-  the table is dated by construction
+  the table is dated by construction, and so are rows whose `expires_on` month is before the
+  submission month, by the English résumé's rule: the table lists what is held
 - every **finished vocational `educations` row** — `level = 'vocational'` with an `ended_on` and an
   outcome of `completed` or `graduated` — dated by `ended_on`. A completed non-degree programme is
   what the 履歴書 prints here rather than under 学歴 (`docs/06`, 2026-09-06), and the author's file
   does exactly that. The qualifier is *finished*: a vocational course left unfinished or still
   running stays in 学歴, because 免許・資格 is a list of things held
 
-**Every row ends in a verb.** The name alone is not a row. **`取得` is the default; `修了` is used
-for courses** — a completed course of study is 修了, an examination or licence is 取得. The two
-sources above are what makes that choice mechanical rather than a judgement: a `certifications` row
-takes 取得 and a vocational `educations` row takes 修了. The verb is
-composed by the render, not stored on `certifications` and not held in the template, which carries a
-single `{text}` per row exactly as the 学歴・職歴 table does. A render that emits bare names is the
-failure mode `docs/03` §12 describes: invisible to the author, obvious to a Japanese reader.
+**Every row ends in a verb.** The name alone is not a row. A vocational `educations` row takes
+**修了**. A `certifications` row takes **合格** when its name is an examination or a 検定 (試験,
+検定, 英検 or JLPT with its level) and **取得** for a licence, a score or a vendor certification;
+score-based tests such as Versant, TOEIC, IELTS and TOEFL remain 取得. A score (点, スコア) is 取得 even
+when the test calls itself an examination. A name that already ends in 合格, 取得 or 登録 is printed as given,
+with no second verb, and the form's 資格名 field asks for the name alone. `kind` cannot make this
+choice — technical / language / other does not separate an examination from a licence — and the
+name a Japanese reader sees can. The rule is `src/render/shikaku.ts`; the 職務経歴書's 保有資格 prints the
+same rows (`src/render/shokumu.ts`, #117). The verb is composed by the render, not stored on `certifications` or held in the
+template, which carries a single `{text}` per row exactly as the 学歴・職歴 table does. A render that
+emits bare names is the failure mode `docs/03` §12 describes: invisible to the author, obvious to a
+Japanese reader.
 
 **Prose blocks** — generated from facts, subject to the diff gate:
 `志望動機・特技・アピールポイントなど` and `本人希望欄` (seeded from `desired_role_note`).
@@ -996,17 +1073,24 @@ failure mode `docs/03` §12 describes: invisible to the author, obvious to a Jap
 - A4 portrait, 12.7 mm margins, five tables each exactly 9360 twips wide, `MS Mincho` / `MS Gothic`.
 - The three repeating tables each keep **one** loop row: `{#gakureki}`, `{#shokureki}`, `{#shikaku}`,
   every one of them `{year}` / `{month}` / `{text}`.
-- **Column layout is `fixed`, where the author's file was autofit.** This is the one deliberate
-  departure from the source: under autofit a long certification name widens the 年 and 月 columns
-  away from the widths the author's own document shows. Fixed layout is the more faithful choice
-  under substitution, not the less.
+- **Column layout is `fixed`, where the author's file was autofit.** Under autofit a long
+  certification name widens the 年 and 月 columns away from the widths the author's own document
+  shows. Fixed layout is the more faithful choice under substitution, not the less.
 - **The Worker loads it as a `Data` module**, not from a filesystem it does not have —
   `docs/03` §6.2 for the rule, which `wrangler.toml` and `vitest.config.ts` each state once.
 - **Render with `linebreaks: true` and generate with `compression: "DEFLATE"`.** PizZip stores by
   default, which yields a `.docx` around three times the necessary size that opens perfectly well
   and so never complains (`docs/06`, 2026-09-08).
-- The source document runs to two pages **with no explicit page break**, so the break falls wherever
-  the rows land. A render with a different row count breaks in a different place.
+- **Two fixed pages, as the 厚労省 様式例** (#117). The source document has no page break of its own,
+  and the template keeps none; `src/render/rirekisho-layout.ts` makes the break at fill time. Every
+  row is `cantSplit`, the two 年 / 月 header rows repeat on a new page (`tblHeader`), and every
+  paragraph has an exact line height of 1.3 times its size, which is Word's own spacing for MS Mincho
+  and holds whatever font Word substitutes. The filled document is then laid out and 学歴・職歴 is
+  padded with blank rows after 以上 until it runs three rows onto page 2, and the 志望動機 cell grows
+  into what page 2 has left. Page 1 is the identity block and 学歴・職歴 to the foot of the page;
+  page 2 opens with 学歴・職歴 continued under its header, then 免許・資格, 志望動機 and 本人希望欄.
+  A record too long for two pages runs on, unpadded. The in-app view does not draw the blank rows
+  (`src/render/sheet.ts`): the screen is not paged.
 
 ---
 
@@ -1081,11 +1165,12 @@ technologies: {AWS, VPC, IAM}
 | `renders` with a `job_description` | **Never deleted.** A tailored résumé no longer wanted is left. #60 kept it so: it belongs to an application, and an application is never deleted (decision log, 2026-10-11) |
 | `applications`, `application_steps` | **Never deleted.** An application no longer wanted is closed as withdrawn; a corrected date supersedes its row |
 | `interviews`, `interview_questions` | **Never deleted.** An entry or question the author removes is stamped `removed_at`; both remain in the export (#81) |
-| `interview_recordings` | **Removable by the author, and the only thing that is** (`06`, 2026-10-11). An upload's file is deleted from R2; the link and its label, or the file's name, size, type and length, are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
+| `interview_recordings` | **Removable by the author, and with the profile photo the only thing that is** (`06`, 2026-10-11). An upload's file is deleted from R2; the link and its label, or the file's name, size, type and length, are emptied for good; the row stays with `removed_at`, so its entry says one was removed |
 | `application_documents` | **Never deleted.** A document taken off an application is stamped `removed_at` |
 | `application_sent_copies` | **Never deleted, and the file never changed.** Undo of the move that froze a copy stamps `undone_at`; nothing reads it afterwards |
 | `employers` / `projects` with children | Deletion **blocked**. Explicit reassignment required |
-| `profiles.photo` | Deletable by the author. Nothing else expires |
+| `career_gap_notes` | Deletable by the author (`DELETE /api/gap-notes/:id`), as a role or an education is: hand-entered record, not evidence or history. The gap warns again |
+| `profiles.photo` | Deletable by the author (`DELETE /api/profile/photo`), set to `null` for good. A sent copy keeps the photo inside its stored file. Nothing else expires |
 | Anything | **No general soft-delete column.** Nothing in this schema is deleted in normal use, so a `deleted_at` on every table would be dead weight. The stamps that exist each record one named act: `superseded_at`, `removed_at`, `undone_at` |
 
 **Export (S15)** reads every table above except `sessions`, `accounts` and `interview_recordings`

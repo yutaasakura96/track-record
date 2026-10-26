@@ -19,12 +19,16 @@ import {
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  postJob,
   SECOND_EMAIL,
   seedAllowedUser,
   seedTailoredResume,
   uploadForm,
 } from "./helpers/seed";
+import { eq } from "drizzle-orm";
+import { applicationSentCopies } from "~/server/db/schema";
 import type { CandidateFact } from "~/model/types";
+import type { Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 
 interface Document {
@@ -57,6 +61,7 @@ interface Page {
   name: string;
   contact: string[];
   sections: { heading: string; blocks: { kind: string; text: string }[] }[];
+  sheet?: Sheet;
 }
 interface CopyPage {
   id: string;
@@ -89,6 +94,14 @@ let app: Harness;
 let user: SeededUser;
 let client: Client;
 let factId: string;
+let employerId: string;
+
+/** Every line of a sheet, tables included, in the file's order. */
+const sheetText = (sheet: Sheet | undefined) =>
+  (sheet?.blocks ?? [])
+    .flatMap((block) => (block.kind === "line" ? [block.line] : block.rows.flat().flatMap((cell) => cell.lines)))
+    .map((line) => line.text)
+    .join("\n");
 
 beforeEach(async () => {
   // Only `Date`: the database is real and its requests keep their real timers.
@@ -108,7 +121,7 @@ afterEach(() => {
 /** A profile, an employer, an education and one fact a document may use. */
 async function seedRecord(as: Client): Promise<string> {
   await as.put("/api/profile", PROFILE_FIXTURE);
-  await as.post("/api/employers", EMPLOYER_FIXTURE);
+  employerId = await postJob(as);
   await as.post("/api/educations", EDUCATION_FIXTURE);
   model.extractions = [[USABLE]];
   await as.request("/api/imports", { method: "POST", body: uploadForm(`# Notes\n\n${USABLE.quote}\n`) });
@@ -120,6 +133,9 @@ async function seedRecord(as: Client): Promise<string> {
 const content = (text: string, key = "experience", heading = "Experience", cites = factId): RenderContent => ({
   sections: [{ key, heading, blocks: [{ id: "blk_1", kind: "bullet", text, factIds: [cites] }] }],
 });
+
+/** A résumé's bullet, under the job it belongs to (issue #107). */
+const resumeContent = (text: string): RenderContent => content(text, `employer:${employerId}`, EMPLOYER_FIXTURE.nameLatin);
 
 /** Generates a document and accepts it, which makes its next version. */
 async function accept(ref: string, body: RenderContent, as: Client = client) {
@@ -193,7 +209,7 @@ describe("choosing the documents for a job", () => {
   });
 
   it("writes nothing when the same ticks are saved again", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     vi.setSystemTime(dayAfter(1));
     await choose(made.id, ["english_resume"]);
@@ -206,7 +222,7 @@ describe("choosing the documents for a job", () => {
   });
 
   it("takes a document off without touching the document, and unticking does the same", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     await accept("shokumu_keirekisho", content("夜間バッチを短縮。"));
     const made = await add();
     await choose(made.id, ["english_resume", "shokumu_keirekisho"]);
@@ -253,7 +269,7 @@ describe("a tailored résumé made from the application", () => {
     });
     expect(resume!.ref).toMatch(/^rnd_/);
 
-    await accept(resume!.ref, content("Ran telemetry ingestion for tide gauges."));
+    await accept(resume!.ref, resumeContent("Ran telemetry ingestion for tide gauges."));
     // The posting reaches generation as text to read; the facts are the record's own.
     expect(model.generationInputs.at(-1)!.spec.jobDescription).toBe(POSTING);
     expect(model.generationInputs.at(-1)!.facts.map((fact) => fact.id)).toEqual([factId]);
@@ -294,7 +310,7 @@ describe("a tailored résumé made from the application", () => {
   });
 
   it("sits beside the documents the record already has", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const carried = await seedTailoredResume(user, "Kestrel Freight");
     await choose(carried.applicationId, ["english_resume"]);
 
@@ -339,7 +355,7 @@ describe("moving to Applied", () => {
   });
 
   it("freezes on a move that skips Applied, and freezes nothing when no document is on it", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const withOne = await add();
     await choose(withOne.id, ["english_resume"]);
     // Straight to an interview, as saving an interview on one not yet applied does.
@@ -357,7 +373,7 @@ describe("moving to Applied", () => {
   });
 
   it("freezes when an interview entry is what takes it out of Not applied, and Undo takes that back", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
 
@@ -396,7 +412,7 @@ describe("moving to Applied", () => {
   });
 
   it("is not made when a document cannot be frozen, and says why", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     // The version cites a fact that may no longer reach a document.
@@ -413,7 +429,7 @@ describe("moving to Applied", () => {
 
 describe("a sent copy", () => {
   it("is the file as it was that day: a later version, a renamed author and a changed record do not reach it", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
     const made = await add();
     await choose(made.id, ["english_resume", "rirekisho"]);
@@ -428,7 +444,7 @@ describe("a sent copy", () => {
 
     // Weeks later: a new version of each, a new name and address, and a record that has moved on.
     vi.setSystemTime(dayAfter(40));
-    await accept("english_resume", content("Rebuilt the settlement run on a streaming platform."));
+    await accept("english_resume", resumeContent("Rebuilt the settlement run on a streaming platform."));
     await accept("rirekisho", content("新しい志望動機。", "motivation", "志望の動機"));
     await client.put("/api/profile", { ...PROFILE_FIXTURE, nameLatin: "Yosuke Hayashi", familyNameKanji: "林", address: "大阪府大阪市北区0-0-0" });
     await client.post("/api/educations", { ...EDUCATION_FIXTURE, institutionJa: "白波大学院大学", level: "postgraduate", startedOn: "2017-04-01", endedOn: "2019-03-01" });
@@ -448,27 +464,85 @@ describe("a sent copy", () => {
     expect(page).toMatchObject({ company: "Harrowgate Signals", title: "Main résumé", versionNo: 1, sentOn: dateAfter(0), language: "en" });
     expect(page.page.name).toBe("Yosuke Aoki");
     expect(page.page.contact).toEqual([PROFILE_FIXTURE.email]);
-    expect(page.page.sections).toEqual([
-      { heading: "Experience", blocks: [{ kind: "bullet", text: "Cut the nightly run to 90 minutes." }] },
-    ]);
+    // The résumé's page is the file's text: its job header and education are
+    // the record of that day, and the later education is not on it (issue #107).
+    const experience = page.page.sections.find((section) => section.heading === "Experience")!;
+    expect(experience.blocks).toContainEqual({ kind: "row", text: "Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024" });
+    expect(experience.blocks).toContainEqual({ kind: "bullet", text: "Cut the nightly run to 90 minutes." });
+    expect(page.page.sections.flatMap((section) => section.blocks).every((block) => !("factIds" in block))).toBe(true);
+    expect(JSON.stringify(page.page)).not.toContain("Rebuilt the settlement run");
+    expect(page.page.sections.find((section) => section.heading === "Education")!.blocks).toHaveLength(1);
 
     const form = await client.json<CopyPage>(`/api/applications/${made.id}/sent-copies/${rirekisho!.id}`);
     expect(form).toMatchObject({ title: "履歴書", language: "ja" });
     expect(form.page.name).toBe("青木　陽介");
     expect(form.page.contact.join("\n")).toContain("東京都渋谷区神宮前0-0-0");
     expect(form.page.sections.map((section) => section.heading)).toEqual(["学歴", "職歴", "志望の動機"]);
+    expect(form.page.sections.flatMap((section) => section.blocks).every((block) => !("factIds" in block))).toBe(true);
+    expect(form.page.sheet!.blocks.filter((block) => block.kind === "table").flatMap((table) => table.rows.flat()).every((cell) => !("factIds" in cell))).toBe(true);
     expect(JSON.stringify(form.page)).not.toContain("白波大学院大学");
     expect(JSON.stringify(form.page)).toContain("海事システムの保守経験を活かしたい。");
+    // The form as the file lays it out, read out of the file that was sent.
+    expect(sheetText(form.page.sheet)).toContain("履 歴 書");
+    expect(sheetText(form.page.sheet)).toContain("東京都渋谷区神宮前0-0-0");
+    expect(sheetText(form.page.sheet)).not.toContain("白波大学院大学");
 
     // And the application still names what was sent, not what is current.
     expect((await read(made.id)).sentCopies.map((copy) => copy.versionNo)).toEqual([1, 1]);
     expect((await listed(made.id)).documents.map((document) => document.versionNo)).toEqual([1, 1]);
   });
 
+  it("reads a 履歴書 stored before its page carried the form out of the file that was sent", async () => {
+    const made = await add();
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+    const url = `/api/applications/${made.id}/sent-copies/${copy!.id}`;
+    const current = await client.json<CopyPage>(url);
+
+    // What a copy stored before the form existed holds: the text alone, under the old title.
+    const { sheet: _sheet, ...text } = current.page;
+    await app.db.update(applicationSentCopies).set({ page: { ...text, title: "履歴書" } }).where(eq(applicationSentCopies.id, copy!.id));
+    // And the record moves on, which the stored file has not.
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, address: "大阪府大阪市北区0-0-0" });
+
+    const legacy = await client.json<CopyPage>(url);
+    expect(legacy.page.sheet).toEqual(current.page.sheet);
+    expect(sheetText(legacy.page.sheet)).toContain("履 歴 書");
+    expect(sheetText(legacy.page.sheet)).toContain("東京都渋谷区神宮前0-0-0");
+    expect(sheetText(legacy.page.sheet)).not.toContain("大阪府");
+  });
+
+  it("warns and logs only ids and error kind when a legacy copy's file cannot be read", async () => {
+    const made = await add();
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+    const url = `/api/applications/${made.id}/sent-copies/${copy!.id}`;
+    const current = await client.json<CopyPage>(url);
+    const { sheet: _sheet, ...text } = current.page;
+    await app.db.update(applicationSentCopies).set({ page: text, file: Buffer.from("unreadable") }).where(eq(applicationSentCopies.id, copy!.id));
+
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const response = await client.get(url);
+      expect(response.status).toBe(200);
+      const legacy = (await response.json()) as CopyPage;
+      expect(legacy.page).toMatchObject({ readFailure: "original_file_unreadable", sections: text.sections });
+      expect(legacy.page.sheet).toBeUndefined();
+      expect(log).toHaveBeenCalledOnce();
+      expect(JSON.parse(log.mock.calls[0]![0] as string)).toEqual({
+        event: "sent_copy_sheet_unreadable", userId: user.id, copyId: copy!.id, errorKind: "Error",
+      });
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("keeps the name it was sent under when the company is corrected later", async () => {
     const made = await add();
     const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
-    await accept(stored.documents[0]!.ref, content("Ran telemetry ingestion for tide gauges."));
+    await accept(stored.documents[0]!.ref, resumeContent("Ran telemetry ingestion for tide gauges."));
     await move(made.id, "applied");
 
     await client.patch(`/api/applications/${made.id}`, { company: "Harrowgate Signals Ltd" });
@@ -478,7 +552,7 @@ describe("a sent copy", () => {
   });
 
   it("is served as a .docx under the name it had, and has no route that changes it", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
@@ -486,7 +560,7 @@ describe("a sent copy", () => {
 
     const response = await client.get(`${path}/download`);
     expect(response.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     for (const method of ["PUT", "PATCH", "DELETE", "POST"]) {
       expect((await client.request(path, { method, body: "{}", headers: { "content-type": "application/json" } })).status).toBe(404);
@@ -495,7 +569,7 @@ describe("a sent copy", () => {
   });
 
   it("follows a correction of the Applied date when that move froze it", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     vi.setSystemTime(dayAfter(6));
@@ -512,7 +586,7 @@ describe("a sent copy", () => {
 
 describe("moving back, and undoing", () => {
   const applied = async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     const before = await read(made.id);
@@ -587,7 +661,7 @@ describe("moving back, and undoing", () => {
   it("freezes nothing when a move or an Undo arrives at Applied from a later step", async () => {
     const { made, after } = await applied();
     const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
-    await accept(stored.documents.find((document) => document.title.startsWith("Tailored"))!.ref, content("Ran telemetry ingestion for tide gauges."));
+    await accept(stored.documents.find((document) => document.title.startsWith("Tailored"))!.ref, resumeContent("Ran telemetry ingestion for tide gauges."));
 
     const passed = (await (await move(made.id, "resume_passed")).json()) as Detail;
     expect(passed.frozen).toEqual([]);
@@ -650,7 +724,7 @@ describe("moving back, and undoing", () => {
 
 describe("recording another sent copy", () => {
   it("is refused before Applied, where the move does the freezing", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     const refused = await record(made.id, ["english_resume"]);
     expect(refused.status).toBe(409);
@@ -658,7 +732,7 @@ describe("recording another sent copy", () => {
   });
 
   it("freezes each ticked document again, always, and the latest is the one most recently recorded", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     await move(made.id, "applied");
@@ -677,7 +751,7 @@ describe("recording another sent copy", () => {
 
     // A newer version, sent later still. The list names it; the page keeps all three.
     vi.setSystemTime(dayAfter(9));
-    await accept("english_resume", content("Rebuilt the settlement run on a streaming platform."));
+    await accept("english_resume", resumeContent("Rebuilt the settlement run on a streaming platform."));
     const third = (await (await record(made.id, ["english_resume"])).json()) as Detail;
     expect(third.sentCopies.map((copy) => copy.versionNo)).toEqual([2, 1, 1]);
     expect(await listed(made.id)).toEqual({ documents: [{ title: "Main résumé", versionNo: 2 }], sent: true });
@@ -693,7 +767,7 @@ describe("recording another sent copy", () => {
 
     const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
     const tailored = stored.documents[0]!.ref;
-    await accept(tailored, content("Ran telemetry ingestion for tide gauges."));
+    await accept(tailored, resumeContent("Ran telemetry ingestion for tide gauges."));
 
     const recorded = (await (await record(made.id, [tailored, "shokumu_keirekisho"])).json()) as Detail;
     expect(recorded.frozen).toEqual([
@@ -706,7 +780,7 @@ describe("recording another sent copy", () => {
     // The list names what was sent in document order, whichever was recorded last.
     vi.setSystemTime(dayAfter(1));
     await record(made.id, [tailored]);
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     vi.setSystemTime(dayAfter(2));
     await record(made.id, ["english_resume"]);
     expect((await listed(made.id)).documents.map((document) => document.title)).toEqual([
@@ -720,7 +794,7 @@ describe("recording another sent copy", () => {
   });
 
   it("refuses a document with no version, an unknown one, and another application's résumé", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await move(made.id, "applied");
     const elsewhere = await seedTailoredResume(user, "Kestrel Freight");
@@ -735,7 +809,7 @@ describe("recording another sent copy", () => {
 
 describe("another user's application", () => {
   it("is a 404 on every route here, and its sent copy is never served", async () => {
-    await accept("english_resume", content("Cut the nightly run to 90 minutes."));
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();
     await choose(made.id, ["english_resume"]);
     const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;

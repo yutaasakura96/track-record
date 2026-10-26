@@ -90,12 +90,15 @@ export interface RecordFact {
   employerId: string | null;
 }
 
-/**
- * `names` is every string that identifies this employer in a heading — 日本語
- * and Latin both, because a render writes whichever its language calls for.
- */
+/** What {@link resolveEmployer} reads of an employer: its id and the names it goes by. */
+export type EmployerNames = Pick<RecordEmployer, "id" | "names">;
+
 export interface RecordEmployer {
   id: string;
+  /**
+   * Every string that identifies this employer in a heading — 日本語 and Latin
+   * both, because a render writes whichever its language calls for.
+   */
   names: string[];
   /**
    * Every value this employer's copied rows may carry, from the entity lists
@@ -169,7 +172,7 @@ export const EXPERIENCE_SECTION = "experience";
  * legal name; a document writes whatever its layout has room for, and the two
  * differ by exactly this much.
  */
-const CORPORATE_FORM = /株式会社|有限会社|合同会社|\b(?:co|ltd|inc|corp|corporation|llc|k\.?k)\b\.?/gi;
+export const CORPORATE_FORM = /株式会社|有限会社|合同会社|\b(?:co|ltd|inc|corp|corporation|llc|k\.?k)\b\.?/gi;
 const SEPARATOR = /[.,—・()（）]/g;
 
 /**
@@ -198,7 +201,7 @@ interface Match {
  * lose to it. */
 function longestMatch(
   heading: string,
-  employers: readonly RecordEmployer[],
+  employers: readonly EmployerNames[],
   prepare: (value: string) => string,
 ): Match {
   const text = prepare(heading);
@@ -246,7 +249,7 @@ function longestMatch(
  * says it could not tell — which is why `unresolved-heading` is reported rather
  * than passed over.
  */
-export function resolveEmployer(heading: string, employers: readonly RecordEmployer[]): string | null {
+export function resolveEmployer<E extends EmployerNames>(heading: string, employers: readonly E[]): string | null {
   const exact = longestMatch(heading, employers, (value) => value.trim().toLowerCase());
   if (exact.tied) return null;
   if (exact.id !== null) return exact.id;

@@ -110,7 +110,8 @@ function History({ doc }: { doc: Doc }) {
           </span>
         )}
         {current ? (
-          <span className="ml-auto">
+          // A flex row: a submission document's download is two controls, its PDF and its Word file.
+          <span className="ml-auto flex items-center gap-10">
             <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={current.id} label="Download current" />
           </span>
         ) : null}
@@ -247,7 +248,17 @@ function VersionRow({
         ) : null}
       </div>
       <div className="ml-auto flex items-center gap-8">
-        {/* `?versionId=` serves any version, and a 履歴書 is `.docx` only —
+        {/* The current version is read without naming it, so the page follows
+            the document when a newer one is accepted (issue #106). */}
+        <Link
+          to="/renders/$ref/view"
+          params={{ ref: doc.ref }}
+          search={version.isCurrent ? {} : { version: version.id }}
+          className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+        >
+          View
+        </Link>
+        {/* `?versionId=` serves any version, in the formats its kind has —
             the download rules are the ones that already exist. */}
         <DownloadButton kind={doc.kind} docRef={doc.ref} versionId={version.id} label="Download" />
         {comparable ? (

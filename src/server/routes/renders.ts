@@ -7,7 +7,7 @@
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
  */
 import type { Hono } from "hono";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, getTableColumns, ne, sql } from "drizzle-orm";
 import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -16,6 +16,7 @@ import { collectRenderInputs, generateIntoProposal } from "../services/render";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
+  diffEmployers,
   proposalResponse,
   rationaleFor,
   regenerationReason,
@@ -30,9 +31,29 @@ import { EditRejected, citedFactIds, parseEditedContent, sameContent } from "~/r
 import { diffRenders } from "~/diff";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { toMarkdown } from "~/render/markdown";
+import { assembleResume, assertResumeSpecNames, ResumeAssemblyError, resumeMarkdown, resumeSentPage, validateResumeBounds, validateResumeEditShape } from "~/render/resume";
 import { DOCX_MIME } from "~/render/docx";
+import { PDF_MIME } from "~/render/resume-pdf";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
-import { buildDocumentFile, filenameFor, refuseWithheldCitations, renderIdentity } from "../services/document-file";
+import { rirekishoTemplateData } from "~/render/rirekisho";
+import { japaneseSentPage, rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
+import { fillRirekishoTemplate } from "~/render/rirekisho-template";
+import { assembleJapanese, japaneseMarkdown } from "~/render/japanese";
+import { attachment } from "../http/disposition";
+import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord, hasProfilePhoto } from "../services/rirekisho";
+import {
+  buildDocumentFile,
+  buildDocumentPage,
+  buildDocumentPdf,
+  collectJapaneseEmployers,
+  filenameFor,
+  PDF_KINDS,
+  refuseWithheldCitations,
+  renderIdentity,
+  resumeRefusal,
+} from "../services/document-file";
+import { factEvidence } from "../services/evidence";
+import { collectResumeRecord } from "../services/resume";
 import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
@@ -40,6 +61,7 @@ import {
   type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
+import { citedOnPage } from "~/shared/evidence";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
@@ -71,8 +93,12 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const waiting = await waitingProposalId(db, user.id, target);
     if (waiting) throw proposalWaiting(target, waiting);
 
+    // Every column but the photo, which no required field is and no
+    // generation request may carry.
+    const { photo: _photo, ...profileColumns } = getTableColumns(profiles);
+    void _photo;
     const [profile] = await db
-      .select()
+      .select(profileColumns)
       .from(profiles)
       .where(eq(profiles.userId, user.id))
       .limit(1);
@@ -90,6 +116,22 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
+    if (kind === "english_resume") {
+      try {
+        assertResumeSpecNames(inputs.spec);
+        assembleResume({
+          content: { sections: [] },
+          record: await collectResumeRecord(db, user.id),
+          identity: await renderIdentity(db, user.id),
+          today: tokyoToday(),
+        });
+      } catch (error) {
+        // A job header with a gap is named per job, with what each lacks, so
+        // the screen can link to the field rather than leave the author to find it.
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error, "precondition_failed", ["english_resume"]);
+        throw error;
+      }
+    }
     // The tool never silently produces an empty document, and the reason is
     // stated rather than left to the author to work out.
     if (inputs.facts.length === 0) {
@@ -105,8 +147,10 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // with a rule about gaps, because it is the only one required to be
     // complete: the English résumé's register drops entries by level. The
     // notice is unconditional and comes last, so a gap — which is about this
-    // record, and may not be there next time — is read first.
-    const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec) : [];
+    // record, and may not be there next time — is read first. The gaps are
+    // read from the rows the download prints, explanations included, so a
+    // gap the author has explained does not warn.
+    const warnings = kind === "rirekisho" ? rirekishoWarnings(await collectRirekishoRecord(db, user.id), { hasPhoto: await hasProfilePhoto(db, user.id) }) : [];
 
     const render = await ensureRender(db, user.id, target);
     const proposalId = newId("renderProposal");
@@ -225,8 +269,29 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const diff = diffRenders(current, proposed, {
       language: RENDER_LANGUAGE[render.kind as RenderKind],
       explain,
+      employers: await diffEmployers(db, user.id),
     });
-    return c.json(diff);
+    // A first version has nothing to be a diff against, so the screen shows the
+    // document itself. Sent only then: every other review reads the changes.
+    if (current) return c.json({ ...diff, preview: null });
+    const kind = render.kind as RenderKind;
+    const today = tokyoToday();
+    const page = kind === "rirekisho"
+      ? await rirekishoPreviewPage(db, user.id, proposed, today)
+      : kind === "english_resume"
+        ? await resumePreviewPage(db, user.id, proposed, today)
+        : kind === "shokumu_keirekisho" || kind === "career_story_ja"
+          ? japaneseSentPage(
+              assembleJapanese({
+                kind,
+                content: proposed,
+                identity: await renderIdentity(db, user.id),
+                today,
+                employers: await collectJapaneseEmployers(db, user.id),
+              }),
+            )
+          : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
+    return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
   });
 
   api.post("/api/proposals/:id/accept", async (c) => {
@@ -402,7 +467,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     const explain = await rationaleFor(db, user.id, beforeContent, afterContent);
 
     return c.json(
-      diffRenders(beforeContent, afterContent, { language: RENDER_LANGUAGE[kind], explain }),
+      diffRenders(beforeContent, afterContent, {
+        language: RENDER_LANGUAGE[kind],
+        explain,
+        employers: await diffEmployers(db, user.id),
+      }),
     );
   });
 
@@ -656,6 +725,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
       throw err;
     }
+    if (target.kind === "english_resume") {
+      const record = await collectResumeRecord(db, user.id);
+      try {
+        validateResumeEditShape(content, current.content as RenderContent);
+        validateResumeBounds(content, record.employers, current.content as RenderContent);
+      } catch (error) {
+        if (error instanceof Error) throw validationFailed(error.message, ["content"]);
+        throw error;
+      }
+    }
     if (sameContent(content, current.content as RenderContent)) {
       throw new ApiError("conflict", "That edit changes nothing.");
     }
@@ -718,13 +797,66 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     );
   });
 
+  /**
+   * One version to read on a screen (issue #106): the page its download would
+   * hold today, assembled from the same inputs and refused on the same facts
+   * (`409`, the ids named). Like the download, it is never stored, so a read
+   * after the profile changes shows the new contact line. A sent copy keeps
+   * its own page; this is not that.
+   */
+  api.get("/api/renders/:ref/page", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const target = await resolveRender(db, user.id, pathParam(c, "ref"));
+    const { kind, render } = target;
+
+    const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
+    if (!versionId) throw notFound("A version of that document");
+    const version = await requireVersion(db, user.id, target, versionId);
+    const page = await buildDocumentPage(db, user.id, kind, version);
+    // What stands behind each line (issue #110), looked up only once the page
+    // has passed the download's refusal.
+    const evidence = await factEvidence(db, user.id, citedOnPage(page), RENDER_LANGUAGE[kind]);
+    // Where it stands, for the header's one button: the row Home or the
+    // application would show for it, by the same query.
+    const state = await renderState(db, user.id);
+    const document = [...state.documents, ...state.tailored].find((row) => row.ref === target.ref)!;
+
+    return c.json({
+      renderKind: kind,
+      renderRef: target.ref,
+      title: target.title,
+      language: RENDER_LANGUAGE[kind],
+      tailored: target.jobDescription !== null,
+      applicationId: render?.applicationId ?? null,
+      document,
+      canGenerate: state.usableFacts > 0,
+      version: {
+        id: version.id,
+        versionNo: version.versionNo,
+        origin: version.origin,
+        acceptedAt: version.acceptedAt.toISOString(),
+        isCurrent: version.id === render?.currentVersionId,
+      },
+      page,
+      evidence,
+    });
+  });
+
   /** Assembled from the stored content on each request. NEVER stored. */
   api.get("/api/renders/:ref/download", async (c) => {
     const user = c.get("user");
     const db = c.get("db");
     const target = await resolveRender(db, user.id, pathParam(c, "ref"));
     const { kind, render } = target;
-    const format = c.req.query("format") === "md" ? "md" : "docx";
+    // `.docx` unless asked otherwise. The English résumé, the 履歴書 and the
+    // 職務経歴書 have a PDF, and the screen asks for it by default for each
+    // (issues #109, #117).
+    const asked = c.req.query("format");
+    const format = asked === "md" || asked === "pdf" ? asked : "docx";
+    if (format === "pdf" && !PDF_KINDS.includes(kind)) {
+      throw new ApiError("conflict", "Only the résumé, the 履歴書 and the 職務経歴書 are produced as a PDF.");
+    }
 
     const versionId = c.req.query("versionId") ?? render?.currentVersionId ?? null;
     if (!versionId) throw notFound("A version of that document");
@@ -744,19 +876,39 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       // is not a claim about a career, and an accepted version must not go stale
       // because a phone number changed (`src/render/identity.ts`).
       const identity = await renderIdentity(db, user.id);
-      return new Response(toMarkdown(content, RENDER_TITLE[kind], kind, identity, tokyoToday()), {
+      // The résumé's Markdown is the same document its `.docx` is (issue #107).
+      const today = tokyoToday();
+      let markdown: string;
+      try {
+        markdown = kind === "english_resume"
+          ? resumeMarkdown(
+              assembleResume({ content, record: await collectResumeRecord(db, user.id), identity, today }),
+            )
+          : kind === "shokumu_keirekisho" || kind === "career_story_ja"
+            ? japaneseMarkdown(
+                assembleJapanese({ kind, content, identity, today, employers: await collectJapaneseEmployers(db, user.id) }),
+              )
+            : toMarkdown(content, RENDER_TITLE[kind], kind, identity, today);
+      } catch (error) {
+        if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
+        throw error;
+      }
+      const names = filenameFor(kind, format, version, identity, today);
+      return new Response(markdown, {
         headers: {
           "content-type": "text/markdown; charset=utf-8",
-          "content-disposition": `attachment; filename="${filenameFor(render, kind, format, version)}"`,
+          "content-disposition": attachment(names.filename, names.asciiFilename),
         },
       });
     }
 
-    const file = await buildDocumentFile(db, user.id, kind, render, version);
+    const file = format === "pdf"
+      ? await buildDocumentPdf(db, user.id, kind, version)
+      : await buildDocumentFile(db, user.id, kind, version);
     return new Response(file.bytes as BodyInit, {
       headers: {
-        "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${file.filename}"`,
+        "content-type": format === "pdf" ? PDF_MIME : DOCX_MIME,
+        "content-disposition": attachment(file.filename, file.asciiFilename),
       },
     });
   });
@@ -996,6 +1148,37 @@ async function requireVersion(db: Db, userId: string, target: RenderRef, id: str
     .limit(1);
   if (!version) throw notFound("That version");
   return version;
+}
+
+/**
+ * A first 履歴書 read as its file lays it out, its 写真 included, as the
+ * document view reads a version (`../services/document-file`).
+ */
+async function rirekishoPreviewPage(db: Db, userId: string, content: RenderContent, today: string): Promise<SentPage> {
+  const data = rirekishoTemplateData({
+    profile: await collectRirekishoProfile(db, userId),
+    record: await collectRirekishoRecord(db, userId),
+    submittedOn: today,
+    content,
+  });
+  return rirekishoSentPage(data, content, fillRirekishoTemplate(data, await collectRirekishoPhoto(db, userId)));
+}
+
+/**
+ * A first English résumé read as its file lays it out, as the document view
+ * reads a version (`../services/document-file`): no title above the name, the
+ * headline set apart. A proposal that cannot be laid out is refused as a
+ * download of it would be.
+ */
+async function resumePreviewPage(db: Db, userId: string, content: RenderContent, today: string): Promise<SentPage> {
+  const record = await collectResumeRecord(db, userId);
+  const identity = await renderIdentity(db, userId);
+  try {
+    return resumeSentPage(assembleResume({ content, record, identity, today }));
+  } catch (error) {
+    if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
+    throw error;
+  }
 }
 
 /** The next version number for a render. Versions are numbered per render. */

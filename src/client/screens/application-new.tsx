@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { failureText, useCreateApplication, useReadPosting, type ApplicationFields } from "../api";
+import { creditsMessage, failureText, useCreateApplication, useReadPosting, type ApplicationFields } from "../api";
 import { ApplicationsFrame, CONTROL, JobFields, POSTING_LINK_LABEL } from "../components/application-chrome";
 import { ScreenIntro } from "../components/screen-intro";
 import { Button, Panel } from "../components/ui";
@@ -26,7 +26,7 @@ const CANCEL = "text-text-dim px-6 py-4 rounded-chip text-smaller hover:bg-borde
 const count = (n: number) => n.toLocaleString("en-US");
 
 /** How the last reading went, which is what the check step's `Next:` line says. */
-type Reading = { failed: true } | { failed: false; company: boolean; position: boolean };
+type Reading = { failed: true; note?: string } | { failed: false; company: boolean; position: boolean };
 
 function nextOf(reading: Reading | null) {
   if (!reading || reading.failed) return "type in the company and the position, then save.";
@@ -93,9 +93,9 @@ export function NewApplicationScreen() {
       const proposal = await read.mutateAsync(text);
       setFields((current) => ({ ...current, ...proposal }));
       setReading({ failed: false, company: proposal.company !== "", position: proposal.position !== "" });
-    } catch {
+    } catch (error) {
       setFields((current) => ({ ...current, company: "", position: "", requirements: [] }));
-      setReading({ failed: true });
+      setReading({ failed: true, note: creditsMessage(error) ?? undefined });
     }
     setStep("check");
   };
@@ -216,7 +216,7 @@ export function NewApplicationScreen() {
         <form ref={checkForm} onSubmit={(event) => void save(event)} className="grid gap-12">
           {reading?.failed ? (
             <p role="status" className="text-small text-text-secondary">
-              The job description could not be read just now. Type the fields in; your text is kept.
+              {reading.note ?? "The job description could not be read just now. Type the fields in; your text is kept."}
             </p>
           ) : null}
           <JobFields value={fields} onChange={edit} read />

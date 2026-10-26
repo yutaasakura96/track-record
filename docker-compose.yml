@@ -53,8 +53,14 @@ services:
       # naming either of ours would mean the proxy could not start until
       # `scripts/ensure-databases.mjs` had run.
       PG_CONNECTION_STRING: postgres://postgres:postgres@postgres:5432/postgres
-    # The image's start script with the per-endpoint rate limit raised; the
-    # script says why.
+      # At the default `info` the proxy writes about thirteen JSON lines per query,
+      # 393,477 in one suite run. Warnings and errors still reach `docker logs`.
+      RUST_LOG: warn
+      # The image exports traces to an OpenTelemetry collector on localhost:4318
+      # that does not exist, and logs an error for every failed batch.
+      OTEL_SDK_DISABLED: "true"
+    # The image's start script with the per-endpoint rate limit raised and its
+    # connection pool put to use; the script says why.
     volumes: ["./scripts/neon-proxy-start.sh:/app/start.sh:ro"]
     # The proxy opens a new connection to Postgres for every query's
     # authentication and closes it itself, so each one leaves a local port in

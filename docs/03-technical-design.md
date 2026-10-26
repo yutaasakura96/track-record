@@ -224,7 +224,11 @@ no `factIds` is legal only for headings and for the fixed scaffolding of 履歴�
 
 **Facts are sent plainly; register is applied by the spec.** The same fact renders as an
 action-verb bullet in the English résumé and in the flat factual voice 職務経歴書 expects. That is
-a prompt difference, not a data difference.
+a prompt difference, not a data difference. For English renders, Japanese free-text fields in the
+employer, project, education and certification lists are labelled for English wording or omission;
+names stay verbatim. Fact claims remain in their recorded language. For an English prompt, Japanese
+industry and project-summary copies are omitted from facts' contextual JSON; the labelled employer
+and project lists still carry those fields.
 
 **Never sent to the model:** source documents during *generation* (only during extraction), and any
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
@@ -269,12 +273,33 @@ resumes rather than restarts, and a failed step retries without redoing the othe
 **Step 9 accepts every fact that reaches it** (decided 2026-10-08, #57). Nothing waits as a
 candidate and nothing is rejected by the pipeline. Step 6 is the one place a candidate is not kept,
 and it is not a judgement about the claim: a quote that is not in the document is the invented fact
-§4.1 exists to keep out. A fact is flagged when it is confidential, when its claim states a number,
-when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
+§4.1 exists to keep out. A fact is flagged when it is confidential, when its claim states a number its
+quote does not, when the importer was unsure of it or graded it Generated, and when it likely repeats another. A
 flag is a row with a reason (`04` §3.13); it gates nothing.
 
-**A number** is any digit in the claim once the technologies the fact names are taken out, so that
-`S3` and `Java 17` flag nothing, or a kanji figure with its counter (三割, 五名).
+**A number** is a figure as the flag reads one (`unsourcedNumber`, `src/pipeline/flags.ts`, with
+patterns of its own so the career record's bolding is unchanged): a year followed by a word or a
+counter (`2023 tickets`) is a quantity, a number keeps its scale (`five hundred`, `$2.5M`, `10k`),
+each end of a range counts (`30-40%`), and a compound's next word is its noun (`5-person`); but
+not a year alone, a digit inside a word or after a word and a hyphen (`COVID-19`), a version or
+address, or a technology's own digits, so `in 2023`, `S3` and `Java 17` flag nothing; a kanji figure with its counter (三割, 五名) counts. It
+is flagged unless the quote holds the same complete quantity: the same number on its own (`1,200`
+and `１２００` match `1200`; `140` does not match `40`, nor `5` the `5` of `one in 5` or `$5`), the same
+scale or none (`5 million` is not `5`), and the same unit or counter with an immediately attached
+rate or comparison (`3カ月` is not `3カ国`, `5` is not `5%`, `5 users per month` is not
+`5 users per year`). A plain descriptive word from a short list (`active`, `senior`)
+may be inserted within the phrase on either side (`5 million active users` sources `5 million users`);
+a word that changes the quantity never does. Any other word before the unit may stand in the claim
+only when the passage uses it as a whole word (`5 clinic reports` from a passage about the clinic's
+5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`); a percentage's
+`of` reads through determiners to its unit and attached rate (`5% of all clinic reports` is not
+`5% of all clinic revenue`).
+A predicate after the unit does not change the quantity, and with no unit the first word after the
+number stands for one and the clause after it is not compared (`a team of 5 shipped the app` sources
+`a team of 5 shipped the mobile app`). A ratio (`one in 5`, `3 out of 5`, `2/5`) is
+one figure, and neither of its numbers sources a plain count; a year after `in` dates a count and is
+no denominator (`top 3 in 2022` sources `top 3`). It is also
+flagged when there is no quote (issue #115).
 
 **Facts imported before this still wait as candidates.** `POST /api/facts/sort` grades them through
 `gradeFacts`, twenty-five to a call, accepts them and writes the same flags; the client asks
@@ -432,15 +457,49 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 ## 6. The render pipeline
 
 ```
-generate → RenderContent → stored as a PROPOSAL (never as the current version)
-         → diff(current, proposed) → split-view review
-         → accept  → new version, dated, retained forever
-         → reject  → dismissed proposal, retained but NOT in version history
+queued proposal → generate → RenderContent → language check (English or Japanese) → ready proposal
+                → diff(current, proposed) → split-view review
+                → accept  → new version, dated, retained forever
+                → reject  → dismissed proposal, retained but NOT in version history
 ```
 
+An English output whose headings or blocks exceed the 5% Japanese-script limit (excluding names
+held only in Japanese), or whose checked record-name mentions differ, is generated once more. If
+the second attempt also fails, the proposal is marked failed with a plain reason and no content is
+offered for review (`src/render/language.ts`).
+
+A Japanese output is held to its own check the same way (`src/render/japanese.ts`). 御社 anywhere,
+or a heading or block in English, is a defect: generated once more, then refused with a plain
+reason. Each physical line of a heading or block is checked separately. A line is English when it
+has no kana or kanji and something Latin is left once the record's own Latin terms are taken out
+(names, titles held, qualifications, technologies and curated skills, but not a skill group's name;
+terms joined only by and, or, &, /, a comma, ・ or 、 go out together with what joins them),
+or when one statement inside it is an English sentence: three or more Latin words carrying an
+English function word when the statement has no kana or kanji, or, beside kana or kanji, a run
+between them and brackets (full-width or half-width) of at least five Latin words carrying at least
+two function words. Thus 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a
+Japanese project name does not. A 職務経歴書 is checked as assembled, with the record's own 保有資格
+and 学歴 rows in place of the model's. Those rows are checked once before any model call, since no
+attempt can change them: one that fails refuses the proposal with a reason naming its section and
+row and the record entry to correct. The rest are advisories in the review footer and never block: 貴社
+outside the 履歴書's 本人希望欄, full-width digits, a 職務経歴書 bullet over 120 characters, and a 職務経歴
+bullet ending in です・ます.
+
+The name check requires a recorded employer name as a whole word in each named résumé experience
+heading, a school name in each education row, and an independent project name in each project row.
+Each keyed career-story chapter must contain its recorded employer name. Generic section titles do
+not require a name. The check also rejects near-miss spellings in headings and rows, including a
+longer name that contains another recorded name.
+Prose checks longer names in name-like context; names shorter than six characters are checked
+only immediately after `joined`, `at`, `for`, `with`, `left` or `from`. Ordinary prose words are
+left alone. A `Date` label followed by a year, date or date range is not treated as a misspelling
+of a short name such as `Data`.
+
 Accept is **all-or-nothing** (decision log, 2026-08-12). `.docx` is assembled from the stored
-`RenderContent` **on download**, never stored. Markdown is generated from the same structure for
-on-screen reading.
+`RenderContent` **on download**, never stored. The document reader uses the same inputs as that
+version's download to assemble its page without building the file (`10` Screen 17), except a
+履歴書's: its template is filled and the page's form read back out of the filled file
+(`src/render/sheet.ts`), so the screen cannot set out a form the file does not.
 
 **A tailored résumé runs through this pipeline unchanged** (2026-10-08, #57). It is a `renders` row
 of kind `english_resume` carrying a job description, addressed by its own id where a main document
@@ -449,6 +508,24 @@ edit, restore and download are the routes every document has. It is given exactl
 main résumé is given. The job description is printed in the prompt between tags, named as text to
 read and not a source of facts, with the rule that a skill the job asks for and no fact states is
 not written.
+
+**The English résumé is laid out from the record, and the model writes only its summary and bullets**
+(#107). A generation requires a nonempty model-written `summary` section; output without it is
+refused. A version stores that section and one section of bullets per employer, keyed
+`employer:<id>` like a story's chapters, plus `project:<id>` for an independent project. On download
+`src/render/resume.ts` joins them by id to what the record holds today: each job's company, city,
+`Mon YYYY – Present` dates and every title held there, the skills curation, the education past
+secondary school (a vocational programme and a row with no level included, by the rule in
+`src/shared/education.ts`), the current technical certifications and a Languages line. The
+`.docx` (`src/render/resume-docx.ts`), the PDF (`src/render/resume-pdf.ts`, §6.3), the Markdown and
+a sent copy's page are written from that one assembled document. The per-employer bullet budget is computed from the record and printed in the
+prompt. Before the model call, every employer, project and education name in the generation spec
+must contain a Latin letter and no non-Latin letters; this includes entries the file later omits.
+Assembly also refuses Japanese script in any printed field and names with non-Latin letters. A
+version from before #107 may hold a heading-led `experience` section; when present, its groups are
+joined to employers by the attribution check's name resolution. A group naming no included employer
+prevents download instead of printing a model-written job heading. Legacy versions remain editable
+under their stored section shape, including versions without an `experience` section.
 
 **The master document is not in this pipeline.** `GET /api/master-document` reads the record in one
 batch and groups it (employer, then project, then fact); no model is called, nothing is stored and
@@ -461,13 +538,34 @@ changes no claim (#59).
 
 Two passes, because one pass is unreadable:
 
-1. **Align paragraphs** between the current and proposed versions by similarity, not by position.
-   Unmatched blocks are genuine additions or removals. Without this, a single inserted sentence
-   shifts everything after it and the whole document reads as changed.
+1. **Align blocks** between the current and proposed versions by similarity within each group, not
+   by position. In an `experience` section, opening paragraphs establish employer groups by identity
+   before blocks within them are compared. Unmatched blocks are genuine additions or removals.
+   Without alignment, a single inserted sentence shifts everything after it and the whole document
+   reads as changed.
 2. **Diff tokens inside each matched pair** using jsdiff `diffArrays` — Myers, the same algorithm
-   git uses, at word granularity instead of line granularity.
+   git uses, at word or phrase granularity instead of line granularity.
+
+Visible section headings are compared by section key before that section's blocks. A changed,
+added or removed heading becomes its own change; headings of sections with no blocks are omitted.
 
 **Tokens:** words and punctuation for English; **BudouX phrases** for Japanese.
+
+**Alignment keys:** English blocks are compared on the same words. Japanese blocks are compared on
+**character bigrams**, not phrases: a phrase carries its particle, so a short bullet that changes one
+particle loses half its phrase matches and would show as a whole line out and another in. One Jaccard
+threshold, 0.4, serves both (decision log 2026-10-25). What is shown stays phrases.
+
+**Alignment scope:** a block pairs only with a block in the same employer group. In an `experience`
+section the opening paragraphs pair when they name the same company: the record employer each
+resolves to, as `resolveEmployer` reads an attribution heading, or, where the record matches none,
+the name written before the period (NFKC, corporate form dropped, cut at a bracket, separator or
+the period's first digit, so a digit inside the name stays in it; decision log 2026-10-26). Each pair of groups aligns its own rows and bullets; any other section is one group. A block
+moved to another employer is a removal and an addition.
+
+**Location:** each change carries its section heading. An `experience` block also carries its
+employer group's opening paragraph, except when the changed block is that opening paragraph itself.
+Heading changes and blocks outside an employer group carry no employer line.
 
 Verified end to end on the author's real 職務経歴書 prose:
 
@@ -478,8 +576,9 @@ DX推進に従事し、レイテンシを[-40%削減しました。][+55%削減�
 
 Marks land on phrase spans. A changed figure is one phrase replaced, not a scatter of characters.
 
-**Every change must carry a rationale** (`10-screen-specifications.md`): the `factIds` on each block
-resolve to the facts and source passages behind it. A change with no explanation is a defect.
+**Every change must carry a rationale** (`10-screen-specifications.md`): block changes use their
+`factIds` to explain the supporting facts or removal; heading changes explain that the heading is
+written with its section and has no fact to cite. A change with no explanation is a defect.
 
 ### 6.2 How the 履歴書 template reaches the runtime
 
@@ -500,10 +599,110 @@ which would also pull in bindings the suite deliberately replaces. So `vitest.co
 `modulesRules: [{ type: "Data", include: ["**/*.docx"], fallthrough: true }]`. Without it Vite tries
 to parse the `.docx` as JavaScript and the import fails before workerd sees it.
 
-`src/render/rirekisho-template.ts` is the whole of the seam: the `ArrayBuffer`, the placeholder
-shape, and one `fillRirekishoTemplate()` that renders with `linebreaks: true` and generates with
-`compression: "DEFLATE"`. Deriving the rows that go into it is the render's job and
-`docs/04` §4 is their contract.
+`src/render/rirekisho-template.ts` owns the `ArrayBuffer`, placeholder shape and
+`fillRirekishoTemplate()`; it calls `src/render/rirekisho-layout.ts` before and after the fill.
+`docs/04` §4 owns the template and page-layout contract. Deriving the rows remains the render's job.
+
+### 6.3 The English résumé's PDF
+
+**PDF is the résumé's default download, Word the second** (#109, `06` 2026-10-22). The 履歴書 and
+the 職務経歴書 have one too since #117 (§6.4); the two stories do not, and `?format=pdf` on either is
+`409`. Like the `.docx` it is assembled on each request from the same assembled document and never
+stored; a sent copy keeps the `.docx`.
+
+**Built with `pdf-lib` and `@pdf-lib/fontkit`**, pure JavaScript with no filesystem, canvas or
+browser. The suite builds and reads back every PDF inside workerd (`tests/resume-pdf.test.ts`,
+`tests/resume-download.test.ts`), which is the proof that it runs where the route runs.
+
+**Set from the `.docx`'s numbers, not a copy of them.** `src/render/resume-docx.ts` exports the page
+sizes, margin, sizes, colours, line pitch, paragraph spacing, bullet indent and rule, and the PDF
+lays out lines and pages itself from those: wrapping at spaces and splitting an oversized token at
+character boundaries without adding a hyphen or losing text, dates right-aligned on the first line,
+keep-with-next chains reserving the whole following block when it has three lines or fewer or its
+first two lines when it can split, paragraphs of three lines or fewer kept whole, and the larger of
+one paragraph's space-after and the next one's
+space-before, as Word does. Checked against Word 16.114's own PDF of the same `.docx`: the same
+line breaks, the same page break, every baseline within 0.2 pt.
+
+**Carlito, embedded whole.** `templates/fonts/` holds Carlito Regular, Bold and Italic (SIL OFL 1.1,
+`OFL.txt` beside them), imported as `Data` modules like the 履歴書 template (§6.2; a `**/*.ttf` rule in
+`wrangler.toml` and in `vitest.config.ts`). Carlito is metric-compatible with the `.docx`'s Calibri,
+so lines break in the same places, and it covers every Latin letter a name can hold. They are not
+subset: `pdf-lib`'s subsets drew most letters as nothing in Preview and Quick Look. A file is about
+0.9 MB. Ligatures are off, as Word leaves them. There is no fallback font: a character Carlito has no glyph for (a ✓, a ★,
+an emoji) refuses the PDF with `409`, naming the character and where it sits and pointing to the
+Word file, rather than drawing a blank the `.docx` would print.
+
+**Tagged, so the text copies in reading order.** The content is drawn top to bottom, and the file
+carries a structure tree (`Document` › `H1` name, `P`, `H2` headings, `L` › `LI` › `Lbl`/`LBody`
+bullets; the heading rules are artifacts). Without it Preview's copy took the right-aligned dates for
+a second column and gave them back after each job's bullets. The structure tree is
+`src/render/pdf-tags.ts`, shared with the Japanese PDFs.
+
+### 6.4 The Japanese documents: typography, PDFs and file names
+
+#117 (`06` 2026-10-25). The 職務経歴書 and the Japanese story left the generic `toDocx` for their own
+renderer, and the 履歴書 and the 職務経歴書 download as a PDF by default, with Word beside it. The
+English story still takes `toDocx`.
+
+**One document, four outputs.** `src/render/japanese.ts` assembles the 職務経歴書 or the story from
+the version and the record; the `.docx` (`src/render/japanese-docx.ts`), the PDF
+(`src/render/japanese-pdf.ts`), the Markdown and the page on the screen are all set from it. Its one
+addition to the content is **each employer's header, from the record**. A 職務経歴 group still opens
+with one paragraph (§4.2), which the register now asks to be the employer's name and nothing else;
+the paragraph is joined to an employer by the attribution check's name resolution and printed as a
+header: 会社名 in bold, 雇用形態 beside it, the period at the right margin, and the roles held there
+on the line under it, all as the record holds them on the day of the download. A version written
+before #117, whose opener also carries a period and roles in the model's words, resolves the same
+way. A paragraph naming no employer prints as written. The 職務経歴書's 作成日 reads
+`2026年10月23日現在` (`src/render/identity.ts`).
+
+**Typography.** Every run names BIZ UDPGothic for its ASCII, high-ANSI, East Asian and
+complex-script text and is marked `ja-JP`; `word/fontTable.xml` carries an entry for the face (its
+Japanese name, character set 80, a sans-serif PANOSE) for a Word without it to substitute by, and no
+part names Times New Roman. Headings are black, bold, 12 pt, over a 0.75 pt rule; the body is
+10.5 pt on A4 with 20 mm margins; every line height is exact (1.5 × the size), so Word and the PDF
+break lines and pages from the same numbers. Bullets are `・` with a one-character hang.
+
+**The faces.** `templates/fonts/` holds BIZ UDPGothic Regular and Bold and BIZ UDMincho Regular
+(Morisawa, SIL OFL 1.1, `OFL-BIZUDPGothic.txt` and `OFL-BIZUDMincho.txt` beside them), `Data`
+modules by the same `**/*.ttf` rule as Carlito. Each is cut down from the published face by
+`scripts/build-japanese-fonts.py`: the CP932 repertoire (JIS X 0208 with the NEC and IBM extensions,
+so 髙 and 﨑 are kept) plus the Latin, punctuation and symbol blocks, no hinting, and no GSUB, GPOS or
+vertical metrics. Whole, the three would have taken the Worker past its 10 MiB limit; cut, the
+Worker is 7.6 MiB gzipped.
+
+**A face is cut again for each file** (`src/render/font-subset.ts`). `pdf-lib`'s own subsetting draws
+these faces blank in Preview, Quick Look and Ghostscript, as it drew Carlito. Instead every glyph
+keeps its id and the outline of each one the page does not draw is emptied, so `cmap`, the widths
+and `pdf-lib`'s layout are untouched and only the needed outlines travel. A two-page 職務経歴書 is
+about 200 KB; a 履歴書 about 300 KB. A character the face does not hold refuses the PDF with `409`,
+naming it and where it sits, as the résumé's does; the Word file still prints it.
+
+**Japanese line breaking** (`src/render/pdf-text.ts`). A line may break between any two Japanese
+characters except where 禁則 forbids it (never before `、。」` or a small kana, never after `「（`);
+a run of Latin letters and digits is a word and is kept whole.
+
+**The 職務経歴書's PDF** is laid out as the résumé's is: exact line heights, keep-with-next chains,
+three-line paragraphs kept whole, the larger of space-after and space-before. It is tagged
+(`H1` title, `H2` headings, `H3` each employer's header, `L` › `LI` bullets), and the period is drawn
+after its company, so copied text reads `会社名 雇用形態 期間`.
+
+**The 履歴書's PDF is drawn from its filled `.docx`** (`src/render/rirekisho-pdf.ts`), the same bytes
+the Word download hands over and the screen reads its form out of (`src/render/sheet.ts`). It reads
+the grid, row height rules, spans, vertical merges, borders, fills, vertical alignment, paragraph
+alignment and spacing, run sizes and weights, and a picture in a cell, and places rows as Word does:
+a row that does not fit starts the next page, which repeats the table's 年 / 月 header row as an
+artifact. MS Mincho is drawn in BIZ UDMincho, fixed-pitch as MS Mincho is, so a cell wraps where the
+layout model (`src/render/rirekisho-layout.ts`) counts it; MS Gothic in BIZ UDPGothic; bold Mincho,
+which has no bold face here, is stroked as Word emboldens it. It is tagged as a table of rows of
+cells in reading order.
+
+**File names** are `履歴書_森山健二_20261023.pdf`: the document, the author's kanji name, and the
+day it is built, which is the date it prints. The header carries it as RFC 6266 `filename*`, with an
+ASCII `rirekisho_Kenji-Moriyama_20261023.pdf` beside it (`src/server/http/disposition.ts`, shared
+with recordings). The Japanese story and the Markdown downloads follow the same pattern; the English
+story keeps its old name. A sent copy keeps the name it was stored under.
 
 ---
 
@@ -536,7 +735,8 @@ facts.
 
 **The author's own PII** — home address, phone, date of birth — is a **per-render field rule**, not
 a disclosure tier. It populates 履歴書 and appears in no other render. This is enforced in the
-render spec, not by fact disclosure.
+render spec, not by fact disclosure. The English résumé may use only its separate, opt-in
+`resume_phone` field; it never reads the 履歴書 `phone` (`docs/04` §3.2).
 
 ---
 
@@ -579,11 +779,13 @@ that filtering is asserted by test — not by convention.
 
 ## 9. Error handling
 
-**The governing rule: a failure never destroys or mutates a stored version.**
+**The governing rule: a failure never destroys stored content or overwrites an accepted render;
+retryable import and proposal failures record their status.**
 
 | Failure | What the author sees | What is logged |
 |---|---|---|
 | Model unavailable / unusable response | Stated reason + retry. Current version untouched and readable | Provider, status, workflow step, chunk index. **No content** |
+| Model credits exhausted | Plain pause reason + retry; import and proposal keep retryable `failed` states (`07` §5, §7). Accepted render untouched | `model_credits_exhausted` with step, and import identifiers (`12` §9). **No content** |
 | Import extracts zero facts | Reported as an extraction *failure*, document retained. Retry or capture manually | Document ID, byte size, chunk count |
 | Deduplication drops every candidate of a re-import | Zero new candidates, reported as a success with the number of repeats. **Not** the zero-facts failure above | Count only, per import |
 | Quote verification rejects a candidate | Nothing — silently discarded | Count only, per import |
@@ -695,7 +897,8 @@ quick capture, version history UI, conflict detection, per-render inclusion rule
 **Not built at all in v1:** multi-user features, LinkedIn, the portfolio site.
 Application tracking stood in this list until 2026-10-11, when it came into scope (#60, decision
 log; `02` §3a). Its technical design is written by the issues that build it, #70 to #77; a phone
-layout exists for its screens and, from #95, for Quick capture only.
+layout exists for its screens and, from #95, for Quick capture. The document reader also opens at
+phone width (`10` Screen 17).
 
 The responsive boundary is specified in `10` Responsive behaviour. The desktop panes are built
 **fluid** (no fixed page widths, panes flex).

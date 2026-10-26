@@ -8,9 +8,10 @@
  * All fixtures are invented.
  */
 import { describe, expect, it } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import type { Proposal, RenderDiff } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
+import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 
 const PROPOSAL = "prop-test-1";
 
@@ -41,7 +42,9 @@ const DIFF: RenderDiff = {
   changes: [
     {
       changeId: "chg-test-1",
+      target: "block",
       sectionKey: "experience",
+      location: { section: "Experience", employer: "Zentrel Works · Engineer" },
       currentBlockId: "blk-test-1",
       proposedBlockId: "blk-test-2",
       tokens: [
@@ -53,6 +56,26 @@ const DIFF: RenderDiff = {
       rationale: { kind: "fact_changed", text: "A fact was edited.", factIds: ["f-test-1"] },
     },
   ],
+};
+
+const FIRST_DIFF = {
+  additions: 3,
+  removals: 0,
+  changes: [],
+  preview: {
+    title: "Résumé (English)",
+    page: {
+      stamp: null,
+      name: "Mika Tanaka",
+      contact: ["mika@example.invalid"],
+      sections: [
+        {
+          heading: "Experience",
+          blocks: [{ kind: "paragraph", text: "Cut the zentrel batch to nine minutes." }],
+        },
+      ],
+    },
+  },
 };
 
 const open = (p: Proposal, routes: Routes = {}) =>
@@ -120,6 +143,13 @@ describe("a pending proposal", () => {
 
     expect(await screen.findByText("Change 1 of 1")).toBeTruthy();
     expect(screen.getByText("A fact was edited.")).toBeTruthy();
+  });
+
+  it("places each change under its section and employer, on both sides", async () => {
+    open(proposal());
+
+    await screen.findByText("Change 1 of 1");
+    expect(screen.getAllByText("Experience · Zentrel Works · Engineer")).toHaveLength(2);
   });
 });
 
@@ -239,5 +269,194 @@ describe("the other states", () => {
 
     expect(await screen.findByText("履歴書")).toBeTruthy();
     expect(screen.queryByText("Résumé (English)")).toBeNull();
+  });
+});
+
+describe("a heading change", () => {
+  it("is selectable like any other change and carries its own rationale", async () => {
+    const heading: RenderDiff["changes"][number] = {
+      changeId: "chg-test-h",
+      target: "heading",
+      sectionKey: "chapter-1",
+      location: { section: "Building the ledger", employer: null },
+      currentBlockId: null,
+      proposedBlockId: null,
+      tokens: [
+        { op: "remove", text: "Where it started" },
+        { op: "add", text: "Building the ledger" },
+      ],
+      rationale: { kind: "heading_changed", text: "Heading rewritten, not from a fact.", factIds: [] },
+    };
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: proposal(),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: { additions: 1, removals: 1, changes: [heading] },
+    });
+
+    expect(await screen.findByText("Where it started")).toBeTruthy();
+    expect(screen.getByText("Building the ledger")).toBeTruthy();
+    expect(screen.getByText("Heading rewritten, not from a fact.")).toBeTruthy();
+    expect(screen.queryByText("no matching line")).toBeNull();
+  });
+});
+
+describe("a first version", () => {
+  const first = () => proposal({ basedOnVersionNo: null, proposedVersionNo: 1 });
+  const openFirst = (routes: Routes = {}) =>
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: first(),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: FIRST_DIFF,
+      ...routes,
+    });
+
+  it("is a document with Accept and Discard, not two columns against nothing", async () => {
+    openFirst();
+
+    expect(await screen.findByText("Cut the zentrel batch to nine minutes.")).toBeTruthy();
+    expect(screen.getByText("Experience")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Résumé (English)" })).toBeTruthy();
+    expect(screen.getByText("Mika Tanaka")).toBeTruthy();
+    expect(screen.getByText("mika@example.invalid")).toBeTruthy();
+    expect(screen.getByText("Accepting saves this as v1 of your Résumé (English).")).toBeTruthy();
+    expect(screen.queryByText("Current")).toBeNull();
+    expect(screen.queryByText("no matching line")).toBeNull();
+    expect(screen.getByRole("button", { name: "Accept as v1" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Discard draft" })).toBeTruthy();
+  });
+
+  it("leads a first résumé with its name, headline and contact line, under no title", async () => {
+    openFirst({
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          ...FIRST_DIFF.preview,
+          page: {
+            ...FIRST_DIFF.preview.page,
+            title: null,
+            headline: "Backend Engineer",
+            contact: ["Tokyo, Japan · mika@example.invalid"],
+          },
+        },
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "Mika Tanaka" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Résumé (English)" })).toBeNull();
+    expect(screen.getByText("Backend Engineer").classList.contains("text-accent-text")).toBe(true);
+    expect(screen.getByText("Tokyo, Japan · mika@example.invalid")).toBeTruthy();
+    expect(screen.getByText("Cut the zentrel batch to nine minutes.")).toBeTruthy();
+  });
+
+  it("shows the 履歴書 identity cells and address lines", async () => {
+    const address = "〒150-0001 東京都渋谷区神宮前0-0-0\n架空ビル404号室";
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: proposal({ basedOnVersionNo: null, proposedVersionNo: 1, renderKind: "rirekisho", title: "履歴書" }),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          title: "履歴書",
+          page: {
+            stamp: "2026年10月18日現在",
+            name: "青木　陽介",
+            contact: ["ふりがな あおき　ようすけ", "性別 男", "現住所ふりがな とうきょうと しぶやく", address, "連絡先 同上"],
+            sections: [{ heading: "学歴", blocks: [{ kind: "row", text: "2017年3月 架空大学 卒業" }] }],
+          },
+        },
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "履歴書" })).toBeTruthy();
+    expect(screen.getByText((_, element) => element?.textContent === "ふりがな あおき　ようすけ")).toBeTruthy();
+    expect(screen.getByText("性別 男")).toBeTruthy();
+    expect(screen.getByText("現住所ふりがな とうきょうと しぶやく")).toBeTruthy();
+    expect(screen.getByText("連絡先 同上")).toBeTruthy();
+    expect(screen.getByText("2017年3月 架空大学 卒業")).toBeTruthy();
+    const addressLine = screen.getByText((_, element) => element?.textContent === address);
+    expect(addressLine.classList.contains("whitespace-pre-line")).toBe(true);
+    expect(screen.queryByRole("table")).toBeNull();
+  });
+
+  it("shows a first 履歴書 proposal as its printed form when the preview carries a sheet", async () => {
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: proposal({ basedOnVersionNo: null, proposedVersionNo: 1, renderKind: "rirekisho", title: "履歴書" }),
+      [`GET /api/proposals/${PROPOSAL}/diff`]: {
+        ...FIRST_DIFF,
+        preview: {
+          title: "履歴書",
+          page: {
+            title: "履 歴 書",
+            stamp: "2026年10月6日現在",
+            name: "架空　花子",
+            contact: [],
+            sections: [{ heading: "学歴", blocks: [{ kind: "row", text: "Prose only" }] }],
+            sheet: RIREKISHO_SHEET,
+          },
+        },
+      },
+    });
+
+    const page = await screen.findByRole("article");
+    expect(within(page).getByRole("heading", { name: "履歴書" })).toBeTruthy();
+    const tables = within(page).getAllByRole("table");
+    expect(tables).toHaveLength(5);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.textContent).toContain("架空　花子");
+    expect(within(tables[1]!).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual(["年", "月", "学歴・職歴"]);
+    expect(within(page).queryByText("Prose only")).toBeNull();
+  });
+
+  it("blocks acceptance until the document loads", async () => {
+    let finish!: (value: typeof FIRST_DIFF) => void;
+    const pending = new Promise<typeof FIRST_DIFF>((resolve) => { finish = resolve; });
+    const { api } = openFirst({ [`GET /api/proposals/${PROPOSAL}/diff`]: () => pending });
+
+    const accept = await screen.findByRole("button", { name: "Accept as v1" });
+    expect((accept as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText("Loading the document…")).toBeTruthy();
+    expect(api.writes()).toEqual([]);
+
+    finish(FIRST_DIFF);
+    await waitFor(() => expect((accept as HTMLButtonElement).disabled).toBe(false));
+  });
+
+  it("shows a failed document read and lets the author retry", async () => {
+    let attempts = 0;
+    const { api, user } = openFirst({
+      [`GET /api/proposals/${PROPOSAL}/diff`]: () =>
+        ++attempts === 1 ? new Refusal(503, "unavailable", "The document could not be loaded.") : FIRST_DIFF,
+    });
+
+    expect((await screen.findByRole("alert")).textContent).toBe("The document could not be loaded.");
+    expect((screen.getByRole("button", { name: "Accept as v1" }) as HTMLButtonElement).disabled).toBe(true);
+    await user.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Mika Tanaka")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Accept as v1" }) as HTMLButtonElement).disabled).toBe(false);
+    expect(api.writes()).toEqual([]);
+  });
+
+  it("accepts, and sends nothing else", async () => {
+    const { api, user, pathname } = openFirst({
+      [`POST /api/proposals/${PROPOSAL}/accept`]: { newVersionNo: 1 },
+    });
+
+    await screen.findByText("Mika Tanaka");
+    await user.click(await screen.findByRole("button", { name: "Accept as v1" }));
+
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(api.writes()).toEqual([`POST /api/proposals/${PROPOSAL}/accept`]);
+  });
+
+  it("discards by dismissing", async () => {
+    const { api, user } = openFirst({ [`POST /api/proposals/${PROPOSAL}/dismiss`]: dismissed });
+
+    await user.click(await screen.findByRole("button", { name: "Discard draft" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([`POST /api/proposals/${PROPOSAL}/dismiss`]));
+  });
+
+  it("says nothing was saved once it is discarded", async () => {
+    mount(`/proposals/${PROPOSAL}`, {
+      [`GET /api/proposals/${PROPOSAL}`]: { ...first(), status: "dismissed" },
+    });
+
+    expect(await screen.findByText("Draft discarded — nothing was saved")).toBeTruthy();
   });
 });

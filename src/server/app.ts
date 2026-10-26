@@ -26,6 +26,7 @@ import { registerImportRoutes } from "./routes/imports";
 import { registerFactRoutes } from "./routes/facts";
 import { registerFlagRoutes } from "./routes/flags";
 import { registerMasterRoutes } from "./routes/master";
+import { registerCareerTimelineRoutes } from "./routes/career-timeline";
 import { registerRenderRoutes } from "./routes/renders";
 import { registerApplicationRoutes } from "./routes/applications";
 import { registerInterviewRoutes } from "./routes/interviews";
@@ -69,6 +70,7 @@ export function createApp(options: AppOptions = {}) {
   registerFactRoutes(app);
   registerFlagRoutes(app);
   registerMasterRoutes(app);
+  registerCareerTimelineRoutes(app);
   registerRenderRoutes(app);
   registerApplicationRoutes(app);
   registerInterviewRoutes(app);

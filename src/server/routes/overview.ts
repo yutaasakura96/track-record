@@ -12,6 +12,8 @@ import {
   applicationSentCopies,
   applicationSteps,
   applications,
+  capturePromptDismissals,
+  careerGapNotes,
   certifications,
   educations,
   employers,
@@ -83,11 +85,22 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         waiting,
         [unconfirmed],
         [flagged],
+        [newestFact],
+        [dismissal],
       ],
       documents,
     ] = await Promise.all([
       db.batch([
-        db.select({ endedOn: employers.endedOn }).from(employers).where(eq(employers.userId, userId)),
+        db
+          .select({
+            id: employers.id,
+            nameJa: employers.nameJa,
+            nameLatin: employers.nameLatin,
+            startedOn: employers.startedOn,
+            endedOn: employers.endedOn,
+          })
+          .from(employers)
+          .where(eq(employers.userId, userId)),
         db.select({ n: count }).from(projects).where(eq(projects.userId, userId)),
         db.select({ n: count }).from(roles).where(eq(roles.userId, userId)),
         db.select({ n: count }).from(educations).where(eq(educations.userId, userId)),
@@ -183,6 +196,18 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
           .orderBy(desc(sourceDocumentVersions.importedAt))
           .limit(1),
         db.select({ n: count }).from(factFlags).innerJoin(facts, factOfFlag(userId)).where(openFlags(userId)),
+        // When the record last gained a fact, by any road and in any state: the
+        // monthly capture prompt asks only after a month without one (issue #116).
+        db
+          .select({ createdAt: facts.createdAt })
+          .from(facts)
+          .where(eq(facts.userId, userId))
+          .orderBy(desc(facts.createdAt))
+          .limit(1),
+        db
+          .select({ dismissedOn: capturePromptDismissals.dismissedOn })
+          .from(capturePromptDismissals)
+          .where(eq(capturePromptDismissals.userId, userId)),
       ]),
       renderState(db, userId),
     ]);
@@ -193,7 +218,10 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
     const running = first ? await importStatus(db, userId, first.id) : null;
     const active = running && first ? { ...running, filename: first.filename } : null;
 
-    const currentEmployers = employerRows.filter((e) => e.endedOn === null).length;
+    const current = employerRows.filter((e) => e.endedOn === null);
+    const currentEmployers = current.length;
+    // The current employer is the one not left; of two held at once, the one joined last.
+    const [employer] = current.sort((a, b) => b.startedOn.localeCompare(a.startedOn));
     const measuredProjects = measured?.n ?? 0;
     const totalFacts = provenance.measured + provenance.attested + provenance.generated;
     const newestWaiting = waiting[0];
@@ -241,6 +269,17 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
        * are in all. `null` when no version holds one.
        */
       unconfirmed: unconfirmed ?? null,
+      /**
+       * What the monthly capture prompt is decided from (issue #116). The
+       * month it is in is the author's, so the client decides; the server
+       * says when the last fact arrived, where the author works now, and
+       * which month the prompt was put away for.
+       */
+      capturePrompt: {
+        lastFactAt: newestFact?.createdAt.toISOString() ?? null,
+        employer: employer ? { id: employer.id, name: employer.nameLatin ?? employer.nameJa } : null,
+        dismissedOn: dismissal?.dismissedOn ?? null,
+      },
       documents: documents.documents,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */
@@ -286,6 +325,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       interviewQuestionRows,
       applicationDocumentRows,
       sentCopyRows,
+      gapNoteRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -320,6 +360,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       // Taken-off documents and undone copies too, for the same reason.
       db.select().from(applicationDocuments).where(eq(applicationDocuments.userId, userId)),
       db.select(sentCopyColumns).from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
+      db.select().from(careerGapNotes).where(eq(careerGapNotes.userId, userId)),
     ]);
 
     const body = {
@@ -337,6 +378,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       factFlags: only(flagRows),
       educations: only(educationRows),
       certifications: only(certificationRows),
+      // The ※ rows the 履歴書 prints under a gap: the author's own words (issue #117).
+      careerGapNotes: only(gapNoteRows),
       sourceDocuments: only(documentRows),
       sourceDocumentVersions: versionRows,
       renders: only(renderRows),

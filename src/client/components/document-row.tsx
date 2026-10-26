@@ -51,6 +51,10 @@ export function DocumentRow({
             the row already says `Not generated yet`. */}
         {row.currentVersionId ? (
           <>
+            {/* Read in the app, as the download would hold it (issue #106). */}
+            <Link to="/renders/$ref/view" params={{ ref: row.ref }} className={QUIET}>
+              View
+            </Link>
             <Link to="/renders/$ref/history" params={{ ref: row.ref }} className={QUIET}>
               History
             </Link>
@@ -117,22 +121,31 @@ function StatusText({ row }: { row: RenderRow }) {
   );
 }
 
-/** The row's ONE button. History and Download are links beside it. */
-function Action({
+/** `Button`'s ghost, for a control that is a link and so cannot be a `Button`. */
+const GHOST =
+  "motion-surface whitespace-nowrap inline-flex items-center justify-center max-phone:min-h-control border border-border-strong text-text-muted px-10 py-6 rounded-control text-small font-medium hover:bg-hover hover:text-text-secondary";
+
+/**
+ * The row's ONE button. View, History and Download are links beside it.
+ * `quiet` sets it a step down, where View leads (Home's document cards, #111).
+ */
+export function Action({
   row,
   canGenerate,
   busy,
   onGenerate,
+  quiet = false,
 }: {
   row: RenderRow;
   canGenerate: boolean;
   busy: boolean;
   onGenerate: () => void;
+  quiet?: boolean;
 }) {
   if (!row.buildable) return null;
   if (row.pendingProposalId) {
     return (
-      <Link to="/proposals/$proposalId" params={{ proposalId: row.pendingProposalId }} className={SECONDARY}>
+      <Link to="/proposals/$proposalId" params={{ proposalId: row.pendingProposalId }} className={quiet ? GHOST : SECONDARY}>
         {row.status === "proposal_generating" ? "Open it" : "Review changes"}
       </Link>
     );
@@ -145,7 +158,7 @@ function Action({
     row.status === "never_generated" ? "Generate" : row.status === "stale" ? "Update" : "Regenerate";
   return (
     <Button
-      variant={row.status === "up_to_date" ? "ghost" : "secondary"}
+      variant={quiet || row.status === "up_to_date" ? "ghost" : "secondary"}
       onClick={onGenerate}
       disabled={busy}
       disabledReason={busy ? "Generating…" : undefined}

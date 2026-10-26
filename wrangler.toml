@@ -56,6 +56,13 @@ type = "Data"
 globs = ["**/*.docx"]
 fallthrough = true
 
+# The English résumé's PDF embeds Carlito (templates/fonts, SIL OFL 1.1), read
+# the same way: an ArrayBuffer module beside the bundle (docs/03 §6.3).
+[[rules]]
+type = "Data"
+globs = ["**/*.ttf"]
+fallthrough = true
+
 # Uploaded interview recordings (issue #76). Private: no public r2.dev address
 # and no custom domain, so the only way to a file is the Worker's own route,
 # which requires the owner's session. `wrangler dev` emulates it on disk and

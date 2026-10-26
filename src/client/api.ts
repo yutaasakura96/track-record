@@ -13,12 +13,15 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 import { useState } from "react";
-import { RENDER_KINDS, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { RENDER_KINDS, RENDER_TITLE, type DownloadFormat, type RenderContent, type RenderKind } from "~/shared/render-content";
 import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
+import type { CareerTimeline, TimelineGapNote } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
 import { keptFileName } from "~/shared/recording";
 import type { NamedVersion, SendableKind } from "~/shared/application-documents";
+import type { FactEvidence } from "~/shared/evidence";
+import type { LastUsed } from "~/shared/skills";
 import type { SentPage } from "~/render/sent-page";
 
 export interface ApiErrorBody {
@@ -42,6 +45,15 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
+}
+
+/**
+ * The server's own words when a model call failed for want of credits, else
+ * `null`. Screens that word a model failure themselves (and fall back to
+ * typing it in) use it so the member is told the true reason (`docs/12` §9).
+ */
+export function creditsMessage(error: unknown): string | null {
+  return error instanceof ApiError && error.details.reason === "credits_exhausted" ? error.message : null;
 }
 
 export async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -111,7 +123,22 @@ export interface Profile {
   address: string;
   addressKana: string;
   contactSameAsAddress: boolean;
+  /** The English résumé's page. */
+  paperSize: "a4" | "letter";
   hasPhoto: boolean;
+  /**
+   * Changes whenever the photo does, and null when there is none. The photo's
+   * address carries it, so a page asks for the new photo and not a kept one.
+   */
+  photoVersion: string | null;
+  /** The English résumé's header (issue #108); each null until filled. */
+  resumeHeadline: string | null;
+  resumeCity: string | null;
+  resumeCountry: string | null;
+  resumePhone: string | null;
+  resumeLinkedinUrl: string | null;
+  resumeGithubUrl: string | null;
+  resumePortfolioUrl: string | null;
 }
 
 export interface Fact {
@@ -206,6 +233,7 @@ export interface Employer {
   nameJa: string;
   nameLatin: string | null;
   industryJa: string | null;
+  city: string | null;
   businessDescription: string | null;
   capitalYen: number | null;
   headcount: number | null;
@@ -232,6 +260,7 @@ export interface Project {
   nameJa: string | null;
   employerId: string | null;
   summary: string | null;
+  summaryJa: string | null;
   startedOn: string | null;
   endedOn: string | null;
   clientIsNamed: boolean;
@@ -259,6 +288,7 @@ export interface Certification {
   issuingOrganization: string;
   issuedOn: string | null;
   expiresOn: string | null;
+  kind: "technical" | "language" | "other";
   credentialId: string | null;
   credentialUrl: string | null;
   technologies: string[];
@@ -379,6 +409,16 @@ export interface Overview {
   review: { openCandidates: number; documents: number; importId: string; filename: string } | null;
   /** The newest version holding an accepted fact that is still Generated. */
   unconfirmed: { importId: string; count: number; total: number } | null;
+  /**
+   * What the monthly capture prompt is decided from (issue #116): when the
+   * record last gained a fact, the employer not left (the one joined last, of
+   * two), and the month the prompt was put away for, `YYYY-MM-01`.
+   */
+  capturePrompt?: {
+    lastFactAt: string | null;
+    employer: { id: string; name: string } | null;
+    dismissedOn: string | null;
+  };
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;
@@ -473,7 +513,11 @@ export interface ProposalRow {
 
 export interface DiffChange {
   changeId: string;
+  /** A section heading is a change of its own, with no blocks behind it. */
+  target: "block" | "heading";
   sectionKey: string;
+  /** The section heading, and in an experience section the employer line the block sits under. */
+  location: { section: string; employer: string | null };
   currentBlockId: string | null;
   proposedBlockId: string | null;
   tokens: { op: "equal" | "add" | "remove"; text: string }[];
@@ -511,6 +555,9 @@ export const keys = {
   // Under `allFacts`: a ruling on a fact changes what the list holds.
   flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
   masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
+  // Under `allFacts`, so a ruling on any card refreshes its counts; the record
+  // screen's own writes refresh it by name, since they move its gaps.
+  careerTimeline: ["facts", "career-timeline"] as const,
   sourceText: (documentId: string, versionNo: number) =>
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
@@ -521,6 +568,8 @@ export const keys = {
   // otherwise invalidate the immutable version the editor is holding.
   version: (ref: string, id: string) => ["renders", ref, "version", id] as const,
   proposals: (ref: string) => ["renders", ref, "proposals"] as const,
+  // Under `renders`: a new version or a proposal arriving changes what the page says.
+  page: (ref: string, versionId: string) => ["renders", ref, "page", versionId] as const,
   versionDiff: (ref: string, from: string, to: string) =>
     ["renders", ref, "diff", from, to] as const,
   // Under `renders`: an application shows its résumé's version and status, so
@@ -613,6 +662,8 @@ export function useEntityActions(key: EntityKey) {
     // An employer's name and dates are part of every render's structure, so
     // changing one is what makes a generated document out of date.
     void queryClient.invalidateQueries({ queryKey: keys.renders });
+    // Dates move the 履歴書's gaps, and a deleted row takes its counts.
+    void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
   };
 
   const create = useMutation({
@@ -659,14 +710,55 @@ export function useSetRenderInclusion() {
   return useMutation({
     mutationFn: (body: RenderInclusion) =>
       api<RenderInclusion>("/api/render-inclusions", { method: "PUT", ...json(body) }),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: keys.inclusions }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.inclusions });
+      // A row left out of the 履歴書 is a row its gap warning no longer counts.
+      void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
+    },
   });
+}
+
+/**
+ * What the career timeline shows beside the rows (issue #113): achievement
+ * counts per employer and project, and the 履歴書's gaps.
+ */
+export const useCareerTimeline = () =>
+  useQuery({
+    queryKey: keys.careerTimeline,
+    queryFn: () => api<CareerTimeline>("/api/career-timeline"),
+  });
+
+/**
+ * Explaining a gap, and taking the explanation back (issue #117). A ※ row is
+ * part of the 履歴書's 学歴・職歴 table, which every page and review of it reads
+ * from the record, so both refresh the timeline, the documents and the
+ * proposals whose warnings it silences.
+ */
+export function useGapNoteActions() {
+  const queryClient = useQueryClient();
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.careerTimeline });
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
+    void queryClient.invalidateQueries({ queryKey: ["proposal"] });
+  };
+  const save = useMutation({
+    mutationFn: (body: { fromOn: string; toOn: string; text: string }) =>
+      api<TimelineGapNote>("/api/gap-notes", { method: "POST", ...json(body) }),
+    onSuccess: refresh,
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => api<void>(`/api/gap-notes/${id}`, { method: "DELETE" }),
+    onSuccess: refresh,
+  });
+  return { save, remove };
 }
 
 export interface CuratedSkill {
   name: string;
   factCount: number;
   certificationCount: number;
+  /** The latest a fact or certification naming it reaches. */
+  lastUsed: LastUsed;
   /** No accepted, render-eligible fact and no certification names it any longer. Flagged, never removed. */
   stale: boolean;
 }
@@ -675,16 +767,25 @@ export interface SkillCandidate {
   name: string;
   factCount: number;
   certificationCount: number;
+  lastUsed: LastUsed;
   curated: boolean;
+  /**
+   * The group it is offered: the one it is most often named beside, else the one
+   * sharing the most employers, else the largest. Null when curated, or when
+   * there is no group.
+   */
+  suggestedGroup: string | null;
 }
 
 export interface SkillCuration {
-  groups: { name: string; skills: CuratedSkill[] }[];
+  groups: { name: string; nameJa: string | null; skills: CuratedSkill[] }[];
   candidates: SkillCandidate[];
+  /** What the English résumé may name in its Skills section, ranked as its uncurated line is. */
+  printable: string[];
 }
 
 /** What `PUT /api/skills/curation` takes: the whole list, names only. */
-export type SkillCurationInput = { name: string; skills: string[] }[];
+export type SkillCurationInput = { name: string; nameJa: string | null; skills: string[] }[];
 
 /** The skills curation (S9). An empty `groups` means nothing is curated. */
 export const useSkillCuration = () =>
@@ -859,6 +960,35 @@ export const useStoredVersion = (ref: string, versionId: string | null) =>
     // the document under an editor that has unsaved work in it.
     staleTime: Infinity,
     refetchOnWindowFocus: false,
+  });
+
+/** One version as it would print today (`docs/10` Screen 17, issue #106). */
+export interface RenderPage {
+  renderKind: RenderKind;
+  renderRef: string;
+  title: string;
+  language: "en" | "ja";
+  tailored: boolean;
+  /** The application a tailored résumé belongs to. `null` on a main document. */
+  applicationId: string | null;
+  /** The document's row, as Home or its application shows it. */
+  document: RenderRow;
+  canGenerate: boolean;
+  version: Pick<RenderVersion, "id" | "versionNo" | "origin" | "acceptedAt" | "isCurrent">;
+  page: SentPage;
+  /** Every fact the page's lines cite, for "Show where each line comes from" (issue #110). */
+  evidence: FactEvidence[];
+}
+
+/** `versionId` absent reads the current version. A refusal is an answer, not a blip to retry. */
+export const useRenderPage = (ref: string, versionId: string | undefined, enabled = true) =>
+  useQuery({
+    queryKey: keys.page(ref, versionId ?? "current"),
+    enabled,
+    queryFn: () =>
+      api<RenderPage>(`/api/renders/${ref}/page${versionId ? `?versionId=${encodeURIComponent(versionId)}` : ""}`),
+    retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 409)) && count < 3,
+    refetchInterval: (query) => (query.state.data?.document.status === "proposal_generating" ? POLL_MS : false),
   });
 
 export const useRenderProposals = (ref: string) =>
@@ -1052,6 +1182,23 @@ export function useSaveCapture() {
       void queryClient.invalidateQueries({ queryKey: keys.overview });
       void queryClient.invalidateQueries({ queryKey: keys.allFacts });
     },
+  });
+}
+
+/**
+ * Puts the monthly capture prompt away until the author's month ends. The
+ * answer is written into the overview held here, so the Next step moves on
+ * without a read again.
+ */
+export function useDismissCapturePrompt() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (month: string) =>
+      api<{ dismissedOn: string }>("/api/capture/prompt/dismiss", { method: "POST", ...json({ month }) }),
+    onSuccess: ({ dismissedOn }) =>
+      queryClient.setQueryData<Overview>(keys.overview, (held) =>
+        held?.capturePrompt ? { ...held, capturePrompt: { ...held.capturePrompt, dismissedOn } } : held,
+      ),
   });
 }
 
@@ -1322,7 +1469,8 @@ export const useVersionDiff = (ref: string, from: string | null, to: string | nu
 export const useDiff = (proposalId: string, enabled: boolean) =>
   useQuery({
     queryKey: keys.diff(proposalId),
-    queryFn: () => api<RenderDiff>(`/api/proposals/${proposalId}/diff`),
+    queryFn: () =>
+      api<RenderDiff & { preview: { title: string; page: SentPage } | null }>(`/api/proposals/${proposalId}/diff`),
     enabled,
   });
 
@@ -1342,7 +1490,47 @@ export function useSaveProfile() {
       // the gate correct on the very next render.
       queryClient.setQueryData(keys.profile, saved);
       void queryClient.invalidateQueries({ queryKey: keys.overview });
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
     },
+  });
+}
+
+/**
+ * The profile photo's address for an `<img>`, or null when there is none. The
+ * image is fetched on its own and never rides in a JSON body (`docs/07` §4).
+ */
+export function useProfilePhotoSrc(): string | null {
+  const profile = useProfile();
+  const version = profile.data?.photoVersion;
+  return version ? `/api/profile/photo?v=${version}` : null;
+}
+
+/**
+ * A photo saved or removed changes the 履歴書 everywhere it is read: its page
+ * on View and on Home's card, the first-version preview, and the review
+ * footer's note that the cell is empty.
+ */
+function photoChanged(queryClient: ReturnType<typeof useQueryClient>, saved: Profile) {
+  queryClient.setQueryData(keys.profile, saved);
+  void queryClient.invalidateQueries({ queryKey: keys.renders });
+  void queryClient.invalidateQueries({ queryKey: ["proposal"] });
+}
+
+/** Puts the cropped photo on the profile. The body is the JPEG itself, never a form. */
+export function useSaveProfilePhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (photo: Blob) =>
+      api<Profile>("/api/profile/photo", { method: "PUT", body: photo, headers: { "content-type": photo.type || "image/jpeg" } }),
+    onSuccess: (saved) => photoChanged(queryClient, saved),
+  });
+}
+
+export function useRemoveProfilePhoto() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<Profile>("/api/profile/photo", { method: "DELETE" }),
+    onSuccess: (saved) => photoChanged(queryClient, saved),
   });
 }
 
@@ -1447,6 +1635,7 @@ export function useFactAction(importId: string) {
   // Home counts these facts, and holds its Next step back only once told.
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: keys.overview });
+    void queryClient.invalidateQueries({ queryKey: keys.renders });
     return queryClient.invalidateQueries({ queryKey: keys.allFacts });
   };
 
@@ -1568,7 +1757,7 @@ export function useEditVersion(ref: string) {
 }
 
 /** `versionId` omitted means the current version — the server's own default. */
-const downloadUrl = (ref: string, format: "docx" | "md", versionId?: string) =>
+const downloadUrl = (ref: string, format: DownloadFormat, versionId?: string) =>
   `/api/renders/${ref}/download?format=${format}${versionId ? `&versionId=${versionId}` : ""}`;
 
 /**
@@ -1582,7 +1771,7 @@ const downloadUrl = (ref: string, format: "docx" | "md", versionId?: string) =>
  * document and there is no second request to spend on it. The URL is revoked
  * immediately; the click has already handed the bytes to the browser.
  */
-export const downloadRender = (ref: string, format: "docx" | "md", versionId?: string): Promise<void> =>
+export const downloadRender = (ref: string, format: DownloadFormat, versionId?: string): Promise<void> =>
   saveResponse(downloadUrl(ref, format, versionId), `${ref}.${format}`, "That document could not be downloaded.");
 
 /** Fetches a file the server names and hands it to the browser to save. */
@@ -1610,8 +1799,20 @@ async function saveResponse(url: string, fallbackName: string, failure: string):
   URL.revokeObjectURL(objectUrl);
 }
 
-/** The server names the file; this is the fallback when the header is absent. */
-function filenameFrom(disposition: string | null, fallback: string): string {
+/**
+ * The server names the file; this is the fallback when the header is absent.
+ * A Japanese name arrives as RFC 6266's `filename*`, UTF-8 and percent-encoded,
+ * beside an ASCII `filename`, and is preferred over it (issue #117).
+ */
+export function filenameFrom(disposition: string | null, fallback: string): string {
+  const encoded = disposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded.trim());
+    } catch {
+      // A malformed encoding falls through to the plain name.
+    }
+  }
   const match = disposition?.match(/filename="([^"]+)"/);
   return match?.[1] ?? fallback;
 }
@@ -1719,19 +1920,19 @@ export function useSortFacts(importId?: string) {
 /** English is the route with nothing asked of it; 日本語 is asked for (`docs/07` §9). */
 const masterQuery = (language: MasterLanguage) => (language === "ja" ? "?language=ja" : "");
 
-/** One language's master document: built from the record on each read, by no model. */
+/** One language's career record (the master document): built from the record on each read, by no model. */
 export const useMasterDocument = (language: MasterLanguage) =>
   useQuery({
     queryKey: keys.masterDocument(language),
     queryFn: () => api<MasterDocument>(`/api/master-document${masterQuery(language)}`),
   });
 
-/** The master document as a file. It contains Private facts; the screen says so beside the button. */
+/** The career record as a file. It contains Private facts; the screen says so beside the button. */
 export const downloadMasterDocument = (language: MasterLanguage) =>
   saveResponse(
     `/api/master-document/download${masterQuery(language)}`,
-    `master-document-${language}.md`,
-    "The master document could not be downloaded.",
+    `career-record-${language}.md`,
+    "The career record could not be downloaded.",
   );
 
 export type { RenderContent };

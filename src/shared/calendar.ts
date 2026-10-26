@@ -15,3 +15,7 @@ export const toMonth = (isoDate: string | null | undefined) =>
 
 /** `2024-09` → `2024-09-01`. The day the author never sees is added here. */
 export const fromMonth = (month: string) => (month ? `${month}-01` : "");
+
+/** The month `now` falls in, in the wire form, by the local calendar. */
+export const currentMonth = (now: Date = new Date()) =>
+  `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;

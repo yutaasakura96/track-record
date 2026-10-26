@@ -1,8 +1,9 @@
 /**
  * Screen 3 — Home (`docs/10-screen-specifications.md`).
  *
- * The first thing the author sees. In this order: what to do next, what the
- * record holds, what the documents say. The test of it is that a first-time
+ * The first thing the author sees. In this order: what to do next, the
+ * documents the record is for, and the record at a glance (issue #111: the
+ * documents stood fourth, under two panels of the record's own counts). The test of it is that a first-time
  * author and a returning one can both say what it shows and what to do,
  * without knowing a word of the product's vocabulary (issue #58).
  *
@@ -20,6 +21,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   failureText,
   keys,
+  useDismissCapturePrompt,
   useGenerate,
   useOverview,
   useProfile,
@@ -30,16 +32,19 @@ import {
   type Overview as OverviewData,
   type RenderRow,
 } from "../api";
-import { Button, Dot } from "../components/ui";
+import { Button } from "../components/ui";
+import { generateFailure } from "../components/generate-failure";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
-import { DocumentRow, QUIET, SECONDARY } from "../components/document-row";
+import { QUIET, SECONDARY } from "../components/document-row";
+import { DocumentCard, MasterDocumentCard } from "../components/document-card";
+import { GapNotices } from "../components/gap-notices";
 import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
-import { useDocumentLanguageStore, type DocumentLanguage } from "../stores/document-language";
+import { useDocumentLanguageStore } from "../stores/document-language";
 import { nextSteps, type Step, type StepAction } from "../next-step";
-import { MASTER_WORDS } from "~/shared/master-document";
+import { currentMonth } from "~/shared/calendar";
 
 const number = (n: number) => n.toLocaleString("en-US");
 
@@ -164,14 +169,11 @@ function LoadingRecord() {
       <div className="flex-1 overflow-y-auto px-20 py-26" aria-busy="true">
         <div className="mx-auto w-content max-w-full grid gap-20">
           <NextStepFrame about="What is most worth doing now." />
-          <Section heading={RECORD.heading} about={RECORD.about}>
-            <div className="grid grid-cols-4 gap-2">{[0, 1, 2, 3].map((n) => blank("h-60", n))}</div>
-          </Section>
-          <Section heading={FACTS.heading} about={FACTS.about}>
-            <div className="grid gap-8">{[0, 1, 2].map((n) => blank("h-40", n))}</div>
-          </Section>
           <Section heading={DOCUMENTS.heading} about={DOCUMENTS.about}>
-            <div className="grid gap-8">{[0, 1, 2, 3].map((n) => blank("h-40", n))}</div>
+            <div className={CARDS}>{[0, 1, 2].map((n) => blank("h-thumbnail", n))}</div>
+          </Section>
+          <Section heading={RECORD.heading} about={RECORD.about}>
+            {blank("h-60")}
           </Section>
         </div>
       </div>
@@ -189,18 +191,17 @@ function NextStepFrame({ about }: { about: ReactNode }) {
 }
 
 /** Each section's heading and sentence, shared with the loading frame so they cannot drift. */
-const RECORD = {
-  heading: "Your record",
-  about: "What you entered by hand: where you worked, and what you hold.",
-};
-const FACTS = {
-  heading: "Facts in your record",
-  about: "A fact is one claim about your work, quoted from a document you imported.",
-};
 const DOCUMENTS = {
   heading: "Your career documents",
-  about: "Generated from your accepted facts, in English and in Japanese. Each one is a file you can download.",
+  about: "Written from your record, in English and in Japanese. View one to read it as it will print, or download it to send.",
 };
+const RECORD = {
+  heading: "Your record at a glance",
+  about: "Where you worked, what you hold, and the facts your documents are written from.",
+};
+
+/** The cards: three across, which holds each tab's documents in one or two rows. */
+const CARDS = "grid grid-cols-3 gap-8 max-phone:grid-cols-1";
 
 /* --------------------------------------------------------------- populated */
 
@@ -220,7 +221,7 @@ function PopulatedRecord({
   const importFile = useImportPicker();
   const generate = useGenerate();
   const sort = useSortFacts();
-  const [failure, setFailure] = useState<{ from: GenerateFrom; text: string } | null>(null);
+  const [failure, setFailure] = useState<{ from: GenerateFrom; text: ReactNode } | null>(null);
 
   const onGenerate = async (ref: string, from: GenerateFrom) => {
     setFailure(null);
@@ -228,7 +229,7 @@ function PopulatedRecord({
       const created = await generate.mutateAsync(ref);
       await navigate({ to: "/proposals/$proposalId", params: { proposalId: created.proposalId } });
     } catch (error) {
-      setFailure({ from, text: failureText(error) });
+      setFailure({ from, text: generateFailure(error) });
     }
   };
   const failed = (from: GenerateFrom) => (failure?.from === from ? failure.text : null);
@@ -274,8 +275,6 @@ function PopulatedRecord({
               />
             </>
           )}
-          <YourRecord tiles={data.tiles} />
-          <Facts counts={data.factsByProvenance} unconfirmed={data.unconfirmed} flagged={data.flagged} />
           <CareerDocuments
             rows={data.documents}
             facts={data.factsByProvenance.measured + data.factsByProvenance.attested + data.factsByProvenance.generated}
@@ -284,6 +283,7 @@ function PopulatedRecord({
             failure={failed("documents")}
             onGenerate={(ref) => void onGenerate(ref, "documents")}
           />
+          <AtAGlance tiles={data.tiles} facts={data.factsByProvenance} />
           <Backup />
         </div>
       </div>
@@ -419,24 +419,39 @@ function NextStep({
 }: {
   steps: Step[];
   busy: boolean;
-  failure: string | null;
+  failure: ReactNode;
   sorting: SortProgress;
   onGenerate: (ref: string) => void;
   onImport: () => void;
   onSort: () => void;
 }) {
+  const dismiss = useDismissCapturePrompt();
   const [first, ...rest] = steps;
   if (!first) return null;
-  const act = (action: StepAction | null, className: string) => (
-    <StepControl
-      action={action}
-      className={className}
-      busy={busy}
-      sorting={sorting.running}
-      onGenerate={onGenerate}
-      onImport={onImport}
-      onSort={onSort}
-    />
+  const act = (step: Step, className: string) => (
+    <>
+      {step.dismissible ? (
+        <Button
+          type="button"
+          variant="bare"
+          className="shrink-0"
+          onClick={() => dismiss.mutate(currentMonth())}
+          disabled={dismiss.isPending}
+          disabledReason={dismiss.isPending ? "Putting it away…" : undefined}
+        >
+          Not this month
+        </Button>
+      ) : null}
+      <StepControl
+        action={step.action}
+        className={className}
+        busy={busy}
+        sorting={sorting.running}
+        onGenerate={onGenerate}
+        onImport={onImport}
+        onSort={onSort}
+      />
+    </>
   );
 
   return (
@@ -452,7 +467,7 @@ function NextStep({
           <h2 className="text-page font-semibold tracking-tight text-text-bright">{first.title}</h2>
           <p className="mt-4 text-ui text-text-body">{first.why}</p>
         </div>
-        {act(first.action, PRIMARY)}
+        <div className="shrink-0 flex items-center gap-8">{act(first, PRIMARY)}</div>
       </div>
       {sorting.running || sorting.sorted > 0 ? (
         <p role="status" className="mt-12 text-small text-text-secondary">
@@ -465,6 +480,11 @@ function NextStep({
           {failure}
         </p>
       ) : null}
+      {dismiss.error ? (
+        <p role="alert" className="mt-12 text-small text-text-secondary">
+          {failureText(dismiss.error)}
+        </p>
+      ) : null}
 
       {rest.length > 0 ? (
         <div className="mt-14 pt-12 border-t border-border-inner">
@@ -473,7 +493,7 @@ function NextStep({
             {rest.map((step) => (
               <li key={step.key} className="flex items-center justify-between gap-12 py-6">
                 <span className="text-row text-text-strong">{step.title}</span>
-                {act(step.action, GHOST)}
+                <span className="shrink-0 flex items-center gap-8">{act(step, GHOST)}</span>
               </li>
             ))}
           </ul>
@@ -524,6 +544,17 @@ function StepControl({
       </Link>
     );
   }
+  if (action.kind === "capture") {
+    return (
+      <Link
+        to="/capture"
+        search={action.employerId ? { employer: action.employerId } : {}}
+        className={`shrink-0 ${className}`}
+      >
+        {action.label}
+      </Link>
+    );
+  }
   if (action.kind === "proposal") {
     return (
       <Link to="/proposals/$proposalId" params={{ proposalId: action.proposalId }} className={`shrink-0 ${className}`}>
@@ -557,12 +588,25 @@ function StepControl({
   );
 }
 
-function YourRecord({ tiles }: { tiles: OverviewData["tiles"] }) {
-  const order: [keyof OverviewData["tiles"], string][] = [
-    ["employers", "Employers"],
-    ["roles", "Roles"],
-    ["projects", "Projects"],
-    ["credentials", "Credentials"],
+/**
+ * The record's counts as one strip (issue #111). They were two panels above
+ * the documents, a tile grid and a chart of facts by provenance; the chart is
+ * on the career record now, beside the facts it counts.
+ */
+function AtAGlance({
+  tiles,
+  facts,
+}: {
+  tiles: OverviewData["tiles"];
+  facts: OverviewData["factsByProvenance"];
+}) {
+  const accepted = facts.measured + facts.attested + facts.generated;
+  const cells: { label: string; count: number; note: string | null }[] = [
+    { label: "Employers", ...tiles.employers },
+    { label: "Roles", ...tiles.roles },
+    { label: "Projects", ...tiles.projects },
+    { label: "Credentials", ...tiles.credentials },
+    { label: "Facts", count: accepted, note: facts.measured > 0 ? `${number(facts.measured)} backed by a number` : null },
   ];
   return (
     <Section
@@ -570,165 +614,24 @@ function YourRecord({ tiles }: { tiles: OverviewData["tiles"] }) {
       about={RECORD.about}
       action={
         <Link to="/record" className={`shrink-0 ${QUIET}`}>
-          Open Record
+          Open career timeline
         </Link>
       }
     >
-      {/* 1px gaps over a border background, so the four tiles read as one object. */}
-      <div className="grid grid-cols-4 gap-2 bg-border rounded-tile overflow-hidden">
-        {order.map(([key, label]) => (
-          <div key={key} className="bg-card px-16 py-14">
-            <div className="text-small text-text-body">{label}</div>
-            <div className="text-stat font-medium tracking-tight text-text-bright mt-6">
-              {number(tiles[key].count)}
-            </div>
+      {/* 1px gaps over a border background, so the cells read as one strip. */}
+      <dl className="grid grid-cols-5 gap-2 bg-border rounded-tile overflow-hidden max-phone:grid-cols-2">
+        {cells.map((cell) => (
+          <div key={cell.label} className="bg-card px-12 py-10">
+            <dt className="text-small text-text-body">{cell.label}</dt>
+            <dd className="text-doc-heading font-medium tracking-tight text-text-bright">{number(cell.count)}</dd>
             {/* A zero says so in words, so it reads as an answer and not as a
                 failure to load. */}
-            <div className="text-small text-text-muted mt-4 min-h-16">
-              {tiles[key].count === 0 ? "None added yet" : (tiles[key].note ?? "")}
-            </div>
+            <dd className="text-small text-text-muted min-h-16">
+              {cell.count === 0 ? "None added yet" : (cell.note ?? "")}
+            </dd>
           </div>
         ))}
-      </div>
-    </Section>
-  );
-}
-
-/**
- * Plain words first, the product's term second: `Measured`, `Attested` and
- * `Generated` are the words on the fact card, and mean nothing at a glance.
- */
-const PROVENANCE = [
-  {
-    key: "measured",
-    plain: "Backed by a number",
-    term: "Measured",
-    tone: "measured",
-    about: "A result with a figure, and the passage that proves it.",
-    none: "None yet",
-    bar: "bg-measured",
-  },
-  {
-    key: "attested",
-    plain: "Stated by you",
-    term: "Attested",
-    tone: "accent",
-    about: "True, and yours, with no figure behind it.",
-    none: "None yet",
-    bar: "bg-accent",
-  },
-  {
-    key: "generated",
-    plain: "Not confirmed",
-    term: "Generated",
-    tone: "generated",
-    about: "Written by the importer. Left out of every document until you confirm it.",
-    none: "Nothing waiting",
-    bar: "bg-generated",
-  },
-] as const;
-
-function Facts({
-  counts,
-  unconfirmed,
-  flagged,
-}: {
-  counts: OverviewData["factsByProvenance"];
-  unconfirmed: OverviewData["unconfirmed"];
-  flagged: number;
-}) {
-  const total = counts.measured + counts.attested + counts.generated;
-
-  return (
-    <Section
-      heading={FACTS.heading}
-      about={
-        <>
-          {FACTS.about}
-          {total > 0 ? ` ${number(total)} accepted.` : ""}
-        </>
-      }
-      action={
-        total > 0 ? (
-          <Link to="/master" className={`shrink-0 ${QUIET}`}>
-            Open master document
-          </Link>
-        ) : undefined
-      }
-    >
-      {total === 0 ? (
-        <p className="text-ui text-text-secondary">
-          No accepted facts yet. They are accepted for you as a document you import is read.
-        </p>
-      ) : (
-        <>
-          <div className="flex gap-2 h-8 mb-12" aria-hidden>
-            {PROVENANCE.filter((row) => counts[row.key] > 0).map((row) => (
-              <div
-                key={row.key}
-                className={`${row.bar} rounded-mark`}
-                style={{ width: `${(counts[row.key] / total) * 100}%` }}
-              />
-            ))}
-          </div>
-
-          <ul>
-            {PROVENANCE.map((row) => {
-              const n = counts[row.key];
-              // The Not confirmed row is the ACTION row, while the author has
-              // one to confirm. One the importer accepted is flagged instead.
-              const waiting = row.key === "generated" && unconfirmed !== null;
-              return (
-                <li
-                  key={row.key}
-                  className={`flex items-center gap-12 px-10 py-10 rounded-control border-b border-border-inner last:border-b-0 ${
-                    waiting ? "bg-generated-mark shadow-ring" : ""
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-8">
-                      <Dot tone={row.tone} />
-                      <span className="text-row font-medium text-text-strong">{row.plain}</span>
-                      <span className="border border-border-control rounded-chip px-6 py-2 text-smaller text-text-muted">
-                        {row.term}
-                      </span>
-                    </div>
-                    <p className="mt-2 pl-14 text-small text-text-body">{row.about}</p>
-                  </div>
-                  <span className="ml-auto shrink-0 flex items-center gap-12">
-                    {/* A zero is written as words, never as `0`. */}
-                    {n === 0 ? (
-                      <span className="text-small text-text-muted">{row.none}</span>
-                    ) : (
-                      <span className="text-row font-medium text-text-strong">{number(n)}</span>
-                    )}
-                    {waiting && unconfirmed ? (
-                      <Link
-                        to="/imports/$importId"
-                        params={{ importId: unconfirmed.importId }}
-                        className={GHOST}
-                      >
-                        Confirm {number(unconfirmed.count)}
-                      </Link>
-                    ) : null}
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
-          {/* Advice, not a step: the list is there for when the author wants it. */}
-          {flagged > 0 ? (
-            <p className="mt-12 flex items-center justify-between gap-12 text-ui text-text-secondary">
-              <span>
-                {number(flagged)} {flagged === 1 ? "is" : "are"} flagged for you to check when you want. Each says why.
-              </span>
-              <Link to="/flagged" className={`shrink-0 ${GHOST}`}>
-                Open the list
-              </Link>
-            </p>
-          ) : null}
-        </>
-      )}
+      </dl>
     </Section>
   );
 }
@@ -759,18 +662,6 @@ function whichDocument(rows: RenderRow[], canGenerate: boolean): string {
   return "Every document you have generated is up to date with your record.";
 }
 
-/** The master document's row: said in the words of the tab it leads. */
-const MASTER_ROW: Record<DocumentLanguage, { note: string; open: string }> = {
-  en: {
-    note: "English · everything in your record, and what every English document is written from",
-    open: "Open the English master document",
-  },
-  ja: {
-    note: "Japanese · everything in your record, and what every Japanese document is written from",
-    open: "Open the Japanese master document",
-  },
-};
-
 /**
  * The English documents and the 日本語 ones, apart (issue #59). One list of
  * five mixed two readers' documents; each tab is now one language, led by the
@@ -789,7 +680,7 @@ function CareerDocuments({
   facts: number;
   canGenerate: boolean;
   busy: boolean;
-  failure: string | null;
+  failure: ReactNode;
   onGenerate: (ref: string) => void;
 }) {
   const language = useDocumentLanguageStore((state) => state.language);
@@ -805,48 +696,25 @@ function CareerDocuments({
             {failure}
           </p>
         ) : null}
-        <ul>
-          <MasterDocumentRow language={language} facts={facts} />
+        <ul aria-label="Documents" className={CARDS}>
+          <MasterDocumentCard language={language} count={facts} />
           {shown.map((row) => (
-            <DocumentRow
+            <DocumentCard
               key={row.ref}
               row={row}
               // The one a tailored résumé is a variant of (issue #57).
-              note={row.kind === "english_resume" ? "English · your main résumé, tailored to no job" : undefined}
+              note={row.kind === "english_resume" ? "your main résumé, tailored to no job" : undefined}
               canGenerate={canGenerate}
               busy={busy}
               onGenerate={() => onGenerate(row.ref)}
-            />
+            >
+              {/* The record's gaps, before the first version and after it (issue #117, G1). */}
+              {row.kind === "rirekisho" ? <GapNotices compact /> : null}
+            </DocumentCard>
           ))}
         </ul>
       </LanguagePanel>
     </Section>
-  );
-}
-
-/**
- * The first row of each tab. It is not generated and has no versions, so it
- * has no status dot, no History and no Generate: it is opened, and the screen
- * it opens is where it is downloaded, beside the note that the file holds
- * Private facts.
- */
-function MasterDocumentRow({ language, facts }: { language: DocumentLanguage; facts: number }) {
-  const words = MASTER_ROW[language];
-  return (
-    <li className="flex items-center gap-12 px-10 py-12 border-b border-border-inner last:border-b-0">
-      <div className="min-w-0">
-        <div className="text-row font-medium text-text-strong">{MASTER_WORDS[language].title}</div>
-        <div className="text-small text-text-muted">{words.note}</div>
-      </div>
-      <div className="ml-auto flex items-center gap-16">
-        <span className="text-small text-text-muted whitespace-nowrap">
-          {facts === 0 ? "No facts yet" : `${number(facts)} ${facts === 1 ? "fact" : "facts"}`}
-        </span>
-        <Link to="/master" aria-label={words.open} className={SECONDARY}>
-          Open
-        </Link>
-      </div>
-    </li>
   );
 }
 

@@ -36,8 +36,9 @@ before touching anything.
   prints the same steps when a query and a `select 1` probe after it both go unanswered
   (`src/server/db/proxy-watch.ts`).
 
-Every stall recorded before 2026-09-25 was the first kind (issue #25, decision log 2026-09-25). The
-20 idle backends on `track_record_test` are the proxy's normal resting state, not a full pool.
+Every stall recorded before 2026-09-25 was the first kind (issue #25, decision log 2026-09-25). Idle
+backends on `track_record_test` after a run are the proxy's connection pool (capped at 64, closed
+after five idle minutes), not a leak (decision log 2026-10-22).
 
 **Development and the suite have separate databases** — `track_record_dev` and `track_record_test`.
 The suite drops and rebuilds `public` on every run, and sharing one database meant `npm test`
@@ -128,9 +129,9 @@ six-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
   text; a parser upgrade creates a new version.
 - **Google OAuth requests `openid email profile` and nothing else.** Never a Gmail, Drive or
   Calendar scope. Release blocker, not a hardening task.
-- **Nothing is ever deleted, except a recording** — render versions, source documents and rejected
-  facts are permanent; a recording on an interview entry is the one thing the author can remove
-  for good; deleted interview entries and omitted questions are stamped and kept (`docs/04` §3.15, §3.16).
+- **Nothing is ever deleted, except a recording and the profile photo** — render versions, source
+  documents and rejected facts are permanent; a recording on an interview entry and the 履歴書
+  photo are the things the author can remove for good; deleted interview entries and omitted questions are stamped and kept (`docs/04` §3.15, §3.16).
   This is correct for one user and becomes wrong at the second: account deletion that actually
   deletes is a gate before the second invite (`08` §6, `13` §8).
 

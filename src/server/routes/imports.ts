@@ -13,6 +13,7 @@ import { ApiError, conflict, notFound, validationFailed, pathParam, violatesUniq
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
+import { CREDITS_REASON } from "../services/model-credits";
 import { requireOwnedEmployer } from "./record";
 import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
@@ -24,6 +25,7 @@ import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
+import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
 import type { Context } from "hono";
 import { z } from "zod";
 
@@ -758,11 +760,13 @@ function importFailure(
   reason: string | null,
   extracted: number,
   stoppedOnChunk: boolean,
-): { code: "no_facts_extracted" | "extraction_failed"; message: string } | null {
+): { code: "no_facts_extracted" | "extraction_failed" | typeof CREDITS_REASON; message: string } | null {
   if (status !== "failed") return null;
   return {
-    code: reason === "No facts could be extracted from this document." && extracted === 0 && !stoppedOnChunk
-      ? "no_facts_extracted" : "extraction_failed",
+    code: reason === CREDITS_EXHAUSTED_MESSAGE
+      ? CREDITS_REASON
+      : reason === "No facts could be extracted from this document." && extracted === 0 && !stoppedOnChunk
+        ? "no_facts_extracted" : "extraction_failed",
     message: reason ?? "This import could not be completed.",
   };
 }

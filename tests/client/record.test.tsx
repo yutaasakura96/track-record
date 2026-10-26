@@ -1,5 +1,5 @@
 /**
- * Screen 4, Your record (`docs/10-screen-specifications.md`, S7 and S13).
+ * Screen 4, Career timeline (`docs/10-screen-specifications.md`, S7 and S13).
  *
  * Four writes start here: creating a row, editing one, deleting one, and
  * setting which renders an entry appears in. What matters is that each write
@@ -7,11 +7,16 @@
  * server explains is shown in the server's words (a `409` names what is still
  * attached, a `422` names the fields), and that a write which never reached
  * the server says so rather than leaving the screen as if nothing happened.
- * All fixtures are invented.
+ *
+ * Then what the timeline reads beside the rows (issue #113): the counts from
+ * `/api/career-timeline`, the 履歴書's gaps between the cards they fall
+ * between, and expiry on certifications. All fixtures are invented.
  */
 import { describe, expect, it } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import type { Employer, RenderInclusion } from "~/client/api";
+import type { Certification, Education, Employer, Project, RenderInclusion, Role } from "~/client/api";
+import type { CareerTimeline } from "~/shared/career-timeline";
+import { currentMonth } from "~/shared/calendar";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 
 const UNREACHABLE = () => {
@@ -23,7 +28,7 @@ const QORVANE: Employer = {
   id: "emp-test-qorvane",
   nameJa: "株式会社クオーヴェイン",
   nameLatin: "Qorvane KK",
-  industryJa: null,
+  industryJa: null, city: null,
   businessDescription: null,
   capitalYen: null,
   headcount: null,
@@ -34,21 +39,90 @@ const QORVANE: Employer = {
   sortOrder: 0,
 };
 
-const open = (routes: Routes = {}, employers: Employer[] = [QORVANE], inclusions: RenderInclusion[] = []) =>
+const BRISTEL: Employer = {
+  ...QORVANE,
+  id: "emp-test-bristel",
+  nameJa: "ブリステル株式会社",
+  nameLatin: "Bristel Inc.",
+  industryJa: "ソフトウェア",
+  headcount: 140,
+  employmentType: "contract",
+  startedOn: "2015-04-01",
+  endedOn: "2017-03-01",
+  sortOrder: 1,
+};
+
+const LEAD: Role = {
+  id: "role-test-lead",
+  employerId: QORVANE.id,
+  titleJa: null,
+  titleLatin: "Platform Lead",
+  shokushuJa: null,
+  startedOn: "2023-04-01",
+  endedOn: null,
+};
+
+const LEDGER: Project = {
+  id: "proj-test-ledger",
+  name: "Ledger rebuild",
+  nameJa: null,
+  employerId: QORVANE.id,
+  summary: null,
+  summaryJa: null,
+  startedOn: "2022-01-01",
+  endedOn: "2023-06-01",
+  clientIsNamed: false,
+};
+
+const PROFILE = {
+  id: "profile-test-1",
+  nameLatin: "Rin Tamaki",
+  familyNameKanji: "玉木",
+  givenNameKanji: "凛",
+  email: "rin@example.invalid",
+  resumeHeadline: "Platform Engineer",
+  resumeCity: "Sapporo",
+  resumeCountry: "Japan",
+};
+
+const NO_COUNTS: CareerTimeline = { employers: [], projects: [], gaps: [], explained: [], staleNotes: [] };
+
+/**
+ * The element holding exactly `text`. A ※ row joins on U+3000, which Testing
+ * Library's default whitespace collapse would turn into an ASCII space.
+ */
+const exactly = (text: string) => (_: string, element: Element | null) =>
+  element?.textContent === text && element.children.length === 0;
+
+/** Between Bristel's end and Qorvane's start: April 2017 to March 2021. */
+const GAP = { after: "2017-03", before: "2021-04", from: "2017-04", to: "2021-03", months: 48 };
+
+const open = (
+  routes: Routes = {},
+  employers: Employer[] = [QORVANE],
+  inclusions: RenderInclusion[] = [],
+  rows: { roles?: Role[]; projects?: Project[]; educations?: Education[]; certifications?: Certification[] } = {},
+) =>
   mount("/record", {
+    "GET /api/profile": PROFILE,
     "GET /api/employers": { items: employers },
-    "GET /api/roles": { items: [] },
-    "GET /api/projects": { items: [] },
-    "GET /api/educations": { items: [] },
-    "GET /api/certifications": { items: [] },
+    "GET /api/roles": { items: rows.roles ?? [] },
+    "GET /api/projects": { items: rows.projects ?? [] },
+    "GET /api/educations": { items: rows.educations ?? [] },
+    "GET /api/certifications": { items: rows.certifications ?? [] },
     "GET /api/render-inclusions": { items: inclusions },
+    "GET /api/career-timeline": NO_COUNTS,
     ...routes,
   });
 
 const panel = async (heading: string) =>
   (await screen.findByRole("heading", { name: heading, level: 2 })).closest("section")!;
 
-const employerRow = async () => (await screen.findByText("株式会社クオーヴェイン · Qorvane KK")).closest("li")!;
+/** One employer's card on the timeline, named by its Latin name. */
+const card = (name = "Qorvane KK") => screen.findByRole("article", { name });
+
+/** The row inside a card or panel that carries `text`. */
+const rowOf = async (text: string) => (await screen.findByText(text)).closest("li")!;
 
 /**
  * Whether the save failure is reported after every field, beside Save. jsdom has
@@ -61,33 +135,291 @@ const reportedBesideSave = (form: HTMLElement, alert: HTMLElement) =>
     (field) => field.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING,
   );
 
+/* ------------------------------------------------------------------ layout */
+
+describe("the timeline", () => {
+  it("is titled Career timeline and links to the profile form", async () => {
+    open();
+
+    await screen.findByRole("heading", { name: "Career timeline", level: 1 });
+    const profile = await screen.findByRole("region", { name: "Profile" });
+    expect(within(profile).getByText("Rin Tamaki")).toBeTruthy();
+    expect(profile.textContent).toContain("玉木 凛");
+    expect(profile.textContent).toContain("Platform Engineer · Sapporo, Japan · rin@example.invalid");
+    expect(profile.textContent).toContain("Address and birth date: 履歴書 only");
+    expect(within(profile).getByRole("link", { name: "Edit profile" }).getAttribute("href")).toBe("/profile");
+  });
+
+  it("lists employers newest first, each with its dates, duration, type, industry and size", async () => {
+    open({}, [BRISTEL, QORVANE]);
+
+    await card();
+    const cards = screen.getAllByRole("article").map((a) => a.getAttribute("aria-label"));
+    expect(cards).toEqual(["Qorvane KK", "Bristel Inc."]);
+    expect((await card("Bristel Inc.")).textContent).toContain(
+      "2015-04 – 2017-03 · 2 yrs · Contract · ソフトウェア · 140 people",
+    );
+  });
+
+  it("files roles and projects inside their employer's card, with achievement counts", async () => {
+    open(
+      {
+        "GET /api/career-timeline": {
+          employers: [{ id: QORVANE.id, achievements: 12, unfiled: 3, documents: 2 }],
+          projects: [{ id: LEDGER.id, achievements: 9 }],
+          gaps: [],
+        },
+      },
+      [QORVANE, BRISTEL],
+      [],
+      { roles: [LEAD], projects: [LEDGER] },
+    );
+
+    const qorvane = await card();
+    await within(qorvane).findByText("From 2 imported documents");
+    expect(within(qorvane).getByText("Platform Lead")).toBeTruthy();
+    expect((await rowOf("Ledger rebuild")).textContent).toContain("9 achievements");
+    expect(within(qorvane).getByText("Not filed under a project").closest("li")!.textContent).toContain(
+      "3 achievements",
+    );
+    expect(within(qorvane).getByText("12 achievements")).toBeTruthy();
+
+    const bristel = await card("Bristel Inc.");
+    expect(within(bristel).queryByText("Platform Lead")).toBeNull();
+    expect(within(bristel).getByText("Nothing imported yet")).toBeTruthy();
+  });
+
+  it("shows no count while the counts are being read", async () => {
+    open({ "GET /api/career-timeline": () => new Promise(() => {}) }, [QORVANE], [], { projects: [LEDGER] });
+
+    const qorvane = await card();
+    await waitFor(() => expect(within(qorvane).getAllByText("In all 5 documents")).toHaveLength(2));
+    expect(qorvane.textContent).not.toMatch(/\d+ achievements?|Nothing imported yet|No projects or achievements/);
+  });
+
+  it("shows the 履歴書's gap between the two cards it falls between, in Japanese and in English", async () => {
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] } }, [BRISTEL, QORVANE]);
+
+    const ja = await screen.findByText("2017年4月〜2021年3月（48か月）は、学歴・職歴のどの行にも含まれていません。");
+    const en = screen.getByText("April 2017–March 2021 (48 months) is covered by no 学歴・職歴 entry.");
+    expect(ja.getAttribute("lang")).toBe("ja");
+    const qorvane = await card();
+    const bristel = await card("Bristel Inc.");
+    expect(qorvane.compareDocumentPosition(ja) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(en.compareDocumentPosition(bristel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(toneOf(en)).toBe("text-dim");
+  });
+
+  it("shows the 履歴書's gap when education is recorded without an employer", async () => {
+    const gap = { after: "2011-03", before: "2015-04", from: "2011-04", to: "2015-03", months: 48 };
+    const school: Education = {
+      id: "edu-test-school", institution: "Kitamachi High School", institutionJa: null,
+      faculty: null, degree: null, fieldOfStudy: null, startedOn: "2008-04-01",
+      endedOn: "2011-03-01", outcome: "graduated", level: "secondary_upper",
+    };
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, gaps: [gap] } }, [], [], {
+      educations: [school, { ...school, id: "edu-test-college", institution: "Cedar College",
+        startedOn: "2015-04-01", endedOn: "2019-03-01", level: "tertiary" }],
+    });
+
+    const work = await panel("Work");
+    expect(within(work).getByText(/No jobs yet/)).toBeTruthy();
+    expect(await within(work).findByText("April 2011–March 2015 (48 months) is covered by no 学歴・職歴 entry.")).toBeTruthy();
+  });
+
+  it("writes an explanation of a gap as the ※ row the 履歴書 prints, with the gap's own months", async () => {
+    const { api, user } = open(
+      { "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] }, "POST /api/gap-notes": { id: "gap-test-1" } },
+      [BRISTEL, QORVANE],
+    );
+
+    await user.click(await screen.findByRole("button", { name: "Add an explanation" }));
+    const form = screen.getByRole("form", { name: "Explain April 2017–March 2021 (48 months)" });
+    await user.type(within(form).getByRole("textbox"), "資格取得のため学習");
+    // The row as it will print, while it is typed: the months are not typed at all.
+    expect(within(form).getByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"))).toBeTruthy();
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.writes()).toEqual(["POST /api/gap-notes"]));
+    expect(api.bodyOf("POST", "/api/gap-notes")).toEqual({
+      fromOn: "2017-04-01",
+      toOn: "2021-03-01",
+      text: "資格取得のため学習",
+    });
+  });
+
+  it("says a refused explanation beside Save, in the server's words", async () => {
+    const { user } = open(
+      {
+        "GET /api/career-timeline": { ...NO_COUNTS, gaps: [GAP] },
+        "POST /api/gap-notes": new Refusal(422, "validation_failed", "Keep it to 80 characters: it is one row of the 履歴書."),
+      },
+      [BRISTEL, QORVANE],
+    );
+    await user.click(await screen.findByRole("button", { name: "Add an explanation" }));
+    await user.type(screen.getByRole("textbox"), "資格取得のため学習");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toBe("Keep it to 80 characters: it is one row of the 履歴書.");
+    expect(toneOf(alert)).toBe("removed");
+  });
+
+  it("shows an explained gap as its ※ row, in its place, and takes it back on Remove", async () => {
+    const note = { id: "gap-test-1", fromOn: "2017-04-01", toOn: "2021-03-01", text: "資格取得のため学習" };
+    const { api, user } = open(
+      {
+        "GET /api/career-timeline": { ...NO_COUNTS, explained: [{ gap: GAP, note }] },
+        "DELETE /api/gap-notes/gap-test-1": undefined,
+      },
+      [BRISTEL, QORVANE],
+    );
+
+    const row = await screen.findByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"));
+    expect(row.compareDocumentPosition(await card("Bristel Inc.")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.queryByText(/is covered by no 学歴・職歴 entry/)).toBeNull();
+
+    await user.click(screen.getByRole("button", { name: "Remove the explanation of April 2017–March 2021 (48 months)" }));
+    await waitFor(() => expect(api.writes()).toEqual(["DELETE /api/gap-notes/gap-test-1"]));
+  });
+
+  it("keeps an explanation whose gap has closed, says it is not printed, and offers to remove it", async () => {
+    const note = { id: "gap-test-old", fromOn: "2017-04-01", toOn: "2021-03-01", text: "資格取得のため学習" };
+    open({ "GET /api/career-timeline": { ...NO_COUNTS, staleNotes: [note] } }, [BRISTEL, QORVANE]);
+
+    const list = await screen.findByRole("list", { name: "Explanations of gaps that have closed" });
+    expect(within(list).getByText(exactly("※2017年4月〜2021年3月　資格取得のため学習"))).toBeTruthy();
+    expect(within(list).getByText(/so the 履歴書 does not print this/)).toBeTruthy();
+    expect(within(list).getByRole("button", { name: "Remove" })).toBeTruthy();
+  });
+
+  it("says when a role or project now falls outside its job's dates (review §5 G5)", async () => {
+    // The job shortened to end in 2020-01, leaving a role and a project running past it.
+    const shortened = { ...QORVANE, startedOn: "2017-04-01", endedOn: "2020-01-01" };
+    const senior = { ...LEAD, titleLatin: "Senior Backend Engineer", startedOn: "2019-01-01", endedOn: "2020-06-01" };
+    const early = { ...LEAD, id: "role-test-early", titleLatin: "Backend Engineer", startedOn: "2017-04-01", endedOn: "2018-12-01" };
+    const rules = { ...LEDGER, name: "Fraud rules engine", startedOn: "2019-02-01", endedOn: "2020-03-01" };
+    open({}, [shortened], [], { roles: [senior, early], projects: [rules] });
+
+    const qorvane = await card();
+    const status = within(qorvane).getByRole("status");
+    expect(status.textContent).toContain("Role Senior Backend Engineer (2019-01 – 2020-06) runs past this job's end, 2020-01.");
+    expect(status.textContent).toContain("Project Fraud rules engine (2019-02 – 2020-03) runs past this job's end, 2020-01.");
+    expect(status.textContent).not.toContain("Backend Engineer (2017-04");
+    expect(status.textContent).toContain("The 職務経歴書 would print dates that contradict each other.");
+  });
+
+  it("says nothing about dates when every role and project sits inside its job", async () => {
+    open({}, [QORVANE], [], { roles: [LEAD], projects: [LEDGER] });
+    expect(within(await card()).queryByRole("status")).toBeNull();
+  });
+
+  it("calls out expired certifications and each education rung's render exclusions", async () => {
+    open({}, [QORVANE], [], {
+      certifications: [
+        {
+          id: "cert-test-old",
+          name: "Hollow Cloud Associate",
+          nameJa: null,
+          kind: "technical",
+          issuingOrganization: "Hollow Cloud",
+          issuedOn: "2019-04-01",
+          expiresOn: "2022-04-01",
+          credentialId: null,
+          credentialUrl: null,
+          technologies: [],
+        },
+        {
+          id: "cert-test-held",
+          name: "Quill Engineer",
+          nameJa: null,
+          kind: "technical",
+          issuingOrganization: "Quill Board",
+          issuedOn: "2020-04-01",
+          expiresOn: currentMonth(),
+          credentialId: null,
+          credentialUrl: null,
+          technologies: [],
+        },
+      ],
+      educations: [
+        {
+          id: "edu-test-high",
+          institution: "Kitamachi High School",
+          institutionJa: null,
+          faculty: null,
+          degree: null,
+          fieldOfStudy: null,
+          startedOn: "2008-04-01",
+          endedOn: "2011-03-01",
+          outcome: "graduated",
+          level: "secondary_upper",
+        },
+        {
+          id: "edu-test-middle",
+          institution: "Kitamachi Middle School",
+          institutionJa: null,
+          faculty: null,
+          degree: null,
+          fieldOfStudy: null,
+          startedOn: "2005-04-01",
+          endedOn: "2008-03-01",
+          outcome: "graduated",
+          level: "secondary_lower",
+        },
+        {
+          id: "edu-test-vocational",
+          institution: "Kitamachi Design Academy",
+          institutionJa: null,
+          faculty: null,
+          degree: null,
+          fieldOfStudy: null,
+          startedOn: "2011-04-01",
+          endedOn: "2012-03-01",
+          outcome: "completed",
+          level: "vocational",
+        },
+      ],
+    });
+
+    expect((await rowOf("Hollow Cloud Associate")).textContent).toContain("expired 2022-04");
+    expect((await rowOf("Quill Engineer")).textContent).toContain("expires this month");
+    expect((await rowOf("Kitamachi High School")).textContent).toContain("Left out of: Résumé (English)");
+    expect((await rowOf("Kitamachi Middle School")).textContent).toContain(
+      "Left out of: Résumé (English), 職務経歴書",
+    );
+    // A vocational programme prints in every document, so it carries no chip.
+    expect((await rowOf("Kitamachi Design Academy")).textContent).not.toContain("Left out of");
+  });
+});
+
 /* ------------------------------------------------------------------ create */
 
-describe("adding an employer", () => {
+describe("adding a job", () => {
   const POST = "POST /api/employers";
 
   async function fillAndSave(user: ReturnType<typeof open>["user"]) {
-    const employers = await panel("Employers");
-    await user.click(within(employers).getByRole("button", { name: "Add" }));
-    const form = employers.querySelector("form")!;
+    const work = await panel("Work");
+    await user.click(within(work).getByRole("button", { name: "Add a job" }));
+    const form = work.querySelector("form")!;
     await user.type(within(form).getByLabelText("会社名 · Employer name"), "株式会社ゼントレル");
     await user.selectOptions(within(form).getByLabelText("雇用形態 · Employment type"), "contract");
     fireEvent.change(within(form).getByLabelText("入社 · Started"), { target: { value: "2019-10" } });
     await user.click(within(form).getByRole("button", { name: "Save" }));
-    return { employers, form };
+    return { work, form };
   }
 
   it("sends the whole row, the day pinned to 01, and closes the form", async () => {
     const { api, user } = open({ [POST]: { id: "emp-test-zentrel" } }, []);
-    const { employers } = await fillAndSave(user);
+    const { work } = await fillAndSave(user);
 
-    await waitFor(() => expect(employers.querySelector("form")).toBeNull());
+    await waitFor(() => expect(work.querySelector("form")).toBeNull());
     expect(api.writes()).toEqual([POST]);
     expect(api.bodyOf("POST", "/api/employers")).toEqual({
       nameJa: "株式会社ゼントレル",
       nameLatin: null,
       employmentType: "contract",
-      industryJa: null,
+      industryJa: null, city: null,
       startedOn: "2019-10-01",
       endedOn: null,
       capitalYen: null,
@@ -95,7 +427,7 @@ describe("adding an employer", () => {
       businessDescription: null,
       leavingReasonJa: null,
     });
-    expect(within(employers).queryByRole("alert")).toBeNull();
+    expect(within(work).queryByRole("alert")).toBeNull();
   });
 
   it("names the refused fields in the server's words and keeps the form open", async () => {
@@ -116,22 +448,64 @@ describe("adding an employer", () => {
 
   it("says the server could not be reached and keeps the form open", async () => {
     const { api, user } = open({ [POST]: UNREACHABLE }, []);
-    const { employers, form } = await fillAndSave(user);
+    const { work, form } = await fillAndSave(user);
 
     const alert = await within(form).findByRole("alert");
     expect(alert.textContent).toBe(`${NOT_REACHED} Nothing was saved.`);
     expect(reportedBesideSave(form, alert)).toBe(true);
-    expect(employers.querySelector("form")).toBe(form);
+    expect(work.querySelector("form")).toBe(form);
     expect(within(form).getByLabelText("会社名 · Employer name")).toHaveProperty("value", "株式会社ゼントレル");
     expect(api.writes()).toEqual([POST]);
   });
+});
 
-  it("offers no Add for a role until an employer exists", async () => {
-    open({}, []);
-    const roles = await panel("Roles");
+describe("adding inside a card", () => {
+  it("starts a role under the employer whose card it was added from", async () => {
+    const POST = "POST /api/roles";
+    const { api, user } = open({ [POST]: { id: "role-test-new" } }, [QORVANE, BRISTEL]);
+    const bristel = await card("Bristel Inc.");
 
-    const add = within(roles).getByRole("button", { name: "Add" });
-    expect(add.getAttribute("title")).toBe("Add an employer first — a role belongs to one.");
+    await user.click(within(bristel).getByRole("button", { name: "Add a role" }));
+    const form = bristel.querySelector("form")!;
+    expect(within(form).getByLabelText("Employer")).toHaveProperty("value", BRISTEL.id);
+    await user.type(within(form).getByLabelText(/^Title/), "Analyst");
+    fireEvent.change(within(form).getByLabelText("Started"), { target: { value: "2015-04" } });
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(bristel.querySelector("form")).toBeNull());
+    expect(api.bodyOf("POST", "/api/roles")).toMatchObject({
+      employerId: BRISTEL.id,
+      titleLatin: "Analyst",
+      startedOn: "2015-04-01",
+    });
+  });
+
+  it("starts a project under the employer whose card it was added from", async () => {
+    const POST = "POST /api/projects";
+    const { api, user } = open({ [POST]: { id: "proj-test-new" } });
+    const qorvane = await card();
+
+    await user.click(within(qorvane).getByRole("button", { name: "Add a project" }));
+    const form = qorvane.querySelector("form")!;
+    await user.type(within(form).getByLabelText("Project name"), "Search revamp");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([POST]));
+    expect(api.bodyOf("POST", "/api/projects")).toMatchObject({ name: "Search revamp", employerId: QORVANE.id });
+  });
+
+  it("adds an independent project with no employer", async () => {
+    const POST = "POST /api/projects";
+    const { api, user } = open({ [POST]: { id: "proj-test-new" } });
+    const independent = await panel("Independent projects");
+
+    await user.click(within(independent).getByRole("button", { name: "Add a project" }));
+    const form = independent.querySelector("form")!;
+    await user.type(within(form).getByLabelText("Project name"), "Typeface tool");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([POST]));
+    expect(api.bodyOf("POST", "/api/projects")).toMatchObject({ name: "Typeface tool", employerId: null });
   });
 });
 
@@ -142,15 +516,14 @@ describe("a new row's required choices", () => {
   // being touched must carry nothing, which the server refuses, rather than a
   // value nobody chose. A withdrawal saved as 卒業 is the case that matters.
   it.each([
-    ["Employers", "雇用形態 · Employment type", "POST /api/employers", "employmentType"],
-    ["Roles", "Employer", "POST /api/roles", "employerId"],
-    ["Education", "Outcome", "POST /api/educations", "outcome"],
-  ])("%s: %s starts unchosen and is sent as nothing when left alone", async (heading, label, POST, name) => {
+    ["Work", "Add a job", "雇用形態 · Employment type", "POST /api/employers", "employmentType"],
+    ["Education", "Add education", "Outcome", "POST /api/educations", "outcome"],
+  ])("%s: %s starts unchosen and is sent as nothing when left alone", async (heading, add, label, POST, name) => {
     const { api, user } = open({
       [POST]: new Refusal(422, "validation_failed", "A choice is missing.", { fields: [name] }),
     });
     const section = await panel(heading);
-    await user.click(within(section).getByRole("button", { name: "Add" }));
+    await user.click(within(section).getByRole("button", { name: add }));
     const form = section.querySelector("form")!;
 
     expect(within(form).getByLabelText(label)).toHaveProperty("value", "");
@@ -161,10 +534,32 @@ describe("a new row's required choices", () => {
     expect((api.bodyOf("POST", path!) as Record<string, unknown>)[name]).toBeNull();
   });
 
+  it("asks a certification's kind with nothing chosen, and sends nothing when it is left alone", async () => {
+    const POST = "POST /api/certifications";
+    const { api, user } = open({
+      [POST]: new Refusal(422, "validation_failed", "Choose whether this is technical, a language score or something else.", { fields: ["kind"] }),
+    });
+    const section = await panel("Certifications");
+    await user.click(within(section).getByRole("button", { name: "Add a certification" }));
+    const form = section.querySelector("form")!;
+    const kind = within(form).getByLabelText(/^Kind/);
+    expect(kind).toHaveProperty("value", "");
+    expect(kind.closest("label")!.textContent).not.toMatch(/optional/);
+
+    await user.type(within(form).getByLabelText("Name"), "TOEIC Listening & Reading 880");
+    await user.type(within(form).getByLabelText("Issuing organization"), "IIBC");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    const alert = await within(form).findByRole("alert");
+    expect(alert.textContent).toBe("Choose whether this is technical, a language score or something else. Nothing was saved.");
+    expect(kind.getAttribute("aria-invalid")).toBe("true");
+    expect((api.bodyOf("POST", "/api/certifications") as Record<string, unknown>).kind).toBeNull();
+  });
+
   it("does not call an education's end month optional", async () => {
     const { user } = open();
     const section = await panel("Education");
-    await user.click(within(section).getByRole("button", { name: "Add" }));
+    await user.click(within(section).getByRole("button", { name: "Add education" }));
     const form = section.querySelector("form")!;
 
     const ended = [...form.querySelectorAll("label")].find((l) => l.textContent!.startsWith("卒業・修了・中退 · Ended"))!;
@@ -180,15 +575,15 @@ describe("editing an employer", () => {
 
   it("sends the row it was opened from, with the stored values it did not change", async () => {
     const { api, user } = open({ [PATCH]: { id: QORVANE.id } });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Edit" }));
-    const form = row.querySelector("form")!;
+    await user.click(within(qorvane).getByRole("button", { name: "Edit Qorvane KK" }));
+    const form = qorvane.querySelector("form")!;
     const industry = within(form).getByLabelText(/業種 · Industry/);
     await user.type(industry, "情報通信業");
     await user.click(within(form).getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(row.querySelector("form")).toBeNull());
+    await waitFor(() => expect(qorvane.querySelector("form")).toBeNull());
     expect(api.writes()).toEqual([PATCH]);
     expect(api.bodyOf("PATCH", "/api/employers/emp-test-qorvane")).toMatchObject({
       nameJa: QORVANE.nameJa,
@@ -202,28 +597,42 @@ describe("editing an employer", () => {
 
   it("says the server could not be reached and keeps the edit open", async () => {
     const { api, user } = open({ [PATCH]: UNREACHABLE });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Edit" }));
-    const form = row.querySelector("form")!;
+    await user.click(within(qorvane).getByRole("button", { name: "Edit Qorvane KK" }));
+    const form = qorvane.querySelector("form")!;
     await user.click(within(form).getByRole("button", { name: "Save" }));
 
     const alert = await within(form).findByRole("alert");
     expect(alert.textContent).toBe(`${NOT_REACHED} Nothing was saved.`);
     expect(reportedBesideSave(form, alert)).toBe(true);
-    expect(row.querySelector("form")).toBe(form);
+    expect(qorvane.querySelector("form")).toBe(form);
     expect(api.writes()).toEqual([PATCH]);
   });
 
   it("writes nothing on Cancel", async () => {
     const { api, user } = open();
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Edit" }));
-    await user.click(within(row).getByRole("button", { name: "Cancel" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Edit Qorvane KK" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Cancel" }));
 
-    expect(row.querySelector("form")).toBeNull();
+    expect(qorvane.querySelector("form")).toBeNull();
     expect(api.writes()).toEqual([]);
+  });
+
+  it("edits a role from its own row", async () => {
+    const PATCH_ROLE = "PATCH /api/roles/role-test-lead";
+    const { api, user } = open({ [PATCH_ROLE]: { id: LEAD.id } }, [QORVANE], [], { roles: [LEAD] });
+    const qorvane = await card();
+
+    await user.click(within(qorvane).getByRole("button", { name: "Edit Platform Lead" }));
+    const form = qorvane.querySelector("form")!;
+    expect(within(form).getByLabelText(/^Title/)).toHaveProperty("value", "Platform Lead");
+    await user.click(within(form).getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([PATCH_ROLE]));
+    expect(api.bodyOf("PATCH", "/api/roles/role-test-lead")).toMatchObject({ employerId: QORVANE.id, startedOn: "2023-04-01" });
   });
 });
 
@@ -232,26 +641,26 @@ describe("editing an employer", () => {
 describe("deleting an employer", () => {
   const DELETE = "DELETE /api/employers/emp-test-qorvane";
 
-  it("deletes the row it was clicked on", async () => {
+  it("deletes the card it was clicked on", async () => {
     const { api, user } = open({ [DELETE]: undefined });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Delete" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Qorvane KK" }));
 
     await waitFor(() => expect(api.writes()).toEqual([DELETE]));
-    expect(within(await panel("Employers")).queryByRole("alert")).toBeNull();
+    expect(within(qorvane).queryByRole("alert")).toBeNull();
   });
 
-  it("shows the counts refusal in the server's words", async () => {
+  it("shows the counts refusal in the server's words, in the card", async () => {
     const message = "This employer has 3 facts and 1 role attached. Reassign them before deleting.";
     const { api, user } = open({
       [DELETE]: new Refusal(409, "conflict", message, { facts: 3, roles: 1, projects: 0 }),
     });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Delete" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Qorvane KK" }));
 
-    const alert = await within(await panel("Employers")).findByRole("alert");
+    const alert = await within(qorvane).findByRole("alert");
     expect(toneOf(alert)).toBe("text-secondary");
     expect(alert.textContent).toBe(message);
     expect(api.writes()).toEqual([DELETE]);
@@ -259,11 +668,11 @@ describe("deleting an employer", () => {
 
   it("says the server could not be reached", async () => {
     const { api, user } = open({ [DELETE]: UNREACHABLE });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Delete" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Qorvane KK" }));
 
-    const alert = await within(await panel("Employers")).findByRole("alert");
+    const alert = await within(qorvane).findByRole("alert");
     expect(alert.textContent).toBe(NOT_REACHED);
     expect(api.writes()).toEqual([DELETE]);
   });
@@ -271,15 +680,42 @@ describe("deleting an employer", () => {
   it("clears the refusal when the next delete is tried", async () => {
     let answer: unknown = new Refusal(409, "conflict", "This employer has 1 fact attached. Reassign them before deleting.");
     const { user } = open({ [DELETE]: () => answer });
-    const row = await employerRow();
+    const qorvane = await card();
 
-    await user.click(within(row).getByRole("button", { name: "Delete" }));
-    await within(await panel("Employers")).findByRole("alert");
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Qorvane KK" }));
+    await within(qorvane).findByRole("alert");
 
     answer = undefined;
-    await user.click(within(row).getByRole("button", { name: "Delete" }));
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Qorvane KK" }));
 
-    await waitFor(async () => expect(within(await panel("Employers")).queryByRole("alert")).toBeNull());
+    await waitFor(() => expect(within(qorvane).queryByRole("alert")).toBeNull());
+  });
+});
+
+describe("deleting inside a card", () => {
+  it("shows a project's refusal in its employer's card", async () => {
+    const DELETE = "DELETE /api/projects/proj-test-ledger";
+    const message = "This project has 9 facts attached. Reassign them before deleting.";
+    const { api, user } = open({ [DELETE]: new Refusal(409, "conflict", message) }, [QORVANE], [], {
+      projects: [LEDGER],
+    });
+    const qorvane = await card();
+
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Ledger rebuild" }));
+
+    expect((await within(qorvane).findByRole("alert")).textContent).toBe(message);
+    expect(api.writes()).toEqual([DELETE]);
+  });
+
+  it("deletes a role from its own row", async () => {
+    const DELETE = "DELETE /api/roles/role-test-lead";
+    const { api, user } = open({ [DELETE]: undefined }, [QORVANE], [], { roles: [LEAD] });
+    const qorvane = await card();
+
+    await user.click(within(qorvane).getByRole("button", { name: "Delete Platform Lead" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([DELETE]));
+    expect(within(qorvane).queryByRole("alert")).toBeNull();
   });
 });
 
@@ -287,12 +723,28 @@ describe("deleting an employer", () => {
 
 describe("choosing which renders an employer appears in", () => {
   const PUT = "PUT /api/render-inclusions";
+  const CHANGE = "Change where Qorvane KK appears";
 
-  it("unchecks one render for the row it belongs to", async () => {
+  async function popover(user: ReturnType<typeof open>["user"]) {
+    const qorvane = await card();
+    await user.click(await within(qorvane).findByRole("button", { name: CHANGE }));
+    return { qorvane, group: within(qorvane).getByRole("group", { name: "Appears in" }) };
+  }
+
+  it("summarises the setting in one line, with the boxes closed", async () => {
+    open();
+    const qorvane = await card();
+
+    await within(qorvane).findByText("In all 5 documents");
+    expect(within(qorvane).getByRole("button", { name: CHANGE }).getAttribute("aria-expanded")).toBe("false");
+    expect(within(qorvane).queryByRole("group", { name: "Appears in" })).toBeNull();
+  });
+
+  it("unchecks one render for the card it belongs to", async () => {
     const { api, user } = open({
       [PUT]: { entityType: "employer", entityId: QORVANE.id, kind: "rirekisho", included: false },
     });
-    const group = await within(await employerRow()).findByRole("group", { name: "Appears in" });
+    const { qorvane, group } = await popover(user);
 
     await user.click(within(group).getByRole("checkbox", { name: "履歴書" }));
 
@@ -303,36 +755,98 @@ describe("choosing which renders an employer appears in", () => {
       kind: "rirekisho",
       included: false,
     });
-    expect(within(group).queryByRole("alert")).toBeNull();
+    expect(within(qorvane).queryByRole("alert")).toBeNull();
   });
 
-  it("reads an excluded render as unchecked", async () => {
-    open({}, [QORVANE], [{ entityType: "employer", entityId: QORVANE.id, kind: "rirekisho", included: false }]);
-    const group = await within(await employerRow()).findByRole("group", { name: "Appears in" });
+  it("names an excluded render in the line and reads it unchecked", async () => {
+    const { user } = open({}, [QORVANE], [
+      { entityType: "employer", entityId: QORVANE.id, kind: "rirekisho", included: false },
+    ]);
+    const { qorvane, group } = await popover(user);
 
+    expect(within(qorvane).getByText("Left out of: 履歴書")).toBeTruthy();
     expect(within(group).getByRole("checkbox", { name: "履歴書" })).toHaveProperty("checked", false);
     expect(within(group).getByRole("checkbox", { name: "Résumé (English)" })).toHaveProperty("checked", true);
   });
 
+  it("lists every excluded document when only one remains included", async () => {
+    open({}, [QORVANE], [
+      "english_resume", "shokumu_keirekisho", "career_story_en", "career_story_ja",
+    ].map((kind) => ({
+      entityType: "employer", entityId: QORVANE.id, kind, included: false,
+    })) as RenderInclusion[]);
+
+    const qorvane = await card();
+    expect(await within(qorvane).findByText(
+      "Left out of: Résumé (English), 職務経歴書, Career story (English), 職務経歴ストーリー",
+    )).toBeTruthy();
+  });
+
+  it("closes on Escape and returns focus to Change", async () => {
+    const { user } = open();
+    const { qorvane } = await popover(user);
+    const change = within(qorvane).getByRole("button", { name: CHANGE });
+    expect(change.getAttribute("aria-expanded")).toBe("true");
+
+    await user.keyboard("{Escape}");
+
+    expect(within(qorvane).queryByRole("group", { name: "Appears in" })).toBeNull();
+    expect(document.activeElement).toBe(change);
+  });
+
   it("says the setting was not saved, in the server's words", async () => {
     const { user } = open({ [PUT]: new Refusal(404, "not_found", "That employer no longer exists.") });
-    const group = await within(await employerRow()).findByRole("group", { name: "Appears in" });
+    const { qorvane, group } = await popover(user);
 
     await user.click(within(group).getByRole("checkbox", { name: "履歴書" }));
 
-    const alert = await within(group).findByRole("alert");
+    const alert = await within(qorvane).findByRole("alert");
     expect(toneOf(alert)).toBe("removed");
     expect(alert.textContent).toBe("That setting was not saved. That employer no longer exists.");
   });
 
   it("says the setting was not saved because the server could not be reached", async () => {
     const { user } = open({ [PUT]: UNREACHABLE });
-    const group = await within(await employerRow()).findByRole("group", { name: "Appears in" });
+    const { qorvane, group } = await popover(user);
 
     await user.click(within(group).getByRole("checkbox", { name: "履歴書" }));
 
-    const alert = await within(group).findByRole("alert");
+    const alert = await within(qorvane).findByRole("alert");
     expect(alert.textContent).toBe(`That setting was not saved. ${NOT_REACHED}`);
     expect(within(group).getByRole("checkbox", { name: "履歴書" })).toHaveProperty("checked", true);
+  });
+});
+
+/* ------------------------------------------------- from a refused résumé */
+
+describe("arriving from a refused English résumé", () => {
+  const at = (path: string, roles: Role[] = []) =>
+    mount(path, {
+      "GET /api/profile": PROFILE,
+      "GET /api/employers": { items: [QORVANE, BRISTEL] },
+      "GET /api/roles": { items: roles },
+      "GET /api/projects": { items: [] },
+      "GET /api/educations": { items: [] },
+      "GET /api/certifications": { items: [] },
+      "GET /api/render-inclusions": { items: [] },
+      "GET /api/career-timeline": NO_COUNTS,
+    });
+
+  it("opens the named job's form with the cursor in City", async () => {
+    at(`/record?employer=${BRISTEL.id}&fix=city`);
+    const bristel = await card("Bristel Inc.");
+    const form = await waitFor(() => bristel.querySelector("form")!);
+    expect(form.getAttribute("aria-label")).toBe("Editing employer");
+    await waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText(/^City/)));
+    expect((await card()).querySelector("form")).toBeNull();
+  });
+
+  it("opens a new role under the named job with the cursor in Title", async () => {
+    at(`/record?employer=${QORVANE.id}&fix=role`);
+    const qorvane = await card();
+    const form = await waitFor(() => qorvane.querySelector("form")!);
+    expect(form.getAttribute("aria-label")).toBe("New role");
+    expect(within(form).getByLabelText("Employer")).toHaveProperty("value", QORVANE.id);
+    await waitFor(() => expect(document.activeElement).toBe(within(form).getByLabelText(/^Title/)));
   });
 });

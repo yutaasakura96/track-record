@@ -382,6 +382,17 @@ describe("the wait while a document is read", () => {
     expect(screen.queryByText(/review the facts found so far/)).toBeNull();
   });
 
+  it("still shows the facts when the import finished after the last read of them", async () => {
+    let reads = 0;
+    open([], {
+      routes: { [`GET /api/facts?importId=${IMPORT}`]: () => ({ items: reads++ === 0 ? [] : CANDIDATES }) },
+    });
+
+    await waitFor(() => expect(document.querySelector('[data-fact-card="f-measured"]')).not.toBeNull(), {
+      timeout: 5000,
+    });
+  });
+
   it("is gone once the import is ready", async () => {
     open(CANDIDATES);
     await card("f-measured");
@@ -1036,7 +1047,7 @@ describe("an import whose facts were accepted on arrival (issue #57)", () => {
   const NUMBER_FLAG = {
     id: "flg-test-1",
     kind: "number" as const,
-    reason: "It states a number. Check the number against the passage it was read from.",
+    reason: "It states a number the passage it was read from does not. Check where the number came from.",
     explanation: null,
     checked: false,
   };

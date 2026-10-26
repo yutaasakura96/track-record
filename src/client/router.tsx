@@ -27,8 +27,9 @@ import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
 import { VersionEditScreen } from "./screens/version-edit";
+import { DocumentViewScreen } from "./screens/document-view";
 import { FlaggedScreen } from "./screens/flagged";
-import { MasterDocumentScreen } from "./screens/master-document";
+import { MASTER_FILTERS, MasterDocumentScreen, type MasterFilter } from "./screens/master-document";
 import { ApplicationsScreen } from "./screens/applications";
 import { SentCopyScreen } from "./screens/sent-copy";
 import { NewApplicationScreen } from "./screens/application-new";
@@ -97,10 +98,19 @@ const profileRoute = createRoute({
   component: ProfileForm,
 });
 
+/**
+ * The career timeline. `?employer=&fix=` opens that job's form at the field an
+ * English résumé's generation was refused for: `city` on the job itself, `role`
+ * on a new role under it.
+ */
 const recordRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/record",
   component: Record,
+  validateSearch: (search: Record<string, unknown>): { employer?: string; fix?: "city" | "role" } =>
+    typeof search.employer === "string" && search.employer !== "" && (search.fix === "city" || search.fix === "role")
+      ? { employer: search.employer, fix: search.fix }
+      : {},
 });
 
 const skillsRoute = createRoute({
@@ -121,10 +131,17 @@ const flaggedRoute = createRoute({
   component: FlaggedScreen,
 });
 
+/**
+ * The career record (issue #112 renamed the master document; the path stays).
+ * `?show=` is the filter that is on, so `Show those 6` and the back button
+ * both land where the author was.
+ */
 const masterDocumentRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/master",
   component: MasterDocumentScreen,
+  validateSearch: (search: Record<string, unknown>): { show?: MasterFilter } =>
+    MASTER_FILTERS.includes(search.show as MasterFilter) ? { show: search.show as MasterFilter } : {},
 });
 
 const applicationsRoute = createRoute({
@@ -154,14 +171,17 @@ const sentCopyRoute = createRoute({
 /**
  * Quick capture (issue #95). `?fact=` opens one captured fact's card: a fact
  * with no document has its card here, where the master document and the
- * Flagged list send the author.
+ * Flagged list send the author. `?employer=` files what is typed under that
+ * employer from the start, as Home's monthly prompt opens it (issue #116).
  */
 const captureRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/capture",
   component: CaptureScreen,
-  validateSearch: (search: Record<string, unknown>): { fact?: string } =>
-    typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {},
+  validateSearch: (search: Record<string, unknown>): { fact?: string; employer?: string } => ({
+    ...(typeof search.fact === "string" && search.fact !== "" ? { fact: search.fact } : {}),
+    ...(typeof search.employer === "string" && search.employer !== "" ? { employer: search.employer } : {}),
+  }),
 });
 
 /**
@@ -199,6 +219,18 @@ const versionHistoryRoute = createRoute({
   component: VersionHistoryScreen,
 });
 
+/**
+ * Reading one version (issue #106). `?version=` names an earlier one; without
+ * it the page is the current version, and follows it when a new one is accepted.
+ */
+const documentViewRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/renders/$ref/view",
+  component: DocumentViewScreen,
+  validateSearch: (search: Record<string, unknown>): { version?: string } =>
+    typeof search.version === "string" && search.version !== "" ? { version: search.version } : {},
+});
+
 const versionEditRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/renders/$ref/edit",
@@ -222,6 +254,7 @@ const routeTree = rootRoute.addChildren([
   factReviewRoute,
   diffReviewRoute,
   versionHistoryRoute,
+  documentViewRoute,
   versionEditRoute,
 ]);
 

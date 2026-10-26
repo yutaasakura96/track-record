@@ -126,8 +126,9 @@ And the Restricted fact appears in generalised form, with the client not named
 The third assertion matters as much as the first two: Private facts are filtered **before the
 request is built**, so they never leave the database — not filtered out of the response afterwards.
 
-Plus: **the author's PII appears in 履歴書 and in no other render.** Address, phone and date of birth
-are asserted absent from the résumé, 職務経歴書 and both career stories.
+Plus: **the 履歴書 PII appears in 履歴書 and in no other render.** Its address, phone and date of birth
+are asserted absent from the résumé, 職務経歴書 and both career stories. A separately entered
+`resumePhone` may appear in the English résumé header; a blank one adds no phone (`04` §3.2).
 
 ### 2.4 履歴書 conventional correctness
 
@@ -135,7 +136,7 @@ Violations here are invisible to the author and obvious to a Japanese hiring man
 
 ```
 Missing required field  → generation is BLOCKED with 428, and the missing fields are NAMED
-Employment gap > 1 month between consecutive entries → a WARNING, not a block
+Gap of 3+ uncovered months      → a WARNING, not a block; a gap with a ※ note (docs/04 §4) does not warn
 学歴・職歴 ordering       → chronological ascending, 学歴 block before 職歴 block, terminated by 以上
 Employer with ended_on   → produces BOTH an 入社 row and a 退社 row carrying the leaving reason
 education outcome        → 'withdrawn' renders 中退, never 卒業
@@ -630,6 +631,8 @@ generation, because that render can fail in ways the résumé cannot.
 > **Built 2026-09-30** (issue #33; decision log, 2026-09-30). `tests/e2e/smoke.spec.ts` under
 > `playwright.config.ts`; `npm run test:e2e` locally, and a step after the build in CI. It has its own
 > database, `track_record_e2e`, which `npm run db:up` creates. §3 item 8 is now covered by it.
+> Since #109 its last step presses the résumé's default `Download` and asserts a PDF; the `.docx`
+> step above stays in `tests/smoke.test.ts`.
 
 ---
 
@@ -651,6 +654,15 @@ For signed-in local browser checks, follow `docs/12-deployment-devops.md` §8.
 | 8 | **The application loads**: static assets served, the SPA mounts, the sign-in button reaches Google | Covered by the browser smoke test (§2.9) since 2026-09-30; kept as the fallback if it is ever removed. The *server's* sign-in path is now automated (§2.9); what is left here is the browser: the bundle, the SPA mount, and the button that starts the redirect |
 
 **Checklist item 1 is a release blocker.** If it fails, nothing ships.
+
+For the English résumé, firstmate imported the demo-record file
+`Kenji-Moriyama-Resume-2026-10.docx` into Google Docs on 2026-10-18 without an
+import error. Every section, job header, bullet list and the Languages line
+(`TOEIC Listening & Reading 865`) remained intact. The real Microsoft Word
+opening check is pending the owner; item 1 is not yet complete.
+On 2026-10-22 the issue #109 worker opened the same demo-record résumé in Microsoft Word 16.114 on
+macOS and saved it as a PDF from Word, with no error or repair prompt; the comparison with the app's
+own PDF is in `docs/06` that day. The owner's own check of item 1 is still outstanding.
 
 **Item 4 is runnable, and its structural half was run on 2026-09-13** against the first generated
 pair. Both stories became `buildable` that day. The structure is not a judgement and is not read by
@@ -685,6 +697,27 @@ a judgement item: it is the only check that reads the document as a document.
 
 **Item 2 is runnable and has not been run.** 履歴書 became buildable on 2026-09-11, so it has
 something to print. It is in the state "never been run" rather than "cannot be run yet".
+
+**Item 1 was run for the 履歴書 on 2026-10-24** (#117, the two-page layout). The issue worker
+downloaded the demo record's 履歴書 from the app, and again after adding four invented employers to
+make eight, and opened both in Microsoft Word 16.114.1 on macOS, saving each to A4 PDF from Word.
+Both opened with no error or repair prompt. Both are two pages: page 1 ends inside 学歴・職歴, page 2
+opens with its 年 / 月 header repeated, then 免許・資格, and 志望動機 and 本人希望欄 are on page 2. No
+row splits across the break. The same check passed on 66 records built from the template with none to
+eight employers, zero to six certifications, one- and two-line addresses and a 志望動機 four times the
+usual length. This is the paper half of item 2 done on screen; printing to A4 is still not run, and
+the owner's own check of item 1 is still outstanding.
+
+**Item 1 was run for the Japanese PDFs and the 職務経歴書's new `.docx` on 2026-10-25** (#117). The
+issue worker generated the demo record's 履歴書 and 職務経歴書 with an invented scripted model,
+accepted both, and pressed each card's `Download` and `Word`: the files saved as
+`履歴書_森山健二_20261025.pdf`, `職務経歴書_森山健二_20261025.pdf` and the two `.docx`. Both `.docx`
+opened in Microsoft Word 16.114.1 on macOS with no error or repair prompt and were saved to PDF from
+Word. That Mac has no BIZ UDPGothic; Word set the 職務経歴書 in 游ゴシック for Latin and Japanese alike,
+with no Times New Roman, and on the same three pages as the app's PDF. Select All and Copy in
+PDFKit (what Preview uses) gave each app PDF's text whole and in reading order: the 職務経歴書's
+header as `会社名 雇用形態 期間`, the 履歴書's cells row by row. The owner's own check of item 1 is
+still outstanding.
 
 The employer-name fault above did NOT reach it. The 履歴書 builds its 学歴・職歴 rows from its own
 input builder in `src/server/services/rirekisho.ts`, which reads `nameJa` directly and always has;

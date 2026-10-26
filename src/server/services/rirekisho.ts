@@ -11,20 +11,25 @@
  * not claims about it, which is why the 履歴書 can be assembled from a stored
  * version whose only generated content is two prose blocks.
  */
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { certifications, educations, employers, profiles, roles } from "../db/schema";
+import { careerGapNotes, certifications, educations, employers, profiles, roles } from "../db/schema";
 import { preconditionFailed } from "../http/errors";
+import { storedBytes } from "../db/bytes";
 import type { RirekishoProfile, RirekishoRecord } from "~/render/rirekisho";
+import type { RirekishoPhoto } from "~/render/rirekisho-photo";
+import type { TimelineGapNote } from "~/shared/career-timeline";
+import { photoInfo, photoRefusal } from "~/shared/photo";
 import { exclusionsFor } from "./inclusion";
 
 /**
  * The profile, narrowed to the columns the form has cells for.
  *
- * The select list is the enforcement: `photo` and every column the 履歴書 does
- * not print are never read, so they cannot reach a document by accident. This
- * is the one query in the codebase that may name `date_of_birth`, `phone`,
- * `postal_code`, `address` and `contact_*` (`docs/04` §3.2).
+ * The select list is the enforcement: every column the 履歴書 does not print
+ * is never read, so it cannot reach a document by accident. This is the one
+ * query in the codebase that may name `date_of_birth`, `phone`,
+ * `postal_code`, `address` and `contact_*` (`docs/04` §3.2); the photo, the
+ * last restricted column, is read by {@link collectRirekishoPhoto} beside it.
  */
 export async function collectRirekishoProfile(
   db: Db,
@@ -64,6 +69,47 @@ export async function collectRirekishoProfile(
 }
 
 /**
+ * The 写真, for the 履歴書's cell, or null when the profile has none.
+ *
+ * Apart from {@link collectRirekishoProfile} because it is a picture and not a
+ * field, and is placed in the file rather than filled into it. The stored
+ * bytes are checked again here: a photo the route would refuse today is left
+ * out rather than placed at a size it does not have.
+ */
+export async function collectRirekishoPhoto(db: Db, userId: string): Promise<RirekishoPhoto | null> {
+  const [row] = await db
+    .select({ photo: profiles.photo })
+    .from(profiles)
+    .where(and(eq(profiles.userId, userId), isNotNull(profiles.photo)))
+    .limit(1);
+  if (!row?.photo) return null;
+  const bytes = storedBytes(row.photo);
+  const info = photoInfo(bytes);
+  if (!info || photoRefusal(info)) return null;
+  return { bytes, type: info.type };
+}
+
+/**
+ * A photo as a response, to the owner's page and nowhere else. `no-store`: it
+ * is the author's face, and must not stay in a cache after it is removed.
+ * `nosniff`, so it is only ever drawn as the image it is.
+ */
+export const photoResponse = (photo: RirekishoPhoto) =>
+  new Response(photo.bytes as BodyInit, {
+    headers: { "content-type": photo.type, "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
+  });
+
+/** Whether the profile has a photo, without reading it: for the 履歴書's warnings. */
+export async function hasProfilePhoto(db: Db, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: profiles.id })
+    .from(profiles)
+    .where(and(eq(profiles.userId, userId), isNotNull(profiles.photo)))
+    .limit(1);
+  return Boolean(row);
+}
+
+/**
  * The three tables' source rows, in the record's own order.
  *
  * The order is not load-bearing — `rirekishoTables` sorts every row ascending
@@ -74,7 +120,7 @@ export async function collectRirekishoProfile(
 export async function collectRirekishoRecord(
   db: Db,
   userId: string,
-): Promise<RirekishoRecord> {
+): Promise<Omit<RirekishoRecord, "gapNotes"> & { gapNotes: TimelineGapNote[] }> {
   const educationRows = await db
     .select()
     .from(educations)
@@ -111,6 +157,14 @@ export async function collectRirekishoRecord(
     .where(and(eq(certifications.userId, userId)))
     .orderBy(asc(certifications.issuedOn), asc(certifications.id));
 
+  // Every note, matched to the gaps when the document is assembled: which gap
+  // a note explains depends on the rows below, after the exclusions.
+  const gapNoteRows = await db
+    .select({ id: careerGapNotes.id, fromOn: careerGapNotes.fromOn, toOn: careerGapNotes.toOn, text: careerGapNotes.text })
+    .from(careerGapNotes)
+    .where(eq(careerGapNotes.userId, userId))
+    .orderBy(asc(careerGapNotes.fromOn));
+
   // Left out of the 履歴書 by the author (S13). Filtered here as well as in
   // `collectRenderInputs`, so the form that downloads is built from the rows
   // the gap warning was computed over.
@@ -140,6 +194,8 @@ export async function collectRirekishoRecord(
       name: c.name,
       nameJa: c.nameJa,
       issuedOn: c.issuedOn,
+      expiresOn: c.expiresOn,
     })),
+    gapNotes: gapNoteRows,
   };
 }

@@ -25,12 +25,35 @@ import {
   roles,
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
-import { ModelUnavailableError, type ModelUsage } from "~/model/types";
+import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
+import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
 import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
+import {
+  ENGLISH_DEFECT_REASON,
+  MIXED_ENGLISH_DEFECT_REASON,
+  englishDefect,
+  hasJapaneseScript,
+  isEnglishOnly,
+  type EnglishDefect,
+} from "~/render/language";
+import {
+  JAPANESE_DEFECT_REASON,
+  MIXED_JAPANESE_DEFECT_REASON,
+  japaneseDefect,
+  recordRowDefectReason,
+  type JapaneseDefect,
+} from "~/render/japanese";
+import { bulletBudget } from "~/render/resume";
+import { careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
+import { isChapteredStory } from "~/render/chapters";
+import { collectRirekishoRecord } from "./rirekisho";
+import { isExpired } from "~/render/shikaku";
+import { recordSections, withRecordSections } from "~/render/shokumu";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
-import { curatedGroups, curationForRender } from "./skills";
+import { curatedGroups } from "./skills";
+import { curationForRender } from "~/shared/skills";
 
 export interface RenderInputs {
   facts: RenderFact[];
@@ -204,14 +227,39 @@ export async function collectRenderInputs(
   // the headings do, and a fact naming its employer in the other language would
   // leave the model reconciling two spellings before it could file anything.
   const definition = RENDER_DEFINITIONS[kind];
+  const today = tokyoToday();
   // S9. Read only for a render with a skills section, and narrowed to what
   // THIS render is given: the technologies on the facts that survived every
   // filter above, and on the certifications, which no render leaves out.
   const curation = definition.skillsSection ? await curatedGroups(db, userId) : [];
+  // The 履歴書's gaps, for the stories alone (`RenderSpec.careerGaps`). Read
+  // through the 履歴書's own record so they are the gaps its table shows,
+  // after ITS exclusions rather than this render's.
+  const gapRecord = isChapteredStory(kind) ? await collectRirekishoRecord(db, userId) : null;
+  const explained = gapRecord ? explainedGaps(gapRecord) : [];
+  const gaps = gapRecord
+    ? careerGaps(gapRecord).map((gap) => ({
+        from: gap.from,
+        to: gap.to,
+        months: gap.months,
+        explanation: explained.find((e) => e.gap.from === gap.from)?.note.text ?? null,
+      }))
+    : [];
   const renderable = new Set([
     ...usable.flatMap((f) => f.technologies),
     ...certificationRows.flatMap((c) => c.technologies),
   ]);
+  // A fact repeats its employer's industry and its project's summary, and an
+  // English prompt can label neither inside the facts' JSON. Repeated once per
+  // fact, an unlabelled Japanese industry was the commonest Japanese in the
+  // prompt of the English story that came back in Japanese (issue #104). The
+  // Employers and Projects lists still carry both, labelled. A Japanese prompt
+  // drops an English-only one the same way (issue #117).
+  const carried = (value: string | null) => {
+    if (value === null) return null;
+    if (definition.language === "en") return hasJapaneseScript(value) ? null : value;
+    return isEnglishOnly(value) ? null : value;
+  };
   const renderFacts: RenderFact[] = usable.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
@@ -228,12 +276,17 @@ export async function collectRenderInputs(
               name: nameInLanguage(definition.language, employer.nameJa, employer.nameLatin),
               startedOn: employer.startedOn,
               endedOn: employer.endedOn,
-              industry: employer.industryJa,
+              industry: carried(employer.industryJa),
             },
           }
         : {}),
       ...(project
-        ? { project: { name: nameInLanguage(definition.language, project.nameJa, project.name), summary: project.summary } }
+        ? {
+            project: {
+              name: nameInLanguage(definition.language, project.nameJa, project.name),
+              summary: (definition.language === "ja" ? project.summaryJa : null) ?? carried(project.summary),
+            },
+          }
         : {}),
     };
   });
@@ -247,7 +300,7 @@ export async function collectRenderInputs(
       register: definition.register,
       // Newest-first out of SQL; the document decides whether it stays that
       // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
-      employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e) => ({
+      employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e, position) => ({
         id: e.id,
         // The same language rule the role titles below follow, and for the same
         // reason. This read `nameLatin ?? nameJa` until the first 職務経歴書 was
@@ -260,6 +313,7 @@ export async function collectRenderInputs(
         startedOn: e.startedOn,
         endedOn: e.endedOn,
         businessDescription: e.businessDescription,
+        employmentType: e.employmentType,
         // 資本金 and 従業員数. Carried on the employer row since the schema was
         // first drawn and read by nothing until the 職務経歴書 register existed
         // (`docs/06`, 2026-08-12). Passed through as stored — in yen, and as a
@@ -278,6 +332,10 @@ export async function collectRenderInputs(
               : (r.titleLatin ?? r.titleJa);
           return title ? [{ title, startedOn: r.startedOn, endedOn: r.endedOn }] : [];
         }),
+        city: e.city,
+        // The résumé's alone: the list is newest-first for it, so the position
+        // is how recent the employer is (`src/render/resume.ts`).
+        ...(kind === "english_resume" ? { bullets: bulletBudget(position, e.endedOn, today) } : {}),
       })),
       projects: includedProjects.map((p) => ({
         id: p.id,
@@ -285,7 +343,12 @@ export async function collectRenderInputs(
         // Japanese document wants the Japanese name where the record has one.
         name: nameInLanguage(definition.language, p.nameJa, p.name),
         employerId: p.employerId,
+        // A Japanese document takes the Japanese summary, and otherwise the
+        // English one, which the prompt marks as English-only (issue #117).
         summary: p.summary,
+        summaryJa: definition.language === "ja" ? p.summaryJa : null,
+        startedOn: p.startedOn,
+        endedOn: p.endedOn,
       })),
       // Facts first, projects second, and the facts are the half that matters:
       // this record holds a personal project as seven facts and no project row,
@@ -301,6 +364,7 @@ export async function collectRenderInputs(
       // the profile form writes `null`, but a whitespace-only note would
       // otherwise reach the prompt as a stated preference.
       desiredRoleNote: profileRow?.desiredRoleNote?.trim() || null,
+      careerGaps: gaps,
       // The same language rule a role title follows, with one difference: the
       // Latin name is required by the schema and the Japanese one is optional,
       // so only the Japanese render needs a fallback.
@@ -326,8 +390,12 @@ export async function collectRenderInputs(
       // The 履歴書 omits it outright, because 免許・資格 is 年 / 月 / 名称 and has
       // nowhere to put it (`docs/04` §4); that is the register's rule, not this
       // boundary's, and until it exists the tail is where the row does least.
+      // A lapsed certification is left off the Japanese documents (issue #117),
+      // so a 職務経歴書 summary cannot count one its 保有資格 does not list.
       certifications: inDocumentOrder(
-        certificationRows,
+        definition.language === "ja"
+          ? certificationRows.filter((c) => !isExpired(c.expiresOn, today))
+          : certificationRows,
         "newest_first",
         definition.chronology,
         (c) => c.issuedOn,
@@ -337,6 +405,7 @@ export async function collectRenderInputs(
         issuingOrganization: c.issuingOrganization,
         issuedOn: c.issuedOn,
         expiresOn: c.expiresOn,
+        kind: c.kind,
         technologies: c.technologies,
       })),
       // No rows is no curation, and the register writes the section from the
@@ -386,13 +455,59 @@ export interface GenerateArgs {
  */
 export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
   const { db, model, userId, proposalId, inputs } = args;
+  // Summed across attempts: a retried generation is two billed calls, and the
+  // row reporting one of them would understate what the document cost. Kept
+  // outside the `try` so a generation refused after its retry still records
+  // the two calls it spent.
+  let usage: ModelUsage | null = null;
   try {
-    let usage: ModelUsage | null = null;
-    const content = await model.generateRender(inputs.facts, inputs.spec, {
-      onUsage: (u) => {
-        usage = u;
-      },
-    });
+    const generate = () =>
+      model.generateRender(inputs.facts, inputs.spec, {
+        onUsage: (u) => {
+          usage = usage === null ? u : addUsage(usage, u);
+        },
+      });
+    const today = tokyoToday();
+    // A row the record supplies is the same on every attempt, so one that
+    // fails the check is refused before any model call, and named as the
+    // record's to correct.
+    const recordDefect =
+      inputs.spec.kind === "shokumu_keirekisho"
+        ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
+        : null;
+    if (recordDefect !== null) {
+      await db
+        .update(renderProposals)
+        .set({ generationStatus: "failed", generationError: recordDefect, updatedAt: new Date() })
+        .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
+      // Ids only.
+      console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
+      return;
+    }
+    let content = await generate();
+    // Issue #104. An English document that comes back in Japanese, or with a
+    // checked record name changed, is retried once and then refused —
+    // never lands as reviewable content. When this failure was found, the
+    // review screen did not show heading changes. A Japanese document is held
+    // to its own check the same way (issue #117): 御社, or a line in English.
+    // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
+    // author is shown, so the check reads the content as assembled: a row the
+    // model wrote that is discarded is not held to it.
+    const assemble = (c: RenderContent) =>
+      inputs.spec.kind === "shokumu_keirekisho" ? withRecordSections(c, inputs.spec, today) : c;
+    const defectOf = (c: RenderContent) =>
+      inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
+    content = assemble(content);
+    const first = defectOf(content);
+    if (first !== null) {
+      // Ids and the defect's name only.
+      console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
+      content = assemble(await generate());
+      const second = defectOf(content);
+      if (second !== null) {
+        throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
+      }
+    }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
@@ -412,9 +527,26 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         : "This document could not be generated. Your current version is unchanged.";
     await db
       .update(renderProposals)
-      .set({ generationStatus: "failed", generationError: reason, updatedAt: new Date() })
+      .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
       .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
-    // Ids only. Never the facts sent, never the content returned.
-    console.error(JSON.stringify({ event: "generation_failed", proposalId }));
+    // Ids only. Never the facts sent, never the content returned. Out of
+    // credits is its own event: not an outage, and the proposal can be retried.
+    if (err instanceof ModelCreditsExhaustedError) logCreditsExhausted("generate");
+    else console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
+}
+
+/** The two checks name their defects apart, so one table reads either. */
+const DEFECT_REASON: Record<EnglishDefect | JapaneseDefect, string> = { ...ENGLISH_DEFECT_REASON, ...JAPANESE_DEFECT_REASON };
+
+const mixedDefectReason = (language: "en" | "ja"): string =>
+  language === "en" ? MIXED_ENGLISH_DEFECT_REASON : MIXED_JAPANESE_DEFECT_REASON;
+
+function addUsage(a: ModelUsage, b: ModelUsage): ModelUsage {
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    cacheCreationInputTokens: a.cacheCreationInputTokens + b.cacheCreationInputTokens,
+    cacheReadInputTokens: a.cacheReadInputTokens + b.cacheReadInputTokens,
+  };
 }

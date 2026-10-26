@@ -18,6 +18,8 @@ import {
   fillRirekishoTemplate,
   type RirekishoTemplateData,
 } from "~/render/rirekisho-template";
+import { PHOTO_HEIGHT_EMU, PHOTO_WIDTH_EMU, photoOf } from "~/render/rirekisho-photo";
+import { jpegPhoto, pngPhoto } from "./helpers/photo";
 
 const ZIP_LOCAL_HEADER = [0x50, 0x4b, 0x03, 0x04];
 
@@ -47,10 +49,10 @@ const DATA: RirekishoTemplateData = {
   ],
   shokureki: [
     { year: "2089", month: "4", text: "架空株式会社 入社" },
-    { year: "2095", month: "3", text: "一身上の都合により架空株式会社を退社" },
+    { year: "2095", month: "3", text: "一身上の都合により退社" },
   ],
   shikaku: [
-    { year: "2090", month: "6", text: "架空技術者試験 合格 取得" },
+    { year: "2090", month: "6", text: "架空技術者試験　合格" },
     { year: "2092", month: "9", text: "架空講習課程 修了" },
   ],
   motivation: "架空の志望動機。",
@@ -140,5 +142,56 @@ describe("the 履歴書 template", () => {
       if (entry.size === 0) continue;
       expect(entry.method).toBe(8);
     }
+  });
+});
+
+/** The identity table's merged right-hand cell: the 写真. */
+const photoCell = (xml: string) =>
+  [.../<w:tbl>[\s\S]*?<\/w:tbl>/.exec(xml)![0].matchAll(/<w:tc>[\s\S]*?<\/w:tc>/g)]
+    .map((m) => m[0])
+    .find((cell) => cell.includes('<w:vMerge w:val="restart"/>'))!;
+
+describe("the 写真 cell (issue #117)", () => {
+  const PHOTO = pngPhoto(300, 400);
+
+  it("is left empty without a photo, with no picture anywhere in the file", () => {
+    const bytes = fillRirekishoTemplate(DATA);
+    expect(documentXml(bytes)).not.toContain("<w:drawing>");
+    expect(new PizZip(bytes).file(/word\/media\//)).toEqual([]);
+  });
+
+  it("holds the photo at 30 × 40 mm, inline, centred, on a line that is not an exact height", () => {
+    const xml = documentXml(fillRirekishoTemplate(DATA, { bytes: PHOTO, type: "image/png" }));
+    const cell = photoCell(xml);
+    expect(PHOTO_WIDTH_EMU / PHOTO_HEIGHT_EMU).toBe(3 / 4);
+    expect(cell).toContain(`<wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${PHOTO_WIDTH_EMU}" cy="${PHOTO_HEIGHT_EMU}"/>`);
+    expect(cell).toContain('<w:jc w:val="center"/>');
+    expect(cell).toContain('w:lineRule="auto"');
+    expect(cell).not.toContain('w:lineRule="exact"');
+    expect(cell).toContain("<w:shd ");
+    // In the cell and nowhere else.
+    expect(xml.match(/<w:drawing>/g)).toHaveLength(1);
+  });
+
+  it("carries the image, its relationship and its content type, and every entry still deflated", () => {
+    const bytes = fillRirekishoTemplate(DATA, { bytes: PHOTO, type: "image/png" });
+    const zip = new PizZip(bytes);
+    expect(photoOf(zip)).toEqual({ bytes: PHOTO, type: "image/png" });
+    const rels = zip.file("word/_rels/document.xml.rels")!.asText();
+    const id = /r:embed="([^"]+)"/.exec(documentXml(bytes))![1];
+    expect(rels).toContain(`<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/photo.png"/>`);
+    expect(zip.file("[Content_Types].xml")!.asText()).toContain('<Default Extension="png" ContentType="image/png"/>');
+    for (const entry of compressionMethods(bytes)) if (entry.size > 0) expect(entry.method).toBe(8);
+  });
+
+  it("names a JPEG as one", () => {
+    const zip = new PizZip(fillRirekishoTemplate(DATA, { bytes: jpegPhoto(600, 800), type: "image/jpeg" }));
+    expect(zip.file("word/media/photo.jpeg")).not.toBeNull();
+    expect(zip.file("[Content_Types].xml")!.asText()).toContain('<Default Extension="jpeg" ContentType="image/jpeg"/>');
+  });
+
+  it("changes no text the file prints: the photo is beside the data, not in it", () => {
+    const printed = (bytes: Uint8Array) => [...documentXml(bytes).matchAll(/<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g)].map((m) => m[1]).join("");
+    expect(printed(fillRirekishoTemplate(DATA, { bytes: PHOTO, type: "image/png" }))).toBe(printed(fillRirekishoTemplate(DATA)));
   });
 });

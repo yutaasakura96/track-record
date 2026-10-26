@@ -32,6 +32,7 @@
   --color-card-selected: #f4f5fe;
   --color-card-recessed: #eef0f3;
   --color-chip: #eceef2;
+  --color-shade: #eceef2;
   --color-hover: #e8eaee;
 
   /* ------------------------------------------------------------ borders */
@@ -195,8 +196,18 @@
   --spacing-rail-compact: 380px;
   --spacing-measure: 740px;
   --spacing-content: 940px;
+  /* A document card's page picture on Home (issue #111). Composed from the
+   * scale, 60 + 60 + 40. */
+  --spacing-thumbnail: 160px;
+  /* The 写真 on the profile (issue #117): the crop frame, and the saved photo
+   * beside its controls. Both at `--aspect-photo`. 60 × 4, and 60 + 60. */
+  --spacing-photo: 240px;
+  --spacing-photo-preview: 120px;
   --spacing-full: 100%;
   --spacing-screen: 100vh;
+
+  /* The 履歴書 photo's 30 × 40 mm, width to height (issue #117). */
+  --aspect-photo: 3 / 4;
 
   /* --------------------------------------------------------------- radius */
   --radius-mark: 2px;
@@ -238,6 +249,7 @@
   --color-card-selected: #13141a;
   --color-card-recessed: #0b0c0d;
   --color-chip: #131416;
+  --color-shade: #26282b;
   --color-hover: #17181b;
 
   --color-border: #1a1b1e;
@@ -659,6 +671,15 @@
   @media (prefers-reduced-motion: reduce) {
     animation: none;
   }
+}
+
+/* A page drawn small, as a document card's picture on Home (`docs/05` §3,
+ * issue #111). Laid out at the width that fills its frame once scaled, so the
+ * page keeps its own measure and wraps as it does at full size. */
+@utility page-thumbnail {
+  width: calc(100% / 0.36);
+  transform: scale(0.36);
+  transform-origin: top left;
 }
 
 /* The 16px app mark — the ONE gradient in the product (§9, rule 2). */

@@ -43,6 +43,7 @@ const PLINTH: Project = {
   nameJa: null,
   employerId: null,
   summary: null,
+  summaryJa: null,
   startedOn: null,
   endedOn: null,
   clientIsNamed: false,
@@ -53,7 +54,7 @@ const QORVANE: Employer = {
   nameJa: "株式会社コルヴェイン",
   nameLatin: "Qorvane Labs K.K.",
   businessDescription: null,
-  industryJa: null,
+  industryJa: null, city: null,
   capitalYen: null,
   headcount: null,
   employmentType: "full_time",
@@ -504,7 +505,7 @@ describe("saying what the screen is for and what to do next", () => {
     expect(await next()).toBe(
       "Next: nothing is waiting. Import another document, or go Home to generate a document from your record.",
     );
-    expect(screen.getByText(/Importing reads a file and finds candidate facts in it/)).toBeTruthy();
+    expect(screen.getByText(/Importing reads a file and adds the facts it finds to your record/)).toBeTruthy();
   });
 
   it("counts the facts waiting across documents, and says where to press", async () => {

@@ -20,7 +20,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { harness, settle, stubModel } from "./helpers/harness";
 import { installIssuer, type FixtureIssuer } from "./helpers/oidc";
-import { AUTHOR_EMAIL, EMPLOYER_FIXTURE, PROFILE_FIXTURE, uploadForm } from "./helpers/seed";
+import { AUTHOR_EMAIL, EMPLOYER_FIXTURE, PROFILE_FIXTURE, postJob, uploadForm } from "./helpers/seed";
 
 let issuer: FixtureIssuer;
 
@@ -80,7 +80,7 @@ describe("sign-in through an accepted résumé version", () => {
     expect(empty.isEmpty).toBe(true);
     expect(empty.documents.every((d) => d.status === "never_generated")).toBe(true);
 
-    await client.post("/api/employers", EMPLOYER_FIXTURE);
+    const employer = { id: await postJob(client) };
 
     // 6 · Import one case study.
     model.extractions = [
@@ -128,8 +128,8 @@ describe("sign-in through an accepted résumé version", () => {
       {
         sections: [
           {
-            key: "experience",
-            heading: "Experience",
+            key: `employer:${employer.id}`,
+            heading: EMPLOYER_FIXTURE.nameLatin,
             blocks: [
               {
                 id: "blk_1",
@@ -147,7 +147,7 @@ describe("sign-in through an accepted résumé version", () => {
     const { proposalId } = (await generation.json()) as { proposalId: string };
     await settle();
 
-    // 9 · Read it as a diff against nothing, with a rationale on every change.
+    // 9 · Read the first-version preview and its heading and block changes.
     const proposal = await client.json<{ generationStatus: string; unchanged: boolean }>(
       `/api/proposals/${proposalId}`,
     );
@@ -156,10 +156,14 @@ describe("sign-in through an accepted résumé version", () => {
 
     const diff = await client.json<{
       additions: number;
-      changes: { rationale: { text: string; factIds: string[] } }[];
+      preview: { page: { sections: { heading: string; blocks: { text: string }[] }[] } };
+      changes: { target: string; rationale: { text: string; factIds: string[] } }[];
     }>(`/api/proposals/${proposalId}/diff`);
-    expect(diff.additions).toBe(1);
-    expect(diff.changes[0]!.rationale.factIds).toContain(fact.id);
+    // The preview reads as the file does: the employer leads its job under Experience.
+    const experience = diff.preview.page.sections.find((section) => section.heading === "Experience")!;
+    expect(experience.blocks[0]!.text.startsWith(EMPLOYER_FIXTURE.nameLatin)).toBe(true);
+    expect(diff.additions).toBe(2);
+    expect(diff.changes.find((change) => change.target === "block")!.rationale.factIds).toContain(fact.id);
 
     // 10 · Accept it.
     const accepted = (await (

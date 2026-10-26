@@ -118,6 +118,7 @@ export function mount(path: string, routes: Routes) {
 
   return {
     api,
+    queryClient,
     user: userEvent.setup(),
     /** Where the router is now. */
     pathname: () => router.state.location.pathname,

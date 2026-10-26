@@ -10,7 +10,7 @@
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
@@ -18,13 +18,21 @@ import {
   useDecideProposal,
   useDiff,
   useGenerate,
+  useProfilePhotoSrc,
   useProposal,
   type DiffChange,
   type Proposal,
 } from "../api";
 import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
+import { DocumentBlocks } from "../components/document-blocks";
+import { DocumentPage } from "../components/document-page";
 import { DownloadButton } from "../components/download-button";
+import { ReadFailure } from "../components/read-failure";
+import { RENDER_LANGUAGE } from "~/shared/render-content";
+import type { SentPage } from "~/render/sent-page";
+
+type FirstPreview = { title: string; page: SentPage };
 
 export function DiffReview() {
   const { proposalId } = useParams({ from: "/proposals/$proposalId" });
@@ -49,7 +57,7 @@ export function DiffReview() {
       ) : proposal.data.unchanged ? (
         <Unchanged proposal={proposal.data} />
       ) : (
-        <Review proposalId={proposalId} proposal={proposal.data} changes={changes} additions={diff.data?.additions ?? 0} removals={diff.data?.removals ?? 0} />
+        <Review proposalId={proposalId} proposal={proposal.data} changes={changes} preview={diff.data?.preview} diffFailure={diff.isError ? <ReadFailure query={diff} /> : null} additions={diff.data?.additions ?? 0} removals={diff.data?.removals ?? 0} />
       )}
     </div>
   );
@@ -250,7 +258,9 @@ function Decided({ proposal }: { proposal: Proposal }) {
           <Dot tone={accepted ? "measured" : "muted"} />
           {accepted
             ? `Proposal accepted — saved as v${proposal.proposedVersionNo}`
-            : `Proposal dismissed — v${proposal.basedOnVersionNo ?? 1} kept`}
+            : proposal.basedOnVersionNo === null
+              ? "Draft discarded — nothing was saved"
+              : `Proposal dismissed — v${proposal.basedOnVersionNo} kept`}
         </p>
         <p className="mt-8 text-ui text-text-dim">
           {accepted
@@ -273,12 +283,17 @@ function Review({
   proposalId,
   proposal,
   changes,
+  preview,
+  diffFailure,
   additions,
   removals,
 }: {
   proposalId: string;
   proposal: Proposal;
   changes: DiffChange[];
+  /** The proposed document itself, sent only for a first version. Undefined until the read answers. */
+  preview: FirstPreview | null | undefined;
+  diffFailure: ReactNode;
   additions: number;
   removals: number;
 }) {
@@ -298,22 +313,33 @@ function Review({
     await leave();
   };
 
+  // A first version has no current one to compare with: two columns against
+  // nothing is a wall of "no matching line" boxes, so the document is shown.
+  const first = proposal.basedOnVersionNo === null;
+
   return (
     <>
-      <DiffPanes
-        guide="Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one."
-        before={{
-          title: "Current",
-          badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo ?? 0}</Mono>,
-        }}
-        after={{
-          title: "Proposed",
-          badge: <Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>,
-        }}
-        changes={changes}
-        additions={additions}
-        removals={removals}
-      />
+      {first ? (
+        <FirstVersion proposal={proposal} preview={preview} diffFailure={diffFailure} />
+      ) : (
+        <>
+          {diffFailure ? <div className="px-20 py-8">{diffFailure}</div> : null}
+          <DiffPanes
+            guide="Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one."
+            before={{
+              title: "Current",
+              badge: <Mono className="text-text-dimmer">v{proposal.basedOnVersionNo}</Mono>,
+            }}
+            after={{
+              title: "Proposed",
+              badge: <Chip className="text-accent-text">v{proposal.proposedVersionNo} draft</Chip>,
+            }}
+            changes={changes}
+            additions={additions}
+            removals={removals}
+          />
+        </>
+      )}
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
@@ -323,18 +349,21 @@ function Review({
             </p>
           ) : null}
           <p className="text-smaller text-text-secondary">
-            Accepting replaces your {proposal.title} with v{proposal.proposedVersionNo}.
+            {first
+              ? `Accepting saves this as v${proposal.proposedVersionNo} of your ${proposal.title}.`
+              : `Accepting replaces your ${proposal.title} with v${proposal.proposedVersionNo}.`}
           </p>
-          {/* Advisory findings about the record — an unexplained gap in the
-              学歴・職歴 table, or the half of a cell the register refuses to
-              write. Never blocking, and never silent. */}
+          {/* Proposal advisories include record and Japanese register findings.
+              They never block review. */}
           {proposal.warnings.map((warning) => (
             <p key={warning} className="text-smaller text-text-secondary">
               {warning}
             </p>
           ))}
           <p className="text-smaller text-text-dimmer">
-            v{proposal.basedOnVersionNo ?? 0} and every earlier version stay restorable.
+            {first
+              ? "Nothing is saved until you accept it."
+              : `v${proposal.basedOnVersionNo} and every earlier version stay restorable.`}
             {proposal.withheld.privateFactCount > 0
               ? ` ${proposal.withheld.privateFactCount} private fact${proposal.withheld.privateFactCount === 1 ? "" : "s"} in your record ${proposal.withheld.privateFactCount === 1 ? "was" : "were"} not used.`
               : ""}
@@ -344,12 +373,65 @@ function Review({
           </p>
         </div>
         <div className="ml-auto flex items-center gap-10">
-          <Button onClick={() => void decide(dismiss)}>Keep current version</Button>
-          <Button variant="primary" onClick={() => void decide(accept)}>
-            Accept proposed version
+          {/* There is no current version to keep on a first one; the draft is what is let go. */}
+          <Button onClick={() => void decide(dismiss)}>
+            {first ? "Discard draft" : "Keep current version"}
+          </Button>
+          <Button variant="primary" onClick={() => void decide(accept)} disabled={first && !preview} disabledReason={first && !preview ? "Read the proposed document before accepting it." : undefined}>
+            {first ? `Accept as v${proposal.proposedVersionNo}` : "Accept proposed version"}
           </Button>
         </div>
       </footer>
     </>
+  );
+}
+
+/**
+ * The first version of a document, read as a document (#105). The sections and
+ * their headings are shown as the author would read them; there is nothing to
+ * mark and no per-line rationale to select.
+ */
+function FirstVersion({
+  proposal,
+  preview,
+  diffFailure,
+}: {
+  proposal: Proposal;
+  preview: FirstPreview | null | undefined;
+  diffFailure: ReactNode;
+}) {
+  const japanese = RENDER_LANGUAGE[proposal.renderKind] === "ja";
+  const photo = useProfilePhotoSrc();
+  return (
+    <main className="flex-1 min-h-0 overflow-y-auto">
+      <p className="h-strip flex items-center px-20 border-b border-border-subtle text-small text-text-secondary">
+        This is the first version of your {proposal.title}. Read it through, then accept it or discard it.
+      </p>
+      {preview?.page.sheet || preview?.page.title === null ? (
+        <DocumentPage page={preview.page} language={RENDER_LANGUAGE[proposal.renderKind]} photo={photo} />
+      ) : preview ? (
+        <article
+          lang={japanese ? "ja" : "en"}
+          className={`mx-auto w-measure max-w-full px-20 py-32 ${japanese ? "tracking-ja" : ""}`}
+        >
+          <h1 className="text-render-heading font-semibold text-text-strong">{preview.title}</h1>
+          {preview.page.stamp ? <p className="mt-8 text-render-body text-text-body">{preview.page.stamp}</p> : null}
+          {preview.page.name ? <p className="mt-8 text-render-body font-semibold text-text-body">{preview.page.name}</p> : null}
+          {preview.page.contact.map((line) => <p key={line} className="text-render-body text-text-body whitespace-pre-line">{line}</p>)}
+          {preview.page.sections.map((section, index) => (
+            <section key={index}>
+              <h3 className="mt-20 mb-8 text-render-heading font-semibold uppercase tracking-heading text-text-dim">
+                {section.heading}
+              </h3>
+              <DocumentBlocks blocks={section.blocks} />
+            </section>
+          ))}
+        </article>
+      ) : diffFailure ? (
+        <div className="px-20 py-32">{diffFailure}</div>
+      ) : (
+        <p className="px-20 py-32 text-small text-text-dim">Loading the document…</p>
+      )}
+    </main>
   );
 }

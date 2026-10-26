@@ -9,25 +9,31 @@
  */
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import {
   CERTIFICATION_FIXTURE,
   EDUCATION_FIXTURE,
   EMPLOYER_FIXTURE,
   PROFILE_FIXTURE,
+  ROLE_FIXTURE,
   seedAllowedUser,
   uploadForm,
 } from "./helpers/seed";
 import { createDb } from "~/server/db/client";
-import { renderVersions } from "~/server/db/schema";
+import { employers, facts, renderVersions, roles } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { RENDER_DEFINITIONS } from "~/render/spec";
+import { identityLines } from "~/render/identity";
 import { MOTIVATION_NOTICE, PROSE_SECTION_KEYS } from "~/render/rirekisho";
 import { inDocumentOrder } from "~/server/services/render";
 import { chaptersOf } from "~/model/generate";
 import { EMPLOYER_CHAPTER_PREFIX } from "~/render/chapters";
+import { readSheet, type Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
 import { ModelUnavailableError } from "~/model/types";
+import { factEvidence } from "~/server/services/evidence";
+import type { FactEvidence } from "~/shared/evidence";
 
 interface Fact {
   id: string;
@@ -68,7 +74,9 @@ beforeEach(async () => {
  * a Measured/Private fact.
  */
 async function seedRecord() {
-  await client.post("/api/employers", EMPLOYER_FIXTURE);
+  const employer = (await (await client.post("/api/employers", EMPLOYER_FIXTURE)).json()) as { id: string };
+  // An English résumé's job header needs a title, so the job holds a role.
+  await client.post("/api/roles", { ...ROLE_FIXTURE, employerId: employer.id });
   model.extractions = [
     [
       {
@@ -130,12 +138,13 @@ async function seedRecord() {
   return { measuredPublic, attestedRestricted, generatedPublic, measuredPrivate, importId: created.importId };
 }
 
-function resumeFrom(blocks: { text: string; factIds: string[] }[]): RenderContent {
+/** `experience` is the section a version made before the job-keyed layout held its bullets in. */
+function resumeFrom(blocks: { text: string; factIds: string[] }[], key: "projects" | "experience" = "projects"): RenderContent {
   return {
     sections: [
       {
-        key: "experience",
-        heading: "Experience",
+        key,
+        heading: key === "projects" ? "Projects" : "Experience",
         blocks: blocks.map((b, i) => ({ id: `blk_${i + 1}`, kind: "bullet" as const, ...b })),
       },
     ],
@@ -387,6 +396,68 @@ describe("the order a document reads in", () => {
 });
 
 describe("generation is blocked rather than producing an empty document", () => {
+  it("blocks a job with no city or no titled role, naming each and what it lacks, before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: null });
+    const bare = (await (
+      await client.post("/api/employers", {
+        ...EMPLOYER_FIXTURE,
+        nameJa: "株式会社ミナト計測",
+        nameLatin: "Minato Instruments K.K.",
+        startedOn: "2018-04-01",
+        endedOn: "2022-03-01",
+      })
+    ).json()) as { id: string };
+    // A role whose only title is blank is no title at all.
+    await client.post("/api/roles", { employerId: bare.id, startedOn: "2018-04-01", titleLatin: null, titleJa: null });
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    const body = (await response.json()) as {
+      error: { code: string; message: string; details: { fields: string[]; jobHeaders: unknown[] } };
+    };
+    expect(body.error.code).toBe("precondition_failed");
+    expect(body.error.message).toBe(
+      "Every job on the English résumé is headed by its city and title. Aozora Logistics K.K. needs a city; Minato Instruments K.K. needs a role with a title.",
+    );
+    expect(body.error.details).toEqual({
+      fields: ["employers"],
+      jobHeaders: [
+        { employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] },
+        { employerId: bare.id, name: "Minato Instruments K.K.", missing: ["role"] },
+      ],
+    });
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
+  it("blocks an employer-attached project without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const created = await client.post("/api/projects", { name: "Проект", employerId: items[0]!.id });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for project/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
+  it("blocks below-university education without a Latin-script name before the model call", async () => {
+    await seedRecord();
+    const created = await client.post("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      institution: "Школа",
+      level: "secondary_upper",
+    });
+    expect(created.status).toBe(201);
+
+    const response = await client.post("/api/renders/english_resume/generate");
+    expect(response.status).toBe(428);
+    expect(((await response.json()) as { error: { message: string } }).error.message).toMatch(/Latin-script name for education/);
+    expect(model.generationInputs).toHaveLength(0);
+  });
+
   it("states the reason when nothing has been accepted", async () => {
     const response = await client.post("/api/renders/english_resume/generate");
     expect(response.status).toBe(428);
@@ -504,6 +575,35 @@ describe("the proposal", () => {
     }
   });
 
+  it("sends the document itself with a first version's diff, and only then", async () => {
+    const record = await seedRecord();
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 3 hours", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const firstDiff = await client.json<{
+      preview: { title: string; page: { title?: string | null; stamp: string | null; name: string; contact: string[]; sections: { heading: string; blocks: { text: string }[] }[] } } | null;
+      changes: { target: string }[];
+    }>(`/api/proposals/${first.proposalId}/diff`);
+    expect(firstDiff.preview?.title).toBe("Résumé (English)");
+    expect(firstDiff.preview?.page.title).toBeNull();
+    expect(firstDiff.preview?.page.name).toBe(PROFILE_FIXTURE.nameLatin);
+    expect(firstDiff.preview?.page.contact).toContain(PROFILE_FIXTURE.email);
+    expect(firstDiff.preview?.page.stamp).toBeNull();
+    expect(firstDiff.preview?.page.sections.flatMap((s) => s.blocks.map((b) => b.text))).toContain(
+      "Reduced nightly batch runtime to 3 hours",
+    );
+    // Its headings are changes too, so a screen that did read them would see them.
+    expect(firstDiff.changes.some((c) => c.target === "heading")).toBe(true);
+
+    await client.post(`/api/proposals/${first.proposalId}/accept`);
+    const second = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime to 90 minutes", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    const secondDiff = await client.json<{ preview: unknown }>(`/api/proposals/${second.proposalId}/diff`);
+    expect(secondDiff.preview).toBeNull();
+  });
+
   it("cites the facts and the source line behind a change", async () => {
     const record = await seedRecord();
     const created = (await (
@@ -511,10 +611,10 @@ describe("the proposal", () => {
     ).json()) as { proposalId: string };
 
     const diff = await client.json<{
-      changes: { rationale: { kind: string; text: string; factIds: string[] } }[];
+      changes: { target: string; rationale: { kind: string; text: string; factIds: string[] } }[];
     }>(`/api/proposals/${created.proposalId}/diff`);
 
-    const rationale = diff.changes[0]!.rationale;
+    const rationale = diff.changes.find((change) => change.target === "block")!.rationale;
     expect(rationale.kind).toBe("from_facts");
     expect(rationale.factIds).toContain(record.measuredPublic.id);
     expect(rationale.text).toMatch(/L\d+/);
@@ -945,7 +1045,7 @@ describe("documents and downloads", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="resume-\d{4}-\d{2}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(1000);
@@ -998,6 +1098,98 @@ describe("documents and downloads", () => {
     expect(markdown).not.toContain(PROFILE_FIXTURE.dateOfBirth);
   });
 
+  /**
+   * Issue #108: the résumé header carries the résumé's own fields, each only
+   * when filled, and the résumé phone is never the 履歴書 one.
+   */
+  it("puts the résumé header fields on the English résumé, each only when filled", async () => {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    // The identity block: what comes before the first section, less the title.
+    const header = async () =>
+      (await (await client.get("/api/renders/english_resume/download?format=md")).text())
+        .split("\n## ")[0]!
+        .split("\n")
+        .filter((line) => line !== "")
+        .join("\n");
+
+    // Nothing filled: the name and the email, as before.
+    expect((await header()).split("\n")).toEqual(["# Yosuke Aoki", PROFILE_FIXTURE.email]);
+
+    await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeHeadline: "Backend Engineer",
+      resumeCity: "Tokyo",
+      resumeCountry: "Japan",
+      resumePhone: "+81 90-0000-9999",
+      resumeLinkedinUrl: "https://www.linkedin.com/in/yosuke-aoki-example/",
+      resumeGithubUrl: "github.com/yosuke-example/",
+      resumePortfolioUrl: "http://www.example.invalid/work/",
+    });
+    const filled = await header();
+    expect(filled.split("\n")).toEqual([
+      "# Yosuke Aoki",
+      "Backend Engineer",
+      `Tokyo, Japan · ${PROFILE_FIXTURE.email} · +81 90-0000-9999 · www.linkedin.com/in/yosuke-aoki-example/ · github.com/yosuke-example/ · www.example.invalid/work/`,
+    ]);
+    expect(filled).not.toContain(PROFILE_FIXTURE.phone);
+    expect(filled).not.toContain(PROFILE_FIXTURE.address);
+    expect(filled).not.toContain(PROFILE_FIXTURE.postalCode);
+
+    // A city alone carries no stray comma.
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, resumeCity: "Osaka" });
+    expect((await header()).split("\n")).toEqual(["# Yosuke Aoki", `Osaka · ${PROFILE_FIXTURE.email}`]);
+  });
+
+  it("sets the headline apart from the contact line in a first résumé's preview, under no title", async () => {
+    const record = await seedRecord();
+    await client.put("/api/profile", {
+      ...PROFILE_FIXTURE,
+      resumeHeadline: "Backend Engineer",
+      resumeCity: "Tokyo",
+      resumeCountry: "Japan",
+      resumeGithubUrl: "github.com/yosuke-example/",
+    });
+    const first = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+
+    const { preview } = await client.json<{
+      preview: { page: { title?: string | null; name: string; headline?: string; contact: string[] } };
+    }>(`/api/proposals/${first.proposalId}/diff`);
+    expect(preview.page.title).toBeNull();
+    expect(preview.page.name).toBe("Yosuke Aoki");
+    expect(preview.page.headline).toBe("Backend Engineer");
+    expect(preview.page.contact).toEqual([`Tokyo, Japan · ${PROFILE_FIXTURE.email} · github.com/yosuke-example/`]);
+  });
+
+  it("puts no résumé header field on any other render", async () => {
+    const identity = {
+      nameLatin: "Yosuke Aoki",
+      nameKanji: "青木 陽介",
+      email: PROFILE_FIXTURE.email,
+      resume: {
+        headline: "Backend Engineer",
+        city: "Tokyo",
+        country: null,
+        phone: "+81 90-0000-9999",
+        linkedinUrl: null,
+        githubUrl: "https://github.com/yosuke-example",
+        portfolioUrl: null,
+      },
+    };
+    for (const kind of ["rirekisho", "shokumu_keirekisho", "career_story_en", "career_story_ja"] as const) {
+      const lines = identityLines(kind, identity).join("\n");
+      expect(lines).not.toContain("Backend Engineer");
+      expect(lines).not.toContain("+81");
+      expect(lines).not.toContain("github");
+    }
+  });
+
   it("emits no source document text in a render or its download", async () => {
     const record = await seedRecord();
     const created = (await (
@@ -1031,6 +1223,7 @@ describe("export", () => {
       "profile",
       "employers",
       "projects",
+      "careerGapNotes",
       "facts",
       "sourceDocuments",
       "sourceDocumentVersions",
@@ -1064,6 +1257,26 @@ describe("export", () => {
  * rules — not the prose itself, which is the model's to write.
  */
 describe("the 履歴書 is generable, and is generated in Japanese", () => {
+  it("includes the template identity cells in a first-version preview", async () => {
+    const address = "東京都渋谷区神宮前0-0-0\n架空ビル404号室";
+    await client.put("/api/profile", { ...PROFILE_FIXTURE, gender: "男", address });
+    await seedRecord();
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []))
+    ).json()) as { proposalId: string };
+
+    const { preview } = await client.json<{
+      preview: { title: string; page: { name: string; contact: string[] } };
+    }>(`/api/proposals/${created.proposalId}/diff`);
+    expect(preview.title).toBe("履歴書");
+    expect(preview.page.name).toBe("青木　陽介");
+    expect(preview.page.contact).toContain("ふりがな あおき　ようすけ");
+    expect(preview.page.contact).toContain("性別 男");
+    expect(preview.page.contact).toContain(`現住所ふりがな ${PROFILE_FIXTURE.addressKana}`);
+    expect(preview.page.contact).toContain(`〒${PROFILE_FIXTURE.postalCode} ${address}`);
+    expect(preview.page.contact).toContain("連絡先 同上");
+  });
+
   it("hands the model the 履歴書 register rather than the résumé's", async () => {
     await seedRecord();
     const response = await generateRirekisho(rirekishoFrom("架空商事で受発注データの移行を担当しました。", []));
@@ -1147,6 +1360,117 @@ describe("the 履歴書 is generable, and is generated in Japanese", () => {
 });
 
 /**
+ * The Japanese check (issue #117, review issue 5), at the route: a defect is
+ * retried once and then refused, as an English document in Japanese is, and an
+ * advisory reaches the footer of a proposal that is still offered. The rules
+ * themselves are `tests/japanese.test.ts`.
+ */
+describe("a Japanese document is checked before it is offered", () => {
+  const ONSHA = rirekishoFrom("御社の受発注データの移行を担当しました。", []);
+  const ENGLISH = rirekishoFrom("架空商事で受発注データの移行を担当しました。", [], "I would like to work remotely.");
+  const CLEAN = rirekishoFrom("架空商事で受発注データの移行を担当しました。", []);
+
+  async function generateAttempts(...attempts: RenderContent[]) {
+    model.generations = attempts;
+    const response = await client.post("/api/renders/rirekisho/generate");
+    expect(response.status).toBe(202);
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    await settle();
+    const proposal = await client.json<{ generationStatus: string; error: { message: string } | null; warnings: string[] }>(
+      `/api/proposals/${proposalId}`,
+    );
+    return { proposalId, proposal };
+  }
+
+  it("retries 御社 once, and the clean document that follows is the proposal", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(ONSHA, CLEAN);
+    expect(model.generationInputs).toHaveLength(2);
+    expect(proposal.generationStatus).toBe("ready");
+  });
+
+  it("marks a twice-English document failed with a plain reason, and never offers it", async () => {
+    await seedRecord();
+    const { proposalId, proposal } = await generateAttempts(ENGLISH, ENGLISH);
+    expect(model.generationInputs).toHaveLength(2);
+    expect(proposal.generationStatus).toBe("failed");
+    expect(proposal.error!.message).toMatch(/part of this Japanese document in English, twice, so it was not offered for review/);
+    expect(proposal.error!.message).not.toContain("remotely");
+    expect((await client.request(`/api/proposals/${proposalId}/diff`)).status).toBe(409);
+  });
+
+  it("names neither defect when the two attempts fail differently", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(ONSHA, ENGLISH);
+    expect(proposal.generationStatus).toBe("failed");
+    expect(proposal.error!.message).toMatch(/different errors/);
+    expect(proposal.error!.message).not.toContain("twice");
+  });
+
+  it("offers a document with a register slip, and says so in the footer", async () => {
+    await seedRecord();
+    const { proposal } = await generateAttempts(rirekishoFrom("貴社の受発注データの移行を２件担当しました。", []));
+    expect(model.generationInputs).toHaveLength(1);
+    expect(proposal.generationStatus).toBe("ready");
+    expect(proposal.warnings).toContain(MOTIVATION_NOTICE);
+    expect(proposal.warnings).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^貴社 appears in 志望動機/), expect.stringMatching(/^Full-width digits in 志望動機/)]),
+    );
+  });
+
+  describe("a 職務経歴書, checked as assembled", () => {
+    const shokumuFrom = (...extra: { key: string; heading: string; text: string }[]): RenderContent => ({
+      sections: [
+        { key: "summary", heading: "経歴要約", text: "架空商事で受発注データの移行を担当しました。" },
+        ...extra,
+      ].map(({ key, heading, text }, i) => ({
+        key,
+        heading,
+        blocks: [{ id: `blk_${i + 1}`, kind: "paragraph" as const, text, factIds: [] }],
+      })),
+    });
+
+    async function generateShokumu(...attempts: RenderContent[]) {
+      model.generations = attempts;
+      const response = await client.post("/api/renders/shokumu_keirekisho/generate");
+      expect(response.status).toBe(202);
+      const { proposalId } = (await response.json()) as { proposalId: string };
+      await settle();
+      return client.json<{ generationStatus: string; error: { message: string } | null }>(`/api/proposals/${proposalId}`);
+    }
+
+    it("refuses a stored 保有資格 row that says 御社 before any model call, and names the row", async () => {
+      await seedRecord();
+      await client.post("/api/certifications", { ...CERTIFICATION_FIXTURE, nameJa: "御社認定資格" });
+      const proposal = await generateShokumu(shokumuFrom());
+      expect(model.generationInputs).toHaveLength(0);
+      expect(proposal.generationStatus).toBe("failed");
+      expect(proposal.error!.message).toMatch(/^Row 1 of 保有資格 comes from your record and contains 御社/);
+      expect(proposal.error!.message).toMatch(/under Certifications on your record/);
+      expect(proposal.error!.message).not.toMatch(/model wrote|generate again/);
+    });
+
+    it("does not refuse for a 保有資格 section the model wrote that the record's rows replace", async () => {
+      await seedRecord();
+      await client.post("/api/certifications", CERTIFICATION_FIXTURE);
+      const proposal = await generateShokumu(
+        shokumuFrom({ key: "certifications", heading: "保有資格", text: "御社で役立つ資格を取得しました。" }),
+      );
+      expect(model.generationInputs).toHaveLength(1);
+      expect(proposal.generationStatus).toBe("ready");
+    });
+  });
+
+  it("is not run on an English document", async () => {
+    await seedRecord();
+    const response = await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    expect(model.generationInputs).toHaveLength(1);
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${proposalId}`)).warnings).toEqual([]);
+  });
+});
+
+/**
  * A hand edit (`docs/02` S16).
  *
  * The second writer of `render_versions`, and the first that no model touches.
@@ -1163,14 +1487,14 @@ describe("a version is edited by hand", () => {
     content: RenderContent;
   }
 
-  async function acceptedResume() {
+  async function acceptedResume(key: "projects" | "experience" = "projects") {
     const record = await seedRecord();
     const created = (await (
       await generate(
         resumeFrom([
           { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
           { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
-        ]),
+        ], key),
       )
     ).json()) as { proposalId: string };
     await client.post(`/api/proposals/${created.proposalId}/accept`);
@@ -1337,7 +1661,7 @@ describe("a version is edited by hand", () => {
    * states them from.
    */
   it("returns attribution warnings on the version it accepted, rather than refusing", async () => {
-    const { record, version } = await acceptedResume();
+    const { record, version } = await acceptedResume("experience");
 
     // A paragraph opens an employer group in the experience section, and the
     // bullet under it cites a fact filed to no employer at all.
@@ -1810,6 +2134,279 @@ describe("a fact withheld after acceptance stops the download", () => {
 });
 
 /**
+ * Issue #106: a version is read in the app. The page is what its download
+ * would hold today, from the same inputs and refused on the same facts, so a
+ * screen never shows a document that would not leave the tool.
+ */
+describe("a version is read as its download would hold it", () => {
+  interface Page {
+    renderRef: string;
+    title: string;
+    language: string;
+    tailored: boolean;
+    document: { status: string; pendingProposalId: string | null };
+    canGenerate: boolean;
+    version: { id: string; versionNo: number; origin: string; isCurrent: boolean };
+    page: {
+      stamp: string | null;
+      name: string;
+      contact: string[];
+      sections: { heading: string; blocks: { kind: string; text: string }[] }[];
+      sheet?: Sheet;
+    };
+  }
+
+  const texts = (page: Page) => page.page.sections.flatMap((section) => section.blocks.map((block) => block.text));
+
+  async function acceptedResume() {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/renders/english_resume/versions");
+    return { record, versionId: items[0]!.id };
+  }
+
+  it("serves the current version with the name, contact and text the download carries", async () => {
+    const { versionId } = await acceptedResume();
+    const view = await client.json<Page>("/api/renders/english_resume/page");
+
+    expect(view.renderRef).toBe("english_resume");
+    expect(view.language).toBe("en");
+    expect(view.tailored).toBe(false);
+    expect(view.version).toMatchObject({ id: versionId, versionNo: 1, origin: "accepted", isCurrent: true });
+    expect(view.document.status).toBe("up_to_date");
+    expect(view.canGenerate).toBe(true);
+    expect(view.page.name).toBe(PROFILE_FIXTURE.nameLatin);
+    expect(view.page.contact.join("\n")).toContain(PROFILE_FIXTURE.email);
+
+    const markdown = await (await client.get("/api/renders/english_resume/download?format=md")).text();
+    const prose = view.page.sections.flatMap((section) =>
+      section.blocks.filter((block) => block.kind !== "row").map((block) => block.text),
+    );
+    expect(prose).toEqual(
+      expect.arrayContaining(["Cut nightly batch runtime from six hours to ninety minutes", "Introduced trunk-based development"]),
+    );
+    // A job header is laid out per format (the Markdown form is pinned in resume-download.test.ts); its prose is not.
+    for (const text of prose) expect(markdown).toContain(text);
+    expect(texts(view)).toContain("Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024");
+    expect(markdown).toContain("**Aozora Logistics K.K.** · Tokyo — Apr 2022 – Sep 2024");
+    for (const section of view.page.sections) expect(markdown).toContain(section.heading);
+  });
+
+  /** The page and every download format, each refused with the job header's gaps named. */
+  async function expectJobHeaderRefusal(jobHeaders: unknown[]) {
+    for (const path of [
+      "/api/renders/english_resume/page",
+      "/api/renders/english_resume/download?format=md",
+      "/api/renders/english_resume/download?format=docx",
+      "/api/renders/english_resume/download?format=pdf",
+    ]) {
+      const response = await client.get(path);
+      expect(response.status, path).toBe(409);
+      const body = (await response.json()) as { error: { code: string; message: string; details: unknown } };
+      expect(body.error.code, path).toBe("conflict");
+      expect(body.error.message, path).toMatch(/^Every job on the English résumé is headed by its city and title\. /);
+      expect(body.error.details, path).toEqual({ fields: ["employers"], jobHeaders });
+    }
+  }
+
+  it("refuses the page and every download once a job's city is cleared after acceptance", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    expect((await client.patch(`/api/employers/${items[0]!.id}`, { city: null })).status).toBe(200);
+
+    await expectJobHeaderRefusal([{ employerId: items[0]!.id, name: "Aozora Logistics K.K.", missing: ["city"] }]);
+
+    // Filling the field lifts it; the version needs no regeneration.
+    await client.patch(`/api/employers/${items[0]!.id}`, { city: "Tokyo" });
+    expect((await client.get("/api/renders/english_resume/download")).status).toBe(200);
+  });
+
+  it("refuses a version accepted before the check, from a job migration 0027 left without a city and with no role", async () => {
+    await acceptedResume();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/employers");
+    const employerId = items[0]!.id;
+    // The record as it stood when such a version was accepted: 0027 added the
+    // city column empty, and nothing then required a role.
+    const db = createDb((env as unknown as Bindings).DATABASE_URL);
+    await db.update(employers).set({ city: null }).where(eq(employers.id, employerId));
+    await db.delete(roles).where(eq(roles.employerId, employerId));
+
+    await expectJobHeaderRefusal([{ employerId, name: "Aozora Logistics K.K.", missing: ["city", "role"] }]);
+  });
+
+  it("serves an earlier version by id, and the current one without it", async () => {
+    const { versionId } = await acceptedResume();
+    const stored = await client.json<{ content: RenderContent }>(`/api/renders/english_resume/versions/${versionId}`);
+    const edited = await client.post("/api/renders/english_resume/versions", {
+      basedOnVersionId: versionId,
+      content: { sections: stored.content.sections.map((s) => ({ ...s, blocks: s.blocks.slice(0, 1) })) },
+    });
+    expect(edited.status).toBe(201);
+
+    const current = await client.json<Page>("/api/renders/english_resume/page");
+    expect(current.version).toMatchObject({ versionNo: 2, origin: "edited", isCurrent: true });
+    expect(texts(current)).not.toContain("Introduced trunk-based development");
+
+    const earlier = await client.json<Page>(`/api/renders/english_resume/page?versionId=${versionId}`);
+    expect(earlier.version).toMatchObject({ id: versionId, versionNo: 1, isCurrent: false });
+    expect(texts(earlier)).toContain("Introduced trunk-based development");
+  });
+
+  it("refuses on a withheld fact exactly as the download does", async () => {
+    const { record, versionId } = await acceptedResume();
+    await client.patch(`/api/facts/${record.measuredPublic.id}`, { disclosure: "private" });
+
+    for (const url of ["/api/renders/english_resume/page", `/api/renders/english_resume/page?versionId=${versionId}`]) {
+      const response = await client.get(url);
+      expect(response.status, url).toBe(409);
+      const body = (await response.json()) as {
+        error: { message: string; details: { facts: { factId: string; problem: string }[] } };
+      };
+      expect(body.error.details.facts).toEqual([{ factId: record.measuredPublic.id, problem: "private" }]);
+      expect(body.error.message).not.toContain("nightly batch");
+    }
+  });
+
+  it("is a 404 for a document never generated, and for a version of another document", async () => {
+    const { versionId } = await acceptedResume();
+    expect((await client.get("/api/renders/shokumu_keirekisho/page")).status).toBe(404);
+    expect((await client.get(`/api/renders/shokumu_keirekisho/page?versionId=${versionId}`)).status).toBe(404);
+    expect((await client.get("/api/renders/english_resume/page?versionId=rv_missing")).status).toBe(404);
+  });
+
+  it("reads a 履歴書 out with its tables filled from the record and today's date", async () => {
+    const record = await seedRecord();
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("貴社の基盤刷新に携わりたいと考えております。", [record.measuredPublic.id]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    const view = await client.json<Page>("/api/renders/rirekisho/page");
+    expect(view.language).toBe("ja");
+    expect(view.page.stamp).toMatch(/^\d{4}年\d{1,2}月\d{1,2}日現在$/);
+    const headings = view.page.sections.map((section) => section.heading);
+    expect(headings).toContain("学歴");
+    expect(headings).toContain("職歴");
+    expect(texts(view)).toContain("貴社の基盤刷新に携わりたいと考えております。");
+
+    // And the form as the file a download hands over lays it out.
+    const download = await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer();
+    const printed = readSheet(download);
+    const tables = printed.blocks.filter((block) => block.kind === "table");
+    tables[3]!.rows[1]![0]!.factIds = [record.measuredPublic.id];
+    tables[4]!.rows[1]![0]!.factIds = [];
+    expect(view.page.sheet).toEqual(printed);
+  });
+
+  it("prints an explained gap as a ※ row on the page and in the download, and stops warning about it", async () => {
+    const record = await seedRecord();
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("貴社の基盤刷新に携わりたいと考えております。", [record.measuredPublic.id]))
+    ).json()) as { proposalId: string };
+    const gap = "2017年4月〜2022年3月（60か月）";
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${created.proposalId}`)).warnings[0]).toContain(gap);
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    await client.post("/api/gap-notes", { fromOn: "2017-04-01", toOn: "2022-03-01", text: "資格取得のため学習" });
+
+    // Read from the record when the page is read, as the tables are: the
+    // accepted version did not change, and the row is there.
+    const note = "※2017年4月〜2022年3月　資格取得のため学習";
+    const view = await client.json<Page>("/api/renders/rirekisho/page");
+    expect(JSON.stringify(view.page.sheet)).toContain(note);
+    const printed = readSheet(await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer());
+    expect(JSON.stringify(printed)).toContain(note);
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${created.proposalId}`)).warnings.join(" ")).not.toContain(gap);
+  });
+
+  /** "Show where each line comes from" (issue #110, S6). */
+  describe("what stands behind each line", () => {
+    interface Traced {
+      page: { sections: { blocks: { kind: string; text: string; factIds?: string[] }[] }[] };
+      evidence: FactEvidence[];
+    }
+    const blockOf = (view: Traced, text: string) =>
+      view.page.sections.flatMap((section) => section.blocks).find((block) => block.text === text)!;
+
+    it("names each line's facts, with a measured or attested fact's passage and the import it opens in", async () => {
+      const { record } = await acceptedResume();
+      const view = await client.json<Traced>("/api/renders/english_resume/page");
+
+      expect(blockOf(view, "Cut nightly batch runtime from six hours to ninety minutes").factIds).toEqual([record.measuredPublic.id]);
+      expect(blockOf(view, "Introduced trunk-based development").factIds).toEqual([record.attestedRestricted.id]);
+      // A job header is the record's, not a claim's.
+      expect(blockOf(view, "Aozora Logistics K.K. · Tokyo · Apr 2022 – Sep 2024").factIds ?? []).toEqual([]);
+
+      const byId = new Map(view.evidence.map((fact) => [fact.id, fact]));
+      expect([...byId.keys()].sort()).toEqual([record.measuredPublic.id, record.attestedRestricted.id].sort());
+      expect(byId.get(record.measuredPublic.id)).toMatchObject({
+        claim: record.measuredPublic.claim,
+        provenance: "measured",
+        quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+        source: { importId: record.importId, lineNumber: 1 },
+      });
+      expect(byId.get(record.attestedRestricted.id)).toMatchObject({
+        provenance: "attested",
+        quote: "The team adopted trunk-based development that quarter.",
+        source: { importId: record.importId, lineNumber: 3 },
+      });
+      expect(byId.get(record.measuredPublic.id)!.source!.filename).toMatch(/\S/);
+    });
+
+    it("says a captured fact has no passage, and names its employer in the document's language", async () => {
+      await seedRecord();
+      const [employer] = (await client.json<{ items: { id: string }[] }>("/api/employers")).items;
+      const saved = await client.post("/api/capture", {
+        claims: [{ claim: "Mentored two new hires", month: "2023-05", employerId: employer!.id }],
+      });
+      expect(saved.status).toBe(201);
+      const { items } = await client.json<{ items: Fact[] }>("/api/facts?status=accepted");
+      const captured = items.find((fact) => fact.claim === "Mentored two new hires")!;
+
+      const created = (await (
+        await generate(resumeFrom([{ text: "Mentored two new hires", factIds: [captured.id] }]))
+      ).json()) as { proposalId: string };
+      await client.post(`/api/proposals/${created.proposalId}/accept`);
+      const view = await client.json<Traced>("/api/renders/english_resume/page");
+
+      expect(view.evidence).toEqual([
+        {
+          id: captured.id,
+          claim: "Mentored two new hires",
+          provenance: "attested",
+          employer: EMPLOYER_FIXTURE.nameLatin,
+          quote: null,
+          source: null,
+        },
+      ]);
+      // The same fact, read for a Japanese document, names the employer as a Japanese document does.
+      const db = createDb((env as unknown as Bindings).DATABASE_URL);
+      const [owner] = await db.select({ userId: facts.userId }).from(facts).where(eq(facts.id, captured.id));
+      const [ja] = await factEvidence(db, owner!.userId, [captured.id], "ja");
+      expect(ja!.employer).toBe(EMPLOYER_FIXTURE.nameJa);
+    });
+
+    it("looks up only the asking author's facts", async () => {
+      const { record } = await acceptedResume();
+      const other = await seedAllowedUser();
+      const db = createDb((env as unknown as Bindings).DATABASE_URL);
+
+      expect(await factEvidence(db, other.id, [record.measuredPublic.id], "en")).toEqual([]);
+    });
+  });
+});
+
+/**
  * The half of S11 the payload decides.
  *
  * `chapterPlan` is a pure function and is tested as one in
@@ -1822,7 +2419,7 @@ describe("a fact withheld after acceptance stops the download", () => {
 describe("a career story is planned from the record before it is written", () => {
   const STORY: RenderContent = {
     sections: [
-      { key: "opening", heading: "How it started", blocks: [{ id: "blk_1", kind: "paragraph", text: "架空の導入。", factIds: [] }] },
+      { key: "opening", heading: "How it started", blocks: [{ id: "blk_1", kind: "paragraph", text: "An invented opening.", factIds: [] }] },
     ],
   };
 
@@ -1845,6 +2442,19 @@ describe("a career story is planned from the record before it is written", () =>
       sent.spec.employers.length,
     );
     expect(keys.slice(-2)).toEqual(["anchors", "routing"]);
+  });
+
+  it("is given the 履歴書's gaps, with the author's explanation, and no other render is", async () => {
+    // seedRecord's job starts 2022-04; a graduation in 2017-03 leaves five years.
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    await client.post("/api/gap-notes", { fromOn: "2017-04-01", toOn: "2022-03-01", text: "資格取得のため学習" });
+    const sent = await generateStory();
+    expect(sent.spec.careerGaps).toEqual([
+      { from: "2017-04", to: "2022-03", months: 60, explanation: "資格取得のため学習" },
+    ]);
+
+    await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));
+    expect(model.generationInputs.at(-1)!.spec.careerGaps).toEqual([]);
   });
 
   it("says whether the record holds work outside employment, from the facts it is sending", async () => {

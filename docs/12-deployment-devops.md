@@ -62,7 +62,7 @@ that way.
 | Name | Purpose | Where the value comes from |
 |---|---|---|
 | `DATABASE_URL` | Database connection string | Local Docker Postgres for the standard development setup (`.dev.vars.example`); Neon dashboard for production or an optional development branch |
-| `ANTHROPIC_API_KEY` | The generation layer | Anthropic console. **The only spending credential in the system** |
+| `ANTHROPIC_API_KEY` | The generation layer | Anthropic console, a workspace key in the organisation linked to the plan's credits (§9). **The only spending credential in the system** |
 | `BETTER_AUTH_SECRET` | Session signing | Generated once per environment, 32+ random bytes |
 | `BETTER_AUTH_URL` | Callback base URL | `http://localhost:8787` locally, `https://track-record.asakurayuta.workers.dev` in production |
 | `GOOGLE_CLIENT_ID` | OIDC | Google Cloud console |
@@ -317,6 +317,56 @@ try to create every table again.
 
 ---
 
+## 5a. Resetting a record to the demo record
+
+`npm run db:seed:demo [-- --email <address>]` replaces one user's whole record with an invented one
+(Kenji Moriyama, four employers, seven documents, 59 facts, four applications) so every screen has
+something on it. Decision log, 2026-10-17. Renders are not seeded; press Generate afterwards.
+
+**Locally**, against `track_record_dev` (`DATABASE_URL` from `.dev.vars`, user `dev-session@example.invalid`
+unless `--email` says otherwise): run `npm run dev:session` once so the user exists, then the command.
+Documents go through `runImport` with a scripted model, so it needs no API key. Two runs in a row print
+identical counts. It refuses `track_record_test`, a remote host without `--remote-after-backup`, and a
+user with uploaded recordings unless `--recordings-deleted` is passed.
+
+**What it deletes**, children first, for that user only (`RESET_ORDER` in `scripts/demo-seed/demo.ts`):
+`interview_recordings`, `interview_questions`, `interviews`; `application_sent_copies`,
+`application_documents`, `application_steps`; `render_proposals`, `render_versions`, `renders`;
+`applications`; `fact_flags`, `facts`; `import_chunks`, `source_document_versions`,
+`source_documents`; `skill_curations`, `render_inclusions`, `capture_prompt_dismissals`, `career_gap_notes`; `certifications`, `educations`; `projects`,
+`roles`, `employers`; `profiles`. Several foreign keys are `RESTRICT`, so the order is not optional.
+It keeps `users`, `sessions`, `accounts` and `verifications`: the owner stays signed in with the same
+Google account. Uploaded documents and sent copies live in Postgres columns; only recordings are in R2.
+
+**Production** is a deliberate, owner-approved step, because it replaces the real record:
+
+1. **Back up.** Take `GET /api/export` and note the Neon restore point (§5). The reset cannot be undone
+   by the app.
+2. **Sign in once** with the owner's Google account, so the user row exists and is the one to keep.
+3. **Delete the R2 objects** under `<userId>/` in the `track-record-recordings` bucket. Objects only,
+   never the bucket (`recordingObjectKey` in `src/server/services/recording-store.ts`).
+4. **Run it**, from a checkout of the deployed commit:
+
+   ```sh
+   DATABASE_URL='<production connection string>' npm run db:seed:demo -- --email <owner email> --remote-after-backup --recordings-deleted
+   ```
+
+   `--recordings-deleted` only when step 3 had objects to delete; without it the command stops while
+   upload rows remain.
+   A run that fails partway is recovered by running the same command again: it resets first.
+5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 16
+   flags, 21 skills, 4 applications, 2 interviews. Then, on the production database:
+
+   ```sql
+   select count(*) from facts where user_id <> '<userId>';   -- 0 on a one-user database
+   ```
+
+   Listing `<userId>/` in the bucket returns nothing. In the app, Home offers Generate for the résumé,
+   Flagged shows 16, Applications shows 4 with one gone quiet, and the sidebar shows Kenji Moriyama.
+   After generating a résumé, `npm run check:attribution -- --latest` exits 0.
+
+---
+
 ## 6. Incident: a leaked key
 
 First three steps, written now rather than during the fire.
@@ -341,7 +391,7 @@ notice an outage. Alerting on uptime would be alerting the person already using 
 
 | Signal | Where | Why it earns its place |
 |---|---|---|
-| **Anthropic spend** | Provider dashboard, **with a billing alert set** | The only uncapped cost. Also the first sign of a leaked key |
+| **Anthropic spend and credit balance** | Provider dashboard, **with a billing alert set** | Signals approaching the workspace limit or exhausting the shared credits (§9); unexpected spend can signal a leaked key |
 | Worker errors and CPU time | Cloudflare dashboard | CPU headroom for `.docx` assembly is an open question (`03` §11) |
 | Failed Workflow instances | Cloudflare Workflows dashboard | A silently failing import is invisible from inside the app |
 | Neon storage and compute hours | Neon dashboard | Free-tier ceiling |
@@ -370,3 +420,52 @@ a gate alongside the others in `08` §2.2.
 The suite uses the separate `track_record_test` database, which it drops and rebuilds on every run
 (`docs/11-testing-plan.md` §1). A Neon development branch is optional for ordinary development;
 `npm run dev:session` requires the local database.
+
+---
+
+## 9. Included monthly API credits
+
+Every model call (import, extraction, generation, Explain this, reading a posting, quick capture)
+goes to `api.anthropic.com` through `ANTHROPIC_API_KEY`. A Claude Max or Team plan includes monthly
+Claude API credits that pay for those calls before any purchased credit is touched; no code path
+changes for them to apply ([API credits for Max and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers),
+read 2026-10-24, issue #144).
+
+**What the plan gives.** $100 a month on Max 5x and $200 on Max 20x; Team pools $20 per Standard
+seat and $100 per Premium seat, up to $500. They cover the Claude API, not Claude Code, extra usage
+in the Claude apps, or Claude through Bedrock, Google Cloud or Foundry. Unused credit expires at the
+end of each billing cycle. Rate limits are unchanged, except the linked organisation moves to at
+least the Start tier.
+
+**The owner's setup, once:**
+
+1. On claude.ai, Settings → Billing → API credits: link the **one** Console organisation that
+   issues Track Record's production key. The link cannot be changed without support, so link the
+   right one.
+2. In that organisation keep a Track Record workspace with its own **spend limit** and create the
+   production key there (`13` §5). Every key and workspace in the organisation draws from the same
+   balance; the workspace limit is what caps this project.
+3. `wrangler secret put ANTHROPIC_API_KEY`, then decide whether to keep purchased credits or
+   auto-reload as the fallback for a month that runs past the included credit. Without either,
+   calls stop at zero until the next cycle.
+
+**When the credits run out.** The API answers 400 `invalid_request_error`, "Your credit balance is
+too low to access the Anthropic API". `src/model/providers/anthropic.ts` reads that as
+`ModelCreditsExhaustedError`, a kind of `ModelUnavailableError`, so the work stays retryable and
+nothing is recorded as a model fault:
+
+| Where | What the member sees |
+|---|---|
+| Import | The import is `failed` at its chunk with the message below; **Retry** resumes there with no new upload |
+| Generation | The proposal is `failed` with the message below; generating again is allowed |
+| Explain this, sorting facts, reading a posting, quick capture | `503 upstream_unavailable` with the message below; pressing again works once credits are back |
+
+The public credit-pause reason codes are specified in `07` §2, §5 and §7.
+
+> Generation is paused: the model service has run out of credits. It resumes once credits are
+> topped up or next month's credits arrive. Nothing was lost; try again then.
+
+**Telling it from an outage.** The log carries `{"event":"model_credits_exhausted","step":…}`
+(`step` is `import`, `generate`, `explain`, `grade`, `read_posting` or `capture`; an import adds its
+`versionId` and `chunkIndex`) instead of `import_chunk_failed` or `generation_failed`. An outage
+keeps those events. Ids and step names only: no key, no text, no response body.

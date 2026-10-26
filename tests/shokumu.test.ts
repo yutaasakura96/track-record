@@ -29,6 +29,8 @@ import { checkAttribution, copiedPairs, copyIsPermitted, experienceGroups } from
 import { experienceBullets, measureBullets } from "~/render/metrics";
 import type { RenderContent } from "~/shared/render-content";
 import { RENDER_KINDS } from "~/shared/render-content";
+import { leavesOutEducation } from "~/shared/education";
+import { CERTIFICATIONS_SECTION, EDUCATION_SECTION } from "~/render/shokumu";
 
 const definition = RENDER_DEFINITIONS.shokumu_keirekisho;
 
@@ -86,9 +88,17 @@ describe("the register's contract with the rest of the codebase", () => {
   });
 
   it("names every section it claims to write", () => {
-    for (const key of ["summary", "skills", "experience", "certifications", "education", "self_pr"]) {
+    for (const key of ["summary", "skills", "experience", "self_pr"]) {
       expect(definition.register, `${key} is not named`).toContain(`"${key}"`);
     }
+  });
+
+  it("asks for no section for 保有資格 or 学歴", () => {
+    // Issue #117. The renderer writes both (`src/render/shokumu.ts`); a
+    // register still listing their keys would have the model write a copy
+    // that `withRecordSections` throws away.
+    expect(definition.register).not.toContain(`"${CERTIFICATIONS_SECTION}"`);
+    expect(definition.register).not.toContain(`"${EDUCATION_SECTION}"`);
   });
 
   it("forbids converting the 資本金 figure, because the prompt converted it already", () => {
@@ -107,12 +117,11 @@ describe("the register's contract with the rest of the codebase", () => {
     expect(RENDER_DEFINITIONS.english_resume.register).toContain("past-tense action verb");
   });
 
-  it("puts a driving licence in 保有資格, which is where the résumé refuses it", () => {
-    // The two registers contradict each other on purpose, and each says so.
-    expect(definition.register).toContain("A driving licence DOES belong here");
-    expect(RENDER_DEFINITIONS.english_resume.register).toContain(
-      "A driving licence is not a technical certification",
-    );
+  it("drops lower secondary, as the timeline's chip says", () => {
+    expect(leavesOutEducation("shokumu_keirekisho", "secondary_lower")).toBe(true);
+    for (const level of ["secondary_upper", "vocational", "tertiary", "postgraduate", null] as const) {
+      expect(leavesOutEducation("shokumu_keirekisho", level), String(level)).toBe(false);
+    }
   });
 });
 
@@ -152,9 +161,9 @@ describe("the 作成日", () => {
   });
 
   it("writes the date the way a Japanese document writes it", () => {
-    // No leading zeros. The author's own 職務経歴書 is headed 2026年8月11日.
-    expect(documentDate("shokumu_keirekisho", "2026-08-11")).toBe("2026年8月11日");
-    expect(documentDate("shokumu_keirekisho", "2026-09-12")).toBe("2026年9月12日");
+    // No leading zeros, and 現在: the document is true as of that day (issue #117).
+    expect(documentDate("shokumu_keirekisho", "2026-08-11")).toBe("2026年8月11日現在");
+    expect(documentDate("shokumu_keirekisho", "2026-09-12")).toBe("2026年9月12日現在");
   });
 
   it("gives an undated kind nothing rather than a blank line", () => {

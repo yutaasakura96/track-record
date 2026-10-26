@@ -16,6 +16,8 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildGenerationPrompt } from "~/model/generate";
+import { JAPANESE_ONLY_LABEL } from "~/render/language";
+import { RENDER_DEFINITIONS } from "~/render/spec";
 import { EXTRACT_FACT_TOOL, EXTRACTION_SYSTEM_PROMPT } from "~/model/extract";
 import { GRADE_FACT_TOOL, GRADE_REQUIRED, GRADING_RULES, GRADING_SYSTEM_PROMPT, readGrade } from "~/model/grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "~/model/explain";
@@ -23,6 +25,7 @@ import { READ_POSTING_TOOL, postingRequest, readPostingInput } from "~/model/pos
 import { CAPTURE_TOOL, captureRequest, readCaptureInput } from "~/model/capture";
 import { POSTING_EN, POSTING_JA, READING_EN, READING_JA } from "./fixtures/postings";
 import type { FlagKind } from "~/pipeline/flags";
+import { leavesOutEducation } from "~/shared/education";
 import type { FlagToExplain, RenderSpec } from "~/model/types";
 
 type Education = RenderSpec["educations"][number];
@@ -46,14 +49,19 @@ const employer = (over: Partial<Employer> = {}): Employer => ({
   id: "emp_test",
   name: "架空商事株式会社",
   industry: null,
+  employmentType: "full_time",
   startedOn: "2024-10-01",
   endedOn: "2025-03-01",
   businessDescription: null,
   capitalYen: null,
   headcount: null,
   roles: [],
+  city: null,
   ...over,
 });
+
+/** A Japanese document, whose employer line carries 資本金 and 従業員数. */
+const JA = { kind: "shokumu_keirekisho", language: "ja" } as const;
 
 const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSpec => ({
   kind: "english_resume",
@@ -65,6 +73,7 @@ const spec = (educations: Education[], over: Partial<RenderSpec> = {}): RenderSp
   projects: [],
   workOutsideEmployment: false,
   desiredRoleNote: null,
+  careerGaps: [],
   educations,
   certifications: [],
   curatedSkills: null,
@@ -76,8 +85,8 @@ describe("the curated skills list", () => {
     const prompt = buildGenerationPrompt(
       spec([], {
         curatedSkills: [
-          { name: "Data platforms", skills: ["CockroachDB", "Airflow"] },
-          { name: "Release work", skills: ["Pulumi"] },
+          { name: "Data platforms", nameJa: null, skills: ["CockroachDB", "Airflow"] },
+          { name: "Release work", nameJa: null, skills: ["Pulumi"] },
         ],
       }),
     );
@@ -126,11 +135,14 @@ describe("the generation prompt", () => {
 
     // Wording, not the enum value: the model is told what the rung MEANS, the
     // same way `withdrawn` is spelled out rather than passed through.
-    expect(below("secondary_lower")).toContain("below university level");
-    expect(below("secondary_upper")).toContain("below university level");
-    expect(below("vocational")).not.toContain("below university level");
-    expect(below("tertiary")).not.toContain("below university level");
-    expect(below("postgraduate")).not.toContain("below university level");
+    // And it says so of exactly the rungs the résumé leaves out when the file
+    // is assembled, so the prompt and the file cannot disagree on vocational.
+    for (const level of ["secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate"] as const) {
+      if (leavesOutEducation("english_resume", level)) expect(below(level), level).toContain("below university level");
+      else expect(below(level), level).not.toContain("below university level");
+    }
+    expect(leavesOutEducation("english_resume", "secondary_upper")).toBe(true);
+    expect(leavesOutEducation("english_resume", "vocational")).toBe(false);
   });
 
   it("tells the model to keep a row whose level was never recorded", () => {
@@ -196,7 +208,7 @@ describe("the author's stated preference", () => {
 describe("the employer line", () => {
   it("states 資本金 and 従業員数 when the record holds them", () => {
     const prompt = buildGenerationPrompt(
-      spec([], { employers: [employer({ capitalYen: 4_000_000, headcount: 12 })] }),
+      spec([], { ...JA, employers: [employer({ capitalYen: 4_000_000, headcount: 12 })] }),
     );
     expect(prompt).toContain("資本金 400万円");
     expect(prompt).toContain("従業員数 12");
@@ -207,7 +219,7 @@ describe("the employer line", () => {
     // 万円 form IS a total computed from the yen figure. Doing the arithmetic
     // here makes the register's job a copy rather than a calculation.
     const prompt = buildGenerationPrompt(
-      spec([], { employers: [employer({ capitalYen: 4_000_000 })] }),
+      spec([], { ...JA, employers: [employer({ capitalYen: 4_000_000 })] }),
     );
     expect(prompt).toContain("400万円");
     expect(prompt).toContain("4000000 yen");
@@ -217,15 +229,81 @@ describe("the employer line", () => {
     // Not "capital: not recorded". A labelled absence on a line about company
     // scale is an invitation to supply one, and a private company genuinely
     // may not publish either figure.
-    const prompt = buildGenerationPrompt(spec([], { employers: [employer()] }));
+    const prompt = buildGenerationPrompt(spec([], { ...JA, employers: [employer()] }));
     expect(prompt).not.toContain("資本金");
     expect(prompt).not.toContain("従業員数");
   });
 
   it("prints the figure the record holds when it holds only one of the two", () => {
-    const prompt = buildGenerationPrompt(spec([], { employers: [employer({ headcount: 12 })] }));
+    const prompt = buildGenerationPrompt(spec([], { ...JA, employers: [employer({ headcount: 12 })] }));
     expect(prompt).toContain("従業員数 12");
     expect(prompt).not.toContain("資本金");
+  });
+
+  // Issue #104. The same two figures, in English, for an English document: 資本金
+  // in the list an English story was written from is how it reached the prose.
+  it("states them in English for an English document, and in no Japanese", () => {
+    const prompt = buildGenerationPrompt(
+      spec([], { employers: [employer({ capitalYen: 300_000_000, headcount: 1200 })] }),
+    );
+    expect(prompt).toContain("capital 300,000,000 yen · 1,200 employees");
+    expect(prompt).not.toContain("資本金");
+    expect(prompt).not.toContain("従業員数");
+  });
+});
+
+/**
+ * Issue #104. An English document's prompt marks every free-text field it is
+ * given in Japanese, and never a name: the registers translate the one and copy
+ * the other verbatim.
+ */
+describe("a Japanese field in an English prompt", () => {
+  const record: Partial<RenderSpec> = {
+    employers: [
+      employer({
+        industry: "運輸業",
+        businessDescription: "中堅の国内向け物流事業者。",
+        roles: [{ title: "主任", startedOn: "2024-10-01", endedOn: null }],
+      }),
+    ],
+    projects: [{ id: "prj_test", name: "配送最適化", employerId: "emp_test", summary: "架空の配送計画の作り直し。", summaryJa: null, startedOn: null, endedOn: null }],
+    desiredRoleNote: "在宅勤務を希望します。",
+  };
+
+  it("is labelled as held only in Japanese", () => {
+    const prompt = buildGenerationPrompt(spec([education({ faculty: "情報工学部" })], record));
+    for (const value of ["運輸業", "中堅の国内向け物流事業者。", "主任", "架空の配送計画の作り直し。", "情報工学部", "在宅勤務を希望します。"]) {
+      expect(prompt).toContain(`${JAPANESE_ONLY_LABEL} ${value}`);
+    }
+  });
+
+  it("is not labelled when it is English", () => {
+    const prompt = buildGenerationPrompt(spec([education({ faculty: "Faculty of Engineering" })]));
+    expect(prompt).not.toContain(JAPANESE_ONLY_LABEL);
+  });
+
+  it("leaves every name exactly as the record writes it, unlabelled", () => {
+    const prompt = buildGenerationPrompt(spec([education({ institution: "緑川工科大学" })], record));
+    for (const name of ["架空商事株式会社", "配送最適化", "緑川工科大学"]) {
+      expect(prompt).toContain(`· ${name}`);
+      expect(prompt).not.toContain(`${JAPANESE_ONLY_LABEL} ${name}`);
+    }
+  });
+
+  it("is never labelled in a Japanese prompt", () => {
+    const prompt = buildGenerationPrompt(spec([education({ faculty: "情報工学部" })], { ...record, ...JA }));
+    expect(prompt).not.toContain(JAPANESE_ONLY_LABEL);
+  });
+
+  it("is what both English registers say to write in English or leave out", () => {
+    for (const kind of ["english_resume", "career_story_en"] as const) {
+      const prompt = buildGenerationPrompt(spec([education()], { kind, register: RENDER_DEFINITIONS[kind].register }));
+      expect(prompt).toContain("Language — English, throughout:");
+      expect(prompt).toContain("Every heading, paragraph, bullet and row is written in English.");
+      expect(prompt).toContain(
+        `opens with ${JAPANESE_ONLY_LABEL} is held only in Japanese. Write what it says in English, or leave it out.`,
+      );
+    }
   });
 });
 

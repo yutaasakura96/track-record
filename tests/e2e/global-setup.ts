@@ -26,8 +26,26 @@ import {
   E2E_SUITE,
   CAPTURE_IDENTITY,
   CAPTURE_STORAGE_STATE,
+  CREDIT_PAUSE_IDENTITY,
+  CREDIT_PAUSE_STORAGE_STATE,
+  DIFF_REVIEW_IDENTITY,
+  DIFF_REVIEW_STORAGE_STATE,
+  JAPANESE_DIFF_IDENTITY,
+  JAPANESE_DIFF_STORAGE_STATE,
+  EDUCATION_CHIPS_IDENTITY,
+  EDUCATION_CHIPS_STORAGE_STATE,
+  DOCUMENT_VIEW_IDENTITY,
+  DOCUMENT_VIEW_STORAGE_STATE,
+  JAPANESE_CHECK_IDENTITY,
+  JAPANESE_CHECK_STORAGE_STATE,
+  RESUME_IDENTITY,
+  RESUME_STORAGE_STATE,
   INTERVIEW_IDENTITY,
   INTERVIEW_STORAGE_STATE,
+  RESUME_HEADER_IDENTITY,
+  RESUME_HEADER_STORAGE_STATE,
+  RIREKISHO_PRINT_IDENTITY,
+  RIREKISHO_PRINT_STORAGE_STATE,
   STORAGE_STATE,
 } from "./env";
 
@@ -79,6 +97,91 @@ export default async function setup() {
     CAPTURE_IDENTITY,
   );
   writeFileSync(CAPTURE_STORAGE_STATE, `${JSON.stringify(storageState(captureSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const creditPauseSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    CREDIT_PAUSE_IDENTITY,
+  );
+  writeFileSync(CREDIT_PAUSE_STORAGE_STATE, `${JSON.stringify(storageState(creditPauseSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const diffReviewSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    DIFF_REVIEW_IDENTITY,
+  );
+  writeFileSync(DIFF_REVIEW_STORAGE_STATE, `${JSON.stringify(storageState(diffReviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const japaneseDiffSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    JAPANESE_DIFF_IDENTITY,
+  );
+  writeFileSync(JAPANESE_DIFF_STORAGE_STATE, `${JSON.stringify(storageState(japaneseDiffSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The reader's own author (issue #106), so the smoke test's record still starts with no profile.
+  const documentViewSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    DOCUMENT_VIEW_IDENTITY,
+  );
+  writeFileSync(DOCUMENT_VIEW_STORAGE_STATE, `${JSON.stringify(storageState(documentViewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const japaneseCheckSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    JAPANESE_CHECK_IDENTITY,
+  );
+  writeFileSync(JAPANESE_CHECK_STORAGE_STATE, `${JSON.stringify(storageState(japaneseCheckSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The résumé header's own author (issue #108), so the smoke test's record still starts with no profile.
+  const resumeHeaderSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    RESUME_HEADER_IDENTITY,
+  );
+  writeFileSync(RESUME_HEADER_STORAGE_STATE, `${JSON.stringify(storageState(resumeHeaderSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The 履歴書 print check's own author, so it onboards from no profile whichever spec ran first.
+  const rirekishoPrintSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    RIREKISHO_PRINT_IDENTITY,
+  );
+  writeFileSync(RIREKISHO_PRINT_STORAGE_STATE, `${JSON.stringify(storageState(rirekishoPrintSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  // The résumé layout's own author (issue #107), so the smoke test's record still starts with no profile.
+  const resumeSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    RESUME_IDENTITY,
+  );
+  writeFileSync(RESUME_STORAGE_STATE, `${JSON.stringify(storageState(resumeSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
+    mode: 0o600,
+  });
+  const educationChipsSession = await createDevSession(
+    (request) => createAuth(bindings, db).handler(request),
+    E2E_ORIGIN,
+    DEV_SESSION_CLIENT,
+    EDUCATION_CHIPS_IDENTITY,
+  );
+  writeFileSync(EDUCATION_CHIPS_STORAGE_STATE, `${JSON.stringify(storageState(educationChipsSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
 }

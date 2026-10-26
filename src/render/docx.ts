@@ -58,15 +58,17 @@ export async function toDocx(
       }),
     );
   }
-  if (contact.length > 0) {
+  // One paragraph a line: the résumé's headline and its contact line are two
+  // lines (`identityLines` joins each line's parts), every other kind has one.
+  contact.forEach((line, index) => {
     children.push(
       new Paragraph({
         alignment: align,
-        children: [new TextRun({ text: contact.join(" · "), size: 20 })],
-        spacing: { after: 240 },
+        children: [new TextRun({ text: line, size: 20 })],
+        spacing: { after: index === contact.length - 1 ? 240 : 40 },
       }),
     );
-  }
+  });
 
   for (const section of content.sections) {
     if (section.blocks.length === 0) continue;
@@ -101,17 +103,12 @@ export async function toDocx(
   return new Uint8Array(await Packer.toBuffer(document));
 }
 
-/** `resume-2026-08-12.docx` — dated, so a downloaded file names its own vintage. */
-export function downloadFilename(kind: string, extension: string, date: Date, tailored: { label: string; id: string } | null = null): string {
-  const stem = kind === "english_resume" ? "resume" : kind.replace(/_/g, "-");
+/**
+ * `shokumu-keirekisho-2026-08-12.docx` — dated, so a downloaded file names its
+ * own vintage. The English résumé, main or tailored, is named for its author
+ * instead (`resumeFilename` in `./resume.ts`).
+ */
+export function downloadFilename(kind: string, extension: string, date: Date): string {
   // ASCII only: the name goes in a `content-disposition` header.
-  const tail = tailored ? `-${[slug(tailored.label), tailored.id].filter(Boolean).join("-")}` : "";
-  return `${stem}${tail}-${date.toISOString().slice(0, 10)}.${extension}`;
+  return `${kind.replace(/_/g, "-")}-${date.toISOString().slice(0, 10)}.${extension}`;
 }
-
-const slug = (label: string) =>
-  label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40);

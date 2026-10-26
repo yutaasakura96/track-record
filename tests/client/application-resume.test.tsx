@@ -14,6 +14,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import type { Application, ApplicationDocument, DocumentChoice, Proposal, SentCopy, SentCopyPage } from "~/client/api";
 import { figures, moveTo, type Standing } from "~/shared/application";
 import { mount, Refusal, type Call, type Routes } from "./harness";
+import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 
 const TODAY = "2026-10-10";
 const ID = "app-test-osprey";
@@ -224,6 +225,7 @@ describe("choosing a résumé, before Applied", () => {
     const resume = await panel();
 
     expect(resume.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${TAILORED}/history`);
+    expect(resume.getByRole("link", { name: "View" }).getAttribute("href")).toBe(`/renders/${TAILORED}/view`);
     await user.click(resume.getByRole("button", { name: "Regenerate" }));
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-own-2"));
@@ -290,6 +292,23 @@ describe("moving to Applied", () => {
     expect(screen.getByRole("button", { name: "Move to Applied" })).toBeTruthy();
     expect(screen.queryByText(/Moved to Applied/)).toBeNull();
   });
+
+  it("links to the missing job header field when moving to Applied cannot freeze the résumé", async () => {
+    const start = application(NOT_APPLIED, { documents: [MAIN], choices: choicesOf([MAIN]) });
+    const { user } = open(start, {
+      [`POST ${AT}/steps`]: new Refusal(409, "conflict", "Complete the job header first.", {
+        jobHeaders: [{ employerId: "emp-test-osprey", name: "Osprey Grid", missing: ["city"] }],
+      }),
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Move to Applied" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert.textContent).toContain("Complete the job header first.");
+    expect(within(alert).getByRole("link", { name: "Add the city for Osprey Grid" }).getAttribute("href"))
+      .toBe("/record?employer=emp-test-osprey&fix=city");
+    expect(screen.getByRole("button", { name: "Move to Applied" })).toBeTruthy();
+  });
 });
 
 describe("from Applied onward", () => {
@@ -348,6 +367,25 @@ describe("from Applied onward", () => {
     await waitFor(() => expect(resume.queryByRole("button", { name: "Record the ticked documents" })).toBeNull());
   });
 
+  it("links to the missing job header field when recording another sent copy is refused", async () => {
+    const { user } = open(sent, {
+      [`POST ${AT}/sent-copies`]: new Refusal(409, "conflict", "Complete the job header first.", {
+        jobHeaders: [{ employerId: "emp-test-osprey", name: "Osprey Grid", missing: ["role"] }],
+      }),
+    });
+    const resume = await panel();
+
+    await user.click(resume.getByRole("button", { name: "Record another sent copy" }));
+    await user.click(resume.getByRole("checkbox", { name: /Main résumé/ }));
+    await user.click(resume.getByRole("button", { name: "Record the ticked documents" }));
+
+    const alert = await resume.findByRole("alert");
+    expect(alert.textContent).toContain("Complete the job header first.");
+    expect(within(alert).getByRole("link", { name: "Add the role for Osprey Grid" }).getAttribute("href"))
+      .toBe("/record?employer=emp-test-osprey&fix=role");
+    expect(resume.getByRole("button", { name: "Record the ticked documents" })).toBeTruthy();
+  });
+
   it("closes the card on Cancel and sends nothing", async () => {
     const { api, user } = open(sent);
     const resume = await panel();
@@ -403,13 +441,12 @@ describe("a sent copy", () => {
     recordedAt: "2026-10-06T03:00:00.000Z",
     filename: "rirekisho-2026-10-01.docx",
     page: {
+      title: "履 歴 書",
       stamp: "2026年10月6日現在",
       name: "架空　花子",
-      contact: ["〒000-0000 架空県架空市0-0-0", "000-0000-0000 · hanako@example.invalid"],
-      sections: [
-        { heading: "学歴", blocks: [{ kind: "row", text: "2017年3月　架空大学　架空学部　卒業" }] },
-        { heading: "志望の動機", blocks: [{ kind: "paragraph", text: "架空の志望動機です。" }] },
-      ],
+      contact: ["ふりがな かくう　はなこ", "〒000-0000 架空県架空市0-0-0"],
+      sections: [{ heading: "志望の動機", blocks: [{ kind: "paragraph", text: "架空の志望動機です。" }] }],
+      sheet: RIREKISHO_SHEET,
     },
   };
   const openCopy = (routes: Routes = {}) =>
@@ -433,12 +470,49 @@ describe("a sent copy", () => {
       ),
     ).toBeTruthy();
 
+    // The form as its file lays it out: cells, spans and the 年 / 月 tables, not prose.
     const page = screen.getByRole("article");
     expect(page.getAttribute("lang")).toBe("ja");
-    expect(within(page).getByRole("heading", { name: "架空　花子" })).toBeTruthy();
-    expect(within(page).getByText("〒000-0000 架空県架空市0-0-0")).toBeTruthy();
-    // Matched on the text itself: the row is spaced with ideographic spaces, which a text matcher folds.
-    expect(page.textContent).toContain("2017年3月　架空大学　架空学部　卒業");
+    expect(within(page).getByRole("heading", { level: 2, name: "履歴書" })).toBeTruthy();
+    expect(within(page).getByText("2026年 10月 6日現在")).toBeTruthy();
+    const tables = within(page).getAllByRole("table");
+    expect(tables).toHaveLength(5);
+    const printedBlocks = [...page.firstElementChild!.children];
+    expect(printedBlocks.map((block) => block.tagName === "P" && block.getAttribute("aria-hidden") === "true" ? "gap" : block.querySelector("table") ? "table" : "line")).toEqual([
+      "line", "line", "table", "gap", "table", "gap", "table", "gap", "table", "gap", "table", "gap",
+    ]);
+    expect(printedBlocks[3]!.classList.contains("mb-14")).toBe(true);
+    expect(printedBlocks[9]!.classList.contains("mb-8")).toBe(true);
+    expect(printedBlocks[11]!.classList.contains("mb-0")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.querySelectorAll("p")[0]!.classList.contains("mb-2")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.querySelectorAll("p")[0]!.classList.contains("mt-4")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.querySelector("p")!.textContent).toBe("\u00a0");
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.querySelector("p")!.classList.contains("mt-26")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[2]!.classList.contains("bg-shade")).toBe(true);
+    expect(within(tables[0]!).getAllByRole("cell")[1]!.classList.contains("bg-shade")).toBe(false);
+    expect(within(tables[3]!).getAllByRole("cell")[1]!.querySelector("p")!.classList.contains("mt-8")).toBe(true);
+    expect(printedBlocks[0]!.classList.contains("mt-0")).toBe(true);
+    const cells = (row: HTMLElement) => [...row.querySelectorAll("td, th")];
+
+    const identity = within(tables[0]!).getAllByRole("row");
+    expect(cells(identity[0]!).map((cell) => cell.textContent)).toEqual(["ふりがな名前", "かくう　はなこ架空　花子", "\u00a0"]);
+    expect(cells(identity[0]!)[2]!.getAttribute("rowspan")).toBe("3");
+    expect(cells(identity[1]!).map((cell) => cell.textContent)).toEqual(["1995年 2月 3日生（満 31 歳） 女"]);
+    expect(cells(identity[1]!)[0]!.getAttribute("colspan")).toBe("2");
+
+    expect(within(tables[1]!).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["年", "月", "学歴・職歴"]);
+    const history = within(tables[1]!).getAllByRole("row");
+    expect(history.map((row) => cells(row).map((cell) => cell.textContent))).toEqual([
+      ["年", "月", "学歴・職歴"],
+      ["学歴"],
+      ["2017", "3", "架空大学　架空学部　卒業"],
+      ["職歴"],
+      ["2020", "4", "架空商事　入社"],
+      ["\u00a0", "\u00a0", "現在に至る"],
+      ["以上"],
+    ]);
+    for (const at of [1, 3, 6]) expect(cells(history[at]!)[0]!.getAttribute("colspan")).toBe("3");
+    expect(within(tables[2]!).getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["年", "月", "免許・資格"]);
     expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();
 
     // No edit, no history, no regenerate: one download and the way back.
@@ -448,6 +522,28 @@ describe("a sent copy", () => {
 
     await user.click(screen.getByRole("link", { name: "Back to the application" }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
+  });
+
+  it("uses the printed kind title for an older sent page without a title", async () => {
+    const { title: _title, sheet: _sheet, ...legacyPage } = SENT.page;
+    openCopy({ [`GET ${AT}/sent-copies/${SENT.id}`]: {
+      ...SENT, kind: "english_resume", title: "Main résumé", language: "en", page: legacyPage,
+    } });
+    const page = await screen.findByRole("article");
+    expect(within(page).getByRole("heading", { name: "Résumé (English)" })).toBeTruthy();
+    expect(within(page).queryByRole("heading", { name: "Main résumé" })).toBeNull();
+  });
+
+  it("warns above the text when an older copy's original file is unreadable", async () => {
+    const { sheet: _sheet, ...legacyPage } = SENT.page;
+    openCopy({ [`GET ${AT}/sent-copies/${SENT.id}`]: {
+      ...SENT, page: { ...legacyPage, readFailure: "original_file_unreadable" },
+    } });
+    const page = await screen.findByRole("article");
+    const notice = within(page).getByRole("alert");
+    expect(notice.textContent).toBe("The original file could not be read — showing its text only.");
+    expect(notice.compareDocumentPosition(within(page).getByRole("heading", { level: 2 })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(page).getByText("架空の志望動機です。")).toBeTruthy();
   });
 
   it("shows the corrected date when the copy is opened again after the Applied date was corrected", async () => {
@@ -517,17 +613,18 @@ describe("the review of a tailored résumé", () => {
   const review = (decision: "accept" | "dismiss") =>
     mount(`/proposals/${proposal.id}`, {
       [`GET /api/proposals/${proposal.id}`]: proposal,
-      [`GET /api/proposals/${proposal.id}/diff`]: { additions: 0, removals: 0, changes: [] },
+      [`GET /api/proposals/${proposal.id}/diff`]: { additions: 0, removals: 0, changes: [], preview: { title: "Résumé (English)", page: { stamp: null, name: "Mika Tanaka", contact: ["mika@example.invalid"], sections: [] } } },
       [`POST /api/proposals/${proposal.id}/${decision}`]: decision === "accept" ? { newVersionNo: 1 } : { status: "dismissed" },
       [`GET ${AT}`]: application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) }),
       ...SUMMARY,
     });
 
   it.each([
-    ["Accept proposed version", "accept"],
-    ["Keep current version", "dismiss"],
+    ["Accept as v1", "accept"],
+    ["Discard draft", "dismiss"],
   ] as const)("returns to its application after %s", async (name, decision) => {
     const { user, pathname } = review(decision);
+    await screen.findByText("Mika Tanaka");
     await user.click(await screen.findByRole("button", { name }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}`));
   });

@@ -12,13 +12,14 @@ import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { ApiError, useProfile, useSaveProfile, type Profile } from "../api";
 import { Button, Panel } from "../components/ui";
+import { ProfilePhoto } from "../components/profile-photo";
 import { fromMonth, toMonth } from "~/shared/calendar";
 
 interface FieldSpec {
   name: string;
   label: string;
   hint?: string;
-  type?: "text" | "email" | "month";
+  type?: "text" | "email" | "month" | "tel" | "url";
   optional?: boolean;
 }
 
@@ -40,7 +41,27 @@ const CONTACT: FieldSpec[] = [
   { name: "addressKana", label: "ふりがな · Address (kana)", hint: "Hiragana." },
 ];
 
+/**
+ * The English résumé's header (issue #108). All optional, and none of them the
+ * 履歴書 fields above: the résumé phone is a second number, left blank to keep
+ * a phone off the résumé, and the address and date of birth have no résumé
+ * counterpart at all.
+ */
+const RESUME: FieldSpec[] = [
+  { name: "resumeHeadline", label: "Headline", hint: "Under your name, e.g. Senior Backend Engineer.", optional: true },
+  { name: "resumePhone", label: "Phone on the résumé", type: "tel", hint: "Not your 履歴書 phone. Leave it blank to keep a phone off the résumé.", optional: true },
+  { name: "resumeCity", label: "City", optional: true },
+  { name: "resumeCountry", label: "Country", optional: true },
+  { name: "resumeLinkedinUrl", label: "LinkedIn", type: "url", hint: "linkedin.com/in/…", optional: true },
+  { name: "resumeGithubUrl", label: "GitHub", type: "url", hint: "github.com/…", optional: true },
+  { name: "resumePortfolioUrl", label: "Portfolio or website", type: "url", optional: true },
+];
 
+/** The English résumé's page (issue #107). A4 is the default; a reader in the US expects Letter. */
+const PAPER_SIZES = [
+  { value: "a4", label: "A4" },
+  { value: "letter", label: "US Letter" },
+];
 
 export function ProfileForm() {
   const existing = useProfile();
@@ -63,12 +84,13 @@ export function ProfileForm() {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     const body: Record<string, unknown> = {};
-    for (const field of [...IDENTITY, ...CONTACT]) {
+    for (const field of [...IDENTITY, ...CONTACT, ...RESUME]) {
       const raw = String(form.get(field.name) ?? "").trim();
       // A month input yields `YYYY-MM`; the day is pinned here and never shown.
       body[field.name] = field.type === "month" ? fromMonth(raw) || null : raw || null;
     }
     body.contactSameAsAddress = true;
+    body.paperSize = String(form.get("paperSize") ?? "a4");
     try {
       await save.mutateAsync(body);
       await navigate({ to: "/" });
@@ -114,6 +136,36 @@ export function ProfileForm() {
             </div>
           </Panel>
 
+          <ProfilePhoto />
+
+          <Panel heading="On your English résumé">
+            <p className="text-small text-text-dim">
+              Each of these shows in the résumé header only when it is filled. Your 履歴書 address,
+              phone and date of birth never appear on the résumé.
+            </p>
+            <div className="mt-16 grid grid-cols-2 gap-16">
+              {RESUME.map((field) => (
+                <Field key={field.name} spec={field} value={valueOf(field)} invalid={invalid.has(field.name)} onChange={(v) => setValues((s) => ({ ...s, [field.name]: v }))} />
+              ))}
+              <label className="grid gap-6">
+                <span className="text-smaller text-text-dim">Paper size</span>
+                <select
+                  name="paperSize"
+                  value={values.paperSize ?? current?.paperSize ?? "a4"}
+                  onChange={(event) => setValues((s) => ({ ...s, paperSize: event.target.value }))}
+                  className="min-h-control bg-surface-raised border border-border-control rounded-control px-10 py-8 text-ui text-text-strong outline-none focus:shadow-ring"
+                >
+                  {PAPER_SIZES.map((size) => (
+                    <option key={size.value} value={size.value}>
+                      {size.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-smaller text-text-faint">The page the downloaded résumé is laid out on.</span>
+              </label>
+            </div>
+          </Panel>
+
           <div className="flex items-center justify-end gap-12">
             <p className="text-smaller text-text-faint mr-auto">
               You can leave this and come back — nothing is saved until it is complete.
@@ -147,7 +199,10 @@ function Field({
       </span>
       <input
         name={spec.name}
-        type={spec.type === "month" ? "month" : (spec.type ?? "text")}
+        // A web address is checked by the server, which also accepts one typed
+        // without `https://`; the browser's own `url` check would refuse that.
+        type={spec.type === "url" ? "text" : (spec.type ?? "text")}
+        inputMode={spec.type === "url" ? "url" : undefined}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}
@@ -156,7 +211,9 @@ function Field({
         }`}
       />
       {invalid ? (
-        <span className="text-smaller text-removed">This field is required.</span>
+        <span className="text-smaller text-removed">
+          {spec.optional ? "Check this field." : "This field is required."}
+        </span>
       ) : spec.hint ? (
         <span className="text-smaller text-text-faint">{spec.hint}</span>
       ) : null}

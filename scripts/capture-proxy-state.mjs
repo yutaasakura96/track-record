@@ -90,7 +90,8 @@ await section("proxy: image digest", () => {
 });
 
 // The pool limit named in the issue is --sql-over-http-pool-max-conns-per-endpoint
-// (default 20). This records the settings actually in force, not the defaults.
+// (image default 20; `scripts/neon-proxy-start.sh` passes 64). `--help` records
+// the running image's defaults; the flags passed over them are in that script.
 await section("proxy: settings in force", () => docker(["exec", PROXY_CONTAINER, "./neon-proxy", "--help"]));
 
 await section(`proxy: last ${LOG_LINES} log lines`, () =>

@@ -11,6 +11,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { ModelUnavailableError, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
+import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL, hasJapaneseScript, isEnglishOnly } from "~/render/language";
 import {
   chapterPlan,
   chapterPlanForPrompt,
@@ -19,6 +20,8 @@ import {
 } from "~/render/chapters";
 
 export { capitalInJapanese };
+import { shapeResumeContent } from "~/render/resume";
+import { gapLabelEn, gapLabelJa } from "~/shared/career-gap";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
 export const EMIT_RENDER_TOOL = {
@@ -81,21 +84,35 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     chapters.length > 0
       ? `\nChapters, in this order. Emit exactly these keys and no others:\n${chapterPlanForPrompt(chapters)}\n`
       : "";
+  // Names are printed as the record holds them and never labelled: the
+  // registers copy them verbatim, in whatever script they are in. The
+  // free-text fields in these record lists go through `field`, which marks
+  // Japanese in an English prompt for what it is (issue #104).
+  const field = (value: string) => labelled(spec.language, value);
+  // A role title and a certification name are copied as recorded into a
+  // Japanese document, like the names above (issue #117).
+  const titled = (value: string) => (spec.language === "ja" ? value : field(value));
   const employers = spec.employers
     .map((e) => {
       const held = e.roles
         .map(
           (r) =>
-            `\n    - ${r.title} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
+            `\n    - ${titled(r.title)} · ${monthOf(r.startedOn)} – ${r.endedOn ? monthOf(r.endedOn) : "present"}`,
         )
         .join("");
-      return `- id ${e.id} · ${e.name}${e.industry ? ` (${e.industry})` : ""} · ${monthOf(e.startedOn)} – ${
+      return `- id ${e.id} · ${e.name}${e.industry ? ` (${field(e.industry)})` : ""} · ${monthOf(e.startedOn)} – ${
         e.endedOn ? monthOf(e.endedOn) : "present"
-      }${companyScale(e)}${e.businessDescription ? ` · ${e.businessDescription}` : ""}${held}`;
+      } · ${EMPLOYMENT_WORDING[spec.language][e.employmentType]}${companyScale(e, spec.language)}${e.businessDescription ? ` · ${field(e.businessDescription)}` : ""}${bulletsOf(e)}${held}`;
     })
     .join("\n");
+  // A Japanese document takes the author's Japanese summary as written, and
+  // only the English fallback is marked (issue #117).
+  const projectSummary = (p: RenderSpec["projects"][number]) => p.summaryJa ?? (p.summary ? field(p.summary) : null);
   const projects = spec.projects
-    .map((p) => `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${p.summary ? ` · ${p.summary}` : ""}`)
+    .map((p) => {
+      const summary = projectSummary(p);
+      return `- id ${p.id} · ${p.name}${p.employerId ? ` · at ${p.employerId}` : " · independent"}${summary ? ` · ${summary}` : ""}`;
+    })
     .join("\n");
   // 学歴 and 免許・資格. A row here is the ONLY source of an institution name,
   // an award date and — the one that matters — an education's outcome: 中退 is
@@ -103,9 +120,9 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   const educations = spec.educations
     .map(
       (e) =>
-        `- id ${e.id} · ${e.institution}${e.faculty ? ` · ${e.faculty}` : ""}${
-          e.degree ? ` · ${e.degree}` : ""
-        }${e.fieldOfStudy ? ` · ${e.fieldOfStudy}` : ""} · ${educationSpan(e)} · ${
+        `- id ${e.id} · ${e.institution}${e.faculty ? ` · ${field(e.faculty)}` : ""}${
+          e.degree ? ` · ${field(e.degree)}` : ""
+        }${e.fieldOfStudy ? ` · ${field(e.fieldOfStudy)}` : ""} · ${educationSpan(e)} · ${
           OUTCOME_WORDING[e.outcome]
         } · level: ${LEVEL_WORDING[e.level ?? "unstated"]}`,
     )
@@ -113,12 +130,18 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   const certifications = spec.certifications
     .map(
       (c) =>
-        `- id ${c.id} · ${c.name} · ${c.issuingOrganization}${
+        `- id ${c.id} · ${titled(c.name)} · ${field(c.issuingOrganization)}${
           c.issuedOn ? ` · issued ${monthOf(c.issuedOn)}` : ""
         }${c.expiresOn ? ` · expires ${monthOf(c.expiresOn)}` : ""}`,
     )
     .join("\n");
 
+  // A Japanese document is given the group's Japanese name where the author
+  // set one, and otherwise the English one, marked, to be written in Japanese
+  // (issue #117). Only the 職務経歴書 among the Japanese renders has a skills
+  // section to print it in.
+  const groupName = (g: { name: string; nameJa: string | null }) =>
+    spec.language === "ja" ? (g.nameJa ?? field(g.name)) : g.name;
   // S9. Printed only for a render handed a curation. An empty curation still
   // prints, because "the author curated and nothing survives for this render"
   // must not read as "nothing is curated", which would hand the section back
@@ -127,7 +150,7 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
     spec.curatedSkills === null
       ? ""
       : `\nSkills, curated by the author. The skills section uses exactly these groups and these skills, in this order, and names no other technology:\n${
-          spec.curatedSkills.map((g) => `- ${g.name}: ${g.skills.join(", ")}`).join("\n") ||
+          spec.curatedSkills.map((g) => `- ${groupName(g)}: ${g.skills.join(", ")}`).join("\n") ||
           "- none this document may name, so omit the skills section"
         }\n`;
 
@@ -135,8 +158,23 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // would reach every render's prompt, including the four that have no cell to
   // put a stated preference in.
   const desiredRoleNote = spec.desiredRoleNote
-    ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${spec.desiredRoleNote}\n`
+    ? `\nThe author's own stated preference, for the cell that asks for one. Their words, not a fact:\n${field(spec.desiredRoleNote)}\n`
     : "";
+
+  // Printed only for the two stories, and only when the 履歴書 has a gap
+  // (issue #117, review §5 G4). Each is named the way the document's reader
+  // names it, and the author's ※ note is their words, marked as such.
+  const gapName = (g: RenderSpec["careerGaps"][number]) =>
+    spec.language === "ja" ? gapLabelJa(g) : gapLabelEn(g);
+  const careerGaps =
+    spec.careerGaps.length > 0
+      ? `
+Gaps in the 履歴書's 学歴・職歴 chronology: months covered by no school and no job. An interviewer holding the 履歴書 asks about each one. The routing table gives every gap a row of its own, asking what the author was doing in those months, and answers it from the author's note where there is one and otherwise from the chapters either side. A note is the author's own words, not a fact, and a row answered from it lists no fact id for it:
+${spec.careerGaps
+          .map((g) => `- ${gapName(g)}${g.explanation ? ` · the author's note: ${field(g.explanation)}` : " · not explained"}`)
+          .join("\n")}
+`
+      : "";
 
   // Printed only for a tailored résumé (issue #57). The posting is somebody
   // else's text, pasted in: it is fenced and named as data, so a line in it
@@ -182,7 +220,7 @@ ${educations || "- none recorded"}
 
 Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
-${curatedSkills}${desiredRoleNote}${tailoring}
+${curatedSkills}${desiredRoleNote}${careerGaps}${tailoring}
 Call emit_render exactly once.`;
 }
 
@@ -197,6 +235,41 @@ export function chaptersOf(spec: RenderSpec): PlannedChapter[] {
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);
 
+/** The résumé's per-employer bullet budget, and nothing on any other render. */
+const bulletsOf = (e: RenderSpec["employers"][number]) =>
+  e.bullets ? ` · bullet budget ${e.bullets.min}–${e.bullets.max}` : "";
+
+/**
+ * The generation contract as the seam applies it: the shape is parsed, a
+ * story's chapters are held to their plan, and a résumé is reduced to the
+ * sections its register asks for (`src/render/resume.ts`).
+ */
+export function parseGeneratedRender(input: unknown, spec: RenderSpec): RenderContent {
+  if (spec.kind === "english_resume" && typeof input === "object" && input !== null &&
+    Array.isArray((input as { sections?: unknown }).sections) &&
+    (input as { sections: unknown[] }).sections.some((section) =>
+      typeof section === "object" && section !== null && Array.isArray((section as { blocks?: unknown }).blocks) &&
+      (section as { blocks: unknown[] }).blocks.some((block) =>
+        typeof block === "object" && block !== null && !KINDS.has((block as { kind?: BlockKind }).kind as BlockKind)))) {
+    throw new ModelUnavailableError("The model returned an unknown résumé block kind.");
+  }
+  const content = parseRenderContent(input, chaptersOf(spec));
+  if (spec.kind !== "english_resume") return content;
+  let shaped: RenderContent;
+  try {
+    shaped = shapeResumeContent(content, spec);
+  } catch (error) {
+    throw new ModelUnavailableError(error instanceof Error ? error.message : "The résumé is invalid.");
+  }
+  if (shaped.sections.some((section) => section.blocks.some((block) => hasJapaneseScript(block.text)))) {
+    throw new ModelUnavailableError("The English résumé contains Japanese script.");
+  }
+  if (shaped.sections.length === 0) {
+    throw new ModelUnavailableError("The model returned no summary and no bullets.");
+  }
+  return shaped;
+}
+
 /**
  * 資本金 and 従業員数, for the one render whose convention requires them
  * (`docs/02` S10). Absent fields print nothing at all rather than a labelled
@@ -209,12 +282,66 @@ const monthOf = (isoDate: string) => isoDate.slice(0, 7);
  * prompt rule that forbids introducing a total the facts do not state, on the
  * figure a reader is most likely to check. The arithmetic is done here, where
  * it is a pure function with a test, and the register copies a string.
+ *
+ * An English prompt gets the same two figures in English. 資本金 3億円 in the
+ * list an English story is written from is how 資本金 3億円 reached its prose
+ * (issue #104).
  */
-function companyScale(e: RenderSpec["employers"][number]): string {
+function companyScale(e: RenderSpec["employers"][number], language: RenderSpec["language"]): string {
   const parts: string[] = [];
-  if (e.capitalYen !== null) parts.push(`資本金 ${capitalInJapanese(e.capitalYen)} (${e.capitalYen} yen)`);
-  if (e.headcount !== null) parts.push(`従業員数 ${e.headcount}`);
+  if (language === "en") {
+    if (e.capitalYen !== null) parts.push(`capital ${e.capitalYen.toLocaleString("en-US")} yen`);
+    if (e.headcount !== null) parts.push(`${e.headcount.toLocaleString("en-US")} employees`);
+  } else {
+    if (e.capitalYen !== null) parts.push(`資本金 ${capitalInJapanese(e.capitalYen)} (${e.capitalYen} yen)`);
+    if (e.headcount !== null) parts.push(`従業員数 ${e.headcount}`);
+  }
   return parts.length > 0 ? ` · ${parts.join(" · ")}` : "";
+}
+
+/**
+ * 雇用形態, in the document's language (issue #117). A 職務経歴書 states it beside
+ * each employer, and for a 派遣 or 契約 entry it is a fact a reader needs rather
+ * than decoration; before this the record held it and no prompt carried it.
+ * The Japanese words are the ones the record form offers.
+ */
+const EMPLOYMENT_WORDING: Record<
+  RenderSpec["language"],
+  Record<RenderSpec["employers"][number]["employmentType"], string>
+> = {
+  en: {
+    full_time: "full-time",
+    contract: "contract",
+    dispatch: "agency dispatch",
+    part_time: "part-time",
+    independent: "self-employed",
+  },
+  ja: {
+    full_time: "雇用形態 正社員",
+    contract: "雇用形態 契約社員",
+    dispatch: "雇用形態 派遣",
+    part_time: "雇用形態 アルバイト",
+    independent: "雇用形態 個人事業主",
+  },
+};
+
+/**
+ * A free-text field, marked when it is not in the document's language.
+ *
+ * The record keeps one business description and one industry per employer, and
+ * an author who keeps a 職務経歴書 writes them in Japanese. Unmarked, they read
+ * to the model as the language of the record, and the first English story
+ * written from such a record was written in Japanese (issue #104). Marked, the
+ * English registers can say what to do with them: write them in English, or
+ * leave them out.
+ *
+ * A Japanese prompt marks the English-only fields the same way (issue #117):
+ * the 職務経歴書 copied an English project summary into a プロジェクト row
+ * because nothing told it the summary was not Japanese.
+ */
+function labelled(language: RenderSpec["language"], value: string): string {
+  if (language === "en") return hasJapaneseScript(value) ? `${JAPANESE_ONLY_LABEL} ${value}` : value;
+  return isEnglishOnly(value) ? `${ENGLISH_ONLY_LABEL} ${value}` : value;
 }
 
 

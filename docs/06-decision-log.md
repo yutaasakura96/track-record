@@ -6639,3 +6639,1145 @@ save and a reload opens it where it was left. It is the owner's own device, and 
 
 **Revisit if:** a render needs a captured fact's month, which would add it to what generation is
 given (`03` §4.2).
+
+---
+
+### [2026-10-17] A demo seed resets one user to a complete invented record
+
+The owner, looking at the live site, asked for fake data so the screens are not blank, and then
+said to delete what is in there and recreate it from scratch so nothing is inconsistent. The
+product and UX evaluation of the same day wrote and tested the seed; it is committed as
+`scripts/demo-seed/` and run as `npm run db:seed:demo` (`docs/12` §5a).
+
+**Documents go through `runImport` with a scripted model.** Chunking, quote anchoring, the
+confidential-shape scrub, grading, flags and repeat detection run as they do for an upload, so the
+demo cannot drift from the app's invariants, and a reset needs no API key. Rejected: inserting facts
+directly, which skips every rule the import enforces.
+
+**The reset is one user's, in foreign-key order, in one transaction, and keeps the sign-in.** It
+deletes everything the user owns except `users`, `sessions`, `accounts` and `verifications`. A test
+compares the order with every table that has a `user_id` column, so a table added later fails the
+suite until it is listed. Rejected: deleting the user, which signs the owner out and re-keys the
+Google account link.
+
+**Refusals, all before a write:** `track_record_test`; a remote host without `--remote-after-backup`;
+a user with an uploaded recording not yet removed, without `--recordings-deleted`, because R2 is
+outside the script's reach and the objects are keyed by the user id. Production is run only on the
+owner's instruction, after a backup.
+
+**Renders are not seeded.** A résumé is the model's work, and Generate is the step a demo is for.
+
+**Revisit if:** a stored render fixture is wanted so Home shows documents straight after a reset (it
+needs stable fact ids or a fixture that names facts by claim), or a second persona is wanted.
+
+---
+
+### [2026-10-18] A heading is a change in the diff, and a first version is read, not compared
+
+The hands-on evaluation of 2026-10-17 regenerated the English career story and every chapter title
+changed. The review screen showed none of it, because the diff engine aligned and compared blocks
+and never read `heading` (issue #105). It also showed a first version as two columns, the left a
+wall of `no matching line` boxes.
+
+**A heading is a `DiffChange` with `target: "heading"`**, not a special panel: it takes the same
+selection, navigation, counts and rationale bar as a block. Its rationale is its own kind,
+`heading_changed`, and says that a heading is written with its section and not from a fact, because
+there is no fact to cite and an empty rationale is a defect. Rejected: a separate "headings" strip
+above the columns, which would have been a second place to read a change and a second thing to keep
+in step with the navigation.
+
+**A section with no blocks is not diffed.** It is not in the document (`docs/10` Screen 9), so a
+change to its heading is not one the author could ever read.
+
+**A first version is shown as the document.** The diff response carries `preview`, the proposed
+content, only when there is no current version. The footer's `Keep current version` becomes `Discard
+draft` there, since nothing exists to keep; dismissing is unchanged and the proposal is retained
+as dismissed. The old `v1 kept` result line, which was wrong for a first version, now says nothing
+was saved.
+
+**Revisit if:** a heading's rationale should say who set it (a fixed scaffolding heading against a
+model-written one), which needs the generator to mark them.
+
+---
+
+### [2026-10-18] The master document becomes the career record, and reads like a CV
+
+The owner, on the live site: "not really human readable … it looks like just a bunch of random
+words." The evaluation of 2026-10-17 traced it to the page printing every fact's storage labels at
+one weight (`MEASURED RESTRICTED FLAGGED file.md L13`, with Restricted on 55 of 59 lines because it
+is the importer's default), to no order inside an employer, and to figures that did not stand out.
+Issue #112; the owner chose the name.
+
+**Renamed Career record**, on the page, the sidebar, Home and the file (`career-record-<language>-<date>.md`,
+`キャリア記録` under 日本語). The path `/master`, the API routes and the code's names stay, so no
+link and no other lane's work breaks. Record keeps its name here; the owner's rename of it to Career
+timeline belongs to the issue that redesigns that page.
+
+**A CV's structure.** Contents down the side, an employer a chapter, a project a section, and each
+split into **Results** (Measured, including claims with no written number) and **What I did** (the
+rest). Figures
+are found by rule, not by a model, and skip what the number flag skips: a digit inside a word, a
+year, a version or address, a technology's own digits (`figures` in `src/shared/master-document.ts`).
+
+**A mark only where a fact is unusual:** `Private`, `Not confirmed` (Generated, Home's word for it)
+and `Added by hand` (quick capture). The rest of what the old line said is one hover away: the claim
+links to its card and its title names the document and line. Rejected: a hidden link revealed on
+hover, which still took a line's room and left rows uneven; and keeping the labels in a lighter tone,
+which keeps the rule printed on every line.
+
+**One sentence of counts, and flags in the sidebar's unit.** The page said `29 flagged to check`
+(facts with a flag) beside the sidebar's `34 to check` (flags). Both were true and the pair read as
+a bug; the page now counts open flags, as the sidebar and the Flagged screen do (`34 flags to check`).
+
+**Three filters**, kept in `?show=`: Results with a number (Measured facts whose claim has a figure
+found by `figures()` with the fact's technologies; an Attested What I did fact stays out even if its
+number is highlighted), Kept out of documents (Private or Generated), and Not used in any document
+yet: usable, and cited by the current version of no
+document, tailored résumés included. Rejected: counting any version ever accepted as use, which
+would keep a fact the author dropped from the résumé off this list for good.
+
+**The file follows the page.** The same contents, chapters, Results and What I did, figures in
+bold and the same marks; a fact's document and line go in an HTML comment at the end of its line,
+the file's version of a hover. Nothing is translated, as before.
+
+**Revisit if:** the rule that finds figures misses or over-reaches on the owner's real record, or
+the Results split needs facts the provenance does not separate.
+
+---
+
+### [2026-10-18] A document is read in the app, as its download would hold it
+
+The owner, on the live site: Home offers History, Download and Regenerate for each document, "but
+there's no way to view it. the user has to download it to see the document." Issue #106 adds
+**View** to every generated document on Home, every row of the version history and every document
+on an application, opening Screen 17.
+
+**The page is the download's, assembled today and never stored.** `GET /api/renders/:ref/page`
+reads the same inputs `buildDocumentFile` reads (the profile's identity lines, a 履歴書's tables from
+the record, today's date) through one shared step, and returns the page a sent copy stores beside its
+file, without building the `.docx`. It refuses on the same withheld facts with the same `409`, and
+the screen says that refusal where the page would be. Rejected: showing the stored content as it was
+accepted, which would show a document that will not leave the tool, or a contact line the file no
+longer carries.
+
+**The reader is the sent-copy reader's**, with the page set on a card at the reading measure in
+the theme's own tokens. The printed title, identity block and sections follow the file's structure.
+
+**It opens at any width, the third exception** after Applications and Quick capture. A tailored
+résumé is read from its application, which works on a phone, and reading needs no second pane.
+History, Edit and a new version remain reachable in the header at every width; their destination
+screens retain the desktop width gate.
+
+**Revisit if:** the "show where each line comes from" rail is built (evaluation proposal 8), which
+needs block ids on the page and so a page built from the version rather than from `SentPage`.
+---
+
+### [2026-10-18] The English résumé's header has fields of its own, and its phone is opt-in
+
+The 2026-10-17 evaluation found the English résumé carried a name and an email and nothing else: no
+headline, no city, no phone, no links (issue #108). The 履歴書 phone could not fill the gap, because
+`docs/02` §6.2 keeps address, phone and date of birth in the 履歴書 alone, and `RenderIdentity`
+encodes that by not carrying them.
+
+**The owner chose separate, opt-in résumé fields** (option (a) of the evaluation's Q1): headline,
+city, country, LinkedIn, GitHub, portfolio and a résumé phone, seven nullable `resume_*` columns
+on `profiles`. Each prints in the English résumé's header only when filled: the name, the headline
+under it, then one contact line, `City, Country · email · phone · links`, with links printed without
+their scheme. Rejected: reusing the 履歴書 phone (option (c)), which would put a restricted column on
+the identity projection and is how a phone eventually reaches a render it should not; and a
+checkbox to "show my phone on the résumé", which is the same thing with a switch on it.
+
+**The fields are composed by the renderer, like the name.** They are not sent to the model, and
+the career stories and the Japanese renders print none of them. A link without a scheme is saved
+with `https://`; anything else that is not an http(s) address is refused, since the résumé prints it
+as a link.
+
+**Revisit if:** the career story or a tailored cover note wants a headline, or the layout of the
+header (issue #107) wants the links as hyperlinks rather than text.
+---
+
+### [2026-10-17] An English document is checked for Japanese before it is offered for review
+
+The owner, reading the English career story downloaded from the live site, said it was not usable.
+The evaluation of the same day generated it twice from the demo record: the first was written in
+Japanese throughout and respelt three of the record's names, the second had English prose under a
+Japanese heading on every chapter. Both reached the review screen, which does not show headings
+(issue #104).
+
+**The language is stated inside both English registers, with what to do about the Japanese the
+prompt carries.** The record keeps one business description and one industry per employer, and an
+author who keeps a 職務経歴書 keeps them in Japanese. An English prompt now marks every free-text
+field held in Japanese `[recorded in Japanese only]`, and the registers say to write it in English
+or leave it out. 資本金 and 従業員数 are printed in English for an English document. A fact's copy of
+its employer's industry and its project's summary is dropped from an English prompt when it is
+Japanese, because it cannot be labelled inside the facts' JSON and the lists carry both. Names of
+employers, schools and projects are never labelled and never translated: the registers copy them
+character for character, in the script the record holds them in.
+
+**What comes back is checked, and a failure is retried once, then refused.** `src/render/language.ts`
+measures the share of Japanese script in the headings and, separately, in the blocks, against 5%,
+after taking out the names the record holds only in Japanese. Separately because the second story's
+Japanese headings came to under one percent of the whole document. A career story's employer
+chapter must also name its employer exactly as the record writes it; the chapter is keyed by the
+employer's id, so this is a lookup. A twice-failed generation is marked failed with a plain reason
+and never becomes a proposal. Both calls' usage is recorded.
+
+**Rejected:** translating the record's Japanese fields before the prompt (a model call per field,
+and a translation nobody reviewed standing in for the record); checking the whole document as one
+share (misses the heading failure); holding the résumé to the employer-name check (nothing ties a
+résumé section to one employer by key, so it would be a match on prose).
+
+**Revisit if:** a legitimate English document trips the 5% line, or Japanese documents are given an
+equivalent check (out of scope here).
+
+---
+
+### [2026-10-18] English renders check record names before review
+
+This supersedes the 2026-10-17 decision to leave résumé employer names unchecked. An English
+résumé's employer-section heading, education row or project row that names an employer, school
+or project must carry one of the record's names exactly. A generic section title — "Experience",
+"Education", "Skills", 職務経歴 and the like — names none of them and is not held to it: a
+tailored résumé with one "Experience" section was being refused as a changed name. Which entries
+appear, and in what order, is left to the register and is not checked here.
+
+Both English renders check headings and rows for altered employer, school and project names,
+including short names. Career-story employer chapters additionally use their employer ids to
+require the recorded name in the chapter. A near-miss scan of paragraphs and bullets uses only
+names of at least six characters and name-like context, to avoid treating ordinary word forms as
+misspelt short names. A name failure follows the same retry-once refusal path as a language
+failure. Japanese renders are outside this check.
+
+---
+
+### [2026-10-19] Record becomes the career timeline: one card per employer, counts from their own route
+
+The evaluation of 2026-10-17 found the record screen read as five unrelated lists: roles apart from
+their employer, projects apart from both, 60 ticked `Appears in` boxes on the demo record, and none
+of how long a job lasted, how much backs it, where the profile is edited, or that a certification
+has lapsed. Issue #113; the owner chose the name on 2026-10-17.
+
+**Renamed Career timeline** on the page, the sidebar and Home's link. The path `/record` and the
+code's names stay, as `/master` did for the career record.
+
+**One card per employer, newest first,** with its roles and projects inside it, so a promotion and a
+project are read under the job they belong to. `Add a role` and `Add a project` inside a card start
+the form under that employer; the form keeps the Employer select, so a row can still be moved.
+Projects with no employer keep a section of their own, as the English résumé gives them one.
+
+**Counts come from a route of their own,** `GET /api/career-timeline`, ids, counts and months only.
+Rejected: adding counts to the five collections, which would make a plain list read facts for every
+caller; and reading the career record's payload, which carries every claim to show five numbers. An
+employer counts what `effectiveEmployerId` resolves to it, so a fact filed through its project or
+its document counts where every render files it.
+
+**The gap warning is the 履歴書's own,** `unexplainedGaps` over `collectRirekishoRecord`, so a row left
+out of the 履歴書 is a row the warning no longer counts and the screen cannot disagree with the
+download. A gap sits above the first card that started before it ended; one before every job sits
+after the oldest card.
+
+**Inclusion is one line naming only the exceptions,** with the five boxes behind `Change`. The
+setting and its rules are unchanged (2026-09-13).
+
+**Expiry chips say only what is true.** The mockup's `expired · hidden on résumé` is not: an expired
+certification still prints. The chip reads `expired YYYY-MM`, or `expires in N months` up to three
+months ahead, neutral, since green, amber and red are not decoration (`05`). The profile card shows
+what the résumé header shows (name, headline, city and country, email); the address and birth date
+are named as 履歴書 only and not shown, and the résumé's opt-in phone and links stay on the form.
+
+**Revisit if:** the author wants an expired certification left off the résumé, which is a render
+rule and not this screen's; or a career long enough that a card per employer stops fitting on a
+screen.
+
+---
+
+### [2026-10-21] Clarify the English prompt and failed proposal contract
+
+This corrects the 2026-10-17 entry's scope: Japanese free-text fields in the prompt's record lists
+are labelled, while fact claims remain in their recorded language. A rejected generation retains
+its proposal row with `generation_status = failed` and a plain reason; it stores no reviewable
+content. The render pipeline contract is in `docs/03` §4.2 and §6.
+
+---
+
+### [2026-10-21] Career timeline wording follows render inclusion
+
+This supersedes the extra provenance and secondary-school wording in the 2026-10-19 timeline
+entry. Employer footers count imported documents and achievements only; quick-capture facts still
+count as achievements. Inclusion lines always list every excluded document, even when only one
+document remains included. An upper-secondary education chip names the English résumé as excluded;
+a lower-secondary chip also names the 職務経歴書. The 履歴書 gap warning remains visible with education
+but no employers.
+
+---
+
+### [2026-10-18] The English résumé is laid out from the record; the model writes the summary and the bullets
+
+The owner, on the downloaded English résumé: "It's not something I would submit to an employer." The
+2026-10-17 evaluation found the bullets sound and everything around them wrong: the app's title
+"Résumé (English)" above the name, each job as one run-on line with its dates printed twice in ISO
+form, Skills last, a Japanese faculty name, an expired certification, a TOEIC score inside the
+summary, Word's default look and a file called `resume-2026-10-17.docx`. Every one of those came from
+asking the model to write data (#107).
+
+**The 履歴書's split, applied to the résumé.** The model writes the summary and the bullets, and the
+file is assembled on download from the version and the record (`src/render/resume.ts`): job headers
+(company, city, `Mon YYYY – Present`, every title held with its dates when there is more than one),
+the skills curation, education at university level and above, current technical certifications and
+a Languages line, in the order Summary, Skills, Experience, Projects, Education, Certifications,
+Languages. Rejected: keeping the model on the job line with a stricter format, which is a hope, and
+storing the record-derived sections in the version, which would go stale on the first correction to
+the record, the reason the 履歴書's tables are read at download (`docs/03` §6).
+
+**Bullets are keyed by employer id**, `employer:<id>`, the key the career stories already use, so a
+header is joined to its bullets exactly and the attribution check resolves the employer from the key.
+After parsing, unknown or duplicate keys and wrong block kinds are refused, while headings are
+replaced by the record's. A version from before this one keeps its single `experience` section; its groups are
+joined to employers by the attribution check's name resolution and it downloads in the new layout.
+`npm run measure` counts the bullets of both shapes. To match `employer:<id>`, `metrics.ts` imports
+the prefix from `chapters.ts`, which has no imports of its own, so Node still loads it directly; this
+supersedes the 2026-09-08 entry's rule that `metrics.ts` has no imports at all.
+
+**The bullet budget is computed, not left to the model.** Four or five for the two most recent
+employers, one or two for an employer that ended more than eight years ago, two or three between;
+age wins over position. The maximum, summary length and bullet length are checked after generation
+and on edits. It is printed on each employer's line in the prompt. With the demo record a
+real generation came back at 5, 5, 3 and 2.
+
+**Three columns.** `employers.city` (English, for the header); `certifications.kind` (`technical`,
+`language`, `other`; the migration classifies existing language tests, and a remaining null prints as technical);
+`profiles.paper_size` (A4 by default, Letter on request, the owner's choice of 2026-10-17).
+
+**The file is built to be parsed**: one column, no tables, nothing in Word headers or footers, real
+list paragraphs, dates on a right tab stop, Calibri throughout (Carlito substitutes for it metrically),
+body 10pt, name 20pt, headings 10.5pt small capitals in one navy with a rule, 15.5 mm margins. An
+English résumé is refused if an assembled field contains Japanese script.
+
+**The file is `<First>-<Last>-Resume-<YYYY-MM>.docx`, tailored or not.** The month is the month the
+version was accepted, in Tokyo. A tailored résumé's file used to carry its label and render id; the
+file is what an employer receives, and the label is the author's note to themselves.
+
+**Not yet:** the headline, location, phone and links (#108) and the PDF download (#109). The header
+carries the name and email the profile already has, and the contact line is a list they extend.
+
+**Opening check:** firstmate imported the demo-record file `Kenji-Moriyama-Resume-2026-10.docx`
+into Google Docs on 2026-10-18 without an error. Every section, job header, bullet list and the
+Languages line (`TOEIC Listening & Reading 865`) remained intact. The real Microsoft Word check is
+pending the owner (`docs/11` §3 item 1).
+
+---
+
+### [2026-10-19] A 履歴書 is read on the screen out of its own file
+
+Issue #106 asked for the page to show a document "as it will print, in both themes". For a 履歴書 it did
+not: the page joined the identity fields into one paragraph, read the 学歴・職歴 rows out as prose
+or as a table without its full-width 学歴, 職歴 and 以上 rows, and spaced the title differently from
+the file. A sent copy stored before the page carried form cells had only that prose. A downloaded
+履歴書 is a filled form with cells and tables.
+
+**The page's form is read back out of the filled `.docx`** (`src/render/sheet.ts`): its lines and
+tables cell for cell, with column spans, the vertically merged 写真 cell, column proportions,
+alignment, and each run's size and weight bucketed into title, large, body and small. The screen
+draws that and knows no field names. A version's page fills the template to read it, and a sent
+copy stores what it read from the file it stores; a copy stored before this is read from its own
+stored file when it is opened, which is the form as it was sent, not one rebuilt from today's record.
+
+Rejected: a hand-built layout from `RirekishoTemplateData`, which is the duplicate that drifted —
+the template is the authority on layout (`docs/04` §4) and a second description of it is a second
+thing to keep in step. The reader is not a general `.docx` reader: it reads what the template uses,
+and `src/pipeline/docx.ts` stays the one for files the author brings, sharing only its tokenizer.
+
+**Revisit if:** the template gains an image, a nested table or a text box, none of which the reader
+draws, or the English résumé moves to a template too and could be read the same way.
+
+---
+
+### [2026-10-22] The local proxy pools its connections and logs at `warn`
+
+On 2026-10-21 every worktree's test stack ran the Neon proxy at 85–745% CPU, logging "throwing away
+connection … because pool is full, total_conns=20" thousands of times a minute. Suites timed out
+(61 of 117 server tests once) and passed when rerun alone. On a throwaway stack, one full server run
+produced 30,843 proxied queries, 30,820 "pool is full" lines and 393,477 log lines in 214s, with
+the proxy at 119% mean and 225% peak CPU.
+
+**The cause is the one the 2026-09-19 entry found and set aside.** The proxy draws from its pool
+only for requests that send `Neon-Pool-Opt-In: true`, and the driver never sends it. Every query
+opened a Postgres connection and returned it to a pool of 20 that nothing drew from, so all but
+the first 20 were closed again, and each query wrote about thirteen INFO lines. That entry
+measured pooling by query latency, where it saved about 1ms. The cost it missed was the logging
+and the connection churn.
+There are no client-side pools in the suite to close: every query is one HTTP request.
+
+**`scripts/neon-proxy-start.sh` now passes `--sql-over-http-pool-opt-in=false` and
+`--sql-over-http-pool-max-conns-per-endpoint=64`**, so every request uses the pool. A full run
+at the default parallelism never held more than 25 client backends, measured once a second, so 64
+is headroom that still sits under Postgres's `max_connections` of 100. **`docker-compose.yml` sets
+`RUST_LOG=warn`**, and `OTEL_SDK_DISABLED=true` stops an export to an OpenTelemetry collector on
+`localhost:4318` that does not exist. That export had failed with an ERROR line 1,017 times in
+the run.
+
+| Same stack, same suite | Before | Pool flags | Pool flags and `warn` |
+| --- | --- | --- | --- |
+| "pool is full" lines | 30,820 | 0 | 0 (and none at `info`) |
+| Proxy log lines | 393,477 | 238,763 | 17 |
+| Proxy CPU, mean / peak | 119% / 225% | 112% / 208% | 105% / 186%; 97% / 182% on a repeat |
+| Suite time | 214s | 183s | 134s; 154s on a repeat |
+
+**What is left is authentication.** The proxy's mock auth backend still runs two role-secret
+lookups per query, each a new Postgres login, and no flag caches them. That is the remaining
+proxy and Postgres CPU. Removing it would mean changing the proxy itself.
+
+**Existing stacks pick this up on the next `npm run db:up`**, because Compose recreates a container
+whose environment changed. Nothing else about starting the stack changes. To read the proxy's
+per-query lines while diagnosing, set `RUST_LOG` to `info` in `docker-compose.yml` and run
+`npm run db:up`.
+
+### [2026-10-22] The 履歴書 preview's shaded cells get a token of their own, `shade`
+
+The preview filled the file's shaded cells (年 / 月, 学歴 / 職歴, 写真) with `chip`. In light that
+is the grey the file prints. In dark, `chip` is `#131416` on a `#101113` card, about 1.03:1, so the
+fills could hardly be seen. No existing token keeps the light grey and is visible in dark:
+`private-bg` is close in dark but means Private disclosure and is darker in light, and the
+border tokens are either too dark in light or still faint in dark.
+
+- **Decision:** a new surface token, `shade`, light `#eceef2` (unchanged from `chip`) and dark
+  `#26282b`. It is used only for the 履歴書 preview's shaded cells.
+- **Why that dark value:** it is the lightest value that keeps every checked text token at 4.5:1,
+  `text-faint` included (4.55:1). `scripts/check-design-tokens.mjs` lists it as a surface, so the
+  lint enforces that. On the card it is about 1.28:1, against 1.03:1 for `chip`.
+- **Also in this change:** the preview now carries each template paragraph's before-spacing
+  (`beforeTwips`) as well as its after-spacing. It is mapped to the spacing scale the same way
+  (40 → `mt-4`, 100 → `mt-8`, 400 → `mt-26`).
+
+---
+
+### [2026-10-22] A vocational programme stays on the English résumé, and one rule names what each document leaves out
+
+This supersedes two sentences, and no decision. The 2026-09-12 職務経歴書 entry says 学歴 "keeps a
+vocational programme that the résumé's level selector drops", and the 2026-10-18 résumé entry says
+the file prints "education at university level and above". Neither matches what was decided on
+2026-09-06 or what the code does. The selector drops the two secondary rungs and keeps
+`vocational`, `tertiary`, `postgraduate` and a row with no level, and `tests/prompt.test.ts` has
+pinned that since the level column landed. Only the wording was wrong.
+
+**The rule now lives once, in `src/shared/education.ts`**: for each document, the rungs it leaves
+out. `src/render/resume.ts` filters the résumé's education with it, the prompt test holds the
+model's level wording to it, and the career timeline's chip on an education row names the
+documents from it. The chip had been a hand-written copy of the same rule. The 職務経歴書 still
+applies its rule (drop lower secondary only) in register prose, and `tests/shokumu.test.ts`
+asserts that the register text and the shared rule say the same thing.
+
+Kept as decided: a finished vocational programme is post-secondary and a credential an English
+reader screens on. Dropping it was the alternative, and it would have reversed 2026-09-06 to
+match two sentences that described the rule wrongly. A vocational row carries no chip, because
+every document prints it.
+
+---
+
+### [2026-10-22] A line's evidence opens under the line, and the page carries each block's facts
+
+S6 asks to click a line of a document and see the fact behind it and the passage that proves it.
+The data was there, as each stored block's `factIds`, but the reader's page dropped them when it
+was assembled, and only the Edit screen showed them, as raw ids (#110).
+
+- **Decision:** the page `GET /api/renders/:kind/page` serves the cited blocks' `factIds`, the
+  English résumé's included, and the response carries `evidence`: every cited fact once, with its
+  provenance, employer and saved passage. It is looked up after the download's refusal, so it never
+  describes a Private or Generated fact. Stored sent copies omit the citation fields.
+- **Decision:** the chosen line's evidence opens directly under the line, not in a side rail beside
+  the page as the evaluation's mock drew it. The reader's content column is 940px and the page sits
+  at a 740px measure, so a rail would have narrowed the document it explains. The evidence follows
+  the line in reading order and works at phone width without a second layout.
+  A 履歴書 keeps its printed sheet on screen; its cells are selectable in place. The two prose
+  cells cite facts, while rows copied from the record cite none.
+- **Alternative rejected:** a separate evidence route queried per click. One read per click buys
+  nothing here, because a page cites a few dozen facts at most, and a second read could disagree
+  with the page it describes.
+
+---
+
+### [2026-10-22] Home leads with the documents as cards; the provenance bar moves to the career record
+
+The documents were Home's fourth panel, under a tile grid and a chart of facts by provenance, and
+each was a row offering History, Download and Regenerate (#111, evaluation §3.1).
+
+- **Decision:** after the Next step come the documents, each a card with a picture of its first
+  page, its status in plain words, and `View` first. The record's counts are one strip of five
+  cells under them, and the provenance bar and its three rows sit on the career record (Screen 10),
+  over the facts they count.
+- **Decision:** `View` is the card's primary action and is drawn as a secondary button. The Next
+  step keeps the only primary button in the content column (#58, `docs/10` Screen 3); five accent
+  buttons under it would give the eye six places to go. The card's write steps down to ghost
+  beside View.
+- **Decision:** the picture is the page `GET /api/renders/:kind/page` serves, the same read and
+  cache entry View opens, drawn at 36% by one utility, `page-thumbnail`. A page refused for a
+  withheld fact leaves the picture blank and says nothing: the card's status already says where it
+  stands, and View says why. The career record's card draws its own first lines from the record
+  the screen reads.
+- **Alternative rejected:** a stored or generated image per version. It is a second copy of the
+  page that can fall out of step with it, and a version's page is already assembled on demand.
+- **Not changed:** Home and Screen 10 stay desktop screens, held behind the narrow-window message
+  under 1024px. The cards fall to one column under the phone breakpoint, so opening Home on a phone
+  later needs no change to them.
+
+---
+
+### [2026-10-22] The English résumé downloads as a tagged PDF, built in the Worker with `pdf-lib`
+
+Issue #109, the owner's choice of 2026-10-17 (Q2): PDF by default, Word second. Employer and ATS
+guidance asks for a PDF with text that can be selected.
+
+- **Decision:** `?format=pdf` on the English résumé, main or tailored, assembled on request from the
+  same document as the `.docx` and never stored (`03` §6.3). The download control offers it as
+  `Download` and the `.docx` as `Word` beside it. No other kind has a PDF.
+- **Library: `pdf-lib` 1.17.1 with `@pdf-lib/fontkit` 1.1.1.** Its documentation states it runs in
+  any JavaScript runtime, and it needs no filesystem, canvas or browser; the suite builds and reads
+  every PDF inside workerd, which is where the route runs. The Worker grew to 3.0 MiB gzipped of the
+  10 MiB allowed, fonts included. Not chosen: Cloudflare Browser Rendering printing an HTML page
+  (a second layout to keep in step with the `.docx`, another binding, and nothing the suite can
+  run); converting the `.docx` (needs LibreOffice, which a Worker cannot run); the `@cantoo/pdf-lib`
+  fork (maintained, but adds an HTML parser and a colour library the résumé does not need).
+- **The layout is computed from the `.docx`'s own constants**, exported from
+  `src/render/resume-docx.ts`. Against Word 16.114's PDF of the demo record's `.docx`, every
+  baseline was within 0.2 pt, with the same line breaks and the same page break. One rule was found
+  only by measuring: between two paragraphs Word leaves the larger of the space after and the space
+  before, not their sum.
+- **Carlito, embedded whole, not subset.** It is metric-compatible with Calibri, so lines break where
+  the `.docx`'s do. `pdf-lib`'s subsets copied correctly but drew most letters as nothing in Preview
+  and Quick Look. Whole faces make a file of about 0.9 MB. Committed unmodified, with `OFL.txt`; a
+  subset committed to the repo would be a Modified Version and could not keep the name Carlito.
+- **Tagged.** Drawing in reading order was not enough: Preview's copy reads by position, took the
+  right-aligned dates for a second column and gave them back after each job's bullets. A structure
+  tree fixed it; a stretched space between the header and its dates did not.
+- **Revisit if:** a résumé needs a character Carlito does not have (it would print as a blank box,
+  where Word substitutes a font), or the file size is refused by an applicant-tracking system.
+  Until then the PDF refuses such a character with `409` instead of drawing the box (`03` §6.3).
+
+---
+
+### [2026-10-22] A certification's kind is required, and an English résumé needs every job's city and title
+
+This supersedes one clause of the 2026-10-18 résumé entry: "a remaining null prints as technical".
+The second review of #107 found two ways the résumé printed wrongly while every check passed.
+
+**A certification's kind.** The column was nullable and the form left it optional, and an unset
+kind printed under Certifications. So a TOEIC score entered without a kind sat among the technical
+certifications instead of on the Languages line. Migration `0027` also called every row that was
+not a recognised language test `technical`, a driving licence included, so the licence printed
+although `other` is the kind the résumé leaves out.
+
+- **Decision:** `certifications.kind` is `NOT NULL`. The API refuses a create without it and a
+  PATCH that sets it to null, and the form's select starts on 未選択 rather than on its first
+  option, for the reason the education level does.
+- **Migration `0028`** classifies again before adding the constraint. An unset or `technical` row
+  whose name reads as a driving licence (English or 運転免許) becomes `other`. One that reads as a
+  language test (the `0027` list, plus 英語技能検定, Duolingo English Test, Versant and TOPIK)
+  becomes `language`. Unlike `0027`, a Latin-script test name must not touch another Latin letter,
+  so `DELE` inside "Modeler" stays technical while `TOEIC800点` and `HSK6級` still match; the
+  Japanese names match anywhere. Any row still unset becomes `technical`. A row already `language` or `other`
+  keeps its kind, because nothing but the author wrote one of those after `0027`.
+- **Rejected:** keeping the null and printing it nowhere. An unclassified certification would then
+  disappear from the résumé without a word, which is the worse failure.
+
+**A job header's city and title.** The 2026-10-18 layout heads every job with its company, city,
+dates and title. `employers.city` arrived in `0027` and is empty on every older employer, and a job
+may have no role, or roles with no title in either language. The header then printed with those
+parts missing.
+
+- **Decision:** generating an English résumé is refused, 428 `precondition_failed`, when any job it includes has no city
+  or no titled role. The message names each job and what it lacks. `details.jobHeaders` carries the
+  same list with employer ids, and the refusal on Home, the document view and an application links
+  each gap to `/record?employer=…&fix=city|role`. That opens the job's form at City, or a new role
+  under the job at Title.
+- **The city stays optional in the record.** Only the English résumé prints it, and the 履歴書 and
+  職務経歴書 must not be blocked for a field they never read.
+- **Download, the page and the preview refuse it too.** A job header is read from today's record on
+  every one of them, so a check at generation alone would still print a gap: a version accepted
+  before this change, when `0027` had left every city empty, and a city cleared or a role removed
+  after a version was accepted. The check sits in `assembleResume`, where generation, the document
+  page, the proposal preview and the `.docx`, `.md` and `.pdf` downloads all meet, and each answers with the
+  same message, `details.jobHeaders` and links. The refusal is lifted by filling the field, with no
+  regeneration needed.
+
+### [2026-10-22] Home asks what was shipped after a month with no new fact, and remembers "not this month" on the member
+
+Issue #116. The record goes stale between job searches because nothing asks for it in between,
+and M3's "within a week of finishing" had nothing behind it.
+
+- **Decision:** after 30 days in which the record gained no fact, by any road and in any state,
+  Home's Next step reads `What did you ship this month at <current employer>?` and opens Quick
+  capture with that employer chosen (`10` Screen 3). It ranks after everything already waiting on
+  the author (facts to sort, a proposal, facts to confirm) and before generating or updating a
+  document, since what is captured now is in the document generated next. A record that has never
+  had a fact is not asked; the import step answers it.
+- **The current employer** is the one with no `ended_on`; of two held at once, the one started
+  last. With none, the step asks `What did you ship this month?` and chooses nothing.
+- **`Not this month` is stored on the member**, in `capture_prompt_dismissals` (`04` §3.18), not in
+  the browser, so it holds on the author's phone and laptop alike. It is a table of its own, keyed
+  by the user, and not a `profiles` column: a profile row exists only once the profile is saved,
+  and a member who has imported and never filled it in is asked too, so must be able to answer. It holds until the author's own
+  month ends: the client sends its local month and decides with its own clock, because a month ends
+  where the author is. The server refuses a month more than one away from its own, so no dismissal
+  can be made to last.
+- **No email and no notification.** The prompt exists only on Home.
+- **Revisit if:** the step proves noisy for an author between jobs, or a second reminder channel is
+  ever wanted; either is a new decision, not a setting.
+
+---
+
+### [2026-10-22] The number flag fires only when the quote lacks the number
+
+Issue #115, from the evaluation of 2026-10-17: `States a number` sat on 27 of 59 facts, a talk given
+"in 2023" among them, because any digit in the claim counted. A list where half the record is
+flagged points nowhere.
+
+- **Decision:** a fact is flagged when its claim holds a figure whose number its quote does not
+  (`unsourcedNumber`, `src/pipeline/flags.ts`). The flag reads figures with patterns of its own, kept
+  in `flags.ts` so the career record's `figures` and its bolding do not change: a year alone, a digit inside a word, a version and a technology's own digits never
+  count. A number matches only on its own (`140` is not `40`), after
+  full-width digits and thousands commas are read as plain digits. Its scale and immediate next
+  token must also match, whether that token is a word or a counter character. A descriptive word
+  between the number and its noun makes the figure unsourced and prompts a look. A 19xx/20xx
+  number followed by a word is a quantity (`2023 tickets`); a standalone year is not. Thousands
+  commas in full width, scale words after a word number (`five hundred`), abbreviated scales
+  (`$2.5M`, `10k`) each side of a range (`30-40%`) and a compound quantity (`5-person`, whose next token is
+  `person`) are read too; a number after a word and a hyphen (`COVID-19`, `twenty-five`) is not
+  matched on its own. The page
+  keeps its own rules. With no quote, any figure is flagged,
+  as before.
+- **Backfilled:** migration 0031 settles untouched, automatically set number flags when SQL can
+  establish that every digit run is a standalone year or matches the quote's number, scale and
+  immediate next token, and the claim holds no number word or kanji figure, which it leaves open.
+  Ambiguous cases remain open for review. Author-checked or edited flags are left alone.
+- **Revisit if:** a quote writes the number another way often enough to matter (`三割` against `30%`,
+  `five` against `5`); each is flagged today, which errs toward a look.
+
+---
+
+### [2026-10-22] Skills shows the section it controls, and its chips move by drag, keyboard or tap
+
+The Skills screen was two lists of rows with `↑ ↓ Remove` and an `Add to` select on each, and
+nothing on it said it was the résumé's Skills section (#114, evaluation §3.6).
+
+- **Decision:** the screen leads with the Skills section the next English résumé prints, built by
+  the résumé's own functions (`resumeSkills`, `skillsSectionPage`) from the names the résumé may
+  print, which the curation read now carries as `printable`. The uncurated fallback and the narrowing
+  that were inline in `collectResumeRecord` moved into those pure functions so the download and the
+  preview cannot diverge, and `curationForRender` moved to `src/shared/skills.ts` for the same reason.
+  The preview is computed on the client, so it follows a move before the move is saved.
+- **Decision:** skills are chips carrying their achievement count and the last year the record
+  places them in. The year is derived on the read, from the quick-capture month, else the project's
+  end, else the employer's tenure; nothing new is stored.
+- **Decision:** a candidate's suggested group is the group whose skills it is named beside on the
+  most facts. A group guessed from a technology's name would be presented as evidence it is not.
+  One named beside no listed skill gets no suggestion, and adding it asks which group.
+- **Decision:** candidates named once and not in the last five years are folded. Two pieces of
+  evidence, or one recent one, keep a candidate in view.
+- **Decision:** a chip moves by native drag and drop, by the keyboard (pick up, arrows, place) and by
+  a bar of buttons a tap opens. A move is held until placed and written once. No drag library: the
+  keyboard path is the specified one rather than a sensor's geometry, and it is testable in jsdom.
+- **Decision:** Skills opens at phone width in the Applications frame, as the fourth exception to the
+  wider-window message. Choosing and ordering a list is one column of work, unlike the two-pane
+  screens the gate exists for.
+- **Not changed:** the stale-skill rule. A curated skill nothing names any more stays in place,
+  amber, `in no fact`, and is left out of every render and of the preview.
+
+### [2026-10-23] Skills explains its suggestions as they are chosen, and the phone menu names Skills
+
+Supersedes the 2026-10-22 rule that "one named beside no listed skill gets no suggestion"; the entry
+above stays as written. Review fix round 4 of #140 added two fallbacks to `suggestedGroup`, and the
+screen, the API comment and that entry still described only the first rule (#114 follow-up).
+
+- **Decision:** a candidate's suggested group is the group whose skills it is named beside on the
+  most facts; failing that, the group whose skills' facts share the most employers with its own;
+  failing that, the largest group. The earlier group wins every tie. None only while there is no
+  group. The Skills screen, `src/client/api.ts` and `src/server/routes/skills.ts` say so. Copy only;
+  `suggestedGroup` is unchanged.
+- **Decision:** the phone menu's guidance names Applications, Quick capture and Skills, the three
+  rows that work at phone width. Reading a document works there too but is reached from a document
+  row, not the menu.
+
+---
+
+### [2026-10-24] The 履歴書's 退社, 現在に至る and 免許・資格 rows read as a Japanese reader expects
+
+Supersedes the `docs/04` §4 rules that the 退社 row reads `<reason>` + employer + `を退社` and that
+every certification row ends in 取得; the entries that set them stay as written. The #117 review
+found every user with a 退職理由 or a certification name carrying its verb got a visibly wrong
+履歴書 (「一身上の都合により退職株式会社…を退社」, 「…試験 合格　取得」), and every user lacked
+現在に至る.
+
+- **Decision:** the 退社 row is `<reason>退社` with the employer not repeated, and `employer　退社`
+  with no reason. A reason ending in 退職 or 退社 loses it, so either typing prints
+  「一身上の都合により退社」. No reason is ever supplied.
+- **Decision:** a current employer closes 職歴 with an undated 「現在に至る」 row, then the template's
+  以上, which is now right-aligned. The submission date reads 「YYYY年 M月 D日現在」.
+- **Decision:** a certification's verb is read from its name: 合格 for 試験 or 検定, 取得 for a
+  licence, a score or a vendor certification, none when the name already ends in 合格, 取得 or 登録.
+  `kind` cannot tell an examination from a licence; the name the reader sees can. A column was the
+  alternative and was not taken: it is one more field the author must get right for a rule the name
+  already carries. The rule is `src/render/shikaku.ts`, for the 職務経歴書's 保有資格 to use too.
+- **Decision (owner):** an expired certification is left off the 履歴書, by the English résumé's
+  rule, now shared from the same module.
+- **Not changed:** the template's two-page layout, and the 職務経歴書's 保有資格 rows. Both are
+  other #117 issues.
+
+### [2026-10-24] The 履歴書 is two fixed pages, as the 厚労省 form is
+
+The template is one flowing document, so the page break fell wherever the row count put it: through
+the 免許・資格 table with no header on page 2, and page 2 otherwise empty (#117 review §3.2).
+Supersedes the `docs/04` §4 note that "the break falls wherever the rows land".
+
+- **Decision:** page 1 is the identity block and 学歴・職歴 to the foot of the page; page 2 opens with
+  学歴・職歴 continued under its repeated 年 / 月 header, then 免許・資格, 志望動機 and 本人希望欄. That is
+  the 厚労省 様式例's page 1 and page 2. 学歴・職歴 is padded with blank rows after 以上 until it runs
+  three rows onto page 2, and the 志望動機 cell grows into what page 2 has left. A record too long for
+  this runs on, unpadded.
+- **Decision:** the break is computed, not left to Word. A conditional page break before 免許・資格
+  sends it to page 3 whenever 学歴・職歴 already overran page 1, and no Word construct breaks only
+  when the previous table did not. So `src/render/rirekisho-layout.ts` lays the filled document out —
+  fixed-pitch MS Mincho, Japanese and Latin wrapping, Word's ¼-em autospace, 0.2pt of border a row —
+  and pads to the page it computes. Three continued rows and a row and a half left under 本人希望欄
+  absorb the model's error, which was one row at most across 66 records printed by Word.
+- **Decision:** every paragraph gets an exact line height of 1.3 times its size, the height Word gives
+  MS Mincho at single spacing. Nothing moves on the page; the height stops depending on which font
+  Word finds, which is what makes the count hold.
+- **Decision:** every row is `cantSplit` and the two 年 / 月 header rows are `tblHeader`, so a row
+  never breaks across the pages and a continued table names its columns.
+- **Decision:** the layout is applied to the template's XML at fill time, not baked into
+  `templates/rirekisho.blank.docx`. The template is rebuilt only from the author's file, on the
+  author's machine; a pass in code holds for any template that build produces.
+- **Decision:** the in-app view does not draw the blank rows that close a table. They are the print's
+  page fill, and the screen is one page. An empty single-cell row, such as an unwritten 本人希望欄,
+  is still drawn: it is the form's, and the sent copy's citations read it.
+- **Not changed:** row wording (退社, 現在に至る, 免許・資格 verbs) and the 以上 row. Those are the
+  rows fix in #117's first item.
+
+---
+
+### [2026-10-23] The number flag compares the whole quantity, and 0032 re-raises what 0031 settled too early
+
+The #115 review, after #141 landed: the comparison still read `3カ月` as sourced by `3カ国` (it compared
+one character after the number), and it flagged `5 million users` against `5 million active users`.
+This supersedes the matching and backfill bullets of 2026-10-22 above.
+
+- **Decision:** a figure is sourced only when the quote holds the same complete quantity
+  (`unsourcedNumber`, `src/pipeline/flags.ts`): the same number on its own, the same scale or none,
+  and the same unit. The unit is the next word, the whole counter (`カ月`, `人月`) or the run of kanji
+  and katakana it starts, or a sign (`%`, `+`). A plain descriptive word (`active`, `senior`, from a
+  short list) may stand before the unit on either side; a scale, a comparison or an amount
+  (`million`, `more`, `additional`) never does, so `5 more users` stays flagged. A number in the quote
+  does not count after a currency sign the claim lacks (`$5`) or as a rate's denominator (`one in 5`).
+  A word number followed by a descriptive word and its unit (`five senior engineers`) is a figure.
+  Anything outside these rules stays flagged.
+- **Backfilled:** migration 0032 re-raises a number flag 0031 settled when the new rule keeps it. It
+  ports the rule as functions it drops at the end, and `tests/number-flag-reraise-migration.test.ts`
+  holds it to the code case by case. It reads only flags that are system-settled, unexplained and not
+  updated since. It settles nothing and writes no fact, and it re-raises any claim with a number word
+  or a kanji figure, which 0031 never settled.
+- **Decision:** the restricted rationale in the diff reads `From N restricted fact · Restricted, so check
+  the wording names no client or system`. The old `written in general terms, without the client or
+  system named` claimed a check that nothing makes: only the fact's disclosure is known.
+- **Revisit if:** the descriptive-word list misses a word the record uses often; each miss flags the
+  fact, which errs toward a look.
+
+---
+
+### [2026-10-24] The number flag retains trailing quantity qualifiers
+
+This supersedes the next-word matching detail of 2026-10-23. A quantity phrase carries its scale,
+following words and trailing rate or scope qualifier. The quote must hold the same phrase after
+normalisation, with only `active` and `senior` allowed as inserted descriptive words. A ratio
+denominator, whether preceded by a word or digit numerator, does not source a plain count. Unknown
+qualifiers stay distinct, so an uncertain match remains flagged. Migration 0032 applies the same
+rule when re-evaluating system-settled digit flags.
+
+---
+
+### [2026-10-24] Clarification on the 0032 backfill scope
+
+The 2026-10-23 backfill bullet overstates what 0032 can re-raise. Migration 0031 left claims
+containing a number word or kanji figure open, so 0032 cannot encounter those claims among the
+flags it re-evaluates. It re-raises only previously system-settled digit flags that fail the new
+comparison; it does not settle or change other flags.
+
+---
+
+### [2026-10-24] The number flag stops at the counted unit
+
+This supersedes the unlimited following-word scan of the earlier 2026-10-24 entry. A figure's
+quantity ends at its unit or counter, plus an immediately attached rate or comparison such as
+`per second`, `a day`, `/日`, `以上` or `% of requests`. The predicate after the unit does not
+change whether the number is sourced: `5 engineers built APIs` matches `5 engineers maintained
+APIs`. `active` and `senior` remain the explicitly ignored descriptive words; rates and scope
+words remain part of the quantity. The demo seed's cited figures keep the flag list quiet, while
+a captured fact with no quote still raises the number flag. Migration 0032 uses the same boundary
+for digit figures it re-evaluates.
+
+---
+
+### [2026-10-24] Model calls draw on the plan's included API credits, and running out is not an outage
+
+Issue #144. Track Record already calls `api.anthropic.com` with a server-side key, so Claude Max and
+Team plans' included monthly API credits apply with no change to the model path
+([API credits for Max and Team plans](https://platform.claude.com/docs/en/about-claude/api-credits-for-subscribers),
+read 2026-10-24). What was missing was the app's own behaviour when the balance reaches zero.
+
+- **Decision:** the production key is issued by the Console organisation linked to the plan, from a
+  workspace with its own spend limit. Linking, the workspace and the secret are the owner's steps
+  (`docs/12` §9); nothing in the repository holds a key or a balance.
+- **Decision:** `asModelError` reads 400 `invalid_request_error` with "credit balance is too low" as
+  `ModelCreditsExhaustedError`, a subclass of `ModelUnavailableError`. Status and type alone match
+  every malformed request, so the sentence is checked as well. The provider's body is still never
+  carried.
+- **Decision:** every place that surfaces a model failure says the same plain sentence: generation
+  is paused until credits are topped up or next month's arrive. Import and generation store it as
+  their error, so Retry and generating again behave as for any unavailable model; Explain this,
+  sorting facts, reading a posting and quick capture answer 503 `upstream_unavailable` with it.
+- **Decision:** the log event is `model_credits_exhausted` with a step name, in place of
+  `import_chunk_failed` or `generation_failed`, so the owner can tell no credit from an outage by
+  event name alone.
+- **Not changed:** the model, the effort settings and every prompt. No credit-balance read or
+  warning-before-zero: the API exposes no balance to a workspace key, and a billing alert on the
+  Console organisation (`docs/12` §7) is the early signal.
+
+---
+
+### [2026-10-25] Give credit pauses their own public reason
+
+Issue #144. Supersedes the response-code part of the 2026-10-24 decision above. A credit pause
+retains a retryable `failed` import or proposal state, but its public `error.code` is
+`credits_exhausted`, rather than `extraction_failed` or `generation_failed`. Stateless model calls
+still answer `503 upstream_unavailable` with `error.details.reason: "credits_exhausted"`. The
+member-facing message and distinct log event are unchanged; the API contract is in `07` §2, §5 and §7.
+
+---
+
+### [2026-10-25] The 履歴書's 写真: an optional photo on the profile, placed in the cell
+
+The 写真 cell always printed empty and nothing said so (#117 review §3.2). The owner chose option
+(a): an optional photo upload, cropped to 3:4 and placed in the cell, and a plain note when there is
+none. Supersedes the `docs/04` §4 note that the cell is an anchored 35.1 × 34.1 mm image left empty
+for want of an image module; the entries that recorded the gap stay as written.
+
+- **Decision:** the photo is stored in `profiles.photo`, the `bytea` column the schema has carried
+  since the first migration. No new store and no new cloud resource: the 2026-08-12 reasoning that
+  keeps documents out of object storage holds for one photo of a few hundred kilobytes, and the R2
+  bucket is the recordings' alone.
+- **Decision:** the browser crops. The chosen image is moved and zoomed under a 3:4 frame and only
+  the framed part is sent, re-encoded as a 600 × 800 JPEG, so the original file and its metadata
+  never leave the browser and any image the browser can open (HEIC on Safari, WebP) is accepted. The
+  server does not trust that: it reads the type from the first bytes (JPEG or PNG) and the size from
+  the header, and checks the whole file's structure without decoding it — for a PNG, a chunk
+  sequence with valid CRCs, IHDR first, at least one IDAT and a final IEND with nothing after it; for
+  a JPEG, SOI at the start, a SOF carrying the size, an SOS and EOI at the end. It refuses anything
+  else with the plain error, and anything not 3:4 to within a pixel, under 300 × 400 or over 2 MB.
+- **Decision:** the photo goes into the cell as an **inline** picture at 30 × 40 mm, centred, by
+  string edits after the fill (`src/render/rirekisho-photo.ts`), not through a docxtemplater
+  image module and not as a floating picture. Inline, the cell grows to hold it and the layout model
+  counts its height; floating, it would sit over the rows below wherever the reader's Word put it.
+  The cell is 31.75 mm wide inside its margins, so 30 mm fits; it is about 8 mm taller than the three
+  rows it spans, and page 1 holds a row of 学歴・職歴 fewer. Its paragraph is the one line in the file
+  that is not an exact height, because an exact line clips an inline picture.
+- **Decision:** a page never carries the image. The sheet marks the cell `photo: true`; the screen
+  draws `/api/profile/photo?v=<photoVersion>` for a page built today and the stored file's photo for
+  a sent copy, which is read out of that file by its own route. Both answer `private, no-store`.
+- **Decision:** without a photo the review footer and View say, in the owner's words,
+  「写真欄は空欄です。必要な場合はWordで貼付してください」. The footer's line follows the profile as it
+  is when the proposal is read; View's follows the file.
+- **Decision:** Remove sets the column to `null` for good. A sent copy keeps the photo inside its
+  stored file, as it keeps every other line it was sent with; the form says so under the photo.
+- **Not changed:** the export, which already carries `hasPhoto` and not the bytes. No PDF of the
+  履歴書 exists yet; when one does, it is set from the same file.
+
+---
+
+### [2026-10-25] The number flag holds every word before the unit to the passage, and reads `2/5` as a ratio
+
+This supersedes the descriptive-word and ratio details of "The number flag stops at the counted unit"
+above; the boundary it set, the unit or counter plus an attached rate or comparison, stays.
+
+- **Decision:** a word before the unit that is neither a scope nor a listed descriptive word was
+  dropped, so `5 clinic reports` was sourced by `5 hospital reports`. Each such word is now kept: the
+  claim may carry one only when the passage uses it as a whole word elsewhere (`five clinic reports`
+  from a passage about the clinic), and the passage may carry none the claim lacks. A percentage's `of`
+  reads through determiners (`all`, `the`, `our`) to its unit and attached rate, so
+  `5% of all clinic reports` is not `5% of all clinic revenue`. A slash ratio (`2/5`) is one figure,
+  like `one in 5` and `3 out of 5`, and
+  neither number of any ratio sources a plain count. `以上` and `以下` after a counter were already
+  compared; tests now hold both directions.
+- **Decision:** the words held to the passage are only those before a unit or counter that is found.
+  With none, the first word stands for the unit as before and the clause after it is not compared, so
+  `a team of 5 shipped the app` is sourced by `a team of 5 shipped the mobile app`. A year after `in`
+  dates a count rather than dividing it, so `top 3 in 2022` still sources `top 3`.
+- **Decision:** only `active` and `senior` are ignored when the passage adds a word before a unit.
+  Other words remain part of the quantity, so `three diverging component libraries` and
+  `21 consecutive days` flag two demo facts whose passages add a word.
+- **Backfilled:** migration 0033 ports the rule and re-raises a number flag the system settled and
+  nobody touched since when the rule now keeps it, as 0032 did. It settles nothing and writes no
+  fact, and `tests/number-flag-phrase-migration.test.ts` holds it to the code case by case.
+- **Measured:** the demo seed's Flagged count rises from 14 to 16, with 9 of its 56 candidates
+  carrying the number flag.
+- **Revisit if:** a count-neutral word the record uses often is missing from the list; each miss
+  flags the fact, which errs toward a look.
+
+---
+
+### [2026-10-24] The 職務経歴書 prints no English and no doubled verbs (#117, item 4)
+
+The Japanese documents review found three kinds of English in the 職務経歴書 and a doubled verb in
+保有資格, each ordered by an instruction rather than slipped by a model: skill group names copied "as
+given" from a curation that holds English names, a project summary copied from a column that holds
+English, and 保有資格 written 「名称（YYYY年M月取得）」 against names that already carried 合格.
+
+- **Decision:** a curated group carries an optional Japanese name (`skill_curations.group_name_ja`),
+  edited on Skills. A 職務経歴書 prompt gives it; without one it gives the English name marked
+  `[recorded in English only]`, and the register says to write it in Japanese, never to copy it.
+- **Decision:** a project carries an optional Japanese summary (`projects.summary_ja`). Every
+  Japanese prompt marks an English-only field with that label, the way the English prompts mark a
+  Japanese-only one, and the three Japanese registers say to write it in Japanese or leave it out.
+  Names and technology names are the exception, as they are in English.
+- **Decision:** 保有資格 and 学歴 are filled from the record, by the 履歴書's own row functions
+  (`src/render/rirekisho-rows.ts`), and spliced into the generated content before it is stored
+  (`src/render/shokumu.ts`). The two documents sent together cannot disagree on a name or a month,
+  and the review, the view and the file all show the rows. They read newest first, as the rest of
+  the document does. A certification's verb is the 履歴書's (`src/render/shikaku.ts`): 合格 or 取得
+  read from the name, none when the name already ends in one. A finished vocational course moves
+  from 学歴 to 保有資格 as 修了, as it is on the 履歴書. An undated certification, which the 履歴書
+  cannot print, closes 保有資格 undated.
+- **Decision:** a lapsed certification — one whose expiry month has passed — is left off the
+  Japanese documents and out of their prompts (owner, 2026-10-23). The English documents are
+  unchanged.
+- **Decision:** the employer list sent to every prompt states 雇用形態, and the 職務経歴書 register
+  copies it into each employer's opening paragraph.
+- **Not changed:** the 職務経歴書's headings (経歴要約, 活かせるスキル・経験, 学歴 and the rest), by the
+  owner's choice; and its typography, which is a later change.
+
+---
+
+### [2026-10-25] Role titles and certification names are copied into a Japanese document (#117)
+
+Supersedes the names exception in "The 職務経歴書 prints no English and no doubled verbs"
+(2026-10-24), which named employers, schools, projects and technologies only. A role title or a
+certification name held only in English was marked `[recorded in English only]` in the Japanese
+prompts, so the register told the model to translate it or leave it out, while the experience rule
+copies role titles and 保有資格 prints certification names verbatim.
+
+- **Decision:** in a Japanese prompt a role title and a certification name are given as recorded —
+  the Japanese form when one is recorded, otherwise the English — and never labelled. The names
+  exception in the Japanese registers names them, so they are copied, never translated or omitted.
+  The English prompts still label a Japanese-only title or name.
+- **Decision:** a blank `projects.summary_ja` is stored as `null`, as a blank group name in Japanese
+  is, so it falls back to the English summary rather than hiding it.
+
+---
+
+### [2026-10-25] The 履歴書 and the 職務経歴書 download as PDF, in one Japanese face embedded from BIZ UD
+
+Issue #117, the review's issue 3 (S1, S2, S5–S8). The 職務経歴書 and the Japanese story printed in
+Word's defaults (Times New Roman beside a Japanese font, blue headings, each employer's line running
+into the employer before it), no Japanese document had a PDF, and every file was named in romaji.
+doda and Recruit both recommend sending a Japanese application as a PDF unless the employer asks for
+Word.
+
+- **Decision:** `?format=pdf` for the 履歴書 and the 職務経歴書, the default download for both with
+  Word beside it, built in the Worker with `pdf-lib` as the résumé's is (2026-10-22): assembled on
+  request, never stored, tagged, text selectable in reading order (`03` §6.4). The stories stay
+  Markdown.
+- **Decision: the face is Morisawa's BIZ UD family.** BIZ UDPGothic Regular and Bold for the
+  職務経歴書 and the story, named in their `.docx` for every script and embedded in the PDF; BIZ
+  UDMincho Regular for the 履歴書's PDF, standing in for the template's MS Mincho. Licence verified
+  before use: both are published by Google Fonts under the SIL OFL 1.1, which permits embedding,
+  redistribution and modified versions, and their `OFL.txt` names **no Reserved Font Name**, so a
+  cut-down face may keep its name; every face's OS/2 `fsType` is 0 (installable embedding). Both
+  licence files are committed beside the faces. BIZ UDPGothic ships with Windows 10 and later; a Word
+  without it substitutes a Japanese gothic by the `fontTable` entry the file carries. BIZ UDMincho
+  is fixed-pitch, as MS Mincho is, which is what keeps the 履歴書's cells wrapping where the layout
+  model (2026-10-24) counts them. Not chosen: 游ゴシック, licensed with Windows and macOS and not
+  ours to commit to a public repository or ship inside a Worker;
+  Noto Sans JP, a different design from anything Word would show beside it; embedding the face in
+  the `.docx` (a cut face would draw blanks where the author types a new character in Word, and a
+  whole one is 2 MB a face).
+- **Decision: the faces are cut twice.** At build time, by `scripts/build-japanese-fonts.py`
+  (fonttools 4.67.0), to the CP932 repertoire plus the Latin, punctuation and symbol blocks, with no
+  hinting, GSUB, GPOS or vertical metrics: whole, the three faces are 15 MB and would have taken the
+  Worker past the 10 MiB a paid Worker may be; cut, the Worker is 7.6 MiB gzipped. Per file, by
+  `src/render/font-subset.ts`, to the outlines the page draws, keeping every glyph id: `pdf-lib`'s
+  own subsetting drew most characters of these faces blank in Preview, Quick Look and Ghostscript,
+  the fault 2026-10-22 found with Carlito. A 職務経歴書 is about 200 KB, a 履歴書 about 300 KB.
+- **Decision: the 履歴書's PDF is its filled `.docx`, drawn** (`src/render/rirekisho-pdf.ts`): the grid,
+  borders, fills, merges and exact line heights read from the same bytes the Word download and the
+  screen's form come from, so the three cannot disagree, and a photo placed in the 写真 cell is drawn
+  where the file holds it. Not chosen: a second layout of the form in PDF terms, which would be a
+  second grid to keep in step with the template.
+- **Decision: each employer's header in the 職務経歴書 is the record's.** The register now asks for
+  the employer's name alone as each 職務経歴 group's opening paragraph; the renderer joins it to the
+  record by the attribution check's name resolution and prints 会社名 in bold, 雇用形態 beside it,
+  the period at the right margin and the roles under it, as the record holds them at download. A
+  version written before this resolves the same way, so it downloads with the record's header in
+  place of the model's line. The headings stay the author's own (経歴要約, 活かせるスキル・経験, …):
+  the owner kept them.
+- **Decision:** the 職務経歴書's 作成日 reads `YYYY年M月D日現在`. File names are
+  `履歴書_<kanji name>_<YYYYMMDD>.<ext>` for the three Japanese documents, dated the day they are
+  built, sent as RFC 6266 `filename*` with an ASCII `rirekisho_<Latin name>_<YYYYMMDD>.<ext>` beside
+  it; one helper serves documents and recordings.
+- **Revisit if:** a name or a 職務経歴書 needs a character outside CP932 and the Latin blocks (the PDF
+  refuses it by name and the Word file prints it), the Worker's size approaches its limit (a face
+  could be fetched from the static assets instead of bundled), or the owner's Word check of the new
+  `.docx` (`11` §3 item 1) finds the face or its fallback wrong.
+---
+
+### [2026-10-25] Japanese blocks align on character bigrams, and every change says where it sits
+
+- **Decision:** the diff's alignment pass compares Japanese blocks on character bigrams (whitespace
+  removed), not on the BudouX phrases it shows. A phrase carries its particle, so a short bullet that
+  changes one particle loses half its phrase matches: three lightly reworded bullets in the #117
+  review scored 0.23–0.33 on phrases against the 0.4 threshold and showed as a whole line removed
+  and another added. On bigrams they scored 0.50–0.67, and an unrelated pair 0.00, so the threshold
+  stays 0.4 for both languages. English still aligns on words.
+- **Decision:** what is shown stays BudouX phrases. Bigrams decide only which blocks are the same
+  block; a mark on two characters is the scatter Screen 2 rules out.
+- **Decision:** every change carries a `location`: the current version's section heading for a
+  removal, the proposal's otherwise, and, inside an `experience` section, the opening paragraph
+  of the employer group the block falls under, as `src/render/attribution.ts` reads the groups. A
+  職務経歴書 holds every employer in that one section, and a changed bullet could not be placed
+  without opening the document. The employer line is the document's own words, not a record lookup,
+  so the restore preview gets it too. The line is null for the opening paragraph itself and for
+  headings.
+- **Revisit if:** two unrelated Japanese bullets in one section align. Bigrams of a shared stem
+  (`削減`, `プロジェクト`) are where a false pair would come from.
+
+---
+
+### [2026-10-25] Blocks align only within their employer group (#117)
+
+Supersedes the alignment scope of "Japanese blocks align on character bigrams, and every change says
+where it sits" (2026-10-25), which aligned blocks across the whole section.
+
+- **Decision:** a block pairs only with a block in the same employer group. Inside an `experience`
+  section the opening paragraphs pair first, and each pair of groups then aligns its own rows and
+  bullets; outside one, the whole section is one group. A 職務経歴書 repeats its template rows
+  (資本金, 従業員数, 技術スタック) under every employer, and two employers' 資本金 rows scored 0.52 on
+  bigrams, so dropping one employer and adding another paired the old row with the new one and
+  labelled the old figures with the new employer.
+- **Decision:** two opening paragraphs are the same employer when they name the same company, and
+  the record decides which company that is: each opening resolves to a record employer as
+  `resolveEmployer` resolves an attribution heading, and that employer's id is the group's identity.
+  The route loads the user's employers for it. Only an opening no record employer matches falls back
+  to the name written before the period: NFKC-normalised, corporate form (株式会社, ㈱ and the like)
+  dropped, cut at the first bracket, `—`, `・`, `·`, `｜` or digit, and trimmed. An opening with
+  nothing left names no one, and its group pairs with nothing.
+- **Decision:** not bigram similarity: an opening carries the name, period, 雇用形態 and role
+  titles, and two employers' openings sharing 正社員 and a role title scored 0.45–0.73. The same
+  company with a changed period, 雇用形態 or role stays one group, and its opening pairs as an edit.
+- **Decision:** a block that moves to another employer is one removal and one addition, the removal
+  under the current version's employer and the addition under the proposal's.
+- **Revisit if:** an employer is renamed in the record, or an opening names a company the record does
+  not hold and writes it differently in two versions. Either group shows as removed and added in
+  full, every bullet with it.
+
+---
+
+### [2026-10-26] The company-name fallback cuts at the period, not at any digit
+
+Supersedes the cut in "Blocks align only within their employer group" (2026-10-25), which cut the
+fallback name at the first digit of any kind.
+
+- **Decision:** the name written before the period is cut at the first bracket, `—`, `・`, `·`, `｜`
+  or the period's first digit: a four-digit year, or one or two digits followed by 年 or 月. A digit
+  inside the company name stays in it.
+- **Why:** cutting at any digit left a name that begins with one (3M) empty, so an employer the
+  record does not hold had no identity, and its opening and rows showed as a removal and an addition
+  whenever only its period changed. `tests/diff.test.ts` holds the case.
+- **Revisit if:** an opening writes its period in a form neither pattern reads, such as `'21`.
+
+---
+
+### [2026-10-25] Japanese renders are checked before review
+
+The 2026-10-17 entry left Japanese documents without an equivalent of the English check. The
+2026-10-23 review of the Japanese documents (#117, §4.4) found every rule of the three Japanese
+registers enforced by the prompt alone, and English printed in a 職務経歴書: curated skill group
+names copied as given (E1), and a project's English summary after its Japanese プロジェクト label
+(E2).
+
+- **Decision:** `src/render/japanese.ts` checks every Japanese proposal at the place the English
+  check runs. 御社 anywhere and a line in English are defects, retried once and then refused with a
+  plain reason, as `englishDefect` is. 貴社 outside the 履歴書's 本人希望欄, full-width digits, a
+  職務経歴書 bullet over 120 characters and a 職務経歴 bullet ending in です・ます are advisories, read
+  off the stored content when the proposal is read and stated in the review footer beside the
+  履歴書's own warnings.
+- **Decision:** "English" is decided per physical line of each heading or block, then per statement,
+  not as a share. The share the English check uses cannot see E2, a Japanese label followed by one
+  English sentence. A line with no kana or kanji is English when something Latin remains after the
+  record's own terms are taken out, even when another line of the block is Japanese. Otherwise a
+  statement inside the line (split at ：。！？ and the ideographic space, never at 、) is English when
+  it has no kana or kanji and three or more Latin words carrying an English function word. In a
+  statement with kana or kanji, each Latin run between them and brackets (full-width or half-width)
+  is judged alone and is a sentence only at five or more words carrying two or more function words:
+  E2's summary after a Japanese name with an ASCII space is caught, and 「Infrastructure as Code」 or
+  「Software as a Service」 inside Japanese is not. The terms are the record's names, titles held,
+  qualifications, every technology a fact names and the curated skills, but never a skill group's
+  name, which is the label E1 printed.
+- **Decision:** an advisory names the section by the register's own name for it (職務経歴, 本人希望欄)
+  or, for a story chapter, by its place, and counts blocks. It never quotes the document.
+- **Rejected:** blocking on the advisories. Each is a slip the author can see and fix in one word,
+  and a 職務経歴書 refused for one long bullet costs two model calls and a regeneration.
+- **Revisit if:** a legitimate Japanese line trips the English rule (a technology no fact names,
+  printed alone on a line), or the advisories prove common enough to be worth retrying for.
+
+---
+
+### [2026-10-26] A gap is answered with a ※ row on the record, and warns wherever the 履歴書 is (#117)
+
+From the Japanese documents review (§5, G1–G5).
+
+- **Decision:** the gap warning is read from the record, not from the review. It was raised only on
+  the generation response and the proposal, so an accepted 履歴書 said nothing about a gap still in
+  the table being sent. View and Home now read the same gaps the career timeline does, over the rows
+  the download prints.
+- **Decision:** a gap is answered by the author's own ※ row, stored in `career_gap_notes` (`04`
+  §3.19), and an explained gap no longer warns. doda's convention puts the note in the 職歴 column
+  under the 退職 line; the app had no free row, so its own advice could not be followed in it. The
+  row is `※2020年2月〜2020年6月　<text>` with empty 年 and 月 cells, under the row the gap follows: in
+  職歴 after a job, in 学歴 after schooling with no job ending that month.
+- **Decision:** a note is keyed by the gap's first and last uncovered months and explains only the gap
+  with exactly those months. Not keyed to the employer row above it, because a gap may follow a
+  school. Not "covers the gap", because the months are printed on a signed document: a note written
+  for 2020年2月〜6月 is not true of a gap that has since become 2020年3月〜6月. Such a note is kept,
+  listed on the timeline as no longer printed, and the gap warns again.
+- **Decision:** a gap is named by the months nobody covers, in Japanese and English:
+  `2020年2月〜6月（5か月）` and `February–June 2020 (5 months)`, not "between 2020-01 and 2020-07".
+  Full-width brackets around the count, as Japanese text sets them. One module
+  (`src/shared/career-gap.ts`) words it for every screen and both prompts.
+- **Decision:** the two career stories receive the 履歴書's gaps (`RenderSpec.careerGaps`), explained
+  or not, with the author's note as their words and not a fact, and the routing table gets a row for
+  each. An interviewer holding the 履歴書 asks about an explained gap too. The 職務経歴書 is not given
+  them: it has no row a gap belongs in.
+- **Decision:** an employer card says when a role or project is dated outside the employer, for as
+  long as it is true, rather than refusing the edit that caused it: the author shortens the employer
+  first and the role second, and a refusal would make that order impossible. A role with no end under
+  an ended employer is outside it; a project with no end is not, because a project's end is often not
+  recorded.
+- **Revisit if:** an author needs a ※ row that explains something other than a gap, such as a
+  leave of absence inside an employment. That is a free row in 学歴・職歴, which this is not.
+
+---
+
+### [2026-10-26] A 職務経歴書's record rows are checked before generation
+
+The 2026-10-25 entry ran the Japanese check on the model's output, before `withRecordSections`
+put the record's 保有資格 and 学歴 rows in. A stored row carrying 御社 reached the proposal unchecked,
+and a row the model wrote, discarded anyway, could cause a refusal. Its English rule also read a
+line of recorded technology names joined by 「and」 as English, because the connector was all that
+remained once the terms were taken out.
+
+- **Decision:** the check reads the 職務経歴書 as assembled, on each attempt. The record's rows are
+  the same on every attempt, so they are checked once before any model call; one that fails refuses
+  the proposal without a model call, with a reason naming the section, the row and the record entry
+  to correct, never "the model wrote" or "generate again".
+- **Decision:** supersedes the 2026-10-25 entry's terms rule in one respect: recorded terms joined
+  only by and, or, &, /, a comma, ・ or 、 (an Oxford comma included) are taken out together with
+  what joins them, so 「React, TypeScript, and PostgreSQL」 passes.
+- **Revisit if:** a vocational course's 修了 row, which sits in 保有資格 but is kept under Education,
+  ever fails the check; the reason names Certifications for it.

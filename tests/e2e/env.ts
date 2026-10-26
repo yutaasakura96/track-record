@@ -14,7 +14,7 @@ import type { SuiteOwner } from "../database-guard";
  * Not 8787, which `npm run dev:worker` uses, so a developer's dev server and
  * this one can run together.
  */
-export const E2E_PORT = 8788;
+export const E2E_PORT = Number(process.env.E2E_PORT ?? 8788);
 export const E2E_ORIGIN = `http://localhost:${E2E_PORT}`;
 
 /** The suite's own database. `track_record_dev` is refused (`global-setup.ts`). */
@@ -39,7 +39,61 @@ export const CAPTURE_IDENTITY = {
   name: "Capture Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email}`;
+export const CREDIT_PAUSE_IDENTITY = {
+  sub: "e2e-credit-pause-local",
+  email: "e2e-credit-pause@example.invalid",
+  name: "Credit Pause Test",
+};
+
+export const DIFF_REVIEW_IDENTITY = {
+  sub: "e2e-diff-review-local",
+  email: "e2e-diff-review@example.invalid",
+  name: "Diff Review Test",
+};
+
+export const JAPANESE_DIFF_IDENTITY = {
+  sub: "e2e-japanese-diff-local",
+  email: "e2e-japanese-diff@example.invalid",
+  name: "Japanese Diff Test",
+};
+
+export const DOCUMENT_VIEW_IDENTITY = {
+  sub: "e2e-document-view-local",
+  email: "e2e-document-view@example.invalid",
+  name: "Document View Test",
+};
+
+export const JAPANESE_CHECK_IDENTITY = {
+  sub: "e2e-japanese-check-local",
+  email: "e2e-japanese-check@example.invalid",
+  name: "Japanese Check Test",
+};
+
+export const RESUME_HEADER_IDENTITY = {
+  sub: "e2e-resume-header-local",
+  email: "e2e-resume-header@example.invalid",
+  name: "Resume Header Test",
+};
+
+export const RIREKISHO_PRINT_IDENTITY = {
+  sub: "e2e-rirekisho-print-local",
+  email: "e2e-rirekisho-print@example.invalid",
+  name: "Rirekisho Print Test",
+};
+
+export const RESUME_IDENTITY = {
+  sub: "e2e-resume-local",
+  email: "e2e-resume@example.invalid",
+  name: "Resume Test",
+};
+
+export const EDUCATION_CHIPS_IDENTITY = {
+  sub: "e2e-education-chips-local",
+  email: "e2e-education-chips@example.invalid",
+  name: "Education Chips Test",
+};
+
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${JAPANESE_DIFF_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${JAPANESE_CHECK_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(
@@ -64,6 +118,78 @@ export const CAPTURE_STORAGE_STATE = join(
   "..",
   ".dev-session",
   "e2e-capture-storage-state.json",
+);
+
+export const CREDIT_PAUSE_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-credit-pause-storage-state.json",
+);
+
+export const DIFF_REVIEW_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-diff-review-storage-state.json",
+);
+
+export const JAPANESE_DIFF_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-japanese-diff-storage-state.json",
+);
+
+export const DOCUMENT_VIEW_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-document-view-storage-state.json",
+);
+
+export const JAPANESE_CHECK_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-japanese-check-storage-state.json",
+);
+
+export const RESUME_HEADER_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-resume-header-storage-state.json",
+);
+
+export const RIREKISHO_PRINT_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-rirekisho-print-storage-state.json",
+);
+
+export const RESUME_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-resume-storage-state.json",
+);
+
+export const EDUCATION_CHIPS_STORAGE_STATE = join(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  ".dev-session",
+  "e2e-education-chips-storage-state.json",
 );
 
 /** The Worker's bindings as `NAME:value` pairs for `wrangler dev --var`. */

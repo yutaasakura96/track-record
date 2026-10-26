@@ -16,17 +16,24 @@
  */
 import type { Hono } from "hono";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import PizZip from "pizzip";
 import { z } from "zod";
 import { applicationDocuments, applicationSentCopies, renders } from "../db/schema";
+import { storedBytes } from "../db/bytes";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { parseBody } from "../services/validate";
 import { documentTitle, freezeDocuments, liveCopies } from "../services/application-documents";
 import { mainRender } from "../services/render-ref";
+import { photoResponse } from "../services/rirekisho";
 import { detail, markActivity, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
+import { attachment } from "../http/disposition";
 import { tokyoToday } from "~/render/rirekisho";
+import type { SentPage } from "~/render/sent-page";
+import { readSheet } from "~/render/sheet";
+import { photoOf } from "~/render/rirekisho-photo";
 import { SENDABLE_KINDS, SENDABLE_TITLE, isSendableKind } from "~/shared/application-documents";
 import { RENDER_LANGUAGE, type RenderKind } from "~/shared/render-content";
 import type { AppEnv } from "../env";
@@ -232,6 +239,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     return c.json({
       ...copy,
+      page: await withSheet(db, user.id, copy),
       recordedAt: copy.recordedAt.toISOString(),
       language: RENDER_LANGUAGE[copy.kind as RenderKind],
       applicationId: id,
@@ -246,7 +254,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const id = pathParam(c, "id");
     await requireApplication(db, user.id, id);
     const [copy] = await db
-      .select({ file: applicationSentCopies.file, filename: applicationSentCopies.filename })
+      .select({ file: applicationSentCopies.file, filename: applicationSentCopies.filename, kind: applicationSentCopies.kind })
       .from(applicationSentCopies)
       .where(and(liveCopies(user.id, id), eq(applicationSentCopies.id, pathParam(c, "copyId"))))
       .limit(1);
@@ -255,9 +263,37 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     return new Response(storedBytes(copy.file) as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,
-        "content-disposition": `attachment; filename="${copy.filename}"`,
+        // A Japanese document's copy is named in Japanese (issue #117); the
+        // ASCII name beside it is its kind and its date.
+        "content-disposition": attachment(copy.filename, asciiCopyName(copy.kind, copy.filename)),
       },
     });
+  });
+
+  /**
+   * The 写真 a 履歴書 copy was sent with, read out of its stored file: the
+   * photo as it was that day, which the profile's may no longer be. `404` for a
+   * copy that carries none. Never cached, as the profile's is not.
+   */
+  api.get("/api/applications/:id/sent-copies/:copyId/photo", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const id = pathParam(c, "id");
+    await requireApplication(db, user.id, id);
+    const [copy] = await db
+      .select({ file: applicationSentCopies.file, kind: applicationSentCopies.kind })
+      .from(applicationSentCopies)
+      .where(and(liveCopies(user.id, id), eq(applicationSentCopies.id, pathParam(c, "copyId"))))
+      .limit(1);
+    if (!copy || copy.kind !== "rirekisho") throw notFound("That photo");
+    let photo: ReturnType<typeof photoOf> = null;
+    try {
+      photo = photoOf(new PizZip(storedBytes(copy.file)));
+    } catch {
+      photo = null;
+    }
+    if (!photo) throw notFound("That photo");
+    return photoResponse(photo);
   });
 }
 
@@ -324,13 +360,31 @@ async function requireDocuments(db: Db, userId: string, application: Application
 }
 
 /**
- * `bytea` as the driver hands it back. Over Neon's HTTP protocol that is the
- * hex text Postgres prints (`\x504b…`); a driver that parses it gives bytes.
+ * A 履歴書 copy's page with its form, as its file lays it out. A copy stored
+ * before the page carried one is read from its stored file, which is the form
+ * as it was sent that day: nothing about it is rebuilt from the record now.
+ * A file that cannot be read leaves the page as it was stored, its text.
  */
-function storedBytes(file: unknown): Uint8Array {
-  if (typeof file === "string") {
-    const hex = file.startsWith("\\x") ? file.slice(2) : file;
-    return Uint8Array.from(hex.match(/../g) ?? [], (pair) => Number.parseInt(pair, 16));
+async function withSheet(db: Db, userId: string, copy: { id: string; kind: string; page: unknown }) {
+  const page = copy.page as SentPage;
+  if (copy.kind !== "rirekisho" || page.sheet) return page;
+  const [stored] = await db
+    .select({ file: applicationSentCopies.file })
+    .from(applicationSentCopies)
+    .where(and(eq(applicationSentCopies.userId, userId), eq(applicationSentCopies.id, copy.id)))
+    .limit(1);
+  if (!stored) return page;
+  try {
+    return { ...page, sheet: readSheet(storedBytes(stored.file)) };
+  } catch (error) {
+    console.error(JSON.stringify({ event: "sent_copy_sheet_unreadable", userId, copyId: copy.id, errorKind: error instanceof Error ? error.constructor.name : typeof error }));
+    return { ...page, readFailure: "original_file_unreadable" as const };
   }
-  return new Uint8Array(file as ArrayBufferLike);
+}
+
+/** `rirekisho_20261023.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
+function asciiCopyName(kind: string, filename: string): string {
+  const date = /_(\d{8})\.[a-z]+$/.exec(filename)?.[1];
+  const extension = /\.([a-z]+)$/.exec(filename)?.[1] ?? "docx";
+  return `${kind.replace(/_/g, "-")}${date ? `_${date}` : ""}.${extension}`;
 }

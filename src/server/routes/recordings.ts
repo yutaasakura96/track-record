@@ -27,9 +27,9 @@ import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { detail, readStanding, saveStanding } from "./applications";
 import { requireInterview } from "./interviews";
+import { dispositionOf } from "../http/disposition";
 import {
   deleteRecordings,
-  dispositionOf,
   peekBody,
   putRecording,
   recordingObjectKey,

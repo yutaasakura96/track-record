@@ -12,6 +12,10 @@
  * **Adding never depends on the model.** When the reading fails or finds
  * nothing, the plain form opens with the typed text kept in it.
  *
+ * **Where it was can be said first.** What is chosen above the text files
+ * every claim the reading leaves unfiled, and Home's monthly prompt opens the
+ * screen with the author's current employer chosen there (issue #116).
+ *
  * **The draft survives leaving the screen.** It is kept in this browser until
  * it is saved or discarded, and nothing is created on the server before save.
  *
@@ -24,6 +28,7 @@ import {
   useCapturedFacts,
   useEntities,
   useFactAction,
+  creditsMessage,
   useReadCapture,
   useSaveCapture,
   type CaptureQuestion,
@@ -58,12 +63,16 @@ interface DraftClaim {
 interface Draft {
   step: "text" | "check";
   text: string;
+  /** Where the typed text happened, as a claim's `filed`: every claim not filed otherwise is filed here. */
+  filed: string;
   claims: DraftClaim[];
   /** How the reading went: what the check step says above the claims. */
   reading: "read" | "failed" | "empty" | "plain";
+  /** The server's own words when the reading failed for want of credits; replaces the note for `failed`. */
+  creditsNote?: string;
 }
 
-const EMPTY: Draft = { step: "text", text: "", claims: [], reading: "read" };
+const EMPTY: Draft = { step: "text", text: "", filed: "", claims: [], reading: "read" };
 
 /** Storage can be refused outright, or hold something older than this screen. Either is no draft. */
 function storedDraft(): Draft {
@@ -97,12 +106,12 @@ const filedOf = (claim: CapturedClaim) =>
   claim.projectId ? `project:${claim.projectId}` : claim.employerId ? `employer:${claim.employerId}` : "";
 
 /** The plain form's one claim: the typed text, kept, and everything else to fill in. */
-const plainClaim = (text: string): DraftClaim => ({
+const plainClaim = (text: string, filed: string): DraftClaim => ({
   claim: text.trim(),
   month: "",
-  filed: "",
+  filed,
   technologies: [],
-  missing: ["when", "employer"],
+  missing: filed ? ["when"] : ["when", "employer"],
 });
 
 function toSave(claim: DraftClaim): CaptureSave {
@@ -130,7 +139,13 @@ export function CaptureScreen() {
   const read = useReadCapture();
   const save = useSaveCapture();
   const flash = useFlashStore((state) => state.show);
-  const [draft, setDraft] = useState<Draft>(storedDraft);
+  const { employer } = useSearch({ from: "/capture" });
+  // Arriving from Home's monthly prompt files the text under the employer it
+  // named, unless a draft kept from before already says where it was.
+  const [draft, setDraft] = useState<Draft>(() => {
+    const stored = storedDraft();
+    return employer && stored.step === "text" && stored.filed === "" ? { ...stored, filed: `employer:${employer}` } : stored;
+  });
   const [failure, setFailure] = useState<string | null>(null);
 
   useEffect(() => keep(draft), [draft]);
@@ -168,22 +183,31 @@ export function CaptureScreen() {
     try {
       const { claims } = await read.mutateAsync({ text, today: thisMonth() });
       if (claims.length === 0) {
-        update({ step: "check", claims: [plainClaim(text)], reading: "empty" });
+        update({ step: "check", claims: [plainClaim(text, draft.filed)], reading: "empty" });
       } else {
         update({
           step: "check",
           reading: "read",
-          claims: claims.map((claim) => ({
-            claim: claim.claim,
-            month: claim.month ?? "",
-            filed: filedOf(claim),
-            technologies: claim.technologies,
-            missing: claim.missing,
-          })),
+          claims: claims.map((claim) => {
+            // What the text names wins; where it names nothing, what was chosen above it.
+            const filed = filedOf(claim) || draft.filed;
+            return {
+              claim: claim.claim,
+              month: claim.month ?? "",
+              filed,
+              technologies: claim.technologies,
+              missing: filed ? claim.missing.filter((question) => question !== "employer") : claim.missing,
+            };
+          }),
         });
       }
-    } catch {
-      update({ step: "check", claims: [plainClaim(text)], reading: "failed" });
+    } catch (error) {
+      update({
+        step: "check",
+        claims: [plainClaim(text, draft.filed)],
+        reading: "failed",
+        creditsNote: creditsMessage(error) ?? undefined,
+      });
     }
   };
 
@@ -236,6 +260,14 @@ export function CaptureScreen() {
                   className={`${CONTROL} resize-y`}
                 />
               </label>
+              <label className="grid gap-4 min-w-0">
+                <span className="text-small text-text-secondary">Employer or project</span>
+                <FiledUnder
+                  label="Where it was: employer or project"
+                  value={draft.filed}
+                  onChange={(filed) => update({ filed })}
+                />
+              </label>
               {read.isPending ? (
                 <p
                   role="status"
@@ -250,7 +282,7 @@ export function CaptureScreen() {
                   <Button
                     type="button"
                     variant="bare"
-                    onClick={() => update({ step: "check", claims: [plainClaim(draft.text)], reading: "plain" })}
+                    onClick={() => update({ step: "check", claims: [plainClaim(draft.text, draft.filed)], reading: "plain" })}
                   >
                     Fill it in yourself
                   </Button>
@@ -287,7 +319,7 @@ export function CaptureScreen() {
             <form ref={checkForm} onSubmit={(event) => void saveIt(event)} noValidate className="grid gap-16">
               {draft.reading === "read" ? null : (
                 <p role="status" className="text-small text-text-secondary">
-                  {READING_NOTE[draft.reading]}
+                  {(draft.reading === "failed" && draft.creditsNote) || READING_NOTE[draft.reading]}
                 </p>
               )}
               {draft.claims.map((claim, index) => (
@@ -306,7 +338,7 @@ export function CaptureScreen() {
                   <Button
                     type="button"
                     variant="ghost"
-                    onClick={() => update({ claims: [...draft.claims, { ...plainClaim(""), missing: [] }] })}
+                    onClick={() => update({ claims: [...draft.claims, { ...plainClaim("", draft.filed), missing: [] }] })}
                   >
                     Add a claim
                   </Button>

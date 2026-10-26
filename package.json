@@ -14,6 +14,7 @@
     "db:up": "docker compose up -d --wait && node scripts/ensure-databases.mjs",
     "db:down": "docker compose down",
     "db:reset": "tsx scripts/db-reset.ts",
+    "db:seed:demo": "tsx scripts/demo-seed/seed.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:migrate:local": "cat src/server/db/migrations/*.sql | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U postgres -d track_record_dev",
@@ -30,6 +31,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
     "@neondatabase/serverless": "^1.1.0",
+    "@pdf-lib/fontkit": "^1.1.1",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-router": "^1.170.32",
     "better-auth": "^1.7.1",
@@ -43,6 +45,7 @@
     "mdast-util-gfm": "^3.1.0",
     "micromark-extension-gfm": "^3.0.0",
     "nanoid": "^6.0.1",
+    "pdf-lib": "^1.17.1",
     "pizzip": "^3.2.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",

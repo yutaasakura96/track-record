@@ -153,6 +153,8 @@ export interface RenderSpec {
     startedOn: string;
     endedOn: string | null;
     businessDescription: string | null;
+    /** 雇用形態. Printed beside the employer in every prompt; the 職務経歴書 writes it (issue #117). */
+    employmentType: "full_time" | "contract" | "dispatch" | "part_time" | "independent";
     /**
      * 資本金, in yen, and 従業員数. Conventional required fields of a 職務経歴書
      * with no English-résumé equivalent (`docs/06`, 2026-08-12), which is why
@@ -164,8 +166,24 @@ export interface RenderSpec {
     headcount: number | null;
     /** Titles held there, most recent first. A promotion is a second role. */
     roles: { title: string; startedOn: string; endedOn: string | null }[];
+    /** Where the job was, in English. Printed in the résumé's job header, never sent to be written. */
+    city: string | null;
+    /**
+     * How many bullets the English résumé writes for this employer (issue
+     * #107). Set on that render alone, and computed here rather than left to
+     * the model: what makes two pages is an age, and an age is arithmetic.
+     */
+    bullets?: { min: number; max: number };
   }[];
-  projects: { id: string; name: string; employerId: string | null; summary: string | null }[];
+  projects: {
+    id: string;
+    name: string;
+    employerId: string | null;
+    summary: string | null;
+    summaryJa: string | null;
+    startedOn: string | null;
+    endedOn: string | null;
+  }[];
   /**
    * Does the record hold work that belongs to no employer?
    *
@@ -188,6 +206,19 @@ export interface RenderSpec {
    * copied from the employer list does.
    */
   desiredRoleNote: string | null;
+  /**
+   * The gaps in the 履歴書's 学歴・職歴 chronology, for the two career stories
+   * alone and empty on every other render (issue #117, review §5 G4).
+   *
+   * A Japanese interviewer's first question about a gap is 「この5か月は何を
+   * していましたか」, and a story whose routing table cannot ask it leaves the
+   * author to meet it cold. The gaps are the 履歴書's — computed over the rows
+   * it prints — because that is the table the interviewer is holding. An
+   * explained gap is still sent, with the author's ※ note: it is still asked
+   * about, and the note is the answer to start from. The note is the author's
+   * own words, not a fact, and carries no fact id.
+   */
+  careerGaps: { from: string; to: string; months: number; explanation: string | null }[];
   /**
    * 学歴 as rows rather than as prose, for the same reason `employers` is a
    * list: the institution, the dates and the OUTCOME are data. An outcome
@@ -223,6 +254,8 @@ export interface RenderSpec {
     issuingOrganization: string;
     issuedOn: string | null;
     expiresOn: string | null;
+    /** `certifications.kind`. Null is an unclassified row, which prints as a technical one. */
+    kind: "technical" | "language" | "other" | null;
     technologies: string[];
   }[];
   /**
@@ -233,7 +266,7 @@ export interface RenderSpec {
    * a skill no fact given to this render states is not written, however it was
    * chosen (`docs/06`, 2026-09-13).
    */
-  curatedSkills: { name: string; skills: string[] }[] | null;
+  curatedSkills: { name: string; nameJa: string | null; skills: string[] }[] | null;
   /**
    * The job a tailored résumé is written toward (issue #57), as the author
    * pasted it. `null` for a main document, which is tailored to nothing.
@@ -336,5 +369,27 @@ export class ModelUnavailableError extends Error {
     super(message);
     this.name = "ModelUnavailableError";
     this.detail = detail;
+  }
+}
+
+/**
+ * Said to the member wherever a model call fails for want of credits. Plain
+ * words, no provider name, and it promises nothing the member has to wait on
+ * us for: the owner tops up, or the next month's credits arrive (`docs/06`,
+ * 2026-10-24).
+ */
+export const CREDITS_EXHAUSTED_MESSAGE =
+  "Generation is paused: the model service has run out of credits. It resumes once credits are topped up or next month's credits arrive. Nothing was lost; try again then.";
+
+/**
+ * The provider refused because the organisation has no credits left. A kind of
+ * {@link ModelUnavailableError}, so every place that already treats an
+ * unavailable model as retryable keeps doing so; the ones that tell the member
+ * why look for this subclass first.
+ */
+export class ModelCreditsExhaustedError extends ModelUnavailableError {
+  constructor() {
+    super(CREDITS_EXHAUSTED_MESSAGE, 400);
+    this.name = "ModelCreditsExhaustedError";
   }
 }

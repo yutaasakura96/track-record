@@ -11,7 +11,9 @@
  * fixtures are INVENTED and visibly so.
  */
 import { describe, expect, it } from "vitest";
-import { diffRenders } from "~/diff";
+import { alignmentKeys, diffRenders } from "~/diff";
+import { segmentJapanese } from "~/segment";
+import type { EmployerNames } from "~/render/attribution";
 import type { Block, RenderContent } from "~/shared/render-content";
 
 const rationale = () => ({ kind: "from_facts" as const, text: "From 1 measured fact", factIds: [] });
@@ -29,10 +31,10 @@ const paragraphs = (texts: string[]): RenderContent => ({
 });
 
 const diff = (before: string[], after: string[]) =>
-  diffRenders(paragraphs(before), paragraphs(after), { language: "en", explain: rationale });
+  diffRenders(paragraphs(before), paragraphs(after), { language: "en", explain: rationale, employers: [] });
 
 const diffJa = (before: string[], after: string[]) =>
-  diffRenders(paragraphs(before), paragraphs(after), { language: "ja", explain: rationale });
+  diffRenders(paragraphs(before), paragraphs(after), { language: "ja", explain: rationale, employers: [] });
 
 describe("paragraph alignment", () => {
   const a = "The nightly settlement batch had grown to six hours.";
@@ -149,5 +151,439 @@ describe("Japanese tokens", () => {
     expect(result.changes[0]!.currentBlockId).not.toBeNull();
     expect(result.changes[0]!.proposedBlockId).not.toBeNull();
     expect(result.changes[0]!.tokens.some((t) => t.op === "equal")).toBe(true);
+  });
+});
+
+/**
+ * A Japanese phrase carries its particle, so a short bullet that changes one
+ * particle loses half its phrase matches. All three pairs below scored under
+ * the 0.4 threshold on phrases (0.14, 0.25, 0.23) and came back as one whole
+ * line removed and another added (#117, review D1).
+ */
+describe("short Japanese bullets", () => {
+  const reworded: [before: string, after: string][] = [
+    // A particle changed and a noun inserted.
+    ["受注処理を8時間から3時間へ短縮", "受注処理の所要時間を8時間から3時間に短縮"],
+    // The same claim restructured around its verb.
+    ["夜間バッチの分散処理への移行で、サーバー費用を35%削減", "夜間バッチの分散処理移行により、サーバーコストを35%削減"],
+    // A compound noun replaced, and a clause added.
+    [
+      "検索画面の応答目標200msをCIで監視し、他の3チームにも展開",
+      "検索画面の応答時間上限200msをCIで監視する仕組みを導入し、他の3チームでも採用",
+    ],
+  ];
+
+  it.each(reworded)("aligns a light rewording of %s as one change", (before, after) => {
+    const result = diffJa([before], [after]);
+    expect(result.changes).toHaveLength(1);
+    const change = result.changes[0]!;
+    expect(change.currentBlockId).not.toBeNull();
+    expect(change.proposedBlockId).not.toBeNull();
+    expect(change.tokens.some((t) => t.op === "equal")).toBe(true);
+  });
+
+  it.each(reworded)("still marks whole BudouX phrases in %s", (before, after) => {
+    // Alignment compares bigrams; what is SHOWN is phrases. Every mark must
+    // start and end on a phrase boundary of the side it is read on.
+    const tokens = diffJa([before], [after]).changes[0]!.tokens;
+    const boundaries = (text: string) => {
+      const at = new Set([0]);
+      let offset = 0;
+      for (const phrase of segmentJapanese(text)) at.add((offset += phrase.length));
+      return at;
+    };
+    for (const [side, ops] of [
+      [before, ["equal", "remove"]],
+      [after, ["equal", "add"]],
+    ] as const) {
+      const at = boundaries(side);
+      let offset = 0;
+      for (const token of tokens.filter((t) => (ops as readonly string[]).includes(t.op))) {
+        expect(at.has(offset)).toBe(true);
+        offset += token.text.length;
+        expect(at.has(offset)).toBe(true);
+      }
+      expect(offset).toBe(side.length);
+    }
+  });
+
+  it("does not align two unrelated bullets", () => {
+    const result = diffJa(["受注処理を8時間から3時間へ短縮"], ["社外向けの勉強会を企画・運営（参加者40名）"]);
+    expect(result.additions).toBe(1);
+    expect(result.removals).toBe(1);
+    expect(result.changes.map((c) => [c.currentBlockId, c.proposedBlockId])).toEqual(
+      expect.arrayContaining([
+        ["blk_1", null],
+        [null, "blk_1"],
+      ]),
+    );
+  });
+
+  it("pairs each reworded bullet with its own original when several change at once", () => {
+    const result = diffJa(
+      reworded.map(([before]) => before),
+      reworded.map(([, after]) => after),
+    );
+    expect(result.changes.map((c) => [c.currentBlockId, c.proposedBlockId])).toEqual([
+      ["blk_1", "blk_1"],
+      ["blk_2", "blk_2"],
+      ["blk_3", "blk_3"],
+    ]);
+  });
+
+  it("leaves English aligned on words, as before", () => {
+    // Character bigrams would pair these; words share nothing, and English
+    // alignment is unchanged by the Japanese fix.
+    expect(alignmentKeys("Reduced latency", "en")).toEqual(["Reduced", "latency"]);
+    const result = diff(["Reduced latency"], ["Reduce latencies"]);
+    expect(result.additions).toBe(1);
+    expect(result.removals).toBe(1);
+    expect(result.changes).toHaveLength(2);
+  });
+});
+
+/**
+ * The columns show changed blocks only. In a 職務経歴書 every employer is
+ * inside the one `experience` section, so a change has to say which section
+ * and which employer it sits under (#117, review D2).
+ */
+describe("where a change sits", () => {
+  const block = (id: string, kind: Block["kind"], text: string): Block => ({ id, kind, text, factIds: [] });
+  const shokumu = (bullet: string, extra: Block[] = []): RenderContent => ({
+    sections: [
+      { key: "summary", heading: "職務要約", blocks: [block("blk_s", "paragraph", "架空の経歴を要約しています。")] },
+      {
+        key: "experience",
+        heading: "職務経歴",
+        blocks: [
+          block("blk_e1", "paragraph", "架空商事株式会社（2018年4月〜2021年3月）"),
+          block("blk_b1", "bullet", "受注処理を8時間から3時間へ短縮"),
+          block("blk_e2", "paragraph", "空想工業株式会社（2021年4月〜現在）"),
+          block("blk_r2", "row", "主な実績："),
+          block("blk_b2", "bullet", bullet),
+          ...extra,
+        ],
+      },
+    ],
+  });
+
+  it("names the section heading and the employer the bullet falls under", () => {
+    const result = diffRenders(
+      shokumu("夜間バッチの分散処理への移行で、サーバー費用を35%削減"),
+      shokumu("夜間バッチの分散処理移行により、サーバーコストを35%削減"),
+      { language: "ja", explain: rationale, employers: [] },
+    );
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0]!.location).toEqual({
+      section: "職務経歴",
+      employer: "空想工業株式会社（2021年4月〜現在）",
+    });
+  });
+
+  it("places a removal where it sat in the current version", () => {
+    const extra = block("blk_b3", "bullet", "社外向けの勉強会を企画・運営（参加者40名）");
+    const bullet = "夜間バッチの分散処理への移行で、サーバー費用を35%削減";
+    const result = diffRenders(shokumu(bullet, [extra]), shokumu(bullet), { language: "ja", explain: rationale, employers: [] });
+    expect(result.changes).toHaveLength(1);
+    expect(result.changes[0]!.proposedBlockId).toBeNull();
+    expect(result.changes[0]!.location.employer).toBe("空想工業株式会社（2021年4月〜現在）");
+  });
+
+  it("names no employer outside an experience section, or for the employer line itself", () => {
+    const before = shokumu("夜間バッチの分散処理への移行で、サーバー費用を35%削減");
+    const after: RenderContent = {
+      sections: before.sections.map((s) => ({
+        ...s,
+        blocks: s.blocks.map((b) =>
+          b.id === "blk_s"
+            ? { ...b, text: "架空の経歴を要約しました。" }
+            : b.id === "blk_e2"
+              ? { ...b, text: "空想工業株式会社（2021年4月〜2025年3月）" }
+              : b,
+        ),
+      })),
+    };
+    const result = diffRenders(before, after, { language: "ja", explain: rationale, employers: [] });
+    expect(result.changes.map((c) => c.location)).toEqual([
+      { section: "職務要約", employer: null },
+      { section: "職務経歴", employer: null },
+    ]);
+  });
+
+  it("does not pair one employer's template row with another's", () => {
+    // Two employers' 資本金 rows share most of their bigrams. With one employer
+    // dropped and another added, the dropped row must not read as the added
+    // employer's row, edited.
+    const experience = (...groups: [opening: Block, row: Block][]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks: groups.flat() }],
+    });
+    const alpha: [Block, Block] = [
+      block("blk_a", "paragraph", "架空商事株式会社（2016年4月〜2018年3月）"),
+      block("blk_a1", "row", "資本金：1億円 従業員数：300名"),
+    ];
+    const beta: [Block, Block] = [
+      block("blk_b", "paragraph", "空想工業株式会社（2018年4月〜2021年3月）"),
+      block("blk_b1", "row", "資本金：3億円 従業員数：800名"),
+    ];
+    const gamma: [Block, Block] = [
+      block("blk_g", "paragraph", "夢見ソフト合同会社（2021年4月〜現在）"),
+      block("blk_g1", "row", "資本金：5000万円 従業員数：120名"),
+    ];
+    const result = diffRenders(experience(alpha, beta), experience(beta, gamma), {
+      language: "ja",
+      explain: rationale, employers: [],
+    });
+    const rows = result.changes.filter((c) => c.currentBlockId?.endsWith("1") || c.proposedBlockId?.endsWith("1"));
+    expect(rows.map((c) => [c.currentBlockId, c.proposedBlockId, c.location.employer])).toEqual([
+      ["blk_a1", null, "架空商事株式会社（2016年4月〜2018年3月）"],
+      [null, "blk_g1", "夢見ソフト合同会社（2021年4月〜現在）"],
+    ]);
+  });
+
+  describe("employer identity, with openings shaped as the spec writes them", () => {
+    // Name, period, 雇用形態 and role titles, as src/render/spec.ts has every
+    // opening paragraph carry them. Two employers share most of that.
+    const group = (id: string, opening: string, ...rest: [kind: Block["kind"], text: string][]): Block[] => [
+      block(id, "paragraph", opening),
+      ...rest.map(([kind, text], i) => block(`${id}_${i + 1}`, kind, text)),
+    ];
+    const experience = (...groups: Block[][]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks: groups.flat() }],
+    });
+    const pairsOf = (before: RenderContent, after: RenderContent, employers: EmployerNames[] = []) =>
+      diffRenders(before, after, { language: "ja", explain: rationale, employers }).changes.map((c) => [
+        c.currentBlockId,
+        c.proposedBlockId,
+        c.location.employer,
+      ]);
+
+    it.each([
+      [
+        "架空商事株式会社（2016年4月〜2018年3月）正社員／バックエンドエンジニア、テックリード",
+        "空想工業株式会社（2018年4月〜2021年3月）正社員／バックエンドエンジニア、テックリード",
+      ],
+      [
+        "架空商事株式会社（2016年4月〜2019年3月）正社員／バックエンドエンジニア、プロダクトマネージャー",
+        "空想工業株式会社（2019年4月〜2023年9月）正社員／バックエンドエンジニア、スクラムマスター",
+      ],
+    ])("never pairs %s with another company's opening", (dropped, added) => {
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
+    it("keeps one group when the same company's period changes", () => {
+      const opening = "空想工業株式会社（2018年4月〜2021年3月）正社員／バックエンドエンジニア";
+      const extended = "空想工業株式会社 (2018年4月〜現在) 正社員／バックエンドエンジニア、テックリード";
+      const before = experience(
+        group("blk_b", opening, ["row", "資本金：3億円　従業員数：800名"], ["bullet", "受注処理を8時間から3時間へ短縮"]),
+      );
+      const after = experience(
+        group(
+          "blk_b",
+          extended,
+          ["row", "資本金：3億円　従業員数：800名"],
+          ["bullet", "受注処理の所要時間を8時間から3時間に短縮"],
+        ),
+      );
+      expect(pairsOf(before, after)).toEqual([
+        ["blk_b", "blk_b", null],
+        ["blk_b_2", "blk_b_2", extended],
+      ]);
+    });
+
+    // One group, one edited opening and one edited bullet: what a reworded
+    // employer line must come back as, whatever separates its parts.
+    const staysOneGroup = (opening: string, reworded: string, employers: EmployerNames[] = []) => {
+      const before = experience(
+        group("blk_b", opening, ["row", "資本金：3億円　従業員数：800名"], ["bullet", "受注処理を8時間から3時間へ短縮"]),
+      );
+      const after = experience(
+        group(
+          "blk_b",
+          reworded,
+          ["row", "資本金：3億円　従業員数：800名"],
+          ["bullet", "受注処理の所要時間を8時間から3時間に短縮"],
+        ),
+      );
+      expect(pairsOf(before, after, employers)).toEqual([
+        ["blk_b", "blk_b", null],
+        ["blk_b_2", "blk_b_2", reworded],
+      ]);
+    };
+
+    it.each([
+      ["brackets", "空想工業株式会社（2021年4月〜現在）正社員／テックリード", "空想工業株式会社（2021年4月〜2026年9月）正社員／テックリード"],
+      ["・", "空想工業株式会社 ・ 2021年4月〜現在 ・ 正社員", "空想工業株式会社 ・ 2021年4月〜2026年9月 ・ 正社員"],
+      ["—", "空想工業株式会社 — 2021年4月〜現在 — 正社員", "空想工業株式会社 — 2021年4月〜2026年9月 — 正社員"],
+      ["a ㈱ prefix", "㈱空想工業（2021年4月〜現在）正社員", "㈱空想工業（2021年4月〜2026年9月）正社員"],
+    ])("keeps one group when the period ends, separated by %s", (_, opening, reworded) => {
+      staysOneGroup(opening, reworded);
+    });
+
+    it.each([
+      ["brackets", "3M架空株式会社（2021年4月〜現在）正社員", "3M架空株式会社（2021年4月〜2026年9月）正社員"],
+      ["・", "3M架空株式会社 ・ 2021年4月〜現在 ・ 正社員", "3M架空株式会社 ・ 2021年4月〜2026年9月 ・ 契約社員"],
+      ["—", "3M架空株式会社 — 2021年4月〜現在 — 正社員", "3M架空株式会社 — 2021年4月〜2026年9月 — 正社員"],
+    ])("keeps one group for a company with a digit in its name, separated by %s", (_, opening, reworded) => {
+      staysOneGroup(opening, reworded);
+    });
+
+    it("never pairs two companies whose names differ after the digit", () => {
+      const dropped = "3M架空株式会社（2016年4月〜2018年3月）正社員";
+      const added = "3M空想株式会社（2018年4月〜2021年3月）正社員";
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
+    it("keeps one group when the role changes", () => {
+      staysOneGroup(
+        "空想工業株式会社（2021年4月〜現在）正社員／バックエンドエンジニア",
+        "空想工業株式会社（2021年4月〜現在）契約社員／プロダクトマネージャー",
+      );
+    });
+
+    it.each([
+      ["㈱架空商事（2016年4月〜2018年3月）正社員", "㈱空想工業（2018年4月〜2021年3月）正社員"],
+      ["架空商事株式会社 ・ 2016年4月〜2018年3月 ・ 正社員", "空想工業株式会社 ・ 2018年4月〜2021年3月 ・ 正社員"],
+    ])("never pairs %s with another company written the same way", (dropped, added) => {
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(pairsOf(before, after)).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+
+    it("lets the record say two differently written names are one employer", () => {
+      staysOneGroup("空想工業（2021年4月〜現在）正社員", "Kuusou Kogyo K.K. ・ 2021年4月〜2026年9月 ・ 正社員", [
+        { id: "emp_1", names: ["空想工業株式会社", "Kuusou Kogyo K.K."] },
+      ]);
+    });
+
+    it("lets the record tell apart two employers whose written names agree", () => {
+      // Both lines write 空想工業 before the first bracket; the record knows
+      // them as two employers, and the record wins.
+      const dropped = "空想工業（東日本）株式会社（2016年4月〜2018年3月）正社員";
+      const added = "空想工業（西日本）株式会社（2018年4月〜2021年3月）正社員";
+      const before = experience(group("blk_a", dropped, ["row", "資本金：1億円　従業員数：300名"]));
+      const after = experience(group("blk_c", added, ["row", "資本金：5000万円　従業員数：120名"]));
+      expect(
+        pairsOf(before, after, [
+          { id: "emp_e", names: ["空想工業（東日本）株式会社"] },
+          { id: "emp_w", names: ["空想工業（西日本）株式会社"] },
+        ]),
+      ).toEqual([
+        [null, "blk_c", null],
+        [null, "blk_c_1", added],
+        ["blk_a", null, null],
+        ["blk_a_1", null, dropped],
+      ]);
+    });
+  });
+
+  it("shows a bullet moved to another employer as a removal and an addition", () => {
+    const opening = (id: string, text: string) => block(id, "paragraph", text);
+    const first = opening("blk_e1", "架空商事株式会社（2018年4月〜2021年3月）");
+    const second = opening("blk_e2", "空想工業株式会社（2021年4月〜現在）");
+    const kept = block("blk_k", "bullet", "社外向けの勉強会を企画・運営（参加者40名）");
+    const content = (blocks: Block[]): RenderContent => ({
+      sections: [{ key: "experience", heading: "職務経歴", blocks }],
+    });
+    const result = diffRenders(
+      content([first, block("blk_m", "bullet", "受注処理を8時間から3時間へ短縮"), second, kept]),
+      content([first, second, kept, block("blk_m2", "bullet", "受注処理の所要時間を8時間から3時間に短縮")]),
+      { language: "ja", explain: rationale, employers: [] },
+    );
+    expect(result.removals).toBe(1);
+    expect(result.additions).toBe(1);
+    expect(result.changes.map((c) => [c.currentBlockId, c.proposedBlockId, c.location.employer])).toEqual([
+      ["blk_m", null, "架空商事株式会社（2018年4月〜2021年3月）"],
+      [null, "blk_m2", "空想工業株式会社（2021年4月〜現在）"],
+    ]);
+  });
+
+  it("names the heading a heading change would leave the section with", () => {
+    const before = paragraphs(["The nightly batch."]);
+    const after = { sections: [{ ...before.sections[0]!, heading: "Work" }] };
+    const renamed = diffRenders(before, after, { language: "en", explain: rationale, employers: [] });
+    expect(renamed.changes[0]!.target).toBe("heading");
+    expect(renamed.changes[0]!.location).toEqual({ section: "Work", employer: null });
+  });
+});
+
+describe("section headings", () => {
+  const block = (id: string, text: string): Block => ({ id, kind: "paragraph", text, factIds: [] });
+  const doc = (...sections: [key: string, heading: string, blocks: Block[]][]): RenderContent => ({
+    sections: sections.map(([key, heading, blocks]) => ({ key, heading, blocks })),
+  });
+  const run = (before: RenderContent | null, after: RenderContent) =>
+    diffRenders(before, after, { language: "en", explain: rationale, employers: [] });
+
+  const body = block("blk_1", "The nightly settlement batch had grown to six hours.");
+
+  it("reports a rewritten heading as a change of its own, with its own rationale", () => {
+    const result = run(doc(["ch1", "Where it started", [body]]), doc(["ch1", "Building the ledger", [body]]));
+    expect(result.changes).toHaveLength(1);
+    const [change] = result.changes;
+    expect(change!.target).toBe("heading");
+    expect(change!.currentBlockId).toBeNull();
+    expect(change!.proposedBlockId).toBeNull();
+    expect(change!.rationale.kind).toBe("heading_changed");
+    expect(change!.rationale.text).toMatch(/heading rewritten/i);
+    expect(change!.tokens.some((t) => t.op === "remove")).toBe(true);
+    expect(change!.tokens.some((t) => t.op === "add")).toBe(true);
+    expect(result.additions).toBe(1);
+    expect(result.removals).toBe(1);
+  });
+
+  it("reports every chapter title when all of them change, ahead of that chapter's blocks", () => {
+    const other = block("blk_2", "A later pass added partition pruning.");
+    const result = run(
+      doc(["ch1", "One", [body]], ["ch2", "Two", [other]]),
+      doc(["ch1", "Uno", [body, block("blk_3", "A brand new paragraph about tracing.")]], ["ch2", "Dos", [other]]),
+    );
+    expect(result.changes.map((c) => c.target)).toEqual(["heading", "block", "heading"]);
+    expect(result.changes.map((c) => c.sectionKey)).toEqual(["ch1", "ch1", "ch2"]);
+  });
+
+  it("reports nothing when a heading is unchanged", () => {
+    expect(run(doc(["ch1", "Same", [body]]), doc(["ch1", "Same", [body]])).changes).toEqual([]);
+  });
+
+  it("explains a new section's heading and a removed section's heading", () => {
+    const added = run(doc(["a", "Kept", [body]]), doc(["a", "Kept", [body]], ["b", "New", [block("blk_9", "Fresh.")]]));
+    expect(added.changes.map((c) => [c.target, c.rationale.kind])).toEqual([
+      ["heading", "heading_changed"],
+      ["block", "from_facts"],
+    ]);
+    expect(added.changes[0]!.tokens).toEqual([{ op: "add", text: "New" }]);
+
+    const removed = run(doc(["a", "Kept", [body]], ["b", "Gone", [block("blk_9", "Fresh.")]]), doc(["a", "Kept", [body]]));
+    expect(removed.changes[0]!.target).toBe("heading");
+    expect(removed.changes[0]!.tokens).toEqual([{ op: "remove", text: "Gone" }]);
+    expect(removed.changes[0]!.rationale.text).toMatch(/removed with its section/i);
+  });
+
+  it("ignores the heading of a section with no blocks, which is not in the document", () => {
+    expect(run(doc(["a", "Old", []]), doc(["a", "New", []])).changes).toEqual([]);
+  });
+
+  it("shows a first version's headings as additions", () => {
+    const result = run(null, doc(["ch1", "Building the ledger", [body]]));
+    expect(result.changes.map((c) => c.target)).toEqual(["heading", "block"]);
   });
 });

@@ -58,7 +58,9 @@ const DIFF: RenderDiff = {
   changes: [
     {
       changeId: "chg-test-1",
+      target: "block",
       sectionKey: "experience",
+      location: { section: "Experience", employer: null },
       currentBlockId: "blk-test-3",
       proposedBlockId: "blk-test-1",
       tokens: [
@@ -119,6 +121,17 @@ describe("the history", () => {
       expect(within(earlier).getByRole("button", { name: "Compare" })).toBeTruthy();
       expect(within(earlier).queryByRole("link", { name: "Edit" })).toBeNull();
     }
+  });
+
+  it("offers View on every version: the current one unnamed, an earlier one by its id", async () => {
+    open();
+
+    const current = await row("v3, accepted · from a proposal");
+    expect(within(current).getByRole("link", { name: "View" }).getAttribute("href")).toBe(`/renders/${KIND}/view`);
+    const earlier = await row("v1, accepted · from a proposal");
+    expect(within(earlier).getByRole("link", { name: "View" }).getAttribute("href")).toBe(
+      `/renders/${KIND}/view?version=${V1.id}`,
+    );
   });
 
   it("says what an edited version came from, and lists a dismissed proposal as not a version", async () => {
@@ -230,7 +243,24 @@ describe("the restore preview", () => {
 });
 
 describe("a download", () => {
-  const DOWNLOAD_V1 = `GET /api/renders/${KIND}/download?format=docx&versionId=${V1.id}`;
+  // The résumé is a PDF by default (issue #109).
+  const DOWNLOAD_V1 = `GET /api/renders/${KIND}/download?format=pdf&versionId=${V1.id}`;
+  const WORD_V1 = `GET /api/renders/${KIND}/download?format=docx&versionId=${V1.id}`;
+
+  it("offers the Word file beside the PDF, and refuses it the same way", async () => {
+    const { api, user } = open({
+      [WORD_V1]: new Refusal(409, "unrenderable", "fct-test-1 is Private and never reaches a document.", {
+        facts: [{ factId: "fct-test-1", problem: "private" }],
+      }),
+    });
+
+    const v1 = await row("v1, accepted · from a proposal");
+    await user.click(within(v1).getByRole("button", { name: "Download as Word (.docx)" }));
+
+    expect((await screen.findByRole("alert")).textContent).toBe("fct-test-1 is Private and never reaches a document.");
+    expect(api.calls.some((c) => `${c.method} ${c.path}` === WORD_V1)).toBe(true);
+    expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(false);
+  });
 
   it.each([
     [
@@ -254,14 +284,14 @@ describe("a download", () => {
     const { api, user } = open({ [DOWNLOAD_V1]: answer });
 
     const v1 = await row("v1, accepted · from a proposal");
-    await user.click(within(v1).getByRole("button", { name: "Download" }));
+    await user.click(within(v1).getByRole("button", { name: /^Download$/ }));
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
     expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(true);
     expect(api.writes()).toEqual([]);
     // The control is usable again rather than stuck on "Preparing…".
-    expect(within(v1).getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(within(v1).getByRole("button", { name: /^Download$/ })).toBeTruthy();
   });
 });
 

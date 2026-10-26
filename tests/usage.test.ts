@@ -139,4 +139,56 @@ describe("generation usage", () => {
     expect(row?.outputTokens).toBe(USAGE.outputTokens);
     expect(row?.cacheReadInputTokens).toBe(USAGE.cacheReadInputTokens);
   });
+
+  it("records both calls when an English document came back in Japanese and was retried", async () => {
+    model.usage = USAGE;
+    await client.put("/api/profile", PROFILE_FIXTURE);
+    model.extractions = [
+      [
+        {
+          claim: "Reduced nightly batch runtime from 6 hours to 90 minutes",
+          quote: "Nightly batch runtime fell from 6 hours to 90 minutes.",
+          technologies: [],
+        },
+      ],
+    ];
+    await importDocument();
+    const { items } = await client.json<{ items: { id: string }[] }>("/api/facts");
+    for (const fact of items) {
+      await client.patch(`/api/facts/${fact.id}`, { provenance: "attested", disclosure: "public" });
+      await client.post(`/api/facts/${fact.id}/accept`);
+    }
+
+    const resume = (text: string) => ({
+      sections: [{ key: "summary", heading: "Summary", blocks: [{ id: "blk_1", kind: "paragraph" as const, text, factIds: [] }] }],
+    });
+    model.generations = [resume("夜間バッチを6時間から90分に短縮しました。"), resume("Cut the nightly batch from 6 hours to 90 minutes.")];
+    const created = (await (await client.post("/api/renders/english_resume/generate")).json()) as { proposalId: string };
+    await settle();
+
+    const [row] = await app.db
+      .select()
+      .from(renderProposals)
+      .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, created.proposalId)));
+    expect(row?.generationStatus).toBe("ready");
+    // Two billed calls. A row reporting only the one that landed would make a
+    // retried document look as cheap as one that was right first time.
+    expect(row?.inputTokens).toBe(USAGE.inputTokens * 2);
+    expect(row?.outputTokens).toBe(USAGE.outputTokens * 2);
+    expect(row?.cacheCreationInputTokens).toBe(USAGE.cacheCreationInputTokens * 2);
+    expect(row?.cacheReadInputTokens).toBe(USAGE.cacheReadInputTokens * 2);
+
+    // Refused after its retry: no proposal, but still two billed calls.
+    await client.post(`/api/proposals/${created.proposalId}/dismiss`);
+    model.generations = [resume("夜間バッチを短縮しました。"), resume("夜間バッチを短縮しました。")];
+    const refused = (await (await client.post("/api/renders/english_resume/generate")).json()) as { proposalId: string };
+    await settle();
+    const [failed] = await app.db
+      .select()
+      .from(renderProposals)
+      .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, refused.proposalId)));
+    expect(failed?.generationStatus).toBe("failed");
+    expect(failed?.inputTokens).toBe(USAGE.inputTokens * 2);
+    expect(failed?.outputTokens).toBe(USAGE.outputTokens * 2);
+  });
 });

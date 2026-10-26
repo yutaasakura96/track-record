@@ -42,6 +42,7 @@ Every table gives the light value first, because light is the default.
 | `card-selected` | `#f4f5fe` | `#13141a` | Selected card (neutral state only) |
 | `card-recessed` | `#eef0f3` | `#0b0c0d` | Private cards, resolved cards |
 | `chip` | `#eceef2` | `#131416` | Inline chips, file badges, icon tiles |
+| `shade` | `#eceef2` | `#26282b` | The 履歴書 preview's shaded cells — 年 / 月, 学歴 / 職歴, 写真 — the grey the file prints. Lighter than `chip` in dark, so the fill reads on the page as it does on paper |
 | `hover` | `#e8eaee` | `#17181b` | Hover fill on ghost controls and rows |
 | `disabled-bg` | `#eef0f3` | `#141518` | Disabled button fill |
 | `progress-track` | `#dfe2e7` | `#1c1d20` | Progress bar track |
@@ -222,9 +223,15 @@ Common applications:
 - Reading-pane padding: `40px 20px`
 - Gap between cards: `8px`
 - Header height: **46px**. Sub-toolbar height: **38px**. Pane label strip: **34px**
-- Phone width, Applications only: under **720px** (`--breakpoint-phone`, `10` Responsive behaviour)
+- Phone breakpoint: under **720px** (`--breakpoint-phone`); supported screens are specified in `10`
+  Responsive behaviour
 - Sidebar width: **212px**. Fact rail width: **412px** comfortable / **380px** compact
 - Contents column, beside a rendered document: **212px**, the sidebar's width and the same token
+- Page picture on a document card (Home, #111): **160px** tall, the page drawn at **36%** of its
+  size from the top left, so it keeps its own measure. Composed from the scale, 60 + 60 + 40
+- 写真 on the profile (issue #117): cropped in a frame **240px** wide and shown saved at **120px**,
+  both at **3:4** (`aspect-photo`), the 履歴書 photo's 30 × 40 mm. Composed from the scale, 60 × 4
+  and 60 + 60
 - Label column, where a row aligns its notes behind a word: **80px**. The longest label
   this has to hold is `Generated` at 13px/medium, which measures 67.33px; 60px broke it
   mid-word (issue #9). Composed from the scale, 40 + 40

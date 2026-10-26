@@ -4,32 +4,50 @@
  * Two callers, one assembly: a download hands the file to the browser and
  * keeps nothing, and a sent copy stores it (`docs/06`, 2026-10-11). They must
  * not differ, because the copy is "the file as it was that day" only if it is
- * the file a download would have produced that day.
+ * the file a download would have produced that day. Reading a version on a
+ * screen (issue #106) takes the same inputs and builds only the page.
  *
- * The name and contact lines come from the profile and a 履歴書's tables from
- * the record, both read here and now. That is why a version alone cannot stand
+ * The name and contact lines come from the profile and a 履歴書's tables and
+ * 写真 from the record and the profile, all read here and now. That is why a version alone cannot stand
  * in for what was sent.
  */
-import { eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { profiles, type renderVersions, type renders } from "../db/schema";
-import { ApiError, preconditionFailed } from "../http/errors";
+import { employers, profiles, roles, type renderVersions } from "../db/schema";
+import { ApiError, preconditionFailed, type ErrorCode } from "../http/errors";
 import { badCitations, citationMessage, collectEditableRecord } from "./version-edit";
-import { collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
+import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
 import { citedFactIds } from "~/render/edit";
 import { downloadFilename, toDocx } from "~/render/docx";
+import {
+  asciiFilename,
+  assembleJapanese,
+  japaneseFilename,
+  type JapaneseDocument,
+  type JapaneseEmployer,
+} from "~/render/japanese";
+import { japaneseDocx } from "~/render/japanese-docx";
+import { japanesePdf } from "~/render/japanese-pdf";
+import { rirekishoPdf } from "~/render/rirekisho-pdf";
 import { rirekishoTemplateData, tokyoToday } from "~/render/rirekisho";
-import { fillRirekishoTemplate } from "~/render/rirekisho-template";
-import { rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
+import { fillRirekishoTemplate, type RirekishoTemplateData } from "~/render/rirekisho-template";
+import type { RirekishoPhoto } from "~/render/rirekisho-photo";
+import { japaneseSentPage, rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
+import { assembleResume, ResumeAssemblyError, ResumeJobHeaderError, resumeFilename, resumeSentPage, type ResumeDocument } from "~/render/resume";
+import { resumeDocx, type PaperSize } from "~/render/resume-docx";
+import { resumePdf } from "~/render/resume-pdf";
+import { PdfGlyphError } from "~/render/pdf-text";
+import { collectResumeRecord } from "./resume";
 import type { RenderIdentity } from "~/render/identity";
-import { RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { RENDER_LANGUAGE, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 
-type RenderRow = typeof renders.$inferSelect;
 type VersionRow = typeof renderVersions.$inferSelect;
 
 export interface DocumentFile {
   bytes: Uint8Array;
   filename: string;
+  /** The name a client that cannot read a UTF-8 one is given (`../http/disposition`). */
+  asciiFilename: string;
   /** The text the file was assembled from, for a screen to show. */
   page: SentPage;
 }
@@ -58,22 +76,163 @@ export async function refuseWithheldCitations(db: Db, userId: string, content: R
   }
 }
 
-/** `resume-2026-08-12.docx`, or with a tailored résumé's name and id in it. */
-export const filenameFor = (render: RenderRow | null, kind: RenderKind, extension: string, version: VersionRow) =>
-  downloadFilename(kind, extension, version.acceptedAt, render?.label ? { label: render.label, id: render.id } : null);
+/**
+ * What a downloaded file is called.
+ *
+ * - `Kenji-Moriyama-Resume-2026-10.docx` for an English résumé, main or
+ *   tailored alike: it is the file an employer receives, and the label is the
+ *   author's note to themselves.
+ * - `履歴書_森山健二_20261023.pdf` for a Japanese document (issue #117): what it
+ *   is, whose, and the day it is dated, which is the day it is built. A
+ *   recruiter handed three files can tell them apart; `rirekisho_Kenji-Moriyama_20261023.pdf`
+ *   travels beside it for a client that cannot read the Japanese name.
+ * - The English story keeps `career-story-en-2026-08-12.md`.
+ */
+export const filenameFor = (
+  kind: RenderKind,
+  extension: string,
+  version: VersionRow,
+  identity: RenderIdentity,
+  today: string,
+): { filename: string; asciiFilename: string } => {
+  if (kind === "english_resume") {
+    const filename = resumeFilename(identity.nameLatin, extension, version.acceptedAt);
+    return { filename, asciiFilename: filename };
+  }
+  if (RENDER_LANGUAGE[kind] === "ja") {
+    return {
+      filename: japaneseFilename(kind, identity.nameKanji, today, extension),
+      asciiFilename: asciiFilename(kind, identity.nameLatin, today, extension),
+    };
+  }
+  const filename = downloadFilename(kind, extension, version.acceptedAt);
+  return { filename, asciiFilename: filename };
+};
 
 /** The file of one version, as it is assembled today. Refuses what a download refuses. */
 export async function buildDocumentFile(
   db: Db,
   userId: string,
   kind: RenderKind,
-  render: RenderRow | null,
   version: VersionRow,
 ): Promise<DocumentFile> {
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  const names = filenameFor(kind, "docx", version, inputs.identity, inputs.today);
+  switch (inputs.kind) {
+    case "rirekisho":
+      return assembled(version, () => ({ ...rirekishoFile(inputs.data, inputs.content, inputs.photo), ...names }));
+    case "resume": {
+      const { document, paper } = inputs;
+      return assembled(version, async () => ({
+        bytes: await resumeDocx(document, paper, resumeMetadata(document)),
+        ...names,
+        page: resumeSentPage(document),
+      }));
+    }
+    case "japanese":
+      return assembled(version, async () => ({
+        bytes: await japaneseDocx(inputs.document, inputs.identity),
+        ...names,
+        page: japaneseSentPage(inputs.document),
+      }));
+    case "built":
+      return assembled(version, async () => ({
+        bytes: await toDocx(inputs.content, RENDER_TITLE[kind], kind, inputs.identity, inputs.today),
+        ...names,
+        page: sentPage(kind, inputs.content, inputs.identity, inputs.today),
+      }));
+  }
+}
+
+/** The kinds produced as a PDF: the three documents an employer is sent. */
+export const PDF_KINDS: readonly RenderKind[] = ["english_resume", "rirekisho", "shokumu_keirekisho"];
+
+/**
+ * A document as a PDF: the English résumé (issue #109), and the 履歴書 and the
+ * 職務経歴書 (issue #117). The same assembly and the same refusals as its
+ * `.docx`, set from the same layout; the 履歴書's is drawn from its filled
+ * `.docx` itself (`~/render/rirekisho-pdf`). The stories are read as
+ * Markdown and have none. Never stored — a sent copy keeps the `.docx`, which
+ * is the file its page is read out of.
+ */
+export async function buildDocumentPdf(
+  db: Db,
+  userId: string,
+  kind: RenderKind,
+  version: VersionRow,
+): Promise<Pick<DocumentFile, "bytes" | "filename" | "asciiFilename">> {
+  // The route refuses a PDF of any other kind before it reads a version.
+  if (!PDF_KINDS.includes(kind)) throw new Error(`A ${kind} is not produced as a PDF.`);
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  const names = filenameFor(kind, "pdf", version, inputs.identity, inputs.today);
+  switch (inputs.kind) {
+    case "resume": {
+      const { document, paper } = inputs;
+      return assembled(version, async () => ({ bytes: await resumePdf(document, paper, resumeMetadata(document)), ...names }));
+    }
+    case "rirekisho":
+      return assembled(version, async () => ({
+        // Drawn from the very file the Word download is: one filling, so a
+        // photo or a row placed in it reaches both.
+        bytes: await rirekishoPdf(fillRirekishoTemplate(inputs.data, inputs.photo), japaneseMetadata(kind, inputs.identity)),
+        ...names,
+      }));
+    case "japanese":
+      return assembled(version, async () => ({
+        bytes: await japanesePdf(inputs.document, japaneseMetadata(kind, inputs.identity)),
+        ...names,
+      }));
+    case "built":
+      throw new Error(`A ${kind} is not produced as a PDF.`);
+  }
+}
+
+/** A Japanese PDF's title and author: 「職務経歴書　森山 健二」, by 森山 健二. */
+const japaneseMetadata = (kind: RenderKind, identity: RenderIdentity) => ({
+  title: identity.nameKanji ? `${RENDER_TITLE[kind]}　${identity.nameKanji}` : RENDER_TITLE[kind],
+  author: identity.nameKanji,
+});
+
+/** The title and author both files carry in their properties. */
+const resumeMetadata = (document: ResumeDocument) => ({ title: `${document.name} – Résumé`, author: document.name });
+
+/** One filling, so the page is read out of the very bytes that are handed over. */
+function rirekishoFile(data: RirekishoTemplateData, content: RenderContent, photo: RirekishoPhoto | null): Pick<DocumentFile, "bytes" | "page"> {
+  const bytes = fillRirekishoTemplate(data, photo);
+  return { bytes, page: rirekishoSentPage(data, content, bytes) };
+}
+
+/**
+ * The page of one version, as a download would assemble it today (issue #106).
+ * The same inputs and the same refusal as `buildDocumentFile`, so what is read
+ * on the screen is what the file would hold. Only a 履歴書's file is made, and
+ * only to read its form back out of it (`~/render/sheet`); nothing is kept.
+ */
+export async function buildDocumentPage(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<SentPage> {
+  const inputs = await assemblyInputs(db, userId, kind, version);
+  switch (inputs.kind) {
+    case "rirekisho":
+      return assembled(version, () => rirekishoSentPage(inputs.data, inputs.content, fillRirekishoTemplate(inputs.data, inputs.photo), true));
+    case "resume":
+      return assembled(version, () => resumeSentPage(inputs.document, true));
+    case "japanese":
+      return assembled(version, () => japaneseSentPage(inputs.document, true));
+    case "built":
+      return assembled(version, () => sentPage(kind, inputs.content, inputs.identity, inputs.today, true));
+  }
+}
+
+type AssemblyInputs = { identity: RenderIdentity; today: string } & (
+  | { kind: "rirekisho"; content: RenderContent; data: RirekishoTemplateData; photo: RirekishoPhoto | null }
+  | { kind: "resume"; document: ResumeDocument; paper: PaperSize }
+  | { kind: "japanese"; document: JapaneseDocument }
+  | { kind: "built"; content: RenderContent }
+);
+
+/** What a file is assembled from today, read once for the file and the page alike. */
+async function assemblyInputs(db: Db, userId: string, kind: RenderKind, version: VersionRow): Promise<AssemblyInputs> {
   const content = version.content as RenderContent;
   await refuseWithheldCitations(db, userId, content);
-
-  const filename = filenameFor(render, kind, "docx", version);
   const today = tokyoToday();
 
   // A 履歴書 is FILLED, not built (`docs/03` §30). Its three tables are
@@ -81,42 +240,124 @@ export async function buildDocumentFile(
   // block comes from the profile row, and the only generated text in it is
   // the two prose blocks. The submission date is stamped now, in Tokyo, and
   // the age is computed against it (`docs/04` §4).
+  // Read now rather than stored with the version: the identity block is not
+  // a claim about a career, and an accepted version must not go stale because
+  // a phone number changed (`src/render/identity.ts`). A 履歴書 reads it only
+  // to name its file.
+  const identity = await renderIdentity(db, userId);
+
   if (kind === "rirekisho") {
     const profile = await collectRirekishoProfile(db, userId);
     const record = await collectRirekishoRecord(db, userId);
-    return assembled(version, () => {
-      const data = rirekishoTemplateData({ profile, record, submittedOn: today, content });
-      return { bytes: fillRirekishoTemplate(data), filename, page: rirekishoSentPage(data, content) };
-    });
+    const photo = await collectRirekishoPhoto(db, userId);
+    return assembled(version, () => ({
+      kind: "rirekisho" as const,
+      identity,
+      today,
+      content,
+      data: rirekishoTemplateData({ profile, record, submittedOn: today, content }),
+      photo,
+    }));
   }
 
-  // Read now rather than stored with the version: the identity block is not
-  // a claim about a career, and an accepted version must not go stale because
-  // a phone number changed (`src/render/identity.ts`).
-  const identity = await renderIdentity(db, userId);
-  return assembled(version, async () => ({
-    bytes: await toDocx(content, RENDER_TITLE[kind], kind, identity, today),
-    filename,
-    page: sentPage(kind, content, identity, today),
+  // The English résumé is laid out from the record with the version's summary
+  // and bullets set into it (issue #107, `src/render/resume.ts`). Tailored
+  // résumés are the same kind and take the same path.
+  if (kind === "english_resume") {
+    const { paper, ...record } = await collectResumeRecord(db, userId);
+    return assembled(version, () => ({
+      kind: "resume" as const,
+      identity,
+      today,
+      document: assembleResume({ content, record, identity, today }),
+      paper,
+    }));
+  }
+
+  // The 職務経歴書 and the Japanese story are set from one document, each
+  // employer's header read from the record now (`~/render/japanese`).
+  if (kind === "shokumu_keirekisho" || kind === "career_story_ja") {
+    const employers = await collectJapaneseEmployers(db, userId);
+    return assembled(version, () => ({
+      kind: "japanese" as const,
+      identity,
+      today,
+      document: assembleJapanese({ kind, content, identity, today, employers }),
+    }));
+  }
+
+  return { kind: "built", content, identity, today };
+}
+
+/**
+ * Every employer, with what its header in a Japanese document prints: the
+ * Japanese name, 雇用形態, the period and the roles, oldest first. Every one
+ * of the author's, because the header is found by the name the version wrote,
+ * and a version is not re-read when an inclusion changes.
+ */
+export async function collectJapaneseEmployers(db: Db, userId: string): Promise<JapaneseEmployer[]> {
+  const employerRows = await db
+    .select({
+      id: employers.id,
+      nameJa: employers.nameJa,
+      nameLatin: employers.nameLatin,
+      employmentType: employers.employmentType,
+      startedOn: employers.startedOn,
+      endedOn: employers.endedOn,
+    })
+    .from(employers)
+    .where(eq(employers.userId, userId));
+  const roleRows = await db
+    .select({
+      employerId: roles.employerId,
+      titleJa: roles.titleJa,
+      titleLatin: roles.titleLatin,
+      startedOn: roles.startedOn,
+      endedOn: roles.endedOn,
+    })
+    .from(roles)
+    .where(eq(roles.userId, userId))
+    .orderBy(asc(roles.startedOn));
+  return employerRows.map((e) => ({
+    ...e,
+    roles: roleRows
+      .filter((r) => r.employerId === e.id)
+      .map((r) => ({ title: r.titleJa ?? r.titleLatin ?? "", startedOn: r.startedOn, endedOn: r.endedOn })),
   }));
 }
 
+/**
+ * A résumé the record cannot assemble, as the API says it. The one place every
+ * route builds it, so a job header's gaps travel the same way from generation,
+ * the page, the preview and each download: `details.jobHeaders` names each job
+ * and what it lacks, and the screens link each gap to its field.
+ */
+export function resumeRefusal(error: ResumeAssemblyError, code: ErrorCode = "conflict", fields: string[] = []): ApiError {
+  if (error instanceof ResumeJobHeaderError) {
+    return new ApiError(code, error.message, { fields: ["employers"], jobHeaders: error.jobHeaders });
+  }
+  return new ApiError(code, error.message, fields.length > 0 ? { fields } : undefined);
+}
+
 /** Runs the build alone, so a read that fails before it is not reported as a file that could not be assembled. */
-async function assembled(version: VersionRow, build: () => DocumentFile | Promise<DocumentFile>): Promise<DocumentFile> {
+async function assembled<T>(version: VersionRow, build: () => T | Promise<T>): Promise<T> {
   try {
     return await build();
   } catch (error) {
     // A refusal with words for the author is passed on as it is.
     if (error instanceof ApiError) throw error;
+    if (error instanceof PdfGlyphError) throw new ApiError("conflict", error.message);
+    if (error instanceof ResumeAssemblyError) throw resumeRefusal(error);
     // The build fails; the stored content is untouched and the next one can succeed.
-    console.error(JSON.stringify({ event: "docx_build_failed", versionId: version.id }));
+    console.error(JSON.stringify({ event: "document_build_failed", versionId: version.id }));
     throw new ApiError("internal", "That document could not be assembled. Your saved version is unchanged.");
   }
 }
 
 /**
- * The identity block's source, narrowed to the three fields a header may read.
- * The restricted PII columns are never selected, so they cannot reach a render
+ * The identity block's source, narrowed to the fields a header may read: the
+ * names, the email and the résumé's own header columns (issue #108). The
+ * restricted PII columns are never selected, so they cannot reach a render
  * by accident — `src/render/identity.ts` and `docs/04` §3.2.
  *
  * A missing profile is a precondition failure, not a nameless document: nothing
@@ -130,6 +371,15 @@ export async function renderIdentity(db: Db, userId: string): Promise<RenderIden
       familyNameKanji: profiles.familyNameKanji,
       givenNameKanji: profiles.givenNameKanji,
       email: profiles.email,
+      resume: {
+        headline: profiles.resumeHeadline,
+        city: profiles.resumeCity,
+        country: profiles.resumeCountry,
+        phone: profiles.resumePhone,
+        linkedinUrl: profiles.resumeLinkedinUrl,
+        githubUrl: profiles.resumeGithubUrl,
+        portfolioUrl: profiles.resumePortfolioUrl,
+      },
     })
     .from(profiles)
     .where(eq(profiles.userId, userId))
@@ -146,5 +396,6 @@ export async function renderIdentity(db: Db, userId: string): Promise<RenderIden
     nameLatin: profile.nameLatin,
     nameKanji: `${profile.familyNameKanji} ${profile.givenNameKanji}`.trim(),
     email: profile.email,
+    resume: profile.resume,
   };
 }

@@ -100,10 +100,10 @@ describe("provenance", () => {
 });
 
 describe("review moves at reading pace", () => {
-  it("makes an edited claim with an email and 90 minutes Private and flagged", async () => {
+  it("makes an edited claim with an email and a number its quote lacks Private and flagged", async () => {
     const { fact } = await importOne("Improved the batch workflow");
     const edited = (await (await client.patch(`/api/facts/${fact.id}`, {
-      claim: "Sent the report to desk@example.invalid in 90 minutes",
+      claim: "Sent the report to desk@example.invalid in 45 minutes",
     })).json()) as Fact;
     expect(edited.disclosure).toBe("private");
     expect(edited.flags.filter((flag) => !flag.checked && ["confidential", "number"].includes(flag.kind)).map((flag) => flag.kind)).toEqual(["confidential", "number"]);
@@ -130,7 +130,7 @@ describe("review moves at reading pace", () => {
   });
 
   it("settles a number flag when the edited claim no longer states one", async () => {
-    const { fact } = await importOne("Cut nightly batch runtime to 90 minutes");
+    const { fact } = await importOne("Cut nightly batch runtime to 45 minutes");
     expect(fact.flags.some((flag) => flag.kind === "number" && !flag.checked)).toBe(true);
     const edited = (await (await client.patch(`/api/facts/${fact.id}`, { claim: "Improved the batch workflow" })).json()) as Fact;
     expect(edited.flags.some((flag) => flag.kind === "number" && !flag.checked)).toBe(false);
