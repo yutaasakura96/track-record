@@ -529,6 +529,10 @@ step down at the right. **View is the card's primary action but is not drawn as 
 the Next step keeps the only primary button in the content column, as #58 decided. Before a version
 exists there is nothing to view, and the write is the card's one secondary control.
 
+The 履歴書's card also carries the record's current gaps under the muted line, before a version
+exists and after, each with `Add an explanation` (Screen 4 item 3, #117). Accepting a 履歴書 does not
+close a gap, so the warning is read from the record, not from the review that first raised it.
+
 | Status | Dot and text | Write, with a version | Write, before one |
 |---|---|---|---|
 | Never generated | muted, `Not written yet` | — | `Generate` (secondary) |
@@ -743,11 +747,21 @@ Top to bottom in the 940px column:
    likewise), with a `Not filed under a project` row for the employer's facts on no project. A
    footer: `From N imported documents`, `N achievements`, and the
    employer's inclusion line. A form opens full width at the bottom of its card in the footer's place.
-3. **The 履歴書's gap warning, inline.** Each gap `unexplainedGaps` finds over the rows the 履歴書
-   would print, its exclusions applied, sits between the two cards it falls between, in the
-   履歴書's words: `N months between X and Y are covered by no 学歴・職歴 entry. The 履歴書 will
-   warn about it.` A dashed neutral box: it is advice, and nothing is held back by it. A gap before
-   every job, between schooling and the first one, sits after the oldest card.
+3. **The 履歴書's gap warning, inline, and its answer** (#117). Each gap `unexplainedGaps` finds over
+   the rows the 履歴書 would print, its exclusions applied, sits between the two cards it falls
+   between, named by the months nobody covers, Japanese then English:
+   `2020年2月〜6月（5か月）は、学歴・職歴のどの行にも含まれていません。` and
+   `February–June 2020 (5 months) is covered by no 学歴・職歴 entry.` A dashed neutral box: it is
+   advice, and nothing is held back by it. A gap before every job, between schooling and the first
+   one, sits after the oldest card. Under it, `Add an explanation` opens one line for what the author
+   was doing, with the ※ row it becomes shown as it is typed
+   (`※2020年2月〜2020年6月　資格取得のため学習`); the months are the gap's and are not typed. An
+   explained gap keeps its place and shows its ※ row instead, with Edit and Remove. A note whose gap
+   has since moved or closed is listed above the cards, saying the 履歴書 does not print it, with
+   Remove. The same notice and form are on Home's 履歴書 card and on its View page (Screens 3 and 17).
+   An employer card whose role or project is dated outside the employer says so above its roles,
+   naming each and how (`runs past this job's end, 2020-01`), and that the 職務経歴書 would print
+   dates that contradict each other.
 4. **Independent projects.** Projects with no employer, as project rows, with `Add a project`.
 5. **Education and Certifications**, side by side. An education row carries its inclusion line, and
    an upper-secondary rung the chip `Left out of: Résumé (English)`; a lower-secondary rung also names
@@ -2083,7 +2097,10 @@ Read-only.
    filled from your record as it is now, as the download is.` When the file's 写真 cell is empty, a
    second line in the owner's words, `写真欄は空欄です。必要な場合はWordで貼付してください`, and the link
    `Add a photo` to the profile form (#117, review issue 8). The review footer (Screen 2) carries
-   the same sentence among its advisory lines while the profile has no photo.
+   the same sentence among its advisory lines while the profile has no photo. Between the two, the
+   record's current gaps, each with `Add an explanation`, as on Screen 4 (#117, review §5 G1): every
+   version's tables are today's, so every version says them. An explained gap is not listed; its ※
+   row is in the table below.
 3. **The document**, on a `card` at the reading measure: the page its download would hold today.
    Built documents show the printed title above the centered identity block, then sections in file
    order. The English résumé prints no title, so its page leads with the name, left-aligned and large,

@@ -13,11 +13,12 @@
  */
 import { and, asc, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { certifications, educations, employers, profiles, roles } from "../db/schema";
+import { careerGapNotes, certifications, educations, employers, profiles, roles } from "../db/schema";
 import { preconditionFailed } from "../http/errors";
 import { storedBytes } from "../db/bytes";
 import type { RirekishoProfile, RirekishoRecord } from "~/render/rirekisho";
 import type { RirekishoPhoto } from "~/render/rirekisho-photo";
+import type { TimelineGapNote } from "~/shared/career-timeline";
 import { photoInfo, photoRefusal } from "~/shared/photo";
 import { exclusionsFor } from "./inclusion";
 
@@ -119,7 +120,7 @@ export async function hasProfilePhoto(db: Db, userId: string): Promise<boolean> 
 export async function collectRirekishoRecord(
   db: Db,
   userId: string,
-): Promise<RirekishoRecord> {
+): Promise<Omit<RirekishoRecord, "gapNotes"> & { gapNotes: TimelineGapNote[] }> {
   const educationRows = await db
     .select()
     .from(educations)
@@ -156,6 +157,14 @@ export async function collectRirekishoRecord(
     .where(and(eq(certifications.userId, userId)))
     .orderBy(asc(certifications.issuedOn), asc(certifications.id));
 
+  // Every note, matched to the gaps when the document is assembled: which gap
+  // a note explains depends on the rows below, after the exclusions.
+  const gapNoteRows = await db
+    .select({ id: careerGapNotes.id, fromOn: careerGapNotes.fromOn, toOn: careerGapNotes.toOn, text: careerGapNotes.text })
+    .from(careerGapNotes)
+    .where(eq(careerGapNotes.userId, userId))
+    .orderBy(asc(careerGapNotes.fromOn));
+
   // Left out of the 履歴書 by the author (S13). Filtered here as well as in
   // `collectRenderInputs`, so the form that downloads is built from the rows
   // the gap warning was computed over.
@@ -187,5 +196,6 @@ export async function collectRirekishoRecord(
       issuedOn: c.issuedOn,
       expiresOn: c.expiresOn,
     })),
+    gapNotes: gapNoteRows,
   };
 }

@@ -30,6 +30,7 @@
  */
 
 import { certificationVerb, isExpired } from "./shikaku";
+import { gapNoteRow, type CareerGap, type GapNote } from "~/shared/career-gap";
 
 /** The ideographic space every row joins its parts with. */
 const SEP = "　";
@@ -284,7 +285,8 @@ export function certificationText(c: Pick<RirekishoCertification, "name" | "name
 /**
  * The three loops in one call — what a 履歴書 render actually wants. `on` is
  * the submission date, `YYYY-MM-DD`: a certification is held or lapsed as of
- * the day the document is handed over.
+ * the day the document is handed over. `explained` is each gap the author has
+ * explained, with the note that explains it ({@link withGapNotes}).
  */
 export function rirekishoTables(
   record: {
@@ -293,12 +295,63 @@ export function rirekishoTables(
     certifications: RirekishoCertification[];
   },
   on: string,
+  explained: readonly { gap: CareerGap; note: GapNote }[] = [],
 ): RirekishoTables {
-  return {
-    gakureki: educationRows(record.educations),
-    shokureki: employmentRows(record.employers),
-    shikaku: shikakuRows(record.certifications, record.educations, on),
-  };
+  return withGapNotes(
+    {
+      gakureki: educationRows(record.educations),
+      shokureki: employmentRows(record.employers),
+      shikaku: shikakuRows(record.certifications, record.educations, on),
+    },
+    record,
+    explained,
+  );
+}
+
+/**
+ * The ※ rows: one per explained gap, under the row the gap follows (issue
+ * #117, review §5 G2).
+ *
+ * doda's convention puts the note in the 職歴 column under the 退職 line —
+ * 「※2020年2月〜2020年6月　資格取得のため学習」 — with the 年 and 月 cells empty,
+ * because the note's months are in its text. A gap that follows a job goes
+ * under that job's 退社 row in 職歴; one that follows schooling, with no job
+ * ending that month, goes under the 卒業 row in 学歴. Either way it lands after
+ * every dated row up to the month the gap follows, so it reads in order.
+ *
+ * Inserted after the sort rather than sorted with the rest: the row has no
+ * date of its own, and an empty 年 would sort it to the top.
+ */
+function withGapNotes(
+  tables: RirekishoTables,
+  record: { educations: RirekishoEducation[]; employers: RirekishoEmployer[] },
+  explained: readonly { gap: CareerGap; note: GapNote }[],
+): RirekishoTables {
+  let { gakureki, shokureki } = tables;
+  for (const { gap, note } of explained) {
+    const afterJob = record.employers.some((e) => e.endedOn?.slice(0, 7) === gap.after);
+    const afterSchool = record.educations.some(
+      (e) => !isCredentialCourse(e) && e.outcome !== "expected" && e.endedOn?.slice(0, 7) === gap.after,
+    );
+    const noteRow = { year: "", month: "", text: gapNoteRow(note) };
+    if (!afterJob && afterSchool) gakureki = insertAfter(gakureki, gap.after, noteRow);
+    else shokureki = insertAfter(shokureki, gap.after, noteRow);
+  }
+  return { ...tables, gakureki, shokureki };
+}
+
+/**
+ * `row` after the last dated row at or before `month` (`YYYY-MM`), so it
+ * follows every row of that month. Undated rows are not counted: 現在に至る
+ * stays last, and two gaps never follow the same month.
+ */
+function insertAfter(rows: DerivedRow[], month: string, row: DerivedRow): DerivedRow[] {
+  const limit = Number(month.slice(0, 4)) * 12 + Number(month.slice(5, 7));
+  let at = 0;
+  rows.forEach((r, index) => {
+    if (r.year !== "" && Number(r.year) * 12 + Number(r.month) <= limit) at = index + 1;
+  });
+  return [...rows.slice(0, at), row, ...rows.slice(at)];
 }
 
 /**

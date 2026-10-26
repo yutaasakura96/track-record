@@ -96,6 +96,7 @@ export function DocumentCard({
   canGenerate,
   busy,
   onGenerate,
+  children,
 }: {
   row: RenderRow;
   /** What the document is for, said under its status. */
@@ -103,6 +104,8 @@ export function DocumentCard({
   canGenerate: boolean;
   busy: boolean;
   onGenerate: () => void;
+  /** What the record says about the document now, under the line above: the 履歴書's gaps. */
+  children?: ReactNode;
 }) {
   const status = documentStatus(row);
   const version = row.currentVersionId !== null;
@@ -118,6 +121,7 @@ export function DocumentCard({
           .filter(Boolean)
           .join(" · ")}
       </p>
+      {children}
       <div className="mt-auto pt-6 flex flex-wrap items-center gap-x-12 gap-y-8">
         {version ? (
           <>

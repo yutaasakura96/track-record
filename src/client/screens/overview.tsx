@@ -40,6 +40,7 @@ import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { DocumentCard, MasterDocumentCard } from "../components/document-card";
+import { GapNotices } from "../components/gap-notices";
 import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
 import { useDocumentLanguageStore } from "../stores/document-language";
 import { nextSteps, type Step, type StepAction } from "../next-step";
@@ -706,7 +707,10 @@ function CareerDocuments({
               canGenerate={canGenerate}
               busy={busy}
               onGenerate={() => onGenerate(row.ref)}
-            />
+            >
+              {/* The record's gaps, before the first version and after it (issue #117, G1). */}
+              {row.kind === "rirekisho" ? <GapNotices compact /> : null}
+            </DocumentCard>
           ))}
         </ul>
       </LanguagePanel>

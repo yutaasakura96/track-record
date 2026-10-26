@@ -21,12 +21,14 @@ import {
   submissionStamp,
   tokyoToday,
   unexplainedGaps,
+  explainedGaps,
   type RirekishoProfile,
   type RirekishoRecord,
 } from "~/render/rirekisho";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import type { RenderContent } from "~/shared/render-content";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { gapLabelEn, gapLabelJa } from "~/shared/career-gap";
 import { pngPhoto } from "./helpers/photo";
 
 const PROFILE: RirekishoProfile = {
@@ -80,6 +82,7 @@ const RECORD: RirekishoRecord = {
   certifications: [
     { name: "Kakuu Certificate", nameJa: "架空技術者試験", issuedOn: "2094-06-01", expiresOn: null },
   ],
+  gapNotes: [],
 };
 
 const SUBMITTED = "2099-04-01";
@@ -254,18 +257,52 @@ describe("the unexplained-gap warning", () => {
       educations: [],
       employers: [span("2093-04-01", "2096-06-01"), span("2096-10-01", null)],
     });
-    expect(gaps).toEqual([{ after: "2096-06", before: "2096-10", months: GAP_MONTHS }]);
+    expect(gaps).toEqual([{ after: "2096-06", before: "2096-10", from: "2096-07", to: "2096-09", months: GAP_MONTHS }]);
   });
 
-  it("says how long the gap is and never blocks", () => {
+  it("names the months nobody covers, in Japanese and in English, and never blocks", () => {
+    // A job left in 2096-01 and the next begun in 2096-07: February to June
+    // are the gap, and the warning says so rather than naming the months
+    // either side of it (issue #117, review §5 G3).
     const warnings = gapWarnings({
       educations: [],
-      employers: [span("2093-04-01", "2094-03-01"), span("2095-04-01", null)],
+      employers: [span("2093-04-01", "2096-01-01"), span("2096-07-01", null)],
     });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("2094-03");
-    expect(warnings[0]).toContain("2095-04");
-    expect(warnings[0]).toContain("12");
+    expect(warnings).toEqual([
+      "2096年2月〜6月（5か月）は、学歴・職歴のどの行にも含まれていません。 February–June 2096 (5 months) is covered by no 学歴・職歴 entry.",
+    ]);
+  });
+
+  it("writes the year again only when the gap crosses one", () => {
+    const [gap] = unexplainedGaps({
+      educations: [],
+      employers: [span("2093-04-01", "2094-10-01"), span("2095-03-01", null)],
+    });
+    expect(gapLabelJa(gap!)).toBe("2094年11月〜2095年2月（4か月）");
+    expect(gapLabelEn(gap!)).toBe("November 2094–February 2095 (4 months)");
+  });
+
+  it("stops warning about a gap the author has explained, and only that one", () => {
+    const record = {
+      educations: [],
+      employers: [span("2093-04-01", "2094-03-01"), span("2095-04-01", "2096-01-01"), span("2096-07-01", null)],
+    };
+    const note = { fromOn: "2094-04-01", toOn: "2095-03-01", text: "資格取得のため学習" };
+    expect(unexplainedGaps({ ...record, gapNotes: [note] }).map((g) => g.from)).toEqual(["2096-02"]);
+    expect(explainedGaps({ ...record, gapNotes: [note] }).map((e) => e.note)).toEqual([note]);
+    expect(gapWarnings({ ...record, gapNotes: [note] })).toHaveLength(1);
+  });
+
+  it("does not count a note whose months are no longer the gap's", () => {
+    const record = { educations: [], employers: [span("2093-04-01", "2094-03-01"), span("2095-04-01", null)] };
+    // One month off at either end is a different gap: its months are printed.
+    for (const note of [
+      { fromOn: "2094-05-01", toOn: "2095-03-01", text: "資格取得のため学習" },
+      { fromOn: "2094-04-01", toOn: "2095-02-01", text: "資格取得のため学習" },
+    ]) {
+      expect(unexplainedGaps({ ...record, gapNotes: [note] })).toHaveLength(1);
+      expect(explainedGaps({ ...record, gapNotes: [note] })).toEqual([]);
+    }
   });
 
   it("treats two overlapping employments as one covered stretch", () => {
@@ -299,6 +336,54 @@ describe("the unexplained-gap warning", () => {
         employers: [span("2086-04-01", null)],
       }),
     ).toEqual([]);
+  });
+});
+
+/**
+ * The ※ row (issue #117, review §5 G2): doda's note under the 退社 line,
+ * 「※2020年2月〜2020年6月　資格取得のため学習」, with the 年 and 月 cells empty.
+ */
+describe("an explained gap in 学歴・職歴", () => {
+  const JOB_GAP: RirekishoRecord = {
+    ...RECORD,
+    employers: [
+      { ...RECORD.employers[0]!, endedOn: "2096-01-01", leavingReasonJa: "一身上の都合により" },
+      { nameJa: "架空商事株式会社", industryJa: null, shokushuJa: null, startedOn: "2096-07-01", endedOn: null, leavingReasonJa: null },
+    ],
+    gapNotes: [{ fromOn: "2096-02-01", toOn: "2096-06-01", text: "資格取得のため学習" }],
+  };
+
+  it("is a row under the 退社 line, its months in its text and its date cells empty", () => {
+    expect(data({ record: JOB_GAP }).shokureki).toEqual([
+      { year: "2093", month: "4", text: "架空株式会社　架空業　架空職として入社" },
+      { year: "2096", month: "1", text: "一身上の都合により退社" },
+      { year: "", month: "", text: "※2096年2月〜2096年6月　資格取得のため学習" },
+      { year: "2096", month: "7", text: "架空商事株式会社　入社" },
+      { year: "", month: "", text: "現在に至る" },
+    ]);
+  });
+
+  it("goes under the 卒業 row in 学歴 when the gap follows schooling", () => {
+    const record: RirekishoRecord = {
+      ...RECORD,
+      employers: [{ ...RECORD.employers[0]!, startedOn: "2094-04-01" }],
+      gapNotes: [{ fromOn: "2093-04-01", toOn: "2094-03-01", text: "就職活動" }],
+    };
+    const filled = data({ record });
+    expect(filled.gakureki.map((r) => r.text).slice(-2)).toEqual(["架空大学　架空学部　卒業", "※2093年4月〜2094年3月　就職活動"]);
+    expect(filled.shokureki.some((r) => r.text.startsWith("※"))).toBe(false);
+  });
+
+  it("is not printed once its months are no longer the gap's", () => {
+    const moved = { ...JOB_GAP, gapNotes: [{ fromOn: "2096-03-01", toOn: "2096-06-01", text: "資格取得のため学習" }] };
+    expect(data({ record: moved }).shokureki.some((r) => r.text.startsWith("※"))).toBe(false);
+  });
+
+  it("reaches the .docx", () => {
+    const document = new PizZip(buildRirekisho({ profile: PROFILE, record: JOB_GAP, submittedOn: SUBMITTED, content: null }))
+      .file("word/document.xml")!
+      .asText();
+    expect(document).toContain("※2096年2月〜2096年6月　資格取得のため学習");
   });
 });
 

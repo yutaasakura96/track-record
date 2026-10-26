@@ -333,7 +333,7 @@ user with uploaded recordings unless `--recordings-deleted` is passed.
 `interview_recordings`, `interview_questions`, `interviews`; `application_sent_copies`,
 `application_documents`, `application_steps`; `render_proposals`, `render_versions`, `renders`;
 `applications`; `fact_flags`, `facts`; `import_chunks`, `source_document_versions`,
-`source_documents`; `skill_curations`, `render_inclusions`, `capture_prompt_dismissals`; `certifications`, `educations`; `projects`,
+`source_documents`; `skill_curations`, `render_inclusions`, `capture_prompt_dismissals`, `career_gap_notes`; `certifications`, `educations`; `projects`,
 `roles`, `employers`; `profiles`. Several foreign keys are `RESTRICT`, so the order is not optional.
 It keeps `users`, `sessions`, `accounts` and `verifications`: the owner stays signed in with the same
 Google account. Uploaded documents and sent copies live in Postgres columns; only recordings are in R2.

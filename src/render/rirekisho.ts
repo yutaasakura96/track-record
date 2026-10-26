@@ -4,7 +4,8 @@
  * Three modules meet here. `./rirekisho-template.ts` knows the placeholders,
  * `./rirekisho-rows.ts` knows the wording of the three loops, and this file
  * knows everything that is neither: the identity block, the submission date the
- * age is computed against, and the unexplained-gap warning.
+ * age is computed against, and the gaps — which warn until the author explains
+ * them, and are then a ※ row in 学歴・職歴.
  * `docs/04-database-schema.md` §4 is the contract for all three.
  *
  * **This is the only module that reads the restricted PII columns** — `docs/04`
@@ -37,6 +38,7 @@ import {
 import type { RirekishoPhoto } from "./rirekisho-photo";
 import type { RenderContent } from "~/shared/render-content";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { explains, gapWarning, type CareerGap, type GapNote } from "~/shared/career-gap";
 
 /**
  * The ideographic space the 名前 and ふりがな cells join on.
@@ -118,6 +120,12 @@ export interface RirekishoRecord {
   educations: RirekishoEducation[];
   employers: RirekishoEmployer[];
   certifications: RirekishoCertification[];
+  /**
+   * The author's explanations of gaps, every one stored. Only those naming a
+   * gap the record has now are printed or silence a warning; see
+   * {@link explainedGaps}.
+   */
+  gapNotes: GapNote[];
 }
 
 export interface RirekishoInputs {
@@ -184,13 +192,12 @@ export interface CareerSpan {
   endedOn: string | null;
 }
 
-export interface UnexplainedGap {
-  /** `YYYY-MM` the covered stretch ended. */
-  after: string;
-  /** `YYYY-MM` the next one begins. */
-  before: string;
-  /** Whole months covered by no entry. */
-  months: number;
+/** The gaps the record can hold explanations against. */
+interface GapRecord<N extends GapNote = GapNote> {
+  educations: CareerSpan[];
+  employers: CareerSpan[];
+  /** Absent is none: a record with no explanation warns about every gap. */
+  gapNotes?: readonly N[];
 }
 
 /**
@@ -207,7 +214,8 @@ export interface UnexplainedGap {
 export const GAP_MONTHS = 3;
 
 /**
- * The stretches of the record covered by no 学歴 or 職歴 entry.
+ * The stretches of the record covered by no 学歴 or 職歴 entry, explained or
+ * not.
  *
  * A gap **warns and never blocks** (`docs/04` §4): the convention treats one as
  * a defect, but the defect may be the truth, and a document the author cannot
@@ -216,10 +224,7 @@ export const GAP_MONTHS = 3;
  * An entry with no end covers everything after it — a course still running or
  * the current employer — so the scan stops at the first one.
  */
-export function unexplainedGaps(record: {
-  educations: CareerSpan[];
-  employers: CareerSpan[];
-}): UnexplainedGap[] {
+export function careerGaps(record: { educations: CareerSpan[]; employers: CareerSpan[] }): CareerGap[] {
   const spans = [...record.educations, ...record.employers]
     // A row with only an end month is a point in time, not a stretch: it is
     // the one the author holds as a graduation month alone (`docs/04` §4).
@@ -227,7 +232,7 @@ export function unexplainedGaps(record: {
     .filter((s): s is { from: string; to: string | null } => s.from !== null)
     .sort((a, b) => monthIndex(a.from) - monthIndex(b.from));
 
-  const gaps: UnexplainedGap[] = [];
+  const gaps: CareerGap[] = [];
   const [first, ...rest] = spans;
   if (!first) return gaps;
 
@@ -236,13 +241,43 @@ export function unexplainedGaps(record: {
     if (coveredUntil === null) break;
     const uncovered = monthIndex(span.from) - monthIndex(coveredUntil) - 1;
     if (uncovered >= GAP_MONTHS) {
-      gaps.push({ after: month(coveredUntil), before: month(span.from), months: uncovered });
+      gaps.push({
+        after: month(coveredUntil),
+        before: month(span.from),
+        from: monthAfter(coveredUntil, 1),
+        to: monthAfter(span.from, -1),
+        months: uncovered,
+      });
     }
     if (span.to === null) break;
     if (monthIndex(span.to) > monthIndex(coveredUntil)) coveredUntil = span.to;
   }
 
   return gaps;
+}
+
+/**
+ * The gaps the 履歴書 warns about: every one no note explains.
+ *
+ * An explained gap no longer warns (issue #117, review §5 G2). Its ※ row is in
+ * the table the reader is sent, which is the whole of what the convention asks.
+ */
+export function unexplainedGaps(record: GapRecord): CareerGap[] {
+  const notes = record.gapNotes ?? [];
+  return careerGaps(record).filter((gap) => !notes.some((note) => explains(note, gap)));
+}
+
+/**
+ * The notes that explain a gap the record has now, each once, in the order of
+ * the gaps. A note whose gap moved or closed is left out: its months would be
+ * printed on a signed document, and they are no longer the gap.
+ */
+export function explainedGaps<N extends GapNote>(record: GapRecord<N>): { gap: CareerGap; note: N }[] {
+  const notes = record.gapNotes ?? [];
+  return careerGaps(record).flatMap((gap) => {
+    const note = notes.find((n) => explains(n, gap));
+    return note ? [{ gap, note }] : [];
+  });
 }
 
 /**
@@ -260,15 +295,12 @@ export const MOTIVATION_NOTICE =
   "志望動機 is not generated: the record holds no company or posting to write one against. " +
   "The cell states 特技 and アピールポイント; the 志望動機 sentence is yours to add.";
 
-/** The gaps as sentences. Never blocking. */
-export function gapWarnings(record: {
-  educations: CareerSpan[];
-  employers: CareerSpan[];
-}): string[] {
-  return unexplainedGaps(record).map(
-    (gap) =>
-      `${gap.months} months between ${gap.after} and ${gap.before} are covered by no 学歴・職歴 entry.`,
-  );
+/**
+ * The unexplained gaps as sentences, Japanese then English, naming the months
+ * nobody covers (`~/shared/career-gap`). Never blocking.
+ */
+export function gapWarnings(record: GapRecord): string[] {
+  return unexplainedGaps(record).map(gapWarning);
 }
 
 /**
@@ -287,7 +319,7 @@ export function gapWarnings(record: {
  * empty box.
  */
 export function rirekishoWarnings(
-  record: { educations: CareerSpan[]; employers: CareerSpan[] },
+  record: GapRecord,
   { hasPhoto }: { hasPhoto: boolean },
 ): string[] {
   return [...gapWarnings(record), MOTIVATION_NOTICE, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
@@ -299,7 +331,7 @@ export function rirekishoWarnings(
 export function rirekishoTemplateData(inputs: RirekishoInputs): RirekishoTemplateData {
   const { profile, record, submittedOn, content } = inputs;
   const birth = ymd(profile.dateOfBirth);
-  const tables = rirekishoTables(record, submittedOn);
+  const tables = rirekishoTables(record, submittedOn, explainedGaps(record));
 
   return {
     ...submissionStamp(submittedOn),
@@ -361,3 +393,9 @@ function monthIndex(date: string): number {
 }
 
 const month = (date: string) => date.slice(0, 7);
+
+/** `YYYY-MM`, `by` months from the month `date` names. */
+function monthAfter(date: string, by: number): string {
+  const index = monthIndex(date) - 1 + by;
+  return `${Math.floor(index / 12)}-${String((index % 12) + 1).padStart(2, "0")}`;
+}

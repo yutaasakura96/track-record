@@ -1223,6 +1223,7 @@ describe("export", () => {
       "profile",
       "employers",
       "projects",
+      "careerGapNotes",
       "facts",
       "sourceDocuments",
       "sourceDocumentVersions",
@@ -2263,6 +2264,28 @@ describe("a version is read as its download would hold it", () => {
     expect(view.page.sheet).toEqual(printed);
   });
 
+  it("prints an explained gap as a ※ row on the page and in the download, and stops warning about it", async () => {
+    const record = await seedRecord();
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    const created = (await (
+      await generateRirekisho(rirekishoFrom("貴社の基盤刷新に携わりたいと考えております。", [record.measuredPublic.id]))
+    ).json()) as { proposalId: string };
+    const gap = "2017年4月〜2022年3月（60か月）";
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${created.proposalId}`)).warnings[0]).toContain(gap);
+    await client.post(`/api/proposals/${created.proposalId}/accept`);
+
+    await client.post("/api/gap-notes", { fromOn: "2017-04-01", toOn: "2022-03-01", text: "資格取得のため学習" });
+
+    // Read from the record when the page is read, as the tables are: the
+    // accepted version did not change, and the row is there.
+    const note = "※2017年4月〜2022年3月　資格取得のため学習";
+    const view = await client.json<Page>("/api/renders/rirekisho/page");
+    expect(JSON.stringify(view.page.sheet)).toContain(note);
+    const printed = readSheet(await (await client.get("/api/renders/rirekisho/download?format=docx")).arrayBuffer());
+    expect(JSON.stringify(printed)).toContain(note);
+    expect((await client.json<{ warnings: string[] }>(`/api/proposals/${created.proposalId}`)).warnings.join(" ")).not.toContain(gap);
+  });
+
   /** "Show where each line comes from" (issue #110, S6). */
   describe("what stands behind each line", () => {
     interface Traced {
@@ -2376,6 +2399,19 @@ describe("a career story is planned from the record before it is written", () =>
       sent.spec.employers.length,
     );
     expect(keys.slice(-2)).toEqual(["anchors", "routing"]);
+  });
+
+  it("is given the 履歴書's gaps, with the author's explanation, and no other render is", async () => {
+    // seedRecord's job starts 2022-04; a graduation in 2017-03 leaves five years.
+    await client.post("/api/educations", EDUCATION_FIXTURE);
+    await client.post("/api/gap-notes", { fromOn: "2017-04-01", toOn: "2022-03-01", text: "資格取得のため学習" });
+    const sent = await generateStory();
+    expect(sent.spec.careerGaps).toEqual([
+      { from: "2017-04", to: "2022-03", months: 60, explanation: "資格取得のため学習" },
+    ]);
+
+    await generate(resumeFrom([{ text: "Reduced nightly batch runtime", factIds: [] }]));
+    expect(model.generationInputs.at(-1)!.spec.careerGaps).toEqual([]);
   });
 
   it("says whether the record holds work outside employment, from the facts it is sending", async () => {

@@ -234,6 +234,7 @@ The employer chapters, one per employer, keyed by that employer's id:
 "routing" — where each question lands:
 - One row per question the author should expect: the question as a person would actually ask it, then the chapter that answers it and the evidence to reach for.
 - About fifteen rows. Cover the ones this record invites: why the direction changed, why each employer was left, the largest figure in the table above, the thing that went wrong, and what the author wants next.
+- **Every gap the Gaps list below names gets a row**, asking what the author was doing in those months, in the words an interviewer uses about a gap that length. These rows are in addition to the fifteen, and a story whose prompt lists no gaps has none.
 - A row points at a chapter by the heading you gave it above, and may not point at a chapter that does not exist.
 - Where a row names its evidence, list those fact ids.`;
 

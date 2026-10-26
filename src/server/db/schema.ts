@@ -562,6 +562,33 @@ export const certifications = pgTable("certifications", {
     .where(sql`${t.expiresOn} is not null`),
 ]);
 
+/**
+ * The author's explanation of a gap in 学歴・職歴 (issue #117, review §5 G2):
+ * the ※ row the 履歴書 prints under the 退社 line, 「※2020年2月〜2020年6月　
+ * 資格取得のため学習」. Record, not a fact: it is the author's own words about
+ * their own chronology, printed as typed.
+ *
+ * Keyed by the months it explains, not by the row above it, because a gap is a
+ * stretch of the chronology and may follow a job or a school. It explains the
+ * gap whose first and last uncovered months are exactly `from_on` and `to_on`;
+ * a note whose gap has moved or closed is kept, shown on the career timeline,
+ * and printed nowhere (`src/render/rirekisho.ts`).
+ */
+export const careerGapNotes = pgTable("career_gap_notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  /** The first uncovered month. Month precision. */
+  fromOn: date("from_on", { mode: "string" }).notNull(),
+  /** The last uncovered month. Month precision. */
+  toOn: date("to_on", { mode: "string" }).notNull(),
+  text: text("text").notNull(),
+  ...timestamps,
+}, (t) => [
+  // One explanation a gap: writing another for the same months replaces it.
+  uniqueIndex("career_gap_notes_user_months_uq").on(t.userId, t.fromOn, t.toOn),
+  check("career_gap_notes_months_ck", sql`${t.fromOn} <= ${t.toOn}`),
+]);
+
 /* ---------------------------------------------------------------- renders */
 
 export const renders = pgTable("renders", {

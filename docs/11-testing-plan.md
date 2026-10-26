@@ -136,7 +136,7 @@ Violations here are invisible to the author and obvious to a Japanese hiring man
 
 ```
 Missing required field  → generation is BLOCKED with 428, and the missing fields are NAMED
-Employment gap > 1 month between consecutive entries → a WARNING, not a block
+Gap of 3+ uncovered months      → a WARNING, not a block; a gap with a ※ note (docs/04 §4) does not warn
 学歴・職歴 ordering       → chronological ascending, 学歴 block before 職歴 block, terminated by 以上
 Employer with ended_on   → produces BOTH an 入社 row and a 退社 row carrying the leaving reason
 education outcome        → 'withdrawn' renders 中退, never 卒業

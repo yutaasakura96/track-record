@@ -147,8 +147,10 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // with a rule about gaps, because it is the only one required to be
     // complete: the English résumé's register drops entries by level. The
     // notice is unconditional and comes last, so a gap — which is about this
-    // record, and may not be there next time — is read first.
-    const warnings = kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, user.id) }) : [];
+    // record, and may not be there next time — is read first. The gaps are
+    // read from the rows the download prints, explanations included, so a
+    // gap the author has explained does not warn.
+    const warnings = kind === "rirekisho" ? rirekishoWarnings(await collectRirekishoRecord(db, user.id), { hasPhoto: await hasProfilePhoto(db, user.id) }) : [];
 
     const render = await ensureRender(db, user.id, target);
     const proposalId = newId("renderProposal");

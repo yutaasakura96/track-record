@@ -13,6 +13,7 @@ import {
   applicationSteps,
   applications,
   capturePromptDismissals,
+  careerGapNotes,
   certifications,
   educations,
   employers,
@@ -324,6 +325,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       interviewQuestionRows,
       applicationDocumentRows,
       sentCopyRows,
+      gapNoteRows,
     ] = await Promise.all([
       db.select().from(profiles).where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
@@ -358,6 +360,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       // Taken-off documents and undone copies too, for the same reason.
       db.select().from(applicationDocuments).where(eq(applicationDocuments.userId, userId)),
       db.select(sentCopyColumns).from(applicationSentCopies).where(eq(applicationSentCopies.userId, userId)),
+      db.select().from(careerGapNotes).where(eq(careerGapNotes.userId, userId)),
     ]);
 
     const body = {
@@ -375,6 +378,8 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       factFlags: only(flagRows),
       educations: only(educationRows),
       certifications: only(certificationRows),
+      // The ※ rows the 履歴書 prints under a gap: the author's own words (issue #117).
+      careerGapNotes: only(gapNoteRows),
       sourceDocuments: only(documentRows),
       sourceDocumentVersions: versionRows,
       renders: only(renderRows),

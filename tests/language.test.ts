@@ -39,6 +39,7 @@ const spec = (over: Partial<RenderSpec> = {}): RenderSpec => ({
   projects: [],
   workOutsideEmployment: false,
   desiredRoleNote: null,
+  careerGaps: [],
   educations: [],
   certifications: [],
   curatedSkills: null,
