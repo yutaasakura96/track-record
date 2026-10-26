@@ -570,6 +570,9 @@ export async function saveStanding(
       ...alongside,
     ]);
   } catch (error) {
+    if (violatesUnique(error, "application_one_rirekisho")) {
+      throw new ApiError("conflict", "Take one 履歴書 off this application before moving it back to Not applied.");
+    }
     // 22012 is division by zero: the guard above found the application changed since it was read.
     let stale = false;
     for (let cause = error; cause instanceof Error; cause = cause.cause) {

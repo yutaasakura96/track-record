@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 import { EMIT_RENDER_TOOL, buildGenerationPrompt } from "~/model/generate";
 import { JAPANESE_ONLY_LABEL } from "~/render/language";
-import { RENDER_DEFINITIONS, TAILORED_REGISTER } from "~/render/spec";
+import { RENDER_DEFINITIONS } from "~/render/spec";
 import { EXTRACT_FACT_TOOL, EXTRACTION_SYSTEM_PROMPT } from "~/model/extract";
 import { GRADE_FACT_TOOL, GRADE_REQUIRED, GRADING_RULES, GRADING_SYSTEM_PROMPT, readGrade } from "~/model/grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "~/model/explain";
@@ -397,23 +397,6 @@ describe("the tailoring of a 履歴書", () => {
     expect(prompt).toContain("The author's own reason for applying, for the 志望動機. Their words, not a fact, and it leads the draft:\n決済の信頼性に関わり続けたいからです。");
     expect(prompt).toContain("The author's own request for this application's 本人希望欄. Their words, not a fact, and it comes before any stated preference above:\nバックエンドエンジニア職を希望します。");
     expect(prompt).not.toContain("has written no reason");
-  });
-
-  it("is written in the tailored register, which drafts the reason and the request and names the 本人希望欄 order", () => {
-    const main = buildGenerationPrompt(rirekisho({ jobDescription: null, application: null }));
-    const tailored = buildGenerationPrompt(rirekisho({ register: TAILORED_REGISTER.rirekisho! }));
-    expect(main).toContain("do not write a 志望動機");
-    expect(tailored).not.toContain("do not write a 志望動機");
-    expect(tailored).toContain('Mark every block holding one with "drafted": true.');
-    expect(tailored).toContain("The FIRST paragraph is the 志望動機, and it is a draft");
-    expect(tailored).toContain("Never its name, and never 御社");
-    expect(tailored).toContain("claim no requirement the facts do not support");
-    expect(tailored).toContain("Do not quote the posting");
-    // 本人希望欄: the application's request, then the profile's, then a draft, then the convention.
-    expect(tailored).toMatch(/the author's request for this application below; else the author's stated preference for every 履歴書 above; else a draft of your own from the posting/);
-    expect(tailored).toContain("the cell is exactly 貴社規定に従います。");
-    // The main register no longer describes the layout it had before the fixed two pages.
-    expect(main).not.toContain("two pages with no page break");
   });
 
   it("lets the model mark a draft through the tool", () => {

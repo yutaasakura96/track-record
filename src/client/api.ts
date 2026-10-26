@@ -985,6 +985,7 @@ export interface RenderPage {
   tailored: boolean;
   /** The application a tailored résumé belongs to. `null` on a main document. */
   applicationId: string | null;
+  motivationNote: string | null;
   /** The document's row, as Home or its application shows it. */
   document: RenderRow;
   canGenerate: boolean;

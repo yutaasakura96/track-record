@@ -921,6 +921,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // application would show for it, by the same query.
     const state = await renderState(db, user.id);
     const document = [...state.documents, ...state.tailored].find((row) => row.ref === target.ref)!;
+    const tailoring = kind === "rirekisho" && render ? await tailoringOf(db, user.id, render) : null;
 
     return c.json({
       renderKind: kind,
@@ -929,6 +930,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       language: RENDER_LANGUAGE[kind],
       tailored: target.jobDescription !== null,
       applicationId: render?.applicationId ?? null,
+      motivationNote: tailoring?.application?.motivationNote ?? null,
       document,
       canGenerate: state.usableFacts > 0,
       version: {

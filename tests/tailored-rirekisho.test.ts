@@ -18,6 +18,7 @@ import { MAIN_RIREKISHO_HELD } from "~/shared/application-documents";
 import type { CandidateFact } from "~/model/types";
 import type { Sheet } from "~/render/sheet";
 import type { RenderContent } from "~/shared/render-content";
+import { buildGenerationPrompt } from "~/model/generate";
 
 interface Document {
   ref: string;
@@ -290,6 +291,26 @@ describe("one 履歴書 an application, until Applied", () => {
     expect(decodeURIComponent(file.headers.get("content-disposition") ?? "")).toMatch(/履歴書_[^_]+_\d{8}\.docx/);
     expect(decodeURIComponent(file.headers.get("content-disposition") ?? "")).not.toContain("Harrowgate");
   });
+
+  it("refuses both step and Undo returns to Not applied with two 履歴書 attached", async () => {
+    await acceptMain();
+    const made = await add();
+    const before = await client.json<{ step: string; closedAs: null; dates: Record<string, string> }>(`/api/applications/${made.id}`);
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    await acceptTailored(ref);
+    expect((await client.post(`/api/applications/${made.id}/steps`, { status: "applied" })).status).toBe(200);
+    expect((await client.post(`/api/applications/${made.id}/sent-copies`, { documents: ["rirekisho"] })).status).toBe(201);
+
+    const step = await client.post(`/api/applications/${made.id}/steps`, { status: "not_applied" });
+    expect(step.status).toBe(409);
+    expect(((await step.json()) as { error: { message: string } }).error.message).toContain("Take one 履歴書 off");
+    const undo = await client.put(`/api/applications/${made.id}/standing`, {
+      step: before.step, closedAs: before.closedAs, dates: before.dates,
+    });
+    expect(undo.status).toBe(409);
+    expect(((await undo.json()) as { error: { message: string } }).error.message).toContain("Take one 履歴書 off");
+    expect((await client.json<{ step: string }>(`/api/applications/${made.id}`)).step).toBe("applied");
+  });
 });
 
 describe("the drafts", () => {
@@ -357,6 +378,29 @@ describe("the drafts", () => {
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(409);
   });
 
+  it.each([
+    ["application", "応募先の勤務条件を希望します。", null, "応募先の勤務条件を希望します。"],
+    ["profile", null, "週4日の勤務を希望します。", "週4日の勤務を希望します。"],
+    ["convention", null, null, "貴社規定に従います。"],
+  ])("drafts a missing 本人希望欄 from the %s fallback", async (_source, applicationNote, profileNote, expected) => {
+    if (profileNote) await client.put("/api/profile", { ...PROFILE_FIXTURE, desiredRoleNote: profileNote });
+    const made = await add();
+    if (applicationNote) await client.patch(`/api/applications/${made.id}`, { kibouNote: applicationNote });
+    const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
+    const withoutKibou = tailoredContent();
+    withoutKibou.sections = withoutKibou.sections.filter((section) => section.key !== "kibou");
+    const { proposalId, proposal } = await generate(ref, withoutKibou);
+    const request = proposal.drafts.find((draft) => draft.sectionKey === "kibou")!;
+    expect(request.text).toBe(expected);
+    expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(409);
+    for (const draft of proposal.drafts) {
+      expect((await confirmDraft(proposalId, draft.blockId, draft.text)).status).toBe(200);
+    }
+    expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
+    const page = await client.json<{ page: { sheet: Sheet } }>(`/api/renders/${ref}/page`);
+    expect(JSON.stringify(page.page.sheet)).toContain(expected);
+  });
+
   it("are refused empty, with 御社, on a block that is not one, and once decided", async () => {
     const made = await add();
     const ref = own((await (await tailor(made.id)).json()) as Detail).ref;
@@ -390,6 +434,15 @@ describe("what a tailored 履歴書 is written from", () => {
     twoDrafts.sections[0]!.blocks.splice(1, 1);
     const { proposalId, proposal } = await generate(ref, twoDrafts);
     const tailored = model.generationInputs.at(-1)!;
+    const mainPrompt = buildGenerationPrompt(main.spec);
+    const tailoredPrompt = buildGenerationPrompt(tailored.spec);
+    expect(mainPrompt).toContain("do not write a 志望動機");
+    expect(tailoredPrompt).toContain("The FIRST paragraph is the 志望動機, and it is a draft");
+    expect(tailoredPrompt).toContain("Never its name, and never 御社");
+    expect(tailoredPrompt).toContain("claim no requirement the facts do not support");
+    expect(tailoredPrompt).toContain("Do not quote the posting");
+    expect(tailoredPrompt).toContain("the cell is exactly 貴社規定に従います。");
+    expect(tailoredPrompt).not.toContain("do not write a 志望動機");
     await confirmDraft(proposalId, "blk_1", "夜間の精算処理を6時間から90分に短縮しました。");
     await confirmDraft(proposalId, "blk_3", "貴社規定に従います。");
     expect(proposal.drafts).toHaveLength(2);

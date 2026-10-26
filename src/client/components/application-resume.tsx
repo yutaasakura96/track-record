@@ -47,6 +47,7 @@ import { Button, Chip, Panel } from "./ui";
 import { isSendableKind, nameVersions, type TailoredKind } from "~/shared/application-documents";
 import { APPLICATION_NOTE_MAX } from "~/shared/application";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const CARD = "min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-8 content-start";
 const ROW =
@@ -216,6 +217,7 @@ export function ResumePanel({
                     ) : null
                   }
                   missingPhoto={profile.data?.hasPhoto === false}
+                  missingMotivation={document.tailored && document.kind === "rirekisho" && !application.motivationNote?.trim()}
                 />
               ))}
             </ul>
@@ -294,6 +296,7 @@ function DocumentLine({
   onTakeOff,
   notes,
   missingPhoto,
+  missingMotivation,
 }: {
   document: ApplicationDocument;
   canGenerate: boolean;
@@ -306,6 +309,7 @@ function DocumentLine({
   /** A tailored 履歴書's notes, under its line. */
   notes?: ReactNode;
   missingPhoto: boolean;
+  missingMotivation: boolean;
 }) {
   const version = document.currentVersionNo === null ? "No version yet" : `Version ${document.currentVersionNo}`;
   return (
@@ -319,6 +323,7 @@ function DocumentLine({
         {document.kind === "rirekisho" ? (
           <div className="mt-6">
             <GapNotices compact />
+            {missingMotivation ? <p lang="ja" className="text-smaller text-text-secondary">{TAILORED_MOTIVATION_NOTICE}</p> : null}
             {document.tailored && missingPhoto ? (
               <p lang="ja" className="text-smaller text-text-secondary">
                 {PHOTO_NOTICE}{" "}

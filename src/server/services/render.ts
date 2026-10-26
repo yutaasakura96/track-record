@@ -578,6 +578,20 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     ) {
       throw new ModelUnavailableError("The tailored 履歴書 needs a 志望動機 to confirm. Generate it again.");
     }
+    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription) {
+      const kibou = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.kibou);
+      if (!kibou?.blocks.some((block) => block.kind === "paragraph" && block.text.trim())) {
+        const block = {
+          id: `blk_${crypto.randomUUID()}`,
+          kind: "paragraph" as const,
+          text: inputs.spec.application?.kibouNote?.trim() || inputs.spec.desiredRoleNote?.trim() || "貴社規定に従います。",
+          factIds: [],
+          drafted: true as const,
+        };
+        if (kibou) kibou.blocks = [block];
+        else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
+      }
+    }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)

@@ -16,6 +16,7 @@ import { figures, moveTo, type Standing } from "~/shared/application";
 import { mount, Refusal, type Call, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const TODAY = "2026-10-10";
 const ID = "app-test-osprey";
@@ -325,6 +326,13 @@ describe("a tailored 履歴書", () => {
     const resume = await panel();
     expect(resume.getByText((text) => text.includes(PHOTO_NOTICE))).toBeTruthy();
     expect(resume.getByRole("link", { name: "Add a photo" }).getAttribute("href")).toBe("/profile");
+  });
+
+  it("shows the tailored motivation notice only while the application has no reason", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }));
+    const resume = await panel();
+    expect(resume.getByText(TAILORED_MOTIVATION_NOTICE)).toBeTruthy();
   });
 });
 

@@ -38,6 +38,8 @@ import {
 import type { RirekishoPhoto } from "./rirekisho-photo";
 import type { RenderContent } from "~/shared/render-content";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
+export { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 import { explains, gapWarning, type CareerGap, type GapNote } from "~/shared/career-gap";
 
 /**
@@ -294,18 +296,6 @@ export function explainedGaps<N extends GapNote>(record: GapRecord<N>): { gap: C
 export const MOTIVATION_NOTICE =
   "志望動機 is not generated: the record holds no company or posting to write one against. " +
   "The cell states 特技 and アピールポイント; the 志望動機 sentence is yours to add.";
-
-/**
- * What a tailored 履歴書 says instead (`docs/06`, 2026-10-26), and only when
- * the application holds no reason of the author's own. The 志望動機 is then
- * drafted from the posting and the record alone, and the reason it gives for
- * choosing 貴社 is the model's reading of the posting rather than anything the
- * author said. Confirming the draft is the author's to do either way; this
- * says what the draft is made of, so the confirmation is an informed one.
- */
-export const TAILORED_MOTIVATION_NOTICE =
-  "志望動機 is drafted from the posting and your record: the application holds no reason of your own. " +
-  "Confirm it only if it is a reason you would give, or edit it, or add your reason on the application and regenerate.";
 
 /**
  * The unexplained gaps as sentences, Japanese then English, naming the months
