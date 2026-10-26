@@ -11,10 +11,11 @@ import type { Db } from "../db/client";
 import { employers, facts, renderProposals, renderVersions, renders, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import type { Rationale } from "~/diff";
 import type { EmployerNames } from "~/render/attribution";
-import type { Block, RenderContent, RenderKind } from "~/shared/render-content";
+import { RENDER_LANGUAGE, type Block, type RenderContent, type RenderKind } from "~/shared/render-content";
 import { collectRenderInputs } from "./render";
 import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
+import { japaneseAdvisories } from "~/render/japanese";
 import { CREDITS_EXHAUSTED_MESSAGE } from "~/model/types";
 import { CREDITS_REASON } from "./model-credits";
 import { hasProfilePhoto } from "./rirekisho";
@@ -68,8 +69,13 @@ export async function proposalResponse(
     generatedAt: proposal.generatedAt.toISOString(),
     reason: proposal.reason,
     // Advisory and never blocking, and stated HERE as well as on the 202,
-    // because this is the response the review screen reads.
-    warnings: kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, userId) }) : [],
+    // because this is the response the review screen reads. A Japanese
+    // document's register slips are read off the content, so they exist only
+    // once it does.
+    warnings: [
+      ...(kind === "rirekisho" ? rirekishoWarnings(inputs.spec, { hasPhoto: await hasProfilePhoto(db, userId) }) : []),
+      ...(RENDER_LANGUAGE[kind] === "ja" && proposal.generationStatus === "ready" ? japaneseAdvisories(content, inputs.spec) : []),
+    ],
     /**
      * Told when nothing changed, rather than shown an empty diff — a no-op
      * regeneration must not look like a broken screen.

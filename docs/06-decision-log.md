@@ -7690,3 +7690,38 @@ fallback name at the first digit of any kind.
   record does not hold had no identity, and its opening and rows showed as a removal and an addition
   whenever only its period changed. `tests/diff.test.ts` holds the case.
 - **Revisit if:** an opening writes its period in a form neither pattern reads, such as `'21`.
+
+---
+
+### [2026-10-25] Japanese renders are checked before review
+
+The 2026-10-17 entry left Japanese documents without an equivalent of the English check. The
+2026-10-23 review of the Japanese documents (#117, §4.4) found every rule of the three Japanese
+registers enforced by the prompt alone, and English printed in a 職務経歴書: curated skill group
+names copied as given (E1), and a project's English summary after its Japanese プロジェクト label
+(E2).
+
+- **Decision:** `src/render/japanese.ts` checks every Japanese proposal at the place the English
+  check runs. 御社 anywhere and a line in English are defects, retried once and then refused with a
+  plain reason, as `englishDefect` is. 貴社 outside the 履歴書's 本人希望欄, full-width digits, a
+  職務経歴書 bullet over 120 characters and a 職務経歴 bullet ending in です・ます are advisories, read
+  off the stored content when the proposal is read and stated in the review footer beside the
+  履歴書's own warnings.
+- **Decision:** "English" is decided per physical line of each heading or block, then per statement,
+  not as a share. The share the English check uses cannot see E2, a Japanese label followed by one
+  English sentence. A line with no kana or kanji is English when something Latin remains after the
+  record's own terms are taken out, even when another line of the block is Japanese. Otherwise a
+  statement inside the line (split at ：。！？ and the ideographic space, never at 、) is English when
+  it has no kana or kanji and three or more Latin words carrying an English function word. In a
+  statement with kana or kanji, each Latin run between them and brackets (full-width or half-width)
+  is judged alone and is a sentence only at five or more words carrying two or more function words:
+  E2's summary after a Japanese name with an ASCII space is caught, and 「Infrastructure as Code」 or
+  「Software as a Service」 inside Japanese is not. The terms are the record's names, titles held,
+  qualifications, every technology a fact names and the curated skills, but never a skill group's
+  name, which is the label E1 printed.
+- **Decision:** an advisory names the section by the register's own name for it (職務経歴, 本人希望欄)
+  or, for a story chapter, by its place, and counts blocks. It never quotes the document.
+- **Rejected:** blocking on the advisories. Each is a slip the author can see and fix in one word,
+  and a 職務経歴書 refused for one long bullet costs two model calls and a regeneration.
+- **Revisit if:** a legitimate Japanese line trips the English rule (a technology no fact names,
+  printed alone on a line), or the advisories prove common enough to be worth retrying for.

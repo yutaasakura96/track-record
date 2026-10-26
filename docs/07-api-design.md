@@ -986,7 +986,9 @@ beside the draft (`docs/10` Screen 6).
 
 **`warnings`** on the `202` is an array of strings, advisory and never blocking — it never delays or
 prevents the generation it is returned with. Today only 履歴書 produces one, for an unexplained gap
-between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`. The `warnings` on a hand
+between 学歴・職歴 entries (`docs/04` §4); every other kind returns `[]`. The `warnings` on
+`GET /api/proposals/:id` repeat these and, for a Japanese document whose content is ready, add the
+register advisories read off that content (`03` §6). The `warnings` on a hand
 edit's `201` are a different set from a different check, described above, and share only the rule
 that neither ever blocks.
 

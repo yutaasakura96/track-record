@@ -4,7 +4,7 @@ import { createDb } from "~/server/db/client";
 import { applicationSentCopies } from "~/server/db/schema";
 import { readSheet, type Sheet } from "~/render/sheet";
 import { RIREKISHO_PRINT_STORAGE_STATE, E2E_DATABASE_URL } from "./env";
-import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
+import { CLAIM, PROFILE, RIREKISHO_MOTIVATION, SOURCE_FILENAME, SOURCE_TEXT } from "./document-view-fixture";
 
 const evidence = process.env.NO_MISTAKES_EVIDENCE_DIR;
 const capture = async (page: Page, name: string) => {
@@ -73,7 +73,7 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   await page.getByRole("button", { name: "Show where each line comes from" }).click();
   await checkForm(page);
   const proseCell = page.getByRole("article").getByRole("table").nth(3)
-    .getByRole("button", { name: CLAIM, exact: false });
+    .getByRole("button", { name: RIREKISHO_MOTIVATION, exact: false });
   await proseCell.click();
   await expect(proseCell).toHaveAttribute("aria-expanded", "true");
   await expect(page.getByText(SOURCE_TEXT.split("\n")[2]!)).toBeVisible();

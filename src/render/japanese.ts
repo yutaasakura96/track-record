@@ -22,8 +22,10 @@
  * 職務経歴書 has no other way to say which employer it is.
  */
 import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind } from "~/shared/render-content";
+import type { RenderFact, RenderSpec } from "~/model/types";
 import { resolveEmployer } from "./attribution";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
+import { PROSE_SECTION_KEYS } from "./rirekisho";
 
 export type EmploymentType = "full_time" | "contract" | "dispatch" | "part_time" | "independent";
 
@@ -188,3 +190,226 @@ export function asciiFilename(kind: RenderKind, nameLatin: string, today: string
     .replace(/^-+|-+$/g, "");
   return `${kind.replace(/_/g, "-")}_${name ? `${name}_` : ""}${today.replace(/-/g, "")}.${extension}`;
 }
+/**
+ * Is a Japanese document written the way its register says? (Issue #117,
+ * review issue 5.)
+ *
+ * Every rule the three Japanese registers state was enforced by the prompt
+ * alone, and the review that found it also found English printed in a
+ * 職務経歴書: curated skill group names copied as given (E1), and a project's
+ * English summary copied into its プロジェクト row (E2). This is the Japanese
+ * half of `./language.ts`, and like it, a count rather than a judgement.
+ *
+ * Two kinds of finding, because two kinds of mistake:
+ * - a **defect** is a document no Japanese reader should be sent — 御社, or a
+ *   line of English. It is retried once and then refused, exactly as an
+ *   English document in Japanese is.
+ * - an **advisory** is a register slip the author can see and fix in a word —
+ *   a 貴社 where no company is addressed, a full-width digit, a long bullet, a
+ *   です・ます bullet. It is stated in the review footer and never blocks.
+ */
+
+/**
+ * Kana and kanji only. `./language.ts` counts the CJK punctuation and the
+ * full-width forms as Japanese too, which is right for asking whether English
+ * is English and wrong here: 「Languages：」 is still a line of English.
+ */
+const KANA_KANJI = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u;
+
+const LATIN_WORD = /\p{Script=Latin}{2,}/u;
+
+/**
+ * What divides one statement from the next inside a line. 、 is not here,
+ * because it divides the items of a list, and a list of technologies is Latin
+ * by nature.
+ */
+const STATEMENT_BREAK = /[：。！？　]/u;
+
+/**
+ * What divides one run of Latin text from the next inside a statement that
+ * holds Japanese: kana, kanji and brackets, full-width or half-width, so an
+ * abbreviation and its gloss, 「SaaS（Software as a Service）」, are two terms. E2's row was
+ * 「プロジェクト：決済元帳の再構築 Replaced an update-in-place balance table…」:
+ * an English sentence after the Japanese name, with an ASCII space, an
+ * ideographic one or nothing between them.
+ */
+const LATIN_RUN_BREAK = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}（）()]+/u;
+
+/**
+ * Words used to distinguish English prose from Latin terms. A statement
+ * without Japanese needs three Latin words and one of these; a Latin run
+ * beside Japanese needs five words and two.
+ */
+const FUNCTION_WORDS = new Set([
+  "a", "an", "the", "and", "or", "of", "to", "in", "on", "at", "by", "for", "from", "with", "into", "over",
+  "is", "are", "was", "were", "as", "that", "which",
+]);
+
+/** The longest run of Latin words a statement with no Japanese may hold before it is read as an English sentence. */
+const MAX_LATIN_WORDS_IN_JAPANESE = 2;
+
+/**
+ * Beside kana or kanji, a Latin run is a term until it is sentence-length:
+ * 「Software as a Service」 is four words and two function words, E2's summary
+ * fourteen and four.
+ */
+const MIN_SENTENCE_WORDS_BESIDE_JAPANESE = 5;
+const MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE = 2;
+
+const latinWords = (text: string): string[] => (text.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
+
+const functionWordCount = (words: readonly string[]): number => words.filter((w) => FUNCTION_WORDS.has(w)).length;
+
+/**
+ * The 職務経歴書's bound on a bullet, stated by its register. Counted in code
+ * points, which is what a reader counts as characters.
+ */
+export const MAX_SHOKUMU_BULLET_LENGTH = 120;
+
+/** です・ます体 at the end of a sentence, in the forms an experience bullet would take. */
+const DESU_MASU_ENDING = /(?:です|ます|でした|ました|ません|ましょう)[。．.！!]?$/u;
+
+const FULL_WIDTH_DIGIT = /[０-９]/u;
+
+const escaped = (term: string): string => term.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
+
+/**
+ * Everything a Japanese document is right to print in Latin script: the
+ * record's names as it holds them, the titles held, the qualifications, and
+ * every technology a fact or a curated skill names. A skill group's NAME is not
+ * here. It is the label E1 printed in English, and a label is written in the
+ * document's language.
+ */
+export function latinTerms(spec: RenderSpec, facts: readonly Pick<RenderFact, "technologies">[] = []): string[] {
+  const terms = [
+    spec.subjectName,
+    ...spec.employers.flatMap((e) => [e.name, e.city, ...e.roles.map((r) => r.title)]),
+    ...spec.projects.map((p) => p.name),
+    ...spec.educations.flatMap((e) => [e.institution, e.faculty, e.degree, e.fieldOfStudy]),
+    ...spec.certifications.flatMap((c) => [c.name, c.issuingOrganization, ...c.technologies]),
+    ...(spec.curatedSkills ?? []).flatMap((g) => g.skills),
+    ...facts.flatMap((f) => f.technologies),
+  ];
+  // Longest first, so a name containing a shorter one is removed whole.
+  return [...new Set(terms.filter((t): t is string => t !== null && LATIN_WORD.test(t)))].sort((a, b) => b.length - a.length);
+}
+
+const withoutTerms = (text: string, terms: readonly string[]): string =>
+  terms.reduce((t, term) => t.replace(new RegExp(escaped(term), "giu"), " "), text);
+
+/**
+ * A heading or a block written in English, judged one physical line at a
+ * time. Either a line has no kana or kanji and something Latin is left once the record's own terms are taken
+ * out (E1: 「Languages」), or one statement inside it is an English sentence:
+ * three or more Latin words carrying a function word when the statement holds
+ * no Japanese, or a sentence-length run of Latin words beside the Japanese
+ * when it does (E2: a Japanese name, then the summary in English).
+ */
+export function isEnglishLine(text: string, terms: readonly string[]): boolean {
+  return withoutTerms(text, terms).split("\n").some((line) => {
+    if (!KANA_KANJI.test(line) && LATIN_WORD.test(line)) return true;
+    return line.split(STATEMENT_BREAK).some((statement) => {
+      if (!KANA_KANJI.test(statement)) {
+        const words = latinWords(statement);
+        return words.length > MAX_LATIN_WORDS_IN_JAPANESE && functionWordCount(words) > 0;
+      }
+      return statement.split(LATIN_RUN_BREAK).some((run) => {
+        const words = latinWords(run);
+        return (
+          words.length >= MIN_SENTENCE_WORDS_BESIDE_JAPANESE &&
+          functionWordCount(words) >= MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE
+        );
+      });
+    });
+  });
+}
+
+export type JapaneseDefect = "onsha" | "english";
+
+/**
+ * What makes a Japanese document unfit to offer, or null when nothing this
+ * checks does. Headings are checked with the blocks: a heading in English is
+ * as much a leak as a line, and the 職務経歴書's own headings are Japanese.
+ */
+export function japaneseDefect(
+  content: RenderContent,
+  spec: RenderSpec,
+  facts: readonly Pick<RenderFact, "technologies">[] = [],
+): JapaneseDefect | null {
+  const lines = content.sections.flatMap((s) => [s.heading, ...s.blocks.map((b) => b.text)]);
+  // 御社 is the spoken form. No register allows it anywhere.
+  if (lines.some((line) => line.includes("御社"))) return "onsha";
+  const terms = latinTerms(spec, facts);
+  if (lines.some((line) => line.trim() !== "" && isEnglishLine(line, terms))) return "english";
+  return null;
+}
+
+const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
+
+/**
+ * The sections a register fixes, by the name it gives them. A section the
+ * model names itself — a story chapter — is named by its place instead.
+ */
+const SECTION_NAMES: Partial<Record<RenderSpec["kind"], Record<string, string>>> = {
+  rirekisho: { [PROSE_SECTION_KEYS.motivation]: "志望動機・特技・アピールポイントなど", [PROSE_SECTION_KEYS.kibou]: "本人希望欄" },
+  shokumu_keirekisho: {
+    summary: "経歴要約",
+    skills: "活かせるスキル・経験",
+    experience: "職務経歴",
+    certifications: "保有資格",
+    education: "学歴",
+    self_pr: "自己PR",
+  },
+};
+
+/**
+ * The register slips in a Japanese document that do not stop it being offered.
+ * One sentence per finding and section, said in the review footer, stated the
+ * way `rirekishoWarnings` states its own: counts and the register's section
+ * names, never render text.
+ */
+export function japaneseAdvisories(content: RenderContent, spec: RenderSpec): string[] {
+  const advisories: string[] = [];
+  for (const [i, section] of content.sections.entries()) {
+    const texts = [section.heading, ...section.blocks.map((b) => b.text)];
+    const name = SECTION_NAMES[spec.kind]?.[section.key];
+    const where = name === undefined ? `section ${i + 1}` : name;
+    // The 履歴書's 本人希望欄 is the one cell addressed to the company that receives it.
+    const addressed = spec.kind === "rirekisho" && section.key === PROSE_SECTION_KEYS.kibou;
+    if (!addressed && texts.some((t) => t.includes("貴社"))) {
+      advisories.push(`貴社 appears in ${where}. Only the 履歴書's 本人希望欄 addresses a company; check the wording before accepting.`);
+    }
+    if (texts.some((t) => FULL_WIDTH_DIGIT.test(t))) {
+      advisories.push(`Full-width digits in ${where}. Japanese documents write numbers in half-width digits (2024, not ２０２４).`);
+    }
+    if (spec.kind !== "shokumu_keirekisho") continue;
+    const bullets = section.blocks.filter((b) => b.kind === "bullet");
+    const long = bullets.filter((b) => [...b.text.trim()].length > MAX_SHOKUMU_BULLET_LENGTH).length;
+    if (long > 0) {
+      advisories.push(`${plural(long, "bullet", "bullets")} in ${where} ${long === 1 ? "runs" : "run"} over ${MAX_SHOKUMU_BULLET_LENGTH} characters.`);
+    }
+    if (section.key !== "experience") continue;
+    const politeEndings = bullets.filter((b) => DESU_MASU_ENDING.test(b.text.trim())).length;
+    if (politeEndings > 0) {
+      advisories.push(
+        `${plural(politeEndings, "bullet", "bullets")} in ${where} ${politeEndings === 1 ? "ends" : "end"} in です・ます. 職務経歴 bullets are written 体言止め.`,
+      );
+    }
+  }
+  return advisories;
+}
+
+/**
+ * The reason a twice-failed generation is marked failed with. Plain, and about
+ * the document rather than its content: this reaches the proposal row and the
+ * screen, where no render text is shown.
+ */
+export const JAPANESE_DEFECT_REASON: Record<JapaneseDefect, string> = {
+  onsha:
+    "The model wrote 御社, the spoken form, in this Japanese document twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+  english:
+    "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+};
+
+export const MIXED_JAPANESE_DEFECT_REASON =
+  "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Your current version is unchanged; generate again to retry.";
