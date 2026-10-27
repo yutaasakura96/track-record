@@ -7848,3 +7848,38 @@ Decisions:
 - **Revisit if:** an author confirms drafts without reading them, which a review of real proposals
   would show as drafts confirmed unchanged within seconds; or a company asks for a 志望動機 longer
   than the cell's 300 characters, which the layout already holds at four times that.
+
+---
+
+### [2026-10-26] The demo seed finishes the record and seeds every document
+
+The owner could not judge the live site after the 2026-10-26 release: the demo record left flags to
+check, documents never generated and applications with nothing sent, and asked for a record where
+everything is complete so that the only thing left is to test and judge. This supersedes **Renders
+are not seeded** in the 2026-10-17 entry, and answers its Revisit with the fixture it named: one that
+names facts by claim.
+
+- **Decision:** after the import, the seed does what the author would, through the app's routes in
+  its own process (`scripts/demo-seed/app.ts`): rejects the two Generated facts whose figures no
+  passage states, marks the other 12 flags checked, adds an invented drawn photo, explains the one
+  gap, generates and accepts each of the five main documents, and builds each application as the
+  screens do (choose documents, write Northwind's tailored résumé and 履歴書, confirm the 履歴書's
+  志望動機 and 本人希望 drafts, accept both tailored versions, move to Applied, which freezes the chosen
+  documents, then on).
+  Rejected: inserting renders and sent copies directly, which skips the checks a document meets on
+  generation and the freeze a move to Applied makes.
+- **Decision:** the documents' text is written in `scripts/demo-seed/renders.ts`, citing facts by the
+  start of their claim and resolved to ids at generation. It passes through `parseGeneratedRender` and
+  the route's English and Japanese checks; a refused document stops the seed with the route's reason.
+  A cited claim the render was not given also stops it.
+- **Decision:** Kestrel now ends in September 2023, so the record holds one three-month gap and its
+  ※ note, and the 履歴書, the timeline and the stories' routing tables all show an explained gap.
+- **Decision:** the routes date what they write today, so the seed sets each application's
+  `created_at`, `last_activity_at` and its sent copies' `recorded_at` back to the fixture's days
+  afterwards. Steps, sent-on dates and interviews already carry those days. Harbor Ledger stays the
+  one gone quiet: applied with the main résumé 22 days before the run, and nothing since.
+- **Decision:** `npm run db:seed:demo` runs under a Node loader for the `.docx` and `.ttf` imports
+  (`scripts/demo-seed/binary-modules.mjs`), which the Worker build and the suite load as `Data`
+  modules.
+- **Revisit if:** the record's facts change, since the documents name claims and stop the seed when
+  one is missing; or a second persona is wanted.

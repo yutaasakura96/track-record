@@ -42,7 +42,7 @@ async function main(): Promise<void> {
   const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, email)).limit(1);
   if (!user) throw new Error(`No user ${email}. Sign in once (or run npm run dev:session) first.`);
 
-  console.log(JSON.stringify(await seedDemo(db, user.id, process.argv)));
+  console.log(JSON.stringify(await seedDemo(url, user.id, process.argv)));
 }
 
 main().then(

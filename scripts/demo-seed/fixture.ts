@@ -12,13 +12,13 @@ export const PROFILE = {
   givenNameKana: "けんじ",
   nameLatin: "Kenji Moriyama",
   dateOfBirth: "1990-06",
-  gender: null,
+  gender: "男",
   phone: "090-0000-1234",
   email: "kenji.moriyama@example.com",
   postalCode: "100-0000",
   address: "東京都千代田区デモ町1-2-3 サンプルハイツ101",
   addressKana: "とうきょうとちよだくでもちょう1-2-3 さんぷるはいつ101",
-  desiredRoleNote: "バックエンドまたはプラットフォーム領域のスタッフエンジニア職を希望します。",
+  desiredRoleNote: "バックエンドまたはプラットフォーム領域のスタッフエンジニア職を希望します。勤務地は東京都内で、ハイブリッド勤務を希望します。",
   // The English résumé's header (issue #108). Its phone is a second invented
   // number, so a résumé showing the 履歴書 one is visibly wrong. Links stay
   // under example.com, like every other address here.
@@ -136,11 +136,11 @@ export const EMPLOYERS: DemoEmployer[] = [
     headcount: 420,
     employmentType: "full_time",
     startedOn: "2020-07",
-    endedOn: "2023-12",
+    endedOn: "2023-09",
     leavingReasonJa: "一身上の都合により",
     roles: [
       { titleJa: "シニアソフトウェアエンジニア", titleLatin: "Senior Software Engineer", shokushuJa: "フロントエンド／バックエンドエンジニア", startedOn: "2020-07", endedOn: "2021-03" },
-      { titleJa: "テックリード", titleLatin: "Tech Lead, Checkout", shokushuJa: "テックリード", startedOn: "2021-04", endedOn: "2023-12" },
+      { titleJa: "テックリード", titleLatin: "Tech Lead, Checkout", shokushuJa: "テックリード", startedOn: "2021-04", endedOn: "2023-09" },
     ],
     projects: [
       {
@@ -173,6 +173,13 @@ export const EMPLOYERS: DemoEmployer[] = [
     projects: [],
   },
 ];
+
+/**
+ * The months between Kestrel and Solaris, which no 学歴・職歴 row covers, and
+ * the author's note on them: the 履歴書 prints it as a ※ row, and the career
+ * stories ask about the gap with it as the answer.
+ */
+export const GAP_NOTE = { fromOn: "2023-10", toOn: "2023-12", text: "前職退職後、家族の転居に伴う引っ越しと転職活動のため" };
 
 /** Work outside employment: the English résumé's PROJECTS section. */
 export const INDEPENDENT_PROJECTS = [
@@ -308,6 +315,15 @@ export interface DemoApplication {
    * run, so a reset in any month shows the same timeline, list order and `gone quiet`.
    */
   addedDaysAgo: number;
+  /**
+   * The documents chosen for it while it was Not applied. Moving it to Applied
+   * freezes each as the copy sent, as the screen does.
+   */
+  documents: ("english_resume" | "rirekisho" | "shokumu_keirekisho")[];
+  /** Write a résumé for this posting, and send it with the documents above. */
+  tailoredResume: boolean;
+  /** Draft both cells of an application-specific 履歴書 before sending it. */
+  tailoredRirekisho?: { motivationNote: string; kibouNote: string };
   /** Steps reached, in order, with the day each happened (days, not months). */
   steps: { status: "applied" | "resume_passed" | "interview_1" | "interview_2" | "interview_final" | "offer" | "rejected" | "withdrawn"; daysAgo: number }[];
   interviews: { daysAgo: number; round: "interview_1" | "interview_2" | "interview_final" | "other"; who: string; howItWent: string; questions: string[] }[];
@@ -321,6 +337,12 @@ export const APPLICATIONS: DemoApplication[] = [
     jobDescription: PLATFORM_JD,
     requirements: ["8+ years in production systems", "Kubernetes, Terraform, Azure", "Led a migration end to end", "Business English and Japanese"],
     addedDaysAgo: 25,
+    documents: ["rirekisho", "shokumu_keirekisho"],
+    tailoredResume: true,
+    tailoredRirekisho: {
+      motivationNote: "医療サービスを支える基盤の信頼性を高め、開発チームが安全に変更を届けられる環境を作りたいと考え、応募しました。",
+      kibouNote: "スタッフプラットフォームエンジニア職を希望します。勤務地は東京都内を希望します。",
+    },
     steps: [
       { status: "applied", daysAgo: 25 },
       { status: "resume_passed", daysAgo: 18 },
@@ -349,6 +371,8 @@ export const APPLICATIONS: DemoApplication[] = [
     jobDescription: FINTECH_JD,
     requirements: ["5+ years backend, payments or fintech", "Go or Kotlin, PostgreSQL, Kafka", "Double-entry ledgers"],
     addedDaysAgo: 22,
+    documents: ["english_resume"],
+    tailoredResume: false,
     steps: [{ status: "applied", daysAgo: 22 }],
     interviews: [],
   },
@@ -359,6 +383,8 @@ export const APPLICATIONS: DemoApplication[] = [
     jobDescription: ECOMMERCE_JD,
     requirements: ["Led a frontend or full-stack team", "React and TypeScript", "Web performance results", "Business Japanese"],
     addedDaysAgo: 60,
+    documents: ["rirekisho", "shokumu_keirekisho"],
+    tailoredResume: false,
     steps: [
       { status: "applied", daysAgo: 60 },
       { status: "resume_passed", daysAgo: 53 },
@@ -386,6 +412,8 @@ export const APPLICATIONS: DemoApplication[] = [
     jobDescription: DATA_JD,
     requirements: ["Python, SQL, dbt", "Azure or GCP data lake", "Healthcare data"],
     addedDaysAgo: 2,
+    documents: ["english_resume"],
+    tailoredResume: false,
     steps: [],
     interviews: [],
   },

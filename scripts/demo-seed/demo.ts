@@ -8,15 +8,20 @@
  * seam that returns the candidates written beside each document. So a reset
  * costs nothing, needs no API key, and produces the same record every time.
  *
- * Renders are NOT seeded: a résumé is the model's work, and generating one is
- * the step a demo is for.
+ * Then the record is finished the way the author would finish it, through the
+ * app's own routes (`./app.ts`): the flags looked at, the two figures the model
+ * invented ruled out, the photo added, the gap explained, every document
+ * generated and accepted, and each application given the documents it sends.
+ * Generation runs the real route with a scripted seam too (`./renders.ts`), so
+ * every check a document meets on generation runs here. Nothing is left
+ * waiting for the owner.
  *
  * The user row, its sessions and its Google account link are kept, so the
  * person stays signed in. Everything the user owns is deleted first, children
  * before parents (see RESET_ORDER; the order is the foreign keys', `docs/12` §5a).
  */
 import { and, eq, sql } from "drizzle-orm";
-import type { Db } from "~/server/db/client";
+import { createDb, type Db } from "~/server/db/client";
 import * as s from "~/server/db/schema";
 import { newId } from "~/server/http/ids";
 import { extractUpload } from "~/pipeline/text";
@@ -24,6 +29,7 @@ import { runImport } from "~/pipeline/import";
 import { ModelUnavailableError, type CandidateFact, type ModelSeam } from "~/model/types";
 import { settleRepeats } from "~/server/services/repeats";
 import { classifyClaim } from "~/pipeline/flags";
+import { RENDER_KINDS } from "~/shared/render-content";
 import { assertRecordingsGone } from "./guard";
 import {
   APPLICATIONS,
@@ -31,11 +37,16 @@ import {
   CERTIFICATIONS,
   EDUCATIONS,
   EMPLOYERS,
+  GAP_NOTE,
   INDEPENDENT_PROJECTS,
   PROFILE,
   SKILL_GROUPS,
+  type DemoApplication,
 } from "./fixture";
 import { DOCUMENTS } from "./documents";
+import { demoApp, type DemoCall } from "./app";
+import { demoPhoto } from "./photo";
+import { generateDemoRender } from "./renders";
 
 /** Every table a user owns, children first. Users, sessions, accounts and verifications are kept. */
 export const RESET_ORDER = [
@@ -68,14 +79,17 @@ export const RESET_ORDER = [
 
 const month = (value: string | null) => (value ? `${value}-01` : null);
 
-/** A model that reads nothing: it returns the candidates written beside the document. */
+/**
+ * A model that reads nothing: it returns the candidates written beside the
+ * document, and the documents written in `./renders.ts`.
+ */
 function scriptedSeam(candidates: CandidateFact[]): ModelSeam {
   const refuse = async (): Promise<never> => {
     throw new ModelUnavailableError("The demo seed has no model.");
   };
   return {
     extractFacts: async (body) => candidates.filter((candidate) => body.includes(candidate.quote)),
-    generateRender: refuse,
+    generateRender: async (facts, spec) => generateDemoRender(facts, spec),
     gradeFacts: refuse,
     explainFlag: refuse,
     readPosting: refuse,
@@ -124,13 +138,18 @@ export interface DemoCounts {
   facts: number;
   flags: number;
   skills: number;
+  /** Accepted document versions: the five documents and Northwind's two tailored ones. */
+  renderVersions: number;
   applications: number;
+  /** The documents the applications past Not applied were sent with. */
+  sentCopies: number;
   interviews: number;
 }
 
 /** Resets `userId` to the demo record and returns what it now holds. */
-export async function seedDemo(db: Db, userId: string, flags: readonly string[] = []): Promise<DemoCounts> {
+export async function seedDemo(databaseUrl: string, userId: string, flags: readonly string[] = []): Promise<DemoCounts> {
   assertQuotesVerbatim();
+  const db = createDb(databaseUrl);
   await resetUser(db, userId, flags);
 
   await db.insert(s.profiles).values({
@@ -301,57 +320,14 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
     }
   }
 
-  const today = new Date();
-  const ago = (days: number) => new Date(today.getTime() - days * 86_400_000);
-  const dayInTokyo = (days: number) => new Date(ago(days).getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
-  for (const application of APPLICATIONS) {
-    const id = newId("application");
-    const reached = application.steps.filter((step) => step.status !== "rejected" && step.status !== "withdrawn");
-    const closed = application.steps.find((step) => step.status === "rejected" || step.status === "withdrawn");
-    const lastActivityDaysAgo = Math.min(
-      application.addedDaysAgo,
-      ...application.steps.map((step) => step.daysAgo),
-      ...application.interviews.map((interview) => interview.daysAgo),
-    );
-    await db.insert(s.applications).values({
-      id,
-      userId,
-      company: application.company,
-      position: application.position,
-      postingUrl: application.postingUrl,
-      jobDescription: application.jobDescription,
-      requirements: application.requirements,
-      currentStep: reached.at(-1)?.status ?? "not_applied",
-      closedAs: closed?.status ?? null,
-      lastActivityAt: ago(lastActivityDaysAgo),
-      createdAt: ago(application.addedDaysAgo),
-    });
-    const steps = [{ status: "not_applied" as const, daysAgo: application.addedDaysAgo }, ...application.steps];
-    for (const step of steps) {
-      await db.insert(s.applicationSteps).values({
-        id: newId("applicationStep"),
-        userId,
-        applicationId: id,
-        status: step.status,
-        happenedOn: dayInTokyo(step.daysAgo),
-      });
-    }
-    for (const interview of application.interviews) {
-      const interviewId = newId("interview");
-      await db.insert(s.interviews).values({
-        id: interviewId,
-        userId,
-        applicationId: id,
-        happenedOn: dayInTokyo(interview.daysAgo),
-        round: interview.round,
-        who: interview.who,
-        howItWent: interview.howItWent,
-      });
-      for (const [position, text] of interview.questions.entries()) {
-        await db.insert(s.interviewQuestions).values({ id: newId("interviewQuestion"), userId, interviewId, position, text });
-      }
-    }
-  }
+  const [user] = await db
+    .select({ id: s.users.id, email: s.users.email, name: s.users.name })
+    .from(s.users)
+    .where(eq(s.users.id, userId));
+  const call = demoApp(databaseUrl, user!, scriptedSeam([]));
+  await finishRecord(call);
+  for (const kind of RENDER_KINDS) await generateAndAccept(call, kind);
+  for (const application of APPLICATIONS) await addApplication(db, call, userId, application, now);
 
   const count = async (table: (typeof RESET_ORDER)[number]) =>
     (await db.select({ n: sql<number>`count(*)::int` }).from(table).where(eq(table.userId, userId)))[0]?.n ?? 0;
@@ -363,7 +339,122 @@ export async function seedDemo(db: Db, userId: string, flags: readonly string[] 
     facts: await count(s.facts),
     flags: await count(s.factFlags),
     skills: await count(s.skillCurations),
+    renderVersions: await count(s.renderVersions),
     applications: await count(s.applications),
+    sentCopies: await count(s.applicationSentCopies),
     interviews: await count(s.interviews),
   };
+}
+
+/**
+ * What the author does with what the import left. A figure the model wrote
+ * that no passage states (a Generated fact) is ruled out; every other flag was
+ * looked at and the fact stands as it is, Private where it names a client, a
+ * person or an address. Then the 履歴書 photo, and the note on the gap.
+ */
+async function finishRecord(call: DemoCall): Promise<void> {
+  type Flags = { items: { id: string; fact: { id: string; provenance: string } }[] };
+  const flagged = await call<Flags>("GET", "/api/flags");
+  const invented = new Set(flagged.items.filter((flag) => flag.fact.provenance === "generated").map((flag) => flag.fact.id));
+  for (const id of invented) await call("POST", `/api/facts/${id}/reject`);
+  for (const flag of (await call<Flags>("GET", "/api/flags")).items) await call("POST", `/api/flags/${flag.id}/check`);
+  await call("PUT", "/api/profile/photo", demoPhoto());
+  await call("POST", "/api/gap-notes", { fromOn: month(GAP_NOTE.fromOn), toOn: month(GAP_NOTE.toOn), text: GAP_NOTE.text });
+}
+
+/** Generate, then accept: a document with a first version, as Home's Generate and Diff Review leave it. */
+async function generateAndAccept(call: DemoCall, ref: string): Promise<void> {
+  const { proposalId } = await call<{ proposalId: string }>("POST", `/api/renders/${ref}/generate`);
+  const proposal = await call<{ generationStatus: string; error: unknown }>("GET", `/api/proposals/${proposalId}`);
+  if (proposal.generationStatus !== "ready") {
+    throw new Error(`${ref} was not generated: ${JSON.stringify(proposal.error)}`);
+  }
+  await call("POST", `/api/proposals/${proposalId}/accept`);
+}
+
+const isClosed = (status: string) => status === "rejected" || status === "withdrawn";
+
+/**
+ * One application as the screens build it: pasted, its documents chosen (and
+ * its own documents written, where it has them), then moved to Applied on its own,
+ * which freezes those documents as sent that day, then on to where it stands.
+ * The routes date what they write today, so the times a list is ordered and
+ * `gone quiet` is counted by are set back to the fixture's days afterwards.
+ */
+async function addApplication(db: Db, call: DemoCall, userId: string, application: DemoApplication, now: Date): Promise<void> {
+  const ago = (days: number) => new Date(now.getTime() - days * 86_400_000);
+  const day = (days: number) => new Date(ago(days).getTime() + 9 * 3_600_000).toISOString().slice(0, 10);
+
+  const { id } = await call<{ id: string }>("POST", "/api/applications", {
+    company: application.company,
+    position: application.position,
+    jobDescription: application.jobDescription,
+    postingUrl: application.postingUrl,
+    requirements: application.requirements,
+  });
+  if (application.tailoredResume) {
+    const detail = await call<{ documents: { ref: string; kind: string; tailored: boolean }[] }>("POST", `/api/applications/${id}/tailored/english_resume`);
+    await generateAndAccept(call, detail.documents.find((document) => document.tailored && document.kind === "english_resume")!.ref);
+  }
+  await call("PUT", `/api/applications/${id}/documents`, { documents: application.documents });
+  if (application.tailoredRirekisho) {
+    await call("PATCH", `/api/applications/${id}`, application.tailoredRirekisho);
+    const detail = await call<{ documents: { ref: string; kind: string; tailored: boolean }[] }>("POST", `/api/applications/${id}/tailored/rirekisho`);
+    const ref = detail.documents.find((document) => document.tailored && document.kind === "rirekisho")!.ref;
+    const { proposalId } = await call<{ proposalId: string }>("POST", `/api/renders/${ref}/generate`);
+    const proposal = await call<{ generationStatus: string; error: unknown; drafts: { blockId: string; sectionKey: string; text: string }[] }>("GET", `/api/proposals/${proposalId}`);
+    if (proposal.generationStatus !== "ready") throw new Error(`${ref} was not generated: ${JSON.stringify(proposal.error)}`);
+    for (const sectionKey of ["motivation", "kibou"]) {
+      const draft = proposal.drafts.find((item) => item.sectionKey === sectionKey);
+      if (!draft) throw new Error(`${ref} has no ${sectionKey} draft to confirm.`);
+      await call("POST", `/api/proposals/${proposalId}/drafts/${draft.blockId}`, { text: draft.text });
+    }
+    await call("POST", `/api/proposals/${proposalId}/accept`);
+  }
+
+  const dates: Record<string, string> = { not_applied: day(application.addedDaysAgo) };
+  const [applied, ...later] = application.steps;
+  if (applied) {
+    if (applied.status !== "applied") throw new Error(`${application.company}: the first step is Applied.`);
+    dates.applied = day(applied.daysAgo);
+    await call("PUT", `/api/applications/${id}/standing`, { step: "applied", closedAs: null, dates });
+  }
+  if (later.length > 0) {
+    for (const step of later) dates[step.status] = day(step.daysAgo);
+    const closed = later.find((step) => isClosed(step.status));
+    const reached = application.steps.filter((step) => !isClosed(step.status)).at(-1)!;
+    await call("PUT", `/api/applications/${id}/standing`, { step: reached.status, closedAs: closed?.status ?? null, dates });
+  }
+
+  for (const interview of application.interviews) {
+    const interviewId = newId("interview");
+    await db.insert(s.interviews).values({
+      id: interviewId,
+      userId,
+      applicationId: id,
+      happenedOn: day(interview.daysAgo),
+      round: interview.round,
+      who: interview.who,
+      howItWent: interview.howItWent,
+    });
+    for (const [position, text] of interview.questions.entries()) {
+      await db.insert(s.interviewQuestions).values({ id: newId("interviewQuestion"), userId, interviewId, position, text });
+    }
+  }
+
+  const lastActivityDaysAgo = Math.min(
+    application.addedDaysAgo,
+    ...application.steps.map((step) => step.daysAgo),
+    ...application.interviews.map((interview) => interview.daysAgo),
+  );
+  await db.batch([
+    db
+      .update(s.applications)
+      .set({ createdAt: ago(application.addedDaysAgo), lastActivityAt: ago(lastActivityDaysAgo) })
+      .where(and(eq(s.applications.userId, userId), eq(s.applications.id, id))),
+    db
+      .update(s.applicationSentCopies)
+      .set({ recordedAt: ago(applied?.daysAgo ?? application.addedDaysAgo) })
+      .where(and(eq(s.applicationSentCopies.userId, userId), eq(s.applicationSentCopies.applicationId, id))),
+  ]);
 }
