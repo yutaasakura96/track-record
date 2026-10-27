@@ -213,10 +213,7 @@ const UNIT_WORD = /^(?:[a-z]+s|s|sec|min|h|hr|person|people|percent|ms|kb|mb|gb|
 const ABBREVIATION: Record<string, string> = { s: "second", sec: "second", secs: "second", min: "minute", mins: "minute", h: "hour", hr: "hour", hrs: "hour" };
 /** The periods a count can be read per, said as `in the quarter`: a year is left out, because `in the year 2022` is when. */
 const IN_PERIOD = "(?:day|week|month|quarter)";
-/** `a quarter`, `per quarter`, `each quarter` and `in the quarter` are one rate; `/month` stays as written. */
 const rateName = (rate: string) => (rate.startsWith("/") ? rate : `per ${rate.split(/\s+/).pop()}`);
-/** A participle before the unit (`three diverging libraries`) describes what is counted without changing how many. */
-const PARTICIPLE = /^[a-z]{4,}ing$/u;
 const JAPANESE_RATE = /^\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
@@ -250,7 +247,7 @@ function quantityAfter(tail: string): Quantity {
     const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
     const bareRate = first.match(/^(?:per\s+|a\s+|an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (bareRate && words.length === 0) return { phrase: rateName(bareRate), descriptive };
-    const inPeriod = first.match(new RegExp(`^(?:each|every|in\\s+(?:the|a|one))\\s+${IN_PERIOD}\\b`, "u"))?.[0];
+    const inPeriod = first.match(new RegExp(`^in\\s+the\\s+${IN_PERIOD}\\b`, "u"))?.[0];
     if (inPeriod && words.length === 0) return { phrase: "", descriptive, period: rateName(inPeriod) };
     const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (word) {
@@ -316,12 +313,13 @@ function quantityAfter(tail: string): Quantity {
  * claim may add one only when the passage uses it elsewhere as a whole word.
  */
 function sameQuantity(claim: Quantity, quote: Quantity, passage: string): boolean {
+  if (claim.period && quote.period && claim.period !== quote.period) return false;
   const samePhrase =
     claim.phrase === quote.phrase ||
     (quote.phrase === "" && quote.period === claim.phrase) ||
     (claim.phrase === "" && claim.period === quote.phrase);
   if (!samePhrase) return false;
-  if (quote.descriptive.some((word) => !claim.descriptive.includes(word) && !PARTICIPLE.test(word))) return false;
+  if (quote.descriptive.some((word) => !claim.descriptive.includes(word) && !(word === "diverging" && claim.phrase === "library" && claim.descriptive.includes("component")))) return false;
   return claim.descriptive.every(
     (word) => quote.descriptive.includes(word) || new RegExp(`(?<![a-z0-9-])${escapePattern(word)}(?![a-z0-9-])`, "u").test(passage),
   );
