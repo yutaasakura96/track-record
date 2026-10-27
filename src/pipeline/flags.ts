@@ -235,7 +235,6 @@ const PERCENTAGE_OF_PREFIX = new RegExp(`^\\s+of\\s+(?:(?:${DETERMINER}|${MODIFI
 interface Quantity {
   phrase: string;
   descriptive: string[];
-  /** The rate of an `in the quarter`, which says when and is not the unit: it matches no phrase, or the same rate written `a quarter`. */
   period?: string;
 }
 
@@ -313,12 +312,7 @@ function quantityAfter(tail: string): Quantity {
  * claim may add one only when the passage uses it elsewhere as a whole word.
  */
 function sameQuantity(claim: Quantity, quote: Quantity, passage: string): boolean {
-  if (claim.period && quote.period && claim.period !== quote.period) return false;
-  const samePhrase =
-    claim.phrase === quote.phrase ||
-    (quote.phrase === "" && quote.period === claim.phrase) ||
-    (claim.phrase === "" && claim.period === quote.phrase);
-  if (!samePhrase) return false;
+  if ((claim.period ?? claim.phrase) !== (quote.period ?? quote.phrase)) return false;
   if (quote.descriptive.some((word) => !claim.descriptive.includes(word) && !(word === "diverging" && claim.phrase === "library" && claim.descriptive.includes("component")))) return false;
   return claim.descriptive.every(
     (word) => quote.descriptive.includes(word) || new RegExp(`(?<![a-z0-9-])${escapePattern(word)}(?![a-z0-9-])`, "u").test(passage),
