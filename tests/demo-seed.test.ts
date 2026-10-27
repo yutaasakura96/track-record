@@ -140,7 +140,7 @@ const COUNTS = (user: string) => ({
   projects: 5,
   documents: 7,
   facts: 59,
-  flags: 16,
+  flags: 9,
   skills: 21,
   renderVersions: 7,
   applications: 4,
@@ -166,7 +166,7 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
 
   // The two figures no passage states are ruled out; every other flag was looked at.
   const flags = await as.json<{ counts: { open: number; checked: number } }>("/api/flags");
-  expect(flags.counts).toEqual({ open: 0, checked: 12 });
+  expect(flags.counts).toEqual({ open: 0, checked: 5 });
   const facts = await db.select({ status: s.facts.status, provenance: s.facts.provenance }).from(s.facts).where(eq(s.facts.userId, userId));
   expect(facts.filter((f) => f.status === "rejected")).toEqual([
     { status: "rejected", provenance: "generated" },
