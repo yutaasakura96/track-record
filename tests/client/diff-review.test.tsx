@@ -246,14 +246,37 @@ describe("a failed generation", () => {
     open(failed());
 
     expect(await screen.findByText(/Your current version is unchanged and still readable\./)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Download the current version" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download the current version PDF" })).toBeTruthy();
+  });
+
+  it("proposes no version and gives no reason once generation has failed", async () => {
+    open(failed({ reason: "Generated for the first time", basedOnVersionNo: null, proposedVersionNo: 1 }));
+
+    await screen.findByText("This document could not be generated.");
+    expect(screen.queryByText(/proposed v/)).toBeNull();
+    expect(screen.queryByText("Generated for the first time")).toBeNull();
+  });
+
+  it("proposes no version and gives no reason when regenerating changed nothing", async () => {
+    open(proposal({ unchanged: true, reason: "Regenerated" }));
+
+    await screen.findByText("Already up to date with your record.");
+    expect(screen.queryByText(/proposed v/)).toBeNull();
+    expect(screen.queryByText("Regenerated")).toBeNull();
+  });
+
+  it("still names the version a pending proposal would become", async () => {
+    open(proposal({ reason: "Regenerated" }));
+
+    expect(await screen.findByText("proposed v4")).toBeTruthy();
+    expect(screen.getByText("Regenerated")).toBeTruthy();
   });
 
   it("promises no current version on a first generation", async () => {
     open(failed({ basedOnVersionNo: null, proposedVersionNo: 1 }));
 
     expect(await screen.findByText(/Nothing was saved, and your record is unchanged\./)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Download the current version" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download the current version PDF" })).toBeNull();
     expect(screen.queryByText(/still readable/)).toBeNull();
   });
 });
@@ -300,7 +323,7 @@ describe("the other states", () => {
   it("shows a decided proposal as decided, and sends nothing", async () => {
     const { api } = open(proposal({ status: "dismissed" }));
 
-    expect(await screen.findByText("Proposal dismissed — v3 kept")).toBeTruthy();
+    expect(await screen.findByText("Proposal dismissed — it was written against v3")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Accept proposed version" })).toBeNull();
     expect(api.writes()).toEqual([]);
   });

@@ -610,7 +610,7 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     const reason =
       err instanceof ModelUnavailableError
         ? err.message
-        : "This document could not be generated. Your current version is unchanged.";
+        : "This document could not be generated.";
     await db
       .update(renderProposals)
       .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })

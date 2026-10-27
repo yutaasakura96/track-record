@@ -611,9 +611,9 @@ describe("the file", () => {
 
 describe("the file name", () => {
   it("is <First>-<Last>-Resume-<YYYY-MM>, in the month the version was accepted in Tokyo", () => {
-    expect(resumeFilename("Mika Tanabe", "docx", new Date("2026-10-31T16:00:00Z"))).toBe("Mika-Tanabe-Resume-2026-11.docx");
-    expect(resumeFilename("Zoë  O'Brien-Smith", "md", new Date("2026-10-10T00:00:00Z"))).toBe("Zoe-OBrien-Smith-Resume-2026-10.md");
-    expect(resumeFilename("田辺", "docx", new Date("2026-10-10T00:00:00Z"))).toBe("Resume-2026-10.docx");
+    expect(resumeFilename("Mika Tanabe", "docx", new Date("2026-10-31T16:00:00Z"))).toBe("Mika-Tanabe-Resume-2026-11-01.docx");
+    expect(resumeFilename("Zoë  O'Brien-Smith", "md", new Date("2026-10-10T00:00:00Z"))).toBe("Zoe-OBrien-Smith-Resume-2026-10-10.md");
+    expect(resumeFilename("田辺", "docx", new Date("2026-10-10T00:00:00Z"))).toBe("Resume-2026-10-10.docx");
   });
 
   it("writes months as words, never numerically", () => {

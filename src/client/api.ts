@@ -503,7 +503,7 @@ export interface EditResult {
 export interface VersionHistory {
   renderKind: RenderKind;
   renderRef: string;
-  /** The document's name: a main document's title, or `Résumé for …`. */
+  /** The document's name: a main document's title, or `Tailored résumé for …`. */
   title: string;
   tailored: boolean;
   buildable: boolean;
@@ -523,6 +523,8 @@ export interface ProposalRow {
   generatedAt: string;
   decidedAt: string | null;
   reason: string | null;
+  /** It said the same as the version it was written against: there is no diff to open. */
+  noChange: boolean;
 }
 
 export interface DiffChange {

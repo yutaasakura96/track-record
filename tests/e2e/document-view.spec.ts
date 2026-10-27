@@ -84,8 +84,8 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await traceToggle.click();
   await expect(article.getByRole("button", { name: CLAIM, exact: false })).toHaveCount(0);
   await expect(page.getByText("v1", { exact: true })).toBeVisible();
-  for (const name of ["Download", "History", "Edit", "Regenerate"]) {
-    await expect(page.getByRole(name === "Download" || name === "Regenerate" ? "button" : "link", { name, exact: true })).toBeVisible();
+  for (const name of ["Download PDF", "History", "Edit", "Regenerate"]) {
+    await expect(page.getByRole(name === "Download PDF" || name === "Regenerate" ? "button" : "link", { name, exact: true })).toBeVisible();
   }
   await screenshot(page, "reader-desktop-light.png");
 
@@ -96,7 +96,7 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await ready(article.getByText(CLAIM, { exact: false })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.getByRole("button", { name: "Download", exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download PDF", exact: true }).first()).toBeVisible();
   for (const name of ["History", "Edit", "Regenerate", "Home"]) {
     await expect(page.getByRole(name === "Regenerate" ? "button" : "link", { name, exact: true })).toHaveCount(0);
   }

@@ -245,7 +245,7 @@ describe("making a tailored 履歴書 from an application", () => {
     const japaneseHistory = await client.json<{ title: string }>(`/api/renders/${japanese}/versions`);
     const englishHistory = await client.json<{ title: string }>(`/api/renders/${english}/versions`);
     expect(japaneseHistory.title).toBe("Tailored 履歴書 for Harrowgate Marine");
-    expect(englishHistory.title).toBe("Résumé for Harrowgate Marine");
+    expect(englishHistory.title).toBe("Tailored résumé for Harrowgate Marine");
     const { proposal } = await generate(japanese, tailoredContent());
     expect(proposal.title).toBe("Tailored 履歴書 for Harrowgate Marine");
     // A first version's diff carries a preview, which refuses experience
@@ -259,9 +259,9 @@ describe("making a tailored 履歴書 from an application", () => {
       }],
     };
     const englishProposal = await generate(english, englishContent);
-    expect(englishProposal.proposal.title).toBe("Résumé for Harrowgate Marine");
+    expect(englishProposal.proposal.title).toBe("Tailored résumé for Harrowgate Marine");
     const diff = await client.json<{ preview: { title: string } }>(`/api/proposals/${englishProposal.proposalId}/diff`);
-    expect(diff.preview.title).toBe("Résumé for Harrowgate Marine");
+    expect(diff.preview.title).toBe("Tailored résumé for Harrowgate Marine");
     // Two tailored documents, an acceptance and three generations: past the
     // default test timeout on a busy local proxy.
   }, 60_000);

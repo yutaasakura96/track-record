@@ -11,6 +11,7 @@
  */
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
+import { documentFilename } from "./filename";
 import { documentAuthor, documentDate, identityLines, isDated, type RenderIdentity } from "./identity";
 
 export const DOCX_MIME =
@@ -104,11 +105,13 @@ export async function toDocx(
 }
 
 /**
- * `shokumu-keirekisho-2026-08-12.docx` — dated, so a downloaded file names its
- * own vintage. The English résumé, main or tailored, is named for its author
- * instead (`resumeFilename` in `./resume.ts`).
+ * `Kenji-Moriyama-Career-Story-EN-2026-08-12.md` — named for its author and
+ * dated, so a downloaded file names its own vintage (`documentFilename`).
  */
-export function downloadFilename(kind: string, extension: string, date: Date): string {
-  // ASCII only: the name goes in a `content-disposition` header.
-  return `${kind.replace(/_/g, "-")}-${date.toISOString().slice(0, 10)}.${extension}`;
+export function downloadFilename(kind: string, nameLatin: string, extension: string, date: Date): string {
+  const label = kind
+    .split("_")
+    .map((part) => (part === "en" || part === "ja" ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join("-");
+  return documentFilename(label, nameLatin, date.toISOString().slice(0, 10), extension);
 }

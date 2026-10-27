@@ -183,7 +183,7 @@ describe("the résumé for a job in a window too narrow for every screen", () =>
       [`GET ${AT}`]: application({ documents: [TAILORED, waiting] }),
     });
     const resume = await panel();
-    expect(resume.getAllByRole("button", { name: "Download" })).toHaveLength(2);
+    expect(resume.getAllByRole("button", { name: "Download PDF" })).toHaveLength(2);
     expect(resume.getByRole("button", { name: `Take off ${TAILORED.title}` })).toBeTruthy();
     expect(resume.queryByRole("link", { name: "History" })).toBeNull();
     expect(resume.queryByRole("button", { name: "Regenerate" })).toBeNull();

@@ -74,7 +74,7 @@ function Notice({ copy }: { copy: SentCopyPage }) {
         </span>
         <span className="ml-auto max-phone:ml-0 flex items-center gap-8">
           <Button variant="ghost" onClick={() => void download()} disabled={busy} disabledReason="Preparing…">
-            {busy ? "Preparing…" : "Download"}
+            {busy ? "Preparing…" : "Download Word"}
           </Button>
           <Link
             to="/applications/$applicationId"

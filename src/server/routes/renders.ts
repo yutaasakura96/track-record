@@ -255,22 +255,36 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
             generatedAt: renderProposals.generatedAt,
             decidedAt: renderProposals.decidedAt,
             reason: renderProposals.reason,
+            content: renderProposals.content,
+            basedOnVersionId: renderProposals.basedOnVersionId,
           })
           .from(renderProposals)
           .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.renderId, target.render.id)))
           .orderBy(desc(renderProposals.generatedAt))
       : [];
 
+    // Whether the proposal said the same as the version it was written
+    // against. Judged against THAT version, not today's current one, so a later
+    // version does not turn a real proposal into a "no change" one.
+    const noChange = await Promise.all(
+      rows.map(async (row) => {
+        if (row.generationStatus !== "ready") return false;
+        const basedOn = await currentContent(db, user.id, row.basedOnVersionId);
+        return basedOn !== null && JSON.stringify(basedOn) === JSON.stringify(row.content);
+      }),
+    );
+
     return c.json({
       renderKind: target.kind,
       renderRef: target.ref,
-      items: rows.map((row) => ({
+      items: rows.map((row, index) => ({
         id: row.id,
         status: row.status,
         generationStatus: row.generationStatus,
         generatedAt: row.generatedAt.toISOString(),
         decidedAt: row.decidedAt?.toISOString() ?? null,
         reason: row.reason,
+        noChange: noChange[index]!,
       })),
     });
   });

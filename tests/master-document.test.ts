@@ -365,7 +365,7 @@ describe("the career record as a file", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("text/markdown; charset=utf-8");
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="career-record-en-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Career-Record-EN-\d{4}-\d{2}-\d{2}\.md"$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const file = await response.text();
@@ -421,7 +421,7 @@ describe("the career record as a file", () => {
     const response = await client.get("/api/master-document/download?language=ja");
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="career-record-ja-\d{4}-\d{2}-\d{2}\.md"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Career-Record-JA-\d{4}-\d{2}-\d{2}\.md"$/);
     expect(response.headers.get("cache-control")).toBe("no-store");
 
     const file = await response.text();

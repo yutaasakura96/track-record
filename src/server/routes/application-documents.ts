@@ -440,9 +440,10 @@ async function withSheet(db: Db, userId: string, copy: { id: string; kind: strin
   }
 }
 
-/** `rirekisho_20261023.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
+/** `Rirekisho-2026-10-23.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
 function asciiCopyName(kind: string, filename: string): string {
-  const date = /_(\d{8})\.[a-z]+$/.exec(filename)?.[1];
+  const date = /_(\d{4})(\d{2})(\d{2})\.[a-z]+$/.exec(filename);
   const extension = /\.([a-z]+)$/.exec(filename)?.[1] ?? "docx";
-  return `${kind.replace(/_/g, "-")}${date ? `_${date}` : ""}.${extension}`;
+  const label = kind.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("-");
+  return `${label}${date ? `-${date[1]}-${date[2]}-${date[3]}` : ""}.${extension}`;
 }

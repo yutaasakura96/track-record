@@ -86,6 +86,11 @@ const backLabel = (proposal: Pick<Proposal, "applicationId">) =>
   proposal.applicationId ? "Back to the application" : "Back to your record";
 
 function Header({ proposal }: { proposal: Proposal }) {
+  // Only a proposal there is something to decide on has a version it proposes
+  // and a reason it was generated; a failed or no-op one proposes nothing.
+  const proposesVersion =
+    proposal.generationStatus === "generating" || (proposal.generationStatus === "ready" && !proposal.unchanged && proposal.status !== "dismissed");
+  const showsReason = proposal.generationStatus !== "failed" && !proposal.unchanged;
   return (
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
       {/* This screen has no sidebar, so the way out is here: back to where the
@@ -109,9 +114,13 @@ function Header({ proposal }: { proposal: Proposal }) {
       <span className="text-panel font-semibold tracking-snug text-text-strong">
         {proposal.title}
       </span>
-      <Chip className="ml-4">proposed v{proposal.proposedVersionNo}</Chip>
+      {proposesVersion ? (
+        <Chip className="ml-4">
+          {proposal.status === "accepted" ? `v${proposal.proposedVersionNo}` : `proposed v${proposal.proposedVersionNo}`}
+        </Chip>
+      ) : null}
       <div className="ml-auto flex items-center gap-10">
-        {proposal.reason ? (
+        {proposal.reason && showsReason ? (
           <span className="text-smaller text-text-dimmer">{proposal.reason}</span>
         ) : null}
         {/* Specced in this header since `docs/10` Screen 2 and only now
@@ -279,12 +288,12 @@ function Decided({ proposal }: { proposal: Proposal }) {
             ? `Proposal accepted — saved as v${proposal.proposedVersionNo}`
             : proposal.basedOnVersionNo === null
               ? "Draft discarded — nothing was saved"
-              : `Proposal dismissed — v${proposal.basedOnVersionNo} kept`}
+              : `Proposal dismissed — it was written against v${proposal.basedOnVersionNo}`}
         </p>
         <p className="mt-8 text-ui text-text-dim">
           {accepted
             ? "Every earlier version is retained."
-            : "Your stored version is exactly as it was. The dismissed proposal is retained."}
+            : "Nothing was saved from it. The dismissed proposal is retained."}
         </p>
         <div className="mt-20">
           <Button variant="primary" onClick={() => void leave()}>

@@ -24,6 +24,7 @@
 import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind, type RenderSection } from "~/shared/render-content";
 import type { RenderFact, RenderSpec } from "~/model/types";
 import { resolveEmployer } from "./attribution";
+import { documentFilename } from "./filename";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
 import { PROSE_SECTION_KEYS } from "./rirekisho";
 
@@ -181,14 +182,10 @@ export function japaneseFilename(kind: RenderKind, nameKanji: string, today: str
   return `${RENDER_TITLE[kind]}_${name ? `${name}_` : ""}${today.replace(/-/g, "")}.${extension}`;
 }
 
-/** The ASCII name sent beside it, for a client that cannot read `filename*` (RFC 6266 §4.3). */
+/** The ASCII name sent beside it, for a client that cannot read `filename*` (RFC 6266 §4.3): `Kenji-Moriyama-Rirekisho-2026-10-23.pdf`. */
 export function asciiFilename(kind: RenderKind, nameLatin: string, today: string, extension: string): string {
-  const name = nameLatin
-    .normalize("NFKD")
-    .replace(/[^\x20-\x7e]/g, "")
-    .replace(/[^A-Za-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${kind.replace(/_/g, "-")}_${name ? `${name}_` : ""}${today.replace(/-/g, "")}.${extension}`;
+  const label = kind.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("-");
+  return documentFilename(label, nameLatin, today, extension);
 }
 /**
  * Is a Japanese document written the way its register says? (Issue #117,
@@ -434,9 +431,9 @@ export function japaneseAdvisories(content: RenderContent, spec: RenderSpec): st
  */
 export const JAPANESE_DEFECT_REASON: Record<JapaneseDefect, string> = {
   onsha:
-    "The model wrote 御社, the spoken form, in this Japanese document twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote 御社, the spoken form, in this Japanese document twice, so it was not offered for review. Generate again to retry.",
   english:
-    "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Generate again to retry.",
 };
 
 /** Where on the record screen a row of the 職務経歴書's own sections is kept. */
@@ -459,11 +456,11 @@ export function recordRowDefectReason(
       if (defect === null) continue;
       const found = defect === "onsha" ? "contains 御社, the spoken form" : "is in English";
       const name = SECTION_NAMES.shokumu_keirekisho?.[section.key] ?? section.heading;
-      return `Row ${i + 1} of ${name} comes from your record and ${found}, so this document was not generated. Correct that entry under ${RECORD_SCREEN_SECTION[section.key] ?? name} on your record, then generate it. Your current version is unchanged.`;
+      return `Row ${i + 1} of ${name} comes from your record and ${found}, so this document was not generated. Correct that entry under ${RECORD_SCREEN_SECTION[section.key] ?? name} on your record, then generate it.`;
     }
   }
   return null;
 }
 
 export const MIXED_JAPANESE_DEFECT_REASON =
-  "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Your current version is unchanged; generate again to retry.";
+  "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Generate again to retry.";

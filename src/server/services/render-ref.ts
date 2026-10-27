@@ -12,6 +12,7 @@ import { and, eq, getTableColumns, isNotNull, isNull, type SQL } from "drizzle-o
 import type { Db } from "../db/client";
 import { applications, renders } from "../db/schema";
 import { notFound } from "../http/errors";
+import { tailoredDocumentTitle } from "~/shared/application-documents";
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
 
 export interface RenderRef {
@@ -34,11 +35,10 @@ export const mainRender = (userId: string, kind: RenderKind): SQL =>
 
 /**
  * What a tailored document is called wherever a main document's title would
- * stand. A 履歴書 says what it is (`docs/06`, 2026-10-26): "Tailored 履歴書 for
- * Kestrel" in Diff Review is the only way to tell it from the main one there.
+ * stand: the one name an application gives it, "Tailored résumé for Kestrel"
+ * or "Tailored 履歴書 for Kestrel" (`docs/06`, 2026-10-26 and 2026-10-28).
  */
-export const tailoredTitle = (kind: string, label: string | null) =>
-  kind === "rirekisho" ? `Tailored 履歴書 for ${label ?? "a job"}` : `Résumé for ${label ?? "a job"}`;
+export const tailoredTitle = (kind: string, label: string | null) => tailoredDocumentTitle(kind, label ?? "a job");
 
 /**
  * A miss is a 404 either way, and so is another user's id: the read is

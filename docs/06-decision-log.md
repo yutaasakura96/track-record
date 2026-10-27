@@ -7934,3 +7934,24 @@ part of this.
   bare count or a different period. The period aliases `each` and `every` are excluded.
 - **Reason:** a broader exception would treat `5 engineering reports` as evidence for `5 reports`,
   or a count in one period as evidence for another. `tests/flag-rules.test.ts` holds these boundaries.
+
+---
+
+### [2026-10-28] Usability-check polish: names, downloads, skill suggestions, history links
+
+- **Decision:** a tailored document has one name wherever a title stands: `Tailored résumé for <company>`
+  or `Tailored 履歴書 for <company>` (`tailoredDocumentTitle`). The review header and history used
+  `Résumé for <company>` for the résumé, so one document had three names.
+- **Decision:** every download is named `<Name>-<Document>-<YYYY-MM-DD>.<ext>` in ASCII
+  (`src/render/filename.ts`): `Kenji-Moriyama-Resume-2026-10-27.pdf`, `…-Career-Story-EN-…md`,
+  `…-Career-Record-EN-…md`. A Japanese document keeps its Japanese name (`履歴書_森山健二_20261027.pdf`)
+  and the same ASCII pattern is its `filename`. The résumé's name was month-dated and the stories carried
+  no name. Contents of the files are unchanged.
+- **Decision:** a download control names the format it saves (`Download PDF`, `Download Markdown`,
+  `Download Word`), the second format keeps its own label (`Word`).
+- **Decision:** a skill suggestion weights each fact beside it by how few facts name the neighbour
+  (`1 / facts`) and needs a total of 0.5, then falls to the single group sharing the most employers
+  (none on a tie); there is no "largest group" fallback. Raw counts sent every skill to the languages
+  group, which is named beside everything, and a tie fell to the earlier group. A skill with no
+  evidence gets no suggestion.
+  Supersedes the suggested-group rules of 2026-10-23 (employer, then largest group).

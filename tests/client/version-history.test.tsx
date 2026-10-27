@@ -50,6 +50,7 @@ const DISMISSED: ProposalRow = {
   generatedAt: "2026-09-05T00:00:00.000Z",
   decidedAt: "2026-09-05T01:00:00.000Z",
   reason: null,
+  noChange: false,
 };
 
 const DIFF: RenderDiff = {
@@ -140,6 +141,15 @@ describe("the history", () => {
     expect(within(await row("v2, edited by hand")).getByText("Edited from v1")).toBeTruthy();
     expect(screen.getByText("DISMISSED · not a version")).toBeTruthy();
     expect(screen.getByText("3 versions · current v3")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "View diff" })).toBeTruthy();
+  });
+
+  it("offers no diff for a regeneration that said the same thing", async () => {
+    open({ [`GET /api/proposals?kind=${KIND}`]: { items: [{ ...DISMISSED, noChange: true }] } });
+
+    await row("v2, edited by hand");
+    expect(await screen.findByText("NO CHANGES · not a version")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "View diff" })).toBeNull();
   });
 
   it("opens the preview on Enter from a row, without restoring", async () => {
@@ -284,14 +294,14 @@ describe("a download", () => {
     const { api, user } = open({ [DOWNLOAD_V1]: answer });
 
     const v1 = await row("v1, accepted · from a proposal");
-    await user.click(within(v1).getByRole("button", { name: /^Download$/ }));
+    await user.click(within(v1).getByRole("button", { name: "Download PDF" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe(said);
     expect(toneOf(screen.getByRole("alert"))).toBe("text-secondary");
     expect(api.calls.some((c) => `${c.method} ${c.path}` === DOWNLOAD_V1)).toBe(true);
     expect(api.writes()).toEqual([]);
     // The control is usable again rather than stuck on "Preparing…".
-    expect(within(v1).getByRole("button", { name: /^Download$/ })).toBeTruthy();
+    expect(within(v1).getByRole("button", { name: "Download PDF" })).toBeTruthy();
   });
 });
 
