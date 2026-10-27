@@ -364,6 +364,8 @@ Every change states where it came from. This is PRD S6 (traceability) at the poi
 - `Removed — the supporting fact is unverified (Generated) and is never rendered`
 - `From 1 restricted fact · Restricted, so check the wording names no client or system` — it says
   where the change came from and what to look for; nothing checks the wording itself
+- `Drafted for you · from the posting and N facts · confirm or edit it below`, or `Drafted for you
+  from the posting · confirm or edit it below` — a tailored 履歴書's drafted part (2026-10-26)
 
 A change with no explanation is a defect.
 
@@ -375,6 +377,29 @@ A change with no explanation is a defect.
 - Advisory warnings from the proposal response appear here, one line each. For Japanese documents
   these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
+  The one part confirmed piece by piece is a draft (below), and Accept waits for it.
+
+### Drafted for you · 2026-10-26
+
+A tailored 履歴書's 志望動機 and 本人希望欄 are drafted for the author: the record says neither why
+they want the job nor what they would ask for. While a proposal holds a draft, a region labelled
+**Drafted for you** sits between the body and the footer, at most the rail's height and scrolling
+inside itself, on both the diff and the first-version body:
+
+- Heading `Drafted for you: N parts to confirm`, then `Your record does not say why you want this job
+  or what you would ask for, so these were drafted from the posting, your record and any notes you
+  wrote on the application. Confirm each one as it is, or change it to what you would say. It is your
+  履歴書: accepting waits until every part is yours.`
+- One dashed card per draft, in document order: the cell's name as the form prints it
+  (`志望動機・特技・アピールポイントなど`, `本人希望欄`) and `Draft · not confirmed`, a Japanese text
+  area holding the draft, and **`Confirm as written`** (secondary). Once the text differs from the
+  draft the button is **`Save my wording`** (primary), beside `Put the draft back` (bare). A mono
+  character count follows. An empty text disables the button, with the reason; a refusal is said in
+  the card.
+- A confirmed draft leaves the region and the body shows the confirmed text. The region goes when
+  none is left.
+- **`Accept` is disabled while any draft is left**, with the reason `Confirm or edit each drafted
+  part first.` Discarding or keeping the current version is not held.
 
 ### First version (v0 → v1)
 
@@ -1724,12 +1749,23 @@ says `Reopened at <step>.`
 
 #### Résumé for this job · #71
 
-**With no document, at Not applied**, two cards side by side:
+**With no document, at Not applied**, three cards, two to a row and one at phone width:
 
 - **`Make a tailored résumé`**: `Written for this job from the same facts as your main résumé. The
   job description decides what leads and what is left out; it never adds a claim that is not in
-  your record. You read it as a set of changes before it becomes a version. English only for now.`
-  and the button of that name (primary).
+  your record. You read it as a set of changes before it becomes a version.` and the button of that
+  name (primary). The "English only for now" line went on 2026-10-26.
+- **`Make a tailored 履歴書`** (2026-10-26): `The same form as your main 履歴書, from the same record,
+  with a 志望動機 written to this company. Your reason for applying and your request are drafted
+  from the posting and your record unless you write your own below, and you confirm or edit each
+  before it becomes a version.`, and before Applied `It replaces the main 履歴書 on this
+  application.` Two optional fields, `Why you are applying, in your own words (optional)` (hint: `It
+  leads the 志望動機. Left empty, a reason is drafted from the posting and your record for you to
+  confirm.`) and `What you would ask for in 本人希望欄 (optional)` (hint: `The role as the posting
+  names it, or a condition you need. Left empty, one is drafted for you to confirm.`), each up to
+  400 characters, and the button **`Make a tailored 履歴書`** (primary). In a window too narrow for
+  Diff Review the button is **`Save your notes`** and the card adds `Making it opens its review,
+  which needs a wider window. Your notes are kept for then.`
 - **`Use a document you already have`**: `Tick the ones you are sending. A Japanese application
   usually sends 履歴書 and 職務経歴書 together.` Three ticks, `Main résumé`, `履歴書`, `職務経歴書`,
   each noted `<English|日本語> · version N, the one current today`, and **`Use the ticked
@@ -1737,21 +1773,30 @@ says `Reopened at <step>.`
 
 **With documents**, a row each:
 
-- The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
-  this job`, or `Version N · the same document as on Home`.
+- The title, `Tailored résumé for <company>` or `Tailored 履歴書 for <company>` for a tailored one.
+  Under it `Version N · written for this job`, or `Version N · the same document as on Home`. On
+  either 履歴書 row, the gaps in its 学歴・職歴 table, as View says them. On a tailored 履歴書, a line
+  saying whose words lead its drafts (`No notes of yours: its reason and request are drafted for
+  you.`, `One note of yours leads its draft.` or `Your two notes lead its drafts.`) and `Your notes`
+  (bare), which opens the two fields in place with **`Save your notes`** and `Saved notes are used
+  the next time you regenerate it.`; it works at phone width.
 - `View` (Screen 17), `History` (Screen 5) and `Download` (the current version), as links;
   `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
-  was taken off and generates only when it has neither a version nor a proposal waiting, and `Add a document you
-  already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
+  was taken off and generates only when it has neither a version nor a proposal waiting;
+  `Make a tailored 履歴書` (ghost, `Notes for a tailored 履歴書` in a narrow window) while there is
+  none, which opens its card in place; and `Add a document you already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
   opens the tick card in place, with `Cancel`. Before Applied the card is the one above, ticked
   with what is on the application, and saving it takes off what was unticked. From Applied onward
   it is headed `Record another sent copy`, reads `Tick what you sent. Each one is frozen as it is
   today, as a further copy, whether or not it was sent before.`, starts with nothing ticked, and
   its button is **`Record the ticked documents`**. From Applied onward the card lists every document
   the owner could have sent: the three, whether or not they are on the application or were sent
-  before, and the application's tailored résumé when it has one, as a fourth tick.
+  before, and each of the application's tailored documents when it has one, as a further tick.
+  **Before Applied, the main 履歴書's tick is disabled while the tailored 履歴書 is on the
+  application**, noted `This application has its own 履歴書, written for this job. Take that one
+  off to use this one.`
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row for every
@@ -1765,7 +1810,14 @@ copy, earlier copies of the same document included, most recently recorded first
   the résumé's name). Accept or Reject returns here. A tailored résumé with no version yet has
   `Generate` where `Regenerate` would be, and one with a proposal waiting has `Review changes`. Screens 5 and 6 serve it as they did. Screen
   11's Rules hold word for word.
-- **An application holds at most one tailored résumé**, and any of the three documents beside it.
+- **An application holds at most one tailored résumé and one tailored 履歴書**, and any of the three
+  documents beside them.
+- **Before Applied an application sends one 履歴書** (2026-10-26). Making the tailored one takes the
+  main one off, and the flash says `履歴書 is off this application now: it has its own 履歴書.` From
+  Applied onward either may be recorded as sent.
+- **Making a tailored 履歴書 is the same flow.** The two notes are saved on the application first;
+  Diff Review is titled `Tailored 履歴書 for <company>` and lists its drafts (Screen 2). Its download
+  is named as the main 履歴書's is, `履歴書_<氏名>_<YYYYMMDD>`, with no company.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
   own. Its sent date follows a correction of the reached step's date when that change froze it,

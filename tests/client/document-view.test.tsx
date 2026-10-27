@@ -13,6 +13,7 @@ import type { RenderPage, RenderRow } from "~/client/api";
 import type { FactEvidence } from "~/shared/evidence";
 import { mount, Refusal, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const KIND = "english_resume";
 const PAGE = `GET /api/renders/${KIND}/page`;
@@ -41,6 +42,7 @@ const view = (over: Partial<RenderPage> = {}): RenderPage => ({
   language: "en",
   tailored: false,
   applicationId: null,
+  motivationNote: null,
   document: DOCUMENT,
   canGenerate: true,
   version: { id: "ver-test-3", versionNo: 3, origin: "accepted", acceptedAt: "2026-09-03T00:00:00.000Z", isCurrent: true },
@@ -67,6 +69,16 @@ const open = (path = `/renders/${KIND}/view`, routes: Routes = {}) =>
   mount(path, { [PAGE]: view(), ...routes });
 
 const notice = async () => within((await screen.findByText("v3")).parentElement!);
+
+it("shows the tailored motivation notice only without an application reason", async () => {
+  const tailored = view({
+    renderKind: "rirekisho", renderRef: "rnd-test-ja", language: "ja", tailored: true,
+    applicationId: "app-test", motivationNote: null,
+    page: { ...view().page, sheet: RIREKISHO_SHEET },
+  });
+  mount("/renders/rnd-test-ja/view", { "GET /api/renders/rnd-test-ja/page": tailored });
+  expect(await screen.findByText(TAILORED_MOTIVATION_NOTICE)).toBeTruthy();
+});
 
 describe("the page", () => {
   it("shows the document as its download holds it, under its version and date", async () => {

@@ -28,6 +28,7 @@ import { absolute } from "../format";
 import { BY_HAND, WORTH_WORDS, type FactEvidence } from "~/shared/evidence";
 import { PHOTO_NOTICE } from "~/shared/photo";
 import { sheetHasPhoto } from "~/render/sheet";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 export function DocumentViewScreen() {
   const { ref } = useParams({ from: "/renders/$ref/view" });
@@ -76,6 +77,9 @@ export function DocumentViewScreen() {
           accepting the document does not close one (issue #117, G1). Every
           version's tables are today's, so every version says them. */}
       {data.renderKind === "rirekisho" ? <GapNotices /> : null}
+      {data.renderKind === "rirekisho" && data.tailored && !data.motivationNote?.trim() ? (
+        <p lang="ja" className="text-smaller text-text-secondary">{TAILORED_MOTIVATION_NOTICE}</p>
+      ) : null}
       {/* The 写真 cell is read out of the file, so this says what the download holds. */}
       {data.page.sheet && data.renderKind === "rirekisho" && !sheetHasPhoto(data.page.sheet) ? (
         <p lang="ja" className="text-smaller text-text-secondary">

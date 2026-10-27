@@ -38,6 +38,8 @@ import {
 import type { RirekishoPhoto } from "./rirekisho-photo";
 import type { RenderContent } from "~/shared/render-content";
 import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
+export { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 import { explains, gapWarning, type CareerGap, type GapNote } from "~/shared/career-gap";
 
 /**
@@ -312,17 +314,25 @@ export function gapWarnings(record: GapRecord): string[] {
  * screen is where the decision is taken.
  *
  * The gaps come first because a gap is a finding about THIS record and may not
- * be there next time; the 志望動機 notice is unconditional and true of every
- * 履歴書 this tool will ever produce. The photo notice is last, and only there
+ * be there next time; the 志望動機 notice is true of every main 履歴書, and of a
+ * tailored one whose application holds no reason of the author's. The photo notice is last, and only there
  * while the profile has no photo: most employers still expect one where the
  * form has a cell, and an author who never opens Word would otherwise send the
  * empty box.
  */
 export function rirekishoWarnings(
   record: GapRecord,
-  { hasPhoto }: { hasPhoto: boolean },
+  {
+    hasPhoto,
+    tailored = null,
+  }: {
+    hasPhoto: boolean;
+    /** Set for a tailored 履歴書: whether its application holds the author's reason. */
+    tailored?: { motivationNote: string | null } | null;
+  },
 ): string[] {
-  return [...gapWarnings(record), MOTIVATION_NOTICE, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
+  const motivation = !tailored ? [MOTIVATION_NOTICE] : tailored.motivationNote?.trim() ? [] : [TAILORED_MOTIVATION_NOTICE];
+  return [...gapWarnings(record), ...motivation, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
 }
 
 /* -------------------------------------------------------------- assembly */

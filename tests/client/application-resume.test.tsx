@@ -15,6 +15,8 @@ import type { Application, ApplicationDocument, DocumentChoice, Proposal, SentCo
 import { figures, moveTo, type Standing } from "~/shared/application";
 import { mount, Refusal, type Call, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const TODAY = "2026-10-10";
 const ID = "app-test-osprey";
@@ -47,6 +49,7 @@ const choicesOf = (on: ApplicationDocument[], offered: ApplicationDocument[] = [
   [...on.filter((item) => item.tailored), ...offered.filter((item) => !item.tailored)].map((item) => ({
     ...item,
     onApplication: on.some((other) => other.ref === item.ref),
+    heldBy: null,
   }));
 
 const copy = (of: ApplicationDocument, sentOn: string, over: Partial<SentCopy> = {}): SentCopy => ({
@@ -70,6 +73,8 @@ const application = (standing: Standing, over: Partial<Application> = {}): Appli
   ...figures(standing, "2026-10-06", TODAY),
   requirements: [],
   jobDescription: "Backend engineer for the osprey grid telemetry service.",
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: choicesOf([]),
   sentCopies: [],
@@ -98,7 +103,11 @@ describe("choosing a résumé, before Applied", () => {
 
     expect(screen.getByText(/choose the résumé for this job: make a tailored one, or use a document you already have\./)).toBeTruthy();
     expect(resume.getByRole("heading", { name: "Make a tailored résumé" })).toBeTruthy();
-    expect(resume.getByText(/English only for now\./)).toBeTruthy();
+    expect(resume.queryByText(/English only for now/)).toBeNull();
+    // The 履歴書 is tailored beside it, with the author's two notes.
+    expect(resume.getByRole("heading", { name: "Make a tailored 履歴書" })).toBeTruthy();
+    expect(resume.getByLabelText(/Why you are applying/)).toBeTruthy();
+    expect(resume.getByLabelText(/What you would ask for in 本人希望欄/)).toBeTruthy();
     expect(resume.getByRole("heading", { name: "Use a document you already have" })).toBeTruthy();
     expect(resume.getByText("English · version 7, the one current today")).toBeTruthy();
     expect(resume.getByText("日本語 · version 6, the one current today")).toBeTruthy();
@@ -164,20 +173,20 @@ describe("choosing a résumé, before Applied", () => {
   it("makes a tailored résumé: stores it on the application, generates, and opens its review", async () => {
     const unwritten = document({ ...OWN, currentVersionId: null, currentVersionNo: null, status: "never_generated" });
     const { api, user, pathname } = open(application(NOT_APPLIED), {
-      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [unwritten], choices: choicesOf([unwritten]) }),
+      [`POST ${AT}/tailored/english_resume`]: application(NOT_APPLIED, { documents: [unwritten], choices: choicesOf([unwritten]) }),
       [`POST /api/renders/${TAILORED}/generate`]: { proposalId: "prop-test-own" },
     });
 
     await user.click((await panel()).getByRole("button", { name: "Make a tailored résumé" }));
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-own"));
-    expect(api.writes()).toEqual([`POST ${AT}/tailored-resume`, `POST /api/renders/${TAILORED}/generate`]);
+    expect(api.writes()).toEqual([`POST ${AT}/tailored/english_resume`, `POST /api/renders/${TAILORED}/generate`]);
   });
 
   it("keeps the tailored résumé on the application when generating is refused, with the reason", async () => {
     const unwritten = document({ ...OWN, currentVersionId: null, currentVersionNo: null, status: "never_generated" });
     const { user, pathname } = open(application(NOT_APPLIED), {
-      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [unwritten], choices: choicesOf([unwritten]) }),
+      [`POST ${AT}/tailored/english_resume`]: application(NOT_APPLIED, { documents: [unwritten], choices: choicesOf([unwritten]) }),
       [`POST /api/renders/${TAILORED}/generate`]: new Refusal(428, "precondition_required", "There are no accepted facts to generate from yet."),
     });
     const resume = await panel();
@@ -194,27 +203,27 @@ describe("choosing a résumé, before Applied", () => {
 
   it("puts back a tailored résumé that has a version without generating, and stays on the application", async () => {
     const { api, user, pathname } = open(application(NOT_APPLIED), {
-      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) }),
+      [`POST ${AT}/tailored/english_resume`]: application(NOT_APPLIED, { documents: [OWN], choices: choicesOf([OWN]) }),
     });
     const resume = await panel();
     await user.click(resume.getByRole("button", { name: "Make a tailored résumé" }));
 
     expect(await resume.findByRole("button", { name: "Regenerate" })).toBeTruthy();
-    expect(api.writes()).toEqual([`POST ${AT}/tailored-resume`]);
+    expect(api.writes()).toEqual([`POST ${AT}/tailored/english_resume`]);
     expect(pathname()).toBe(`/applications/${ID}`);
   });
 
   it("puts back a tailored résumé whose first proposal is waiting without generating, and refuses nothing", async () => {
     const waiting = document({ ...OWN, currentVersionId: null, currentVersionNo: null, pendingProposalId: "prop-test-own" });
     const { api, user, pathname } = open(application(NOT_APPLIED), {
-      [`POST ${AT}/tailored-resume`]: application(NOT_APPLIED, { documents: [waiting], choices: choicesOf([waiting]) }),
+      [`POST ${AT}/tailored/english_resume`]: application(NOT_APPLIED, { documents: [waiting], choices: choicesOf([waiting]) }),
     });
     const resume = await panel();
     await user.click(resume.getByRole("button", { name: "Make a tailored résumé" }));
 
     await waitFor(() => expect(resume.queryByRole("button", { name: "Make a tailored résumé" })).toBeNull());
     expect(resume.getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/proposals/prop-test-own");
-    expect(api.writes()).toEqual([`POST ${AT}/tailored-resume`]);
+    expect(api.writes()).toEqual([`POST ${AT}/tailored/english_resume`]);
     expect(resume.queryByRole("alert")).toBeNull();
     expect(pathname()).toBe(`/applications/${ID}`);
   });
@@ -230,6 +239,100 @@ describe("choosing a résumé, before Applied", () => {
 
     await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-own-2"));
     expect(api.writes()).toEqual([`POST /api/renders/${TAILORED}/generate`]);
+  });
+});
+
+/**
+ * A tailored 履歴書 (`docs/06`, 2026-10-26): made from its card with the
+ * author's two optional notes, and the application's one 履歴書 before Applied.
+ */
+describe("a tailored 履歴書", () => {
+  const OWN_RIREKISHO = document({
+    ref: "rnd-test-osprey-ja",
+    kind: "rirekisho",
+    tailored: true,
+    title: "Tailored 履歴書 for Osprey Grid",
+    language: "ja",
+    currentVersionId: null,
+    currentVersionNo: null,
+    status: "never_generated",
+  });
+
+  it("saves the notes, stores it, generates, and opens its review", async () => {
+    const { api, user, pathname } = open(application(NOT_APPLIED), {
+      [`PATCH ${AT}`]: application(NOT_APPLIED, { motivationNote: "送電網の監視に関わりたいからです。" }),
+      [`POST ${AT}/tailored/rirekisho`]: {
+        ...application(NOT_APPLIED, { documents: [OWN_RIREKISHO], choices: choicesOf([OWN_RIREKISHO]) }),
+        replaced: [],
+      },
+      [`POST /api/renders/${OWN_RIREKISHO.ref}/generate`]: { proposalId: "prop-test-ja" },
+    });
+    const resume = await panel();
+
+    await user.type(resume.getByLabelText(/Why you are applying/), "送電網の監視に関わりたいからです。");
+    await user.click(resume.getByRole("button", { name: "Make a tailored 履歴書" }));
+
+    await waitFor(() => expect(pathname()).toBe("/proposals/prop-test-ja"));
+    expect(api.writes()).toEqual([`PATCH ${AT}`, `POST ${AT}/tailored/rirekisho`, `POST /api/renders/${OWN_RIREKISHO.ref}/generate`]);
+    expect(api.bodyOf("PATCH", AT)).toEqual({ motivationNote: "送電網の監視に関わりたいからです。", kibouNote: null });
+  });
+
+  it("makes one with no notes without writing them, and says the main 履歴書 came off", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    const { api, user } = open(application(NOT_APPLIED, { documents: [RIREKISHO], choices: choicesOf([RIREKISHO]) }), {
+      [`POST ${AT}/tailored/rirekisho`]: {
+        ...application(NOT_APPLIED, {
+          documents: [written],
+          choices: choicesOf([written]).map((choice) => (choice.ref === "rirekisho" ? { ...choice, heldBy: "This application has its own 履歴書, written for this job. Take that one off to use this one." } : choice)),
+        }),
+        replaced: ["履歴書"],
+      },
+    });
+    const resume = await panel();
+    await user.click(resume.getByRole("button", { name: "Make a tailored 履歴書" }));
+    await user.click(within(resume.getByRole("heading", { name: "Make a tailored 履歴書" }).closest("div")!).getByRole("button", { name: "Make a tailored 履歴書" }));
+
+    expect(await screen.findByText("履歴書 is off this application now: it has its own 履歴書.")).toBeTruthy();
+    expect(api.writes()).toEqual([`POST ${AT}/tailored/rirekisho`]);
+    expect(resume.getByText("Version 1 · written for this job")).toBeTruthy();
+
+    // The tick card holds the main 履歴書 back, and says why.
+    await user.click(resume.getByRole("button", { name: "Add a document you already have" }));
+    const main = resume.getByRole("checkbox", { name: /^履歴書/ }) as HTMLInputElement;
+    expect(main.disabled).toBe(true);
+    expect(resume.getByText("This application has its own 履歴書, written for this job. Take that one off to use this one.")).toBeTruthy();
+  });
+
+  it("keeps the notes editable under its line, saved without regenerating", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    const { api, user } = open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }), {
+      [`PATCH ${AT}`]: application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]), kibouNote: "週3日の出社を希望します。" }),
+    });
+    const resume = await panel();
+    expect(resume.getByText("No notes of yours: its reason and request are drafted for you.")).toBeTruthy();
+    await user.click(resume.getByRole("button", { name: "Your notes" }));
+    await user.type(resume.getByLabelText(/What you would ask for in 本人希望欄/), "週3日の出社を希望します。");
+    await user.click(resume.getByRole("button", { name: "Save your notes" }));
+
+    await waitFor(() => expect(api.writes()).toEqual([`PATCH ${AT}`]));
+    expect(api.bodyOf("PATCH", AT)).toEqual({ motivationNote: null, kibouNote: "週3日の出社を希望します。" });
+  });
+
+  it("shows the tailored 履歴書 photo notice when the profile has no photo", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }), {
+      "GET /api/profile": { id: "profile-test-1", hasPhoto: false },
+    });
+    const resume = await panel();
+    expect(resume.getByText((text) => text.includes(PHOTO_NOTICE))).toBeTruthy();
+    expect(resume.getByRole("link", { name: "Add a photo" }).getAttribute("href")).toBe("/profile");
+  });
+
+  it("shows the tailored motivation notice only while the application has no reason", async () => {
+    const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
+    open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }));
+    const resume = await panel();
+    expect(resume.getByText(TAILORED_MOTIVATION_NOTICE)).toBeTruthy();
   });
 });
 
@@ -607,6 +710,7 @@ describe("the review of a tailored résumé", () => {
     generatedAt: "2026-10-10T00:00:00.000Z",
     reason: null,
     warnings: [],
+    drafts: [],
     unchanged: false,
     withheld: { privateFactCount: 0, generatedFactCount: 0 },
   };

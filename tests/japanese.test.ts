@@ -243,6 +243,37 @@ describe("advisories", () => {
     expect(japaneseAdvisories(shokumu, spec())).toEqual([expect.stringContaining("自己PR")]);
   });
 
+  /**
+   * A tailored 履歴書 (`docs/06`, 2026-10-26). Its 志望動機 is written to the
+   * company, so 貴社 there is correct, and the company's own name there is what
+   * is worth a word: named by its section, the name itself never quoted. 御社
+   * stays a defect. The company is INVENTED.
+   */
+  it("pass 貴社 in a tailored 履歴書's 志望動機, name the company's name there, and keep 御社 a defect", () => {
+    const rirekisho = (motivation: string, kibou = "貴社規定に従います。") =>
+      doc(
+        { key: "motivation", heading: "志望動機・特技・アピールポイントなど", blocks: [block("paragraph", motivation)] },
+        { key: "kibou", heading: "本人希望欄", blocks: [block("paragraph", kibou)] },
+      );
+    const application = { company: "架空物流株式会社", position: "", requirements: [], motivationNote: null, kibouNote: null };
+    const tailored = spec({ kind: "rirekisho", jobDescription: "決済基盤のエンジニアを募集します。", application });
+
+    expect(japaneseAdvisories(rirekisho("貴社の決済基盤に、運用改善の経験で貢献したいと考え志望しました。"), tailored)).toEqual([]);
+
+    const named = japaneseAdvisories(rirekisho("架空物流株式会社の決済基盤に貢献したいと考えました。"), tailored);
+    expect(named).toEqual([
+      "The company's name appears in 志望動機・特技・アピールポイントなど. A 履歴書 calls the company it is sent to 貴社; check the wording before accepting.",
+    ]);
+    expect(named.join(" ")).not.toContain(application.company);
+    expect(
+      japaneseAdvisories(rirekisho("貴社に貢献します。", "架空物流株式会社の規定に従います。"), tailored),
+    ).toEqual([expect.stringContaining("本人希望欄")]);
+
+    // The main 履歴書 still names 貴社 in its motivation cell, and knows no company.
+    expect(japaneseAdvisories(rirekisho("貴社に貢献します。"), spec({ kind: "rirekisho" }))).toEqual([expect.stringContaining("貴社 appears")]);
+    expect(japaneseDefect(rirekisho("御社の決済基盤に貢献します。"), tailored)).toBe("onsha");
+  });
+
   it("name full-width digits", () => {
     const wide = withBlock("experience", 3, block("bullet", "夜間バッチの処理時間を６時間から９０分に短縮"));
     expect(japaneseAdvisories(wide, spec())).toEqual([expect.stringMatching(/^Full-width digits in 職務経歴\./)]);

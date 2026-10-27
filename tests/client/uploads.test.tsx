@@ -60,6 +60,8 @@ const application = (recordings: Recording[]): Application => ({
   ...figures(STANDING, "2026-09-24", TODAY),
   requirements: [],
   jobDescription: "Senior backend engineer for the fernhill warehouse fleet.",
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: [],
   sentCopies: [],

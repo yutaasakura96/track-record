@@ -87,6 +87,19 @@ export const e2eModel: ModelSeam = {
         { key: "kibou", heading: "本人希望記入欄", blocks: [] },
       ] };
     }
+    // A tailored 履歴書 (`docs/06`, 2026-10-26): the 志望動機 drafted, the
+    // アピールポイント from the facts, and a 本人希望欄 the server marks a draft.
+    if (spec.kind === "rirekisho" && spec.jobDescription) {
+      return { sections: [
+        { key: "motivation", heading: "志望動機・特技・アピールポイントなど", blocks: [
+          { id: "blk_reason", kind: "paragraph" as const, text: "貴社の架空の決済基盤に、運用改善の経験を活かせると考え志望しました。", factIds: facts.map((fact) => fact.id), drafted: true as const },
+          { id: "blk_appeal", kind: "paragraph" as const, text: RIREKISHO_MOTIVATION, factIds: facts.map((fact) => fact.id) },
+        ] },
+        { key: "kibou", heading: "本人希望欄", blocks: [
+          { id: "blk_kibou", kind: "paragraph" as const, text: "貴社規定に従います。", factIds: [] },
+        ] },
+      ] };
+    }
     if (spec.kind === "rirekisho") {
       return { sections: [
         { key: "motivation", heading: "志望の動機、特技、アピールポイントなど", blocks: [

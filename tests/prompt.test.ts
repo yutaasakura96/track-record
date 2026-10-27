@@ -15,7 +15,7 @@
  * is asserting that the value reaches the prompt TEXT.
  */
 import { describe, expect, it } from "vitest";
-import { buildGenerationPrompt } from "~/model/generate";
+import { EMIT_RENDER_TOOL, buildGenerationPrompt } from "~/model/generate";
 import { JAPANESE_ONLY_LABEL } from "~/render/language";
 import { RENDER_DEFINITIONS } from "~/render/spec";
 import { EXTRACT_FACT_TOOL, EXTRACTION_SYSTEM_PROMPT } from "~/model/extract";
@@ -342,6 +342,65 @@ describe("the job description of a tailored résumé", () => {
     const prompt = buildGenerationPrompt(spec([]));
     expect(prompt).not.toContain("job_description");
     expect(prompt).not.toContain("tailored");
+  });
+});
+
+/**
+ * A tailored 履歴書 (`docs/06`, 2026-10-26). Its tailoring block is its own,
+ * chosen by kind: the résumé's speaks of bullets and forbids the company, and
+ * the 履歴書 addresses the company as 貴社. The author's notes reach it as
+ * their words, and their absence is said rather than left silent. Every name
+ * and posting here is INVENTED.
+ */
+describe("the tailoring of a 履歴書", () => {
+  const POSTING = "物流マーケットプレイスの決済基盤を運用するバックエンドエンジニアを募集します。";
+  const APPLICATION = {
+    company: "架空物流株式会社",
+    position: "バックエンドエンジニア",
+    requirements: ["Go での API 開発経験", "決済システムの運用経験"],
+    motivationNote: null,
+    kibouNote: null,
+  };
+  const rirekisho = (over: Partial<RenderSpec> = {}) =>
+    spec([], {
+      kind: "rirekisho",
+      language: "ja",
+      register: RENDER_DEFINITIONS.rirekisho.register,
+      jobDescription: POSTING,
+      application: APPLICATION,
+      ...over,
+    });
+
+  it("is the 履歴書's own block, not the résumé's, with the posting fenced and the confirmed fields beside it", () => {
+    const prompt = buildGenerationPrompt(rirekisho());
+    expect(prompt).toContain(`<job_description>\n${POSTING}\n</job_description>`);
+    expect(prompt).toContain("This 履歴書 is sent to one company for one job.");
+    expect(prompt).toContain("it is not a source of facts about the author");
+    expect(prompt).toContain(`The position, as the author confirmed the posting names it: ${APPLICATION.position}`);
+    for (const requirement of APPLICATION.requirements) expect(prompt).toContain(`- ${requirement}`);
+    // The résumé's block is not here, and neither is the company's name: the cell writes 貴社.
+    expect(prompt).not.toContain("put the most relevant bullets first");
+    expect(prompt).not.toContain("Do not name the company");
+    expect(prompt).not.toContain(APPLICATION.company);
+  });
+
+  it("says when the author wrote no reason and no request, so the model drafts both", () => {
+    const prompt = buildGenerationPrompt(rirekisho());
+    expect(prompt).toContain("The author has written no reason for applying. Draft the 志望動機 from the posting and the facts, inventing nothing about the author.");
+    expect(prompt).toContain("The author has written no request for this application's 本人希望欄.");
+  });
+
+  it("gives the author's notes as their words, leading the drafts", () => {
+    const prompt = buildGenerationPrompt(
+      rirekisho({ application: { ...APPLICATION, motivationNote: "決済の信頼性に関わり続けたいからです。", kibouNote: "バックエンドエンジニア職を希望します。" } }),
+    );
+    expect(prompt).toContain("The author's own reason for applying, for the 志望動機. Their words, not a fact, and it leads the draft:\n決済の信頼性に関わり続けたいからです。");
+    expect(prompt).toContain("The author's own request for this application's 本人希望欄. Their words, not a fact, and it comes before any stated preference above:\nバックエンドエンジニア職を希望します。");
+    expect(prompt).not.toContain("has written no reason");
+  });
+
+  it("lets the model mark a draft through the tool", () => {
+    expect(EMIT_RENDER_TOOL.input_schema.properties.sections.items.properties.blocks.items.properties.drafted.type).toBe("boolean");
   });
 });
 

@@ -8,9 +8,9 @@
  * main document has (generate, history, compare, restore, edit, download) is
  * a route a tailored résumé has too, with nothing written twice.
  */
-import { and, eq, isNotNull, isNull, type SQL } from "drizzle-orm";
+import { and, eq, getTableColumns, isNotNull, isNull, type SQL } from "drizzle-orm";
 import type { Db } from "../db/client";
-import { renders } from "../db/schema";
+import { applications, renders } from "../db/schema";
 import { notFound } from "../http/errors";
 import { RENDER_KINDS, RENDER_TITLE, type RenderKind } from "~/shared/render-content";
 
@@ -32,8 +32,13 @@ const isKind = (value: string): value is RenderKind => (RENDER_KINDS as readonly
 export const mainRender = (userId: string, kind: RenderKind): SQL =>
   and(eq(renders.userId, userId), eq(renders.kind, kind), isNull(renders.jobDescription))!;
 
-/** What a tailored résumé is called wherever a main document's title would stand. */
-export const tailoredTitle = (label: string | null) => `Résumé for ${label ?? "a job"}`;
+/**
+ * What a tailored document is called wherever a main document's title would
+ * stand. A 履歴書 says what it is (`docs/06`, 2026-10-26): "Tailored 履歴書 for
+ * Kestrel" in Diff Review is the only way to tell it from the main one there.
+ */
+export const tailoredTitle = (kind: string, label: string | null) =>
+  kind === "rirekisho" ? `Tailored 履歴書 for ${label ?? "a job"}` : `Résumé for ${label ?? "a job"}`;
 
 /**
  * A miss is a 404 either way, and so is another user's id: the read is
@@ -47,17 +52,19 @@ export async function resolveRender(db: Db, userId: string, ref: string | undefi
     return { ref, kind: ref, render: render ?? null, title: RENDER_TITLE[ref], jobDescription: null };
   }
 
-  const [render] = await db
-    .select()
+  const [row] = await db
+    .select({ ...getTableColumns(renders), applicationCompany: applications.company })
     .from(renders)
+    .leftJoin(applications, and(eq(applications.id, renders.applicationId), eq(applications.userId, userId)))
     .where(and(eq(renders.userId, userId), eq(renders.id, ref), isNotNull(renders.jobDescription)))
     .limit(1);
-  if (!render) throw notFound("That document");
+  if (!row) throw notFound("That document");
+  const { applicationCompany, ...render } = row;
   return {
     ref,
     kind: render.kind as RenderKind,
     render,
-    title: tailoredTitle(render.label),
+    title: titleOf(render, applicationCompany),
     jobDescription: render.jobDescription,
   };
 }
@@ -67,5 +74,5 @@ export const refOf = (render: Pick<typeof renders.$inferSelect, "id" | "kind" | 
   render.jobDescription === null ? render.kind : render.id;
 
 /** The title of a stored row, by the same rule {@link resolveRender} names it with. */
-export const titleOf = (render: Pick<typeof renders.$inferSelect, "kind" | "jobDescription" | "label">) =>
-  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.label);
+export const titleOf = (render: Pick<typeof renders.$inferSelect, "kind" | "jobDescription" | "label">, company?: string | null) =>
+  render.jobDescription === null ? RENDER_TITLE[render.kind as RenderKind] : tailoredTitle(render.kind, company ?? render.label);

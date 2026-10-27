@@ -276,6 +276,24 @@ export interface RenderSpec {
    * not written, exactly as a skill no fact states is not written anywhere.
    */
   jobDescription: string | null;
+  /**
+   * What the application a tailored document belongs to knows beyond its
+   * posting (`docs/06`, 2026-10-26): the company, the position and the key
+   * requirements the author confirmed, and the author's two notes for a
+   * tailored 履歴書. Absent or `null` on a main document. The company is named here so
+   * the checks can find it in a cell, and the 履歴書's prompt never asks the
+   * model to write it: the cell says 貴社.
+   *
+   * None of it is a fact. The notes are the author's words, as
+   * `desiredRoleNote` is; the rest is somebody else's posting, read.
+   */
+  application?: {
+    company: string;
+    position: string;
+    requirements: string[];
+    motivationNote: string | null;
+    kibouNote: string | null;
+  } | null;
 }
 
 /**

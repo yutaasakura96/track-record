@@ -6,7 +6,9 @@
  *
  * Two rules this screen holds:
  *   - **Accept is all-or-nothing.** There is no per-change accept. If a
- *     proposed line is wrong, the fix is the underlying fact.
+ *     proposed line is wrong, the fix is the underlying fact. The one
+ *     exception is a part drafted for the author, a tailored 履歴書's 志望動機
+ *     and 本人希望欄: each is confirmed or edited first (`docs/06`, 2026-10-26).
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
@@ -27,6 +29,7 @@ import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { DocumentBlocks } from "../components/document-blocks";
 import { DocumentPage } from "../components/document-page";
+import { DraftedParts } from "../components/drafted-parts";
 import { DownloadButton } from "../components/download-button";
 import { ReadFailure } from "../components/read-failure";
 import { RENDER_LANGUAGE } from "~/shared/render-content";
@@ -64,7 +67,7 @@ export function DiffReview() {
 }
 
 /**
- * Where a review returns to. A tailored résumé is made from its application
+ * Where a review returns to. A tailored document is made from its application
  * and its review goes back there (`docs/10` Screen 14); every other document
  * goes back to Home.
  */
@@ -316,6 +319,7 @@ function Review({
   // A first version has no current one to compare with: two columns against
   // nothing is a wall of "no matching line" boxes, so the document is shown.
   const first = proposal.basedOnVersionNo === null;
+  const drafted = proposal.drafts.length > 0;
 
   return (
     <>
@@ -340,6 +344,8 @@ function Review({
           />
         </>
       )}
+
+      <DraftedParts proposalId={proposalId} drafts={proposal.drafts} />
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
@@ -377,7 +383,18 @@ function Review({
           <Button onClick={() => void decide(dismiss)}>
             {first ? "Discard draft" : "Keep current version"}
           </Button>
-          <Button variant="primary" onClick={() => void decide(accept)} disabled={first && !preview} disabledReason={first && !preview ? "Read the proposed document before accepting it." : undefined}>
+          <Button
+            variant="primary"
+            onClick={() => void decide(accept)}
+            disabled={(first && !preview) || drafted}
+            disabledReason={
+              drafted
+                ? "Confirm or edit each drafted part first."
+                : first && !preview
+                  ? "Read the proposed document before accepting it."
+                  : undefined
+            }
+          >
             {first ? `Accept as v${proposal.proposedVersionNo}` : "Accept proposed version"}
           </Button>
         </div>

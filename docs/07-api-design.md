@@ -689,9 +689,10 @@ document: asked for under another's ref it is `404`. A response that carried `re
 
 The three `/api/tailored-resumes` routes were removed on 2026-10-11 (#70): a tailored résumé is
 read with its application (§9b), and every `:ref` route below still serves it. An application
-makes its own with `POST /api/applications/:id/tailored-resume` (§9c, #71). A proposal for a
-tailored résumé carries its `applicationId`, `null` for any other document, so Diff Review can go
-back to the application it came from.
+makes its own with `POST /api/applications/:id/tailored/:kind` (§9c, #71; generalised to a
+tailored 履歴書 on 2026-10-26). A proposal for a tailored document carries its `applicationId`,
+`null` for any other document, so Diff Review can go back to the application it came from. A
+tailored document's `title` is `Résumé for <company>` or `Tailored 履歴書 for <company>`.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -701,6 +702,7 @@ back to the application it came from.
 | `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
+| `POST` | `/api/proposals/:id/drafts/:blockId` | 2026-10-26 | Body `{ text }`, 1 to 1,200 characters once trimmed. Confirms one drafted part of a tailored 履歴書, as drafted or as edited: the block says `text` and is a draft no longer, its `factIds` kept. → `200` + the proposal. `404` for a block that is not a draft of this proposal, `409` once the proposal is decided or still generating, or when it changed since it was read, `422` for an empty text or one with 御社 |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` or `pdf`; `pdf` is the English résumé's, the 履歴書's and the 職務経歴書's only (#109, #117) |
 | `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page, evidence }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Cited section blocks carry their `factIds`; a 履歴書's motivation and kibou sheet cells also carry them. Blocks and cells copied from the record may omit `factIds` (treated as `[]`). `evidence` is every cited fact once, `{ id, claim, provenance, employer, quote, source: { importId, filename, lineNumber } \| null }`, the employer named in the document's language and `source` null on a fact added by hand (#110). Refused at `409` on a withheld fact exactly as the download is, before anything is looked up |
 | `GET` | `/api/renders/:kind/versions/:id` | M1 | One stored version as **content**, block ids included — what an edit is made from |
@@ -899,7 +901,15 @@ version. Two passes have already run server-side: blocks aligned, then tokens di
   (`10-screen-specifications.md`).
 
 **`POST /api/proposals/:id/accept` → 200.** All-or-nothing; there is **no per-change accept
-endpoint**, deliberately (decision log, 2026-08-12).
+endpoint**, deliberately (decision log, 2026-08-12). A proposal with a drafted part left
+(`drafts` not empty, a tailored 履歴書 only, decision log 2026-10-26) is `409` with
+`details.drafts`, the count, until each is confirmed or edited.
+
+A proposal (`GET /api/proposals/:id`) carries `drafts`: `[{ blockId, sectionKey, heading, text }]`,
+the parts drafted for the author in document order, empty on every other document. On a tailored
+履歴書 its `warnings` carry the gap and photo notices as on the main one, and, instead of the main
+one's 志望動機 notice, a notice that the 志望動機 was drafted from the posting alone when the
+application holds no `motivationNote`.
 
 ```json
 { "renderKind": "english_resume", "newVersionNo": 5, "acceptedAt": "2026-08-12T09:52:00Z" }
@@ -1138,7 +1148,7 @@ screens read too.
 | `POST` | `/api/applications` | Body `{ company, position, jobDescription, postingUrl?, requirements? }` → `201` + the application, at Not applied with today as the day it was added. `422` for an empty company, position or job description, a job description over 20,000 characters, a link that is not `http(s)`, or an extra field |
 | `POST` | `/api/applications/read-posting` | Body `{ jobDescription }` → `200` + `{ company, position, requirements }`, read from the text by the model. **A proposal: nothing is stored**, and the application is made by `POST /api/applications` when the author saves. `422` for text under 40 characters, over 20,000, or an extra field, with no model call. `503` when the reading fails |
 | `GET` | `/api/applications/:id` | One application, with its `jobDescription`, `requirements`, and its `documents`, `choices` and `sentCopies` (§9c) |
-| `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`. **The job description is not editable.** Does not count as activity |
+| `PATCH` | `/api/applications/:id` | Any of `company`, `position`, `postingUrl`, `requirements`, `motivationNote`, `kibouNote`. The two notes are the author's words for a tailored 履歴書, up to 400 characters each, empty or `null` for none (2026-10-26), and are returned with the application. **The job description is not editable.** Does not count as activity, and a note changed marks nothing stale |
 | `POST` | `/api/applications/:id/steps` | Body `{ status }`. A step moves it there and saves today under it; `rejected` or `withdrawn` closes it where it stands. `409` when it is closed, for either. **Leaving Not applied freezes its documents** (§9c) |
 | `PATCH` | `/api/applications/:id/steps/:status` | Body `{ date }`. Corrects that status's date, or gives one to a step passed over. `404` for a status not in the list, `422` for a day that does not exist or is in the future, `409` for a step it has not reached |
 | `POST` | `/api/applications/:id/reopen` | Back to the step it was closed at. `409` when it is not closed |
@@ -1277,26 +1287,31 @@ screens read too.
 ## 9c. An application's documents and sent copies · #71
 
 What an application is sending and what it sent (`04` §3.17). **No route here reaches a model**: a
-tailored résumé is stored here and generated by `POST /api/renders/:ref/generate` (§7), like every
-other document.
+tailored document is stored here and generated by `POST /api/renders/:ref/generate` (§7), like every
+other document. **Before Applied an application sends one 履歴書** (2026-10-26): the main one or its
+own tailored one, never both. Database triggers hold it too (migration 0037): a move back to Not
+applied, by a step or by `PUT …/standing` Undo, is `409` while both are on, asking that one be taken
+off first.
 
 | Method | Path | Notes |
 |---|---|---|
-| `PUT` | `/api/applications/:id/documents` | Body `{ documents: kind[] }`, any of `english_resume`, `rirekisho`, `shokumu_keirekisho`, each once. The ticked set, whole: one left out is taken off. The tailored résumé is not on this list and is left alone. `409` from Applied onward, `422` for a document with no version yet or a kind that is not one of the three |
-| `DELETE` | `/api/applications/:id/documents/:ref` | Takes one document off, the tailored résumé included. The document itself is untouched. `409` from Applied onward, `404` when it is not on the application |
-| `POST` | `/api/applications/:id/tailored-resume` | Stores the application's tailored résumé, English, from its job description, and puts it on the application. `201`, or `200` with the one it already has, put back on if it had been taken off. **Generates nothing** |
-| `POST` | `/api/applications/:id/sent-copies` | Body `{ documents: ref[] }`, a kind or the tailored résumé's id, each once. **Record another sent copy**: freezes each as a further copy dated today, with no comparison against earlier ones, and puts on the application any that was not. `201` + the application with `frozen`. `409` at Not applied, where the move does the freezing; `422` for a document with no version; `409` when a file cannot be built, with nothing saved |
+| `PUT` | `/api/applications/:id/documents` | Body `{ documents: kind[] }`, any of `english_resume`, `rirekisho`, `shokumu_keirekisho`, each once. The ticked set, whole: one left out is taken off. A tailored document is not on this list and is left alone. `409` from Applied onward, and when `rirekisho` is ticked while the application's tailored 履歴書 is on it; `422` for a document with no version yet or a kind that is not one of the three |
+| `DELETE` | `/api/applications/:id/documents/:ref` | Takes one document off, a tailored one included. The document itself is untouched. `409` from Applied onward, `404` when it is not on the application |
+| `POST` | `/api/applications/:id/tailored/:kind` | `kind` is `english_resume` or `rirekisho` (2026-10-26; it replaces `…/tailored-resume`). Stores the application's tailored document of that kind from its job description, and puts it on the application. `201`, or `200` with the one it already has, put back on if it had been taken off. Putting a tailored 履歴書 on before Applied takes the main 履歴書 off in the same batch, and the answer's `replaced` names it (`["履歴書"]`, otherwise `[]`). `422` for any other kind. **Generates nothing** |
+| `POST` | `/api/applications/:id/sent-copies` | Body `{ documents: ref[] }`, a kind or a tailored document's id, each once. **Record another sent copy**: freezes each as a further copy dated today, with no comparison against earlier ones, and puts on the application any that was not. `201` + the application with `frozen`. `409` at Not applied, where the move does the freezing; `422` for a document with no version; `409` when a file cannot be built, with nothing saved |
 | `GET` | `/api/applications/:id/sent-copies/:copyId` | One copy to read: `{ id, kind, title, versionNo, sentOn, recordedAt, filename, language, applicationId, company, page }` |
 | `GET` | `/api/applications/:id/sent-copies/:copyId/download` | The stored `.docx`, byte for byte. Never a fresh one |
 | `GET` | `/api/applications/:id/sent-copies/:copyId/photo` | The 写真 a 履歴書 copy was sent with, read out of its stored file, `no-store`. `404` for a copy with none, or of another kind (#117) |
 
-- **`documents`** are the ones on the application, the tailored résumé first and then the three
-  in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,
+- **`documents`** are the ones on the application, the tailored ones first (résumé, then 履歴書) and
+  then the three in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,
   currentVersionNo, status, newFactsSince, withdrawnFactsSince, pendingProposalId }`: the fields of
   a `GET /api/renders` item (§7), with the title an application uses (`Main résumé`, `履歴書`,
-  `職務経歴書`, `Tailored résumé for <company>`).
-- **`choices`** are every document that could be ticked, the same shape with `onApplication`: the
-  three always, and the tailored résumé once the application has one.
+  `職務経歴書`, `Tailored résumé for <company>`, `Tailored 履歴書 for <company>`).
+- **`choices`** are every document that could be ticked, the same shape with `onApplication` and
+  `heldBy`: the three always, and each tailored document once the application has one. `heldBy` is
+  null, or the reason the main 履歴書 cannot be ticked while the tailored one is on, before Applied.
+- **`motivationNote`** and **`kibouNote`** are the author's two notes, or `null`.
 - **`sentCopies`** are `{ id, ref, kind, title, versionNo, sentOn, recordedAt }`, most recently
   recorded first. `title` and `versionNo` are as sent, so a company renamed since does not rename
   the copy.
@@ -1313,11 +1328,12 @@ other document.
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
   taken back is `404` on both of its routes.
-- **`lastActivityAt` moves** when the documents on the application change, when the tailored résumé
+- **`lastActivityAt` moves** when the documents on the application change, when a tailored document
   is put on it, and when a copy is recorded. The same ticks saved again write nothing.
 - A copy asked for under another application, or another user's, is `404`.
 - Logged: `application_documents_set` with the id and the counts added and removed,
-  `tailored_resume_created` with the ids and the job description's length, and
+  `tailored_document_created` with the ids, the kind and the job description's length,
+  `proposal_draft_confirmed` with the proposal id and whether it was edited, and
   `application_copies_recorded` with the id and the count. Never a title, a filename or any text.
 
 ---

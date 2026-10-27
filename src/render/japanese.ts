@@ -390,10 +390,22 @@ export function japaneseAdvisories(content: RenderContent, spec: RenderSpec): st
     const texts = [section.heading, ...section.blocks.map((b) => b.text)];
     const name = SECTION_NAMES[spec.kind]?.[section.key];
     const where = name === undefined ? `section ${i + 1}` : name;
-    // The 履歴書's 本人希望欄 is the one cell addressed to the company that receives it.
-    const addressed = spec.kind === "rirekisho" && section.key === PROSE_SECTION_KEYS.kibou;
+    // The 履歴書's 本人希望欄 is the one cell addressed to the company that
+    // receives it, and a tailored 履歴書's 志望動機 is the other: it is written
+    // to 貴社 (`docs/06`, 2026-10-26).
+    const prose =
+      spec.kind === "rirekisho" &&
+      (section.key === PROSE_SECTION_KEYS.motivation || section.key === PROSE_SECTION_KEYS.kibou);
+    const tailored = prose && Boolean(spec.jobDescription);
+    const addressed = prose && (section.key === PROSE_SECTION_KEYS.kibou || tailored);
     if (!addressed && texts.some((t) => t.includes("貴社"))) {
       advisories.push(`貴社 appears in ${where}. Only the 履歴書's 本人希望欄 addresses a company; check the wording before accepting.`);
+    }
+    // Named by its section and never quoted: the name is the posting's, and
+    // no advisory carries it.
+    const company = spec.application?.company.trim() ?? "";
+    if (tailored && [...company].length >= 2 && texts.some((t) => t.includes(company))) {
+      advisories.push(`The company's name appears in ${where}. A 履歴書 calls the company it is sent to 貴社; check the wording before accepting.`);
     }
     if (texts.some((t) => FULL_WIDTH_DIGIT.test(t))) {
       advisories.push(`Full-width digits in ${where}. Japanese documents write numbers in half-width digits (2024, not ２０２４).`);

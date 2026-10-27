@@ -39,6 +39,7 @@ import {
   APPLICATION_STATUSES,
   APPLICATION_STEPS,
   CLOSED_KINDS,
+  APPLICATION_NOTE_MAX,
   JOB_DESCRIPTION_MAX,
   JOB_DESCRIPTION_READ_MIN,
   StandingRefused,
@@ -100,12 +101,23 @@ const readBody = z.strictObject({
     .max(JOB_DESCRIPTION_MAX, tooLong),
 });
 
+/** One of the author's two notes for a tailored 履歴書. Empty is no note. */
+const note = (what: string) =>
+  z
+    .string()
+    .trim()
+    .max(APPLICATION_NOTE_MAX, `Keep ${what} under ${APPLICATION_NOTE_MAX} characters.`)
+    .nullable()
+    .transform((value) => (value ? value : null));
+
 /** The job description is not here: it stays as it was pasted. */
 const editBody = z.strictObject({
   company: company.optional(),
   position: position.optional(),
   postingUrl: postingUrl.optional(),
   requirements: requirements.optional(),
+  motivationNote: note("your reason for applying").optional(),
+  kibouNote: note("your request").optional(),
 });
 
 const day = z.string().refine(isDay, "A date must be a real day, as YYYY-MM-DD.");
@@ -244,9 +256,12 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
   );
 
   /**
-   * Corrects the company, the position, the link or the key requirements. Not
-   * activity: it changes what the application is called, not how it is going,
-   * so it neither reorders the list nor resets gone quiet.
+   * Corrects the company, the position, the link or the key requirements, or
+   * writes the author's notes for a tailored 履歴書. Not activity: it changes
+   * what the application is called or what a document is written toward, not
+   * how it is going, so it neither reorders the list nor resets gone quiet. A
+   * note changed after a version was made marks nothing stale: the author
+   * regenerates when they want it used (`docs/06`, 2026-10-26).
    */
   api.patch("/api/applications/:id", async (c) => {
     const user = c.get("user");
@@ -378,6 +393,8 @@ export async function detail(db: Db, userId: string, id: string) {
     ...summaryOf(row, standing, today),
     requirements: row.requirements,
     jobDescription: row.jobDescription,
+    motivationNote: row.motivationNote,
+    kibouNote: row.kibouNote,
     ...(await readDocuments(db, userId, row)),
     interviews: await interviewsOf(db, userId, id),
     today,
@@ -553,6 +570,9 @@ export async function saveStanding(
       ...alongside,
     ]);
   } catch (error) {
+    if (violatesUnique(error, "application_one_rirekisho")) {
+      throw new ApiError("conflict", "Take one 履歴書 off this application before moving it back to Not applied.");
+    }
     // 22012 is division by zero: the guard above found the application changed since it was read.
     let stale = false;
     for (let cause = error; cause instanceof Error; cause = cause.cause) {

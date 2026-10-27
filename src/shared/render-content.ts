@@ -22,7 +22,20 @@ export interface Block {
    * certification row is data, and has no fact behind it by construction.
    */
   factIds: string[];
+  /**
+   * Written for the author to confirm, not from the record alone: the 志望動機
+   * and the 本人希望欄 of a tailored 履歴書 (`docs/06`, 2026-10-26). Set only
+   * on a proposal. Confirming or editing the block clears it, and a proposal
+   * with a drafted block left is not accepted, so no version carries one.
+   */
+  drafted?: true;
 }
+
+/** The blocks of a document still waiting for the author to confirm them. */
+export const draftedBlocks = (content: RenderContent): { section: RenderSection; block: Block }[] =>
+  content.sections.flatMap((section) =>
+    section.blocks.filter((block) => block.drafted === true).map((block) => ({ section, block })),
+  );
 
 export interface RenderSection {
   key: string;

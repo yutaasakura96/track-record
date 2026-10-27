@@ -5,14 +5,20 @@
  * per-change accept endpoint, deliberately: accepting 9 of 11 changes leaves
  * the document not matching the record, which is the exact drift this project
  * exists to remove. If a proposed line is wrong, the fix is the underlying fact.
+ *
+ * The one thing confirmed part by part is a draft: the 志望動機 and the
+ * 本人希望欄 of a tailored 履歴書, which no fact states and the author makes
+ * their own before the whole is accepted (`docs/06`, 2026-10-26).
  */
 import type { Hono } from "hono";
 import { and, desc, eq, getTableColumns, ne, sql } from "drizzle-orm";
-import { facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
+import { applications, facts, profiles, renderProposals, renderVersions, renders } from "../db/schema";
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
-import { collectRenderInputs, generateIntoProposal } from "../services/render";
+import { collectRenderInputs, generateIntoProposal, tailoringOf } from "../services/render";
+import { parseBody } from "../services/validate";
+import { z } from "zod";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
 import {
   currentContent,
@@ -38,7 +44,7 @@ import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { rirekishoTemplateData } from "~/render/rirekisho";
 import { japaneseSentPage, rirekishoSentPage, sentPage, type SentPage } from "~/render/sent-page";
 import { fillRirekishoTemplate } from "~/render/rirekisho-template";
-import { assembleJapanese, japaneseMarkdown } from "~/render/japanese";
+import { assembleJapanese, japaneseDefect, japaneseMarkdown } from "~/render/japanese";
 import { attachment } from "../http/disposition";
 import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord, hasProfilePhoto } from "../services/rirekisho";
 import {
@@ -58,12 +64,35 @@ import {
   RENDER_KINDS,
   RENDER_LANGUAGE,
   RENDER_TITLE,
+  draftedBlocks,
   type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
 import { citedOnPage } from "~/shared/evidence";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
+
+/**
+ * A drafted part as the author confirms it. Bounded well above the 300
+ * characters the cell is written to, because the author may say more than the
+ * draft did; the layout test prints four times the bound.
+ */
+export const DRAFT_TEXT_MAX = 1200;
+const draftBody = z.strictObject({
+  text: z
+    .string()
+    .trim()
+    .min(1, "A drafted part cannot be left empty. Write what it should say.")
+    .max(DRAFT_TEXT_MAX, `Keep a drafted part under ${DRAFT_TEXT_MAX.toLocaleString("en-US")} characters.`),
+});
+
+/** Accept refused while drafts wait: how many, and nothing they say. */
+const draftsWaiting = (drafts: number) =>
+  new ApiError(
+    "conflict",
+    `${drafts === 1 ? "One part was" : `${drafts} parts were`} drafted for you and ${drafts === 1 ? "is" : "are"} not confirmed yet. Confirm or edit each before accepting.`,
+    { drafts },
+  );
 
 export function registerRenderRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -115,7 +144,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       );
     }
 
-    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, target.jobDescription);
+    const tailoring = target.render ? await tailoringOf(db, user.id, target.render) : null;
+    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, tailoring);
     if (kind === "english_resume") {
       try {
         assertResumeSpecNames(inputs.spec);
@@ -150,7 +180,13 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // record, and may not be there next time — is read first. The gaps are
     // read from the rows the download prints, explanations included, so a
     // gap the author has explained does not warn.
-    const warnings = kind === "rirekisho" ? rirekishoWarnings(await collectRirekishoRecord(db, user.id), { hasPhoto: await hasProfilePhoto(db, user.id) }) : [];
+    const warnings =
+      kind === "rirekisho"
+        ? rirekishoWarnings(await collectRirekishoRecord(db, user.id), {
+            hasPhoto: await hasProfilePhoto(db, user.id),
+            tailored: tailoring ? { motivationNote: tailoring.application?.motivationNote ?? null } : null,
+          })
+        : [];
 
     const render = await ensureRender(db, user.id, target);
     const proposalId = newId("renderProposal");
@@ -291,7 +327,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
               }),
             )
           : sentPage(kind, proposed, await renderIdentity(db, user.id), today);
-    return c.json({ ...diff, preview: { title: RENDER_TITLE[kind], page } });
+    const tailoring = render.jobDescription !== null ? await tailoringOf(db, user.id, render) : null;
+    return c.json({ ...diff, preview: { title: titleOf(render, tailoring?.application?.company), page } });
   });
 
   api.post("/api/proposals/:id/accept", async (c) => {
@@ -305,6 +342,11 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     if (proposal.generationStatus !== "ready") {
       throw new ApiError("conflict", "This proposal has not finished generating.");
     }
+
+    // A draft nobody confirmed would become a signed document's reason for
+    // applying, in the author's name. The author confirms or edits each first.
+    const drafts = draftedBlocks(proposal.content as RenderContent).length;
+    if (drafts > 0) throw draftsWaiting(drafts);
 
     const highest = await highestVersionNo(db, user.id, render.id);
 
@@ -345,6 +387,67 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       newVersionNo: highest + 1,
       acceptedAt: acceptedAt.toISOString(),
     });
+  });
+
+  /**
+   * Confirms one drafted part of a proposal, as it was drafted or as the
+   * author edited it (`docs/06`, 2026-10-26). The text sent is what the
+   * document says from now on, and the block is a draft no longer. Its fact
+   * ids stay: what the draft was written from is still what it was written
+   * from, and the diff says so.
+   *
+   * The write is conditional on the content it was read from, so two
+   * confirmations at once cannot lose one: the second is told to reload.
+   */
+  api.post("/api/proposals/:id/drafts/:blockId", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    const { text } = await parseBody(c, draftBody);
+    const { proposal, render } = await requireProposal(db, user.id, pathParam(c, "id"));
+    if (proposal.status !== "pending") throw alreadyDecided();
+    if (proposal.generationStatus !== "ready") {
+      throw new ApiError("conflict", "This proposal has not finished generating.");
+    }
+
+    const blockId = pathParam(c, "blockId");
+    const read = proposal.content as RenderContent;
+    const found = draftedBlocks(read).find(({ block }) => block.id === blockId);
+    if (!found) throw notFound("That drafted part");
+    const tailoring = await tailoringOf(db, user.id, render);
+    const inputs = await collectRenderInputs(db, user.id, "rirekisho", "", tailoring);
+    const defect = japaneseDefect({ sections: [{ ...found.section, blocks: [{ ...found.block, text }] }] }, inputs.spec, inputs.facts);
+    if (defect === "onsha") {
+      throw validationFailed("御社 is the spoken form. A 履歴書 writes 貴社.", ["text"]);
+    }
+    if (defect === "english") throw validationFailed("A 履歴書 draft must be written in Japanese.", ["text"]);
+
+    const edited = text !== found.block.text;
+    const content: RenderContent = {
+      sections: read.sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map(({ drafted, ...block }) =>
+          block.id === blockId ? { ...block, text } : drafted ? { ...block, drafted } : block,
+        ),
+      })),
+    };
+    const updated = await db
+      .update(renderProposals)
+      .set({ content, updatedAt: new Date() })
+      .where(
+        and(
+          eq(renderProposals.userId, user.id),
+          eq(renderProposals.id, proposal.id),
+          eq(renderProposals.status, "pending"),
+          sql`${renderProposals.content} = ${JSON.stringify(read)}::jsonb`,
+        ),
+      )
+      .returning({ id: renderProposals.id });
+    if (updated.length === 0) {
+      throw new ApiError("conflict", "This proposal changed after you opened it. Reload it and confirm again.");
+    }
+    // Ids and a flag. Never the draft, never the edit.
+    console.log(JSON.stringify({ event: "proposal_draft_confirmed", proposalId: proposal.id, edited }));
+    return c.json(await proposalResponse(db, user.id, { ...proposal, content }, render));
   });
 
   /**
@@ -821,6 +924,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     // application would show for it, by the same query.
     const state = await renderState(db, user.id);
     const document = [...state.documents, ...state.tailored].find((row) => row.ref === target.ref)!;
+    const tailoring = kind === "rirekisho" && render ? await tailoringOf(db, user.id, render) : null;
 
     return c.json({
       renderKind: kind,
@@ -829,6 +933,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       language: RENDER_LANGUAGE[kind],
       tailored: target.jobDescription !== null,
       applicationId: render?.applicationId ?? null,
+      motivationNote: tailoring?.application?.motivationNote ?? null,
       document,
       canGenerate: state.usableFacts > 0,
       version: {
@@ -1009,7 +1114,10 @@ export async function renderState(
 ): Promise<{ documents: RenderState[]; tailored: RenderState[]; usableFacts: number }> {
   // One round trip, not four in a row: this backs the home screen (issue #58).
   const [rows, versions, pending, usable] = await db.batch([
-    db.select().from(renders).where(eq(renders.userId, userId)),
+    db.select({ ...getTableColumns(renders), applicationCompany: applications.company })
+      .from(renders)
+      .leftJoin(applications, and(eq(applications.id, renders.applicationId), eq(applications.userId, userId)))
+      .where(eq(renders.userId, userId)),
     // Each render's current version, by join rather than by a list of ids read
     // first, which is what made this a query that had to wait for another.
     db
@@ -1076,11 +1184,11 @@ export async function renderState(
       ref: row ? refOf(row) : kind,
       tailored:
         row && row.jobDescription !== null
-          ? { label: row.label ?? "", createdAt: row.createdAt.toISOString() }
+          ? { label: row.applicationCompany ?? row.label ?? "", createdAt: row.createdAt.toISOString() }
           : null,
       kind,
       language: RENDER_DEFINITIONS[kind].language,
-      title: row ? titleOf(row) : RENDER_TITLE[kind],
+      title: row ? titleOf(row, row.applicationCompany) : RENDER_TITLE[kind],
       buildable: RENDER_DEFINITIONS[kind].buildable,
       currentVersionId: row?.currentVersionId ?? null,
       currentVersionNo: version?.versionNo ?? null,

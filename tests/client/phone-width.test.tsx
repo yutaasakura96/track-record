@@ -49,6 +49,8 @@ const application = (over: Partial<Application> = {}): Application => ({
   ...figures(NOT_APPLIED, "2026-10-01", TODAY),
   requirements: [],
   jobDescription: "An invented posting for a backend engineer.",
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: [],
   sentCopies: [],

@@ -619,9 +619,10 @@ export const renders = pgTable("renders", {
   // One main document per kind. A tailored résumé is outside it: there may be
   // any number of those.
   uniqueIndex("renders_user_kind_uq").on(t.userId, t.kind).where(sql`${t.jobDescription} is null`),
-  // An application holds at most one tailored résumé (issue #71). Two requests
-  // making one at once would both insert; this lets one through.
-  uniqueIndex("renders_application_uq").on(t.applicationId).where(sql`${t.applicationId} is not null`),
+  // An application holds at most one tailored document of each kind: a résumé
+  // (issue #71) and a 履歴書 (`docs/06`, 2026-10-26). Two requests making one
+  // at once would both insert; this lets one through.
+  uniqueIndex("renders_application_uq").on(t.applicationId, t.kind).where(sql`${t.applicationId} is not null`),
 ]);
 
 /** Accepted versions. NEVER deleted. */
@@ -751,6 +752,15 @@ export const applications = pgTable("applications", {
    */
   jobDescription: text("job_description").notNull(),
   requirements: text("requirements").array().notNull().default(sql`'{}'`),
+  /**
+   * The author's own reason for applying, and their own request for the
+   * 本人希望欄, for a tailored 履歴書 (`docs/06`, 2026-10-26). Optional: with
+   * none, the model drafts both from the posting and the record, for the
+   * author to confirm. Their words, never facts, never logged; editing either
+   * is not activity, as correcting the position is not.
+   */
+  motivationNote: text("motivation_note"),
+  kibouNote: text("kibou_note"),
   currentStep: applicationStatus("current_step").notNull().default("not_applied"),
   closedAs: applicationStatus("closed_as"),
   /**
@@ -768,6 +778,8 @@ export const applications = pgTable("applications", {
   index("applications_user_idx").on(t.userId),
   check("applications_current_step_ck", sql`${t.currentStep} not in ('rejected', 'withdrawn')`),
   check("applications_closed_as_ck", sql`${t.closedAs} in ('rejected', 'withdrawn')`),
+  check("applications_motivation_note_ck", sql`char_length(${t.motivationNote}) <= 400`),
+  check("applications_kibou_note_ck", sql`char_length(${t.kibouNote}) <= 400`),
 ]);
 
 /**

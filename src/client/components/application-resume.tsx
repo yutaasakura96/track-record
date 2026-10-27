@@ -10,38 +10,51 @@
  * Before Applied the documents are chosen. From Applied onward they are only
  * recorded: `Record another sent copy` freezes whatever is ticked, always.
  *
- * Making a tailored résumé, writing or reviewing a version and its history open
- * screens that ask for a wider window, so in a narrow one they are held back and
- * the panel says why (issue #75). Choosing, recording, taking off, reading what
- * was sent and downloading all work at any width.
+ * A tailored 履歴書 is made here too (`docs/06`, 2026-10-26), with the author's
+ * two optional notes: their reason for applying and their request. Before
+ * Applied an application sends one 履歴書, so making the tailored one takes the
+ * main one off, and the tick card holds the main one back while it is on.
+ *
+ * Making a tailored document, writing or reviewing a version and its history
+ * open screens that ask for a wider window, so in a narrow one they are held
+ * back and the panel says why (issue #75). Choosing, recording, taking off,
+ * writing the notes, reading what was sent and downloading all work at any
+ * width.
  */
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import {
   downloadSentCopy,
   failureText,
   useApplicationActions,
   useGenerate,
+  useProfile,
   type Application,
   type ApplicationDocument,
+  type ApplicationNotes,
   type DocumentChange,
   type DocumentChoice,
   type SentCopy,
 } from "../api";
+import { CONTROL } from "./application-chrome";
+import { GapNotices } from "./gap-notices";
 import { useFlashStore } from "../stores/flash";
 import { DownloadButton } from "./download-button";
 import { generateFailure } from "./generate-failure";
 import { useWideEnough } from "./too-narrow";
 import { QUIET, SECONDARY } from "./document-row";
 import { Button, Chip, Panel } from "./ui";
-import { isSendableKind, nameVersions } from "~/shared/application-documents";
+import { isSendableKind, nameVersions, type TailoredKind } from "~/shared/application-documents";
+import { APPLICATION_NOTE_MAX } from "~/shared/application";
+import { PHOTO_NOTICE } from "~/shared/photo";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const CARD = "min-w-0 bg-card border border-border rounded-tile px-14 py-12 grid gap-8 content-start";
 const ROW =
   "flex flex-wrap items-center gap-x-12 gap-y-8 max-phone:flex-col max-phone:items-stretch max-phone:gap-6 px-10 py-12 border-b border-border-inner last:border-b-0";
 /** Why the controls that open a desktop screen are not here, in a window too narrow for one. */
 export const HELD_BACK =
-  "Making a tailored résumé, writing or reviewing a version and its history need a wider window, so they are not shown here.";
+  "Making a tailored document, writing or reviewing a version and its history need a wider window, so they are not shown here.";
 
 /** A row's links: beside its text, and under it, from the left, at phone width. */
 const LINKS = "ml-auto max-phone:ml-0 flex flex-wrap items-center justify-end max-phone:justify-start gap-16 max-phone:gap-12";
@@ -54,17 +67,19 @@ export function ResumePanel({
   /** A change here is the last change now, so the Undo of an earlier one goes. */
   onChanged: () => void;
 }) {
-  const { documents: act } = useApplicationActions(application.id);
+  const { documents: act, edit } = useApplicationActions(application.id);
+  const profile = useProfile();
   const generate = useGenerate();
   const navigate = useNavigate();
   const flash = useFlashStore((state) => state.show);
   const [picking, setPicking] = useState(false);
+  const [makingRirekisho, setMakingRirekisho] = useState(false);
   const [failure, setFailure] = useState<ReactNode>(null);
 
   const { documents, choices, sentCopies } = application;
   const applied = application.step !== "not_applied";
-  const busy = act.isPending || generate.isPending;
-  const hasTailored = documents.some((document) => document.tailored);
+  const busy = act.isPending || generate.isPending || edit.isPending;
+  const hasTailored = (kind: TailoredKind) => documents.some((document) => document.tailored && document.kind === kind);
   const wide = useWideEnough();
 
   const run = async (action: DocumentChange) => {
@@ -90,9 +105,21 @@ export function ResumePanel({
     }
   };
 
-  const tailor = async () => {
-    const next = await run({ change: "tailor" });
-    const made = next?.documents.find((document) => document.tailored);
+  const tailor = async (kind: TailoredKind, notes?: ApplicationNotes) => {
+    if (notes && (notes.motivationNote !== application.motivationNote || notes.kibouNote !== application.kibouNote)) {
+      setFailure(null);
+      try {
+        await edit.mutateAsync(notes);
+      } catch (error) {
+        setFailure(failureText(error));
+        return;
+      }
+    }
+    const next = (await run({ change: "tailor", kind })) as (Application & { replaced?: string[] }) | null;
+    if (!next) return;
+    setMakingRirekisho(false);
+    if (next.replaced?.length) flash(`${next.replaced.join(" and ")} is off this application now: it has its own 履歴書.`);
+    const made = next.documents.find((document) => document.tailored && document.kind === kind);
     if (made && made.currentVersionId === null && made.pendingProposalId === null) await write(made.ref);
   };
 
@@ -118,9 +145,40 @@ export function ResumePanel({
   );
 
   const makeTailored = (variant: "primary" | "ghost") => (
-    <Button variant={variant} onClick={() => void tailor()} disabled={busy} disabledReason="Working…">
+    <Button variant={variant} onClick={() => void tailor("english_resume")} disabled={busy} disabledReason="Working…">
       Make a tailored résumé
     </Button>
+  );
+
+  const rirekishoCard = (
+    <div className={CARD}>
+      <h3 className="text-row font-medium text-text-strong">Make a tailored 履歴書</h3>
+      <p className="text-small text-text-muted">
+        The same form as your main 履歴書, from the same record, with a 志望動機 written to this company. Your
+        reason for applying and your request are drafted from the posting and your record unless you write your own
+        below, and you confirm or edit each before it becomes a version.
+        {applied ? null : " It replaces the main 履歴書 on this application."}
+      </p>
+      <NotesForm
+        application={application}
+        busy={busy}
+        submitLabel={wide ? "Make a tailored 履歴書" : null}
+        onSubmit={(notes) =>
+          wide
+            ? void tailor("rirekisho", notes)
+            : void edit.mutateAsync(notes).then(
+                () => flash("Your notes are saved. Make the 履歴書 from a wider window."),
+                (error: unknown) => setFailure(failureText(error)),
+              )
+        }
+        onCancel={documents.length > 0 ? () => setMakingRirekisho(false) : undefined}
+      />
+      {wide ? null : (
+        <p className="text-small text-text-muted">
+          Making it opens its review, which needs a wider window. Your notes are kept for then.
+        </p>
+      )}
+    </div>
   );
 
   return (
@@ -132,10 +190,11 @@ export function ResumePanel({
             <p className="text-small text-text-muted">
               Written for this job from the same facts as your main résumé. The job description decides what
               leads and what is left out; it never adds a claim that is not in your record. You read it as a
-              set of changes before it becomes a version. English only for now.
+              set of changes before it becomes a version.
             </p>
             {wide ? <div>{makeTailored("primary")}</div> : <p className="text-small text-text-muted">{HELD_BACK}</p>}
           </div>
+          {rirekishoCard}
           {card}
         </div>
       ) : (
@@ -152,6 +211,13 @@ export function ResumePanel({
                   busy={busy}
                   onWrite={() => void write(document.ref)}
                   onTakeOff={() => void run({ change: "take-off", ref: document.ref })}
+                  notes={
+                    document.tailored && document.kind === "rirekisho" ? (
+                      <NotesToggle application={application} busy={busy} onSave={(notes) => edit.mutateAsync(notes)} />
+                    ) : null
+                  }
+                  missingPhoto={profile.data?.hasPhoto === false}
+                  missingMotivation={document.tailored && document.kind === "rirekisho" && !application.motivationNote?.trim()}
                 />
               ))}
             </ul>
@@ -159,13 +225,19 @@ export function ResumePanel({
             <p className="text-small text-text-muted">No résumé is recorded for this application.</p>
           )}
           <div className="mt-10 flex flex-wrap items-center gap-8">
-            {hasTailored || !wide ? null : makeTailored("ghost")}
+            {hasTailored("english_resume") || !wide ? null : makeTailored("ghost")}
+            {hasTailored("rirekisho") || makingRirekisho ? null : (
+              <Button variant="ghost" onClick={() => setMakingRirekisho(true)} disabled={busy} disabledReason="Working…">
+                {wide ? "Make a tailored 履歴書" : "Notes for a tailored 履歴書"}
+              </Button>
+            )}
             {picking ? null : (
               <Button variant="ghost" onClick={() => setPicking(true)}>
                 {applied ? "Record another sent copy" : "Add a document you already have"}
               </Button>
             )}
           </div>
+          {makingRirekisho ? <div className="mt-10">{rirekishoCard}</div> : null}
           {picking ? <div className="mt-10">{card}</div> : null}
           {wide ? null : <p className="mt-10 text-small text-text-muted">{HELD_BACK}</p>}
         </>
@@ -173,7 +245,7 @@ export function ResumePanel({
 
       {!application.canGenerate && documents.some((document) => document.tailored && !document.currentVersionId) ? (
         <p className="mt-10 text-small text-text-muted">
-          Your record holds no fact a document may use yet, so there is nothing to write the tailored résumé
+          Your record holds no fact a document may use yet, so there is nothing to write a tailored document
           from.
           {wide ? (
             <>
@@ -222,6 +294,9 @@ function DocumentLine({
   busy,
   onWrite,
   onTakeOff,
+  notes,
+  missingPhoto,
+  missingMotivation,
 }: {
   document: ApplicationDocument;
   canGenerate: boolean;
@@ -231,6 +306,10 @@ function DocumentLine({
   busy: boolean;
   onWrite: () => void;
   onTakeOff: () => void;
+  /** A tailored 履歴書's notes, under its line. */
+  notes?: ReactNode;
+  missingPhoto: boolean;
+  missingMotivation: boolean;
 }) {
   const version = document.currentVersionNo === null ? "No version yet" : `Version ${document.currentVersionNo}`;
   return (
@@ -240,6 +319,20 @@ function DocumentLine({
         <div className="text-small text-text-muted">
           {version} · {document.tailored ? "written for this job" : "the same document as on Home"}
         </div>
+        {/* The gaps its 学歴・職歴 table has now, as View says them (issue #117, G1). */}
+        {document.kind === "rirekisho" ? (
+          <div className="mt-6">
+            <GapNotices compact />
+            {missingMotivation ? <p lang="ja" className="text-smaller text-text-secondary">{TAILORED_MOTIVATION_NOTICE}</p> : null}
+            {document.tailored && missingPhoto ? (
+              <p lang="ja" className="text-smaller text-text-secondary">
+                {PHOTO_NOTICE}{" "}
+                <Link to="/profile" className={QUIET}>Add a photo</Link>
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+        {notes}
       </div>
       <div className={LINKS}>
         {document.currentVersionId ? (
@@ -275,7 +368,7 @@ function DocumentLine({
   );
 }
 
-/** A tailored résumé is written from here: its review when one is waiting, or a new version. */
+/** A tailored document is written from here: its review when one is waiting, or a new version. */
 function TailoredAction({
   document,
   canGenerate,
@@ -345,6 +438,7 @@ function TickCard({
       </p>
       {choices.map((choice) => {
         const ready = choice.currentVersionNo !== null;
+        const held = choice.heldBy !== null && !recording;
         return (
           <label
             key={choice.ref}
@@ -354,13 +448,15 @@ function TickCard({
               type="checkbox"
               className="mt-2 accent-accent"
               checked={ticked.includes(choice.ref)}
-              disabled={!ready}
+              disabled={!ready || held}
               onChange={() => toggle(choice.ref)}
             />
             <span className="min-w-0">
               <span className="block text-row font-medium text-text-strong">{choice.title}</span>
               <span className="block text-small text-text-muted">
-                {ready
+                {held
+                  ? choice.heldBy
+                  : ready
                   ? `${choice.language === "ja" ? "日本語" : "English"} · version ${choice.currentVersionNo}, the one current today`
                   : choice.tailored
                     ? "No version yet. Generate it above first."
@@ -444,5 +540,139 @@ function SentLine({ applicationId, copy }: { applicationId: string; copy: SentCo
         </button>
       </div>
     </li>
+  );
+}
+
+/**
+ * The author's two notes for a tailored 履歴書. Both optional: an empty one is
+ * drafted for them from the posting and the record, and confirmed on the
+ * review either way. Saved with the application, never as facts.
+ */
+function NotesForm({
+  application,
+  busy,
+  submitLabel,
+  onSubmit,
+  onCancel,
+}: {
+  application: Pick<Application, "motivationNote" | "kibouNote">;
+  busy: boolean;
+  /** `null` saves the notes alone, in a window too narrow to open the review. */
+  submitLabel: string | null;
+  onSubmit: (notes: ApplicationNotes) => void;
+  onCancel?: () => void;
+}) {
+  const [motivation, setMotivation] = useState(application.motivationNote ?? "");
+  const [kibou, setKibou] = useState(application.kibouNote ?? "");
+  const motivationId = useId();
+  const kibouId = useId();
+  const notes = (): ApplicationNotes => ({
+    motivationNote: motivation.trim() || null,
+    kibouNote: kibou.trim() || null,
+  });
+
+  return (
+    <form
+      className="grid gap-8"
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSubmit(notes());
+      }}
+    >
+      <label htmlFor={motivationId} className="grid gap-4 min-w-0">
+        <span className="text-small text-text-secondary">Why you are applying, in your own words (optional)</span>
+        <textarea
+          id={motivationId}
+          lang="ja"
+          rows={3}
+          maxLength={APPLICATION_NOTE_MAX}
+          value={motivation}
+          onChange={(event) => setMotivation(event.target.value)}
+          className={`${CONTROL} resize-y`}
+        />
+        <span className="text-smaller text-text-dim">
+          It leads the 志望動機. Left empty, a reason is drafted from the posting and your record for you to confirm.
+        </span>
+      </label>
+      <label htmlFor={kibouId} className="grid gap-4 min-w-0">
+        <span className="text-small text-text-secondary">What you would ask for in 本人希望欄 (optional)</span>
+        <textarea
+          id={kibouId}
+          lang="ja"
+          rows={2}
+          maxLength={APPLICATION_NOTE_MAX}
+          value={kibou}
+          onChange={(event) => setKibou(event.target.value)}
+          className={`${CONTROL} resize-y`}
+        />
+        <span className="text-smaller text-text-dim">
+          The role as the posting names it, or a condition you need. Left empty, one is drafted for you to confirm.
+        </span>
+      </label>
+      <span className="flex flex-wrap items-center gap-8">
+        <Button type="submit" variant="primary" disabled={busy} disabledReason="Working…">
+          {submitLabel ?? "Save your notes"}
+        </Button>
+        {onCancel ? (
+          <Button type="button" variant="bare" onClick={onCancel}>
+            Cancel
+          </Button>
+        ) : null}
+      </span>
+    </form>
+  );
+}
+
+/** A tailored 履歴書's notes, opened under its line and saved without regenerating. */
+function NotesToggle({
+  application,
+  busy,
+  onSave,
+}: {
+  application: Pick<Application, "motivationNote" | "kibouNote">;
+  busy: boolean;
+  onSave: (notes: ApplicationNotes) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const written = [application.motivationNote, application.kibouNote].filter(Boolean).length;
+  if (!open) {
+    return (
+      <div className="mt-6 flex flex-wrap items-center gap-x-8 gap-y-4 text-smaller text-text-dim">
+        <span>
+          {written === 0
+            ? "No notes of yours: its reason and request are drafted for you."
+            : written === 1
+              ? "One note of yours leads its draft."
+              : "Your two notes lead its drafts."}
+        </span>
+        <Button variant="bare" className="-ml-6" onClick={() => setOpen(true)}>
+          Your notes
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-8 grid gap-6">
+      <NotesForm
+        application={application}
+        busy={busy}
+        submitLabel="Save your notes"
+        onCancel={() => setOpen(false)}
+        onSubmit={(notes) => {
+          setFailure(null);
+          onSave(notes).then(
+            () => setOpen(false),
+            (error: unknown) => setFailure(failureText(error)),
+          );
+        }}
+      />
+      <p className="text-smaller text-text-dim">Saved notes are used the next time you regenerate it.</p>
+      {failure ? (
+        <p role="alert" className="text-smaller text-removed">
+          {failure}
+        </p>
+      ) : null}
+    </div>
   );
 }
