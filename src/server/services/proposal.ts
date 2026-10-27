@@ -79,7 +79,12 @@ export async function proposalResponse(
       ...(kind === "rirekisho"
         ? rirekishoWarnings(await collectRirekishoRecord(db, userId), {
             hasPhoto: await hasProfilePhoto(db, userId),
-            tailored: tailoring ? { motivationNote: tailoring.application?.motivationNote ?? null } : null,
+            tailored: tailoring
+              ? {
+                  motivationNote: tailoring.application?.motivationNote ?? null,
+                  drafted: proposal.generationStatus !== "ready" || draftedBlocks(content).length > 0,
+                }
+              : null,
           })
         : []),
       ...(RENDER_LANGUAGE[kind] === "ja" && proposal.generationStatus === "ready" ? japaneseAdvisories(content, inputs.spec) : []),

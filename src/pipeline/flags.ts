@@ -208,7 +208,15 @@ const KANJI_NUMBER = "〇一二三四五六七八九十百千万億";
 const MODIFIER_WORD = new RegExp(`^${MODIFIER}$`, "u");
 const STOP_WORD = /^(?:and|or|but|in|on|at|by|from|to|for|with|after|before|during|across|into|onto|was|were|is|are|has|have|had|overall)$/u;
 const SCOPE_WORD = /^(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent|more|over|less|under|additional)$/u;
-const UNIT_WORD = /^(?:[a-z]+s|person|people|percent|ms|kb|mb|gb|tb|pb|second|minute|hour|day|week|month|quarter|year|engineer|developer|member|client|customer|user|request|report|ticket|order|payment|service|team|release|country|language)$/u;
+const UNIT_WORD = /^(?:[a-z]+s|s|sec|min|h|hr|person|people|percent|ms|kb|mb|gb|tb|pb|second|minute|hour|day|week|month|quarter|year|engineer|developer|member|client|customer|user|request|report|ticket|order|payment|service|team|release|country|language)$/u;
+/** An abbreviation read as the unit it stands for: `6.8 s` is `6.8 seconds`. */
+const ABBREVIATION: Record<string, string> = { s: "second", sec: "second", secs: "second", min: "minute", mins: "minute", h: "hour", hr: "hour", hrs: "hour" };
+/** The periods a count can be read per, said as `in the quarter`: a year is left out, because `in the year 2022` is when. */
+const IN_PERIOD = "(?:day|week|month|quarter)";
+/** `a quarter`, `per quarter`, `each quarter` and `in the quarter` are one rate; `/month` stays as written. */
+const rateName = (rate: string) => (rate.startsWith("/") ? rate : `per ${rate.split(/\s+/).pop()}`);
+/** A participle before the unit (`three diverging libraries`) describes what is counted without changing how many. */
+const PARTICIPLE = /^[a-z]{4,}ing$/u;
 const JAPANESE_RATE = /^\/?(?:毎日|毎週|毎月|毎年|日間|週間|月間|年間)/u;
 /** Longest first, so `カ月` is never read as `カ`, and `人月` never as `人`. */
 const COUNTER_UNIT = /^(?:[ヶヵカか](?:月|国|所)|箇所|人月|人日|週間|時間|年間|年度|千円|名|人|件|社|台|回|倍|割|円|年|月|日|週|分|秒|本|個)/u;
@@ -230,6 +238,8 @@ const PERCENTAGE_OF_PREFIX = new RegExp(`^\\s+of\\s+(?:(?:${DETERMINER}|${MODIFI
 interface Quantity {
   phrase: string;
   descriptive: string[];
+  /** The rate of an `in the quarter`, which says when and is not the unit: it matches no phrase, or the same rate written `a quarter`. */
+  period?: string;
 }
 
 function quantityAfter(tail: string): Quantity {
@@ -239,15 +249,18 @@ function quantityAfter(tail: string): Quantity {
   for (;;) {
     const first = rest.trimStart().replace(/^-(?=[a-z])/u, "");
     const bareRate = first.match(/^(?:per\s+|a\s+|an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0];
-    if (bareRate && words.length === 0) return { phrase: bareRate, descriptive };
+    if (bareRate && words.length === 0) return { phrase: rateName(bareRate), descriptive };
+    const inPeriod = first.match(new RegExp(`^(?:each|every|in\\s+(?:the|a|one))\\s+${IN_PERIOD}\\b`, "u"))?.[0];
+    if (inPeriod && words.length === 0) return { phrase: "", descriptive, period: rateName(inPeriod) };
     const word = first.match(/^[a-z]+(?:-[a-z]+)*/u)?.[0];
     if (word) {
       if (STOP_WORD.test(word) || (/ing$/u.test(word) && /^\s+(?:a|an|the)\b/u.test(first.slice(word.length)))) break;
       if (UNIT_WORD.test(word) || tail.trimStart().startsWith(`-${word}`)) {
-        const unit = word === "ms" ? word : word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word;
+        const unit = ABBREVIATION[word] ?? (word === "ms" ? word : word.endsWith("ies") ? `${word.slice(0, -3)}y` : word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word);
         words.push(unit);
         rest = first.slice(word.length);
-        const rate = rest.match(/^(?:\s+per\s+|\s+a\s+|\s+an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0].trim()
+        const unitRate = rest.match(/^(?:\s+per\s+|\s+a\s+|\s+an\s+|\/)[a-z]+(?:-[a-z]+)*/u)?.[0].trim();
+        const rate = (unitRate && rateName(unitRate))
           ?? rest.match(/^\s+(?:daily|weekly|monthly|yearly|unique|distinct|new|concurrent)\b/u)?.[0].trim();
         if (rate) words.push(rate);
         return { phrase: words.join(" "), descriptive };
@@ -303,8 +316,12 @@ function quantityAfter(tail: string): Quantity {
  * claim may add one only when the passage uses it elsewhere as a whole word.
  */
 function sameQuantity(claim: Quantity, quote: Quantity, passage: string): boolean {
-  if (claim.phrase !== quote.phrase) return false;
-  if (quote.descriptive.some((word) => !claim.descriptive.includes(word))) return false;
+  const samePhrase =
+    claim.phrase === quote.phrase ||
+    (quote.phrase === "" && quote.period === claim.phrase) ||
+    (claim.phrase === "" && claim.period === quote.phrase);
+  if (!samePhrase) return false;
+  if (quote.descriptive.some((word) => !claim.descriptive.includes(word) && !PARTICIPLE.test(word))) return false;
   return claim.descriptive.every(
     (word) => quote.descriptive.includes(word) || new RegExp(`(?<![a-z0-9-])${escapePattern(word)}(?![a-z0-9-])`, "u").test(passage),
   );
@@ -326,6 +343,8 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
   const kanji = new RegExp(`^[${KANJI_NUMBER}]`, "u").test(number);
   const [scale, claimTail] = splitScale(figure.slice(number.length) + following, !kanji);
   const quantity = quantityAfter(claimTail);
+  // A ratio the claim states without a noun (`one in five`) is sourced by the same ratio before any noun (`one in five releases`).
+  const bareRatio = quantity.phrase === "" && new RegExp(`^(?:${RATIO})$`, "u").test(number);
   // On its own: not inside a longer number or word, not after a currency sign
   // the claim does not have, and not either number of a ratio (`one in 5`, `2/5`).
   const pattern = kanji
@@ -337,7 +356,7 @@ function sourcedFigure(figure: string, following: string, passage: string): bool
     const [quoteScale, quoteTail] = splitScale(passage.slice(match.index + match[0].length), !kanji);
     if (quoteScale !== scale) continue;
     if (/^\s+[a-z]/u.test(claimTail) && /^[a-z]/u.test(quoteTail)) continue;
-    if (sameQuantity(quantity, quantityAfter(quoteTail), passage)) return true;
+    if (bareRatio || sameQuantity(quantity, quantityAfter(quoteTail), passage)) return true;
   }
   return false;
 }

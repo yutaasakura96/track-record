@@ -33,6 +33,8 @@ import { DraftedParts } from "../components/drafted-parts";
 import { DownloadButton } from "../components/download-button";
 import { ReadFailure } from "../components/read-failure";
 import { RENDER_LANGUAGE } from "~/shared/render-content";
+import { useDocumentLanguageStore } from "../stores/document-language";
+import { useFlashStore } from "../stores/flash";
 import type { SentPage } from "~/render/sent-page";
 
 type FirstPreview = { title: string; page: SentPage };
@@ -86,7 +88,21 @@ const backLabel = (proposal: Pick<Proposal, "applicationId">) =>
 function Header({ proposal }: { proposal: Proposal }) {
   return (
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
-      <span className="text-panel font-semibold tracking-snug text-text-strong">Outputs</span>
+      {/* This screen has no sidebar, so the way out is here: back to where the
+          review was opened from, as Back and the buttons below go. */}
+      {proposal.applicationId ? (
+        <Link
+          to="/applications/$applicationId"
+          params={{ applicationId: proposal.applicationId }}
+          className="text-panel font-semibold tracking-snug text-text-strong hover:text-text-bright"
+        >
+          Application
+        </Link>
+      ) : (
+        <Link to="/" className="text-panel font-semibold tracking-snug text-text-strong hover:text-text-bright">
+          Home
+        </Link>
+      )}
       <span className="text-text-faint">/</span>
       {/* The proposal's own kind. This said "Résumé (English)" while only one
           render could generate, and would have put that title over a 履歴書. */}
@@ -302,16 +318,24 @@ function Review({
 }) {
   const { accept, dismiss } = useDecideProposal(proposalId);
   const leave = useLeave(proposal);
+  const setLanguage = useDocumentLanguageStore((state) => state.setLanguage);
+  const flash = useFlashStore((state) => state.show);
   // A refused decision used to reject into nothing: the buttons stayed, no
   // message appeared, and the author could not tell whether it had landed.
   const [failure, setFailure] = useState<string | null>(null);
-  const decide = async (decision: typeof accept | typeof dismiss) => {
+  const decide = async (decision: typeof accept | typeof dismiss, accepting = false) => {
     setFailure(null);
     try {
       await decision.mutateAsync();
     } catch (error) {
       setFailure(failureText(error));
       return;
+    }
+    if (accepting) {
+      // Home remembers which language's tab was open last, and the document
+      // just saved may be on the other one: it opens on its own.
+      setLanguage(RENDER_LANGUAGE[proposal.renderKind]);
+      flash(`Saved as v${proposal.proposedVersionNo} of your ${proposal.title}.`);
     }
     await leave();
   };
@@ -385,7 +409,7 @@ function Review({
           </Button>
           <Button
             variant="primary"
-            onClick={() => void decide(accept)}
+            onClick={() => void decide(accept, true)}
             disabled={(first && !preview) || drafted}
             disabledReason={
               drafted

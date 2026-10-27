@@ -45,7 +45,7 @@ the interface.
 in `text-dimmer`, actions right-aligned.
 
 The fact-review and diff-review screens replace the sidebar with a breadcrumb in the header
-(`Documents / <project> · <filename>`, `Outputs / <render>`) — they are focused, full-width tasks, not
+(`Documents / <project> · <filename>`, `Home / <render>`, or `Application / <render>` for a tailored one) — they are focused, full-width tasks, not
 navigation destinations.
 
 ### Theme · added 2026-10-05, issue #56
@@ -337,7 +337,7 @@ generation safe.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Outputs / <render name>` + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost) |
+| Header (46px) | Breadcrumb `Home / <render name>`, or `Application / <render name>` for a tailored document, its first part a link back to where the review was opened from (the screen has no sidebar) + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost) |
 | Toolbar (38px) | `N additions` (green dot) · `N removals` (red dot) · section summary · right: `Change N of M` + prev/next icon buttons |
 | Guide (34px) | One line under the toolbar, at the small role in `text-secondary` (#56): `Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one.` |
 | Split body | Two equal columns with a 1px centre rule. Sticky column headers: **Current** + mono `v4` + saved date; **Proposed** + accent `v5 draft` chip + generated timestamp |
@@ -378,6 +378,9 @@ A change with no explanation is a defect.
   these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
   The one part confirmed piece by piece is a draft (below), and Accept waits for it.
+- **After Accept** the author returns to Home on the accepted document's language tab (or to the
+  application, for a tailored one), with one line: `Saved as v<n> of your <render>.` Keeping the
+  current version changes neither the tab nor says anything.
 
 ### Drafted for you · 2026-10-26
 
@@ -2132,7 +2135,8 @@ The sent-copy reader (Screen 15) for a version (decision log, 2026-10-18). Route
 `/renders/<ref>/view`, a kind or a tailored résumé's id; `?version=<id>` names an earlier version,
 and without it the page is the current one. Reached by `View` on Home's document rows, on every
 version in Screen 5, and on each document in Résumé for this job. Header `Home / <document>`, or
-`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses.
+`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses. Under
+1024px it is `Applications / <document>` for every document, because Home is behind the message.
 Read-only.
 
 1. **One notice:** the chip `vN`, the `measured` dot and `Current` on the current version, then
@@ -2187,7 +2191,7 @@ Read-only.
 |---|---|
 | **A fact it cites is withheld** | The download's refusal in place of the page: the server's sentence (`removed`), the ids when more than one, then `A document obeys your record as it is today, not as it was when this version was accepted. Change the fact in your record, or edit the block out into a new version.` and, on the current version, `Edit` |
 | **No version, or a version of another document** | `That document or version was not found.` |
-| **Under 1024px** | The notice wraps and keeps `Download`, `History`, `Edit` and the new-version action reachable; destination screens retain their own width gate. |
+| **Under 1024px** | The notice wraps and keeps `Download`. `History`, `Edit` and the new-version action are not shown, because each opens a screen behind the message; the way back is Applications, not Home. |
 
 ---
 
@@ -2233,7 +2237,9 @@ screen that still needs a wider window.
 
 **Reading a document (Screen 17) is the third exception** (decision log, 2026-10-18). It opens at
 any width and follows the Applications table under 720px; Screens 2, 5 and 6 keep the message, so
-its header actions remain reachable under 1024px; the destination screens retain their own width gate.
+under 1024px its `History`, `Edit` and new-version action are not shown, and its way back is
+Applications. The message names the minimum, 1024px, and links to Applications, Quick capture (while
+the record is not empty) and Skills (decision log, 2026-10-27).
 
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow

@@ -7883,3 +7883,43 @@ names facts by claim.
   modules.
 - **Revisit if:** the record's facts change, since the documents name claims and stop the seed when
   one is missing; or a second persona is wanted.
+
+---
+
+### [2026-10-27] Fixes from the demo record's usability check
+
+The owner reviewed a usability check of the demo record and said to fix its findings before judging
+the site. Six changes; the rest of the check's list (low items and three product questions) is not
+part of this.
+
+- **Decision:** at phone width the wider-window message names the real minimum, 1024px (it said
+  1280), and links to Applications, Quick capture (while the record is not empty) and Skills. A
+  document's View under 1024px no longer shows `History`, `Edit` or the new-version action, and
+  leads back to Applications and not Home, since each of those opens the message. This supersedes
+  the Screen 17 row that kept them reachable under 1024px (2026-10-18). `Add a photo`, `Open in
+  source` and a job header's links on View still lead to a gated screen; they were not part of the
+  check's finding.
+- **Decision:** `unsourcedNumber` reads a unit abbreviation as its word (`6.8 s` is `6.8 seconds`;
+  `min`, `h`, `hr` likewise), a rate said `a quarter`, `per quarter` or `in the quarter` as one rate,
+  a ratio the claim states without a noun (`one in five`) as sourced by the same ratio before any
+  noun, and a participle before the unit (`three diverging component libraries`) as describing and not
+  changing the count. A different unit, scope, scale or number still flags, and so do the figures
+  with no passage behind them (`30% costs`, `40% faster`). Any other extra word before the unit is
+  still held to the passage. Flags already stored are not recomputed.
+- **Decision:** the demo seed's own claims were brought to what their quotes say, where the claim,
+  not the check, was wrong: the Hokushin sentence now carries the job count (`約 480 本`) its claim
+  states, `21 clean days` is `21 consecutive clean days`, and kanjigrid's downloads are worded as the
+  passage words them. The seed therefore leaves 2 number flags (both on rejected Generated facts)
+  where it left 9, and 5 checked flags on accepted facts where it left 12.
+- **Decision:** a tailored 履歴書's `TAILORED_MOTIVATION_NOTICE` is about a draft, so the proposal
+  carries it only while a drafted part is unconfirmed (and while generating, before there is
+  content), the application card only until the document has a version, and View never: a version
+  is one the author confirmed.
+- **Decision:** the demo seed freezes each application's documents with the clock set to the day it
+  was applied, so a sent copy's 作成日 and a 履歴書's age agree with its sent date. Everything else it
+  writes is still dated afterwards, as before.
+- **Decision:** accepting a proposal returns to Home on the accepted document's language tab with
+  `Saved as v<n> of your <render>.` (the flash line Applications already used), and the review's
+  breadcrumb starts with a link, Home or the application, in place of the plain text `Outputs`.
+- **Revisit if:** more of View's links to gated screens are reached from a phone; or a figure the
+  participle rule lets through turns out to change a count.

@@ -375,9 +375,13 @@ describe("the drafts", () => {
     // One confirmed as written, one edited.
     const confirmed = await confirmDraft(proposalId, "blk_1", proposal.drafts[0]!.text);
     expect(confirmed.status).toBe(200);
-    expect(((await confirmed.json()) as Proposal).drafts.map((draft) => draft.blockId)).toEqual(["blk_3"]);
+    const afterOne = (await confirmed.json()) as Proposal;
+    expect(afterOne.drafts.map((draft) => draft.blockId)).toEqual(["blk_3"]);
+    // The notice says the 志望動機 is drafted: it stays while a part waits, and goes with the last.
+    expect(afterOne.warnings).toContain(TAILORED_MOTIVATION_NOTICE);
     const edited = (await (await confirmDraft(proposalId, "blk_3", "  貴社規定に従います。  ")).json()) as Proposal;
     expect(edited.drafts).toEqual([]);
+    expect(edited.warnings).not.toContain(TAILORED_MOTIVATION_NOTICE);
 
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
     const [version] = await app.db.select().from(renderVersions).where(eq(renderVersions.userId, user.id));

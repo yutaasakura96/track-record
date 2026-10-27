@@ -7,11 +7,12 @@
  * generation started would all leave the screen looking normal.
  * All fixtures are invented.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { Proposal, RenderDiff } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { useDocumentLanguageStore } from "~/client/stores/document-language";
 
 const PROPOSAL = "prop-test-1";
 
@@ -86,6 +87,8 @@ const open = (p: Proposal, routes: Routes = {}) =>
     ...routes,
   });
 
+afterEach(() => useDocumentLanguageStore.setState({ language: "en" }));
+
 const accepted = { newVersionNo: 4 };
 const dismissed = { status: "dismissed" };
 
@@ -99,6 +102,43 @@ describe("a pending proposal", () => {
 
     await waitFor(() => expect(pathname()).toBe("/"));
     expect(api.writes()).toEqual([`POST /api/proposals/${PROPOSAL}/accept`]);
+  });
+
+  it("opens Home on the accepted document's language tab, and says it was saved", async () => {
+    useDocumentLanguageStore.setState({ language: "ja" });
+    const { user, pathname } = open(proposal(), {
+      [`POST /api/proposals/${PROPOSAL}/accept`]: accepted,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Accept proposed version" }));
+
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(useDocumentLanguageStore.getState().language).toBe("en");
+    expect((await screen.findByRole("status")).textContent).toBe("Saved as v4 of your Résumé (English).");
+  });
+
+  it("leaves the language tab alone when the proposal is kept out", async () => {
+    useDocumentLanguageStore.setState({ language: "ja" });
+    const { user, pathname } = open(proposal(), {
+      [`POST /api/proposals/${PROPOSAL}/dismiss`]: dismissed,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Keep current version" }));
+
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(useDocumentLanguageStore.getState().language).toBe("ja");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("leads back from its breadcrumb: Home for a main document, the application for a tailored one", async () => {
+    open(proposal());
+    expect((await screen.findByRole("link", { name: "Home" })).getAttribute("href")).toBe("/");
+    expect(screen.queryByText("Outputs")).toBeNull();
+  });
+
+  it("leads back to the application it was made for from a tailored document's breadcrumb", async () => {
+    open(proposal({ applicationId: "app-test-1" }));
+    expect((await screen.findByRole("link", { name: "Application" })).getAttribute("href")).toBe("/applications/app-test-1");
   });
 
   it("keeps the current version by dismissing, and sends nothing else", async () => {

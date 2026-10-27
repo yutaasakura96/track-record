@@ -35,6 +35,7 @@ import {
 import { Button } from "../components/ui";
 import { generateFailure } from "../components/generate-failure";
 import { ReadFailure, RefreshFailure } from "../components/read-failure";
+import { FlashLine } from "../components/flash-line";
 import { Sidebar } from "../components/sidebar";
 import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
@@ -97,6 +98,7 @@ export function Overview() {
           </>
         )}
       </div>
+      <FlashLine />
     </div>
   );
 }

@@ -283,6 +283,15 @@ describe("a claim that states a number its passage does not", () => {
     ["a descriptive word before a bare rate the passage never uses", "Hired 5 within a year", "Hired 5 a year.", []],
     ["a descriptive word the passage adds before a bare rate", "Hired 5 a year", "We hired 5 within a year.", []],
     ["a count found only as a word ratio's numerator over a year-shaped denominator", "Resolved one", "Resolved one of 2022 reports.", []],
+    // Wording differences are tolerated; a different quantity is not.
+    ["a different abbreviated unit", "Cut load time to 6.8 s", "Load time fell to 6.8 minutes.", []],
+    ["an abbreviated unit against a count", "Cut load time to 6.8 s", "Load time fell to 6.8 services.", []],
+    ["a percentage the passage does not state, beside a stated one", "Cut costs by 30% and 40%", "Costs fell by 30%.", []],
+    ["a quarterly rate against a yearly one", "Reduced breaks to 2 a quarter", "Breaks fell to 2 in the year.", []],
+    ["a quarterly rate against a monthly one", "Served 5 users a quarter", "Served 5 users per month.", []],
+    ["a ratio against another denominator, with a noun", "Cut the rollback rate to one in five", "The rollback rate fell to about one in fifty releases.", []],
+    ["a ratio the claim gives a noun the passage lacks", "Cut the rollback rate to one in five releases", "The rollback rate fell to one in five.", []],
+    ["a noun-modifying word the passage adds, beside a different one in the claim", "Hired 5 marketing staff", "Hired 5 engineering staff.", []],
   ];
   for (const [label, claim, quote, technologies] of unsourced) {
     it(`flags ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(true));
@@ -365,6 +374,22 @@ describe("a claim that states a number its passage does not", () => {
     ["a dated hire count against a passage that dates it first", "Hired 5 in 2023", "In 2023, we hired 5.", []],
     ["a unitless count whose clause the passage extends", "A team of 5 shipped the app", "A team of 5 shipped the mobile app.", []],
     ["a unitless count whose clause the claim extends", "A team of 5 shipped the mobile app", "A team of 5 shipped the app.", []],
+    // The same figure worded another way (the demo record's false flags).
+    ["a unit abbreviated in the claim", "Cut load time from 6.8 s to 2.9 s", "Load time fell from 6.8 seconds to 2.9 seconds.", []],
+    ["a unit spelled out in the claim", "Cut load time from 6.8 seconds to 2.9 seconds", "Load time fell from 6.8 s to 2.9 s.", []],
+    ["minutes abbreviated", "Cut the run to 90 min", "The run took 90 minutes.", []],
+    ["hours abbreviated", "Cut the run to 6 hrs", "The run took 6 hours.", []],
+    ["a space inside a Japanese counter", "並列実行できるジョブが約3割ある", "並列実行できるジョブが全体の約 3 割あることが分かった。", []],
+    ["a space the claim has inside a Japanese counter", "並列実行できるジョブが約 3 割ある", "並列実行できるジョブが全体の約3割あることが分かった。", []],
+    ["a hyphenated compound against its plural", "Ran a three-phase migration", "The migration ran in three phases.", []],
+    ["a rate written a quarter against in the quarter", "Reduced breaks from 37 a quarter to 2", "Breaks fell from 37 in the quarter before to 2 in the quarter after.", []],
+    ["a rate written per quarter against in the quarter", "Reduced breaks to 2 per quarter", "Breaks fell to 2 in the quarter after.", []],
+    ["a rate written a quarter against per quarter", "Served 5 users a quarter", "Served 5 users per quarter.", []],
+    ["a ratio the passage follows with a noun", "Cut the rollback rate to one in five", "The rollback rate fell to about one in five releases.", []],
+    ["a ratio in digits the passage follows with a noun", "Resolved 2 of 5", "Resolved 2 of 5 reports.", []],
+    ["a participle the passage adds before the unit", "Replaced three component libraries", "Replaced three diverging component libraries.", []],
+    ["a word before the unit and a participle the passage adds", "Wrote 5 clinic reports", "Wrote 5 clinic reports using existing templates.", []],
+    ["a noun moved after the number", "Has 1,400 GitHub stars", "It has 1,400 stars on GitHub.", []],
   ];
   for (const [label, claim, quote, technologies] of sourced) {
     it(`does not flag ${label}`, () => expect(unsourcedNumber(claim, quote, technologies)).toBe(false));
@@ -386,6 +411,13 @@ describe("a claim that states a number its passage does not", () => {
       "Moved the booking API behind a traffic split, sending 5% of requests to the new cluster first",
       "Moved all 23 services to AKS over nine months with no unplanned downtime",
       "Defined the first five clinic reports with the operations team at Sakura Family Clinic",
+      "夜間バッチ約480本のジョブ依存関係を JP1 のジョブネットから抽出して一覧化し、並列実行可能なジョブが約3割あることを特定した",
+      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 consecutive clean days",
+      "Reduced reconciliation breaks from 37 a quarter to 2",
+      "Cut checkout time to interactive on a mid-range phone from 6.8 s to 2.9 s",
+      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
+      "Raised deployment frequency from fortnightly to several times a day and cut the rollback rate from one in five to under one in twenty",
+      "kanjigrid has about 1,400 GitHub stars and is downloaded about 9,000 times a week from npm",
     ];
     const candidates = DOCUMENTS.flatMap((document) => document.candidates);
     for (const claim of claims) {
@@ -394,8 +426,8 @@ describe("a claim that states a number its passage does not", () => {
       expect(unsourcedNumber(claim, candidate!.quote, candidate!.technologies), claim).toBe(false);
     }
     for (const claim of [
-      "Co-founded the frontend guild and led the replacement of three component libraries with one design system",
-      "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
+      "Cut payment processing costs by 30% through the ledger rewrite",
+      "The design system made new screens 40% faster to build",
     ]) {
       const candidate = candidates.find((entry) => entry.claim === claim);
       expect(candidate, claim).toBeDefined();

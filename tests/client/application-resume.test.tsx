@@ -328,11 +328,19 @@ describe("a tailored 履歴書", () => {
     expect(resume.getByRole("link", { name: "Add a photo" }).getAttribute("href")).toBe("/profile");
   });
 
-  it("shows the tailored motivation notice only while the application has no reason", async () => {
+  it("shows the tailored motivation notice only until the document has a version, and only while the application has no reason", async () => {
+    const unwritten = { ...OWN_RIREKISHO, currentVersionId: null, currentVersionNo: null, status: "never_generated" as const };
+    open(application(NOT_APPLIED, { documents: [unwritten], choices: choicesOf([unwritten]) }));
+    const resume = await panel();
+    expect(resume.getByText(TAILORED_MOTIVATION_NOTICE)).toBeTruthy();
+  });
+
+  it("drops the tailored motivation notice once the draft is confirmed and accepted", async () => {
     const written = { ...OWN_RIREKISHO, currentVersionId: "rvr-test-ja-1", currentVersionNo: 1, status: "up_to_date" as const };
     open(application(NOT_APPLIED, { documents: [written], choices: choicesOf([written]) }));
     const resume = await panel();
-    expect(resume.getByText(TAILORED_MOTIVATION_NOTICE)).toBeTruthy();
+    expect(resume.getByText("Version 1 · written for this job")).toBeTruthy();
+    expect(resume.queryByText(TAILORED_MOTIVATION_NOTICE)).toBeNull();
   });
 });
 

@@ -12,9 +12,12 @@
  * Four exceptions open at any width and are laid out for a phone under 720px:
  * everything under `/applications` (issue #75), Quick capture (issue #95),
  * reading a document (issue #106), and Skills (issue #114). Nothing else does.
+ * The message names them and links to the three that need no document open,
+ * because a window that lands here has no sidebar to find them by.
  */
 import { useEffect, useState, type ReactNode } from "react";
-import { useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
+import { useOverview } from "../api";
 
 const MINIMUM = 1024;
 
@@ -59,13 +62,43 @@ export function TooNarrow({ children }: { children: ReactNode }) {
 
   if (wide || opensOnAPhone(path)) return <>{children}</>;
 
+  return <Wall />;
+}
+
+/** The message, and the screens that do work in a window this narrow. */
+function Wall() {
+  // Quick capture is held back while the record is empty, as the sidebar and the menu do.
+  const capture = useOverview().data?.isEmpty === false;
+  const linkClass = "text-accent-link hover:text-accent-link-hover motion-tone underline";
   return (
     <div className="min-h-screen grid place-items-center px-20">
-      <p className="max-w-measure text-center text-ui text-text-dim">
-        Track Record needs a window at least 1280&nbsp;pixels wide. Reviewing facts means reading a
-        document beside its facts, and reviewing a document means reading the current version beside
-        the proposed one.
-      </p>
+      <div className="max-w-measure grid gap-14 text-center text-ui text-text-dim">
+        <p>
+          Track Record needs a window at least {MINIMUM}&nbsp;pixels wide. Reviewing facts means reading a
+          document beside its facts, and reviewing a document means reading the current version beside
+          the proposed one.
+        </p>
+        <p>On a narrower window, these still work:</p>
+        <ul className="grid gap-6">
+          <li>
+            <Link to="/applications" className={linkClass}>
+              Applications
+            </Link>
+          </li>
+          {capture ? (
+            <li>
+              <Link to={CAPTURE_PATH} className={linkClass}>
+                Quick capture
+              </Link>
+            </li>
+          ) : null}
+          <li>
+            <Link to={SKILLS_PATH} className={linkClass}>
+              Skills
+            </Link>
+          </li>
+        </ul>
+      </div>
     </div>
   );
 }
