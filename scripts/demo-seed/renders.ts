@@ -1,6 +1,6 @@
 /**
  * What the demo seed's scripted model writes when a document is generated: the
- * five documents, and a résumé tailored to the platform posting.
+ * five documents, and a résumé and 履歴書 tailored to the platform posting.
  *
  * It stands where the model's answer would, before the seam's own parsing:
  * `generateDemoRender` hands its draft to `parseGeneratedRender`, as the real
@@ -527,12 +527,19 @@ function resume(facts: readonly RenderFact[], spec: RenderSpec): DraftSection[] 
 }
 
 function rirekisho(facts: readonly RenderFact[], spec: RenderSpec): DraftSection[] {
+  const tailored = spec.jobDescription !== null;
+  const motivation = tailored
+    ? [
+        { kind: "paragraph" as const, text: spec.application!.motivationNote!, factIds: [] },
+        ...draftBlocks(facts, MOTIVATION.slice(0, 2)),
+      ]
+    : draftBlocks(facts, MOTIVATION);
   return [
-    { key: "motivation", heading: "志望動機・特技・アピールポイントなど", blocks: draftBlocks(facts, MOTIVATION) },
+    { key: "motivation", heading: "志望動機・特技・アピールポイントなど", blocks: motivation },
     {
       key: "kibou",
       heading: "本人希望欄",
-      blocks: [{ kind: "paragraph", text: spec.desiredRoleNote ?? "貴社規定に従います。", factIds: [] }],
+      blocks: [{ kind: "paragraph", text: (tailored ? spec.application?.kibouNote : null) ?? spec.desiredRoleNote ?? "貴社規定に従います。", factIds: [] }],
     },
   ];
 }

@@ -322,6 +322,8 @@ export interface DemoApplication {
   documents: ("english_resume" | "rirekisho" | "shokumu_keirekisho")[];
   /** Write a résumé for this posting, and send it with the documents above. */
   tailoredResume: boolean;
+  /** Draft both cells of an application-specific 履歴書 before sending it. */
+  tailoredRirekisho?: { motivationNote: string; kibouNote: string };
   /** Steps reached, in order, with the day each happened (days, not months). */
   steps: { status: "applied" | "resume_passed" | "interview_1" | "interview_2" | "interview_final" | "offer" | "rejected" | "withdrawn"; daysAgo: number }[];
   interviews: { daysAgo: number; round: "interview_1" | "interview_2" | "interview_final" | "other"; who: string; howItWent: string; questions: string[] }[];
@@ -337,6 +339,10 @@ export const APPLICATIONS: DemoApplication[] = [
     addedDaysAgo: 25,
     documents: ["rirekisho", "shokumu_keirekisho"],
     tailoredResume: true,
+    tailoredRirekisho: {
+      motivationNote: "医療サービスを支える基盤の信頼性を高め、開発チームが安全に変更を届けられる環境を作りたいと考え、応募しました。",
+      kibouNote: "スタッフプラットフォームエンジニア職を希望します。勤務地は東京都内を希望します。",
+    },
     steps: [
       { status: "applied", daysAgo: 25 },
       { status: "resume_passed", daysAgo: 18 },

@@ -328,8 +328,9 @@ looked at (the two figures the importer invented are rejected, the other 12 flag
 one gap in 学歴・職歴, October–December 2023, explained; 21 curated skills; the English résumé, the
 履歴書, the 職務経歴書 and both career stories each with an accepted v1, and the career record built
 from the facts; and four applications whose documents were chosen before Applied and frozen as sent
-on the day each was applied (Northwind with its own tailored résumé, Harbor Ledger the one gone
-quiet, Kumo Market rejected, Aozora not applied yet). Home says "You are up to date".
+on the day each was applied (Northwind with its own tailored résumé and 履歴書 in place of the main
+履歴書, with 志望動機 and 本人希望 confirmed before Applied; Harbor Ledger the one gone quiet; Kumo Market
+rejected; Aozora not applied yet). Home says "You are up to date".
 
 The finishing steps go through the app's own routes, in the seed's process (`scripts/demo-seed/app.ts`):
 the documents are generated with a scripted model (`scripts/demo-seed/renders.ts`) and must pass every
@@ -369,7 +370,7 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
    upload rows remain.
    A run that fails partway is recovered by running the same command again: it resets first.
 5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 16
-   flags, 21 skills, 6 render versions, 4 applications, 6 sent copies, 2 interviews. Then, on the
+   flags, 21 skills, 7 render versions, 4 applications, 6 sent copies, 2 interviews. Then, on the
    production database:
 
    ```sql

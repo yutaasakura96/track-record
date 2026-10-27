@@ -138,7 +138,7 @@ export interface DemoCounts {
   facts: number;
   flags: number;
   skills: number;
-  /** Accepted document versions: the five documents and the tailored résumé, one each. */
+  /** Accepted document versions: the five documents and Northwind's two tailored ones. */
   renderVersions: number;
   applications: number;
   /** The documents the applications past Not applied were sent with. */
@@ -376,7 +376,7 @@ const isClosed = (status: string) => status === "rejected" || status === "withdr
 
 /**
  * One application as the screens build it: pasted, its documents chosen (and
- * its own résumé written, where it has one), then moved to Applied on its own,
+ * its own documents written, where it has them), then moved to Applied on its own,
  * which freezes those documents as sent that day, then on to where it stands.
  * The routes date what they write today, so the times a list is ordered and
  * `gone quiet` is counted by are set back to the fixture's days afterwards.
@@ -393,10 +393,24 @@ async function addApplication(db: Db, call: DemoCall, userId: string, applicatio
     requirements: application.requirements,
   });
   if (application.tailoredResume) {
-    const detail = await call<{ documents: { ref: string; tailored: boolean }[] }>("POST", `/api/applications/${id}/tailored-resume`);
-    await generateAndAccept(call, detail.documents.find((document) => document.tailored)!.ref);
+    const detail = await call<{ documents: { ref: string; kind: string; tailored: boolean }[] }>("POST", `/api/applications/${id}/tailored/english_resume`);
+    await generateAndAccept(call, detail.documents.find((document) => document.tailored && document.kind === "english_resume")!.ref);
   }
   await call("PUT", `/api/applications/${id}/documents`, { documents: application.documents });
+  if (application.tailoredRirekisho) {
+    await call("PATCH", `/api/applications/${id}`, application.tailoredRirekisho);
+    const detail = await call<{ documents: { ref: string; kind: string; tailored: boolean }[] }>("POST", `/api/applications/${id}/tailored/rirekisho`);
+    const ref = detail.documents.find((document) => document.tailored && document.kind === "rirekisho")!.ref;
+    const { proposalId } = await call<{ proposalId: string }>("POST", `/api/renders/${ref}/generate`);
+    const proposal = await call<{ generationStatus: string; error: unknown; drafts: { blockId: string; sectionKey: string; text: string }[] }>("GET", `/api/proposals/${proposalId}`);
+    if (proposal.generationStatus !== "ready") throw new Error(`${ref} was not generated: ${JSON.stringify(proposal.error)}`);
+    for (const sectionKey of ["motivation", "kibou"]) {
+      const draft = proposal.drafts.find((item) => item.sectionKey === sectionKey);
+      if (!draft) throw new Error(`${ref} has no ${sectionKey} draft to confirm.`);
+      await call("POST", `/api/proposals/${proposalId}/drafts/${draft.blockId}`, { text: draft.text });
+    }
+    await call("POST", `/api/proposals/${proposalId}/accept`);
+  }
 
   const dates: Record<string, string> = { not_applied: day(application.addedDaysAgo) };
   const [applied, ...later] = application.steps;

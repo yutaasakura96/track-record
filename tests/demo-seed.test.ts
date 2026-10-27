@@ -21,6 +21,7 @@ import {
   RENDER_DOWNLOAD_ALTERNATIVE,
   RENDER_DOWNLOAD_FORMAT,
   RENDER_KINDS,
+  type RenderContent,
   type RenderKind,
 } from "~/shared/render-content";
 import { RESET_ORDER, seedDemo } from "../scripts/demo-seed/demo";
@@ -141,7 +142,7 @@ const COUNTS = (user: string) => ({
   facts: 59,
   flags: 16,
   skills: 21,
-  renderVersions: 6,
+  renderVersions: 7,
   applications: 4,
   sentCopies: 6,
   interviews: 2,
@@ -194,18 +195,35 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
   for (const application of fixture.APPLICATIONS) {
     const row = byCompany.get(application.company)!;
     const detail = await as.json<{
+      motivationNote: string | null;
+      kibouNote: string | null;
       documents: { ref: string; kind: RenderKind; tailored: boolean; currentVersionNo: number | null }[];
-      sentCopies: { id: string; kind: RenderKind }[];
+      sentCopies: { id: string; ref: string; kind: RenderKind }[];
     }>(`/api/applications/${row.id}`);
-    const chosen = [...(application.tailoredResume ? ["english_resume"] : []), ...application.documents];
+    const chosen = [
+      ...(application.tailoredResume ? ["english_resume"] : []),
+      ...application.documents,
+    ];
     expect(detail.documents.map((d) => d.kind).sort()).toEqual([...chosen].sort());
     expect(detail.documents.every((d) => d.currentVersionNo === 1)).toBe(true);
     expect(detail.sentCopies.length).toBe(application.steps.length > 0 ? chosen.length : 0);
+    if (application.tailoredRirekisho) {
+      expect(detail).toMatchObject(application.tailoredRirekisho);
+      const own = detail.documents.find((document) => document.kind === "rirekisho");
+      expect(own).toMatchObject({ tailored: true, currentVersionNo: 1 });
+      expect(detail.sentCopies.find((copy) => copy.kind === "rirekisho")?.ref).toBe(own?.ref);
+      const [version] = await db.select({ content: s.renderVersions.content })
+        .from(s.renderVersions)
+        .where(eq(s.renderVersions.renderId, own!.ref));
+      const content = version!.content as RenderContent;
+      expect(content.sections.find((section) => section.key === "motivation")?.blocks[0]?.text).toBe(application.tailoredRirekisho.motivationNote);
+      expect(content.sections.find((section) => section.key === "kibou")?.blocks[0]?.text).toBe(application.tailoredRirekisho.kibouNote);
+      expect(content.sections.flatMap((section) => section.blocks).every((block) => !block.drafted)).toBe(true);
+    }
     for (const copy of detail.sentCopies) {
       expect((await as.get(`/api/applications/${row.id}/sent-copies/${copy.id}/download`)).status).toBe(200);
     }
-    const tailored = detail.documents.find((d) => d.tailored);
-    if (tailored) {
+    for (const tailored of detail.documents.filter((d) => d.tailored)) {
       for (const format of ["pdf", "docx"]) {
         expect((await as.get(`/api/renders/${tailored.ref}/download?format=${format}`)).status).toBe(200);
       }
