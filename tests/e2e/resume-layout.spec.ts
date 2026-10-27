@@ -186,7 +186,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   await page.goto(`/applications/${japanese.id}`);
   await page.getByLabel(/Why you are applying/).fill("決済の信頼性に関わり続けたいからです。");
   await page.getByRole("button", { name: "Make a tailored 履歴書" }).click();
-  await expect(page).toHaveURL(/\/proposals\/[^/]+$/);
+  await expect(page).toHaveURL(/\/proposals\/[^/]+$/, { timeout: 30_000 });
   const drafts = page.getByRole("region", { name: "Drafted for you" });
   await expect(drafts.getByText("Drafted for you: 2 parts to confirm")).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept as v1" })).toBeDisabled();

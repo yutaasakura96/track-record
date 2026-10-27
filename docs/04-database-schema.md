@@ -843,8 +843,10 @@ live rows.
 - **The chosen set can be edited at Not applied.** From Applied onward, recording another sent copy
   can add a document to the application, but nothing is taken off.
 - **One 履歴書 before Applied** (2026-10-26). Putting the tailored 履歴書 on takes the main 履歴書's row
-  off in the same batch, and the main 履歴書 cannot be put on while the tailored one is. This is a rule
-  of the routes, not an index: from Applied onward both may be recorded as sent.
+  off in the same batch, and the main 履歴書 cannot be put on while the tailored one is. Triggers hold
+  it, not an index (migration 0037): one on `application_documents` refuses a live row that would put
+  both on at Not applied, one on `applications` refuses a move back to Not applied while both are on.
+  From Applied onward both may be recorded as sent.
 
 **`application_sent_copies`** — one row per document per time it was sent.
 
@@ -856,7 +858,7 @@ live rows.
 | `render_id` | text | no | FK → `renders.id` **cascade**. Which document this is a copy of; "the latest copy" is per document |
 | `render_version_id` | text | no | FK → `render_versions.id` **cascade**. The version the file was built from. Kept for the record; **nothing is read through it** |
 | `kind` | render_kind | no | As sent |
-| `title` | text | no | As sent: `Main résumé`, `履歴書`, `職務経歴書`, or `Tailored résumé for <company>` with the company's name of that day |
+| `title` | text | no | As sent: `Main résumé`, `履歴書`, `職務経歴書`, `Tailored résumé for <company>` or `Tailored 履歴書 for <company>` with the company's name of that day |
 | `version_no` | integer | no | As sent |
 | `filename` | text | no | The download's name, as sent |
 | `file` | bytea | no | **The `.docx` as generated the day it was sent.** Never written again |
