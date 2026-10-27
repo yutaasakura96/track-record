@@ -7862,8 +7862,10 @@ names facts by claim.
 - **Decision:** after the import, the seed does what the author would, through the app's routes in
   its own process (`scripts/demo-seed/app.ts`): rejects the two Generated facts whose figures no
   passage states, marks the other 12 flags checked, adds an invented drawn photo, explains the one
-  gap, generates and accepts each of the five documents, and builds each application as the screens
-  do (choose documents, write the tailored résumé, move to Applied, which freezes them, then on).
+  gap, generates and accepts each of the five main documents, and builds each application as the
+  screens do (choose documents, write Northwind's tailored résumé and 履歴書, confirm the 履歴書's
+  志望動機 and 本人希望 drafts, accept both tailored versions, move to Applied, which freezes the chosen
+  documents, then on).
   Rejected: inserting renders and sent copies directly, which skips the checks a document meets on
   generation and the freeze a move to Applied makes.
 - **Decision:** the documents' text is written in `scripts/demo-seed/renders.ts`, citing facts by the
