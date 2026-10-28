@@ -11,7 +11,7 @@
  */
 import { AlignmentType, Document, HeadingLevel, Packer, Paragraph, TextRun } from "docx";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
-import { documentFilename } from "./filename";
+import { documentFilename, kindLabel, tokyoDay } from "./filename";
 import { documentAuthor, documentDate, identityLines, isDated, type RenderIdentity } from "./identity";
 
 export const DOCX_MIME =
@@ -109,9 +109,5 @@ export async function toDocx(
  * dated, so a downloaded file names its own vintage (`documentFilename`).
  */
 export function downloadFilename(kind: string, nameLatin: string, extension: string, date: Date): string {
-  const label = kind
-    .split("_")
-    .map((part) => (part === "en" || part === "ja" ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)))
-    .join("-");
-  return documentFilename(label, nameLatin, date.toISOString().slice(0, 10), extension);
+  return documentFilename(kindLabel(kind), nameLatin, tokyoDay(date), extension);
 }

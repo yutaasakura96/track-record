@@ -568,6 +568,16 @@ describe("a sent copy", () => {
     expect((await read(made.id)).sentCopies).toHaveLength(1);
   });
 
+  it("names its author in a Japanese copy's ASCII name, beside the name it was sent under", async () => {
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    const made = await add();
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+
+    const response = await client.get(`/api/applications/${made.id}/sent-copies/${copy!.id}/download`);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Rirekisho-\d{4}-\d{2}-\d{2}\.docx"; filename\*=UTF-8''/);
+  });
+
   it("follows a correction of the Applied date when that move froze it", async () => {
     await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     const made = await add();

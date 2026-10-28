@@ -197,6 +197,39 @@ describe("a suggested group", () => {
     expect(suggested.get("Bash")).toBeNull();
   });
 
+  it("does not go to a group at every employer, as a language is, for a skill at two of them", async () => {
+    const fact = await imported([
+      { claim: "Wrote the billing service in Go", quote: "The billing service was written in Go.", technologies: ["Go"] },
+      { claim: "Wrote the routing service in Go", quote: "The routing service was written in Go.", technologies: ["Go"] },
+      { claim: "Wrote the tracking service in Go", quote: "The tracking service was written in Go.", technologies: ["Go"] },
+      { claim: "Planned networks in Terraform", quote: "Every network was planned in Terraform.", technologies: ["Terraform"] },
+      { claim: "Ran checks in GitHub Actions", quote: "Every pull request ran its checks in GitHub Actions.", technologies: ["GitHub Actions"] },
+      { claim: "Released from GitHub Actions", quote: "Releases were cut from a GitHub Actions workflow.", technologies: ["GitHub Actions"] },
+    ]);
+    const first = await created("/api/employers", EMPLOYER_FIXTURE);
+    const second = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: "Kumo Freight K.K." });
+    const third = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: "Sora Ledger K.K." });
+    for (const [fragment, employerId] of [
+      ["billing", first.id],
+      ["routing", second.id],
+      ["tracking", third.id],
+      ["Terraform", first.id],
+      ["Ran checks", first.id],
+      ["Released", second.id],
+    ]) {
+      const id = fact(fragment!).id;
+      await client.patch(`/api/facts/${id}`, { employerId });
+      await accept(id);
+    }
+    await curate([
+      { name: "Languages", skills: ["Go"] },
+      { name: "Delivery", skills: ["Terraform"] },
+    ]);
+
+    const suggested = new Map((await curation()).candidates.map((c) => [c.name, c.suggestedGroup]));
+    expect(suggested.get("GitHub Actions")).toBe("Delivery");
+  });
+
   it("is none while no group exists, and none when nothing ties a skill to one group alone", async () => {
     await seedRecord();
     expect((await curation()).candidates.every((c) => c.suggestedGroup === null)).toBe(true);

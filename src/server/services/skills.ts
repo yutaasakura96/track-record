@@ -141,8 +141,11 @@ const BESIDE_MINIMUM = 0.5;
  * skills it is named beside, weighted by how specific each neighbour is, and
  * only when that evidence reaches `BESIDE_MINIMUM` (a single fact beside a
  * skill named on three is not enough). Failing that, the one sharing the most
- * employers with the skill's facts — and only when that is one group alone: a
- * tie there is no evidence, not a reason to take the earlier or the larger.
+ * employers with the skill's facts, each weighted by how few of the record's
+ * employers the group reaches — a group at every employer, as a language often
+ * is, says nothing about which one a skill belongs beside — and only when that
+ * is one group alone: a tie there is no evidence, not a reason to take the
+ * earlier or the larger.
  * The earlier group wins a tie between equally specific neighbours. None when
  * nothing in the record ties the skill to a group; the chip then asks which.
  */
@@ -171,7 +174,12 @@ export function suggestedGroup(skill: string, groups: CuratedGroup[], together: 
   const evidence = highest(groups, (g) => ((beside.get(g.name) ?? 0) >= BESIDE_MINIMUM ? beside.get(g.name)! : 0));
   if (evidence) return evidence;
 
-  const shared = (g: CuratedGroup) => [...(employersOf.get(g.name) ?? [])].filter((id) => ownEmployers.has(id)).length;
+  const employers = new Set(together.flatMap(({ employerId }) => (employerId ? [employerId] : [])));
+  const shared = (g: CuratedGroup) => {
+    const at = employersOf.get(g.name) ?? new Set<string>();
+    const count = [...at].filter((id) => ownEmployers.has(id)).length;
+    return count && count * Math.log(employers.size / at.size);
+  };
   const top = Math.max(0, ...groups.map(shared));
   const leaders = groups.filter((g) => top > 0 && shared(g) === top);
   return leaders.length === 1 ? leaders[0]!.name : null;

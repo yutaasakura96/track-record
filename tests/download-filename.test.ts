@@ -18,16 +18,22 @@ describe("a download's name", () => {
       downloadFilename("career_story_en", NAME, "md", DAY),
       asciiFilename("rirekisho", NAME, "2026-10-27", "pdf"),
       asciiFilename("shokumu_keirekisho", NAME, "2026-10-27", "docx"),
+      asciiFilename("career_story_ja", NAME, "2026-10-27", "md"),
     ]).toEqual([
       "Hanako-Kakuu-Resume-2026-10-27.pdf",
       "Hanako-Kakuu-Career-Story-EN-2026-10-27.md",
       "Hanako-Kakuu-Rirekisho-2026-10-27.pdf",
       "Hanako-Kakuu-Shokumu-Keirekisho-2026-10-27.docx",
+      "Hanako-Kakuu-Career-Story-JA-2026-10-27.md",
     ]);
   });
 
-  it("dates a résumé by its day in Tokyo", () => {
-    expect(resumeFilename(NAME, "docx", new Date("2026-10-27T16:00:00Z"))).toBe("Hanako-Kakuu-Resume-2026-10-28.docx");
+  it("dates a résumé and a story by the same day in Tokyo", () => {
+    const evening = new Date("2026-10-27T22:30:00Z");
+    expect([resumeFilename(NAME, "docx", evening), downloadFilename("career_story_en", NAME, "md", evening)]).toEqual([
+      "Hanako-Kakuu-Resume-2026-10-28.docx",
+      "Hanako-Kakuu-Career-Story-EN-2026-10-28.md",
+    ]);
   });
 
   it("folds accents, drops what ASCII cannot hold, and leaves the name out when none is left", () => {

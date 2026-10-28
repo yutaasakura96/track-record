@@ -20,6 +20,13 @@ export function asciiNamePart(nameLatin: string): string {
     .join("-");
 }
 
+/** What a render kind is called in a file name: `Career-Story-EN` for `career_story_en`, `Rirekisho` for `rirekisho`. */
+export const kindLabel = (kind: string): string =>
+  kind
+    .split("_")
+    .map((part) => (part === "en" || part === "ja" ? part.toUpperCase() : part.charAt(0).toUpperCase() + part.slice(1)))
+    .join("-");
+
 /** `Kenji-Moriyama-Resume-2026-10-27.pdf`; the name is left out when the profile has none. */
 export function documentFilename(label: string, nameLatin: string, date: string, extension: string): string {
   const name = asciiNamePart(nameLatin);

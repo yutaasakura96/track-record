@@ -34,7 +34,7 @@ import {
 import { routes } from "../http/registry";
 import { effectiveEmployerId } from "../services/employer";
 import { nameInLanguage } from "../services/render";
-import { documentFilename } from "~/render/filename";
+import { documentFilename, tokyoDay } from "~/render/filename";
 import { masterMarkdown } from "~/render/master-document";
 import type { RenderContent } from "~/shared/render-content";
 import {
@@ -73,7 +73,7 @@ export function registerMasterRoutes(app: Hono<AppEnv>) {
       .from(profiles)
       .where(eq(profiles.userId, c.get("user").id))
       .limit(1);
-    const filename = documentFilename(`Career-Record-${doc.language.toUpperCase()}`, profile?.nameLatin ?? "", doc.builtAt.slice(0, 10), "md");
+    const filename = documentFilename(`Career-Record-${doc.language.toUpperCase()}`, profile?.nameLatin ?? "", tokyoDay(new Date(doc.builtAt)), "md");
     return new Response(masterMarkdown(doc), {
       headers: {
         "content-type": "text/markdown; charset=utf-8",

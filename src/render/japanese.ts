@@ -24,7 +24,7 @@
 import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind, type RenderSection } from "~/shared/render-content";
 import type { RenderFact, RenderSpec } from "~/model/types";
 import { resolveEmployer } from "./attribution";
-import { documentFilename } from "./filename";
+import { documentFilename, kindLabel } from "./filename";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
 import { PROSE_SECTION_KEYS } from "./rirekisho";
 
@@ -184,8 +184,7 @@ export function japaneseFilename(kind: RenderKind, nameKanji: string, today: str
 
 /** The ASCII name sent beside it, for a client that cannot read `filename*` (RFC 6266 §4.3): `Kenji-Moriyama-Rirekisho-2026-10-23.pdf`. */
 export function asciiFilename(kind: RenderKind, nameLatin: string, today: string, extension: string): string {
-  const label = kind.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("-");
-  return documentFilename(label, nameLatin, today, extension);
+  return documentFilename(kindLabel(kind), nameLatin, today, extension);
 }
 /**
  * Is a Japanese document written the way its register says? (Issue #117,

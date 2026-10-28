@@ -20,7 +20,7 @@ import type { Hono } from "hono";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import PizZip from "pizzip";
 import { z } from "zod";
-import { applicationDocuments, applicationSentCopies, renders } from "../db/schema";
+import { applicationDocuments, applicationSentCopies, profiles, renders } from "../db/schema";
 import { storedBytes } from "../db/bytes";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -33,6 +33,7 @@ import { detail, markActivity, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
 import { attachment } from "../http/disposition";
 import { tokyoToday } from "~/render/rirekisho";
+import { documentFilename, kindLabel, tokyoDay } from "~/render/filename";
 import type { SentPage } from "~/render/sent-page";
 import { readSheet } from "~/render/sheet";
 import { photoOf } from "~/render/rirekisho-photo";
@@ -288,18 +289,28 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const id = pathParam(c, "id");
     await requireApplication(db, user.id, id);
     const [copy] = await db
-      .select({ file: applicationSentCopies.file, filename: applicationSentCopies.filename, kind: applicationSentCopies.kind })
+      .select({
+        file: applicationSentCopies.file,
+        filename: applicationSentCopies.filename,
+        kind: applicationSentCopies.kind,
+        recordedAt: applicationSentCopies.recordedAt,
+      })
       .from(applicationSentCopies)
       .where(and(liveCopies(user.id, id), eq(applicationSentCopies.id, pathParam(c, "copyId"))))
       .limit(1);
     if (!copy) throw notFound("That sent copy");
+    const [profile] = await db
+      .select({ nameLatin: profiles.nameLatin })
+      .from(profiles)
+      .where(eq(profiles.userId, user.id))
+      .limit(1);
 
     return new Response(storedBytes(copy.file) as BodyInit, {
       headers: {
         "content-type": DOCX_MIME,
         // A Japanese document's copy is named in Japanese (issue #117); the
-        // ASCII name beside it is its kind and its date.
-        "content-disposition": attachment(copy.filename, asciiCopyName(copy.kind, copy.filename)),
+        // ASCII name beside it is the author's, its kind and its date.
+        "content-disposition": attachment(copy.filename, asciiCopyName(copy, profile?.nameLatin ?? "")),
       },
     });
   });
@@ -440,10 +451,9 @@ async function withSheet(db: Db, userId: string, copy: { id: string; kind: strin
   }
 }
 
-/** `Rirekisho-2026-10-23.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
-function asciiCopyName(kind: string, filename: string): string {
-  const date = /_(\d{4})(\d{2})(\d{2})\.[a-z]+$/.exec(filename);
-  const extension = /\.([a-z]+)$/.exec(filename)?.[1] ?? "docx";
-  const label = kind.split("_").map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join("-");
-  return `${label}${date ? `-${date[1]}-${date[2]}-${date[3]}` : ""}.${extension}`;
+/** `Kenji-Moriyama-Rirekisho-2026-10-23.docx` for `履歴書_森山健二_20261023.docx`: the kind, and the date the stored name carries. */
+function asciiCopyName(copy: { kind: string; filename: string; recordedAt: Date }, nameLatin: string): string {
+  const date = /_(\d{4})(\d{2})(\d{2})\.[a-z]+$/.exec(copy.filename);
+  const extension = /\.([a-z]+)$/.exec(copy.filename)?.[1] ?? "docx";
+  return documentFilename(kindLabel(copy.kind), nameLatin, date ? `${date[1]}-${date[2]}-${date[3]}` : tokyoDay(copy.recordedAt), extension);
 }

@@ -7950,8 +7950,9 @@ part of this.
 - **Decision:** a download control names the format it saves (`Download PDF`, `Download Markdown`,
   `Download Word`), the second format keeps its own label (`Word`).
 - **Decision:** a skill suggestion weights each fact beside it by how few facts name the neighbour
-  (`1 / facts`) and needs a total of 0.5, then falls to the single group sharing the most employers
-  (none on a tie); there is no "largest group" fallback. Raw counts sent every skill to the languages
+  (`1 / facts`) and needs a total of 0.5, then falls to the single group sharing the most employers,
+  each weighted `log(employers / the group's employers)` so a group at every employer counts for
+  nothing (none on a tie); there is no "largest group" fallback. Raw counts sent every skill to the languages
   group, which is named beside everything, and a tie fell to the earlier group. A skill with no
   evidence gets no suggestion.
   Supersedes the suggested-group rules of 2026-10-23 (employer, then largest group).
