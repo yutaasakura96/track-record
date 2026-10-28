@@ -282,7 +282,7 @@ read, still works.
    roles and projects and every accepted fact under them, split into Results and What I did, then
    work under no employer, education and certifications. A fact is marked only when it is Private,
    not confirmed or added by hand, and names the document and line it came from on hover.
-3. **Download .md** → `GET /api/master-document/download` → a Markdown file of the same content, in
+3. **Download Markdown** → `GET /api/master-document/download` → a Markdown file of the same content, in
    the language of the tab that is open.
 
 | Step | What can go wrong | What the author sees |

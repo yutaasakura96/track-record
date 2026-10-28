@@ -920,19 +920,20 @@ Accepting an already-decided proposal → `409 conflict`.
 
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
-`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.docx"`: the profile's Latin
-name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
-the same way (#107). A Japanese document is `<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it
-is built (#117): `Content-Disposition: attachment; filename="shokumu-keirekisho_Yosuke-Aoki_20261023.docx";
-filename*=UTF-8''%E8%81%B7…` (RFC 6266), the ASCII name for a client that cannot read `filename*`. The
-English story is `career-story-en-<YYYY-MM-DD>.md`.
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08-12.docx"`: the profile's Latin
+name, ASCII only, the document, and the day the version was accepted in Tokyo (`src/render/filename.ts`).
+A tailored résumé's file is named the same way (#107). A Japanese document is
+`<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it is built (#117): `Content-Disposition: attachment;
+filename="Yosuke-Aoki-Shokumu-Keirekisho-2026-10-23.docx"; filename*=UTF-8''%E8%81%B7…` (RFC 6266), the
+ASCII name for a client that cannot read `filename*`. The English story is
+`Yosuke-Aoki-Career-Story-EN-<YYYY-MM-DD>.md`.
 Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
 certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
 assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
 **`GET /api/renders/english_resume/download?format=pdf` → 200** · `Content-Type: application/pdf` ·
-`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.pdf"`, named as the `.docx` is.
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08-12.pdf"`, named as the `.docx` is.
 The same document in the same layout, with selectable, tagged text and the title
 `<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
 as the `.docx` is, and also when any text holds a character the embedded Carlito cannot draw →
@@ -1080,7 +1081,7 @@ Shown as the **Career record** since #112 (`10` Screen 10); the routes keep thei
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
-| `GET` | `/api/master-document/download` | The same structure as Markdown, `career-record-<language>-<date>.md`, `cache-control: no-store` |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `<Name>-Career-Record-<EN|JA>-<YYYY-MM-DD>.md` dated by the Tokyo day, `cache-control: no-store` |
 
 Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
 value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
