@@ -2225,7 +2225,7 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1024px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the

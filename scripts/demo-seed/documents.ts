@@ -316,7 +316,7 @@ export const DOCUMENTS: DemoDocument[] = [
         provenance: "measured",
       },
       {
-        claim: "Reduced reconciliation breaks from 37 a quarter to 2",
+        claim: "Reduced reconciliation breaks from 37 a quarter to 2 a quarter",
         quote: "Reconciliation breaks fell from 37 in the quarter before to 2 in the quarter after cut-over",
         technologies: [],
         provenance: "measured",

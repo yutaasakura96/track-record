@@ -7923,3 +7923,14 @@ part of this.
   breadcrumb starts with a link, Home or the application, in place of the plain text `Outputs`.
 - **Revisit if:** more of View's links to gated screens are reached from a phone; or a figure the
   participle rule lets through turns out to change a count.
+
+---
+
+### [2026-10-28] Bound the number-flag wording exception
+
+- **Decision:** the preceding entry's participle exception applies to `three diverging component
+  libraries` sourcing `three component libraries`, not to arbitrary `-ing` words before a unit.
+  An explicit `in the day/week/month/quarter` matches the same period or its `a/per` rate, never a
+  bare count or a different period. The period aliases `each` and `every` are excluded.
+- **Reason:** a broader exception would treat `5 engineering reports` as evidence for `5 reports`,
+  or a count in one period as evidence for another. `tests/flag-rules.test.ts` holds these boundaries.
