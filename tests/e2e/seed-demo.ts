@@ -14,8 +14,7 @@ const RealDate = Date;
 const today = new RealDate("2026-06-20T12:00:00+09:00");
 class SeedDate extends RealDate {
   constructor(...args: ConstructorParameters<DateConstructor>) {
-    if (args.length === 0) super(today.getTime());
-    else super(...(args as [number]));
+    super(args.length ? args[0] : today.getTime());
   }
   static override now() { return today.getTime(); }
 }

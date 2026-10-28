@@ -217,9 +217,9 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
       const response = await as.get(`/api/applications/${row.id}/sent-copies/${sentRirekisho.id}/download`);
       expect(response.status).toBe(200);
       const text = new PizZip(await response.arrayBuffer()).file("word/document.xml")!.asText().replace(/<[^>]+>/g, "").replace(/\s+/g, "");
-      const [year, month, day] = sentRirekisho.sentOn.split("-").map(Number);
+      const [year, month, day] = sentRirekisho.sentOn.split("-").map(Number) as [number, number, number];
       expect(text).toContain(`${year}年${month}月${day}日現在`);
-      const [birthYear, birthMonth] = fixture.PROFILE.dateOfBirth.split("-").map(Number);
+      const [birthYear, birthMonth] = fixture.PROFILE.dateOfBirth.split("-").map(Number) as [number, number];
       expect(text).toContain(`生（満${year - birthYear - (month < birthMonth ? 1 : 0)}歳）`);
       const [version] = await db.select({ content: s.renderVersions.content })
         .from(s.renderVersions)
