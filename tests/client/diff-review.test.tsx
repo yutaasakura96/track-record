@@ -272,6 +272,13 @@ describe("a failed generation", () => {
     expect(screen.getByText("Regenerated")).toBeTruthy();
   });
 
+  it("keeps the version and reason of an accepted proposal, though it now matches the current version", async () => {
+    open(proposal({ status: "accepted", unchanged: true, reason: "Regenerated" }));
+
+    expect(await screen.findByText("v4")).toBeTruthy();
+    expect(screen.getByText("Regenerated")).toBeTruthy();
+  });
+
   it("promises no current version on a first generation", async () => {
     open(failed({ basedOnVersionNo: null, proposedVersionNo: 1 }));
 

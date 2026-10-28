@@ -88,9 +88,11 @@ const backLabel = (proposal: Pick<Proposal, "applicationId">) =>
 function Header({ proposal }: { proposal: Proposal }) {
   // Only a proposal there is something to decide on has a version it proposes
   // and a reason it was generated; a failed or no-op one proposes nothing.
+  const noOp = proposal.status === "pending" && proposal.unchanged;
   const proposesVersion =
-    proposal.generationStatus === "generating" || (proposal.generationStatus === "ready" && !proposal.unchanged && proposal.status !== "dismissed");
-  const showsReason = proposal.generationStatus !== "failed" && !proposal.unchanged;
+    proposal.generationStatus === "generating" ||
+    (proposal.generationStatus === "ready" && (proposal.status === "accepted" || (proposal.status === "pending" && !proposal.unchanged)));
+  const showsReason = proposal.generationStatus !== "failed" && !noOp;
   return (
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
       {/* This screen has no sidebar, so the way out is here: back to where the
