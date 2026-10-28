@@ -441,7 +441,7 @@ describe("from Applied onward", () => {
       expect.stringContaining("Main résumé v6 · frozenSent 2026-10-06"),
     ]);
     expect(resume.getByText(/A frozen copy is the file exactly as it was on the day\./)).toBeTruthy();
-    expect(resume.getByRole("button", { name: "Download Main résumé v6, sent 2026-10-06" })).toBeTruthy();
+    expect(resume.getByRole("button", { name: "Download Main résumé v6, sent 2026-10-06, as Word" })).toBeTruthy();
 
     await user.click(resume.getByRole("link", { name: "Read Main résumé v6, sent 2026-10-06" }));
     await waitFor(() => expect(pathname()).toBe(`/applications/${ID}/sent/${earlier.id}`));
@@ -628,7 +628,7 @@ describe("a sent copy", () => {
 
     // No edit, no history, no regenerate: one download and the way back.
     expect(screen.getAllByRole("button").map((button) => button.textContent).filter((text) => /edit|history|regenerate|restore/i.test(text ?? ""))).toEqual([]);
-    expect(screen.getByRole("button", { name: "Download" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download Word" })).toBeTruthy();
     expect(api.writes()).toEqual([]);
 
     await user.click(screen.getByRole("link", { name: "Back to the application" }));
@@ -691,14 +691,14 @@ describe("a sent copy", () => {
   it("says so when the copy is not there, and offers nothing to do to it", async () => {
     mount(`/applications/${ID}/sent/asc-test-missing`, SUMMARY);
     expect(await screen.findByText("That sent copy was not found.")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Download" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download Word" })).toBeNull();
   });
 
   it("says when the stored file cannot be downloaded", async () => {
     const { user } = openCopy({
       [`GET ${AT}/sent-copies/${SENT.id}/download`]: new Refusal(404, "not_found", "That sent copy was not found."),
     });
-    await user.click(await screen.findByRole("button", { name: "Download" }));
+    await user.click(await screen.findByRole("button", { name: "Download Word" }));
     expect((await screen.findByRole("alert")).textContent).toBe("That sent copy was not found.");
   });
 });
@@ -708,7 +708,7 @@ describe("the review of a tailored résumé", () => {
     id: "prop-test-own",
     renderKind: "english_resume",
     renderRef: TAILORED,
-    title: "Résumé for Osprey Grid",
+    title: "Tailored résumé for Osprey Grid",
     applicationId: ID,
     status: "pending",
     generationStatus: "ready",

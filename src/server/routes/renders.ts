@@ -255,8 +255,16 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
             generatedAt: renderProposals.generatedAt,
             decidedAt: renderProposals.decidedAt,
             reason: renderProposals.reason,
+            // Whether the proposal said the same as the version it was written
+            // against. Judged against THAT version, not today's current one, so a later
+            // version does not turn a real proposal into a "no change" one.
+            noChange: sql<boolean>`coalesce(${renderProposals.generationStatus} = 'ready' and ${renderVersions.content} = ${renderProposals.content}, false)`,
           })
           .from(renderProposals)
+          .leftJoin(
+            renderVersions,
+            and(eq(renderVersions.userId, user.id), eq(renderVersions.id, renderProposals.basedOnVersionId)),
+          )
           .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.renderId, target.render.id)))
           .orderBy(desc(renderProposals.generatedAt))
       : [];
@@ -271,6 +279,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         generatedAt: row.generatedAt.toISOString(),
         decidedAt: row.decidedAt?.toISOString() ?? null,
         reason: row.reason,
+        noChange: row.noChange,
       })),
     });
   });

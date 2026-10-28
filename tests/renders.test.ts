@@ -715,6 +715,32 @@ describe("the proposal", () => {
     );
     expect(diff.changes).toHaveLength(0);
   });
+
+  it("marks a same-document proposal in the list against the version it was written for, after a later version", async () => {
+    const record = await seedRecord();
+    const content = resumeFrom([{ text: "Identical bullet", factIds: [record.measuredPublic.id] }]);
+    const first = (await (await generate(content)).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${first.proposalId}/accept`);
+    const same = (await (await generate(content)).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${same.proposalId}/dismiss`);
+    const different = (await (
+      await generate(resumeFrom([{ text: "Wholly different bullet", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${different.proposalId}/dismiss`);
+    // A newer version makes the same-document proposal differ from the CURRENT one.
+    const third = (await (
+      await generate(resumeFrom([{ text: "A third bullet", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    await client.post(`/api/proposals/${third.proposalId}/accept`);
+
+    const { items } = await client.json<{ items: { id: string; noChange: boolean }[] }>("/api/proposals?kind=english_resume");
+    expect(Object.fromEntries(items.map((item) => [item.id, item.noChange]))).toEqual({
+      [first.proposalId]: false,
+      [same.proposalId]: true,
+      [different.proposalId]: false,
+      [third.proposalId]: false,
+    });
+  });
 });
 
 describe("a failure never destroys a stored version", () => {
@@ -1045,7 +1071,7 @@ describe("documents and downloads", () => {
     expect(response.headers.get("content-type")).toBe(
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.docx"/);
 
     const bytes = new Uint8Array(await response.arrayBuffer());
     expect(bytes.length).toBeGreaterThan(1000);

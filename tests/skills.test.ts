@@ -171,7 +171,7 @@ describe("a suggested group", () => {
     ]);
   });
 
-  it("is the group sharing its employers, else the largest group, when it is named beside none", async () => {
+  it("is the group sharing its employers, else none, when it is named beside none", async () => {
     const fact = await imported([
       { claim: "Streamed orders through Kafka", quote: "Orders streamed through a Kafka topic per region.", technologies: ["Kafka"] },
       { claim: "Cached prices in Redis", quote: "Price lookups were served from Redis.", technologies: ["Redis"] },
@@ -194,10 +194,43 @@ describe("a suggested group", () => {
 
     const suggested = new Map((await curation()).candidates.map((c) => [c.name, c.suggestedGroup]));
     expect(suggested.get("Kafka")).toBe("Data");
-    expect(suggested.get("Bash")).toBe("Infrastructure");
+    expect(suggested.get("Bash")).toBeNull();
   });
 
-  it("is the earlier of equally large groups, and none while no group exists", async () => {
+  it("does not go to a group at every employer, as a language is, for a skill at two of them", async () => {
+    const fact = await imported([
+      { claim: "Wrote the billing service in Go", quote: "The billing service was written in Go.", technologies: ["Go"] },
+      { claim: "Wrote the routing service in Go", quote: "The routing service was written in Go.", technologies: ["Go"] },
+      { claim: "Wrote the tracking service in Go", quote: "The tracking service was written in Go.", technologies: ["Go"] },
+      { claim: "Planned networks in Terraform", quote: "Every network was planned in Terraform.", technologies: ["Terraform"] },
+      { claim: "Ran checks in GitHub Actions", quote: "Every pull request ran its checks in GitHub Actions.", technologies: ["GitHub Actions"] },
+      { claim: "Released from GitHub Actions", quote: "Releases were cut from a GitHub Actions workflow.", technologies: ["GitHub Actions"] },
+    ]);
+    const first = await created("/api/employers", EMPLOYER_FIXTURE);
+    const second = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: "Kumo Freight K.K." });
+    const third = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameLatin: "Sora Ledger K.K." });
+    for (const [fragment, employerId] of [
+      ["billing", first.id],
+      ["routing", second.id],
+      ["tracking", third.id],
+      ["Terraform", first.id],
+      ["Ran checks", first.id],
+      ["Released", second.id],
+    ]) {
+      const id = fact(fragment!).id;
+      await client.patch(`/api/facts/${id}`, { employerId });
+      await accept(id);
+    }
+    await curate([
+      { name: "Languages", skills: ["Go"] },
+      { name: "Delivery", skills: ["Terraform"] },
+    ]);
+
+    const suggested = new Map((await curation()).candidates.map((c) => [c.name, c.suggestedGroup]));
+    expect(suggested.get("GitHub Actions")).toBe("Delivery");
+  });
+
+  it("is none while no group exists, and none when nothing ties a skill to one group alone", async () => {
     await seedRecord();
     expect((await curation()).candidates.every((c) => c.suggestedGroup === null)).toBe(true);
 
@@ -205,7 +238,35 @@ describe("a suggested group", () => {
       { name: "Pipelines", skills: ["Airflow"] },
       { name: "Stores", skills: ["CockroachDB"] },
     ]);
-    expect((await curation()).candidates.find((c) => c.name === "SQL")!.suggestedGroup).toBe("Pipelines");
+    expect((await curation()).candidates.find((c) => c.name === "SQL")!.suggestedGroup).toBeNull();
+  });
+
+  it("goes by share of a group's own facts, so a language named on every fact does not win", async () => {
+    const names = (techs: string[]) => techs.join(" and ");
+    const rows = [
+      ["Go", "Kafka"],
+      ["Go", "Redis"],
+      ["Go", "Terraform"],
+      ["Go", "Helm"],
+      ["Go", "Canvas API"],
+      ["React", "Storybook"],
+    ].map((technologies) => ({
+      claim: `Built it with ${names(technologies)}`,
+      quote: `It was built with ${names(technologies)}.`,
+      technologies,
+    }));
+    const fact = await imported(rows);
+    for (const row of rows) await accept(fact(row.technologies.at(-1)!).id);
+    await curate([
+      { name: "Languages", skills: ["Go"] },
+      { name: "Frontend", skills: ["React"] },
+    ]);
+
+    const suggested = new Map((await curation()).candidates.map((c) => [c.name, c.suggestedGroup]));
+    // One fact in five of the languages' own, and nothing else ties it to a group.
+    expect(suggested.get("Canvas API")).toBeNull();
+    // Beside React on the only fact React is on, though Languages is the larger group.
+    expect(suggested.get("Storybook")).toBe("Frontend");
   });
 });
 

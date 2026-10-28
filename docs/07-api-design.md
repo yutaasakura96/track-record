@@ -692,7 +692,7 @@ read with its application (§9b), and every `:ref` route below still serves it. 
 makes its own with `POST /api/applications/:id/tailored/:kind` (§9c, #71; generalised to a
 tailored 履歴書 on 2026-10-26). A proposal for a tailored document carries its `applicationId`,
 `null` for any other document, so Diff Review can go back to the application it came from. A
-tailored document's `title` is `Résumé for <company>` or `Tailored 履歴書 for <company>`.
+tailored document's `title` is `Tailored résumé for <company>` or `Tailored 履歴書 for <company>`.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
@@ -920,19 +920,20 @@ Accepting an already-decided proposal → `409 conflict`.
 
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·
-`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.docx"`: the profile's Latin
-name, ASCII only, and the month the version was accepted in Tokyo. A tailored résumé's file is named
-the same way (#107). A Japanese document is `<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it
-is built (#117): `Content-Disposition: attachment; filename="shokumu-keirekisho_Yosuke-Aoki_20261023.docx";
-filename*=UTF-8''%E8%81%B7…` (RFC 6266), the ASCII name for a client that cannot read `filename*`. The
-English story is `career-story-en-<YYYY-MM-DD>.md`.
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08-12.docx"`: the profile's Latin
+name, ASCII only, the document, and the day the version was accepted in Tokyo (`src/render/filename.ts`).
+A tailored résumé's file is named the same way (#107). A Japanese document is
+`<title>_<kanji name>_<YYYYMMDD>.<ext>`, dated the day it is built (#117): `Content-Disposition: attachment;
+filename="Yosuke-Aoki-Shokumu-Keirekisho-2026-10-23.docx"; filename*=UTF-8''%E8%81%B7…` (RFC 6266), the
+ASCII name for a client that cannot read `filename*`. The English story is
+`Yosuke-Aoki-Career-Story-EN-<YYYY-MM-DD>.md`.
 Assembled from stored `RenderContent` on each request; the résumé's job headers, skills, education,
 certifications and languages are read from the record at the same time (`docs/03` §6). The résumé
 assembly refusals above return `409 conflict`; other assembly failures → `500` with `code: "render_failed"`;
 **the stored version is untouched.**
 
 **`GET /api/renders/english_resume/download?format=pdf` → 200** · `Content-Type: application/pdf` ·
-`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08.pdf"`, named as the `.docx` is.
+`Content-Disposition: attachment; filename="Yosuke-Aoki-Resume-2026-08-12.pdf"`, named as the `.docx` is.
 The same document in the same layout, with selectable, tagged text and the title
 `<name> – Résumé` and the author `<name>` in its properties (`docs/03` §6.3). It is refused exactly
 as the `.docx` is, and also when any text holds a character the embedded Carlito cannot draw →
@@ -1080,7 +1081,7 @@ Shown as the **Career record** since #112 (`10` Screen 10); the routes keep thei
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
-| `GET` | `/api/master-document/download` | The same structure as Markdown, `career-record-<language>-<date>.md`, `cache-control: no-store` |
+| `GET` | `/api/master-document/download` | The same structure as Markdown, `<Name>-Career-Record-<EN|JA>-<YYYY-MM-DD>.md` dated by the Tokyo day, `cache-control: no-store` |
 
 Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
 value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
@@ -1343,7 +1344,7 @@ off first.
 
 | Method | Path | M | Notes |
 |---|---|---|---|
-| `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, lastUsed, stale }] }], candidates: [{ name, factCount, certificationCount, lastUsed, curated, suggestedGroup }], printable: string[] }`; `stale` is computed on the read. `lastUsed` is the latest year a fact or certification naming it reaches, `"now"` while one is ongoing, or `null` (#114). `suggestedGroup` is the curated group a candidate is named beside on the most facts; failing that, the group whose skills' facts share the most employers (`effectiveEmployerId`) with the candidate's; failing that, the largest group; the earlier group on every tie. It is null only when the candidate is curated or no group exists. `printable` is what the English résumé may name in its Skills section, ranked as its uncurated line, from which the screen previews the section. `PUT` takes `{ groups: [{ name, nameJa?, skills: string[] }] }` and replaces the whole list; `nameJa` is the group's 職務経歴書 name, blank or absent for none, and `GET` returns it on each group (#117); `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
+| `GET` `PUT` | `/api/skills/curation` | M2 | Candidates are the distinct names in `technologies` on accepted, render-eligible facts (not Private, not Generated) ∪ `certifications.technologies`, each with `factCount` and `certificationCount`. `GET` returns `{ groups: [{ name, skills: [{ name, factCount, certificationCount, lastUsed, stale }] }], candidates: [{ name, factCount, certificationCount, lastUsed, curated, suggestedGroup }], printable: string[] }`; `stale` is computed on the read. `lastUsed` is the latest year a fact or certification naming it reaches, `"now"` while one is ongoing, or `null` (#114). `suggestedGroup` is the curated group a candidate is named beside, each fact weighted `1 / (facts naming the neighbour)` by the group's most specific neighbour and the total at least 0.5; failing that, the one group sharing the most employers (`effectiveEmployerId`) with the candidate's facts, each weighted `log(employers in the record / employers the group reaches)` so a group at every employer counts for nothing, none on a tie there; the earlier group on a tie of the first kind. It is null when the candidate is curated, no group exists, or the record ties it to none. `printable` is what the English résumé may name in its Skills section, ranked as its uncurated line, from which the screen previews the section. `PUT` takes `{ groups: [{ name, nameJa?, skills: string[] }] }` and replaces the whole list; `nameJa` is the group's 職務経歴書 name, blank or absent for none, and `GET` returns it on each group (#117); `422` for a name that is neither a candidate nor already curated, a skill listed twice, a repeated group name or a group with no skills. `[]` clears the curation |
 | `GET` `PUT` | `/api/render-inclusions` | M2 | Per-render inclusion for employer, education and project entries. `GET` returns the stored rows only: a missing row means included, for every kind, which is how 履歴書 defaults to everything. `PUT` takes `{ entityType, entityId, kind, included }`, answers `404` for an entry the caller does not own, and keeps the row when an entry is included again. Deleting the entry clears its rows |
 | `GET` | `/api/export` | M3 | Whole record as JSON — every entity, provenance, disclosure and evidence pointer (S15). A sent copy is exported with its page and without its file |
 

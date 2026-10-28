@@ -532,11 +532,11 @@ function SentLine({ applicationId, copy }: { applicationId: string; copy: SentCo
         <button
           type="button"
           className={QUIET}
-          aria-label={`Download ${copy.title} v${copy.versionNo}, sent ${copy.sentOn}`}
+          aria-label={`Download ${copy.title} v${copy.versionNo}, sent ${copy.sentOn}, as Word`}
           disabled={busy}
           onClick={() => void download()}
         >
-          {busy ? "Preparing…" : "Download"}
+          {busy ? "Preparing…" : "Download Word"}
         </button>
       </div>
     </li>

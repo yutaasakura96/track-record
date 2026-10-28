@@ -337,7 +337,7 @@ generation safe.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Home / <render name>`, or `Application / <render name>` for a tailored document, its first part a link back to where the review was opened from (the screen has no sidebar) + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost) |
+| Header (46px) | Breadcrumb `Home / <render name>`, or `Application / <render name>` for a tailored document, its first part a link back to where the review was opened from (the screen has no sidebar) + mono `proposed v<n>` chip (`v<n>` once accepted) · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost). A failed or no-op proposal proposes nothing, so it shows neither the chip nor the reason; a dismissed one drops the chip |
 | Toolbar (38px) | `N additions` (green dot) · `N removals` (red dot) · section summary · right: `Change N of M` + prev/next icon buttons |
 | Guide (34px) | One line under the toolbar, at the small role in `text-secondary` (#56): `Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one.` |
 | Split body | Two equal columns with a 1px centre rule. Sticky column headers: **Current** + mono `v4` + saved date; **Proposed** + accent `v5 draft` chip + generated timestamp |
@@ -422,7 +422,7 @@ discarded, the result bar reads `Draft discarded — nothing was saved`.
 
 ### Decided state
 
-Footer is replaced by a result bar: icon + `Proposal accepted — saved as v5` / `Proposal dismissed — v4 kept`, a one-line consequence, and `Undo`.
+Footer is replaced by a result bar: icon + `Proposal accepted — saved as v5` / `Proposal dismissed — it was written against v4`, a one-line consequence, and `Undo`.
 
 ### Japanese variant
 
@@ -570,9 +570,9 @@ close a gap, so the warning is read from the record, not from the review that fi
 | Up to date | green, `Up to date with your record` | `Regenerate` (ghost) | — |
 | Not built | muted, `Not available yet` | None | None |
 
-`Download` reads the same on every card so the cards line up; the file's type is the document's own
-and is in the name of what is saved. The English résumé's `Download` saves its PDF, and a second
-quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109); the
+Every download control names the format it saves (`Download PDF`, `Download Markdown`, `Download
+Word`; `Download current PDF` where the verb is longer), here and on every other screen. The English
+résumé's `Download PDF` saves its PDF, and a second quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109); the
 履歴書's and the 職務経歴書's do the same (#117), and their files are saved under their Japanese names
 (`履歴書_青木陽介_20261023.pdf`). The stories have one format and one download link. A
 Generate or Update the server refuses says the server's reason above the cards.
@@ -885,8 +885,8 @@ already spoken for (`05-design-system.md` §1).
    the route refuses an edit made against any other and a control that is refused is not offered.
 
 **Dismissed proposals** render on `card-recessed` at `.5` opacity with the mono meta
-`DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
-existing proposal diff. They carry no version chip, because they never received a version number.
+`DISMISSED · not a version`, their dismissal date, and a single `View proposal` action opening the
+proposal — not `View diff`, because a dismissed proposal's page shows no diff. They carry no version chip, because they never received a version number.
 
 **Download honours the existing rules** — `?versionId=` serves any version in the formats its kind
 has. The English résumé's, the 履歴書's and the 職務経歴書's download is the PDF, with `Word` beside it
@@ -1144,9 +1144,11 @@ land clears the outline, the mark and the preview back to what is stored.
 
 **Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
 then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
-group whose skills it is named beside on the most facts; for one named beside no listed skill, the
-group whose skills were used at the most of the same employers, and failing that the largest group;
-the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none.
+group whose skills it is named beside, each fact weighted by how few facts name the neighbour (a
+language every fact names is not a reason) and the total at least one half; failing that, the one
+group sharing the most employers, each weighted by how few employers the group reaches (a group at
+every employer is not a reason either), and none when two tie; the earlier group on a tie of the first kind. It is
+written `→ Data`. A skill the record ties to no group has none, and pressing it opens the bar below.
 Pressing a chip with a suggestion adds it to the end of that group at once. Pressing one without
 opens a bar, `Add Redis to`, with a button per existing group and `Cancel`; with no groups, the bar
 asks for a group to be named first. Any of them can also be dragged to a group.
@@ -1388,7 +1390,7 @@ is changed on its own card.
 
 Sidebar chrome, at `/master` (the path kept its old name). Header title `Career record`, note
 `Everything you have done, from every source`, and on the right, once the record holds anything the
-page lists, the note `The file includes Private facts. It is your copy.` and **`Download .md`**.
+page lists, the note `The file includes Private facts. It is your copy.` and **`Download Markdown`**.
 
 ### Layout
 
@@ -1497,8 +1499,8 @@ here, and it is not what a résumé is written from.
   shown.
 - **Nothing is translated.** The two documents hold the same facts with the same claims. Only the
   record's names, the headings and the dates differ.
-- **`Download .md` saves the file of the tab that is open**, `career-record-en-<date>.md` or
-  `career-record-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
+- **`Download Markdown` saves the file of the tab that is open**, `<Name>-Career-Record-EN-<date>.md`
+  or `<Name>-Career-Record-JA-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
   says that the claims are in the language they were written in.
 
 ### States
@@ -2026,7 +2028,7 @@ Header `Applications / <company> / <title> as sent`. Read-only.
 
 1. **One notice:** the chip `vN · frozen`, then `Sent to <company> on <date>. This is the file as
    it was that day. It cannot be edited, and later changes to the résumé or to your record do not
-   reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
+   reach it.` On its right **`Download Word`** (ghost), the stored file, and `Back to the application`
    (bare).
 2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
    sections in file order. A 履歴書 shows the filled form read from the stored file, including its
@@ -2135,8 +2137,8 @@ The sent-copy reader (Screen 15) for a version (decision log, 2026-10-18). Route
 `/renders/<ref>/view`, a kind or a tailored résumé's id; `?version=<id>` names an earlier version,
 and without it the page is the current one. Reached by `View` on Home's document rows, on every
 version in Screen 5, and on each document in Résumé for this job. Header `Home / <document>`, or
-`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses. Under
-1024px it is `Applications / <document>` for every document, because Home is behind the message.
+`Applications / Tailored résumé for <company>` for a tailored résumé, in the frame Applications uses.
+Under 1024px it is `Applications / <document>` for every document, because Home is behind the message.
 Read-only.
 
 1. **One notice:** the chip `vN`, the `measured` dot and `Current` on the current version, then

@@ -130,7 +130,7 @@ describe("the page", () => {
     open();
     const bar = await notice();
 
-    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
+    expect(bar.getByRole("button", { name: "Download PDF" })).toBeTruthy();
     expect(bar.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${KIND}/history`);
     expect(bar.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(`/renders/${KIND}/edit`);
     expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();
@@ -231,7 +231,7 @@ describe("the page", () => {
     open(`/renders/${ref}/view`, {
       [`GET /api/renders/${ref}/page`]: view({
         renderRef: ref,
-        title: "Résumé for Quillset Ltd",
+        title: "Tailored résumé for Quillset Ltd",
         tailored: true,
         applicationId: "app-test-1",
         document: { ...DOCUMENT, ref, tailored: { label: "Quillset Ltd", createdAt: "2026-09-01T00:00:00.000Z" } },
@@ -524,7 +524,7 @@ describe("at phone width", () => {
 
     expect(screen.queryByText(WIDER)).toBeNull();
     expect(screen.getByRole("article")).toBeTruthy();
-    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
+    expect(bar.getByRole("button", { name: "Download PDF" })).toBeTruthy();
     expect(bar.queryByRole("link", { name: "History" })).toBeNull();
     expect(bar.queryByRole("link", { name: "Edit" })).toBeNull();
     expect(bar.queryByRole("button", { name: "Regenerate" })).toBeNull();

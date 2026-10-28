@@ -284,28 +284,33 @@ function VersionRow({
 
 /**
  * Dismissed proposals carry no version chip, because they never received a
- * version number, and their one action is the proposal diff that already
- * exists.
+ * version number. Their one action opens the proposal, which shows no diff
+ * once dismissed, so it is not called one.
  */
 function DismissedRow({ proposal, at }: { proposal: ProposalRow; at: string }) {
   return (
     <li className={`${ROW} bg-card-recessed rounded-control opacity-50`}>
       <div className="min-w-0">
-        <Mono className="block text-text-dimmer">DISMISSED · not a version</Mono>
+        <Mono className="block text-text-dimmer">
+          {proposal.noChange ? "NO CHANGES · not a version" : "DISMISSED · not a version"}
+        </Mono>
         {proposal.reason ? (
           <span className="block text-smaller text-text-dim">{proposal.reason}</span>
         ) : null}
       </div>
       <span className="text-smaller text-text-dimmer">{absolute(at)}</span>
-      <div className="ml-auto">
-        <Link
-          to="/proposals/$proposalId"
-          params={{ proposalId: proposal.id }}
-          className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
-        >
-          View diff
-        </Link>
-      </div>
+      {/* A regeneration that said the same thing has nothing to open. */}
+      {proposal.noChange ? null : (
+        <div className="ml-auto">
+          <Link
+            to="/proposals/$proposalId"
+            params={{ proposalId: proposal.id }}
+            className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
+          >
+            View proposal
+          </Link>
+        </div>
+      )}
     </li>
   );
 }

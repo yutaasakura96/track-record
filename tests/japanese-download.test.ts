@@ -95,7 +95,7 @@ describe("the 職務経歴書's PDF", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
     expect(response.headers.get("content-disposition")).toBe(
-      `attachment; filename="shokumu-keirekisho_Yosuke-Aoki_${today()}.pdf"; ` +
+      `attachment; filename="Yosuke-Aoki-Shokumu-Keirekisho-${tokyoToday()}.pdf"; ` +
         `filename*=UTF-8''${encoded(`職務経歴書_青木陽介_${today()}.pdf`)}`,
     );
     const bytes = await response.arrayBuffer();
@@ -202,7 +202,7 @@ describe("the 履歴書's PDF", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
     expect(response.headers.get("content-disposition")).toBe(
-      `attachment; filename="rirekisho_Yosuke-Aoki_${today()}.pdf"; filename*=UTF-8''${encoded(`履歴書_青木陽介_${today()}.pdf`)}`,
+      `attachment; filename="Yosuke-Aoki-Rirekisho-${tokyoToday()}.pdf"; filename*=UTF-8''${encoded(`履歴書_青木陽介_${today()}.pdf`)}`,
     );
     const bytes = await response.arrayBuffer();
     // A copy: the reader takes the buffer it is handed.
@@ -237,7 +237,7 @@ describe("the 履歴書's PDF", () => {
     const response = await client.get("/api/renders/rirekisho/download?format=docx");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-disposition")).toBe(
-      `attachment; filename="rirekisho_Yosuke-Aoki_${today()}.docx"; filename*=UTF-8''${encoded(`履歴書_青木陽介_${today()}.docx`)}`,
+      `attachment; filename="Yosuke-Aoki-Rirekisho-${tokyoToday()}.docx"; filename*=UTF-8''${encoded(`履歴書_青木陽介_${today()}.docx`)}`,
     );
   });
 });

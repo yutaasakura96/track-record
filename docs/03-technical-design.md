@@ -707,9 +707,9 @@ cells in reading order.
 
 **File names** are `履歴書_森山健二_20261023.pdf`: the document, the author's kanji name, and the
 day it is built, which is the date it prints. The header carries it as RFC 6266 `filename*`, with an
-ASCII `rirekisho_Kenji-Moriyama_20261023.pdf` beside it (`src/server/http/disposition.ts`, shared
-with recordings). The Japanese story and the Markdown downloads follow the same pattern; the English
-story keeps its old name. A sent copy keeps the name it was stored under.
+ASCII `Kenji-Moriyama-Rirekisho-2026-10-23.pdf` beside it (`src/server/http/disposition.ts`, shared
+with recordings). Every other download is that ASCII pattern alone, `<Name>-<Document>-<YYYY-MM-DD>`
+dated by the Tokyo day (`src/render/filename.ts`). A sent copy keeps the name it was stored under.
 
 ---
 

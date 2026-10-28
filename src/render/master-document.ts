@@ -32,11 +32,12 @@ import {
   type MasterLanguage,
   type MasterProject,
 } from "~/shared/master-document";
+import { tokyoDay } from "./filename";
 
 /** The lines above the record: what the file is, who it is for, and how much it holds. */
 function opening(doc: MasterDocument): string[] {
   const { counts } = doc;
-  const built = doc.builtAt.slice(0, 10);
+  const built = tokyoDay(new Date(doc.builtAt));
   if (doc.language === "ja") {
     return [
       `# ${MASTER_WORDS.ja.title}${doc.subjectName ? `：${doc.subjectName}` : ""}`,

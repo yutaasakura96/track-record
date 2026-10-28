@@ -293,7 +293,7 @@ describe("the career record", () => {
       }),
     );
     expect(await screen.findByText(/import a document\. Its achievements appear here\./)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Download .md" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download Markdown" })).toBeNull();
   });
 
   it("downloads roles, education and certifications even without an accepted fact", async () => {
@@ -308,7 +308,7 @@ describe("the career record", () => {
     expect(await screen.findByText(/^Backend Engineer/)).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Education" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Certifications" })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Download .md" }));
+    await user.click(screen.getByRole("button", { name: "Download Markdown" }));
     expect(api.calls.filter((call) => `${call.method} ${call.path}` === "GET /api/master-document/download")).toHaveLength(1);
   });
 });
@@ -397,7 +397,7 @@ describe("the career record in each language", () => {
     await rowOf(USABLE.claim);
     await user.click(screen.getByRole("tab", { name: "日本語" }));
     await screen.findByRole("heading", { name: "学歴" });
-    await user.click(screen.getByRole("button", { name: "Download .md" }));
+    await user.click(screen.getByRole("button", { name: "Download Markdown" }));
 
     await screen.findByRole("alert");
     const downloads = api.calls.map((call) => call.path).filter((path) => path.startsWith("/api/master-document/download"));
@@ -420,19 +420,19 @@ describe("downloading the career record", () => {
     open(master());
     await rowOf(USABLE.claim);
     expect(screen.getByText("The file includes Private facts. It is your copy.")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Download .md" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download Markdown" })).toBeTruthy();
   });
 
   it("asks for the file once, writes nothing, and says why when it is refused", async () => {
     const { api, user } = open(master(), {
       [DOWNLOAD]: new Refusal(500, "internal", "The master document could not be built."),
     });
-    await user.click(await screen.findByRole("button", { name: "Download .md" }));
+    await user.click(await screen.findByRole("button", { name: "Download Markdown" }));
 
     expect((await screen.findByRole("alert")).textContent).toBe("The master document could not be built.");
     expect(api.calls.filter((c) => `${c.method} ${c.path}` === DOWNLOAD)).toHaveLength(1);
     expect(api.writes()).toEqual([]);
     // Usable again rather than stuck on "Preparing…".
-    expect(screen.getByRole("button", { name: "Download .md" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download Markdown" })).toBeTruthy();
   });
 });
