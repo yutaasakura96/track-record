@@ -284,8 +284,8 @@ function VersionRow({
 
 /**
  * Dismissed proposals carry no version chip, because they never received a
- * version number, and their one action is the proposal diff that already
- * exists.
+ * version number. Their one action opens the proposal, which shows no diff
+ * once dismissed, so it is not called one.
  */
 function DismissedRow({ proposal, at }: { proposal: ProposalRow; at: string }) {
   return (
@@ -299,7 +299,7 @@ function DismissedRow({ proposal, at }: { proposal: ProposalRow; at: string }) {
         ) : null}
       </div>
       <span className="text-smaller text-text-dimmer">{absolute(at)}</span>
-      {/* A regeneration that said the same thing has no diff to show. */}
+      {/* A regeneration that said the same thing has nothing to open. */}
       {proposal.noChange ? null : (
         <div className="ml-auto">
           <Link
@@ -307,7 +307,7 @@ function DismissedRow({ proposal, at }: { proposal: ProposalRow; at: string }) {
             params={{ proposalId: proposal.id }}
             className="border border-border-strong text-text-muted px-10 py-6 rounded-control text-smaller font-medium hover:bg-hover hover:text-text-secondary"
           >
-            View diff
+            View proposal
           </Link>
         </div>
       )}

@@ -141,7 +141,9 @@ describe("the history", () => {
     expect(within(await row("v2, edited by hand")).getByText("Edited from v1")).toBeTruthy();
     expect(screen.getByText("DISMISSED · not a version")).toBeTruthy();
     expect(screen.getByText("3 versions · current v3")).toBeTruthy();
-    expect(screen.getByRole("link", { name: "View diff" })).toBeTruthy();
+    // The page it opens shows no diff once dismissed, so the link does not promise one.
+    expect(screen.getByRole("link", { name: "View proposal" }).getAttribute("href")).toBe(`/proposals/${DISMISSED.id}`);
+    expect(screen.queryByRole("link", { name: "View diff" })).toBeNull();
   });
 
   it("offers no diff for a regeneration that said the same thing", async () => {
@@ -149,6 +151,7 @@ describe("the history", () => {
 
     await row("v2, edited by hand");
     expect(await screen.findByText("NO CHANGES · not a version")).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "View proposal" })).toBeNull();
     expect(screen.queryByRole("link", { name: "View diff" })).toBeNull();
   });
 

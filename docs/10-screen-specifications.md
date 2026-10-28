@@ -885,8 +885,8 @@ already spoken for (`05-design-system.md` §1).
    the route refuses an edit made against any other and a control that is refused is not offered.
 
 **Dismissed proposals** render on `card-recessed` at `.5` opacity with the mono meta
-`DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
-existing proposal diff. They carry no version chip, because they never received a version number.
+`DISMISSED · not a version`, their dismissal date, and a single `View proposal` action opening the
+proposal — not `View diff`, because a dismissed proposal's page shows no diff. They carry no version chip, because they never received a version number.
 
 **Download honours the existing rules** — `?versionId=` serves any version in the formats its kind
 has. The English résumé's, the 履歴書's and the 職務経歴書's download is the PDF, with `Word` beside it
