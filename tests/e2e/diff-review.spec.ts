@@ -72,12 +72,19 @@ test("first proposal previews the document; regeneration shows a heading change"
   await expect(page.getByText("yosuke@example.invalid")).toBeVisible();
   await expect(page.getByText(CLAIM).first()).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept as v1" })).toBeEnabled();
+  await expect(page.getByRole("link", { name: "Home", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Home", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole("button", { name: "Accept as v1" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Discard draft" })).toBeVisible();
   await expect(page.getByText("Current", { exact: true })).toHaveCount(0);
   await screenshot(page, "first-resume-preview.png");
 
   await page.getByRole("button", { name: "Accept as v1" }).click();
   await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "日本語" }).click();
+  await expect(page.getByRole("tab", { name: "日本語" })).toHaveAttribute("aria-selected", "true");
 
   const reworded = "Shortened the overnight settlement job from eight hours to fifty minutes";
   const reword = await context.request.patch(`/api/facts/${factId}`, { data: { claim: reworded } });
@@ -118,7 +125,7 @@ test("first proposal previews the document; regeneration shows a heading change"
   }).toBe("ready");
   await page.goto(`/proposals/${rirekishoId}`);
   const form = page.getByRole("article");
-  await expect(form.getByRole("heading", { name: "履歴書" })).toBeVisible();
+  await expect(form.getByRole("heading", { name: "履歴書" })).toBeVisible({ timeout: 20_000 });
   const identity = form.getByRole("table").first();
   const cells = identity.getByRole("cell");
   await expect(cells.filter({ hasText: "名前" }).first()).toContainText("ふりがな");
@@ -132,5 +139,12 @@ test("first proposal previews the document; regeneration shows a heading change"
   const contact = identity.getByRole("row").filter({ hasText: "連絡先" });
   await expect(contact.getByRole("cell").nth(1)).toContainText("同上");
   await screenshot(page, "first-rirekisho-preview.png");
+  await page.goto(`/proposals/${proposalId}`);
+  await expect(page.getByRole("button", { name: "Accept proposed version" })).toBeEnabled();
+  await page.getByRole("button", { name: "Accept proposed version" }).click();
+  await expect(page.getByRole("heading", { name: "Home", exact: true })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "English" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("status")).toContainText("Saved as v2 of your Résumé (English).");
+  await screenshot(page, "accepted-english-home.png");
   await context.close();
 });

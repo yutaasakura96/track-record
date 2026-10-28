@@ -217,7 +217,7 @@ export function ResumePanel({
                     ) : null
                   }
                   missingPhoto={profile.data?.hasPhoto === false}
-                  missingMotivation={document.tailored && document.kind === "rirekisho" && !application.motivationNote?.trim()}
+                  missingMotivation={document.tailored && document.kind === "rirekisho" && document.currentVersionNo === null && !application.motivationNote?.trim()}
                 />
               ))}
             </ul>

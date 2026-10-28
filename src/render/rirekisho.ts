@@ -327,11 +327,20 @@ export function rirekishoWarnings(
     tailored = null,
   }: {
     hasPhoto: boolean;
-    /** Set for a tailored 履歴書: whether its application holds the author's reason. */
-    tailored?: { motivationNote: string | null } | null;
+    /**
+     * Set for a tailored 履歴書: whether its application holds the author's
+     * reason, and whether a part of the document is still drafted for them to
+     * confirm. The notice is about that draft, so it goes once none is left;
+     * where the document is not written yet, a draft is what will come.
+     */
+    tailored?: { motivationNote: string | null; drafted?: boolean } | null;
   },
 ): string[] {
-  const motivation = !tailored ? [MOTIVATION_NOTICE] : tailored.motivationNote?.trim() ? [] : [TAILORED_MOTIVATION_NOTICE];
+  const motivation = !tailored
+    ? [MOTIVATION_NOTICE]
+    : tailored.motivationNote?.trim() || tailored.drafted === false
+      ? []
+      : [TAILORED_MOTIVATION_NOTICE];
   return [...gapWarnings(record), ...motivation, ...(hasPhoto ? [] : [PHOTO_NOTICE])];
 }
 

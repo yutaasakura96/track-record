@@ -908,8 +908,9 @@ endpoint**, deliberately (decision log, 2026-08-12). A proposal with a drafted p
 A proposal (`GET /api/proposals/:id`) carries `drafts`: `[{ blockId, sectionKey, heading, text }]`,
 the parts drafted for the author in document order, empty on every other document. On a tailored
 履歴書 its `warnings` carry the gap and photo notices as on the main one, and, instead of the main
-one's 志望動機 notice, a notice that the 志望動機 was drafted from the posting alone when the
-application holds no `motivationNote`.
+one's 志望動機 notice, the draft notice while the application holds no `motivationNote` and a drafted
+part remains unconfirmed (or generation has not finished). Once all parts are confirmed, the draft
+notice is absent.
 
 ```json
 { "renderKind": "english_resume", "newVersionNo": 5, "acceptedAt": "2026-08-12T09:52:00Z" }

@@ -455,6 +455,9 @@ describe("the 写真 (issue #117)", () => {
     expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
     expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: "  " } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
     expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: "決済に関わり続けたいからです。" } })).toEqual(gaps);
+    // Once nothing is left drafted the notice has nothing to say; while a part is, or before one exists, it does.
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null, drafted: false } })).toEqual(gaps);
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null, drafted: true } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
     // The photo notice applies to a tailored one as to the main one.
     expect(rirekishoWarnings(record, { hasPhoto: false, tailored: { motivationNote: "理由" } })).toEqual([...gaps, PHOTO_NOTICE]);
   });

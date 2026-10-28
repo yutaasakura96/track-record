@@ -15,7 +15,7 @@ import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import type { CapturedClaim, Employer, Fact, Overview } from "~/client/api";
 import { mount, Refusal, type Routes } from "./harness";
 
-const WIDER = /needs a window at least 1280/;
+const WIDER = /needs a window at least 1024/;
 const DRAFT_KEY = "track-record:capture-draft";
 
 const QORVANE: Employer = {

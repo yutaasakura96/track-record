@@ -13,6 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { env } from "cloudflare:test";
 import { eq, getTableName, sql } from "drizzle-orm";
+import PizZip from "pizzip";
 import { createDb } from "~/server/db/client";
 import * as s from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
@@ -140,7 +141,7 @@ const COUNTS = (user: string) => ({
   projects: 5,
   documents: 7,
   facts: 59,
-  flags: 16,
+  flags: 9,
   skills: 21,
   renderVersions: 7,
   applications: 4,
@@ -166,7 +167,7 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
 
   // The two figures no passage states are ruled out; every other flag was looked at.
   const flags = await as.json<{ counts: { open: number; checked: number } }>("/api/flags");
-  expect(flags.counts).toEqual({ open: 0, checked: 12 });
+  expect(flags.counts).toEqual({ open: 0, checked: 5 });
   const facts = await db.select({ status: s.facts.status, provenance: s.facts.provenance }).from(s.facts).where(eq(s.facts.userId, userId));
   expect(facts.filter((f) => f.status === "rejected")).toEqual([
     { status: "rejected", provenance: "generated" },
@@ -198,7 +199,7 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
       motivationNote: string | null;
       kibouNote: string | null;
       documents: { ref: string; kind: RenderKind; tailored: boolean; currentVersionNo: number | null }[];
-      sentCopies: { id: string; ref: string; kind: RenderKind }[];
+      sentCopies: { id: string; ref: string; kind: RenderKind; sentOn: string }[];
     }>(`/api/applications/${row.id}`);
     const chosen = [
       ...(application.tailoredResume ? ["english_resume"] : []),
@@ -212,6 +213,14 @@ async function expectNothingWaiting(as: Client, userId: string): Promise<void> {
       const own = detail.documents.find((document) => document.kind === "rirekisho");
       expect(own).toMatchObject({ tailored: true, currentVersionNo: 1 });
       expect(detail.sentCopies.find((copy) => copy.kind === "rirekisho")?.ref).toBe(own?.ref);
+      const sentRirekisho = detail.sentCopies.find((copy) => copy.kind === "rirekisho")!;
+      const response = await as.get(`/api/applications/${row.id}/sent-copies/${sentRirekisho.id}/download`);
+      expect(response.status).toBe(200);
+      const text = new PizZip(await response.arrayBuffer()).file("word/document.xml")!.asText().replace(/<[^>]+>/g, "").replace(/\s+/g, "");
+      const [year, month, day] = sentRirekisho.sentOn.split("-").map(Number) as [number, number, number];
+      expect(text).toContain(`${year}年${month}月${day}日現在`);
+      const [birthYear, birthMonth] = fixture.PROFILE.dateOfBirth.split("-").map(Number) as [number, number];
+      expect(text).toContain(`生（満${year - birthYear - (month < birthMonth ? 1 : 0)}歳）`);
       const [version] = await db.select({ content: s.renderVersions.content })
         .from(s.renderVersions)
         .where(eq(s.renderVersions.renderId, own!.ref));

@@ -324,7 +324,7 @@ try to create every table again.
 every screen is filled in and nothing waits on the owner. Decision log, 2026-10-17 and 2026-10-26.
 
 **What a reset leaves:** a full profile with an invented 履歴書 photo and a 本人希望 note; every flag
-looked at (the two figures the importer invented are rejected, the other 12 flags are checked); the
+looked at (the two figures the importer invented are rejected, the other 5 flags are checked); the
 one gap in 学歴・職歴, October–December 2023, explained; 21 curated skills; the English résumé, the
 履歴書, the 職務経歴書 and both career stories each with an accepted v1, and the career record built
 from the facts; and four applications whose documents were chosen before Applied and frozen as sent
@@ -369,7 +369,7 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
    `--recordings-deleted` only when step 3 had objects to delete; without it the command stops while
    upload rows remain.
    A run that fails partway is recovered by running the same command again: it resets first.
-5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 16
+5. **Verify.** The last line prints the counts: 4 employers, 5 projects, 7 documents, 59 facts, 9
    flags, 21 skills, 7 render versions, 4 applications, 6 sent copies, 2 interviews. Then, on the
    production database:
 
@@ -378,7 +378,7 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
    ```
 
    Listing `<userId>/` in the bucket returns nothing. In the app, Home says "You are up to date" with
-   every document at v1, Flagged shows 0 to check and 12 checked, Applications shows 4 with one gone
+   every document at v1, Flagged shows 0 to check and 5 checked, Applications shows 4 with one gone
    quiet, and the sidebar shows Kenji Moriyama. `npm run check:attribution -- --latest` exits 0.
 
 ---

@@ -96,8 +96,9 @@ test("accepted résumé opens from Home and History, then refuses a Private cite
   await ready(article.getByText(CLAIM, { exact: false })).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
-  for (const name of ["Download", "History", "Edit", "Regenerate"]) {
-    await expect(page.getByRole(name === "Download" || name === "Regenerate" ? "button" : "link", { name, exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download", exact: true }).first()).toBeVisible();
+  for (const name of ["History", "Edit", "Regenerate", "Home"]) {
+    await expect(page.getByRole(name === "Regenerate" ? "button" : "link", { name, exact: true })).toHaveCount(0);
   }
   await screenshot(page, "reader-phone-light.png");
   await page.getByRole("button", { name: "Menu" }).click();

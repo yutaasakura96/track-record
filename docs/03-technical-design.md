@@ -294,7 +294,11 @@ rate or comparison (`3カ月` is not `3カ国`, `5` is not `5%`, `5 users per mo
 may be inserted within the phrase on either side (`5 million active users` sources `5 million users`);
 a word that changes the quantity never does. Any other word before the unit may stand in the claim
 only when the passage uses it as a whole word (`5 clinic reports` from a passage about the clinic's
-5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`); a percentage's
+5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`), except that
+`three diverging component libraries` sources `three component libraries`. Time units `s`, `sec`,
+`min`, `h` and `hr` match their spelled-out units; `a quarter`, `per quarter` and `in the quarter`
+name the same rate, but an explicit period never matches a bare count or a different period;
+`one in five` can omit the counted noun when the quote gives the same ratio before it. A percentage's
 `of` reads through determiners to its unit and attached rate (`5% of all clinic reports` is not
 `5% of all clinic revenue`).
 A predicate after the unit does not change the quantity, and with no unit the first word after the

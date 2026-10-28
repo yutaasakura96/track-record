@@ -372,6 +372,29 @@ async function generateAndAccept(call: DemoCall, ref: string): Promise<void> {
   await call("POST", `/api/proposals/${proposalId}/accept`);
 }
 
+/**
+ * Runs `run` with the clock at `at`, for the routes that date what they build
+ * by the day it is. Everything else the seed writes is dated afterwards.
+ */
+async function atClock<T>(at: Date, run: () => Promise<T>): Promise<T> {
+  const RealDate = Date;
+  class SetBackDate extends RealDate {
+    constructor(...args: [] | [number | string | Date] | ConstructorParameters<DateConstructor>) {
+      if (args.length === 0) super(at.getTime());
+      else super(...(args as [number]));
+    }
+    static override now() {
+      return at.getTime();
+    }
+  }
+  globalThis.Date = SetBackDate as DateConstructor;
+  try {
+    return await run();
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
 const isClosed = (status: string) => status === "rejected" || status === "withdrawn";
 
 /**
@@ -417,7 +440,10 @@ async function addApplication(db: Db, call: DemoCall, userId: string, applicatio
   if (applied) {
     if (applied.status !== "applied") throw new Error(`${application.company}: the first step is Applied.`);
     dates.applied = day(applied.daysAgo);
-    await call("PUT", `/api/applications/${id}/standing`, { step: "applied", closedAs: null, dates });
+    // The clock is set back to the day it was sent: the copies it freezes stamp
+    // their 作成日 and a 履歴書's age from the day they are built, and a copy
+    // sent on the 2nd that read the 27th would contradict its own date.
+    await atClock(ago(applied.daysAgo), () => call("PUT", `/api/applications/${id}/standing`, { step: "applied", closedAs: null, dates }));
   }
   if (later.length > 0) {
     for (const step of later) dates[step.status] = day(step.daysAgo);

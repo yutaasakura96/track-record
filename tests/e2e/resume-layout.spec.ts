@@ -184,11 +184,12 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   // accepted, and it is then the application's 履歴書.
   const japanese = await post("/api/applications", { company: "Osprey", position: "バックエンドエンジニア", jobDescription: "Osprey は架空の決済基盤のエンジニアを募集しています。" }) as { id: string };
   await page.goto(`/applications/${japanese.id}`);
-  await page.getByLabel(/Why you are applying/).fill("決済の信頼性に関わり続けたいからです。");
   await page.getByRole("button", { name: "Make a tailored 履歴書" }).click();
   await expect(page).toHaveURL(/\/proposals\/[^/]+$/, { timeout: 30_000 });
+  await expect(page.getByRole("link", { name: "Application", exact: true })).toHaveAttribute("href", `/applications/${japanese.id}`);
   const drafts = page.getByRole("region", { name: "Drafted for you" });
   await expect(drafts.getByText("Drafted for you: 2 parts to confirm")).toBeVisible();
+  await expect(page.getByText(/志望動機 is drafted from the posting/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Accept as v1" })).toBeDisabled();
   await drafts.getByRole("button", { name: "Confirm as written" }).first().click();
   await expect(drafts.getByText("Drafted for you: 1 part to confirm")).toBeVisible();
@@ -196,10 +197,13 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
   await kibou.fill("バックエンドエンジニア職を希望いたします。");
   await drafts.getByRole("button", { name: "Save my wording" }).click();
   await expect(drafts).toBeHidden();
+  await expect(page.getByText(/志望動機 is drafted from the posting/)).toHaveCount(0);
   if (evidence) await page.screenshot({ path: `${evidence}/rirekisho-tailored-review.png`, fullPage: true });
   await page.getByRole("button", { name: "Accept as v1" }).click();
   await expect(page).toHaveURL(new RegExp(`/applications/${japanese.id}$`));
   await expect(page.getByText("Tailored 履歴書 for Osprey", { exact: true })).toBeVisible();
+  await expect(page.getByText(/志望動機 is drafted from the posting/)).toHaveCount(0);
+  if (evidence) await page.screenshot({ path: `${evidence}/rirekisho-tailored-accepted.png`, fullPage: true });
   const japaneseDetail = await api.get(`/api/applications/${japanese.id}`).then((r) => r.json()) as { documents: { ref: string; kind: string; tailored: boolean; currentVersionNo: number | null }[] };
   const ownRirekisho = japaneseDetail.documents.find((document) => document.tailored && document.kind === "rirekisho")!;
   expect(ownRirekisho.currentVersionNo).toBe(1);

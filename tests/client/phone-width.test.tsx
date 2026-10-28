@@ -20,7 +20,7 @@ import { mount } from "./harness";
 const TODAY = "2026-10-10";
 const ID = "app-test-kestrel";
 const AT = `/api/applications/${ID}`;
-const WIDER = /needs a window at least 1280/;
+const WIDER = /needs a window at least 1024/;
 const HELD_BACK = /need a wider window, so they are not shown here/;
 
 const NOT_APPLIED: Standing = { step: "not_applied", closedAs: null, dates: { not_applied: "2026-10-01" } };
@@ -96,6 +96,21 @@ describe("the wider-window message at phone width", () => {
     expect(await screen.findByRole("heading", { name: "Skills", level: 1 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
     expect(screen.queryByText(WIDER)).toBeNull();
+  });
+
+  it("names the real minimum and links to the screens that do work", async () => {
+    mount("/", { ...ROUTES, "GET /api/overview": { isEmpty: false } });
+    expect(await screen.findByText(WIDER)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Applications" }).getAttribute("href")).toBe("/applications");
+    expect(screen.getByRole("link", { name: "Skills" }).getAttribute("href")).toBe("/skills");
+    expect(await screen.findByRole("link", { name: "Quick capture" })).toBeTruthy();
+  });
+
+  it("holds Quick capture back while the record is empty, as the menu does", async () => {
+    mount("/", { ...ROUTES, "GET /api/overview": { isEmpty: true } });
+    expect(await screen.findByText(WIDER)).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Applications" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Quick capture" })).toBeNull();
   });
 
   it("is still shown on every other screen", async () => {
