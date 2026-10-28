@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import PizZip from "pizzip";
-import { INTERVIEW_STORAGE_STATE } from "./env";
+import { DEMO_SEED_STORAGE_STATE } from "./env";
 
 test("the finished demo record's sent 履歴書 bears its sent date", async ({ browser, baseURL }) => {
   test.setTimeout(900_000);
@@ -9,7 +9,7 @@ test("the finished demo record's sent 履歴書 bears its sent date", async ({ b
     cwd: process.cwd(), env: process.env, timeout: 900_000, maxBuffer: 10_000_000,
   });
 
-  const context = await browser.newContext({ baseURL, storageState: INTERVIEW_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: DEMO_SEED_STORAGE_STATE });
   const page = await context.newPage();
   await page.goto("/applications");
   const row = page.getByRole("link", { name: /Northwind Clinics Cloud/ }).first();

@@ -118,11 +118,11 @@ test("capture two sentences into the record at desktop and phone width, and fall
   // Phone: from the menu, two Japanese sentences, both themes, nothing sideways.
   await page.setViewportSize({ width: 390, height: 1100 });
   await page.goto("/");
-  await expect(page.getByText(/needs a window at least 1280/)).toBeVisible();
+  await expect(page.getByText(/needs a window at least 1024/)).toBeVisible();
   await page.goto("/applications");
   await page.getByRole("button", { name: "Menu" }).click();
   await page.getByRole("navigation", { name: "Menu" }).getByRole("link", { name: "Quick capture" }).click();
-  await expect(page.getByText(/needs a window at least 1280/)).toHaveCount(0);
+  await expect(page.getByText(/needs a window at least 1024/)).toHaveCount(0);
   const phoneStarted = Date.now();
   await page.getByLabel("In your own words").fill(
     "先月、株式会社コルヴァーンで夜間の受注集計をキュー処理に切り替えた。朝の帳票が7時までに届くようになった。",

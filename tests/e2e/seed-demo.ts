@@ -3,10 +3,10 @@ import { eq } from "drizzle-orm";
 import { seedDemo } from "../../scripts/demo-seed/demo";
 import { createDb } from "~/server/db/client";
 import { users } from "~/server/db/schema";
-import { E2E_DATABASE_URL, INTERVIEW_IDENTITY } from "./env";
+import { DEMO_SEED_IDENTITY, E2E_DATABASE_URL } from "./env";
 
 const db = createDb(E2E_DATABASE_URL);
-const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, INTERVIEW_IDENTITY.email));
+const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, DEMO_SEED_IDENTITY.email));
 if (!user) throw new Error("Disposable demo user was not created");
 // The sent copy falls before the June birthday and the seed's "today" after it.
 // This makes a stale age observable, as well as a stale 作成日.

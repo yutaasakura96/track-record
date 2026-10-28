@@ -33,6 +33,24 @@ export const INTERVIEW_IDENTITY = {
   name: "Interview Test",
 };
 
+export const DEMO_SEED_IDENTITY = {
+  sub: "e2e-demo-seed-local",
+  email: "e2e-demo-seed@example.invalid",
+  name: "Demo Seed Test",
+};
+
+export const NUMBER_FLAG_IDENTITY = {
+  sub: "e2e-number-flag-local",
+  email: "e2e-number-flag@example.invalid",
+  name: "Number Flag Test",
+};
+
+export const PHONE_WALL_IDENTITY = {
+  sub: "e2e-phone-wall-local",
+  email: "e2e-phone-wall@example.invalid",
+  name: "Phone Wall Test",
+};
+
 export const CAPTURE_IDENTITY = {
   sub: "e2e-capture-local",
   email: "e2e-capture@example.invalid",
@@ -93,7 +111,11 @@ export const EDUCATION_CHIPS_IDENTITY = {
   name: "Education Chips Test",
 };
 
-export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${JAPANESE_DIFF_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${JAPANESE_CHECK_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
+export const E2E_ALLOWED_EMAIL = `${DEV_SESSION_IDENTITY.email},${INTERVIEW_IDENTITY.email},${DEMO_SEED_IDENTITY.email},${NUMBER_FLAG_IDENTITY.email},${PHONE_WALL_IDENTITY.email},${CAPTURE_IDENTITY.email},${CREDIT_PAUSE_IDENTITY.email},${DIFF_REVIEW_IDENTITY.email},${JAPANESE_DIFF_IDENTITY.email},${DOCUMENT_VIEW_IDENTITY.email},${JAPANESE_CHECK_IDENTITY.email},${RESUME_HEADER_IDENTITY.email},${RESUME_IDENTITY.email},${RIREKISHO_PRINT_IDENTITY.email},${EDUCATION_CHIPS_IDENTITY.email}`;
+
+export const DEMO_SEED_STORAGE_STATE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".dev-session", "e2e-demo-seed-storage-state.json");
+export const NUMBER_FLAG_STORAGE_STATE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".dev-session", "e2e-number-flag-storage-state.json");
+export const PHONE_WALL_STORAGE_STATE = join(dirname(fileURLToPath(import.meta.url)), "..", "..", ".dev-session", "e2e-phone-wall-storage-state.json");
 
 /** Gitignored, with the rest of `.dev-session/`: a live session token, for the e2e database. */
 export const STORAGE_STATE = join(

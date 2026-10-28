@@ -3,11 +3,11 @@ import { and, eq } from "drizzle-orm";
 import { createDb } from "~/server/db/client";
 import { facts, users } from "~/server/db/schema";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { E2E_DATABASE_URL, JAPANESE_CHECK_IDENTITY, JAPANESE_CHECK_STORAGE_STATE } from "./env";
+import { E2E_DATABASE_URL, NUMBER_FLAG_IDENTITY, NUMBER_FLAG_STORAGE_STATE } from "./env";
 
 test("the record distinguishes equivalent figures from unsupported ones", async ({ browser, baseURL }) => {
   test.setTimeout(180_000);
-  const context = await browser.newContext({ baseURL, storageState: JAPANESE_CHECK_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: NUMBER_FLAG_STORAGE_STATE });
   const page = await context.newPage();
   await page.goto("/");
   for (const [label, value] of Object.entries(PROFILE)) await page.getByLabel(label).fill(value);
@@ -20,7 +20,7 @@ test("the record distinguishes equivalent figures from unsupported ones", async 
   const factId = await card.getAttribute("data-fact-card");
   expect(factId).toBeTruthy();
   const db = createDb(E2E_DATABASE_URL);
-  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, JAPANESE_CHECK_IDENTITY.email));
+  const [user] = await db.select({ id: users.id }).from(users).where(eq(users.email, NUMBER_FLAG_IDENTITY.email));
   expect(user).toBeTruthy();
 
   const cases: [string, string, boolean][] = [

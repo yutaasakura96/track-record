@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { STORAGE_STATE } from "./env";
+import { PHONE_WALL_STORAGE_STATE } from "./env";
 
 test("a phone visitor can leave the width wall for usable screens", async ({ browser, baseURL }) => {
-  const context = await browser.newContext({ baseURL, storageState: STORAGE_STATE, viewport: { width: 1280, height: 844 } });
+  const context = await browser.newContext({ baseURL, storageState: PHONE_WALL_STORAGE_STATE, viewport: { width: 1280, height: 844 } });
   const page = await context.newPage();
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
