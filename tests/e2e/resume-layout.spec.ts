@@ -76,7 +76,7 @@ test("main and tailored résumé download, with invalid edit refused", async ({ 
 
     const file = await api.get(`/api/renders/${ref}/download?format=docx`);
     expect(file.status()).toBe(200);
-    expect(file.headers()["content-disposition"]).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
+    expect(file.headers()["content-disposition"]).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.docx"/);
     const bytes = Buffer.from(await file.body());
     if (evidence) writeFileSync(`${evidence}/${label}.docx`, bytes);
     const zip = new PizZip(bytes);
