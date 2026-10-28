@@ -6,6 +6,8 @@ import { describe, expect, it } from "vitest";
 import { downloadFilename } from "~/render/docx";
 import { documentFilename } from "~/render/filename";
 import { asciiFilename } from "~/render/japanese";
+import { masterMarkdown } from "~/render/master-document";
+import type { MasterDocument } from "~/shared/master-document";
 import { resumeFilename } from "~/render/resume";
 
 const NAME = "Hanako Kakuu";
@@ -39,5 +41,20 @@ describe("a download's name", () => {
   it("folds accents, drops what ASCII cannot hold, and leaves the name out when none is left", () => {
     expect(documentFilename("Resume", "Zoë  O'Brien-Smith", "2026-10-10", "md")).toBe("Zoe-OBrien-Smith-Resume-2026-10-10.md");
     expect(documentFilename("Resume", "田辺", "2026-10-10", "docx")).toBe("Resume-2026-10-10.docx");
+  });
+
+  it("dates a Career Record by the same Tokyo day its file name carries", () => {
+    const doc: MasterDocument = {
+      language: "ja",
+      builtAt: "2026-10-27T22:30:00.000Z",
+      subjectName: null,
+      counts: { facts: 0, usable: 0, private: 0, generated: 0, keptOut: 0, flags: 0, waiting: 0, years: null },
+      employers: [],
+      independent: { projects: [], facts: [] },
+      educations: [],
+      certifications: [],
+    };
+    expect(masterMarkdown(doc)).toContain("2026-10-28 に記録から作成");
+    expect(masterMarkdown({ ...doc, language: "en" })).toContain("Built from the record on 2026-10-28.");
   });
 });
