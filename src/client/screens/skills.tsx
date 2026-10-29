@@ -625,8 +625,8 @@ function Curation({ data }: { data: SkillCuration }) {
           </h2>
           <p className="mb-12 text-smaller text-text-dim">
             Most used first. Once a group holds a skill, each remaining skill is offered the group whose skills its
-            achievements name it beside; failing that, the group at the same employers, then the largest. Press it to
-            add it there, or drag it to another. Before that, press a skill to choose a group, creating one first if needed.
+            achievements name it beside, counting a skill named on few facts for more than a language named on many;
+            failing that, the one group at the most of the same employers. A skill with neither has no suggestion. Press it to add it there, or drag it to another. Before that, press a skill to choose a group, creating one first if needed.
             Drag a listed skill here to take it off the list.
           </p>
           {suggestions.length === 0 ? (

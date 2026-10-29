@@ -216,11 +216,14 @@ nobody rules on each fact.
 type RenderContent = {
   sections: { key: string; heading: string; blocks: Block[] }[]
 }
-type Block = { kind: 'paragraph' | 'bullet' | 'row'; text: string; factIds: string[] }
+type Block = { kind: 'paragraph' | 'bullet' | 'row'; text: string; factIds: string[]; drafted?: true }
 ```
 
 `factIds` is what makes S6 traceability and the diff screen's rationale bar possible. A block with
 no `factIds` is legal only for headings and for the fixed scaffolding of 履歴書.
+`drafted` marks a block written for the author to confirm: only a tailored 履歴書's 志望動機 and
+本人希望欄 carry it, it lives on a proposal only, and confirming the block clears it (decision log,
+2026-10-26).
 
 **Facts are sent plainly; register is applied by the spec.** The same fact renders as an
 action-verb bullet in the English résumé and in the flat factual voice 職務経歴書 expects. That is
@@ -291,7 +294,11 @@ rate or comparison (`3カ月` is not `3カ国`, `5` is not `5%`, `5 users per mo
 may be inserted within the phrase on either side (`5 million active users` sources `5 million users`);
 a word that changes the quantity never does. Any other word before the unit may stand in the claim
 only when the passage uses it as a whole word (`5 clinic reports` from a passage about the clinic's
-5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`); a percentage's
+5 reports), and never in the passage alone (`5 reports` is not `5 hospital reports`), except that
+`three diverging component libraries` sources `three component libraries`. Time units `s`, `sec`,
+`min`, `h` and `hr` match their spelled-out units; `a quarter`, `per quarter` and `in the quarter`
+name the same rate, but an explicit period never matches a bare count or a different period;
+`one in five` can omit the counted noun when the quote gives the same ratio before it. A percentage's
 `of` reads through determiners to its unit and attached rate (`5% of all clinic reports` is not
 `5% of all clinic revenue`).
 A predicate after the unit does not change the quantity, and with no unit the first word after the
@@ -700,9 +707,9 @@ cells in reading order.
 
 **File names** are `履歴書_森山健二_20261023.pdf`: the document, the author's kanji name, and the
 day it is built, which is the date it prints. The header carries it as RFC 6266 `filename*`, with an
-ASCII `rirekisho_Kenji-Moriyama_20261023.pdf` beside it (`src/server/http/disposition.ts`, shared
-with recordings). The Japanese story and the Markdown downloads follow the same pattern; the English
-story keeps its old name. A sent copy keeps the name it was stored under.
+ASCII `Kenji-Moriyama-Rirekisho-2026-10-23.pdf` beside it (`src/server/http/disposition.ts`, shared
+with recordings). Every other download is that ASCII pattern alone, `<Name>-<Document>-<YYYY-MM-DD>`
+dated by the Tokyo day (`src/render/filename.ts`). A sent copy keeps the name it was stored under.
 
 ---
 

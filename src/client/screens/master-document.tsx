@@ -155,7 +155,7 @@ function Download({ language }: { language: MasterLanguage }) {
           }
         }}
       >
-        {busy ? "Preparing…" : "Download .md"}
+        {busy ? "Preparing…" : "Download Markdown"}
       </Button>
     </span>
   );

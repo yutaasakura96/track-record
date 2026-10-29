@@ -7781,3 +7781,178 @@ remained once the terms were taken out.
   what joins them, so 「React, TypeScript, and PostgreSQL」 passes.
 - **Revisit if:** a vocational course's 修了 row, which sits in 保有資格 but is kept under Education,
   ever fails the check; the reason names Certifications for it.
+
+---
+
+### [2026-10-26] A tailored 履歴書 per application, with its 志望動機 and 本人希望欄 drafted for the author to confirm
+
+Item 9 of the Japanese documents review (#117). Applications already hold the posting, so a 履歴書
+made from one knows what its 志望動機 is for. The plan proposed that the author type their own reason
+and request, and that with no reason the cell state only the fit. The owner answered its four
+questions on 2026-10-26:
+
+- **Q1, the reason for applying.** "i like the suggested approach. but what if im not sure why i like
+  the company? can it be the other way around? like AI writes the reason, then asks me to confirm or
+  edit? if AI writes it i think AI can think of the best answer anyway based on the job description,
+  company info, and my info."
+- **Q2, 本人希望記入欄.** "i like the suggested approach. but what if im not sure what to request to
+  the company? can it be the other way around? like AI writes the request, then asks me to confirm or
+  edit? if AI writes it i think AI can think of the best answer anyway based on the job description,
+  company info, and my info."
+- **Q3.** The main and the tailored 履歴書 are one or the other on an application until it is marked
+  Applied.
+- **Q4.** Build it now.
+
+Decisions:
+
+- **Decision:** a tailored 履歴書 is a `renders` row of kind `rirekisho` with its application's job
+  description and `application_id`, made the way the tailored résumé is (2026-10-08, 2026-10-11).
+  `renders_application_uq` is unique on `(application_id, kind)` (migration 0036). Only the two prose
+  cells are tailored: the identity block, the dates, 学歴・職歴 with its ※ rows, 免許・資格 and 写真
+  are the main 履歴書's, from the same facts and the same record.
+- **Decision:** **supersedes "the register refuses to write a 志望動機" (2026-09-11) for a tailored
+  履歴書 only.** The main 履歴書 keeps that register and `MOTIVATION_NOTICE`, unchanged. A tailored one
+  has a register of its own (`TAILORED_REGISTER.rirekisho`) and a tailoring block of its own in the
+  prompt: the 志望動機 first, then アピールポイント, about 300 characters; 貴社, never the company's name
+  and never 御社; no requirement claimed that the facts do not support, and the posting not quoted.
+- **Decision, Q1 and Q2 as the owner asked:** the model **drafts** the reason for applying and the
+  本人希望欄 request from the posting, what the application knows about the company (its confirmed
+  position and requirements) and the record. An optional note per application, `motivation_note` and
+  `kibou_note`, leads the draft when the author writes one; the 本人希望欄 falls back to
+  `profiles.desired_role_note`, then to a draft from the posting, then to 「貴社規定に従います。」.
+  The register forbids inventing anything about the author: an experience, an interest, a value, a
+  memory or a feeling no fact or note states. The notes are the author's words, never facts, never
+  logged, exported with the application, and editing one is not activity and marks nothing stale.
+- **Decision:** a drafted part is marked on its block (`drafted: true`) in the proposal. The model
+  marks the 志望動機 paragraph; the server also marks every 本人希望欄 block and any 志望動機 paragraph
+  citing no fact, and strips the mark from every other document. Diff Review lists the drafts under
+  **Drafted for you**, each confirmed as written or edited (`POST /api/proposals/:id/drafts/:blockId`),
+  and **Accept is refused while any is left**. So no version carries a draft, and nothing reaches a
+  sent copy that the author did not confirm; the freeze checks it again. This is the one part of a
+  review confirmed piece by piece, and the 2026-08-12 all-or-nothing rule holds for everything else.
+- **Decision, Q3:** before Applied an application holds one 履歴書. Putting the tailored one on takes
+  the main one off in the same batch and says so; ticking the main one while the tailored one is on is
+  `409`, and the tick card shows it disabled with the reason. From Applied onward, `Record another
+  sent copy` takes either.
+- **Decision:** `POST /api/applications/:id/tailored/:kind` (`english_resume` | `rirekisho`)
+  replaces `…/tailored-resume`, with its semantics. Titles are `Tailored 履歴書 for <company>` on the
+  application and in sent copies, and in Diff Review. The download name stays
+  `履歴書_<氏名>_<YYYYMMDD>`, with no company.
+- **Decision:** a tailored 履歴書 says `TAILORED_MOTIVATION_NOTICE` only when its application holds no
+  reason of the author's, so the confirmation is an informed one. The proposal read passes the row's
+  tailoring to the checks: 貴社 in a tailored 志望動機 is no advisory, 御社 stays a defect, and the
+  company's name in either cell is an advisory that names the section and quotes nothing.
+- **Decision:** supersedes "Tailoring stays English only" (2026-10-11) for the 履歴書. A tailored
+  職務経歴書 and a tailored JA story are still later pieces. No new model function: `generateRender`
+  writes the cells, and the seam stays at six.
+- **Revisit if:** an author confirms drafts without reading them, which a review of real proposals
+  would show as drafts confirmed unchanged within seconds; or a company asks for a 志望動機 longer
+  than the cell's 300 characters, which the layout already holds at four times that.
+
+---
+
+### [2026-10-26] The demo seed finishes the record and seeds every document
+
+The owner could not judge the live site after the 2026-10-26 release: the demo record left flags to
+check, documents never generated and applications with nothing sent, and asked for a record where
+everything is complete so that the only thing left is to test and judge. This supersedes **Renders
+are not seeded** in the 2026-10-17 entry, and answers its Revisit with the fixture it named: one that
+names facts by claim.
+
+- **Decision:** after the import, the seed does what the author would, through the app's routes in
+  its own process (`scripts/demo-seed/app.ts`): rejects the two Generated facts whose figures no
+  passage states, marks the other 12 flags checked, adds an invented drawn photo, explains the one
+  gap, generates and accepts each of the five main documents, and builds each application as the
+  screens do (choose documents, write Northwind's tailored résumé and 履歴書, confirm the 履歴書's
+  志望動機 and 本人希望 drafts, accept both tailored versions, move to Applied, which freezes the chosen
+  documents, then on).
+  Rejected: inserting renders and sent copies directly, which skips the checks a document meets on
+  generation and the freeze a move to Applied makes.
+- **Decision:** the documents' text is written in `scripts/demo-seed/renders.ts`, citing facts by the
+  start of their claim and resolved to ids at generation. It passes through `parseGeneratedRender` and
+  the route's English and Japanese checks; a refused document stops the seed with the route's reason.
+  A cited claim the render was not given also stops it.
+- **Decision:** Kestrel now ends in September 2023, so the record holds one three-month gap and its
+  ※ note, and the 履歴書, the timeline and the stories' routing tables all show an explained gap.
+- **Decision:** the routes date what they write today, so the seed sets each application's
+  `created_at`, `last_activity_at` and its sent copies' `recorded_at` back to the fixture's days
+  afterwards. Steps, sent-on dates and interviews already carry those days. Harbor Ledger stays the
+  one gone quiet: applied with the main résumé 22 days before the run, and nothing since.
+- **Decision:** `npm run db:seed:demo` runs under a Node loader for the `.docx` and `.ttf` imports
+  (`scripts/demo-seed/binary-modules.mjs`), which the Worker build and the suite load as `Data`
+  modules.
+- **Revisit if:** the record's facts change, since the documents name claims and stop the seed when
+  one is missing; or a second persona is wanted.
+
+---
+
+### [2026-10-27] Fixes from the demo record's usability check
+
+The owner reviewed a usability check of the demo record and said to fix its findings before judging
+the site. Six changes; the rest of the check's list (low items and three product questions) is not
+part of this.
+
+- **Decision:** at phone width the wider-window message names the real minimum, 1024px (it said
+  1280), and links to Applications, Quick capture (while the record is not empty) and Skills. A
+  document's View under 1024px no longer shows `History`, `Edit` or the new-version action, and
+  leads back to Applications and not Home, since each of those opens the message. This supersedes
+  the Screen 17 row that kept them reachable under 1024px (2026-10-18). `Add a photo`, `Open in
+  source` and a job header's links on View still lead to a gated screen; they were not part of the
+  check's finding.
+- **Decision:** `unsourcedNumber` reads a unit abbreviation as its word (`6.8 s` is `6.8 seconds`;
+  `min`, `h`, `hr` likewise), a rate said `a quarter`, `per quarter` or `in the quarter` as one rate,
+  a ratio the claim states without a noun (`one in five`) as sourced by the same ratio before any
+  noun, and a participle before the unit (`three diverging component libraries`) as describing and not
+  changing the count. A different unit, scope, scale or number still flags, and so do the figures
+  with no passage behind them (`30% costs`, `40% faster`). Any other extra word before the unit is
+  still held to the passage. Flags already stored are not recomputed.
+- **Decision:** the demo seed's own claims were brought to what their quotes say, where the claim,
+  not the check, was wrong: the Hokushin sentence now carries the job count (`約 480 本`) its claim
+  states, `21 clean days` is `21 consecutive clean days`, and kanjigrid's downloads are worded as the
+  passage words them. The seed therefore leaves 2 number flags (both on rejected Generated facts)
+  where it left 9, and 5 checked flags on accepted facts where it left 12.
+- **Decision:** a tailored 履歴書's `TAILORED_MOTIVATION_NOTICE` is about a draft, so the proposal
+  carries it only while a drafted part is unconfirmed (and while generating, before there is
+  content), the application card only until the document has a version, and View never: a version
+  is one the author confirmed.
+- **Decision:** the demo seed freezes each application's documents with the clock set to the day it
+  was applied, so a sent copy's 作成日 and a 履歴書's age agree with its sent date. Everything else it
+  writes is still dated afterwards, as before.
+- **Decision:** accepting a proposal returns to Home on the accepted document's language tab with
+  `Saved as v<n> of your <render>.` (the flash line Applications already used), and the review's
+  breadcrumb starts with a link, Home or the application, in place of the plain text `Outputs`.
+- **Revisit if:** more of View's links to gated screens are reached from a phone; or a figure the
+  participle rule lets through turns out to change a count.
+
+---
+
+### [2026-10-28] Bound the number-flag wording exception
+
+- **Decision:** the preceding entry's participle exception applies to `three diverging component
+  libraries` sourcing `three component libraries`, not to arbitrary `-ing` words before a unit.
+  An explicit `in the day/week/month/quarter` matches the same period or its `a/per` rate, never a
+  bare count or a different period. The period aliases `each` and `every` are excluded.
+- **Reason:** a broader exception would treat `5 engineering reports` as evidence for `5 reports`,
+  or a count in one period as evidence for another. `tests/flag-rules.test.ts` holds these boundaries.
+
+---
+
+### [2026-10-28] Usability-check polish: names, downloads, skill suggestions, history links
+
+- **Decision:** a tailored document has one name wherever a title stands: `Tailored résumé for <company>`
+  or `Tailored 履歴書 for <company>` (`tailoredDocumentTitle`). The review header and history used
+  `Résumé for <company>` for the résumé, so one document had three names.
+- **Decision:** every download is named `<Name>-<Document>-<YYYY-MM-DD>.<ext>` in ASCII
+  (`src/render/filename.ts`): `Kenji-Moriyama-Resume-2026-10-27.pdf`, `…-Career-Story-EN-…md`,
+  `…-Career-Record-EN-…md`. A Japanese document keeps its Japanese name (`履歴書_森山健二_20261027.pdf`)
+  and the same ASCII pattern is its `filename`. The résumé's name was month-dated and the stories carried
+  no name. Contents of the files are unchanged.
+- **Decision:** a download control names the format it saves (`Download PDF`, `Download Markdown`,
+  `Download Word`), the second format keeps its own label (`Word`).
+- **Decision:** a skill suggestion weights each fact beside it by how few facts name the neighbour
+  (`1 / facts`) and needs a total of 0.5, then falls to the single group sharing the most employers,
+  each weighted `log(employers / the group's employers)` so a group at every employer counts for
+  nothing (none on a tie); there is no "largest group" fallback. Raw counts sent every skill to the languages
+  group, which is named beside everything, and a tie fell to the earlier group. A skill with no
+  evidence gets no suggestion.
+  Supersedes the suggested-group rules of 2026-10-23 (employer, then largest group).

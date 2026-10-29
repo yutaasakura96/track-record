@@ -15,6 +15,7 @@ import {
   ageOn,
   buildRirekisho,
   MOTIVATION_NOTICE,
+  TAILORED_MOTIVATION_NOTICE,
   gapWarnings,
   rirekishoTemplateData,
   rirekishoWarnings,
@@ -446,6 +447,19 @@ describe("the 写真 (issue #117)", () => {
     expect(without.at(-1)).toBe(PHOTO_NOTICE);
     expect(without.at(-2)).toBe(MOTIVATION_NOTICE);
     expect(rirekishoWarnings(record, { hasPhoto: true })).not.toContain(PHOTO_NOTICE);
+  });
+
+  it("says a tailored 履歴書's 志望動機 is drafted when the application holds no reason, and says nothing when it does", () => {
+    // Whatever the record's gaps say comes first, as on the main 履歴書.
+    const gaps = rirekishoWarnings(record, { hasPhoto: true }).filter((w) => w !== MOTIVATION_NOTICE);
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: "  " } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: "決済に関わり続けたいからです。" } })).toEqual(gaps);
+    // Once nothing is left drafted the notice has nothing to say; while a part is, or before one exists, it does.
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null, drafted: false } })).toEqual(gaps);
+    expect(rirekishoWarnings(record, { hasPhoto: true, tailored: { motivationNote: null, drafted: true } })).toEqual([...gaps, TAILORED_MOTIVATION_NOTICE]);
+    // The photo notice applies to a tailored one as to the main one.
+    expect(rirekishoWarnings(record, { hasPhoto: false, tailored: { motivationNote: "理由" } })).toEqual([...gaps, PHOTO_NOTICE]);
   });
 
   it("is placed by the whole chain when the inputs carry one, and only then", () => {

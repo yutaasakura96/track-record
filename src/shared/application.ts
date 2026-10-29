@@ -21,6 +21,12 @@
 export const JOB_DESCRIPTION_MAX = 20_000;
 /** Below this there is nothing to read: a title on its own, or a stray paste. */
 export const JOB_DESCRIPTION_READ_MIN = 40;
+/**
+ * The author's two notes for a tailored 履歴書: why they are applying, and what
+ * they would ask for (`docs/06`, 2026-10-26). One or two lines each, in their
+ * own words. Never facts and never logged.
+ */
+export const APPLICATION_NOTE_MAX = 400;
 
 /** The steps an application moves through, in order. */
 export const APPLICATION_STEPS = [

@@ -22,6 +22,7 @@ import { generateFailure, JobHeaderLinks } from "../components/generate-failure"
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
+import { useWideEnough } from "../components/too-narrow";
 import { GapNotices } from "../components/gap-notices";
 import { Button, Chip, Dot } from "../components/ui";
 import { absolute } from "../format";
@@ -35,6 +36,9 @@ export function DocumentViewScreen() {
   const read = useRenderPage(ref, version);
   const data = read.data;
   const photo = useProfilePhotoSrc();
+  // History, Edit and a new version open screens that need a wide window, and
+  // so does Home: below it the way back is Applications, which reads a document too.
+  const wide = useWideEnough();
   const [tracing, setTracing] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   // Another version is another page: the line chosen on the last one is not on it.
@@ -44,9 +48,9 @@ export function DocumentViewScreen() {
   if ((read.error instanceof ApiError && read.error.status === 409) || !data) {
     const status = read.error instanceof ApiError ? read.error.status : null;
     return (
-      <PhoneFrame title={status === 404 ? "Not found" : "Document"} back={{ to: "/", label: "Home" }}>
+      <PhoneFrame title={status === 404 ? "Not found" : "Document"} back={wide ? { to: "/", label: "Home" } : { to: "/applications", label: "Applications" }}>
         {status === 409 ? (
-          <Withheld docRef={ref} current={version === undefined} error={read.error as ApiError} />
+          <Withheld docRef={ref} current={version === undefined} wide={wide} error={read.error as ApiError} />
         ) : read.isError && status !== 404 ? (
           <ReadFailure query={read} />
         ) : (
@@ -61,9 +65,9 @@ export function DocumentViewScreen() {
   return (
     <PhoneFrame
       title={data.title}
-      back={data.tailored ? { to: "/applications", label: "Applications" } : { to: "/", label: "Home" }}
+      back={data.tailored || !wide ? { to: "/applications", label: "Applications" } : { to: "/", label: "Home" }}
     >
-      <Notice view={data} />
+      <Notice view={data} wide={wide} />
       {/* A 履歴書 version stores two prose blocks, and its three tables are
           filled from the record when it is read, as Screen 5 says. */}
       {data.renderKind === "rirekisho" ? (
@@ -120,7 +124,7 @@ const ORIGIN: Record<RenderPage["version"]["origin"], string> = {
 };
 
 /** The version, its date, and what can be done with it. */
-function Notice({ view }: { view: RenderPage }) {
+function Notice({ view, wide }: { view: RenderPage; wide: boolean }) {
   const { version, document } = view;
 
   return (
@@ -150,15 +154,17 @@ function Notice({ view }: { view: RenderPage }) {
         </span>
         <span className="ml-auto max-phone:ml-0 flex flex-wrap items-center gap-12">
           <DownloadButton kind={view.renderKind} docRef={view.renderRef} versionId={version.id} label="Download" className={QUIET} />
-          <Link to="/renders/$ref/history" params={{ ref: view.renderRef }} className={QUIET}>
-            History
-          </Link>
-          {version.isCurrent ? (
+          {wide ? (
+            <Link to="/renders/$ref/history" params={{ ref: view.renderRef }} className={QUIET}>
+              History
+            </Link>
+          ) : null}
+          {wide && version.isCurrent ? (
             <Link to="/renders/$ref/edit" params={{ ref: view.renderRef }} className={QUIET}>
               Edit
             </Link>
           ) : null}
-          {version.isCurrent ? <NewVersion view={view} /> : null}
+          {wide && version.isCurrent ? <NewVersion view={view} /> : null}
           {view.tailored && view.applicationId ? (
             <Link
               to="/applications/$applicationId"
@@ -236,7 +242,7 @@ function NewVersion({ view }: { view: RenderPage }) {
  * under the version, and the way out is the record or an edit, as the
  * download's dialog says.
  */
-function Withheld({ docRef, current, error }: { docRef: string; current: boolean; error: ApiError }) {
+function Withheld({ docRef, current, wide, error }: { docRef: string; current: boolean; wide: boolean; error: ApiError }) {
   return (
     <div className="grid gap-6 text-small text-text-secondary">
       <p role="alert" className="text-removed">
@@ -250,7 +256,7 @@ function Withheld({ docRef, current, error }: { docRef: string; current: boolean
           A document obeys your record as it is today, not as it was when this version was accepted. Change the
           fact in your record, or edit the block out into a new version.
           {/* An edit is made from the current version, so it is the way out only for that one. */}
-          {current ? (
+          {current && wide ? (
             <>
               {" "}
               <Link to="/renders/$ref/edit" params={{ ref: docRef }} className={QUIET}>

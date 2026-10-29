@@ -25,14 +25,14 @@ describe("the control", () => {
   for (const kind of ["rirekisho", "shokumu_keirekisho"] as const) {
     it(`offers the ${kind} as a PDF, with its Word file beside it`, () => {
       render(<DownloadButton kind={kind} />);
-      expect(screen.getByRole("button", { name: "Download .pdf" })).toBeTruthy();
+      expect(screen.getByRole("button", { name: "Download PDF" })).toBeTruthy();
       expect(screen.getByRole("button", { name: "Download as Word (.docx)" })).toBeTruthy();
     });
   }
 
   it("offers a career story as Markdown alone", () => {
     render(<DownloadButton kind="career_story_ja" />);
-    expect(screen.getByRole("button", { name: "Download .md" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download Markdown" })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Word/ })).toBeNull();
   });
 });

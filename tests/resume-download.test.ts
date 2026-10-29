@@ -102,7 +102,7 @@ describe("the English résumé download", () => {
     await accepted("english_resume", contentFor(employerId, factId));
 
     const response = await client.get("/api/renders/english_resume/download?format=md");
-    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
+    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.md"/);
     const markdown = await response.text();
 
     expect(markdown.startsWith("# Yosuke Aoki\n")).toBe(true);
@@ -139,7 +139,7 @@ describe("the English résumé download", () => {
     await accepted(tailored.id, contentFor(employerId, factId));
 
     const response = await client.get(`/api/renders/${tailored.id}/download?format=md`);
-    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
+    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.md"/);
     expect(await response.text()).toContain("**Aozora Logistics K.K.** · Yokohama — Apr 2022 – Sep 2024");
   });
 
@@ -219,7 +219,7 @@ describe("the English résumé's PDF (issue #109)", () => {
     const response = await client.get("/api/renders/english_resume/download?format=pdf");
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe("application/pdf");
-    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.pdf"$/);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.pdf"$/);
 
     const bytes = await response.arrayBuffer();
     expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe("%PDF-");
@@ -283,7 +283,7 @@ describe("the English résumé's PDF (issue #109)", () => {
     await accepted(tailored.id, contentFor(employerId, factId));
 
     const response = await client.get(`/api/renders/${tailored.id}/download?format=pdf`);
-    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.pdf"/);
+    expect(response.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.pdf"/);
     expect(await pdfText(await response.arrayBuffer())).toContain("Aozora Logistics K.K. · Yokohama");
   });
 

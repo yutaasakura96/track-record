@@ -6,7 +6,9 @@
  *
  * Two rules this screen holds:
  *   - **Accept is all-or-nothing.** There is no per-change accept. If a
- *     proposed line is wrong, the fix is the underlying fact.
+ *     proposed line is wrong, the fix is the underlying fact. The one
+ *     exception is a part drafted for the author, a tailored 履歴書's 志望動機
+ *     and 本人希望欄: each is confirmed or edited first (`docs/06`, 2026-10-26).
  *   - **Every change carries a rationale.** A change with no explanation is a
  *     defect, not a tolerable gap.
  */
@@ -27,9 +29,12 @@ import { Button, Chip, Dot, Mono } from "../components/ui";
 import { DiffPanes } from "../components/diff-view";
 import { DocumentBlocks } from "../components/document-blocks";
 import { DocumentPage } from "../components/document-page";
+import { DraftedParts } from "../components/drafted-parts";
 import { DownloadButton } from "../components/download-button";
 import { ReadFailure } from "../components/read-failure";
 import { RENDER_LANGUAGE } from "~/shared/render-content";
+import { useDocumentLanguageStore } from "../stores/document-language";
+import { useFlashStore } from "../stores/flash";
 import type { SentPage } from "~/render/sent-page";
 
 type FirstPreview = { title: string; page: SentPage };
@@ -64,7 +69,7 @@ export function DiffReview() {
 }
 
 /**
- * Where a review returns to. A tailored résumé is made from its application
+ * Where a review returns to. A tailored document is made from its application
  * and its review goes back there (`docs/10` Screen 14); every other document
  * goes back to Home.
  */
@@ -81,18 +86,43 @@ const backLabel = (proposal: Pick<Proposal, "applicationId">) =>
   proposal.applicationId ? "Back to the application" : "Back to your record";
 
 function Header({ proposal }: { proposal: Proposal }) {
+  // Only a proposal there is something to decide on has a version it proposes
+  // and a reason it was generated; a failed or no-op one proposes nothing.
+  const noOp = proposal.status === "pending" && proposal.unchanged;
+  const proposesVersion =
+    proposal.generationStatus === "generating" ||
+    (proposal.generationStatus === "ready" && (proposal.status === "accepted" || (proposal.status === "pending" && !proposal.unchanged)));
+  const showsReason = proposal.generationStatus !== "failed" && !noOp;
   return (
     <header className="h-header shrink-0 flex items-center gap-10 px-20 bg-surface border-b border-border">
-      <span className="text-panel font-semibold tracking-snug text-text-strong">Outputs</span>
+      {/* This screen has no sidebar, so the way out is here: back to where the
+          review was opened from, as Back and the buttons below go. */}
+      {proposal.applicationId ? (
+        <Link
+          to="/applications/$applicationId"
+          params={{ applicationId: proposal.applicationId }}
+          className="text-panel font-semibold tracking-snug text-text-strong hover:text-text-bright"
+        >
+          Application
+        </Link>
+      ) : (
+        <Link to="/" className="text-panel font-semibold tracking-snug text-text-strong hover:text-text-bright">
+          Home
+        </Link>
+      )}
       <span className="text-text-faint">/</span>
       {/* The proposal's own kind. This said "Résumé (English)" while only one
           render could generate, and would have put that title over a 履歴書. */}
       <span className="text-panel font-semibold tracking-snug text-text-strong">
         {proposal.title}
       </span>
-      <Chip className="ml-4">proposed v{proposal.proposedVersionNo}</Chip>
+      {proposesVersion ? (
+        <Chip className="ml-4">
+          {proposal.status === "accepted" ? `v${proposal.proposedVersionNo}` : `proposed v${proposal.proposedVersionNo}`}
+        </Chip>
+      ) : null}
       <div className="ml-auto flex items-center gap-10">
-        {proposal.reason ? (
+        {proposal.reason && showsReason ? (
           <span className="text-smaller text-text-dimmer">{proposal.reason}</span>
         ) : null}
         {/* Specced in this header since `docs/10` Screen 2 and only now
@@ -260,12 +290,12 @@ function Decided({ proposal }: { proposal: Proposal }) {
             ? `Proposal accepted — saved as v${proposal.proposedVersionNo}`
             : proposal.basedOnVersionNo === null
               ? "Draft discarded — nothing was saved"
-              : `Proposal dismissed — v${proposal.basedOnVersionNo} kept`}
+              : `Proposal dismissed — it was written against v${proposal.basedOnVersionNo}`}
         </p>
         <p className="mt-8 text-ui text-text-dim">
           {accepted
             ? "Every earlier version is retained."
-            : "Your stored version is exactly as it was. The dismissed proposal is retained."}
+            : "Nothing was saved from it. The dismissed proposal is retained."}
         </p>
         <div className="mt-20">
           <Button variant="primary" onClick={() => void leave()}>
@@ -299,10 +329,12 @@ function Review({
 }) {
   const { accept, dismiss } = useDecideProposal(proposalId);
   const leave = useLeave(proposal);
+  const setLanguage = useDocumentLanguageStore((state) => state.setLanguage);
+  const flash = useFlashStore((state) => state.show);
   // A refused decision used to reject into nothing: the buttons stayed, no
   // message appeared, and the author could not tell whether it had landed.
   const [failure, setFailure] = useState<string | null>(null);
-  const decide = async (decision: typeof accept | typeof dismiss) => {
+  const decide = async (decision: typeof accept | typeof dismiss, accepting = false) => {
     setFailure(null);
     try {
       await decision.mutateAsync();
@@ -310,12 +342,19 @@ function Review({
       setFailure(failureText(error));
       return;
     }
+    if (accepting) {
+      // Home remembers which language's tab was open last, and the document
+      // just saved may be on the other one: it opens on its own.
+      setLanguage(RENDER_LANGUAGE[proposal.renderKind]);
+      flash(`Saved as v${proposal.proposedVersionNo} of your ${proposal.title}.`);
+    }
     await leave();
   };
 
   // A first version has no current one to compare with: two columns against
   // nothing is a wall of "no matching line" boxes, so the document is shown.
   const first = proposal.basedOnVersionNo === null;
+  const drafted = proposal.drafts.length > 0;
 
   return (
     <>
@@ -340,6 +379,8 @@ function Review({
           />
         </>
       )}
+
+      <DraftedParts proposalId={proposalId} drafts={proposal.drafts} />
 
       <footer className="shrink-0 flex items-center gap-14 px-20 py-14 bg-surface border-t border-border">
         <div className="min-w-0">
@@ -377,7 +418,18 @@ function Review({
           <Button onClick={() => void decide(dismiss)}>
             {first ? "Discard draft" : "Keep current version"}
           </Button>
-          <Button variant="primary" onClick={() => void decide(accept)} disabled={first && !preview} disabledReason={first && !preview ? "Read the proposed document before accepting it." : undefined}>
+          <Button
+            variant="primary"
+            onClick={() => void decide(accept, true)}
+            disabled={(first && !preview) || drafted}
+            disabledReason={
+              drafted
+                ? "Confirm or edit each drafted part first."
+                : first && !preview
+                  ? "Read the proposed document before accepting it."
+                  : undefined
+            }
+          >
             {first ? `Accept as v${proposal.proposedVersionNo}` : "Accept proposed version"}
           </Button>
         </div>

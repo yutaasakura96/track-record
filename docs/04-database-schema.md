@@ -495,15 +495,16 @@ résumé reads the same index backwards, for the same reason employers do.
 **`renders`** — one **main** row per `render_kind` per user, created on first generation, and any
 number of **tailored** rows (migration 0015, #57). Since #70, existing tailored rows are linked to
 applications (§3.14), and since #71 an application makes its own (§3.17): at most one each, by the
-unique index on `application_id`.
+unique index on `application_id`. Since migration 0036 (2026-10-26) that index is on
+`(application_id, kind)`: an application holds at most one tailored résumé and one tailored 履歴書.
 
 | Column | Type | Null | Notes |
 |---|---|---|---|
 | `id` / `user_id` | text | no | |
 | `kind` | render_kind | no | **Unique** with `user_id` among main rows: the index is partial, `where job_description is null` |
-| `job_description` | text | yes | The posting a tailored résumé is written toward, as pasted, up to 20,000 characters. **Null is what makes a row the main document.** Given to generation as text to read, never as a source of facts (`03` §6) |
-| `label` | text | yes | The author's name for a tailored résumé. Null on a main row |
-| `application_id` | text | yes | Migration 0017 (#70). FK → `applications.id` **set null**. The application a tailored résumé was written for; null on a main row. **Unique** where it is set since migration 0020 (#71): one tailored résumé per application |
+| `job_description` | text | yes | The posting a tailored document (a résumé, or since migration 0036 a 履歴書) is written toward, as pasted, up to 20,000 characters. **Null is what makes a row the main document.** Given to generation as text to read, never as a source of facts (`03` §6) |
+| `label` | text | yes | The name a tailored document is called by: its application's company. Null on a main row |
+| `application_id` | text | yes | Migration 0017 (#70). FK → `applications.id` **set null**. The application a tailored document was written for; null on a main row. **Unique** where it is set since migration 0020 (#71): one tailored résumé per application. **Unique with `kind`** since migration 0036: one tailored document of each kind per application |
 | `current_version_id` | text | yes | `null` = never generated. Distinct from generated-and-unchanged (PRD §7) |
 | `stale_since_fact_count` | integer | yes | Fallback for a current version with no recorded set (`render_versions.usable_fact_ids` null): its saved usable count. Usable means accepted, neither Private nor Generated (decision log, 2026-10-05). Counts stored before migration 0013 covered every accepted fact and were restated by it, approximately. Versions with a recorded set use set differences instead (decision log, 2026-10-08). Accept and restore still write this count; edit leaves it unchanged |
 
@@ -529,7 +530,7 @@ unique index on `application_id`.
 |---|---|---|---|
 | `id` / `user_id` | text | no | |
 | `render_id` | text | no | FK **cascade** |
-| `content` | jsonb | no | `{ "sections": [] }` until generation lands |
+| `content` | jsonb | no | `{ "sections": [] }` until generation lands. On a tailored 履歴書 a block may carry `"drafted": true` (2026-10-26): the 志望動機 or 本人希望欄 drafted for the author, cleared when the author confirms or edits it. A proposal holding one is not accepted, so no `render_versions.content` carries the flag |
 | `status` | proposal_status | no | The author's decision: pending, accepted, dismissed |
 | `generation_status` | generation_status | no | Default `'generating'`. The row exists from the moment generation starts, because `POST /api/renders/:kind/generate` returns `202` with a resource to poll. **This is what the poll reads** |
 | `generation_error` | text | yes | A stated reason, populated when `failed`. A failure never mutates a stored version |
@@ -673,6 +674,8 @@ the screens.
 | `posting_url` | text | yes | An `http(s)` link to the posting. Never fetched |
 | `job_description` | text | no | As pasted, up to 20,000 characters. **Not changed after the row is made.** Somebody else's text: never a source of facts, never logged |
 | `requirements` | text[] | no | Default `{}`. The key requirements, as the author saved them: read from the job description and checked (#73), or typed |
+| `motivation_note` | text | yes | Migration 0036 (2026-10-26). The author's own reason for applying, for a tailored 履歴書's 志望動機, up to 400 characters by check constraint. It leads the draft; with none, the draft is written from the posting and the record. The author's words, **never a fact and never logged**; exported with the application. Editing it is not activity and marks nothing stale |
+| `kibou_note` | text | yes | Migration 0036. The author's own request for a tailored 履歴書's 本人希望欄, up to 400 characters, with the same rules. It comes before `profiles.desired_role_note` |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
 | `last_activity_at` | timestamptz | no | Last change to the application's record (`07` §9b and §9c own which writes count). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet |
@@ -825,7 +828,7 @@ that never does.
 | `id` | text | no | PK, `apd_…` |
 | `user_id` | text | no | FK → `users.id` **cascade** |
 | `application_id` | text | no | FK → `applications.id` **cascade** |
-| `render_id` | text | no | FK → `renders.id` **cascade**. A main document (main résumé, 履歴書, 職務経歴書) or the application's own tailored résumé |
+| `render_id` | text | no | FK → `renders.id` **cascade**. A main document (main résumé, 履歴書, 職務経歴書) or one of the application's own tailored documents |
 | `removed_at` | timestamptz | yes | Null while the document is on the application. Set when it is taken off; the row stays |
 | `created_at`, `updated_at` | timestamptz | no | |
 
@@ -839,6 +842,11 @@ live rows.
   and its versions as they were.
 - **The chosen set can be edited at Not applied.** From Applied onward, recording another sent copy
   can add a document to the application, but nothing is taken off.
+- **One 履歴書 before Applied** (2026-10-26). Putting the tailored 履歴書 on takes the main 履歴書's row
+  off in the same batch, and the main 履歴書 cannot be put on while the tailored one is. Triggers hold
+  it, not an index (migration 0037): one on `application_documents` refuses a live row that would put
+  both on at Not applied, one on `applications` refuses a move back to Not applied while both are on.
+  From Applied onward both may be recorded as sent.
 
 **`application_sent_copies`** — one row per document per time it was sent.
 
@@ -850,7 +858,7 @@ live rows.
 | `render_id` | text | no | FK → `renders.id` **cascade**. Which document this is a copy of; "the latest copy" is per document |
 | `render_version_id` | text | no | FK → `render_versions.id` **cascade**. The version the file was built from. Kept for the record; **nothing is read through it** |
 | `kind` | render_kind | no | As sent |
-| `title` | text | no | As sent: `Main résumé`, `履歴書`, `職務経歴書`, or `Tailored résumé for <company>` with the company's name of that day |
+| `title` | text | no | As sent: `Main résumé`, `履歴書`, `職務経歴書`, `Tailored résumé for <company>` or `Tailored 履歴書 for <company>` with the company's name of that day |
 | `version_no` | integer | no | As sent |
 | `filename` | text | no | The download's name, as sent |
 | `file` | bytea | no | **The `.docx` as generated the day it was sent.** Never written again |

@@ -11,8 +11,8 @@ import type { Db } from "../db/client";
 import { employers, facts, renderProposals, renderVersions, renders, sourceDocuments, sourceDocumentVersions } from "../db/schema";
 import type { Rationale } from "~/diff";
 import type { EmployerNames } from "~/render/attribution";
-import { RENDER_LANGUAGE, type Block, type RenderContent, type RenderKind } from "~/shared/render-content";
-import { collectRenderInputs } from "./render";
+import { RENDER_LANGUAGE, draftedBlocks, type Block, type RenderContent, type RenderKind } from "~/shared/render-content";
+import { collectRenderInputs, tailoringOf } from "./render";
 import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
 import { japaneseAdvisories } from "~/render/japanese";
@@ -27,7 +27,10 @@ export async function proposalResponse(
   render: typeof renders.$inferSelect,
 ) {
   const kind = render.kind as RenderKind;
-  const inputs = await collectRenderInputs(db, userId, kind, "");
+  // A tailored document is checked as one: a tailored 履歴書's 志望動機 is
+  // written to 貴社, and its company's name in a cell is worth saying.
+  const tailoring = await tailoringOf(db, userId, render);
+  const inputs = await collectRenderInputs(db, userId, kind, "", tailoring);
   const basedOn = proposal.basedOnVersionId
     ? await db
         .select({ versionNo: renderVersions.versionNo })
@@ -51,8 +54,8 @@ export async function proposalResponse(
     renderKind: kind,
     /** What the render routes address this document by, and what it is called. */
     renderRef: refOf(render),
-    title: titleOf(render),
-    /** The application a tailored résumé belongs to, which is where its review returns to. */
+    title: titleOf(render, tailoring?.application?.company),
+    /** The application a tailored document belongs to, which is where its review returns to. */
     applicationId: render.applicationId,
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
@@ -73,9 +76,33 @@ export async function proposalResponse(
     // document's register slips are read off the content, so they exist only
     // once it does.
     warnings: [
-      ...(kind === "rirekisho" ? rirekishoWarnings(await collectRirekishoRecord(db, userId), { hasPhoto: await hasProfilePhoto(db, userId) }) : []),
+      ...(kind === "rirekisho"
+        ? rirekishoWarnings(await collectRirekishoRecord(db, userId), {
+            hasPhoto: await hasProfilePhoto(db, userId),
+            tailored: tailoring
+              ? {
+                  motivationNote: tailoring.application?.motivationNote ?? null,
+                  drafted: proposal.generationStatus !== "ready" || draftedBlocks(content).length > 0,
+                }
+              : null,
+          })
+        : []),
       ...(RENDER_LANGUAGE[kind] === "ja" && proposal.generationStatus === "ready" ? japaneseAdvisories(content, inputs.spec) : []),
     ],
+    /**
+     * The parts drafted for the author to confirm or edit, in document order
+     * (`docs/06`, 2026-10-26). Accept is refused while any is here. The text
+     * is the proposal's own, sent to the author who owns it, as the diff is.
+     */
+    drafts:
+      proposal.generationStatus === "ready"
+        ? draftedBlocks(content).map(({ section, block }) => ({
+            blockId: block.id,
+            sectionKey: section.key,
+            heading: section.heading,
+            text: block.text,
+          }))
+        : [],
     /**
      * Told when nothing changed, rather than shown an empty diff — a no-op
      * regeneration must not look like a broken screen.
@@ -167,6 +194,18 @@ export async function rationaleFor(
   }): Rationale => {
     if (proposedBlock) {
       const supporting = proposedBlock.factIds.map((id) => byId.get(id)).filter(Boolean);
+      // A draft says so first: what it rests on matters less than that the
+      // author has not yet said it is theirs.
+      if (proposedBlock.drafted) {
+        return {
+          kind: "from_facts",
+          text:
+            supporting.length > 0
+              ? `Drafted for you · from the posting and ${count(supporting.length, "fact")} · confirm or edit it below`
+              : "Drafted for you from the posting · confirm or edit it below",
+          factIds: proposedBlock.factIds,
+        };
+      }
       if (supporting.length === 0) {
         return {
           kind: "from_facts",

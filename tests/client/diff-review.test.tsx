@@ -7,11 +7,12 @@
  * generation started would all leave the screen looking normal.
  * All fixtures are invented.
  */
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { screen, waitFor, within } from "@testing-library/react";
 import type { Proposal, RenderDiff } from "~/client/api";
 import { mount, Refusal, toneOf, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { useDocumentLanguageStore } from "~/client/stores/document-language";
 
 const PROPOSAL = "prop-test-1";
 
@@ -30,6 +31,7 @@ function proposal(overrides: Partial<Proposal> = {}): Proposal {
     generatedAt: "2026-09-01T00:00:00.000Z",
     reason: null,
     warnings: [],
+    drafts: [],
     unchanged: false,
     withheld: { privateFactCount: 0, generatedFactCount: 0 },
     ...overrides,
@@ -85,6 +87,8 @@ const open = (p: Proposal, routes: Routes = {}) =>
     ...routes,
   });
 
+afterEach(() => useDocumentLanguageStore.setState({ language: "en" }));
+
 const accepted = { newVersionNo: 4 };
 const dismissed = { status: "dismissed" };
 
@@ -98,6 +102,43 @@ describe("a pending proposal", () => {
 
     await waitFor(() => expect(pathname()).toBe("/"));
     expect(api.writes()).toEqual([`POST /api/proposals/${PROPOSAL}/accept`]);
+  });
+
+  it("opens Home on the accepted document's language tab, and says it was saved", async () => {
+    useDocumentLanguageStore.setState({ language: "ja" });
+    const { user, pathname } = open(proposal(), {
+      [`POST /api/proposals/${PROPOSAL}/accept`]: accepted,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Accept proposed version" }));
+
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(useDocumentLanguageStore.getState().language).toBe("en");
+    expect((await screen.findByRole("status")).textContent).toBe("Saved as v4 of your Résumé (English).");
+  });
+
+  it("leaves the language tab alone when the proposal is kept out", async () => {
+    useDocumentLanguageStore.setState({ language: "ja" });
+    const { user, pathname } = open(proposal(), {
+      [`POST /api/proposals/${PROPOSAL}/dismiss`]: dismissed,
+    });
+
+    await user.click(await screen.findByRole("button", { name: "Keep current version" }));
+
+    await waitFor(() => expect(pathname()).toBe("/"));
+    expect(useDocumentLanguageStore.getState().language).toBe("ja");
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("leads back from its breadcrumb: Home for a main document, the application for a tailored one", async () => {
+    open(proposal());
+    expect((await screen.findByRole("link", { name: "Home" })).getAttribute("href")).toBe("/");
+    expect(screen.queryByText("Outputs")).toBeNull();
+  });
+
+  it("leads back to the application it was made for from a tailored document's breadcrumb", async () => {
+    open(proposal({ applicationId: "app-test-1" }));
+    expect((await screen.findByRole("link", { name: "Application" })).getAttribute("href")).toBe("/applications/app-test-1");
   });
 
   it("keeps the current version by dismissing, and sends nothing else", async () => {
@@ -205,14 +246,44 @@ describe("a failed generation", () => {
     open(failed());
 
     expect(await screen.findByText(/Your current version is unchanged and still readable\./)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Download the current version" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Download the current version PDF" })).toBeTruthy();
+  });
+
+  it("proposes no version and gives no reason once generation has failed", async () => {
+    open(failed({ reason: "Generated for the first time", basedOnVersionNo: null, proposedVersionNo: 1 }));
+
+    await screen.findByText("This document could not be generated.");
+    expect(screen.queryByText(/proposed v/)).toBeNull();
+    expect(screen.queryByText("Generated for the first time")).toBeNull();
+  });
+
+  it("proposes no version and gives no reason when regenerating changed nothing", async () => {
+    open(proposal({ unchanged: true, reason: "Regenerated" }));
+
+    await screen.findByText("Already up to date with your record.");
+    expect(screen.queryByText(/proposed v/)).toBeNull();
+    expect(screen.queryByText("Regenerated")).toBeNull();
+  });
+
+  it("still names the version a pending proposal would become", async () => {
+    open(proposal({ reason: "Regenerated" }));
+
+    expect(await screen.findByText("proposed v4")).toBeTruthy();
+    expect(screen.getByText("Regenerated")).toBeTruthy();
+  });
+
+  it("keeps the version and reason of an accepted proposal, though it now matches the current version", async () => {
+    open(proposal({ status: "accepted", unchanged: true, reason: "Regenerated" }));
+
+    expect(await screen.findByText("v4")).toBeTruthy();
+    expect(screen.getByText("Regenerated")).toBeTruthy();
   });
 
   it("promises no current version on a first generation", async () => {
     open(failed({ basedOnVersionNo: null, proposedVersionNo: 1 }));
 
     expect(await screen.findByText(/Nothing was saved, and your record is unchanged\./)).toBeTruthy();
-    expect(screen.queryByRole("button", { name: "Download the current version" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download the current version PDF" })).toBeNull();
     expect(screen.queryByText(/still readable/)).toBeNull();
   });
 });
@@ -259,7 +330,7 @@ describe("the other states", () => {
   it("shows a decided proposal as decided, and sends nothing", async () => {
     const { api } = open(proposal({ status: "dismissed" }));
 
-    expect(await screen.findByText("Proposal dismissed — v3 kept")).toBeTruthy();
+    expect(await screen.findByText("Proposal dismissed — it was written against v3")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Accept proposed version" })).toBeNull();
     expect(api.writes()).toEqual([]);
   });
@@ -458,5 +529,55 @@ describe("a first version", () => {
     });
 
     expect(await screen.findByText("Draft discarded — nothing was saved")).toBeTruthy();
+  });
+});
+
+/**
+ * The drafted parts of a tailored 履歴書 (`docs/06`, 2026-10-26): shown as
+ * drafts, confirmed or edited one at a time, and accepting waits for them.
+ */
+describe("a proposal with drafted parts", () => {
+  const DRAFTS = [
+    { blockId: "blk_1", sectionKey: "motivation", heading: "志望動機・特技・アピールポイントなど", text: "貴社の送電網監視に貢献したいと考え志望しました。" },
+    { blockId: "blk_3", sectionKey: "kibou", heading: "本人希望欄", text: "貴社規定に従います。" },
+  ];
+  const drafted = proposal({ renderKind: "rirekisho", title: "Tailored 履歴書 for Osprey Grid", drafts: DRAFTS });
+
+  it("shows each draft, and holds Accept until none is left", async () => {
+    open(drafted);
+    const panel = await screen.findByRole("region", { name: "Drafted for you" });
+    expect(within(panel).getByText("Drafted for you: 2 parts to confirm")).toBeTruthy();
+    expect((within(panel).getByRole("textbox", { name: /志望動機/ }) as HTMLTextAreaElement).value).toBe(DRAFTS[0]!.text);
+    const accept = screen.getByRole("button", { name: "Accept proposed version" }) as HTMLButtonElement;
+    expect(accept.disabled).toBe(true);
+    expect(accept.title).toBe("Confirm or edit each drafted part first.");
+  });
+
+  it("confirms a draft as written, and sends the edit when it was changed", async () => {
+    const { api, user } = open(drafted, {
+      [`POST /api/proposals/${PROPOSAL}/drafts/blk_1`]: { ...drafted, drafts: [DRAFTS[1]] },
+      [`POST /api/proposals/${PROPOSAL}/drafts/blk_3`]: { ...drafted, drafts: [] },
+    });
+    const panel = await screen.findByRole("region", { name: "Drafted for you" });
+    await user.click(within(panel).getAllByRole("button", { name: "Confirm as written" })[0]!);
+    await waitFor(() => expect(api.bodyOf("POST", `/api/proposals/${PROPOSAL}/drafts/blk_1`)).toEqual({ text: DRAFTS[0]!.text }));
+
+    const kibou = within(await screen.findByRole("region", { name: "Drafted for you" })).getByRole("textbox", { name: /本人希望欄/ });
+    await user.clear(kibou);
+    await user.type(kibou, "週3日の出社を希望します。");
+    await user.click(screen.getByRole("button", { name: "Save my wording" }));
+    await waitFor(() => expect(api.bodyOf("POST", `/api/proposals/${PROPOSAL}/drafts/blk_3`)).toEqual({ text: "週3日の出社を希望します。" }));
+
+    await waitFor(() => expect(screen.queryByRole("region", { name: "Drafted for you" })).toBeNull());
+    expect((screen.getByRole("button", { name: "Accept proposed version" }) as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("says why a draft was refused", async () => {
+    const { user } = open(drafted, {
+      [`POST /api/proposals/${PROPOSAL}/drafts/blk_1`]: new Refusal(422, "validation_failed", "御社 is the spoken form. A 履歴書 writes 貴社."),
+    });
+    const panel = await screen.findByRole("region", { name: "Drafted for you" });
+    await user.click(within(panel).getAllByRole("button", { name: "Confirm as written" })[0]!);
+    expect((await within(panel).findByRole("alert")).textContent).toBe("御社 is the spoken form. A 履歴書 writes 貴社.");
   });
 });

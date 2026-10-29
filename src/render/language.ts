@@ -297,12 +297,12 @@ export function englishDefect(content: RenderContent, spec: RenderSpec): English
  */
 export const ENGLISH_DEFECT_REASON: Record<EnglishDefect, string> = {
   headings:
-    "The model wrote this English document's headings in Japanese, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote this English document's headings in Japanese, twice, so it was not offered for review. Generate again to retry.",
   blocks:
-    "The model wrote this English document partly in Japanese, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote this English document partly in Japanese, twice, so it was not offered for review. Generate again to retry.",
   record_names:
-    "The model changed a name from your record twice, so this document was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model changed a name from your record twice, so this document was not offered for review. Generate again to retry.",
 };
 
 export const MIXED_ENGLISH_DEFECT_REASON =
-  "The model returned two English documents with different language or record name errors, so neither was offered for review. Your current version is unchanged; generate again to retry.";
+  "The model returned two English documents with different language or record name errors, so neither was offered for review. Generate again to retry.";

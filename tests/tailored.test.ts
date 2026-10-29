@@ -168,7 +168,7 @@ describe("generating a tailored résumé", () => {
     const main = model.generationInputs.at(-1)!;
     expect(main.spec.jobDescription).toBeNull();
     expect(main.facts).toEqual(tailored.facts);
-    expect({ ...main.spec, jobDescription: POSTING }).toEqual(tailored.spec);
+    expect({ ...main.spec, jobDescription: POSTING, application: tailored.spec.application }).toEqual(tailored.spec);
   });
 
   it("is a proposal, read as a diff and accepted, like every other document", async () => {
@@ -180,7 +180,7 @@ describe("generating a tailored résumé", () => {
 
     expect(await shown(row)).toMatchObject({ status: "proposal_pending", currentVersionNo: null });
     const proposal = await client.json<{ title: string; renderRef: string }>(`/api/proposals/${proposalId}`);
-    expect(proposal).toMatchObject({ title: "Résumé for Kestrel, platform engineer", renderRef: row.id });
+    expect(proposal).toMatchObject({ title: "Tailored résumé for Kestrel, platform engineer", renderRef: row.id });
     expect((await client.get(`/api/proposals/${proposalId}/diff`)).status).toBe(200);
 
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
@@ -240,10 +240,10 @@ describe("generating a tailored résumé", () => {
     expect(await tailoredFile.text()).toContain("Tailored bullet about the batch platform.");
     // The file an employer receives carries the author's name, not the
     // author's label for the job or the app's id for it (issue #107).
-    expect(tailoredFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
+    expect(tailoredFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.md"/);
     const mainFile = await client.get("/api/renders/english_resume/download?format=md");
     expect(await mainFile.text()).toContain("Main bullet about the settlement run.");
-    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.md"/);
+    expect(mainFile.headers.get("content-disposition")).toMatch(/filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.md"/);
 
     // Neither document serves the other's version.
     expect((await client.get(`/api/renders/${row.id}/versions/${mainVersion!.id}`)).status).toBe(404);

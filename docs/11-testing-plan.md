@@ -327,6 +327,35 @@ And its file is withheld once a fact it cites is made Private, as the main résu
 And another user's tailored résumé is not listed, and is a 404 on every route addressed by its id
 ```
 
+### 2.6h-2 A tailored 履歴書 is the main 履歴書's form, with two drafts the author confirms
+
+`tests/tailored-rirekisho.test.ts`, the prompt in `tests/prompt.test.ts`, the notices in
+`tests/rirekisho.test.ts`, the checks in `tests/japanese.test.ts`, the layout in
+`tests/rirekisho-layout.test.ts`, the screens in `tests/client/application-resume.test.tsx` and
+`tests/client/diff-review.test.tsx`, and the browser path in `tests/e2e/resume-layout.spec.ts`
+(decision log 2026-10-26). The model is the stub throughout.
+
+```
+Given an application with a posting
+When a tailored 履歴書 is made from it
+Then it is stored, generates nothing, and sits beside the application's tailored résumé
+And asked again it is the same one, put back if it was taken off, and any other kind is refused
+And before Applied it takes the main 履歴書 off, says so, and the main one cannot be ticked while it is on
+And from Applied onward either 履歴書 can be recorded as sent, and its file names no company
+
+When it is generated
+Then the model is given exactly the main 履歴書's facts and record, its own register, the posting,
+  the confirmed position and requirements, and the author's notes as their words
+And without a reason of the author's, the prompt says so and the review notes the 志望動機 is drafted
+And the 志望動機 the model marked, an uncited 志望動機 paragraph and the 本人希望欄 are drafts
+And Accept is refused until each draft is confirmed as written or edited, and no version holds a draft
+And a draft is refused empty, with 御社, or once the proposal is decided
+And 貴社 in its 志望動機 is no advisory, while the company's name there is one, quoting nothing
+And a main 履歴書 never has a draft, whatever the model marked
+And its cell lays out on page 2 of two at the 300-character bound and at four times it
+And the notes and the drafts never reach a log, and another user's is a 404 on every route
+```
+
 ### 2.6i An application's dates are saved, corrected and counted from
 
 `tests/applications.test.ts`, `tests/applications-migration.test.ts` and

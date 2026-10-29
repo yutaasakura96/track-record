@@ -48,6 +48,8 @@ const application = (interviews: Interview[]): Application => ({
   ...figures(STANDING, "2026-10-02", TODAY),
   requirements: ["Postgres"],
   jobDescription: JOB_DESCRIPTION,
+  motivationNote: null,
+  kibouNote: null,
   documents: [],
   choices: [],
   sentCopies: [],

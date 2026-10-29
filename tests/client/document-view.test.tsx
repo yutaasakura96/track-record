@@ -13,6 +13,7 @@ import type { RenderPage, RenderRow } from "~/client/api";
 import type { FactEvidence } from "~/shared/evidence";
 import { mount, Refusal, type Routes } from "./harness";
 import { RIREKISHO_SHEET } from "./rirekisho-sheet";
+import { TAILORED_MOTIVATION_NOTICE } from "~/shared/rirekisho-notice";
 
 const KIND = "english_resume";
 const PAGE = `GET /api/renders/${KIND}/page`;
@@ -41,6 +42,7 @@ const view = (over: Partial<RenderPage> = {}): RenderPage => ({
   language: "en",
   tailored: false,
   applicationId: null,
+  motivationNote: null,
   document: DOCUMENT,
   canGenerate: true,
   version: { id: "ver-test-3", versionNo: 3, origin: "accepted", acceptedAt: "2026-09-03T00:00:00.000Z", isCurrent: true },
@@ -67,6 +69,17 @@ const open = (path = `/renders/${KIND}/view`, routes: Routes = {}) =>
   mount(path, { [PAGE]: view(), ...routes });
 
 const notice = async () => within((await screen.findByText("v3")).parentElement!);
+
+it("does not repeat the drafted-motivation notice on a version the author accepted", async () => {
+  const tailored = view({
+    renderKind: "rirekisho", renderRef: "rnd-test-ja", language: "ja", tailored: true,
+    applicationId: "app-test", motivationNote: null,
+    page: { ...view().page, sheet: RIREKISHO_SHEET },
+  });
+  mount("/renders/rnd-test-ja/view", { "GET /api/renders/rnd-test-ja/page": tailored });
+  await screen.findByText("v3");
+  expect(screen.queryByText(TAILORED_MOTIVATION_NOTICE)).toBeNull();
+});
 
 describe("the page", () => {
   it("shows the document as its download holds it, under its version and date", async () => {
@@ -117,7 +130,7 @@ describe("the page", () => {
     open();
     const bar = await notice();
 
-    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
+    expect(bar.getByRole("button", { name: "Download PDF" })).toBeTruthy();
     expect(bar.getByRole("link", { name: "History" }).getAttribute("href")).toBe(`/renders/${KIND}/history`);
     expect(bar.getByRole("link", { name: "Edit" }).getAttribute("href")).toBe(`/renders/${KIND}/edit`);
     expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();
@@ -218,7 +231,7 @@ describe("the page", () => {
     open(`/renders/${ref}/view`, {
       [`GET /api/renders/${ref}/page`]: view({
         renderRef: ref,
-        title: "Résumé for Quillset Ltd",
+        title: "Tailored résumé for Quillset Ltd",
         tailored: true,
         applicationId: "app-test-1",
         document: { ...DOCUMENT, ref, tailored: { label: "Quillset Ltd", createdAt: "2026-09-01T00:00:00.000Z" } },
@@ -498,23 +511,45 @@ describe("where each line comes from", () => {
 });
 
 describe("at phone width", () => {
-  const WIDER = /needs a window at least 1280/;
+  const WIDER = /needs a window at least 1024/;
   const width = window.innerWidth;
   const setWidth = (next: number) =>
     Object.defineProperty(window, "innerWidth", { value: next, configurable: true, writable: true });
   afterEach(() => setWidth(width));
 
-  it("keeps all reader header actions available at 390px", async () => {
+  it("keeps Download at 390px and holds back the actions that open a screen behind the message", async () => {
     setWidth(390);
     open();
     const bar = await notice();
 
     expect(screen.queryByText(WIDER)).toBeNull();
     expect(screen.getByRole("article")).toBeTruthy();
-    expect(bar.getByRole("button", { name: /^Download$/ })).toBeTruthy();
+    expect(bar.getByRole("button", { name: "Download PDF" })).toBeTruthy();
+    expect(bar.queryByRole("link", { name: "History" })).toBeNull();
+    expect(bar.queryByRole("link", { name: "Edit" })).toBeNull();
+    expect(bar.queryByRole("button", { name: "Regenerate" })).toBeNull();
+  });
+
+  it("leads back to Applications at 390px, not to Home behind the message", async () => {
+    setWidth(390);
+    open();
+    await notice();
+
+    // The sidebar is in the page and hidden by CSS under 720px; the header's breadcrumb is what a phone reads.
+    const crumb = within(screen.getByRole("heading", { level: 1 }));
+    expect(crumb.queryByRole("link", { name: "Home" })).toBeNull();
+    expect(crumb.getByRole("link", { name: "Applications" }).getAttribute("href")).toBe("/applications");
+  });
+
+  it("keeps History, Edit and Regenerate, and Home as the way back, in a wide window", async () => {
+    setWidth(1280);
+    open();
+    const bar = await notice();
+
     expect(bar.getByRole("link", { name: "History" })).toBeTruthy();
     expect(bar.getByRole("link", { name: "Edit" })).toBeTruthy();
     expect(bar.getByRole("button", { name: "Regenerate" })).toBeTruthy();
+    expect(within(screen.getByRole("heading", { level: 1 })).getByRole("link", { name: "Home" }).getAttribute("href")).toBe("/");
   });
 
   it("still shows the message on the document's other screens", async () => {

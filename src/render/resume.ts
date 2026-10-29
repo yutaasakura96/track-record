@@ -31,6 +31,7 @@ import { curationForRender, type CuratedGroup } from "~/shared/skills";
 import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
+import { documentFilename, tokyoDay } from "./filename";
 import { identityLines, type RenderIdentity } from "./identity";
 import { hasJapaneseScript } from "./language";
 import type { SentPage } from "./sent-page";
@@ -651,19 +652,9 @@ export function resumeSentPage(doc: ResumeDocument, citations = false): SentPage
 }
 
 /**
- * `Kenji-Moriyama-Resume-2026-10.docx` — the name a recruiter's downloads
- * folder can tell apart from the dozen others, and the month the version was
- * accepted, in Tokyo. ASCII only: it goes in a `content-disposition` header, so
- * accents are folded and anything else outside it is dropped.
+ * `Kenji-Moriyama-Resume-2026-10-27.docx` — the day the version was accepted,
+ * in Tokyo (`documentFilename`).
  */
 export function resumeFilename(nameLatin: string, extension: string, accepted: Date): string {
-  const name = nameLatin
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .split(/[\s-]+/)
-    .map((part) => part.replace(/[^A-Za-z0-9]/g, ""))
-    .filter(Boolean)
-    .join("-");
-  const month = new Date(accepted.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 7);
-  return `${name ? `${name}-` : ""}Resume-${month}.${extension}`;
+  return documentFilename("Resume", nameLatin, tokyoDay(accepted), extension);
 }

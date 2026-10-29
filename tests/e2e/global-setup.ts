@@ -42,6 +42,12 @@ import {
   RESUME_STORAGE_STATE,
   INTERVIEW_IDENTITY,
   INTERVIEW_STORAGE_STATE,
+  DEMO_SEED_IDENTITY,
+  DEMO_SEED_STORAGE_STATE,
+  NUMBER_FLAG_IDENTITY,
+  NUMBER_FLAG_STORAGE_STATE,
+  PHONE_WALL_IDENTITY,
+  PHONE_WALL_STORAGE_STATE,
   RESUME_HEADER_IDENTITY,
   RESUME_HEADER_STORAGE_STATE,
   RIREKISHO_PRINT_IDENTITY,
@@ -89,6 +95,19 @@ export default async function setup() {
   writeFileSync(INTERVIEW_STORAGE_STATE, `${JSON.stringify(storageState(interviewSession.cookies, E2E_ORIGIN), null, 2)}\n`, {
     mode: 0o600,
   });
+  for (const [identity, path] of [
+    [DEMO_SEED_IDENTITY, DEMO_SEED_STORAGE_STATE],
+    [NUMBER_FLAG_IDENTITY, NUMBER_FLAG_STORAGE_STATE],
+    [PHONE_WALL_IDENTITY, PHONE_WALL_STORAGE_STATE],
+  ] as const) {
+    const session = await createDevSession(
+      (request) => createAuth(bindings, db).handler(request),
+      E2E_ORIGIN,
+      DEV_SESSION_CLIENT,
+      identity,
+    );
+    writeFileSync(path, `${JSON.stringify(storageState(session.cookies, E2E_ORIGIN), null, 2)}\n`, { mode: 0o600 });
+  }
   // Quick capture's own author (issue #95), so its record starts empty and leaves the others' alone.
   const captureSession = await createDevSession(
     (request) => createAuth(bindings, db).handler(request),

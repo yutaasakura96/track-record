@@ -77,16 +77,17 @@ export async function refuseWithheldCitations(db: Db, userId: string, content: R
 }
 
 /**
- * What a downloaded file is called.
+ * What a downloaded file is called: the person's name, the document, the day
+ * (`~/render/filename`).
  *
- * - `Kenji-Moriyama-Resume-2026-10.docx` for an English résumé, main or
+ * - `Kenji-Moriyama-Resume-2026-10-27.docx` for an English résumé, main or
  *   tailored alike: it is the file an employer receives, and the label is the
  *   author's note to themselves.
  * - `履歴書_森山健二_20261023.pdf` for a Japanese document (issue #117): what it
  *   is, whose, and the day it is dated, which is the day it is built. A
- *   recruiter handed three files can tell them apart; `rirekisho_Kenji-Moriyama_20261023.pdf`
+ *   recruiter handed three files can tell them apart; `Kenji-Moriyama-Rirekisho-2026-10-23.pdf`
  *   travels beside it for a client that cannot read the Japanese name.
- * - The English story keeps `career-story-en-2026-08-12.md`.
+ * - The English story is `Kenji-Moriyama-Career-Story-EN-2026-08-12.md`.
  */
 export const filenameFor = (
   kind: RenderKind,
@@ -105,7 +106,7 @@ export const filenameFor = (
       asciiFilename: asciiFilename(kind, identity.nameLatin, today, extension),
     };
   }
-  const filename = downloadFilename(kind, extension, version.acceptedAt);
+  const filename = downloadFilename(kind, identity.nameLatin, extension, version.acceptedAt);
   return { filename, asciiFilename: filename };
 };
 

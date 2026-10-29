@@ -85,7 +85,7 @@ test("sign-in button to a downloaded PDF", async ({ browser, page, baseURL }) =>
   //     browser saved is a PDF of a non-trivial length.
   const response = app.waitForResponse((r) => r.url().includes("/api/renders/english_resume/download"));
   const download = app.waitForEvent("download");
-  await row.getByRole("button", { name: "Download", exact: true }).click();
+  await row.getByRole("button", { name: "Download PDF", exact: true }).click();
   expect((await response).headers()["content-type"]).toBe(PDF);
   const saved = await download;
   expect(saved.suggestedFilename()).toMatch(/\.pdf$/);

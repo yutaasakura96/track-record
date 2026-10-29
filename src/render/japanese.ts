@@ -24,6 +24,7 @@
 import { RENDER_TITLE, type BlockKind, type RenderContent, type RenderKind, type RenderSection } from "~/shared/render-content";
 import type { RenderFact, RenderSpec } from "~/model/types";
 import { resolveEmployer } from "./attribution";
+import { documentFilename, kindLabel } from "./filename";
 import { documentDate, identityLines, type RenderIdentity } from "./identity";
 import { PROSE_SECTION_KEYS } from "./rirekisho";
 
@@ -181,14 +182,9 @@ export function japaneseFilename(kind: RenderKind, nameKanji: string, today: str
   return `${RENDER_TITLE[kind]}_${name ? `${name}_` : ""}${today.replace(/-/g, "")}.${extension}`;
 }
 
-/** The ASCII name sent beside it, for a client that cannot read `filename*` (RFC 6266 §4.3). */
+/** The ASCII name sent beside it, for a client that cannot read `filename*` (RFC 6266 §4.3): `Kenji-Moriyama-Rirekisho-2026-10-23.pdf`. */
 export function asciiFilename(kind: RenderKind, nameLatin: string, today: string, extension: string): string {
-  const name = nameLatin
-    .normalize("NFKD")
-    .replace(/[^\x20-\x7e]/g, "")
-    .replace(/[^A-Za-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return `${kind.replace(/_/g, "-")}_${name ? `${name}_` : ""}${today.replace(/-/g, "")}.${extension}`;
+  return documentFilename(kindLabel(kind), nameLatin, today, extension);
 }
 /**
  * Is a Japanese document written the way its register says? (Issue #117,
@@ -390,10 +386,22 @@ export function japaneseAdvisories(content: RenderContent, spec: RenderSpec): st
     const texts = [section.heading, ...section.blocks.map((b) => b.text)];
     const name = SECTION_NAMES[spec.kind]?.[section.key];
     const where = name === undefined ? `section ${i + 1}` : name;
-    // The 履歴書's 本人希望欄 is the one cell addressed to the company that receives it.
-    const addressed = spec.kind === "rirekisho" && section.key === PROSE_SECTION_KEYS.kibou;
+    // The 履歴書's 本人希望欄 is the one cell addressed to the company that
+    // receives it, and a tailored 履歴書's 志望動機 is the other: it is written
+    // to 貴社 (`docs/06`, 2026-10-26).
+    const prose =
+      spec.kind === "rirekisho" &&
+      (section.key === PROSE_SECTION_KEYS.motivation || section.key === PROSE_SECTION_KEYS.kibou);
+    const tailored = prose && Boolean(spec.jobDescription);
+    const addressed = prose && (section.key === PROSE_SECTION_KEYS.kibou || tailored);
     if (!addressed && texts.some((t) => t.includes("貴社"))) {
       advisories.push(`貴社 appears in ${where}. Only the 履歴書's 本人希望欄 addresses a company; check the wording before accepting.`);
+    }
+    // Named by its section and never quoted: the name is the posting's, and
+    // no advisory carries it.
+    const company = spec.application?.company.trim() ?? "";
+    if (tailored && [...company].length >= 2 && texts.some((t) => t.includes(company))) {
+      advisories.push(`The company's name appears in ${where}. A 履歴書 calls the company it is sent to 貴社; check the wording before accepting.`);
     }
     if (texts.some((t) => FULL_WIDTH_DIGIT.test(t))) {
       advisories.push(`Full-width digits in ${where}. Japanese documents write numbers in half-width digits (2024, not ２０２４).`);
@@ -422,9 +430,9 @@ export function japaneseAdvisories(content: RenderContent, spec: RenderSpec): st
  */
 export const JAPANESE_DEFECT_REASON: Record<JapaneseDefect, string> = {
   onsha:
-    "The model wrote 御社, the spoken form, in this Japanese document twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote 御社, the spoken form, in this Japanese document twice, so it was not offered for review. Generate again to retry.",
   english:
-    "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Your current version is unchanged; generate again to retry.",
+    "The model wrote part of this Japanese document in English, twice, so it was not offered for review. Generate again to retry.",
 };
 
 /** Where on the record screen a row of the 職務経歴書's own sections is kept. */
@@ -447,11 +455,11 @@ export function recordRowDefectReason(
       if (defect === null) continue;
       const found = defect === "onsha" ? "contains 御社, the spoken form" : "is in English";
       const name = SECTION_NAMES.shokumu_keirekisho?.[section.key] ?? section.heading;
-      return `Row ${i + 1} of ${name} comes from your record and ${found}, so this document was not generated. Correct that entry under ${RECORD_SCREEN_SECTION[section.key] ?? name} on your record, then generate it. Your current version is unchanged.`;
+      return `Row ${i + 1} of ${name} comes from your record and ${found}, so this document was not generated. Correct that entry under ${RECORD_SCREEN_SECTION[section.key] ?? name} on your record, then generate it.`;
     }
   }
   return null;
 }
 
 export const MIXED_JAPANESE_DEFECT_REASON =
-  "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Your current version is unchanged; generate again to retry.";
+  "The model returned two Japanese documents with different errors (御社, and a line in English), so neither was offered for review. Generate again to retry.";

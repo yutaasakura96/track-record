@@ -45,7 +45,7 @@ the interface.
 in `text-dimmer`, actions right-aligned.
 
 The fact-review and diff-review screens replace the sidebar with a breadcrumb in the header
-(`Documents / <project> · <filename>`, `Outputs / <render>`) — they are focused, full-width tasks, not
+(`Documents / <project> · <filename>`, `Home / <render>`, or `Application / <render>` for a tailored one) — they are focused, full-width tasks, not
 navigation destinations.
 
 ### Theme · added 2026-10-05, issue #56
@@ -337,7 +337,7 @@ generation safe.
 
 | Region | Spec |
 |---|---|
-| Header (46px) | Breadcrumb `Outputs / <render name>` + mono `proposed v<n>` chip · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost) |
+| Header (46px) | Breadcrumb `Home / <render name>`, or `Application / <render name>` for a tailored document, its first part a link back to where the review was opened from (the screen has no sidebar) + mono `proposed v<n>` chip (`v<n>` once accepted) · right: regeneration reason (`Regenerated after N new facts entered your record`, `… after N facts could no longer be used`, or both) + **Version history** (ghost). A failed or no-op proposal proposes nothing, so it shows neither the chip nor the reason; a dismissed one drops the chip |
 | Toolbar (38px) | `N additions` (green dot) · `N removals` (red dot) · section summary · right: `Change N of M` + prev/next icon buttons |
 | Guide (34px) | One line under the toolbar, at the small role in `text-secondary` (#56): `Left is your document as it stands. Right is what it would become. Read the highlighted changes, then keep the current version or accept the proposed one.` |
 | Split body | Two equal columns with a 1px centre rule. Sticky column headers: **Current** + mono `v4` + saved date; **Proposed** + accent `v5 draft` chip + generated timestamp |
@@ -364,6 +364,8 @@ Every change states where it came from. This is PRD S6 (traceability) at the poi
 - `Removed — the supporting fact is unverified (Generated) and is never rendered`
 - `From 1 restricted fact · Restricted, so check the wording names no client or system` — it says
   where the change came from and what to look for; nothing checks the wording itself
+- `Drafted for you · from the posting and N facts · confirm or edit it below`, or `Drafted for you
+  from the posting · confirm or edit it below` — a tailored 履歴書's drafted part (2026-10-26)
 
 A change with no explanation is a defect.
 
@@ -375,6 +377,32 @@ A change with no explanation is a defect.
 - Advisory warnings from the proposal response appear here, one line each. For Japanese documents
   these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
+  The one part confirmed piece by piece is a draft (below), and Accept waits for it.
+- **After Accept** the author returns to Home on the accepted document's language tab (or to the
+  application, for a tailored one), with one line: `Saved as v<n> of your <render>.` Keeping the
+  current version changes neither the tab nor says anything.
+
+### Drafted for you · 2026-10-26
+
+A tailored 履歴書's 志望動機 and 本人希望欄 are drafted for the author: the record says neither why
+they want the job nor what they would ask for. While a proposal holds a draft, a region labelled
+**Drafted for you** sits between the body and the footer, at most the rail's height and scrolling
+inside itself, on both the diff and the first-version body:
+
+- Heading `Drafted for you: N parts to confirm`, then `Your record does not say why you want this job
+  or what you would ask for, so these were drafted from the posting, your record and any notes you
+  wrote on the application. Confirm each one as it is, or change it to what you would say. It is your
+  履歴書: accepting waits until every part is yours.`
+- One dashed card per draft, in document order: the cell's name as the form prints it
+  (`志望動機・特技・アピールポイントなど`, `本人希望欄`) and `Draft · not confirmed`, a Japanese text
+  area holding the draft, and **`Confirm as written`** (secondary). Once the text differs from the
+  draft the button is **`Save my wording`** (primary), beside `Put the draft back` (bare). A mono
+  character count follows. An empty text disables the button, with the reason; a refusal is said in
+  the card.
+- A confirmed draft leaves the region and the body shows the confirmed text. The region goes when
+  none is left.
+- **`Accept` is disabled while any draft is left**, with the reason `Confirm or edit each drafted
+  part first.` Discarding or keeping the current version is not held.
 
 ### First version (v0 → v1)
 
@@ -394,7 +422,7 @@ discarded, the result bar reads `Draft discarded — nothing was saved`.
 
 ### Decided state
 
-Footer is replaced by a result bar: icon + `Proposal accepted — saved as v5` / `Proposal dismissed — v4 kept`, a one-line consequence, and `Undo`.
+Footer is replaced by a result bar: icon + `Proposal accepted — saved as v5` / `Proposal dismissed — it was written against v4`, a one-line consequence, and `Undo`.
 
 ### Japanese variant
 
@@ -542,9 +570,9 @@ close a gap, so the warning is read from the record, not from the review that fi
 | Up to date | green, `Up to date with your record` | `Regenerate` (ghost) | — |
 | Not built | muted, `Not available yet` | None | None |
 
-`Download` reads the same on every card so the cards line up; the file's type is the document's own
-and is in the name of what is saved. The English résumé's `Download` saves its PDF, and a second
-quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109); the
+Every download control names the format it saves (`Download PDF`, `Download Markdown`, `Download
+Word`; `Download current PDF` where the verb is longer), here and on every other screen. The English
+résumé's `Download PDF` saves its PDF, and a second quiet `Word` beside it (accessible name `Download as Word (.docx)`) saves its `.docx` (#109); the
 履歴書's and the 職務経歴書's do the same (#117), and their files are saved under their Japanese names
 (`履歴書_青木陽介_20261023.pdf`). The stories have one format and one download link. A
 Generate or Update the server refuses says the server's reason above the cards.
@@ -857,8 +885,8 @@ already spoken for (`05-design-system.md` §1).
    the route refuses an edit made against any other and a control that is refused is not offered.
 
 **Dismissed proposals** render on `card-recessed` at `.5` opacity with the mono meta
-`DISMISSED · not a version`, their dismissal date, and a single `View diff` action pointing at the
-existing proposal diff. They carry no version chip, because they never received a version number.
+`DISMISSED · not a version`, their dismissal date, and a single `View proposal` action opening the
+proposal — not `View diff`, because a dismissed proposal's page shows no diff. They carry no version chip, because they never received a version number.
 
 **Download honours the existing rules** — `?versionId=` serves any version in the formats its kind
 has. The English résumé's, the 履歴書's and the 職務経歴書's download is the PDF, with `Word` beside it
@@ -1116,9 +1144,11 @@ land clears the outline, the mark and the preview back to what is stored.
 
 **Found in your record, not listed yet** (right). Every candidate not in a group, most facts first,
 then by name, as dashed chips with the same small text. **Each carries a suggested group**: the
-group whose skills it is named beside on the most facts; for one named beside no listed skill, the
-group whose skills were used at the most of the same employers, and failing that the largest group;
-the earlier group on every tie. It is written `→ Data`, and only while no group exists is there none.
+group whose skills it is named beside, each fact weighted by how few facts name the neighbour (a
+language every fact names is not a reason) and the total at least one half; failing that, the one
+group sharing the most employers, each weighted by how few employers the group reaches (a group at
+every employer is not a reason either), and none when two tie; the earlier group on a tie of the first kind. It is
+written `→ Data`. A skill the record ties to no group has none, and pressing it opens the bar below.
 Pressing a chip with a suggestion adds it to the end of that group at once. Pressing one without
 opens a bar, `Add Redis to`, with a button per existing group and `Cancel`; with no groups, the bar
 asks for a group to be named first. Any of them can also be dragged to a group.
@@ -1360,7 +1390,7 @@ is changed on its own card.
 
 Sidebar chrome, at `/master` (the path kept its old name). Header title `Career record`, note
 `Everything you have done, from every source`, and on the right, once the record holds anything the
-page lists, the note `The file includes Private facts. It is your copy.` and **`Download .md`**.
+page lists, the note `The file includes Private facts. It is your copy.` and **`Download Markdown`**.
 
 ### Layout
 
@@ -1469,8 +1499,8 @@ here, and it is not what a résumé is written from.
   shown.
 - **Nothing is translated.** The two documents hold the same facts with the same claims. Only the
   record's names, the headings and the dates differ.
-- **`Download .md` saves the file of the tab that is open**, `career-record-en-<date>.md` or
-  `career-record-ja-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
+- **`Download Markdown` saves the file of the tab that is open**, `<Name>-Career-Record-EN-<date>.md`
+  or `<Name>-Career-Record-JA-<date>.md`. The 日本語 file opens with the same two warnings in Japanese, and
   says that the claims are in the language they were written in.
 
 ### States
@@ -1724,12 +1754,23 @@ says `Reopened at <step>.`
 
 #### Résumé for this job · #71
 
-**With no document, at Not applied**, two cards side by side:
+**With no document, at Not applied**, three cards, two to a row and one at phone width:
 
 - **`Make a tailored résumé`**: `Written for this job from the same facts as your main résumé. The
   job description decides what leads and what is left out; it never adds a claim that is not in
-  your record. You read it as a set of changes before it becomes a version. English only for now.`
-  and the button of that name (primary).
+  your record. You read it as a set of changes before it becomes a version.` and the button of that
+  name (primary). The "English only for now" line went on 2026-10-26.
+- **`Make a tailored 履歴書`** (2026-10-26): `The same form as your main 履歴書, from the same record,
+  with a 志望動機 written to this company. Your reason for applying and your request are drafted
+  from the posting and your record unless you write your own below, and you confirm or edit each
+  before it becomes a version.`, and before Applied `It replaces the main 履歴書 on this
+  application.` Two optional fields, `Why you are applying, in your own words (optional)` (hint: `It
+  leads the 志望動機. Left empty, a reason is drafted from the posting and your record for you to
+  confirm.`) and `What you would ask for in 本人希望欄 (optional)` (hint: `The role as the posting
+  names it, or a condition you need. Left empty, one is drafted for you to confirm.`), each up to
+  400 characters, and the button **`Make a tailored 履歴書`** (primary). In a window too narrow for
+  Diff Review the button is **`Save your notes`** and the card adds `Making it opens its review,
+  which needs a wider window. Your notes are kept for then.`
 - **`Use a document you already have`**: `Tick the ones you are sending. A Japanese application
   usually sends 履歴書 and 職務経歴書 together.` Three ticks, `Main résumé`, `履歴書`, `職務経歴書`,
   each noted `<English|日本語> · version N, the one current today`, and **`Use the ticked
@@ -1737,21 +1778,30 @@ says `Reopened at <step>.`
 
 **With documents**, a row each:
 
-- The title, `Tailored résumé for <company>` for a tailored one. Under it `Version N · written for
-  this job`, or `Version N · the same document as on Home`.
+- The title, `Tailored résumé for <company>` or `Tailored 履歴書 for <company>` for a tailored one.
+  Under it `Version N · written for this job`, or `Version N · the same document as on Home`. On
+  either 履歴書 row, the gaps in its 学歴・職歴 table, as View says them. On a tailored 履歴書, a line
+  saying whose words lead its drafts (`No notes of yours: its reason and request are drafted for
+  you.`, `One note of yours leads its draft.` or `Your two notes lead its drafts.`) and `Your notes`
+  (bare), which opens the two fields in place with **`Save your notes`** and `Saved notes are used
+  the next time you regenerate it.`; it works at phone width.
 - `View` (Screen 17), `History` (Screen 5) and `Download` (the current version), as links;
   `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
-  was taken off and generates only when it has neither a version nor a proposal waiting, and `Add a document you
-  already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
+  was taken off and generates only when it has neither a version nor a proposal waiting;
+  `Make a tailored 履歴書` (ghost, `Notes for a tailored 履歴書` in a narrow window) while there is
+  none, which opens its card in place; and `Add a document you already have`, which from Applied onward is replaced by **`Record another sent copy`**. Either
   opens the tick card in place, with `Cancel`. Before Applied the card is the one above, ticked
   with what is on the application, and saving it takes off what was unticked. From Applied onward
   it is headed `Record another sent copy`, reads `Tick what you sent. Each one is frozen as it is
   today, as a further copy, whether or not it was sent before.`, starts with nothing ticked, and
   its button is **`Record the ticked documents`**. From Applied onward the card lists every document
   the owner could have sent: the three, whether or not they are on the application or were sent
-  before, and the application's tailored résumé when it has one, as a fourth tick.
+  before, and each of the application's tailored documents when it has one, as a further tick.
+  **Before Applied, the main 履歴書's tick is disabled while the tailored 履歴書 is on the
+  application**, noted `This application has its own 履歴書, written for this job. Take that one
+  off to use this one.`
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row for every
@@ -1765,7 +1815,14 @@ copy, earlier copies of the same document included, most recently recorded first
   the résumé's name). Accept or Reject returns here. A tailored résumé with no version yet has
   `Generate` where `Regenerate` would be, and one with a proposal waiting has `Review changes`. Screens 5 and 6 serve it as they did. Screen
   11's Rules hold word for word.
-- **An application holds at most one tailored résumé**, and any of the three documents beside it.
+- **An application holds at most one tailored résumé and one tailored 履歴書**, and any of the three
+  documents beside them.
+- **Before Applied an application sends one 履歴書** (2026-10-26). Making the tailored one takes the
+  main one off, and the flash says `履歴書 is off this application now: it has its own 履歴書.` From
+  Applied onward either may be recorded as sent.
+- **Making a tailored 履歴書 is the same flow.** The two notes are saved on the application first;
+  Diff Review is titled `Tailored 履歴書 for <company>` and lists its drafts (Screen 2). Its download
+  is named as the main 履歴書's is, `履歴書_<氏名>_<YYYYMMDD>`, with no company.
 - **Freezing takes the file as generated at that moment** and stores it (decision log, 2026-10-11).
   The stored file is never changed: a sent copy has no edit, no regenerate and no remove of its
   own. Its sent date follows a correction of the reached step's date when that change froze it,
@@ -1971,7 +2028,7 @@ Header `Applications / <company> / <title> as sent`. Read-only.
 
 1. **One notice:** the chip `vN · frozen`, then `Sent to <company> on <date>. This is the file as
    it was that day. It cannot be edited, and later changes to the résumé or to your record do not
-   reach it.` On its right **`Download`** (ghost), the stored file, and `Back to the application`
+   reach it.` On its right **`Download Word`** (ghost), the stored file, and `Back to the application`
    (bare).
 2. **The document**, as it was sent, at the reading measure: the printed title, identity block and
    sections in file order. A 履歴書 shows the filled form read from the stored file, including its
@@ -2080,7 +2137,8 @@ The sent-copy reader (Screen 15) for a version (decision log, 2026-10-18). Route
 `/renders/<ref>/view`, a kind or a tailored résumé's id; `?version=<id>` names an earlier version,
 and without it the page is the current one. Reached by `View` on Home's document rows, on every
 version in Screen 5, and on each document in Résumé for this job. Header `Home / <document>`, or
-`Applications / Résumé for <company>` for a tailored résumé, in the frame Applications uses.
+`Applications / Tailored résumé for <company>` for a tailored résumé, in the frame Applications uses.
+Under 1024px it is `Applications / <document>` for every document, because Home is behind the message.
 Read-only.
 
 1. **One notice:** the chip `vN`, the `measured` dot and `Current` on the current version, then
@@ -2135,7 +2193,7 @@ Read-only.
 |---|---|
 | **A fact it cites is withheld** | The download's refusal in place of the page: the server's sentence (`removed`), the ids when more than one, then `A document obeys your record as it is today, not as it was when this version was accepted. Change the fact in your record, or edit the block out into a new version.` and, on the current version, `Edit` |
 | **No version, or a version of another document** | `That document or version was not found.` |
-| **Under 1024px** | The notice wraps and keeps `Download`, `History`, `Edit` and the new-version action reachable; destination screens retain their own width gate. |
+| **Under 1024px** | The notice wraps and keeps `Download`. `History`, `Edit` and the new-version action are not shown, because each opens a screen behind the message; the way back is Applications, not Home. |
 
 ---
 
@@ -2169,7 +2227,7 @@ Needed before their milestones; not blocking M1.
 
 ## Responsive behaviour
 
-Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1280px**; designed at 1440×900.
+Outside Applications, Quick capture, reading a document and Skills, the minimum supported width is **1024px**; designed at 1440×900.
 
 The two core screens are irreducibly two-pane — source beside facts, current beside proposed — and
 neither survives a phone. Below 1280px the panes narrow before anything reflows; below 1024px the
@@ -2181,7 +2239,9 @@ screen that still needs a wider window.
 
 **Reading a document (Screen 17) is the third exception** (decision log, 2026-10-18). It opens at
 any width and follows the Applications table under 720px; Screens 2, 5 and 6 keep the message, so
-its header actions remain reachable under 1024px; the destination screens retain their own width gate.
+under 1024px its `History`, `Edit` and new-version action are not shown, and its way back is
+Applications. The message names the minimum, 1024px, and links to Applications, Quick capture (while
+the record is not empty) and Skills (decision log, 2026-10-27).
 
 **Built fluid regardless.** No fixed page widths; panes flex. The desktop gate is a deliberate
 product decision, not a layout limitation — so the M3 quick-capture screen can ship as a narrow

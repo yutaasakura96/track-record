@@ -214,6 +214,14 @@ résumé already made is carried over as an application. What a tailored résum�
 use are unchanged. Still English only: the language split of #59 did not add a tailored 職務経歴書,
 and neither does #60.
 
+**Changed 2026-10-26 (#117, item 9).** Tailoring is no longer English only for the 履歴書. An
+application can also make a **tailored 履歴書**: the main 履歴書's form, from the same facts onto the
+same tables, with its two prose cells written toward the posting. The 志望動機 and the 本人希望欄
+are **drafted for the author** from the posting, the application's confirmed fields and the record,
+led by the author's own optional note for each, and the author confirms or edits each draft before the
+proposal can be accepted. A draft invents nothing about the author. A tailored 職務経歴書 is still a
+later piece.
+
 ---
 
 **S20 · Keep track of each job I apply for** — `MUST` · #60
@@ -226,7 +234,7 @@ and neither does #60.
 **S21 · Send the right résumé for a job, and keep what I sent** — `MUST` · #60
 > As the Author, I want to choose the résumé for each job and have the copy I sent kept exactly as it was, so that months later I can read what that company has in front of them.
 
-**Acceptance:** From an application the author makes a **tailored résumé** from its job description (S19, unchanged: the same facts, the same rules, read as a diff before it becomes a version), or picks documents the record already has: the main résumé, 履歴書, 職務経歴書. **An application can hold several**; a Japanese application sends 履歴書 and 職務経歴書 together. Tailoring is English only. Whenever the application leaves **Not applied** for Applied or a later step, by a move or by Undo, every attached document with a version and no sent copy yet is **frozen as sent**, automatically, with the date of the step reached, and the application says which were frozen. Other step changes freeze nothing. From Applied onward the application offers one explicit action, **Record another sent copy**: the author picks any document (one not yet on the application, one already sent, or a tailored résumé made after Applied) and it is frozen as a further sent copy with that day's date, always. Nothing is compared, and the application does not work out whether a document has changed since it was sent. **A sent copy is the file as it was that day**: it can be read and downloaded, it cannot be edited, and a later version of the document, or a later change to the record, the name or the address, does not change it. The list row names only the latest sent copy of each document, the most recently recorded; the application lists every copy with its date.
+**Acceptance:** From an application the author makes a **tailored résumé** from its job description (S19, unchanged: the same facts, the same rules, read as a diff before it becomes a version), or picks documents the record already has: the main résumé, 履歴書, 職務経歴書. **An application can hold several**; a Japanese application sends 履歴書 and 職務経歴書 together. It can also make a **tailored 履歴書** (S19, changed 2026-10-26), and before Applied an application sends one 履歴書: making the tailored one takes the main one off, and the main one cannot be ticked while the tailored one is on. A tailored 職務経歴書 is not offered. Whenever the application leaves **Not applied** for Applied or a later step, by a move or by Undo, every attached document with a version and no sent copy yet is **frozen as sent**, automatically, with the date of the step reached, and the application says which were frozen. Other step changes freeze nothing. From Applied onward the application offers one explicit action, **Record another sent copy**: the author picks any document (one not yet on the application, one already sent, or a tailored document made after Applied, the main and the tailored 履歴書 alike) and it is frozen as a further sent copy with that day's date, always. Nothing is compared, and the application does not work out whether a document has changed since it was sent. **A sent copy is the file as it was that day**: it can be read and downloaded, it cannot be edited, and a later version of the document, or a later change to the record, the name or the address, does not change it. The list row names only the latest sent copy of each document, the most recently recorded; the application lists every copy with its date.
 
 ---
 

@@ -129,32 +129,60 @@ export async function skillPool(db: Db, userId: string): Promise<SkillPool> {
 }
 
 /**
+ * What one fact beside a skill is worth as evidence of its group: the
+ * specificity of the most specific skill of that group it names, `1 / (the
+ * facts naming it)`. A language named on every other fact is a poor
+ * neighbour — everything is beside it.
+ */
+const BESIDE_MINIMUM = 0.5;
+
+/**
  * The group a skill not yet listed most likely belongs in: the one whose
- * skills it is named beside on the most facts; failing that, the one whose
- * skills' facts share the most employers with its own; failing that, the
- * largest. The earlier group wins every tie. None only while there is no group.
+ * skills it is named beside, weighted by how specific each neighbour is, and
+ * only when that evidence reaches `BESIDE_MINIMUM` (a single fact beside a
+ * skill named on three is not enough). Failing that, the one sharing the most
+ * employers with the skill's facts, each weighted by how few of the record's
+ * employers the group reaches — a group at every employer, as a language often
+ * is, says nothing about which one a skill belongs beside — and only when that
+ * is one group alone: a tie there is no evidence, not a reason to take the
+ * earlier or the larger.
+ * The earlier group wins a tie between equally specific neighbours. None when
+ * nothing in the record ties the skill to a group; the chip then asks which.
  */
 export function suggestedGroup(skill: string, groups: CuratedGroup[], together: FactNames[]): string | null {
   const groupOf = new Map(groups.flatMap((g) => g.skills.map((s) => [s, g.name] as const)));
+  const named = new Map<string, number>();
+  for (const { names } of together) for (const name of new Set(names)) named.set(name, (named.get(name) ?? 0) + 1);
+
   const beside = new Map<string, number>();
   const employersOf = new Map<string, Set<string>>();
   const ownEmployers = new Set<string>();
   for (const { names, employerId } of together) {
-    const named = new Set(names.flatMap((name) => groupOf.get(name) ?? []));
+    const touched = new Set(names.flatMap((name) => groupOf.get(name) ?? []));
     if (employerId) {
-      for (const group of named) employersOf.set(group, (employersOf.get(group) ?? new Set()).add(employerId));
+      for (const group of touched) employersOf.set(group, (employersOf.get(group) ?? new Set()).add(employerId));
     }
     if (!names.includes(skill)) continue;
     if (employerId) ownEmployers.add(employerId);
-    for (const group of named) beside.set(group, (beside.get(group) ?? 0) + 1);
+    for (const group of touched) {
+      const specificity = Math.max(
+        ...names.filter((name) => groupOf.get(name) === group).map((name) => 1 / (named.get(name) ?? 1)),
+      );
+      beside.set(group, (beside.get(group) ?? 0) + specificity);
+    }
   }
-  const sharedEmployers = (g: CuratedGroup) =>
-    [...(employersOf.get(g.name) ?? [])].filter((id) => ownEmployers.has(id)).length;
-  return (
-    highest(groups, (g) => beside.get(g.name) ?? 0) ??
-    highest(groups, sharedEmployers) ??
-    highest(groups, (g) => g.skills.length)
-  );
+  const evidence = highest(groups, (g) => ((beside.get(g.name) ?? 0) >= BESIDE_MINIMUM ? beside.get(g.name)! : 0));
+  if (evidence) return evidence;
+
+  const employers = new Set(together.flatMap(({ employerId }) => (employerId ? [employerId] : [])));
+  const shared = (g: CuratedGroup) => {
+    const at = employersOf.get(g.name) ?? new Set<string>();
+    const count = [...at].filter((id) => ownEmployers.has(id)).length;
+    return count && count * Math.log(employers.size / at.size);
+  };
+  const top = Math.max(0, ...groups.map(shared));
+  const leaders = groups.filter((g) => top > 0 && shared(g) === top);
+  return leaders.length === 1 ? leaders[0]!.name : null;
 }
 
 /** The first group with the highest score above zero. */

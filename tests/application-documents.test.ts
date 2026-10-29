@@ -256,7 +256,7 @@ describe("a tailored résumé made from the application", () => {
   it("is stored from the job description, put on the application, and generated like any document", async () => {
     const made = await add();
 
-    const response = await client.post(`/api/applications/${made.id}/tailored-resume`);
+    const response = await client.post(`/api/applications/${made.id}/tailored/english_resume`);
     expect(response.status).toBe(201);
     const body = (await response.json()) as Detail;
     const [resume] = body.documents;
@@ -285,16 +285,16 @@ describe("a tailored résumé made from the application", () => {
 
   it("is the one an application has: asked again it is the same résumé, put back if it was taken off", async () => {
     const made = await add();
-    const first = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const first = (await (await client.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
     const ref = first.documents[0]!.ref;
 
-    const again = await client.post(`/api/applications/${made.id}/tailored-resume`);
+    const again = await client.post(`/api/applications/${made.id}/tailored/english_resume`);
     expect(again.status).toBe(200);
     expect(((await again.json()) as Detail).documents.map((document) => document.ref)).toEqual([ref]);
 
     await client.delete(`/api/applications/${made.id}/documents/${ref}`);
     expect((await read(made.id)).documents).toEqual([]);
-    const back = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const back = (await (await client.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
     expect(back.documents.map((document) => document.ref)).toEqual([ref]);
   });
 
@@ -302,7 +302,7 @@ describe("a tailored résumé made from the application", () => {
     const other = app.as(await seedAllowedUser(SECOND_EMAIL));
     // No profile and no fact: nothing to write it from.
     const made = await add(other);
-    const stored = (await (await other.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const stored = (await (await other.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
 
     const refused = await other.post(`/api/renders/${stored.documents[0]!.ref}/generate`);
     expect(refused.status).toBe(428);
@@ -404,7 +404,7 @@ describe("moving to Applied", () => {
 
   it("leaves a tailored résumé that has no version yet out of the freeze", async () => {
     const made = await add();
-    await client.post(`/api/applications/${made.id}/tailored-resume`);
+    await client.post(`/api/applications/${made.id}/tailored/english_resume`);
 
     const moved = (await (await move(made.id, "applied")).json()) as Detail;
     expect(moved.frozen).toEqual([]);
@@ -541,7 +541,7 @@ describe("a sent copy", () => {
 
   it("keeps the name it was sent under when the company is corrected later", async () => {
     const made = await add();
-    const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const stored = (await (await client.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
     await accept(stored.documents[0]!.ref, resumeContent("Ran telemetry ingestion for tide gauges."));
     await move(made.id, "applied");
 
@@ -560,12 +560,22 @@ describe("a sent copy", () => {
 
     const response = await client.get(`${path}/download`);
     expect(response.headers.get("content-type")).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}\.docx"/);
+    expect(response.headers.get("content-disposition")).toMatch(/attachment; filename="Yosuke-Aoki-Resume-\d{4}-\d{2}-\d{2}\.docx"/);
 
     for (const method of ["PUT", "PATCH", "DELETE", "POST"]) {
       expect((await client.request(path, { method, body: "{}", headers: { "content-type": "application/json" } })).status).toBe(404);
     }
     expect((await read(made.id)).sentCopies).toHaveLength(1);
+  });
+
+  it("names its author in a Japanese copy's ASCII name, beside the name it was sent under", async () => {
+    await accept("rirekisho", content("海事システムの保守経験を活かしたい。", "motivation", "志望の動機"));
+    const made = await add();
+    await choose(made.id, ["rirekisho"]);
+    const [copy] = ((await (await move(made.id, "applied")).json()) as Detail).sentCopies;
+
+    const response = await client.get(`/api/applications/${made.id}/sent-copies/${copy!.id}/download`);
+    expect(response.headers.get("content-disposition")).toMatch(/^attachment; filename="Yosuke-Aoki-Rirekisho-\d{4}-\d{2}-\d{2}\.docx"; filename\*=UTF-8''/);
   });
 
   it("follows a correction of the Applied date when that move froze it", async () => {
@@ -660,7 +670,7 @@ describe("moving back, and undoing", () => {
 
   it("freezes nothing when a move or an Undo arrives at Applied from a later step", async () => {
     const { made, after } = await applied();
-    const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const stored = (await (await client.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
     await accept(stored.documents.find((document) => document.title.startsWith("Tailored"))!.ref, resumeContent("Ran telemetry ingestion for tide gauges."));
 
     const passed = (await (await move(made.id, "resume_passed")).json()) as Detail;
@@ -765,7 +775,7 @@ describe("recording another sent copy", () => {
     await move(made.id, "applied");
     expect((await read(made.id)).documents).toEqual([]);
 
-    const stored = (await (await client.post(`/api/applications/${made.id}/tailored-resume`)).json()) as Detail;
+    const stored = (await (await client.post(`/api/applications/${made.id}/tailored/english_resume`)).json()) as Detail;
     const tailored = stored.documents[0]!.ref;
     await accept(tailored, resumeContent("Ran telemetry ingestion for tide gauges."));
 
@@ -821,7 +831,7 @@ describe("another user's application", () => {
     for (const response of [
       await choose(made.id, [], other),
       await other.delete(`/api/applications/${made.id}/documents/english_resume`),
-      await other.post(`/api/applications/${made.id}/tailored-resume`),
+      await other.post(`/api/applications/${made.id}/tailored/english_resume`),
       await record(made.id, ["english_resume"], other),
       await other.get(`/api/applications/${made.id}/sent-copies/${copy!.id}`),
       await other.get(`/api/applications/${made.id}/sent-copies/${copy!.id}/download`),

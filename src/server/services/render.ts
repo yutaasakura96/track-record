@@ -15,6 +15,7 @@
 import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import {
+  applications,
   certifications,
   educations,
   employers,
@@ -22,13 +23,14 @@ import {
   profiles,
   projects,
   renderProposals,
+  renders,
   roles,
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
 import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
-import { RENDER_DEFINITIONS, type RenderDefinition } from "~/render/spec";
+import { RENDER_DEFINITIONS, TAILORED_REGISTER, type RenderDefinition } from "~/render/spec";
 import {
   ENGLISH_DEFECT_REASON,
   MIXED_ENGLISH_DEFECT_REASON,
@@ -45,7 +47,7 @@ import {
   type JapaneseDefect,
 } from "~/render/japanese";
 import { bulletBudget } from "~/render/resume";
-import { careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
+import { PROSE_SECTION_KEYS, careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
 import { isChapteredStory } from "~/render/chapters";
 import { collectRirekishoRecord } from "./rirekisho";
 import { isExpired } from "~/render/shikaku";
@@ -73,6 +75,40 @@ export interface RenderInputs {
 }
 
 type Chronology = NonNullable<RenderDefinition["chronology"]>;
+
+/** What a tailored document is written toward: its posting, and what its application knows. */
+export interface Tailoring {
+  jobDescription: string;
+  application: RenderSpec["application"];
+}
+
+/**
+ * The tailoring of a stored row: `null` for a main document. A tailored row's
+ * application is read for its confirmed fields and the author's notes; one
+ * whose application is gone (`on delete set null`) is still tailored to its
+ * posting, with nothing more.
+ */
+export async function tailoringOf(
+  db: Db,
+  userId: string,
+  render: Pick<typeof renders.$inferSelect, "jobDescription" | "applicationId">,
+): Promise<Tailoring | null> {
+  if (render.jobDescription === null) return null;
+  const [application] = render.applicationId
+    ? await db
+        .select({
+          company: applications.company,
+          position: applications.position,
+          requirements: applications.requirements,
+          motivationNote: applications.motivationNote,
+          kibouNote: applications.kibouNote,
+        })
+        .from(applications)
+        .where(and(eq(applications.userId, userId), eq(applications.id, render.applicationId)))
+        .limit(1)
+    : [];
+  return { jobDescription: render.jobDescription, application: application ?? null };
+}
 
 /**
  * The name a document of this language calls for, falling back to the other so
@@ -128,8 +164,8 @@ export async function collectRenderInputs(
   userId: string,
   kind: RenderKind,
   subjectName: string,
-  /** Set for a tailored résumé. The facts it is given are the main document's. */
-  jobDescription: string | null = null,
+  /** Set for a tailored document. The facts it is given are the main document's. */
+  tailoring: Tailoring | null = null,
 ): Promise<RenderInputs> {
   // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
   // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
@@ -297,7 +333,7 @@ export async function collectRenderInputs(
       kind,
       language: definition.language,
       subjectName,
-      register: definition.register,
+      register: (tailoring ? TAILORED_REGISTER[kind] : undefined) ?? definition.register,
       // Newest-first out of SQL; the document decides whether it stays that
       // way. The 履歴書's 職歴 block reads ascending (`docs/04` §4).
       employers: inDocumentOrder(includedEmployers, "newest_first", definition.chronology).map((e, position) => ({
@@ -412,7 +448,8 @@ export async function collectRenderInputs(
       // facts as it did before S9. Rows that leave this render nothing is a
       // curation all the same, and becomes an empty list, never `null`.
       curatedSkills: curation.length > 0 ? curationForRender(curation, renderable) : null,
-      jobDescription,
+      jobDescription: tailoring?.jobDescription ?? null,
+      application: tailoring?.application ?? null,
     },
     privateFactCount: privateFacts.length,
     generatedFactCount: generatedFacts.length,
@@ -435,6 +472,35 @@ export function stripUnknownFactIds(content: RenderContent, allowed: Set<string>
         ...block,
         factIds: block.factIds.filter((id) => allowed.has(id)),
       })),
+    })),
+  };
+}
+
+/**
+ * Which blocks are drafts for the author to confirm (`docs/06`, 2026-10-26),
+ * decided here rather than taken on the model's word alone.
+ *
+ * Only a tailored 履歴書 has any. In it, the 本人希望欄 is always a draft: it is
+ * a request, and the author makes it. A 志望動機・特技・アピールポイント
+ * first paragraph is always a draft; later prose is a draft when the model
+ * marked it one or it cites no fact. Every other
+ * document drops the mark wherever the model put it: its blocks are written
+ * from facts, and the accept gate must not be held by a flag nobody can clear.
+ */
+export function withDrafts(content: RenderContent, spec: Pick<RenderSpec, "kind" | "jobDescription">): RenderContent {
+  const tailoredRirekisho = spec.kind === "rirekisho" && Boolean(spec.jobDescription);
+  const motivationIndex = content.sections.findIndex((section) => section.key === PROSE_SECTION_KEYS.motivation);
+  const kibouIndex = content.sections.findIndex((section) => section.key === PROSE_SECTION_KEYS.kibou);
+  return {
+    sections: content.sections.map((section, sectionIndex) => ({
+      ...section,
+      blocks: section.blocks.map(({ drafted, ...block }, index) => {
+        const draft =
+          tailoredRirekisho &&
+          (sectionIndex === kibouIndex ||
+            (sectionIndex === motivationIndex && (index === 0 || drafted === true || block.factIds.length === 0)));
+        return draft ? { ...block, drafted: true as const } : block;
+      }),
     })),
   };
 }
@@ -508,11 +574,31 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
       }
     }
+    const motivation = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.motivation)?.blocks[0];
+    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription && (motivation?.kind !== "paragraph" || !motivation.text.trim())) {
+      throw new ModelUnavailableError("The tailored 履歴書 needs a 志望動機 to confirm. Generate it again.");
+    }
+    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription) {
+      const kibou = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.kibou);
+      if (!kibou?.blocks.some((block) => block.kind === "paragraph" && block.text.trim())) {
+        const block = {
+          id: `blk_${crypto.randomUUID()}`,
+          kind: "paragraph" as const,
+          text: [inputs.spec.application?.kibouNote, inputs.spec.desiredRoleNote, "貴社規定に従います。"]
+            .map((text) => text?.trim())
+            .find((text) => text && defectOf({ sections: [{ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [{ id: "", kind: "paragraph", text, factIds: [] }] }] }) === null)!,
+          factIds: [],
+          drafted: true as const,
+        };
+        if (kibou) kibou.blocks = [block];
+        else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
+      }
+    }
     const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
       .set({
-        content: stripUnknownFactIds(content, allowed),
+        content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec),
         generationStatus: "ready",
         generationError: null,
         // Four keys, four columns of the same name. See `ModelUsage`.
@@ -524,7 +610,7 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     const reason =
       err instanceof ModelUnavailableError
         ? err.message
-        : "This document could not be generated. Your current version is unchanged.";
+        : "This document could not be generated.";
     await db
       .update(renderProposals)
       .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })

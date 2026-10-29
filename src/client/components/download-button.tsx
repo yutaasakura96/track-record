@@ -22,8 +22,8 @@ import {
   type RenderKind,
 } from "~/shared/render-content";
 
-/** What the second control is called, by the format it saves. */
-const ALTERNATIVE_LABEL: Record<DownloadFormat, string> = { docx: "Word", md: "Markdown", pdf: "PDF" };
+/** What a format is called on a control, so none of them says only "Download". */
+export const FORMAT_LABEL: Record<DownloadFormat, string> = { docx: "Word", md: "Markdown", pdf: "PDF" };
 
 /** What a refusal says per id, in the author's words rather than the column's. */
 export const CITATION_PROBLEM: Record<string, string> = {
@@ -83,6 +83,7 @@ export function DownloadButton({
   /** Which document: a tailored résumé's id. A main document is its kind. */
   docRef?: string;
   versionId?: string;
+  /** The verb phrase; the format it saves is appended (`Download` → `Download PDF`). */
   label?: string;
   className?: string;
 }) {
@@ -112,17 +113,17 @@ export function DownloadButton({
   return (
     <>
       <button type="button" className={className} disabled={busy !== null} onClick={() => void download(format)}>
-        {busy === format ? "Preparing…" : (label ?? `Download .${format}`)}
+        {busy === format ? "Preparing…" : `${label ?? "Download"} ${FORMAT_LABEL[format]}`}
       </button>
       {alternative ? (
         <button
           type="button"
           className={className}
           disabled={busy !== null}
-          aria-label={`Download as ${ALTERNATIVE_LABEL[alternative]} (.${alternative})`}
+          aria-label={`Download as ${FORMAT_LABEL[alternative]} (.${alternative})`}
           onClick={() => void download(alternative)}
         >
-          {busy === alternative ? "Preparing…" : ALTERNATIVE_LABEL[alternative]}
+          {busy === alternative ? "Preparing…" : FORMAT_LABEL[alternative]}
         </button>
       ) : null}
       {refusal !== null ? <Refusal error={refusal} onClose={() => setRefusal(null)} /> : null}

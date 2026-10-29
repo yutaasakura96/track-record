@@ -10,7 +10,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import { useProfile, type ApplicationFields } from "../api";
-import { useFlashStore } from "../stores/flash";
+import { FlashLine } from "./flash-line";
 import { STATUS_LABEL, statusOf, type Standing } from "~/shared/application";
 import { MenuSheet, Sidebar } from "./sidebar";
 import { Button, Dot } from "./ui";
@@ -66,7 +66,6 @@ export function PhoneFrame({
   children: ReactNode;
 }) {
   const profile = useProfile();
-  const flash = useFlashStore((state) => state.text);
   const [menu, setMenu] = useState(false);
   const sheet = useId();
   const toggle = useRef<HTMLButtonElement>(null);
@@ -119,14 +118,7 @@ export function PhoneFrame({
           <div className="mx-auto w-content max-w-full grid grid-cols-1 gap-20 max-phone:gap-16">{children}</div>
         </div>
       </div>
-      {flash ? (
-        <p
-          role="status"
-          className="fixed bottom-14 left-1/2 -translate-x-1/2 z-10 max-w-full bg-text-bright text-bg rounded-control px-12 py-8 text-small"
-        >
-          {flash}
-        </p>
-      ) : null}
+      <FlashLine />
     </div>
   );
 }

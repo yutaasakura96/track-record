@@ -31,7 +31,7 @@ const hokushin = `# 地方銀行向け 夜間バッチ基盤刷新
 
 ## 取り組み
 
-ジョブ定義を棚卸しし、依存関係を JP1 のジョブネットから抽出して一覧化した。その結果、並列実行できるジョブが全体の約 3 割あることが分かった。
+ジョブ定義を棚卸しし、約 480 本の依存関係を JP1 のジョブネットから抽出して一覧化した。その結果、並列実行できるジョブが全体の約 3 割あることが分かった。
 
 集計系ジョブ 62 本を Java（Spring Batch）に移植し、Oracle のパーティション表を使って並列化した。移植したジョブは単体テストを JUnit で書き、旧ジョブとの出力差分を自動で突き合わせる検証ツールを作成した。
 
@@ -241,7 +241,7 @@ export const DOCUMENTS: DemoDocument[] = [
     candidates: [
       {
         claim: "夜間バッチ約480本のジョブ依存関係を JP1 のジョブネットから抽出して一覧化し、並列実行可能なジョブが約3割あることを特定した",
-        quote: "ジョブ定義を棚卸しし、依存関係を JP1 のジョブネットから抽出して一覧化した。その結果、並列実行できるジョブが全体の約 3 割あることが分かった。",
+        quote: "ジョブ定義を棚卸しし、約 480 本の依存関係を JP1 のジョブネットから抽出して一覧化した。その結果、並列実行できるジョブが全体の約 3 割あることが分かった。",
         technologies: ["JP1"],
         provenance: "measured",
       },
@@ -310,13 +310,13 @@ export const DOCUMENTS: DemoDocument[] = [
         provenance: "attested",
       },
       {
-        claim: "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 clean days",
+        claim: "Ran a three-phase migration: six weeks of dual-write, a nightly comparison job, and cut-over after 21 consecutive clean days",
         quote: "Migration ran in three phases: dual-write for six weeks, a nightly comparison job that reported any difference between the old balances and the new ones, and a cut-over once the comparison had been clean for 21 consecutive days.",
         technologies: [],
         provenance: "measured",
       },
       {
-        claim: "Reduced reconciliation breaks from 37 a quarter to 2",
+        claim: "Reduced reconciliation breaks from 37 a quarter to 2 a quarter",
         quote: "Reconciliation breaks fell from 37 in the quarter before to 2 in the quarter after cut-over",
         technologies: [],
         provenance: "measured",
@@ -617,7 +617,7 @@ export const DOCUMENTS: DemoDocument[] = [
         provenance: "attested",
       },
       {
-        claim: "kanjigrid has about 1,400 GitHub stars and 9,000 weekly npm downloads",
+        claim: "kanjigrid has about 1,400 GitHub stars and is downloaded about 9,000 times a week from npm",
         quote: "It has around 1,400 stars on GitHub and is downloaded about 9,000 times a week from npm.",
         technologies: [],
         provenance: "measured",

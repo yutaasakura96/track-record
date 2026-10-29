@@ -129,6 +129,26 @@ describe("a filled 履歴書, paginated", () => {
     expect(rowsOf(motivation)[1]).toMatch(/<w:trPr><w:cantSplit\/><w:trHeight w:val="\d{4,}" w:hRule="atLeast"\/><\/w:trPr>/);
   });
 
+  /**
+   * A tailored 履歴書's cell (`docs/06`, 2026-10-26): a 志望動機 paragraph and
+   * the アピールポイント after it, at the 300 characters the register writes to
+   * and at four times that. The same cell, so the same layout: 志望動機 on page
+   * 2, and the form still two pages.
+   */
+  const TAILORED_CELL = [
+    `${"貴社の架空事業に、架空の経験を活かして貢献したいと考え志望しました。".repeat(5)}`,
+    `${"架空の処理を6時間から90分に短縮しました。".repeat(6)}`,
+  ].join("\n");
+  for (const times of [1, 4]) {
+    it(`lays out a tailored 志望動機 of ${[...TAILORED_CELL].length * times} characters on page 2 of two`, () => {
+      const cell = Array.from({ length: times }, () => TAILORED_CELL).join("\n");
+      for (const employers of [1, 4]) {
+        const xml = documentXml(fillRirekishoTemplate({ ...data(employers), motivation: cell, kibou: "バックエンドエンジニア職を希望いたします。その他は貴社規定に従います。" }));
+        expect(paginateXml(xml, BLANK, BODY).layout).toMatchObject({ blankRows: 0, motivationPage: 2, pages: 2 });
+      }
+    });
+  }
+
   it("adds no blank row to a record that already runs past page 2", () => {
     const { layout } = paginateXml(documentXml(fillRirekishoTemplate(data(30))), BLANK, BODY);
     expect(layout.blankRows).toBe(0);

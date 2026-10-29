@@ -282,7 +282,7 @@ read, still works.
    roles and projects and every accepted fact under them, split into Results and What I did, then
    work under no employer, education and certifications. A fact is marked only when it is Private,
    not confirmed or added by hand, and names the document and line it came from on hover.
-3. **Download .md** → `GET /api/master-document/download` → a Markdown file of the same content, in
+3. **Download Markdown** → `GET /api/master-document/download` → a Markdown file of the same content, in
    the language of the tab that is open.
 
 | Step | What can go wrong | What the author sees |
@@ -419,10 +419,19 @@ uploaded again.
    **Make a tailored résumé** or tick documents under **Use a document you already have** and press
    **Use the ticked documents**. Both can be done, and several documents can be on one application.
 2. **Make a tailored résumé** stores the résumé from the application's job description
-   (`POST /api/applications/:id/tailored-resume`), generates it and opens Diff Review as in Flow 3.
+   (`POST /api/applications/:id/tailored/english_resume`), generates it and opens Diff Review as in Flow 3.
    Accepting or keeping the current version returns to the application. A refusal to generate is
    said on the application, and the résumé stays on it to generate later. One that was taken off
    is put back as it is, and is generated only when it has neither a version nor a proposal waiting.
+2a. **Make a tailored 履歴書** (2026-10-26) opens a card with two optional fields: *why you are
+   applying* and *what you would ask for in 本人希望欄*. Pressing **Make a tailored 履歴書** saves them
+   on the application (`PATCH /api/applications/:id`), stores the 履歴書
+   (`POST /api/applications/:id/tailored/rirekisho`), generates it and opens Diff Review. If the main
+   履歴書 was on the application it is taken off, and the panel says so. In Diff Review the 志望動機
+   and the 本人希望欄 are listed under **Drafted for you**, each as a draft to **Confirm as written**
+   or edit and **Save my wording**; **Accept** is disabled, with the reason, until none is left.
+   Accepting returns to the application, where the row offers `Your notes`, `View`, `History`,
+   `Download`, `Regenerate` and `Take off`. A note changed later is used at the next Regenerate.
 3. At Not applied, a document can be taken off (`Take off`) and others added. Each row is the live
    document at its current version; copies from an earlier move remain under **What you sent**.
 4. **Move to Applied.** Every document on the application that has a version and no sent copy yet
@@ -431,7 +440,7 @@ uploaded again.
 5. **What you sent** lists every copy. **Read it** opens the copy as it was sent (Screen 15);
    **Download** returns the stored file. Editing or regenerating the document afterwards, or
    changing the profile or the record, changes neither.
-6. Later, **Record another sent copy**: tick any of the three documents or the tailored résumé and
+6. Later, **Record another sent copy**: tick any of the three documents or a tailored one and
    press **Record the ticked documents**. Each is frozen again, dated today, beside the earlier
    copies.
 
