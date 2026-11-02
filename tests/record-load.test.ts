@@ -266,7 +266,19 @@ describe("the recordings clear", () => {
     await bindings.RECORDINGS.delete((await bindings.RECORDINGS.list()).objects.map((object) => object.key));
     for (let at = 0; at < keys.length; at += 100) await Promise.all(keys.slice(at, at + 100).map((key) => bindings.RECORDINGS.put(key, "b")));
 
-    expect(await clearRecordingObjects(boundObjects(bindings.RECORDINGS), "usr_paged")).toBe(1100);
+    const batchSizes: number[] = [];
+    const bucket = {
+      list: bindings.RECORDINGS.list.bind(bindings.RECORDINGS),
+      delete: async (batch: string | string[]) => {
+        const size = Array.isArray(batch) ? batch.length : 1;
+        batchSizes.push(size);
+        if (size > 1000) throw new Error("R2 delete limit exceeded");
+        await bindings.RECORDINGS.delete(batch);
+      },
+    };
+    expect(await clearRecordingObjects(boundObjects(bucket), "usr_paged")).toBe(1100);
+    expect(batchSizes).toEqual([1000, 100]);
+    expect(Math.max(...batchSizes)).toBeLessThanOrEqual(1000);
   });
 
   it("speaks Cloudflare's API: pages by cursor, deletes by key, and stops on a refusal", async () => {

@@ -41,7 +41,9 @@ export const boundObjects = (bucket: Pick<R2Bucket, "list" | "delete">): Recordi
       cursor = page.cursor;
     }
   },
-  delete: (keys) => (keys.length === 0 ? Promise.resolve() : bucket.delete(keys)),
+  async delete(keys) {
+    for (let at = 0; at < keys.length; at += 1000) await bucket.delete(keys.slice(at, at + 1000));
+  },
 });
 
 /**
