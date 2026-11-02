@@ -25,7 +25,7 @@ import { monthDate } from "./profile";
 import type { AppEnv } from "../env";
 import type { Db } from "../db/client";
 
-const employerBody = z.object({
+export const employerBody = z.object({
   nameJa: z.string().trim().min(1, "An employer name is required."),
   nameLatin: z.string().trim().nullish(),
   industryJa: z.string().trim().nullish(),
@@ -46,7 +46,7 @@ const employerBody = z.object({
  * A promotion is a SECOND ROW, not an edit to the first (`docs/04` §3.4), so
  * `employerId` is required and multiple roles per employer is the normal case.
  */
-const roleBody = z.object({
+export const roleBody = z.object({
   employerId: z.string().trim().min(1, "A role belongs to an employer."),
   titleJa: z.string().trim().nullish(),
   titleLatin: z.string().trim().nullish(),

@@ -243,8 +243,8 @@ And the ungraded one is kept as Generated and flagged, not dropped
 And the one with no verbatim quote is discarded and counted, as before
 And every flag has a reason, and a confidential reason names the kind of identifier, never the identifier
 When the next résumé is generated without any fact having been opened
-Then the model is given every usable fact, the number-flagged ones included,
-  and no Private and no Generated fact
+Then the model is given the usable facts within the generation budget (`03` §6),
+  including number-flagged ones, and no Private or Generated fact
 ```
 
 The sort of the facts that were waiting is held to the same: every fact in a batch is accepted

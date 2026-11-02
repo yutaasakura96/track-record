@@ -17,7 +17,7 @@ export type DemoCall = <T = unknown>(method: string, path: string, body?: unknow
 export function demoApp(databaseUrl: string, user: SessionUser, model: ModelSeam): DemoCall {
   const app = createApp({ model: () => model, sessions: async () => user });
   // The two bindings these routes read. The allowlist is the one user, as a deployment's is.
-  const env = { DATABASE_URL: databaseUrl, ALLOWED_SIGNUP_EMAILS: user.email } as Bindings;
+  const env = { DATABASE_URL: databaseUrl, ALLOWED_SIGNUP_EMAILS: user.email, GENERATION_INLINE_TEST: "true" } as Bindings;
 
   return async <T>(method: string, path: string, body?: unknown): Promise<T> => {
     const pending: Promise<unknown>[] = [];
