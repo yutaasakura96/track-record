@@ -393,7 +393,7 @@ describe("the next step", () => {
   });
 
   describe("a quiet application", () => {
-    const HARBOR = { id: "app-test-harbor", company: "Harbor Ledger", quietDays: 22, count: 1 };
+    const HARBOR = { id: "app-test-harbor", company: "Harbor Ledger", quietDays: 22 };
     const quiet = (
       over: Partial<NonNullable<Overview["quietApplication"]>> = {},
       documents: RenderRow[] = [row({ status: "up_to_date", currentVersionId: "ver-test-1", newFactsSince: 0 })],
@@ -408,11 +408,6 @@ describe("the next step", () => {
       expect(within(step).getByRole("heading", { name: "Harbor Ledger has gone quiet for 22 days, follow up?" })).toBeTruthy();
       expect(within(step).queryByText("You are up to date")).toBeNull();
       expect(within(step).getByRole("link", { name: "Open it" }).getAttribute("href")).toBe(`/applications/${HARBOR.id}`);
-    });
-
-    it("says how many others have gone quiet too", async () => {
-      open([], quiet({ count: 3 }));
-      expect(within(await nextStep()).getByText(/2 other applications have gone quiet too\./)).toBeTruthy();
     });
 
     it("waits behind a step that is already waiting", async () => {

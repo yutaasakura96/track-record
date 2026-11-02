@@ -498,11 +498,14 @@ describe("gone quiet", () => {
 
     vi.setSystemTime(dayAfter(44));
     expect((await read(id)).quietDays).toBe(14);
-    // A corrected date is a change, and so is a status.
     await correct(id, "applied", dateAfter(3));
-    expect((await read(id)).quietDays).toBeNull();
-    vi.setSystemTime(dayAfter(58));
     expect((await read(id)).quietDays).toBe(14);
+    await client.put(`/api/applications/${id}/standing`, {
+      step: "applied", closedAs: null, dates: { not_applied: dateAfter(0), applied: dateAfter(2) },
+    });
+    expect((await read(id)).quietDays).toBe(14);
+    vi.setSystemTime(dayAfter(58));
+    expect((await read(id)).quietDays).toBe(28);
     await set(id, "resume_passed");
     expect((await read(id)).quietDays).toBeNull();
   });
@@ -541,10 +544,9 @@ describe("gone quiet", () => {
     const backup = await client.json<{ applicationSteps: { applicationId: string }[] }>("/api/export");
     expect(backup.applicationSteps.filter((row) => row.applicationId === id)).toHaveLength(2);
 
-    // The same routes with something to change still count.
     await correct(id, "applied", dateAfter(5));
-    expect(await read(id)).toMatchObject({ quietDays: null, daysSinceLastActivity: 0 });
-    expect((await list()).items.map((row) => row.id)).toEqual([id, newer]);
+    expect(await read(id)).toMatchObject({ quietDays: 20, lastActivityAt: before.lastActivityAt });
+    expect((await list()).items.map((row) => row.id)).toEqual([newer, id]);
   });
 });
 
@@ -561,10 +563,9 @@ describe("the list", () => {
     await set(first.id, "applied");
     expect((await list()).items.map((row) => row.id)).toEqual([first.id, third.id, second.id]);
 
-    // An old date on a step does not send it down the list: the change is what is new.
     vi.setSystemTime(dayAfter(4));
     await correct(second.id, "not_applied", "2026-01-05");
-    expect((await list()).items.map((row) => row.id)).toEqual([second.id, first.id, third.id]);
+    expect((await list()).items.map((row) => row.id)).toEqual([first.id, third.id, second.id]);
   });
 });
 

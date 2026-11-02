@@ -18,7 +18,6 @@
  */
 import type { Hono } from "hono";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import type { BatchItem } from "drizzle-orm/batch";
 import PizZip from "pizzip";
 import { z } from "zod";
 import { applicationDocuments, applicationSentCopies, profiles, renders } from "../db/schema";
@@ -106,10 +105,11 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     const now = new Date();
     try {
-      await writeAll(db, [
+      const writes = [
         ...removed.map((row) => takeOff(db, user.id, row.id, now)),
         ...added.map((render) => putOn(db, user.id, id, render.id)),
-      ]);
+      ];
+      await db.batch([writes[0]!, ...writes.slice(1)]);
     } catch (error) {
       if (violatesUnique(error, "application_one_rirekisho")) throw new ApiError("conflict", MAIN_RIREKISHO_HELD);
       throw error;
@@ -239,10 +239,11 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const on = await db.select({ renderId: applicationDocuments.renderId }).from(applicationDocuments).where(onApplication(user.id, id));
     const missing = documents.filter((render) => !on.some((row) => row.renderId === render.id));
 
-    await writeAll(db, [
+    const writes = [
       ...missing.map((render) => putOn(db, user.id, id, render.id)),
       ...made.rows.map((copy) => db.insert(applicationSentCopies).values(copy)),
-    ]);
+    ];
+    await db.batch([writes[0]!, ...writes.slice(1)]);
     console.log(JSON.stringify({ event: "application_copies_recorded", applicationId: id, copies: made.rows.length }));
     return c.json({ ...(await detail(db, user.id, id)), frozen: made.named }, 201);
   });
@@ -353,16 +354,6 @@ const putOn = (db: Db, userId: string, applicationId: string, renderId: string) 
   db.insert(applicationDocuments).values({ id: newId("applicationDocument"), userId, applicationId, renderId });
 
 /** Off the application, and still a row: nothing is deleted. */
-/**
- * One batch of writes, or nothing when there are none: a batch cannot be empty,
- * and none of these writes touches the application's own row any more, since a
- * document is not activity on it (`docs/06`, 2026-11-02).
- */
-const writeAll = async (db: Db, writes: BatchItem<"pg">[]) => {
-  const [first, ...rest] = writes;
-  if (first) await db.batch([first, ...rest]);
-};
-
 const takeOff = (db: Db, userId: string, id: string, now: Date) =>
   db
     .update(applicationDocuments)

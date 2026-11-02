@@ -764,8 +764,8 @@ export const applications = pgTable("applications", {
   currentStep: applicationStatus("current_step").notNull().default("not_applied"),
   closedAs: applicationStatus("closed_as"),
   /**
-   * When the author last changed what this application records: a status set,
-   * a date corrected, or an interview noted. A document made, attached or
+   * When the author last changed its status or noted an interview. A date corrected,
+   * document made, attached or
    * sent is not activity (2026-11-02). The list is ordered by it and gone quiet is counted from it, so a
    * step entered late with an old date does not read as weeks of silence
    * (decided in the review of issue #69). Correcting the company or the

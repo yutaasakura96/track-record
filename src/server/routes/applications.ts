@@ -12,7 +12,7 @@
  * Gone quiet and the "how long since" figures are worked out on every read,
  * against today's date in Japan. None is stored. The figures count from the
  * dates of the steps; gone quiet and the list's order count from
- * `last_activity_at`, which every change to where an application stands sets.
+ * `last_activity_at`, which status changes and interview entries set.
  *
  * A company, a position and a job description name somebody else's business.
  * No log line here carries any of them: an id, a status, a length.
@@ -424,16 +424,6 @@ export async function detail(db: Db, userId: string, id: string) {
 /* ----------------------------------------------------------------- writes */
 
 /**
- * The update that marks an application as changed now, for a batch. The list
- * is ordered by it and gone quiet is counted from it.
- */
-export const markActivity = (db: Db, userId: string, applicationId: string, now: Date) =>
-  db
-    .update(applications)
-    .set({ lastActivityAt: now, updatedAt: now })
-    .where(and(eq(applications.userId, userId), eq(applications.id, applicationId)));
-
-/**
  * What a change to the standing is, which decides what it does to sent copies
  * (`docs/10` Screen 14, issue #71).
  *
@@ -473,20 +463,18 @@ async function change(c: Context<AppEnv>, apply: (standing: Standing) => Standin
     APPLICATION_STATUSES.every((status) => next.dates[status] === standing.dates[status]);
   if (same) return c.json(await detail(db, user.id, id));
 
-  const frozen = await saveStanding(db, user.id, id, row, steps, next, [], kind);
+  const frozen = await saveStanding(db, user.id, id, row, steps, next, [], kind, next.step !== standing.step || next.closedAs !== standing.closedAs);
   console.log(JSON.stringify({ event: "application_standing_set", applicationId: id, step: next.step, closedAs: next.closedAs, frozen: frozen.length }));
   return c.json({ ...(await detail(db, user.id, id)), frozen });
 }
 
 /**
- * Makes the stored dates match a standing, in one transaction, and marks the
- * application as changed now. A date that differs from the live row's
+ * Makes the stored dates match a standing in one transaction. A date that differs from the live row's
  * supersedes that row and writes a new one; a date that is gone supersedes its
  * row; saved dates are not overwritten or deleted.
  *
  * `previous` is the application as it was read. The write is refused as a
- * conflict when `last_activity_at` has moved since, which every write here
- * does, a date-only one included: the update then matches no row, and the
+ * conflict when `updated_at` has moved since: the update then matches no row, and the
  * division by its count of zero fails the whole batch. The new value is always
  * at least a millisecond later, so two writes in one millisecond still differ.
  *
@@ -505,6 +493,7 @@ export async function saveStanding(
   next: Standing,
   alongside: BatchItem<"pg">[] = [],
   kind: ChangeKind = "move",
+  activity = true,
 ): Promise<NamedVersion[]> {
   const liveBy = new Map(live.map((row) => [row.status as ApplicationStatus, row]));
   const changed = APPLICATION_STATUSES.filter((status) => liveBy.get(status)?.happenedOn !== next.dates[status]);
@@ -565,14 +554,17 @@ export async function saveStanding(
           update ${applications}
           set ${sql.identifier("current_step")} = ${next.step},
               ${sql.identifier("closed_as")} = ${next.closedAs},
-              ${sql.identifier("last_activity_at")} = greatest(
+              ${sql.identifier("last_activity_at")} = case when ${activity} then greatest(
                 date_trunc('milliseconds', ${applications.lastActivityAt}) + interval '1 millisecond',
                 ${now.toISOString()}::timestamptz
-              ),
-              ${sql.identifier("updated_at")} = ${now.toISOString()}::timestamptz
+              ) else ${applications.lastActivityAt} end,
+              ${sql.identifier("updated_at")} = greatest(
+                date_trunc('milliseconds', ${applications.updatedAt}) + interval '1 millisecond',
+                ${now.toISOString()}::timestamptz
+              )
           where ${applications.userId} = ${userId}
             and ${applications.id} = ${applicationId}
-            and date_trunc('milliseconds', ${applications.lastActivityAt}) = ${previous.lastActivityAt.toISOString()}::timestamptz
+            and date_trunc('milliseconds', ${applications.updatedAt}) = ${previous.updatedAt.toISOString()}::timestamptz
           returning 1
         )
         select 1 / count(*)::integer from changed

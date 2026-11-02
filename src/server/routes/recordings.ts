@@ -112,7 +112,7 @@ export function registerRecordingRoutes(app: Hono<AppEnv>) {
           contentType,
           durationSeconds,
         }),
-      ]);
+      ], "move", false);
     } catch (error) {
       await deleteRecordings(c.env.RECORDINGS, [key]);
       throw error;

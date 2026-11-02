@@ -224,8 +224,8 @@ describe("choosing the documents for a job", () => {
     expect(after).toMatchObject({ quietDays: 22 });
 
     // Home names it, and an interview or a status change is what ends the silence.
-    const overview = await client.json<{ quietApplication: { id: string; quietDays: number; count: number } | null }>("/api/overview");
-    expect(overview.quietApplication).toMatchObject({ id: made.id, quietDays: 22, count: 1 });
+    const overview = await client.json<{ quietApplication: { id: string; quietDays: number } | null }>("/api/overview");
+    expect(overview.quietApplication).toMatchObject({ id: made.id, quietDays: 22 });
   });
 
   it("writes nothing when the same ticks are saved again", async () => {

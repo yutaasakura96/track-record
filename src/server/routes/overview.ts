@@ -284,10 +284,10 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         dismissedOn: dismissal?.dismissedOn ?? null,
       },
       /**
-       * The application that has been silent longest, and how many there are
+       * The application that has been silent longest
        * (`docs/10` Screen 3). Home suggests a follow-up. `null` when none is.
        */
-      quietApplication: quiet[0] ? { ...quiet[0], count: quiet.length } : null,
+      quietApplication: quiet[0] ?? null,
       documents: documents.documents,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */

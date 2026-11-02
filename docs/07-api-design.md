@@ -1248,9 +1248,9 @@ screens read too.
   closed application, the standing is unchanged. When the entry moves the step, steps it passes
   over get no date, as on any move. Undo is the same `PUT …/standing` for either kind of standing
   change, and leaves the entry in place.
-- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date, on
-  every interview entry added, corrected or deleted, whether or not it moved the status, and on
-  every recording attached or removed**, so not
+- **`lastActivityAt` moves on every write here that changes `step` or `closedAs`, and on
+  every interview entry added, corrected or deleted, whether or not it moved the status**, but not
+  on a date-only correction or a recording attached or removed, and not
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
   day saved again, the step it is already at, the standing it already has. That one answers with
   the application, writes nothing and logs nothing. The list is ordered by it.
@@ -1258,7 +1258,7 @@ screens read too.
   read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
   That covers the step, close, date, reopen and standing routes, an interview entry added,
   corrected or deleted, and the three recording writes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
-  included. The check is on `lastActivityAt`, inside the same batch as the write.
+  included. The check is on `updatedAt`, inside the same batch as the write.
 - **`read-posting` answers with what the text states and nothing it does not**: `company` and
   `position` are an empty string, and `requirements` an empty list, where the text names none.
   That is a `200`, not a failure. What was read is held to the limits a saved application has (200
@@ -1331,7 +1331,7 @@ off first.
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
   taken back is `404` on both of its routes.
 - **`lastActivityAt` does not move** when the documents on the application change, when a tailored
-  document is put on it, or when a copy is recorded (2026-11-02): only a status change, a date and
+  document is put on it, or when a copy is recorded (2026-11-02): only a status change and
   an interview count. The same ticks saved again write nothing.
 - A copy asked for under another application, or another user's, is `404`.
 - Logged: `application_documents_set` with the id and the counts added and removed,

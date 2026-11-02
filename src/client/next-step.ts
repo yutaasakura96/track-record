@@ -93,13 +93,10 @@ function capturePrompt(data: Overview, now: Date): Step | null {
 function quietPrompt(data: Overview): Step | null {
   const quiet = data.quietApplication;
   if (!quiet) return null;
-  const others = quiet.count - 1;
   return {
     key: "quiet",
     title: `${quiet.company} has gone quiet for ${count(quiet.quietDays, "day", "days")}, follow up?`,
-    why: `Nothing has changed there for ${count(quiet.quietDays, "day", "days")}.${
-      others > 0 ? ` ${count(others, "other application has", "other applications have")} gone quiet too.` : ""
-    } Follow up, or close it as rejected or withdrawn.`,
+    why: `Nothing has changed there for ${count(quiet.quietDays, "day", "days")}. Follow up.`,
     action: { kind: "application", label: "Open it", applicationId: quiet.id },
   };
 }
