@@ -54,6 +54,7 @@ import { isExpired } from "~/render/shikaku";
 import { recordSections, withRecordSections } from "~/render/shokumu";
 import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
+import { factsWithinBudget } from "./fact-budget";
 import { curatedGroups } from "./skills";
 import { curationForRender } from "~/shared/skills";
 
@@ -64,6 +65,8 @@ export interface RenderInputs {
   privateFactCount: number;
   /** Accepted facts held back because their provenance is Generated. */
   generatedFactCount: number;
+  /** Usable facts this document was not sent: over an employer's budget (`./fact-budget.ts`). */
+  omittedFactCount: number;
   /** Every accepted fact, however excluded — what staleness is measured against. */
   acceptedFactCount: number;
   /**
@@ -166,6 +169,12 @@ export async function collectRenderInputs(
   subjectName: string,
   /** Set for a tailored document. The facts it is given are the main document's. */
   tailoring: Tailoring | null = null,
+  /**
+   * `forModel` holds the facts to the budget (`./fact-budget.ts`), for the one
+   * caller that sends them. Every other caller assembles a file or checks text
+   * and reads every usable fact: a résumé's skills, for one, come from them.
+   */
+  options: { forModel?: boolean } = {},
 ): Promise<RenderInputs> {
   // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
   // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
@@ -257,6 +266,10 @@ export async function collectRenderInputs(
       !(f.employerId !== null && excluded.employer.has(f.employerId)) &&
       !(f.projectId !== null && excludedProjectIds.has(f.projectId)),
   );
+  // Last, so a fact excluded above never takes a place in the budget.
+  const sent = options.forModel
+    ? await factsWithinBudget(db, userId, usable, tailoring?.jobDescription ?? null)
+    : usable;
 
   // Bound before the facts are mapped, not after: the employer and project
   // names carried on a FACT follow the document's language for the same reason
@@ -266,7 +279,9 @@ export async function collectRenderInputs(
   const today = tokyoToday();
   // S9. Read only for a render with a skills section, and narrowed to what
   // THIS render is given: the technologies on the facts that survived every
-  // filter above, and on the certifications, which no render leaves out.
+  // filter above, and on the certifications, which no render leaves out. The
+  // budget is not one of those filters: a skill the author curated stays on the
+  // list when the fact naming it was not the one sent.
   const curation = definition.skillsSection ? await curatedGroups(db, userId) : [];
   // The 履歴書's gaps, for the stories alone (`RenderSpec.careerGaps`). Read
   // through the 履歴書's own record so they are the gaps its table shows,
@@ -296,7 +311,7 @@ export async function collectRenderInputs(
     if (definition.language === "en") return hasJapaneseScript(value) ? null : value;
     return isEnglishOnly(value) ? null : value;
   };
-  const renderFacts: RenderFact[] = usable.map((f) => {
+  const renderFacts: RenderFact[] = sent.map((f) => {
     const employer = f.employerId ? employerById.get(f.employerId) : undefined;
     const project = f.projectId ? projectById.get(f.projectId) : undefined;
     return {
@@ -453,6 +468,7 @@ export async function collectRenderInputs(
     },
     privateFactCount: privateFacts.length,
     generatedFactCount: generatedFacts.length,
+    omittedFactCount: usable.length - sent.length,
     acceptedFactCount: accepted.length,
     usableFactIds: accepted
       .filter((f) => f.disclosure !== "private" && f.provenance !== "generated")
@@ -514,6 +530,27 @@ export interface GenerateArgs {
 }
 
 /**
+ * The only way off `generating`, for all three endings. A run that lands after
+ * its proposal was given up on writes nothing: moving that row back to ready
+ * would put a second waiting proposal on the render, which the unique index
+ * refuses, and a failed row is one the author may already have replaced.
+ */
+const whileGenerating = (userId: string, proposalId: string) =>
+  and(
+    eq(renderProposals.userId, userId),
+    eq(renderProposals.id, proposalId),
+    eq(renderProposals.generationStatus, "generating"),
+  );
+
+/** A stated reason on a proposal generation will not finish. */
+export async function failProposal(db: Db, userId: string, proposalId: string, reason: string, usage: ModelUsage | null = null): Promise<void> {
+  await db
+    .update(renderProposals)
+    .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
+    .where(whileGenerating(userId, proposalId));
+}
+
+/**
  * Runs the model and lands the result on the proposal row. It never touches a
  * `render_versions` row and never moves `renders.current_version_id`, which is
  * what makes "a failure never destroys or mutates a stored version" true by
@@ -542,10 +579,7 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
         : null;
     if (recordDefect !== null) {
-      await db
-        .update(renderProposals)
-        .set({ generationStatus: "failed", generationError: recordDefect, updatedAt: new Date() })
-        .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
+      await failProposal(db, userId, proposalId, recordDefect);
       // Ids only.
       console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
       return;
@@ -601,20 +635,19 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec),
         generationStatus: "ready",
         generationError: null,
+        // The record as this run read it, which is later than the route did.
+        usableFactIds: inputs.usableFactIds,
         // Four keys, four columns of the same name. See `ModelUsage`.
         ...(usage ?? {}),
         updatedAt: new Date(),
       })
-      .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
+      .where(whileGenerating(userId, proposalId));
   } catch (err) {
     const reason =
       err instanceof ModelUnavailableError
         ? err.message
         : "This document could not be generated.";
-    await db
-      .update(renderProposals)
-      .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
-      .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, proposalId)));
+    await failProposal(db, userId, proposalId, reason, usage);
     // Ids only. Never the facts sent, never the content returned. Out of
     // credits is its own event: not an outage, and the proposal can be retried.
     if (err instanceof ModelCreditsExhaustedError) logCreditsExhausted("generate");

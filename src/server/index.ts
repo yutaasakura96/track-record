@@ -7,6 +7,7 @@
 import { createApp } from "./app";
 import type { Bindings } from "./env";
 
+export { GenerationWorkflow } from "~/pipeline/generation-workflow";
 export { ImportWorkflow } from "~/pipeline/workflow";
 
 const app = createApp();

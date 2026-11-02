@@ -47,6 +47,14 @@ name = "track-record-import"
 binding = "IMPORT_WORKFLOW"
 class_name = "ImportWorkflow"
 
+# Document generation. A real document takes 75 to 145 seconds and `waitUntil`
+# lasts 30 after the response, so a run is its own Workflow (docs/06, 2026-11-02).
+# With no binding the same function runs behind `waitUntil`: src/pipeline/generation.ts.
+[[workflows]]
+name = "track-record-generation"
+binding = "GENERATION_WORKFLOW"
+class_name = "GenerationWorkflow"
+
 # The 履歴書 template is a binary module. Without a rule wrangler tries to parse
 # the .docx as JavaScript; `Data` imports it as an ArrayBuffer.
 # `fallthrough` keeps wrangler's implicit default rules (notably `.bin` as Data)

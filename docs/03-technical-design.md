@@ -463,6 +463,19 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 
 ## 6. The render pipeline
 
+**A generation is a Workflow of its own** (`src/pipeline/generation.ts`, `docs/06`, 2026-11-02). A real
+document takes 75 to 145 seconds and a request's `waitUntil` lasts 30 after the response, so
+`POST /api/renders/:ref/generate` writes the proposal and hands its id to `GenerationWorkflow`, whose
+instance ID is the proposal ID. The run reads the record itself and writes to the proposal, in one
+step: its parameters and its stored state hold ids. With no binding (the suite, the seed) the same
+function runs behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
+past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
+
+**A document is sent at most `FACTS_PER_EMPLOYER` facts per employer** (`src/server/services/fact-budget.ts`),
+and the same again for facts filed under none. `collectRenderInputs` applies the budget only for the
+one caller that sends facts to the model. Every other caller reads every usable fact, and staleness
+and the skills list are unaffected.
+
 ```
 queued proposal → generate → RenderContent → language check (English or Japanese) → ready proposal
                 → diff(current, proposed) → split-view review

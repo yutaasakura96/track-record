@@ -4,10 +4,11 @@
 #
 #   main        the test entry, which builds the app with the stubbed model.
 #               Nothing in `src/server` knows a test exists (`docs/11` §1).
-#   [[workflows]]  ABSENT. `src/pipeline/workflow.ts` builds its own seam from
-#               `createModelSeam(this.env)`, so with the binding present an import
-#               would call the real Anthropic API. Without it the import runs
-#               inline with the stub (`src/pipeline/import.ts`).
+#   [[workflows]]  ABSENT, both. Each Workflow builds its own seam from
+#               `createModelSeam(this.env)`, so with a binding present an import or
+#               a generation would call the real Anthropic API. Without them both
+#               run inline with the stub (`src/pipeline/import.ts`,
+#               `src/pipeline/generation.ts`).
 #   [vars]      placeholders. Every credential here is invented and reaches nothing;
 #               the database URL and the sign-in secret are passed on the command
 #               line by `playwright.config.ts`, so this file names no database.

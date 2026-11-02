@@ -344,7 +344,7 @@ model, so it needs no API key; it takes about a minute against the local stack. 
 identical counts. It refuses `track_record_test`, a remote host without `--remote-after-backup`, and a
 user with uploaded recordings unless `--recordings-deleted` is passed.
 
-**What it deletes**, children first, for that user only (`RESET_ORDER` in `scripts/demo-seed/demo.ts`):
+**What it deletes**, children first, for that user only (`RESET_ORDER` in `scripts/demo-seed/reset.ts`):
 `interview_recordings`, `interview_questions`, `interviews`; `application_sent_copies`,
 `application_documents`, `application_steps`; `render_proposals`, `render_versions`, `renders`;
 `applications`; `fact_flags`, `facts`; `import_chunks`, `source_document_versions`,
@@ -383,6 +383,136 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
 
 ---
 
+## 5b. Clearing a record and loading a real one
+
+`npm run db:load:record` empties one user's record and loads a structured-record file in its place.
+It writes no fact and no document: those come from the real import afterwards. Decision log, 2026-11-02.
+
+**The file** is one JSON document holding what only the author can type. **It stays outside this
+repository**, and the command refuses a path inside it other than under the gitignored `local/`.
+Every row meets the rules its API route applies (`scripts/record-load/format.ts`), so a file that loads
+is one the screens could have written, and an unknown key is refused rather than dropped.
+
+| Key | Holds | Rules |
+|---|---|---|
+| `formatVersion` | `1` | Required |
+| `profile` | `familyNameKanji`, `givenNameKanji`, `familyNameKana`, `givenNameKana`, `nameLatin`, `dateOfBirth`, `phone`, `email`, `postalCode`, `address`, `addressKana` are required. `gender`, `contactSameAsAddress`, `contactPostalCode`, `contactAddress`, `contactAddressKana`, `desiredRoleNote`, `resumeHeadline`, `resumeCity`, `resumeCountry`, `resumePhone`, `resumeLinkedinUrl`, `resumeGithubUrl`, `resumePortfolioUrl`, `paperSize` (`a4` or `letter`) are optional | Kana is hiragana, never katakana |
+| `employers[]` | `nameJa`, `employmentType` (`full_time`, `contract`, `dispatch`, `part_time`, `independent`), `startedOn` and `roles[]` are required. `nameLatin`, `industryJa`, `city`, `businessDescription`, `capitalYen`, `headcount`, `endedOn`, `leavingReasonJa` are optional | At least one employer. `capitalYen` is in yen, not 万円. No `endedOn` is the current employer. The listed order is `sortOrder` |
+| `employers[].roles[]` | `startedOn` is required. `titleJa`, `titleLatin`, `shokushuJa`, `endedOn` are optional | A promotion is a second row |
+| `educations[]` | `institution`, `outcome` (`graduated`, `completed`, `withdrawn`, `expected`), `level` (`secondary_lower`, `secondary_upper`, `vocational`, `tertiary`, `postgraduate`) are required. `institutionJa`, `faculty`, `degree`, `fieldOfStudy`, `startedOn`, `endedOn` are optional | An outcome other than `expected` needs `endedOn`. Every row needs one of the two dates |
+| `certifications[]` | `name`, `issuingOrganization`, `kind` (`technical`, `language`, `other`) are required. `nameJa`, `issuedOn`, `expiresOn`, `credentialId`, `credentialUrl`, `technologies` are optional | `kind` decides where the English résumé puts it |
+
+Every date is a month written `YYYY-MM-01`. The photo, gap notes, skill curation, projects and
+applications are not in the file: the screens add them after the load. An example, all of it invented:
+
+```json
+{
+  "formatVersion": 1,
+  "profile": {
+    "familyNameKanji": "架空",
+    "givenNameKanji": "太郎",
+    "familyNameKana": "かくう",
+    "givenNameKana": "たろう",
+    "nameLatin": "Taro Kakuu",
+    "dateOfBirth": "1991-04-01",
+    "phone": "090-0000-0000",
+    "email": "taro.kakuu@example.invalid",
+    "postalCode": "100-0000",
+    "address": "東京都千代田区例町1-2-3",
+    "addressKana": "とうきょうと ちよだく れいちょう 1-2-3",
+    "resumeCity": "Tokyo",
+    "resumeCountry": "Japan"
+  },
+  "employers": [
+    {
+      "nameJa": "株式会社例示システム",
+      "nameLatin": "Example Systems K.K.",
+      "industryJa": "情報サービス業",
+      "city": "Tokyo",
+      "businessDescription": "受託開発と運用保守",
+      "capitalYen": 10000000,
+      "headcount": 120,
+      "employmentType": "full_time",
+      "startedOn": "2021-04-01",
+      "endedOn": "2024-03-01",
+      "leavingReasonJa": "一身上の都合により",
+      "roles": [
+        {
+          "titleJa": "ソフトウェアエンジニア",
+          "titleLatin": "Software Engineer",
+          "shokushuJa": "システムエンジニア",
+          "startedOn": "2021-04-01",
+          "endedOn": "2024-03-01"
+        }
+      ]
+    }
+  ],
+  "educations": [
+    {
+      "institution": "Reishi University",
+      "institutionJa": "例示大学",
+      "faculty": "工学部",
+      "degree": "B.Eng.",
+      "fieldOfStudy": "Information Engineering",
+      "startedOn": "2017-04-01",
+      "endedOn": "2021-03-01",
+      "outcome": "graduated",
+      "level": "tertiary"
+    }
+  ],
+  "certifications": [
+    {
+      "name": "Example Cloud Practitioner",
+      "nameJa": "例示クラウド基礎",
+      "issuingOrganization": "Example Cloud",
+      "issuedOn": "2022-06-01",
+      "kind": "technical",
+      "technologies": ["Example Cloud"]
+    }
+  ]
+}
+```
+
+**Check a file first.** `npm run db:load:record -- --file <path> --check` needs no database. It prints
+the counts, then `advisories`: the fields a document will want that the file left empty, which do not
+stop a load. A refused file is named by place and rule, and no value from it is ever printed.
+
+**What it refuses**, before it touches anything: `track_record_test`; a remote host without
+`--remote-after-backup`; a user with uploaded recordings, unless told what to do about them; an import
+or a generation still running; and a file that fails the rules above. It takes no default user:
+`--email` is required.
+
+**Recordings.** `--clear-recordings` deletes every R2 object under `<userId>/`, objects only and never
+the bucket, then checks that listing the prefix returns nothing. Against a local database that is the
+`wrangler dev` bucket on disk. Against a remote one it needs `CLOUDFLARE_ACCOUNT_ID` and
+`CLOUDFLARE_API_TOKEN`; `npx wrangler auth token` prints a token it can use. `--recordings-deleted` says
+they were deleted by hand, as in §5a.
+
+**What it deletes** is §5a's list, for that user only, in one transaction with the inserts: a load that
+fails leaves the record it found. It keeps `users`, `sessions`, `accounts` and `verifications`, so the
+owner stays signed in. The 履歴書 photo goes with the profile row.
+
+**Production** is a deliberate, owner-approved step:
+
+1. **Back up**, three ways, all before anything is deleted: a Neon branch of `main` named for the
+   date (the free plan allows 10), a noted timestamp for the restore window (§5), and `GET /api/export`
+   checked with `npm run restore:drill`.
+2. **Confirm** that `main` is the deployed commit and that no import is running (§3).
+3. **Run it**, from a checkout of the deployed commit:
+
+   ```sh
+   DATABASE_URL='<production connection string>' CLOUDFLARE_ACCOUNT_ID='<account>' CLOUDFLARE_API_TOKEN='<token>' \
+     npm run db:load:record -- --file <path> --email <owner email> --remote-after-backup --clear-recordings
+   ```
+
+4. **Verify.** The last line prints the counts: the file's employers, roles, educations and
+   certifications, and `facts`, `documents` and `renders` all 0. In the app the sidebar shows the
+   author's name and Kenji Moriyama appears nowhere.
+5. **Take a Neon branch of this empty state.** It is the point to return to if an import goes wrong
+   after the restore window has closed.
+
+---
+
 ## 6. Incident: a leaked key
 
 First three steps, written now rather than during the fire.
@@ -409,7 +539,7 @@ notice an outage. Alerting on uptime would be alerting the person already using 
 |---|---|---|
 | **Anthropic spend and credit balance** | Provider dashboard, **with a billing alert set** | Signals approaching the workspace limit or exhausting the shared credits (§9); unexpected spend can signal a leaked key |
 | Worker errors and CPU time | Cloudflare dashboard | CPU headroom for `.docx` assembly is an open question (`03` §11) |
-| Failed Workflow instances | Cloudflare Workflows dashboard | A silently failing import is invisible from inside the app |
+| Failed Workflow instances | Cloudflare Workflows dashboard (`track-record-import`, `track-record-generation`) | A silently failing import is invisible from inside the app |
 | Neon storage and compute hours | Neon dashboard | Free-tier ceiling |
 | The commit SHA in the SPA shell | `GET /` (§3 step 6) | Confirms *which build* is live — the question you ask when behaviour is unexplained. Not a route: deny-by-default allows none (decision log, 2026-09-28) |
 
