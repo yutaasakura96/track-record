@@ -316,6 +316,79 @@
   --shadow-glow: 0 0 0 1px rgba(94, 106, 210, 0.5), 0 0 22px rgba(94, 106, 210, 0.18);
 }
 
+/* ------------------------------------------------------------------ paper */
+
+/* A document is shown as it prints: paper-white in dark mode too (decision
+ * log 2026-11-02). `paper` puts the light colour values back on its subtree,
+ * so every token inside resolves light and the surrounding screen keeps the
+ * theme. These are the @theme colours above, unchanged. */
+.paper {
+  color-scheme: light;
+  background: var(--color-card);
+  color: var(--color-text);
+
+  --color-bg: #ffffff;
+  --color-surface: #f7f8fa;
+  --color-surface-raised: #f3f4f7;
+  --color-card: #ffffff;
+  --color-card-selected: #f4f5fe;
+  --color-card-recessed: #eef0f3;
+  --color-chip: #eceef2;
+  --color-shade: #eceef2;
+  --color-hover: #e8eaee;
+  --color-border: #dcdfe5;
+  --color-border-subtle: #e9ebef;
+  --color-border-inner: #e4e6eb;
+  --color-border-control: #c9ced6;
+  --color-border-strong: #b9bfc9;
+  --color-border-active: #9aa1ad;
+  --color-border-dashed: #b3b9c4;
+  --color-text-bright: #0d0e12;
+  --color-text: #1a1c21;
+  --color-text-strong: #22252b;
+  --color-text-secondary: #383c45;
+  --color-text-body: #2e3138;
+  --color-text-muted: #4a4f59;
+  --color-text-dim: #525762;
+  --color-text-dimmer: #595e69;
+  --color-text-faint: #5f6470;
+  --color-text-ghost: #8a909b;
+  --color-on-accent: #ffffff;
+  --color-accent: #5e6ad2;
+  --color-accent-hover: #4f5bc4;
+  --color-accent-text: #3f4bb3;
+  --color-accent-link: #4450bd;
+  --color-accent-link-hover: #323c9c;
+  --color-measured: #1f8a55;
+  --color-measured-text: #146c43;
+  --color-generated: #b97a14;
+  --color-generated-text: #7d5207;
+  --color-generated-claim: #6b5a36;
+  --color-removed: #b3363c;
+  --color-restricted: #374c6e;
+  --color-restricted-bg: rgba(84, 110, 150, 0.16);
+  --color-private: #33373f;
+  --color-private-bg: #dfe2e7;
+  --color-selection: rgba(94, 106, 210, 0.25);
+  --color-mark-idle: rgba(94, 106, 210, 0.1);
+  --color-mark-rule: rgba(94, 106, 210, 0.55);
+  --color-mark-selected: rgba(94, 106, 210, 0.24);
+  --color-generated-mark: rgba(185, 122, 20, 0.1);
+  --color-generated-rule: rgba(185, 122, 20, 0.75);
+  --color-private-mark: rgba(13, 14, 18, 0.05);
+  --color-private-rule: #8a909b;
+  --color-private-mark-text: #555a64;
+  --color-rejected-rule: #9aa1ad;
+  --color-add-idle: rgba(31, 138, 85, 0.13);
+  --color-add-selected: rgba(31, 138, 85, 0.28);
+  --color-add-row: rgba(31, 138, 85, 0.06);
+  --color-remove-idle: rgba(179, 54, 60, 0.11);
+  --color-remove-selected: rgba(179, 54, 60, 0.26);
+  --color-remove-row: rgba(179, 54, 60, 0.05);
+  --color-progress-track: #dfe2e7;
+  --color-disabled-bg: #eef0f3;
+}
+
 /* ------------------------------------------------------------------ base */
 
 @layer base {

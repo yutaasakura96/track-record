@@ -99,6 +99,7 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   const shade = async () => identityCells.nth(2).evaluate((element) => getComputedStyle(element).backgroundColor);
   const lightShade = await shade();
   expect(lightShade).not.toBe("rgba(0, 0, 0, 0)");
+  await expect(page.getByRole("article")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await capture(page, "rirekisho-current-light.png");
   const version = await context.request.get("/api/renders/rirekisho/page");
   expect(version.ok()).toBe(true);
@@ -111,8 +112,8 @@ test("current and legacy 履歴書 pages match their printed files in both theme
   await page.getByRole("radio", { name: "Dark" }).click();
   await checkForm(page);
   const darkShade = await shade();
-  expect(darkShade).not.toBe(lightShade);
-  expect(darkShade).not.toBe("rgba(0, 0, 0, 0)");
+  expect(darkShade).toBe(lightShade);
+  await expect(page.getByRole("article")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await capture(page, "rirekisho-current-dark.png");
 
   const made = await context.request.post("/api/applications", {
@@ -146,10 +147,12 @@ test("current and legacy 履歴書 pages match their printed files in both theme
 
   await page.goto(`/applications/${application.id}/sent/${copyId}`);
   await checkForm(page);
+  await expect(page.getByRole("article")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await expect(page.getByRole("article")).not.toContainText("架空県別市9-9-9");
   await capture(page, "rirekisho-legacy-dark.png");
   await page.getByRole("radio", { name: "Light" }).click();
   await checkForm(page);
+  await expect(page.getByRole("article")).toHaveCSS("background-color", "rgb(255, 255, 255)");
   await capture(page, "rirekisho-legacy-light.png");
 
   await db.update(applicationSentCopies).set({ file: Buffer.from("unreadable") }).where(eq(applicationSentCopies.id, copyId));
