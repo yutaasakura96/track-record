@@ -7981,6 +7981,7 @@ part of this.
   a run landing after it was given up on would otherwise put a second waiting proposal on the render.
 - **Reason:** Cloudflare's docs give `waitUntil` 30 seconds after the response, and a Workflow step
   unlimited wall time with 30 seconds of CPU (read 2026-11-02). Waiting on the model is not CPU.
+- **Decision:** inline generation without a Workflow binding is limited to disposable tests and the demo seed; a deployed Worker without the binding fails the proposal.
 - **Revisit if:** a real generation fails at the deadline or the step timeout; or generation gets a
   way to cancel a run, which dismissing does not do: the model call runs on and its usage is recorded.
 
@@ -7994,8 +7995,7 @@ part of this.
   employer, not one total, so the largest portfolio cannot crowd out the smallest job.
 - **Decision:** an employer under budget loses nothing. One over it keeps facts in tiers: no open flag,
   then an open flag other than `repeat`, then an open `repeat`, because a repeat's content is carried
-  by another fact. A checked flag does not count: the author ruled on it. On a tailored document,
-  within each of those, a fact naming a technology the posting names comes first.
+  by another fact. A checked flag does not count: the author ruled on it.
 - **Decision:** the last tier that fits only in part is sampled evenly by source position. Taking the
   first 150 would have written every document from a portfolio's first case studies.
 - **Decision:** provenance is not a tier. Measured facts alone can fill a budget, and a 職務経歴書 and a
@@ -8015,14 +8015,14 @@ part of this.
 - **Decision:** `npm run db:load:record` empties one user's record and loads a JSON file of what only
   the author types: profile, employers with their roles, educations, certifications. Format and
   runbook are `docs/12` §5b. The file stays out of the repository and the command refuses a path
-  inside it, except under `local/`.
+  inside it, including `local/`.
 - **Decision:** JSON, validated by the API routes' own schemas made strict. A file that loads is one
   the screens could have written, and a misspelt key is refused rather than loaded as an empty field.
 - **Decision:** the deletes and the inserts are one transaction, not `resetUser` then inserts. A load
   that fails leaves the record it found. `RESET_ORDER` moved to `scripts/demo-seed/reset.ts` so both
   commands share it and the load needs no part of the demo.
-- **Decision:** `--clear-recordings` deletes R2 objects by prefix, not by row, because an object can
-  outlive its row, and checks the prefix is empty before any row is touched. Production goes through
+- **Decision:** the load always deletes R2 objects by prefix, not by row, because an object can
+  outlive its row, and checks the prefix is empty after the database transaction commits. A failed R2 delete leaves only orphaned objects for a rerun to clear. Production goes through
   Cloudflare's REST API, since wrangler has no list command and a script has no binding. The code has
   no verb that reaches the bucket.
 - **Decision:** beyond the seed's refusals, it refuses while an import or generation is running: a

@@ -226,6 +226,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       userId: user.id,
       proposalId,
       workflow: c.env.GENERATION_WORKFLOW,
+      inlineTest: c.env.GENERATION_INLINE_TEST,
       waitUntil: (work) => c.executionCtx.waitUntil(work),
     });
 

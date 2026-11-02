@@ -389,7 +389,7 @@ Google account. Uploaded documents and sent copies live in Postgres columns; onl
 It writes no fact and no document: those come from the real import afterwards. Decision log, 2026-11-02.
 
 **The file** is one JSON document holding what only the author can type. **It stays outside this
-repository**, and the command refuses a path inside it other than under the gitignored `local/`.
+repository**, and the command refuses every path inside it, including `local/`.
 Every row meets the rules its API route applies (`scripts/record-load/format.ts`), so a file that loads
 is one the screens could have written, and an unknown key is refused rather than dropped.
 
@@ -473,20 +473,17 @@ applications are not in the file: the screens add them after the load. An exampl
 }
 ```
 
-**Check a file first.** `npm run db:load:record -- --file <path> --check` needs no database. It prints
-the counts, then `advisories`: the fields a document will want that the file left empty, which do not
-stop a load. A refused file is named by place and rule, and no value from it is ever printed.
+A refused file is named by place and rule, and no value from it is ever printed.
 
 **What it refuses**, before it touches anything: `track_record_test`; a remote host without
-`--remote-after-backup`; a user with uploaded recordings, unless told what to do about them; an import
+`--remote-after-backup`; unavailable R2 credentials; an import
 or a generation still running; and a file that fails the rules above. It takes no default user:
 `--email` is required.
 
-**Recordings.** `--clear-recordings` deletes every R2 object under `<userId>/`, objects only and never
-the bucket, then checks that listing the prefix returns nothing. Against a local database that is the
+**Recordings.** Every load deletes every R2 object under `<userId>/`, objects only and never
+the bucket, after the database transaction commits, then checks that listing the prefix returns nothing. A failed R2 delete leaves orphaned objects that a rerun clears. Against a local database that is the
 `wrangler dev` bucket on disk. Against a remote one it needs `CLOUDFLARE_ACCOUNT_ID` and
-`CLOUDFLARE_API_TOKEN`; `npx wrangler auth token` prints a token it can use. `--recordings-deleted` says
-they were deleted by hand, as in §5a.
+`CLOUDFLARE_API_TOKEN`; `npx wrangler auth token` prints a token it can use.
 
 **What it deletes** is §5a's list, for that user only, in one transaction with the inserts: a load that
 fails leaves the record it found. It keeps `users`, `sessions`, `accounts` and `verifications`, so the
@@ -502,7 +499,7 @@ owner stays signed in. The 履歴書 photo goes with the profile row.
 
    ```sh
    DATABASE_URL='<production connection string>' CLOUDFLARE_ACCOUNT_ID='<account>' CLOUDFLARE_API_TOKEN='<token>' \
-     npm run db:load:record -- --file <path> --email <owner email> --remote-after-backup --clear-recordings
+     npm run db:load:record -- --file <path> --email <owner email> --remote-after-backup
    ```
 
 4. **Verify.** The last line prints the counts: the file's employers, roles, educations and

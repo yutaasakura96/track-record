@@ -49,7 +49,7 @@ class_name = "ImportWorkflow"
 
 # Document generation. A real document takes 75 to 145 seconds and `waitUntil`
 # lasts 30 after the response, so a run is its own Workflow (docs/06, 2026-11-02).
-# With no binding the same function runs behind `waitUntil`: src/pipeline/generation.ts.
+# A binding is required in production; disposable tests opt into inline generation.
 [[workflows]]
 name = "track-record-generation"
 binding = "GENERATION_WORKFLOW"

@@ -30,6 +30,7 @@ export interface Bindings extends ModelBindings {
   IMPORT_WORKFLOW?: Pick<Workflow, "create" | "get">;
   /** Absent in the suite and the seed; see src/pipeline/generation.ts. */
   GENERATION_WORKFLOW?: Pick<Workflow, "create">;
+  GENERATION_INLINE_TEST?: "true";
 }
 
 /** Established by the session middleware. Never optional downstream of it. */

@@ -467,7 +467,7 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 document takes 75 to 145 seconds and a request's `waitUntil` lasts 30 after the response, so
 `POST /api/renders/:ref/generate` writes the proposal and hands its id to `GenerationWorkflow`, whose
 instance ID is the proposal ID. The run reads the record itself and writes to the proposal, in one
-step: its parameters and its stored state hold ids. With no binding (the suite, the seed) the same
+step: its parameters and its stored state hold ids. In disposable test configurations (the suite, the e2e worker and the seed) the same
 function runs behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 

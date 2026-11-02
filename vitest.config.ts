@@ -49,6 +49,7 @@ export default defineConfig({
                 GOOGLE_CLIENT_ID: "oidc-fixture-client",
                 GOOGLE_CLIENT_SECRET: "oidc-fixture-secret",
                 ALLOWED_SIGNUP_EMAILS: "author@example.invalid,second@example.invalid",
+                GENERATION_INLINE_TEST: "true",
               },
             },
           }),

@@ -14,7 +14,7 @@ import { env } from "cloudflare:test";
 import type { WorkflowStep } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { GENERATE_STEP, GENERATION_DEADLINE_MS, GENERATION_LOST, generateProposal } from "~/pipeline/generation";
+import { GENERATE_STEP, GENERATION_DEADLINE_MS, GENERATION_LOST, generateProposal, startGeneration } from "~/pipeline/generation";
 import { GenerationWorkflow } from "~/pipeline/generation-workflow";
 import { createDb } from "~/server/db/client";
 import { facts, renderProposals } from "~/server/db/schema";
@@ -235,6 +235,15 @@ describe("generating always ends", () => {
 
     expect(response.status).toBe(202);
     const { proposalId } = (await response.json()) as { proposalId: string };
+    expect((await proposal(proposalId)).generationStatus).toBe("failed");
+  });
+
+  it("refuses inline generation outside disposable test configuration", async () => {
+    const proposalId = await generate();
+    const waitUntil = vi.fn();
+    await startGeneration({ db, model, userId: user.id, proposalId, workflow: undefined, inlineTest: undefined, waitUntil });
+    expect(waitUntil).not.toHaveBeenCalled();
+    expect(model.generationInputs).toHaveLength(0);
     expect((await proposal(proposalId)).generationStatus).toBe("failed");
   });
 

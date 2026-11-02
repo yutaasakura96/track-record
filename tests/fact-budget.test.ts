@@ -17,7 +17,7 @@ import { factFlags, facts, skillCurations } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { newId } from "~/server/http/ids";
 import { collectRenderInputs } from "~/server/services/render";
-import { FACTS_PER_EMPLOYER, chooseFacts, namesTechnology, type BudgetedFact } from "~/server/services/fact-budget";
+import { FACTS_PER_EMPLOYER, chooseFacts, type BudgetedFact } from "~/server/services/fact-budget";
 import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
 import { PROFILE_FIXTURE, postJob, seedAllowedUser } from "./helpers/seed";
 
@@ -27,7 +27,6 @@ const db = createDb(bindings.DATABASE_URL);
 const fact = (n: number, over: Partial<BudgetedFact> = {}): BudgetedFact => ({
   id: `fct_${String(n).padStart(5, "0")}`,
   employerId: "emp_1",
-  technologies: [],
   sourceDocumentVersionId: "sdv_1",
   quoteStart: n * 100,
   ...over,
@@ -38,7 +37,7 @@ const NONE = new Map<string, Set<string>>();
 describe("choosing an employer's facts", () => {
   it("keeps everything at or under the budget, in the order given", () => {
     const held = [fact(3), fact(1), fact(2)];
-    expect(chooseFacts(held, NONE, null, 3)).toEqual(held);
+    expect(chooseFacts(held, NONE, 3)).toEqual(held);
   });
 
   it("leaves repeats out first, then facts with another open flag", () => {
@@ -51,14 +50,14 @@ describe("choosing an employer's facts", () => {
     ]);
     const all = [...repeats, ...flagged, ...clean];
 
-    expect(chooseFacts(all, open, null, 2)).toEqual(clean);
-    expect(chooseFacts(all, open, null, 4).map((f) => f.id).sort()).toEqual([...flagged, ...clean].map((f) => f.id).sort());
-    expect(chooseFacts(all, open, null, 5).filter((f) => repeats.includes(f))).toHaveLength(1);
+    expect(chooseFacts(all, open, 2)).toEqual(clean);
+    expect(chooseFacts(all, open, 4).map((f) => f.id).sort()).toEqual([...flagged, ...clean].map((f) => f.id).sort());
+    expect(chooseFacts(all, open, 5).filter((f) => repeats.includes(f))).toHaveLength(1);
   });
 
   it("thins a tier evenly through its source, not from the end", () => {
     const held = Array.from({ length: 1000 }, (_, n) => fact(n));
-    const kept = chooseFacts(held, NONE, null, 100);
+    const kept = chooseFacts(held, NONE, 100);
 
     expect(kept).toHaveLength(100);
     expect(new Set(kept.map((f) => f.id)).size).toBe(100);
@@ -71,29 +70,13 @@ describe("choosing an employer's facts", () => {
   it("chooses the same facts whatever order they arrive in", () => {
     const held = Array.from({ length: 300 }, (_, n) => fact(n));
     const ids = (facts: BudgetedFact[]) => facts.map((f) => f.id).sort();
-    expect(ids(chooseFacts([...held].reverse(), NONE, null, 50))).toEqual(ids(chooseFacts(held, NONE, null, 50)));
+    expect(ids(chooseFacts([...held].reverse(), NONE, 50))).toEqual(ids(chooseFacts(held, NONE, 50)));
   });
 
-  it("keeps what a posting names on a tailored document, and ignores it on any other", () => {
-    const named = fact(900, { technologies: ["PostgreSQL"] });
-    const held = [...Array.from({ length: 10 }, (_, n) => fact(n)), named];
-
-    expect(chooseFacts(held, NONE, "We run PostgreSQL at scale.", 1)).toEqual([named]);
-    expect(chooseFacts(held, NONE, null, 1)).not.toEqual([named]);
-  });
-
-  it("does not let a repeat that a posting names pass a clean fact", () => {
-    const repeat = fact(1, { technologies: ["Kafka"] });
+  it("does not let a repeat pass a clean fact", () => {
+    const repeat = fact(1);
     const clean = fact(2);
-    expect(chooseFacts([repeat, clean], new Map([[repeat.id, new Set(["repeat"])]]), "Kafka shop.", 1)).toEqual([clean]);
-  });
-
-  it("reads a technology as a word", () => {
-    expect(namesTechnology("Good with Golang and C#.", "Go")).toBe(false);
-    expect(namesTechnology("Experience with Go, please.", "Go")).toBe(true);
-    expect(namesTechnology("C++ and Go.", "C")).toBe(false);
-    expect(namesTechnology("C++ の開発経験", "C++")).toBe(true);
-    expect(namesTechnology("AWS と Node.js の経験", "node.js")).toBe(true);
+    expect(chooseFacts([repeat, clean], new Map([[repeat.id, new Set(["repeat"])]]), 1)).toEqual([clean]);
   });
 });
 

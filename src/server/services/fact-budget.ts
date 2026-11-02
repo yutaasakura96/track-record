@@ -29,15 +29,8 @@ export const FACTS_PER_EMPLOYER = 150;
 export interface BudgetedFact {
   id: string;
   employerId: string | null;
-  technologies: string[];
   sourceDocumentVersionId: string | null;
   quoteStart: number | null;
-}
-
-/** Whether `text` names `technology` as a word of its own: `Go` is not in `good`. */
-export function namesTechnology(text: string, technology: string): boolean {
-  const escaped = technology.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(^|[^a-z0-9+#.])${escaped}($|[^a-z0-9+#])`).test(text.toLowerCase());
 }
 
 /** Where a fact sits in what it was read from, so taking every nth one spreads across it. */
@@ -55,22 +48,17 @@ const evenly = <T>(sorted: T[], count: number): T[] =>
  *
  * - a fact with no open flag before one the importer flagged for a look;
  * - a repeat after everything else, since what it says is said by another fact
- *   (a flag the author checked no longer counts: they ruled on it);
- * - on a tailored document, within each of those, a fact naming a technology
- *   the posting names before one that does not.
+ *   (a flag the author checked no longer counts: they ruled on it).
  */
 export function chooseFacts<T extends BudgetedFact>(
   facts: T[],
   openFlags: ReadonlyMap<string, ReadonlySet<string>>,
-  jobDescription: string | null,
   budget: number = FACTS_PER_EMPLOYER,
 ): T[] {
   if (facts.length <= budget) return facts;
   const tierOf = (fact: T): number => {
     const open = openFlags.get(fact.id);
-    const standing = open?.has("repeat") ? 4 : open && open.size > 0 ? 2 : 0;
-    const off = jobDescription !== null && !fact.technologies.some((t) => namesTechnology(jobDescription, t));
-    return standing + (off ? 1 : 0);
+    return open?.has("repeat") ? 2 : open && open.size > 0 ? 1 : 0;
   };
   const tiers = new Map<number, T[]>();
   for (const fact of facts) {
@@ -94,7 +82,6 @@ export async function factsWithinBudget<T extends BudgetedFact>(
   db: Db,
   userId: string,
   facts: T[],
-  jobDescription: string | null,
 ): Promise<T[]> {
   const byEmployer = new Map<string | null, T[]>();
   for (const fact of facts) {
@@ -116,7 +103,7 @@ export async function factsWithinBudget<T extends BudgetedFact>(
   }
 
   const kept = new Set(
-    [...byEmployer.values()].flatMap((held) => chooseFacts(held, openFlags, jobDescription).map((fact) => fact.id)),
+    [...byEmployer.values()].flatMap((held) => chooseFacts(held, openFlags).map((fact) => fact.id)),
   );
   return facts.filter((fact) => kept.has(fact.id));
 }

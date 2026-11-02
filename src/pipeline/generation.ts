@@ -3,8 +3,8 @@
  *
  * A real document takes 75 to 145 seconds, and a request's `waitUntil` lasts 30
  * after the response. So the route writes the proposal and hands it here; the
- * Workflow in `./generation-workflow.ts` carries it, and with no binding (the
- * suite, the seed, a server without Workflows) the same function runs behind
+ * Workflow in `./generation-workflow.ts` carries it, and in disposable tests
+ * and the demo seed the same function runs behind
  * `waitUntil`, as an import does.
  *
  * The run carries ids and reads the record itself. What the model is sent is
@@ -96,11 +96,16 @@ export async function stopGeneration({ db, userId, proposalId }: Pick<Generation
 export async function startGeneration(
   deps: GenerationDeps & {
     workflow: Bindings["GENERATION_WORKFLOW"];
+    inlineTest: Bindings["GENERATION_INLINE_TEST"];
     waitUntil: (work: Promise<unknown>) => void;
   },
 ): Promise<void> {
-  const { workflow, waitUntil, ...run } = deps;
+  const { workflow, inlineTest, waitUntil, ...run } = deps;
   if (!workflow) {
+    if (inlineTest !== "true") {
+      await stopGeneration(run);
+      return;
+    }
     waitUntil(generateProposal(run).catch(() => stopGeneration(run)));
     return;
   }

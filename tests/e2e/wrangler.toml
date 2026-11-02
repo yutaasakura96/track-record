@@ -36,6 +36,7 @@ run_worker_first = ["/api/*"]
 [vars]
 ANTHROPIC_API_KEY = "test-key-never-used"
 ANTHROPIC_MODEL = "claude-opus-5"
+GENERATION_INLINE_TEST = "true"
 
 # Emulated on disk under `--local`; the name is never reached.
 [[r2_buckets]]

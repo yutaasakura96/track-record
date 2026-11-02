@@ -268,7 +268,7 @@ export async function collectRenderInputs(
   );
   // Last, so a fact excluded above never takes a place in the budget.
   const sent = options.forModel
-    ? await factsWithinBudget(db, userId, usable, tailoring?.jobDescription ?? null)
+    ? await factsWithinBudget(db, userId, usable)
     : usable;
 
   // Bound before the facts are mapped, not after: the employer and project

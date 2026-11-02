@@ -12,8 +12,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import * as s from "~/server/db/schema";
 import { newId } from "~/server/http/ids";
-import { assertRecordingsGone } from "../demo-seed/guard";
-import { RESET_ORDER, resetStatements, uploadedRecordings } from "../demo-seed/reset";
+import { RESET_ORDER, resetStatements } from "../demo-seed/reset";
 import type { RecordFile } from "./format";
 import { clearRecordingObjects, type RecordingObjects } from "./recordings";
 
@@ -71,15 +70,12 @@ export async function clearAndLoad(
   db: Db,
   userId: string,
   record: RecordFile,
-  options: { flags: readonly string[]; objects?: RecordingObjects },
+  objects: RecordingObjects,
 ): Promise<LoadCounts> {
   await assertNothingRunning(db, userId);
-  // Before any delete, because the rows are how the guard knows there are uploads.
-  const recordingObjectsDeleted = options.objects ? await clearRecordingObjects(options.objects, userId) : 0;
-  if (!options.objects) assertRecordingsGone(await uploadedRecordings(db, userId), userId, options.flags);
-
   const [first, ...rest] = [...resetStatements(db, userId), ...loadStatements(db, userId, record)];
   await db.batch([first!, ...rest]);
+  const recordingObjectsDeleted = await clearRecordingObjects(objects, userId);
 
   const count = async (table: (typeof RESET_ORDER)[number]) =>
     (await db.select({ n: sql<number>`count(*)::int` }).from(table).where(eq(table.userId, userId)))[0]?.n ?? 0;

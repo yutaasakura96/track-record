@@ -1,9 +1,7 @@
 /**
- * `npm run db:load:record -- --file <path> --check`
- * `npm run db:load:record -- --file <path> --email <address> [--remote-after-backup] [--clear-recordings | --recordings-deleted]`
+ * `npm run db:load:record -- --file <path> --email <address> [--remote-after-backup]`
  *
- * `--check` reads the file and touches nothing else. Without it, this empties
- * ONE user's record and loads the file in its place. `./load.ts` does the work;
+ * This empties ONE user's record and loads the file in its place. `./load.ts` does the work;
  * the refusals are the demo seed's (`../demo-seed/guard.ts`), and the runbook
  * is `docs/12` §5b. It prints counts and field names, never a value from the file.
  */
@@ -15,9 +13,9 @@ import { createDb } from "~/server/db/client";
 import * as s from "~/server/db/schema";
 import { databaseTarget, devVar } from "../../tests/database-guard";
 import { assertSeedTarget } from "../demo-seed/guard";
-import { assertOutsideRepository, parseRecordFile, recordAdvisories } from "./format";
+import { assertOutsideRepository, parseRecordFile } from "./format";
 import { clearAndLoad } from "./load";
-import { CLEAR_RECORDINGS_FLAG, boundObjects, cloudflareObjects, type RecordingObjects } from "./recordings";
+import { boundObjects, cloudflareObjects, type RecordingObjects } from "./recordings";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -48,7 +46,7 @@ async function recordingObjects(url: string): Promise<{ objects: RecordingObject
   }
   const accountId = process.env.CLOUDFLARE_ACCOUNT_ID;
   const token = process.env.CLOUDFLARE_API_TOKEN;
-  if (!accountId || !token) throw new Error(`${CLEAR_RECORDINGS_FLAG} against a remote database needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.`);
+  if (!accountId || !token) throw new Error("A remote record load needs CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN.");
   return { objects: cloudflareObjects({ accountId, token }), dispose: async () => {} };
 }
 
@@ -57,21 +55,6 @@ async function main(): Promise<void> {
   if (!file) throw new Error("Name the record file with --file <path>.");
   assertOutsideRepository(file, root);
   const record = parseRecordFile(readFileSync(file, "utf8"));
-  const advisories = recordAdvisories(record);
-
-  if (process.argv.includes("--check")) {
-    console.log(
-      JSON.stringify({
-        employers: record.employers.length,
-        roles: record.employers.flatMap((employer) => employer.roles).length,
-        educations: record.educations.length,
-        certifications: record.certifications.length,
-        advisories,
-      }),
-    );
-    return;
-  }
-
   const url = databaseUrl();
   assertSeedTarget(url, process.argv);
   // Named every time. This replaces a real record, so it has no default user.
@@ -81,12 +64,12 @@ async function main(): Promise<void> {
   const [user] = await db.select({ id: s.users.id }).from(s.users).where(eq(s.users.email, email)).limit(1);
   if (!user) throw new Error(`No user ${email}. Sign in once first: the record hangs off the user row.`);
 
-  const recordings = process.argv.includes(CLEAR_RECORDINGS_FLAG) ? await recordingObjects(url) : null;
+  const recordings = await recordingObjects(url);
   try {
-    const counts = await clearAndLoad(db, user.id, record, { flags: process.argv, objects: recordings?.objects });
-    console.log(JSON.stringify({ ...counts, advisories }));
+    const counts = await clearAndLoad(db, user.id, record, recordings.objects);
+    console.log(JSON.stringify(counts));
   } finally {
-    await recordings?.dispose();
+    await recordings.dispose();
   }
 }
 

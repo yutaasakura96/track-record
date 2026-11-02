@@ -9,8 +9,6 @@
  */
 import { recordingObjectKey } from "~/server/services/recording-store";
 
-export const CLEAR_RECORDINGS_FLAG = "--clear-recordings";
-
 /** Named in `wrangler.toml`, which is the only thing that binds it. */
 export const RECORDINGS_BUCKET = "track-record-recordings";
 
@@ -19,7 +17,7 @@ export interface RecordingObjects {
   delete(keys: string[]): Promise<void>;
 }
 
-/** How many it deleted. Stops if any are left, before anything else is touched. */
+/** How many it deleted. Stops if any are left. */
 export async function clearRecordingObjects(objects: RecordingObjects, userId: string): Promise<number> {
   // An empty id would make the prefix the whole bucket's.
   if (!userId) throw new Error("No user to clear recordings for.");
@@ -27,7 +25,7 @@ export async function clearRecordingObjects(objects: RecordingObjects, userId: s
   const keys = await objects.list(prefix);
   await objects.delete(keys);
   const left = await objects.list(prefix);
-  if (left.length > 0) throw new Error(`${left.length} recording object(s) are still in R2 under "${prefix}". Nothing else was changed.`);
+  if (left.length > 0) throw new Error(`${left.length} recording object(s) are still in R2 under "${prefix}". Rerun the load to clear them.`);
   return keys.length;
 }
 
