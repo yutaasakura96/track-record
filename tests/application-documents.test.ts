@@ -51,6 +51,7 @@ interface Detail {
   step: string;
   dates: Record<string, string>;
   lastActivityAt: string;
+  quietDays: number | null;
   documents: Document[];
   choices: (Document & { onApplication: boolean })[];
   sentCopies: Copy[];
@@ -204,8 +205,27 @@ describe("choosing the documents for a job", () => {
       ],
       sent: false,
     });
-    // Choosing a document is activity.
-    expect(body.lastActivityAt).toBe(dayAfter(2).toISOString());
+    // Choosing a document is not activity: gone quiet means the employer side is silent.
+    expect(body.lastActivityAt).toBe(made.lastActivityAt);
+  });
+
+  it("leaves an application that has gone quiet quiet when a document is chosen, taken off or recorded", async () => {
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
+    const made = await add();
+    await choose(made.id, ["english_resume"]);
+    await move(made.id, "applied");
+    const applied = await read(made.id);
+
+    vi.setSystemTime(dayAfter(22));
+    await record(made.id, ["english_resume"]);
+
+    const after = await read(made.id);
+    expect(after.lastActivityAt).toBe(applied.lastActivityAt);
+    expect(after).toMatchObject({ quietDays: 22 });
+
+    // Home names it, and an interview or a status change is what ends the silence.
+    const overview = await client.json<{ quietApplication: { id: string; quietDays: number; count: number } | null }>("/api/overview");
+    expect(overview.quietApplication).toMatchObject({ id: made.id, quietDays: 22, count: 1 });
   });
 
   it("writes nothing when the same ticks are saved again", async () => {
@@ -217,7 +237,7 @@ describe("choosing the documents for a job", () => {
     vi.setSystemTime(dayAfter(5));
     const again = (await (await choose(made.id, ["english_resume"])).json()) as Detail;
 
-    expect(again.lastActivityAt).toBe(dayAfter(1).toISOString());
+    expect(again.lastActivityAt).toBe(made.lastActivityAt);
     expect(again.documents).toHaveLength(1);
   });
 
@@ -746,6 +766,7 @@ describe("recording another sent copy", () => {
     const made = await add();
     await choose(made.id, ["english_resume"]);
     await move(made.id, "applied");
+    const applied = await read(made.id);
 
     // The same document, unchanged, sent again a week later: a second copy, with the same version.
     vi.setSystemTime(dayAfter(7));
@@ -757,7 +778,8 @@ describe("recording another sent copy", () => {
       [1, dateAfter(7)],
       [1, dateAfter(0)],
     ]);
-    expect(body.lastActivityAt).toBe(dayAfter(7).toISOString());
+    // A copy recorded by hand is not activity either.
+    expect(body.lastActivityAt).toBe(applied.lastActivityAt);
 
     // A newer version, sent later still. The list names it; the page keeps all three.
     vi.setSystemTime(dayAfter(9));

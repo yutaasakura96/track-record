@@ -419,6 +419,8 @@ export interface Overview {
     employer: { id: string; name: string } | null;
     dismissedOn: string | null;
   };
+  /** The application silent longest and how many have gone quiet; `null` when none has. */
+  quietApplication?: { id: string; company: string; quietDays: number; count: number } | null;
   documents: RenderRow[];
   /** False when no accepted fact may be used in a document. */
   canGenerate: boolean;

@@ -41,7 +41,7 @@ function Card({ title, thumbnail, children }: { title: string; thumbnail: ReactN
 function Thumbnail({ children }: { children?: ReactNode }) {
   return (
     <div aria-hidden inert className="h-thumbnail overflow-hidden bg-surface-raised border-b border-border px-14 pt-14">
-      <div className="h-full overflow-hidden bg-bg border border-b-0 border-border rounded-t-control">
+      <div className="h-full overflow-hidden paper border border-b-0 border-border rounded-t-control">
         {children ? <div className="page-thumbnail">{children}</div> : null}
       </div>
     </div>

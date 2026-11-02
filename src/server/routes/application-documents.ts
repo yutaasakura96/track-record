@@ -18,6 +18,7 @@
  */
 import type { Hono } from "hono";
 import { and, eq, inArray, isNull } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import PizZip from "pizzip";
 import { z } from "zod";
 import { applicationDocuments, applicationSentCopies, profiles, renders } from "../db/schema";
@@ -29,7 +30,7 @@ import { parseBody } from "../services/validate";
 import { documentTitle, freezeDocuments, liveCopies } from "../services/application-documents";
 import { mainRender } from "../services/render-ref";
 import { photoResponse } from "../services/rirekisho";
-import { detail, markActivity, requireApplication } from "./applications";
+import { detail, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
 import { attachment } from "../http/disposition";
 import { tokyoToday } from "~/render/rirekisho";
@@ -105,8 +106,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     const now = new Date();
     try {
-      await db.batch([
-        markActivity(db, user.id, id, now),
+      await writeAll(db, [
         ...removed.map((row) => takeOff(db, user.id, row.id, now)),
         ...added.map((render) => putOn(db, user.id, id, render.id)),
       ]);
@@ -137,7 +137,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     if (!row) throw notFound("That document on this application");
 
     const now = new Date();
-    await db.batch([markActivity(db, user.id, id, now), takeOff(db, user.id, row.id, now)]);
+    await db.batch([takeOff(db, user.id, row.id, now)]);
     console.log(JSON.stringify({ event: "application_documents_set", applicationId: id, added: 0, removed: 1 }));
     return c.json(await detail(db, user.id, id));
   });
@@ -195,14 +195,13 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
       const now = new Date();
       try {
         if (kind === "rirekisho" && application.currentStep === "not_applied") {
-          const [, removed] = await db.batch([
-            markActivity(db, user.id, id, now),
+          const [removed] = await db.batch([
             takeOffMainRirekisho(db, user.id, id, now),
             putOn(db, user.id, id, existing.id),
           ]);
           if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
         } else {
-          await db.batch([markActivity(db, user.id, id, now), putOn(db, user.id, id, existing.id)]);
+          await db.batch([putOn(db, user.id, id, existing.id)]);
         }
       } catch (error) {
         if (!violatesUnique(error, "application_documents_live_uq")) throw error;
@@ -240,8 +239,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const on = await db.select({ renderId: applicationDocuments.renderId }).from(applicationDocuments).where(onApplication(user.id, id));
     const missing = documents.filter((render) => !on.some((row) => row.renderId === render.id));
 
-    await db.batch([
-      markActivity(db, user.id, id, now),
+    await writeAll(db, [
       ...missing.map((render) => putOn(db, user.id, id, render.id)),
       ...made.rows.map((copy) => db.insert(applicationSentCopies).values(copy)),
     ]);
@@ -355,6 +353,16 @@ const putOn = (db: Db, userId: string, applicationId: string, renderId: string) 
   db.insert(applicationDocuments).values({ id: newId("applicationDocument"), userId, applicationId, renderId });
 
 /** Off the application, and still a row: nothing is deleted. */
+/**
+ * One batch of writes, or nothing when there are none: a batch cannot be empty,
+ * and none of these writes touches the application's own row any more, since a
+ * document is not activity on it (`docs/06`, 2026-11-02).
+ */
+const writeAll = async (db: Db, writes: BatchItem<"pg">[]) => {
+  const [first, ...rest] = writes;
+  if (first) await db.batch([first, ...rest]);
+};
+
 const takeOff = (db: Db, userId: string, id: string, now: Date) =>
   db
     .update(applicationDocuments)

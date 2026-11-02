@@ -31,6 +31,7 @@ import {
   sourceDocuments,
 } from "../db/schema";
 import { routes } from "../http/registry";
+import { quietApplications } from "./applications";
 import { renderState, usableFacts } from "./renders";
 import { importStart, importStatus, startImport } from "./imports";
 import { provenanceCounts } from "./facts";
@@ -89,6 +90,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         [dismissal],
       ],
       documents,
+      quiet,
     ] = await Promise.all([
       db.batch([
         db
@@ -210,6 +212,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
           .where(eq(capturePromptDismissals.userId, userId)),
       ]),
       renderState(db, userId),
+      quietApplications(db, userId),
     ]);
 
     // Read only while an import runs, so the usual visit stays at one round trip.
@@ -280,6 +283,11 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         employer: employer ? { id: employer.id, name: employer.nameLatin ?? employer.nameJa } : null,
         dismissedOn: dismissal?.dismissedOn ?? null,
       },
+      /**
+       * The application that has been silent longest, and how many there are
+       * (`docs/10` Screen 3). Home suggests a follow-up. `null` when none is.
+       */
+      quietApplication: quiet[0] ? { ...quiet[0], count: quiet.length } : null,
       documents: documents.documents,
       canGenerate: (usable?.n ?? 0) > 0,
       /** The empty state is a different screen, not a variant of this one. */

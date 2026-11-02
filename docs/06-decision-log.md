@@ -7956,3 +7956,14 @@ part of this.
   group, which is named beside everything, and a tie fell to the earlier group. A skill with no
   evidence gets no suggestion.
   Supersedes the suggested-group rules of 2026-10-23 (employer, then largest group).
+
+### [2026-11-02] Activity on an application, previews in dark mode, a quiet application on Home
+
+- **Decision:** only a status change, an added or corrected date and an interview entry are activity on
+  an application. Making, attaching or recording a document is not, so it no longer clears gone quiet:
+  gone quiet means the employer side has been silent. Supersedes the "a document added or recorded as
+  sent" part of the rule in `02` Applications and `07` §9c (#71).
+- **Decision:** a document preview stays paper-white in dark mode, so View looks as it will print. The
+  app chrome around it follows the theme.
+- **Decision:** Home's Next step names an application that has gone quiet and suggests a follow-up,
+  linking to it. It sits after every existing step and before `You are up to date`.

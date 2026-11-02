@@ -36,7 +36,7 @@ export function DocumentPage({ page, language, trace, photo = null }: { page: Se
   return (
     <article
       lang={japanese ? "ja" : "en"}
-      className={`mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
+      className={`paper mx-auto w-measure max-w-full px-20 py-40 max-phone:px-0 max-phone:py-20 ${japanese ? "tracking-ja" : ""}`}
     >
       {page.readFailure === "original_file_unreadable" ? (
         <p role="alert" className="mb-12 text-small text-removed">The original file could not be read — showing its text only.</p>

@@ -367,6 +367,26 @@ const summaryOf = (row: SummaryRow, standing: Standing, today: string) => ({
   ...figures(standing, tokyoToday(row.lastActivityAt), today),
 });
 
+/**
+ * The applications that have gone quiet, the longest silent first. Home reads
+ * this to suggest a follow-up, so it carries only what the sentence needs and
+ * reads none of the steps: gone quiet needs the standing's step and close.
+ */
+export async function quietApplications(db: Db, userId: string) {
+  const rows = await db.select(SUMMARY).from(applications).where(eq(applications.userId, userId));
+  const today = tokyoToday();
+  return rows
+    .flatMap((row) => {
+      const { quietDays } = figures(
+        { step: row.currentStep as ApplicationStep, closedAs: row.closedAs as ClosedKind | null, dates: {} },
+        tokyoToday(row.lastActivityAt),
+        today,
+      );
+      return quietDays === null ? [] : [{ id: row.id, company: row.company, quietDays }];
+    })
+    .sort((a, b) => b.quietDays - a.quietDays);
+}
+
 /** A miss is a 404, and so is another user's id: saying a row exists would confirm it. */
 export async function requireApplication(db: Db, userId: string, id: string) {
   const [row] = await db

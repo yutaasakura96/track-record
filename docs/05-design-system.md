@@ -127,6 +127,8 @@ light and `76,183,130` dark, generated `185,122,20` and `224,168,81`, removed `1
 | Diff add | `rgba(measured,.13)` idle → `.28` selected; row tint `.06` | `.11` → `.26`; row `.05` |
 | Diff remove | `rgba(removed,.11)` idle → `.26` selected; row tint `.05` | the same fractions |
 
+**Paper.** A document is shown as it prints, so a document page stays paper-white in dark mode (2026-11-02). The `paper` class puts the light values back on its subtree (`theme.css`); the screen around it keeps the theme.
+
 ---
 
 ## 2. Typography

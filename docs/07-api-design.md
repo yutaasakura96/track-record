@@ -1330,8 +1330,9 @@ off first.
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
   taken back is `404` on both of its routes.
-- **`lastActivityAt` moves** when the documents on the application change, when a tailored document
-  is put on it, and when a copy is recorded. The same ticks saved again write nothing.
+- **`lastActivityAt` does not move** when the documents on the application change, when a tailored
+  document is put on it, or when a copy is recorded (2026-11-02): only a status change, a date and
+  an interview count. The same ticks saved again write nothing.
 - A copy asked for under another application, or another user's, is `404`.
 - Logged: `application_documents_set` with the id and the counts added and removed,
   `tailored_document_created` with the ids, the kind and the job description's length,

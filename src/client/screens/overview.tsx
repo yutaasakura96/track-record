@@ -557,6 +557,13 @@ function StepControl({
       </Link>
     );
   }
+  if (action.kind === "application") {
+    return (
+      <Link to="/applications/$applicationId" params={{ applicationId: action.applicationId }} className={`shrink-0 ${className}`}>
+        {action.label}
+      </Link>
+    );
+  }
   if (action.kind === "proposal") {
     return (
       <Link to="/proposals/$proposalId" params={{ proposalId: action.proposalId }} className={`shrink-0 ${className}`}>

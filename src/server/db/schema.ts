@@ -765,8 +765,8 @@ export const applications = pgTable("applications", {
   closedAs: applicationStatus("closed_as"),
   /**
    * When the author last changed what this application records: a status set,
-   * a date corrected, and later an interview noted or a document added or
-   * sent. The list is ordered by it and gone quiet is counted from it, so a
+   * a date corrected, or an interview noted. A document made, attached or
+   * sent is not activity (2026-11-02). The list is ordered by it and gone quiet is counted from it, so a
    * step entered late with an old date does not read as weeks of silence
    * (decided in the review of issue #69). Correcting the company or the
    * position is not activity and leaves it alone, which is why this is not
