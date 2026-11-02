@@ -1010,10 +1010,9 @@ that neither ever blocks.
 
 ## 8. Overview · M1
 
-**`GET /api/overview` → 200** — one request backs the whole home screen, **and it costs the
-database one round trip** (#58): every query below goes in one batch, beside the renders' own. It
-was up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
-and the home screen waited for all of them.
+**`GET /api/overview` → 200** — one request backs the whole home screen. The base reads run in
+one batch, alongside the renders and quiet-application reads. Before #58, the home screen made up
+to seventeen serial database requests.
 
 ```json
 {
@@ -1036,6 +1035,7 @@ and the home screen waited for all of them.
     "employer": { "id": "emp_…", "name": "Example Corp" },
     "dismissedOn": null
   },
+  "quietApplication": { "id": "app_…", "company": "Example Corp", "quietDays": 22 },
   "documents": [],
   "canGenerate": true,
   "isEmpty": false
@@ -1064,6 +1064,8 @@ every version. It is where the Next step's Confirm step opens Fact Review. A Gen
 the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
 a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
+`quietApplication` is the open, waiting application silent longest, with its calendar days since
+last activity, or `null` when none is gone quiet. Home links to it and suggests a follow-up.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
 `capturePrompt` (#116) is what the monthly capture prompt is decided from, by the client, since the

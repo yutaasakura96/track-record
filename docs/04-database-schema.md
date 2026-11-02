@@ -678,7 +678,7 @@ the screens.
 | `kibou_note` | text | yes | Migration 0036. The author's own request for a tailored 履歴書's 本人希望欄, up to 400 characters, with the same rules. It comes before `profiles.desired_role_note` |
 | `current_step` | application_status | no | Default `not_applied`. One of the seven steps: a check constraint refuses `rejected` and `withdrawn` here |
 | `closed_as` | application_status | yes | `rejected` or `withdrawn`, by check constraint. Null while it is open. An application is closed **at** its step, so reopening returns it there |
-| `last_activity_at` | timestamptz | no | Last change to the application's record (`07` §9b and §9c own which writes count). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet |
+| `last_activity_at` | timestamptz | no | Last status change or interview entry (`07` §9b and §9c own which writes count). **The list is ordered by it and gone quiet is counted from it**, not from any step's date, so a step entered late does not arrive already quiet |
 | `created_at`, `updated_at` | timestamptz | no | |
 
 **Index:** `user_id`.
@@ -811,8 +811,8 @@ enum value cannot be used in the transaction that adds it.
   by the conflict guard leaves the file playable, and a file whose delete fails after its row is
   emptied is left unnamed in the bucket and logged by id. The day an upload reads as uploaded is
   the day in Japan of `created_at`.
-- **Adding and removing one are activity on the application.** Both are written in one `db.batch`
-  with `applications.last_activity_at` and under its conflict guard (`07` §9b).
+- **Adding and removing a recording do not change `last_activity_at`.** Both are written in one
+  `db.batch` under the application's `updated_at` conflict guard (`07` §9b).
 - **Not in the export** (S24). The entry it hangs from is.
 
 ### 3.17 `application_documents` and `application_sent_copies` · migration 0020, 2026-10-12 (#71)
