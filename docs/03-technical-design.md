@@ -534,12 +534,16 @@ not written.
 refused. A version stores that section and one section of bullets per employer, keyed
 `employer:<id>` like a story's chapters, plus `project:<id>` for an independent project. On download
 `src/render/resume.ts` joins them by id to what the record holds today: each job's company, city,
-`Mon YYYY – Present` dates and every title held there, the skills curation, the education past
+`Mon YYYY – Present` dates and every title held there, the skills curation (or, with none, the
+twenty best-evidenced skills, each spelling folded into one and the facts the version cites counted
+first: `src/shared/skills.ts`), the education past
 secondary school (a vocational programme and a row with no level included, by the rule in
 `src/shared/education.ts`), the current technical certifications and a Languages line. The
 `.docx` (`src/render/resume-docx.ts`), the PDF (`src/render/resume-pdf.ts`, §6.3), the Markdown and
 a sent copy's page are written from that one assembled document. The per-employer bullet budget is computed from the record and printed in the
-prompt. Before the model call, every employer, project and education name in the generation spec
+prompt; an employer over it keeps its first bullets. A bullet over 240 characters or a summary of 50
+words or more is rewritten alone, from the facts it cites, in a second call inside `generateRender`,
+and the document is refused only if a line is still over its bound afterwards. Before the model call, every employer, project and education name in the generation spec
 must contain a Latin letter and no non-Latin letters; this includes entries the file later omits.
 Assembly also refuses Japanese script in any printed field and names with non-Latin letters. A
 version from before #107 may hold a heading-led `experience` section; when present, its groups are

@@ -27,7 +27,7 @@
  */
 import type { RenderSpec } from "~/model/types";
 import { leavesOutEducation } from "~/shared/education";
-import { curationForRender, type CuratedGroup } from "~/shared/skills";
+import { autoCuratedSkills, curationForRender, skillKey, type CuratedGroup } from "~/shared/skills";
 import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
@@ -187,15 +187,49 @@ export function shapeResumeContent(content: RenderContent, spec: RenderSpec): Re
   validateResumeSectionShape(content, planned);
   const blocksByKey = new Map(content.sections.map((section) => [section.key, section.blocks]));
 
+  // An employer over its budget keeps the bullets the model put first, which
+  // the register asks it to lead with. Over-long lines are not cut here: a
+  // bullet shortened by truncation loses its outcome, so they are rewritten
+  // (`resumeOverLimit`, `src/model/generate.ts`) and only then held to the bound.
+  const budgetOf = new Map(spec.employers.map((e) => [employerChapterKey(e.id), e.bullets?.max]));
   const sections: RenderSection[] = planned.flatMap(({ key, heading }) => {
-    const blocks = blocksByKey.get(key) ?? [];
+    const max = budgetOf.get(key);
+    const blocks = (blocksByKey.get(key) ?? []).slice(0, max ?? Infinity);
     return blocks.length === 0 ? [] : [{ key, heading, blocks }];
   });
-  validateResumeBounds({ sections }, spec.employers);
   for (const project of spec.projects.filter((p) => p.employerId === null)) {
     if (!blocksByKey.get(projectKey(project.id))?.length) throw new Error(`Project ${project.id} needs bullets.`);
   }
   return { sections };
+}
+
+/** The summary's bound, in words, and every other line's, in characters. */
+export const SUMMARY_WORD_LIMIT = 50;
+export const BULLET_CHARACTER_LIMIT = 240;
+
+const wordsOf = (blocks: readonly Block[]) => blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length;
+
+/** A line the bound refuses: one bullet, or the whole summary, which the bound counts as one. */
+export type OverLimit =
+  | { kind: "bullet"; sectionKey: string; block: Block }
+  | { kind: "summary"; blocks: Block[] };
+
+/** Every line of `content` over its bound, in document order. */
+export function resumeOverLimit(content: RenderContent): OverLimit[] {
+  return content.sections.flatMap((section): OverLimit[] => {
+    if (section.key === SUMMARY_KEY) {
+      const over: OverLimit[] = wordsOf(section.blocks) >= SUMMARY_WORD_LIMIT ? [{ kind: "summary", blocks: section.blocks }] : [];
+      return [
+        ...over,
+        ...section.blocks
+          .filter((block) => block.kind === "bullet" && [...block.text].length > BULLET_CHARACTER_LIMIT)
+          .map((block) => ({ kind: "bullet" as const, sectionKey: section.key, block })),
+      ];
+    }
+    return section.blocks
+      .filter((block) => [...block.text].length > BULLET_CHARACTER_LIMIT)
+      .map((block) => ({ kind: "bullet" as const, sectionKey: section.key, block }));
+  });
 }
 
 /**
@@ -209,11 +243,11 @@ export function validateResumeBounds(
 ): void {
   for (const section of content.sections) {
     const before = previous?.sections.find((row) => row.key === section.key)?.blocks.length;
-    if (section.key === SUMMARY_KEY && section.blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length >= 50) {
-      throw new Error("The résumé summary must be under 50 words.");
+    if (section.key === SUMMARY_KEY && wordsOf(section.blocks) >= SUMMARY_WORD_LIMIT) {
+      throw new Error(`The résumé summary must be under ${SUMMARY_WORD_LIMIT} words.`);
     }
-    if (section.blocks.some((block) => [...block.text].length > 240 && (block.kind === "bullet" || section.key !== SUMMARY_KEY))) {
-      throw new Error(`Résumé section ${section.key} has a bullet over 240 characters.`);
+    if (section.blocks.some((block) => [...block.text].length > BULLET_CHARACTER_LIMIT && (block.kind === "bullet" || section.key !== SUMMARY_KEY))) {
+      throw new Error(`Résumé section ${section.key} has a bullet over ${BULLET_CHARACTER_LIMIT} characters.`);
     }
     const employer = employers.find((row) => employerChapterKey(row.id) === section.key);
     if (employer?.bullets && section.blocks.length > employer.bullets.max && (before === undefined || section.blocks.length > before)) {
@@ -238,6 +272,12 @@ export interface ResumeRecord {
   certifications: RenderSpec["certifications"];
   /** A group with an empty name is a list nobody grouped. Empty is no skills section. */
   skills: { name: string; skills: string[] }[];
+  /**
+   * Set only while nothing is curated: what each fact and certification names,
+   * so the line can be chosen against the version it is printed with, citing
+   * its facts first. `skills` is then the same line chosen without a version.
+   */
+  skillEvidence?: SkillEvidence[];
 }
 
 export type ResumeBlock =
@@ -305,7 +345,7 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
   const contact = headline === null ? lines : lines.slice(1);
   const sections: ResumeSection[] = [
     section(SUMMARY_KEY, "Summary", summaryBlocks(content)),
-    section("skills", "Skills", skillsBlocks(record.skills)),
+    section("skills", "Skills", skillsBlocks(skillsFor(record, content))),
     section("experience", "Experience", experienceBlocks(content, record)),
     section("projects", "Projects", projectBlocks(content, record)),
     section("education", "Education", educationBlocks(record)),
@@ -427,29 +467,68 @@ function summaryBlocks(content: RenderContent): ResumeBlock[] {
   return writtenOf(content, SUMMARY_KEY).map((b) => ({ kind: "paragraph", ...b }));
 }
 
+/** One fact's or certification's technologies. `id` is a fact's, and a certification has none. */
+export interface SkillEvidence {
+  id?: string;
+  technologies: string[];
+}
+
+const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 /**
- * Every technology the résumé's facts and certifications name, the
- * best-evidenced first, then by name: the line printed when nothing is curated.
+ * Every technology the résumé's facts and certifications name, exactly as
+ * they spell it, the best-evidenced skill first. A skill is all its spellings
+ * (`skillKey`), so `zod` and `Zod` count together and sit together, the
+ * commoner spelling first. With `cited`, the facts a version's bullets were
+ * written from count first: a skill the résumé's own bullets rest on outranks
+ * one the record names more often in work the résumé left out.
  */
-export function rankedSkills(rows: { technologies: string[] }[]): string[] {
-  const tally = new Map<string, number>();
+export function rankedSkills(rows: SkillEvidence[], cited: ReadonlySet<string> = new Set()): string[] {
+  const spellings = new Map<string, number>();
+  const backing = new Map<string, { cited: number; all: number }>();
   for (const row of rows) {
-    for (const name of new Set(row.technologies)) tally.set(name, (tally.get(name) ?? 0) + 1);
+    // Exactly as spelled: a curation is narrowed by these names.
+    const names = new Set(row.technologies.filter((name) => name.trim() !== ""));
+    for (const name of names) spellings.set(name, (spellings.get(name) ?? 0) + 1);
+    for (const key of new Set([...names].map(skillKey))) {
+      const tally = backing.get(key) ?? { cited: 0, all: 0 };
+      tally.all += 1;
+      if (row.id !== undefined && cited.has(row.id)) tally.cited += 1;
+      backing.set(key, tally);
+    }
   }
-  return [...tally.entries()]
-    .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name]) => name);
+  return [...spellings.keys()].sort((a, b) => {
+    const [ka, kb] = [skillKey(a), skillKey(b)];
+    const [x, y] = [backing.get(ka)!, backing.get(kb)!];
+    return y.cited - x.cited || y.all - x.all || byName(ka, kb) || spellings.get(b)! - spellings.get(a)! || byName(a, b);
+  });
 }
 
 /**
  * The résumé's skills: the author's curation, narrowed to what this résumé may
- * name (`ranked`, from `rankedSkills`). A curation that leaves nothing is no
+ * name (`ranked`, from `rankedSkills`) and each skill listed once, but never
+ * cut — the author chose its length. A curation that leaves nothing is no
  * skills section, never a fallback. With nothing curated, one ungrouped line of
- * `ranked` — the list the Skills screen offers to curate from, in its order.
+ * the best-evidenced skills, each once and no more than `AUTO_SKILL_CAP`.
  */
 export function resumeSkills(curation: CuratedGroup[], ranked: string[]): ResumeRecord["skills"] {
   if (curation.length > 0) return curationForRender(curation, new Set(ranked));
-  return ranked.length > 0 ? [{ name: "", skills: ranked }] : [];
+  const chosen = autoCuratedSkills(ranked);
+  return chosen.length > 0 ? [{ name: "", skills: chosen }] : [];
+}
+
+/** The facts a version's blocks were written from. */
+const citedFacts = (content: RenderContent): Set<string> =>
+  new Set(content.sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds)));
+
+/**
+ * The skills one version prints. A curation is the record's and the same for
+ * every version. With none, the line is chosen again against this version's
+ * own bullets, so it leads with what they rest on.
+ */
+function skillsFor(record: ResumeRecord, content: RenderContent): ResumeRecord["skills"] {
+  if (record.skillEvidence === undefined) return record.skills;
+  return resumeSkills([], rankedSkills(record.skillEvidence, citedFacts(content)));
 }
 
 /**
@@ -560,10 +639,21 @@ function educationBlocks(record: ResumeRecord): ResumeBlock[] {
   return record.educations
     .filter((e) => !leavesOutEducation("english_resume", e.level))
     .map((e): ResumeBlock => {
-      const studied = [e.degree, e.fieldOfStudy].filter((v): v is string => Boolean(v)).join(", ");
+      const studied = studiedText(e.degree, e.fieldOfStudy);
       const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;
       return { kind: "entry", lead: e.institution, detail: detail || null, dates: educationDates(e) };
     });
+}
+
+/**
+ * `Bachelor of Science in Computer Science`, not `…, Computer Science`: a field
+ * the degree's name already states is not printed a second time.
+ */
+export function studiedText(degree: string | null, field: string | null): string {
+  const d = degree?.trim() ?? "";
+  const f = field?.trim() ?? "";
+  if (!d || !f) return d || f;
+  return d.toLocaleLowerCase("en").includes(f.toLocaleLowerCase("en")) ? d : `${d}, ${f}`;
 }
 
 function educationDates(e: RenderSpec["educations"][number]): string | null {

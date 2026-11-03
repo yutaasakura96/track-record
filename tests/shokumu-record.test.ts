@@ -227,6 +227,14 @@ describe("the Japanese prompt and the English the record holds", () => {
     expect(prompt).toContain(`- ${ENGLISH_ONLY_LABEL} Cloud and platform: AWS`);
   });
 
+  it("prints the shortlist when nothing is curated, and not beside a curation", () => {
+    expect(buildGenerationPrompt(spec({ skillShortlist: ["Java", "Amazon S3"] }))).toContain("Skills shortlist, chosen from the record because nothing is curated");
+    expect(buildGenerationPrompt(spec({ skillShortlist: ["Java", "Amazon S3"] }))).toContain("\nJava, Amazon S3\n");
+    const curated = buildGenerationPrompt(spec({ skillShortlist: ["Java"], curatedSkills: [{ name: "Languages", nameJa: "言語", skills: ["Java"] }] }));
+    expect(curated).not.toContain("Skills shortlist, chosen");
+    expect(buildGenerationPrompt(spec({ skillShortlist: [] }))).not.toContain("Skills shortlist, chosen");
+  });
+
   it("prints the author's Japanese group name as written, even with no kana or kanji in it", () => {
     const prompt = buildGenerationPrompt(spec({ curatedSkills: [{ name: "Operations", nameJa: "DevOps", skills: ["Docker"] }] }));
     expect(prompt).toContain("- DevOps: Docker");

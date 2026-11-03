@@ -8,8 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 import PizZip from "pizzip";
-import { buildGenerationPrompt, parseGeneratedRender } from "~/model/generate";
-import type { RenderSpec } from "~/model/types";
+import { buildGenerationPrompt, parseGeneratedRender, readShortened, repairResumeBounds, type LineToShorten } from "~/model/generate";
+import { ModelUnavailableError, type RenderFact, type RenderSpec } from "~/model/types";
 import {
   assembleResume,
   bulletBudget,
@@ -20,7 +20,11 @@ import {
   resumeFilename,
   resumeMarkdown,
   resumeSentPage,
+  rankedSkills,
+  resumeOverLimit,
+  resumeSkills,
   shapeResumeContent,
+  studiedText,
   ResumeAssemblyError,
   ResumeJobHeaderError,
   ResumeLanguageError,
@@ -459,12 +463,29 @@ describe("what the model returned", () => {
       [...valid, valid[0]!],
       [{ ...valid[0]!, blocks: [{ kind: "bullet", text: "Wrong kind.", factIds: [] }] }, valid[1]!],
       [valid[0]!],
-      [{ ...valid[0]!, blocks: [{ kind: "paragraph", text: Array(50).fill("word").join(" "), factIds: [] }] }, valid[1]!],
-      [valid[0]!, { ...valid[1]!, blocks: [{ kind: "bullet", text: "x".repeat(241), factIds: [] }] }],
     ];
     for (const sections of invalid) {
       expect(() => parseGeneratedRender({ sections }, spec)).toThrow();
     }
+  });
+
+  it("keeps an over-long line for the rewrite rather than refusing the document", () => {
+    const long = "x".repeat(241);
+    const parsed = parseGeneratedRender({ sections: [
+      { key: "summary", heading: "Summary", blocks: [{ kind: "paragraph", text: Array(50).fill("word").join(" "), factIds: [] }] },
+      { key: projectKey("prj_oss"), heading: "Project", blocks: [{ kind: "bullet", text: long, factIds: [] }] },
+    ] }, spec);
+    expect(resumeOverLimit(parsed).map((over) => over.kind)).toEqual(["summary", "bullet"]);
+  });
+
+  it("keeps the first bullets of an employer over its budget", () => {
+    const budgeted = { ...spec, employers: spec.employers.map((e) => ({ ...e, bullets: { min: 1, max: 2 } })) };
+    const shaped = parseGeneratedRender({ sections: [
+      { key: "summary", heading: "Summary", blocks: [{ kind: "paragraph", text: "Platform engineer.", factIds: [] }] },
+      { key: employerChapterKey("emp_now"), heading: "Employer", blocks: ["One.", "Two.", "Three."].map((text) => ({ kind: "bullet", text, factIds: [] })) },
+      { key: projectKey("prj_oss"), heading: "Project", blocks: [{ kind: "bullet", text: "Built a library.", factIds: [] }] },
+    ] }, budgeted);
+    expect(shaped.sections.find((s) => s.key === employerChapterKey("emp_now"))!.blocks.map((b) => b.text)).toEqual(["One.", "Two."]);
   });
 
   it("requires a nonempty Summary paragraph", () => {
@@ -618,5 +639,175 @@ describe("the file name", () => {
 
   it("writes months as words, never numerically", () => {
     expect(monthSpan("2021-04-01", "2023-12-01")).toBe("Apr 2021 – Dec 2023");
+  });
+});
+
+describe("the degree and field on an education line", () => {
+  it("prints a field the degree does not already name", () => {
+    expect(studiedText("Bachelor of Engineering", "Computer Science")).toBe("Bachelor of Engineering, Computer Science");
+  });
+
+  it("does not print the field twice when the degree names it, in any case", () => {
+    expect(studiedText("Bachelor of Science in Computer Science", "Computer Science")).toBe("Bachelor of Science in Computer Science");
+    expect(studiedText("Bachelor of Science in computer science", "Computer Science")).toBe("Bachelor of Science in computer science");
+  });
+
+  it("reaches the document", () => {
+    const educations = RECORD.educations.map((e) =>
+      e.id === "edu_uni" ? { ...e, degree: "Bachelor of Science in Computer Science" } : e,
+    );
+    const education = assembled(CONTENT, { ...RECORD, educations }).sections.find((s) => s.key === "education")!;
+    expect(education.blocks).toContainEqual(
+      { kind: "entry", lead: "Seaside Institute of Technology", detail: "Bachelor of Science in Computer Science", dates: "2015" },
+    );
+  });
+});
+
+describe("the skills line with nothing curated", () => {
+  /** Invented technologies, each named by `n` facts. */
+  const evidence = (counts: Record<string, number>, prefix = "f") =>
+    Object.entries(counts).flatMap(([name, n]) =>
+      Array.from({ length: n }, (_, i) => ({ id: `${prefix}_${name}_${i}`, technologies: [name] })),
+    );
+
+  it("lists each skill once, however spelled, counting the spellings together", () => {
+    const ranked = rankedSkills([
+      ...evidence({ zod: 2, Zod: 2, Plinth: 3 }),
+      ...evidence({ S3: 1, "AWS S3": 1, "Amazon S3": 2 }, "g"),
+    ]);
+    // Four facts each: a tie, settled by name.
+    expect(resumeSkills([], ranked)).toEqual([{ name: "", skills: ["Amazon S3", "Zod", "Plinth"] }]);
+  });
+
+  it("stops at twenty, keeping the best-evidenced", () => {
+    const counts = Object.fromEntries(Array.from({ length: 800 }, (_, i) => [`Tool${String(i).padStart(3, "0")}`, i < 30 ? 30 - i : 1]));
+    const [line] = resumeSkills([], rankedSkills(evidence(counts)));
+    expect(line!.skills).toHaveLength(20);
+    expect(line!.skills.slice(0, 3)).toEqual(["Tool000", "Tool001", "Tool002"]);
+  });
+
+  it("leads with what the version's own bullets were written from", () => {
+    const rows = [
+      ...evidence({ Plinth: 5 }),
+      { id: "cited_1", technologies: ["Vorbit"] },
+    ];
+    expect(rankedSkills(rows, new Set(["cited_1"]))[0]).toBe("Vorbit");
+    const record: ResumeRecord = { ...RECORD, skills: [], skillEvidence: rows };
+    const content: RenderContent = {
+      sections: CONTENT.sections.map((s) =>
+        s.key === employerChapterKey("emp_now") ? { ...s, blocks: [{ ...s.blocks[0]!, factIds: ["cited_1"] }] } : s,
+      ),
+    };
+    const skills = assembled(content, record).sections.find((s) => s.key === "skills")!;
+    expect(skills.blocks).toEqual([{ kind: "paragraph", text: "Vorbit, Plinth" }]);
+  });
+
+  it("prints a curation as curated: each skill once, and never cut", () => {
+    const many = Array.from({ length: 30 }, (_, i) => `Tool${i}`);
+    const curated = resumeSkills(
+      [{ name: "Tools", nameJa: null, skills: [...many, "tool0"] }, { name: "More", nameJa: null, skills: ["TOOL1"] }],
+      [...many, "tool0", "TOOL1"],
+    );
+    expect(curated).toEqual([{ name: "Tools", nameJa: null, skills: many }]);
+  });
+});
+
+describe("an over-long line from the model", () => {
+  const spec = {
+    kind: "english_resume",
+    language: "en",
+    subjectName: "Mika Tanabe",
+    register: "REGISTER",
+    employers: RECORD.employers.map((e) => ({ ...e, bullets: { min: 1, max: 5 } })),
+    projects: RECORD.projects,
+    workOutsideEmployment: true,
+    desiredRoleNote: null,
+    careerGaps: [],
+    educations: [],
+    certifications: [],
+    curatedSkills: null,
+    jobDescription: null,
+  } satisfies RenderSpec;
+  const facts = [
+    { id: "f1", claim: "Cut deploys from 40 minutes to 5.", provenance: "measured", disclosure: "public", technologies: [] },
+    { id: "f2", claim: "Rebuilt the pipeline for a bank.", provenance: "attested", disclosure: "restricted", technologies: [] },
+  ] satisfies RenderFact[];
+  const long = `Rebuilt the deploy pipeline ${"and more ".repeat(30)}cutting deploys from 40 minutes to 5.`;
+  const content = (): RenderContent => ({
+    sections: [
+      { key: "summary", heading: "Summary", blocks: [block("b1", "Platform engineer.", "paragraph")] },
+      { key: employerChapterKey("emp_now"), heading: "Harbourline Systems Inc.", blocks: [
+        { id: "b2", kind: "bullet", text: long, factIds: ["f1", "f2", "f_unknown"] },
+        block("b3", "Raised conversion 9%."),
+      ] },
+      { key: projectKey("prj_oss"), heading: "tategaki-js", blocks: [block("b4", "Wrote a layout library.")] },
+    ],
+  });
+
+  it("is rewritten alone, from the facts it cites, and the rest is kept", async () => {
+    const asked: LineToShorten[][] = [];
+    const repaired = await repairResumeBounds(content(), spec, facts, async (lines) => {
+      asked.push(lines);
+      return new Map([["b2", "Rebuilt the deploy pipeline, cutting deploys from 40 minutes to 5."]]);
+    });
+    expect(asked).toEqual([[{
+      id: "b2",
+      kind: "bullet",
+      text: long,
+      limit: "at most 240 characters",
+      facts: [
+        { id: "f1", claim: "Cut deploys from 40 minutes to 5.", restricted: false },
+        { id: "f2", claim: "Rebuilt the pipeline for a bank.", restricted: true },
+      ],
+    }]]);
+    expect(repaired.sections[1]!.blocks.map((b) => [b.id, b.text, b.factIds])).toEqual([
+      ["b2", "Rebuilt the deploy pipeline, cutting deploys from 40 minutes to 5.", ["f1", "f2", "f_unknown"]],
+      ["b3", "Raised conversion 9%.", []],
+    ]);
+  });
+
+  it("asks nothing when every line is within its bound", async () => {
+    const fine = { sections: content().sections.map((s) => ({ ...s, blocks: s.blocks.filter((b) => b.id !== "b2") })) };
+    let called = false;
+    const out = await repairResumeBounds(fine, spec, facts, async () => {
+      called = true;
+      return new Map();
+    });
+    expect(called).toBe(false);
+    expect(out).toEqual(fine);
+  });
+
+  it("rewrites a summary of fifty words as one paragraph citing all its facts", async () => {
+    const words = Array(30).fill("word").join(" ");
+    const over: RenderContent = {
+      sections: [
+        { key: "summary", heading: "Summary", blocks: [
+          { id: "s1", kind: "paragraph", text: words, factIds: ["f1"] },
+          { id: "s2", kind: "paragraph", text: words, factIds: ["f2"] },
+        ] },
+        ...content().sections.slice(1).map((s) => ({ ...s, blocks: s.blocks.filter((b) => b.id !== "b2") })),
+      ],
+    };
+    const repaired = await repairResumeBounds(over, spec, facts, async (lines) => {
+      expect(lines).toMatchObject([{ id: "s1", kind: "summary", limit: "under 50 words", text: `${words} ${words}` }]);
+      return new Map([["s1", "Platform engineer who cut deploys to 5 minutes."]]);
+    });
+    expect(repaired.sections[0]!.blocks).toEqual([
+      { id: "s1", kind: "paragraph", text: "Platform engineer who cut deploys to 5 minutes.", factIds: ["f1", "f2"] },
+    ]);
+  });
+
+  it("refuses the document only when a line is still over after the rewrite", async () => {
+    await expect(repairResumeBounds(content(), spec, facts, async () => new Map([["b2", "y".repeat(241)]])))
+      .rejects.toThrow(/over 240 characters/);
+    await expect(repairResumeBounds(content(), spec, facts, async () => new Map()))
+      .rejects.toBeInstanceOf(ModelUnavailableError);
+  });
+
+  it("reads back only the lines it asked for", () => {
+    const asked = [{ id: "b2", kind: "bullet", text: long, limit: "", facts: [] }] satisfies LineToShorten[];
+    expect(readShortened({ lines: [{ id: "b2", text: " Short. " }, { id: "b9", text: "Other." }, { id: "b2x" }] }, asked))
+      .toEqual(new Map([["b2", "Short."]]));
+    expect(readShortened(null, asked)).toEqual(new Map());
   });
 });

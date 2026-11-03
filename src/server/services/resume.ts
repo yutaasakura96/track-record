@@ -17,7 +17,7 @@ import type { Db } from "../db/client";
 import { profiles } from "../db/schema";
 import { collectRenderInputs } from "./render";
 import { curatedGroups } from "./skills";
-import { rankedSkills, resumeSkills, type ResumeRecord } from "~/render/resume";
+import { rankedSkills, resumeSkills, type ResumeRecord, type SkillEvidence } from "~/render/resume";
 import type { PaperSize } from "~/render/resume-docx";
 
 export async function collectResumeRecord(db: Db, userId: string): Promise<ResumeRecord & { paper: PaperSize }> {
@@ -33,22 +33,30 @@ export async function collectResumeRecord(db: Db, userId: string): Promise<Resum
     projects: spec.projects,
     educations: spec.educations,
     certifications: spec.certifications,
-    skills: await skillsFor(db, userId, facts, spec.certifications),
+    ...(await skillsFor(db, userId, facts, spec.certifications)),
     paper: profile?.paperSize ?? "a4",
   };
 }
 
 /**
- * The résumé's skills (S9): the curation, or with nothing curated every
- * technology the résumé's facts and certifications name (`resumeSkills`).
+ * The résumé's skills (S9): the curation, or with nothing curated the
+ * best-evidenced of what the résumé's facts and certifications name
+ * (`resumeSkills`). With nothing curated the evidence goes with it, so the file
+ * can choose the line against the version it is printed with.
  */
 async function skillsFor(
   db: Db,
   userId: string,
-  facts: { technologies: string[] }[],
+  facts: { id: string; technologies: string[] }[],
   certifications: { technologies: string[] }[],
-): Promise<ResumeRecord["skills"]> {
-  return resumeSkills(await curatedGroups(db, userId), rankedSkills([...facts, ...certifications]));
+): Promise<Pick<ResumeRecord, "skills" | "skillEvidence">> {
+  const curation = await curatedGroups(db, userId);
+  const evidence: SkillEvidence[] = [
+    ...facts.map((f) => ({ id: f.id, technologies: f.technologies })),
+    ...certifications.map((c) => ({ technologies: c.technologies })),
+  ];
+  const skills = resumeSkills(curation, rankedSkills(evidence));
+  return curation.length > 0 ? { skills } : { skills, skillEvidence: evidence };
 }
 
 /**

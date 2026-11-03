@@ -15,6 +15,114 @@ export interface CuratedGroup {
   skills: string[];
 }
 
+/* --------------------------------------------- one skill, however spelled */
+
+/**
+ * How many skills a document lists when the author has curated none. The
+ * first real record named about 800 technologies across its facts, and the
+ * résumé printed every one of them: `grep` and `Notepad` beside the stack the
+ * career is built on. A hand-kept résumé lists about twenty.
+ */
+export const AUTO_SKILL_CAP = 20;
+
+/**
+ * Names the record holds under more than one spelling, each folded to the one
+ * a document prints. Keyed by {@link foldSkill}, so a case or punctuation
+ * difference needs no entry of its own: only a genuinely different name does.
+ */
+const SKILL_ALIASES: Record<string, string> = {
+  s3: "Amazon S3",
+  awss3: "Amazon S3",
+  amazons3: "Amazon S3",
+  ec2: "Amazon EC2",
+  awsec2: "Amazon EC2",
+  amazonec2: "Amazon EC2",
+  rds: "Amazon RDS",
+  awsrds: "Amazon RDS",
+  amazonrds: "Amazon RDS",
+  dynamodb: "Amazon DynamoDB",
+  awsdynamodb: "Amazon DynamoDB",
+  amazondynamodb: "Amazon DynamoDB",
+  lambda: "AWS Lambda",
+  awslambda: "AWS Lambda",
+  amazonwebservices: "AWS",
+  gcp: "Google Cloud",
+  googlecloud: "Google Cloud",
+  googlecloudplatform: "Google Cloud",
+  azure: "Azure",
+  microsoftazure: "Azure",
+  js: "JavaScript",
+  ts: "TypeScript",
+  node: "Node.js",
+  nodejs: "Node.js",
+  reactjs: "React",
+  vue: "Vue.js",
+  vuejs: "Vue.js",
+  golang: "Go",
+  postgres: "PostgreSQL",
+  postgresql: "PostgreSQL",
+  k8s: "Kubernetes",
+  mssql: "SQL Server",
+  sqlserver: "SQL Server",
+  microsoftsqlserver: "SQL Server",
+  cicd: "CI/CD",
+};
+
+/** Width, case, spaces and the punctuation names differ by (`Node.js`, `NodeJS`, `node js`) folded away. */
+const foldSkill = (name: string): string => name.normalize("NFKC").toLowerCase().replace(/[\s._/-]+/gu, "");
+
+/** The key two spellings of one skill share: `zod` and `Zod`, `S3` and `AWS S3`. */
+export function skillKey(name: string): string {
+  const folded = foldSkill(name);
+  const alias = SKILL_ALIASES[folded];
+  return alias === undefined ? folded : foldSkill(alias);
+}
+
+/** The name a document prints for a skill: the alias table's, else the spelling given. */
+export function skillDisplayName(name: string): string {
+  return SKILL_ALIASES[foldSkill(name)] ?? name.trim();
+}
+
+/**
+ * `names` with every later spelling of a skill already listed removed, in
+ * order. The first spelling is the one kept, so a list ranked by evidence keeps
+ * the best-evidenced spelling.
+ */
+export function dedupeSkills(names: readonly string[]): string[] {
+  const seen = new Set<string>();
+  return names.filter((name) => {
+    const key = skillKey(name);
+    if (key === "" || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+/** A curation with each skill listed once: a later repeat, in its group or another, is dropped, and so is a group left empty. */
+export function dedupeCuration<G extends { skills: string[] }>(groups: readonly G[]): G[] {
+  const seen = new Set<string>();
+  return groups
+    .map((g) => ({
+      ...g,
+      skills: g.skills.filter((name) => {
+        const key = skillKey(name);
+        if (key === "" || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      }),
+    }))
+    .filter((g) => g.skills.length > 0);
+}
+
+/**
+ * The list a document prints when the author has curated none: `ranked`
+ * (`rankedSkills`, best evidenced first) with each skill once, in its printed
+ * name, cut to {@link AUTO_SKILL_CAP}.
+ */
+export function autoCuratedSkills(ranked: readonly string[], cap = AUTO_SKILL_CAP): string[] {
+  return dedupeSkills(ranked).slice(0, cap).map(skillDisplayName);
+}
+
 /** When a skill was last used: a year, `now` while something naming it is still going, or not known. */
 export type LastUsed = number | "now" | null;
 
@@ -25,9 +133,7 @@ export type LastUsed = number | "now" | null;
  * an employer this render leaves out is not written into it.
  */
 export function curationForRender(groups: CuratedGroup[], available: Set<string>): CuratedGroup[] {
-  return groups
-    .map((g) => ({ ...g, skills: g.skills.filter((s) => available.has(s)) }))
-    .filter((g) => g.skills.length > 0);
+  return dedupeCuration(groups.map((g) => ({ ...g, skills: g.skills.filter((s) => available.has(s)) })));
 }
 
 /** The later of two uses. Going on now is later than any year; a known year is later than none. */
