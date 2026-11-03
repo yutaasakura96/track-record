@@ -26,7 +26,7 @@
  *     so the three cannot disagree.
  */
 import type { RenderSpec } from "~/model/types";
-import { leavesOutEducation } from "~/shared/education";
+import { leavesOutEducation, studiedText } from "~/shared/education";
 import { autoCuratedSkills, curationForRender, skillKey, type CuratedGroup } from "~/shared/skills";
 import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
@@ -272,12 +272,6 @@ export interface ResumeRecord {
   certifications: RenderSpec["certifications"];
   /** A group with an empty name is a list nobody grouped. Empty is no skills section. */
   skills: { name: string; skills: string[] }[];
-  /**
-   * Set only while nothing is curated: what each fact and certification names,
-   * so the line can be chosen against the version it is printed with, citing
-   * its facts first. `skills` is then the same line chosen without a version.
-   */
-  skillEvidence?: SkillEvidence[];
 }
 
 export type ResumeBlock =
@@ -345,7 +339,7 @@ export function assembleResume({ content, record, identity, today }: AssembleArg
   const contact = headline === null ? lines : lines.slice(1);
   const sections: ResumeSection[] = [
     section(SUMMARY_KEY, "Summary", summaryBlocks(content)),
-    section("skills", "Skills", skillsBlocks(skillsFor(record, content))),
+    section("skills", "Skills", skillsBlocks(record.skills)),
     section("experience", "Experience", experienceBlocks(content, record)),
     section("projects", "Projects", projectBlocks(content, record)),
     section("education", "Education", educationBlocks(record)),
@@ -467,40 +461,27 @@ function summaryBlocks(content: RenderContent): ResumeBlock[] {
   return writtenOf(content, SUMMARY_KEY).map((b) => ({ kind: "paragraph", ...b }));
 }
 
-/** One fact's or certification's technologies. `id` is a fact's, and a certification has none. */
-export interface SkillEvidence {
-  id?: string;
-  technologies: string[];
-}
-
 const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
 /**
  * Every technology the résumé's facts and certifications name, exactly as
  * they spell it, the best-evidenced skill first. A skill is all its spellings
  * (`skillKey`), so `zod` and `Zod` count together and sit together, the
- * commoner spelling first. With `cited`, the facts a version's bullets were
- * written from count first: a skill the résumé's own bullets rest on outranks
- * one the record names more often in work the résumé left out.
+ * commoner spelling first.
  */
-export function rankedSkills(rows: SkillEvidence[], cited: ReadonlySet<string> = new Set()): string[] {
+export function rankedSkills(rows: { technologies: string[] }[]): string[] {
   const spellings = new Map<string, number>();
-  const backing = new Map<string, { cited: number; all: number }>();
+  const backing = new Map<string, number>();
   for (const row of rows) {
     // Exactly as spelled: a curation is narrowed by these names.
     const names = new Set(row.technologies.filter((name) => name.trim() !== ""));
     for (const name of names) spellings.set(name, (spellings.get(name) ?? 0) + 1);
-    for (const key of new Set([...names].map(skillKey))) {
-      const tally = backing.get(key) ?? { cited: 0, all: 0 };
-      tally.all += 1;
-      if (row.id !== undefined && cited.has(row.id)) tally.cited += 1;
-      backing.set(key, tally);
-    }
+    for (const key of new Set([...names].map(skillKey))) backing.set(key, (backing.get(key) ?? 0) + 1);
   }
   return [...spellings.keys()].sort((a, b) => {
     const [ka, kb] = [skillKey(a), skillKey(b)];
     const [x, y] = [backing.get(ka)!, backing.get(kb)!];
-    return y.cited - x.cited || y.all - x.all || byName(ka, kb) || spellings.get(b)! - spellings.get(a)! || byName(a, b);
+    return y - x || byName(ka, kb) || spellings.get(b)! - spellings.get(a)! || byName(a, b);
   });
 }
 
@@ -515,20 +496,6 @@ export function resumeSkills(curation: CuratedGroup[], ranked: string[]): Resume
   if (curation.length > 0) return curationForRender(curation, new Set(ranked));
   const chosen = autoCuratedSkills(ranked);
   return chosen.length > 0 ? [{ name: "", skills: chosen }] : [];
-}
-
-/** The facts a version's blocks were written from. */
-const citedFacts = (content: RenderContent): Set<string> =>
-  new Set(content.sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds)));
-
-/**
- * The skills one version prints. A curation is the record's and the same for
- * every version. With none, the line is chosen again against this version's
- * own bullets, so it leads with what they rest on.
- */
-function skillsFor(record: ResumeRecord, content: RenderContent): ResumeRecord["skills"] {
-  if (record.skillEvidence === undefined) return record.skills;
-  return resumeSkills([], rankedSkills(record.skillEvidence, citedFacts(content)));
 }
 
 /**
@@ -643,17 +610,6 @@ function educationBlocks(record: ResumeRecord): ResumeBlock[] {
       const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;
       return { kind: "entry", lead: e.institution, detail: detail || null, dates: educationDates(e) };
     });
-}
-
-/**
- * `Bachelor of Science in Computer Science`, not `…, Computer Science`: a field
- * the degree's name already states is not printed a second time.
- */
-export function studiedText(degree: string | null, field: string | null): string {
-  const d = degree?.trim() ?? "";
-  const f = field?.trim() ?? "";
-  if (!d || !f) return d || f;
-  return d.toLocaleLowerCase("en").includes(f.toLocaleLowerCase("en")) ? d : `${d}, ${f}`;
 }
 
 function educationDates(e: RenderSpec["educations"][number]): string | null {

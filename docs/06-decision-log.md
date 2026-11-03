@@ -8055,10 +8055,10 @@ part of this.
   could see it. The education line printed the field a second time when the degree already named it.
 - **Decision:** with nothing curated, a document lists the twenty best-evidenced skills
   (`AUTO_SKILL_CAP`, `src/shared/skills.ts`). Spellings fold to one skill by case, width and
-  punctuation, plus a short alias table (`S3` and `AWS S3` are `Amazon S3`). The English résumé counts
-  the facts its version cites first, so the line leads with what its bullets rest on, and the Skills
-  screen previews the same rule without a version. An author's curation is deduplicated the same way
-  and never cut.
+  punctuation, plus a short alias table (`S3` and `AWS S3` are `Amazon S3`). The line is the same
+  for every version of the English résumé and is the line the Skills screen previews; it is not
+  re-ranked by the facts a version cites. An author's curation is deduplicated the same way and never
+  cut.
 - **Decision:** the 職務経歴書 is handed that list as a `skillShortlist` when nothing is curated, and its
   register groups only what is on it. Whatever comes back, `src/render/skill-lists.ts` names each
   technology once in the skills section (at most twenty, and nothing off the list) and once in each
@@ -8067,11 +8067,14 @@ part of this.
   skills section.
 - **Decision:** a résumé bullet over 240 characters, or a summary of 50 words or more, is rewritten
   alone, from the facts it cites, in one further call inside `generateRender` (the seam keeps its six
-  functions). The document is refused only if a line is still over afterwards. An employer over its
-  bullet budget keeps its first bullets, the ones the register asks it to lead with. The bounds and
-  the 240-character limit are unchanged, and so is their check on an author's edit.
+  functions). The document is refused only if a line is still over afterwards. A generated employer
+  section over its bullet budget keeps its first `max` bullets, the ones the register asks it to lead
+  with, instead of being refused; this supersedes any earlier entry that refuses a generation for
+  exceeding the budget. The bounds and the 240-character limit are unchanged, and so is their check on
+  an author's edit.
 - **Decision:** the degree and field print once when the degree names the field
-  (`Bachelor of Science in Computer Science`). The 職務経歴書's 学歴 rows print 学部・学科 and never
+  (`Bachelor of Science in Computer Science`), in the English résumé and in the career record
+  (`studiedText`, `src/shared/education.ts`). The 職務経歴書's 学歴 rows print 学部・学科 and never
   the degree, so nothing there repeats.
 - **Not done here:** an education fact the model wrote as a Projects bullet (a bootcamp, filed under no
   employer) was set aside in the record, not routed in code.

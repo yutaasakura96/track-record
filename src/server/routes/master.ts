@@ -36,6 +36,7 @@ import { effectiveEmployerId } from "../services/employer";
 import { nameInLanguage } from "../services/render";
 import { documentFilename, tokyoDay } from "~/render/filename";
 import { masterMarkdown } from "~/render/master-document";
+import { studiedText } from "~/shared/education";
 import type { RenderContent } from "~/shared/render-content";
 import {
   MASTER_WORDS,
@@ -268,9 +269,7 @@ export async function buildMasterDocument(
     educations: educationRows.map((education) => ({
       id: education.id,
       institution: language === "ja" ? (education.institutionJa ?? education.institution) : education.institution,
-      detail:
-        [education.faculty, education.degree, education.fieldOfStudy].filter(Boolean).join(language === "ja" ? "、" : ", ") ||
-        null,
+      detail: educationDetail(education, language === "ja" ? "、" : ", "),
       startedOn: education.startedOn,
       endedOn: education.endedOn,
       outcome: education.outcome,
@@ -290,6 +289,14 @@ export async function buildMasterDocument(
  * is still open: the `across 11 years` of the count line. Month precision, as
  * every calendar column is.
  */
+/** Faculty, degree and field, a field the degree already names printed once (`studiedText`). */
+function educationDetail(
+  education: { faculty: string | null; degree: string | null; fieldOfStudy: string | null },
+  separator: string,
+): string | null {
+  return [education.faculty, studiedText(education.degree, education.fieldOfStudy, separator)].filter(Boolean).join(separator) || null;
+}
+
 function yearsCovered(spans: { startedOn: string | null; endedOn: string | null }[], today: string): number | null {
   const dated = spans.filter((span) => span.startedOn !== null);
   if (dated.length === 0) return null;

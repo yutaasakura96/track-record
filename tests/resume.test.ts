@@ -24,7 +24,7 @@ import {
   resumeOverLimit,
   resumeSkills,
   shapeResumeContent,
-  studiedText,
+  skillsSectionPage,
   ResumeAssemblyError,
   ResumeJobHeaderError,
   ResumeLanguageError,
@@ -33,6 +33,7 @@ import {
 } from "~/render/resume";
 import { resumeDocx } from "~/render/resume-docx";
 import { employerChapterKey } from "~/render/chapters";
+import { studiedText } from "~/shared/education";
 import type { RenderContent } from "~/shared/render-content";
 
 const TODAY = "2026-10-18";
@@ -686,20 +687,22 @@ describe("the skills line with nothing curated", () => {
     expect(line!.skills.slice(0, 3)).toEqual(["Tool000", "Tool001", "Tool002"]);
   });
 
-  it("leads with what the version's own bullets were written from", () => {
+  it("prints in the file the line the Skills screen previews, whatever the version cites", () => {
     const rows = [
       ...evidence({ Plinth: 5 }),
       { id: "cited_1", technologies: ["Vorbit"] },
     ];
-    expect(rankedSkills(rows, new Set(["cited_1"]))[0]).toBe("Vorbit");
-    const record: ResumeRecord = { ...RECORD, skills: [], skillEvidence: rows };
+    const skills = resumeSkills([], rankedSkills(rows));
+    const record: ResumeRecord = { ...RECORD, skills };
     const content: RenderContent = {
       sections: CONTENT.sections.map((s) =>
         s.key === employerChapterKey("emp_now") ? { ...s, blocks: [{ ...s.blocks[0]!, factIds: ["cited_1"] }] } : s,
       ),
     };
-    const skills = assembled(content, record).sections.find((s) => s.key === "skills")!;
-    expect(skills.blocks).toEqual([{ kind: "paragraph", text: "Vorbit, Plinth" }]);
+    const file = assembled(content, record).sections.find((s) => s.key === "skills")!;
+    expect(file.blocks).toEqual([{ kind: "paragraph", text: "Plinth, Vorbit" }]);
+    const page = resumeSentPage(assembled(content, record)).sections;
+    expect(page.filter((s) => s.heading === "Skills")).toEqual(skillsSectionPage(skills));
   });
 
   it("prints a curation as curated: each skill once, and never cut", () => {
