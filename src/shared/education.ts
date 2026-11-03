@@ -40,5 +40,7 @@ export function studiedText(degree: string | null, field: string | null, separat
   const d = degree?.trim() ?? "";
   const f = field?.trim() ?? "";
   if (!d || !f) return d || f;
-  return d.toLocaleLowerCase("en").includes(f.toLocaleLowerCase("en")) ? d : `${d}${separator}${f}`;
+  return ` ${wordsOf(d)} `.includes(` ${wordsOf(f)} `) ? d : `${d}${separator}${f}`;
 }
+
+const wordsOf = (text: string): string => (text.toLocaleLowerCase("en").match(/[\p{L}\p{N}]+/gu) ?? []).join(" ");

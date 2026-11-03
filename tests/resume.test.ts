@@ -653,6 +653,13 @@ describe("the degree and field on an education line", () => {
     expect(studiedText("Bachelor of Science in computer science", "Computer Science")).toBe("Bachelor of Science in computer science");
   });
 
+  it("matches the field only as whole words", () => {
+    expect(studiedText("Bachelor of Arts in Political Science", "IT")).toBe("Bachelor of Arts in Political Science, IT");
+    expect(studiedText("Bachelor of Fine Arts", "Art")).toBe("Bachelor of Fine Arts, Art");
+    expect(studiedText("Bachelor of Laws in Lawn Management", "Law")).toBe("Bachelor of Laws in Lawn Management, Law");
+    expect(studiedText("Bachelor of Arts in Art", "art")).toBe("Bachelor of Arts in Art");
+  });
+
   it("reaches the document", () => {
     const educations = RECORD.educations.map((e) =>
       e.id === "edu_uni" ? { ...e, degree: "Bachelor of Science in Computer Science" } : e,
@@ -678,6 +685,11 @@ describe("the skills line with nothing curated", () => {
     ]);
     // Four facts each: a tie, settled by name.
     expect(resumeSkills([], ranked)).toEqual([{ name: "", skills: ["Amazon S3", "Zod", "Plinth"] }]);
+  });
+
+  it("never renames a bare word into a product the record did not name", () => {
+    const ranked = rankedSkills(evidence({ Lambda: 2, node: 1, vue: 1, ts: 1, js: 1 }));
+    expect(resumeSkills([], ranked)).toEqual([{ name: "", skills: ["Lambda", "js", "node", "ts", "vue"] }]);
   });
 
   it("stops at twenty, keeping the best-evidenced", () => {

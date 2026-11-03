@@ -284,11 +284,6 @@ export async function buildMasterDocument(
   };
 }
 
-/**
- * Whole years from the first start to the last end, or to today while anything
- * is still open: the `across 11 years` of the count line. Month precision, as
- * every calendar column is.
- */
 /** Faculty, degree and field, a field the degree already names printed once (`studiedText`). */
 function educationDetail(
   education: { faculty: string | null; degree: string | null; fieldOfStudy: string | null },
@@ -297,6 +292,11 @@ function educationDetail(
   return [education.faculty, studiedText(education.degree, education.fieldOfStudy, separator)].filter(Boolean).join(separator) || null;
 }
 
+/**
+ * Whole years from the first start to the last end, or to today while anything
+ * is still open: the `across 11 years` of the count line. Month precision, as
+ * every calendar column is.
+ */
 function yearsCovered(spans: { startedOn: string | null; endedOn: string | null }[], today: string): number | null {
   const dated = spans.filter((span) => span.startedOn !== null);
   if (dated.length === 0) return null;
