@@ -47,6 +47,8 @@ export type StepAction =
   | { kind: "generate"; label: string; render: RenderRow["kind"] }
   /** The header's own control. */
   | { kind: "import"; label: string }
+  /** Into that application, which has gone quiet. */
+  | { kind: "application"; label: string; applicationId: string }
   /** Into Quick capture, filed under that employer from the start. */
   | { kind: "capture"; label: string; employerId: string | null };
 
@@ -80,6 +82,22 @@ function capturePrompt(data: Overview, now: Date): Step | null {
     why: `Nothing has been added to your record for ${days} days. A sentence or two now is easier than remembering it at your next job search.`,
     action: { kind: "capture", label: "Quick capture", employerId: prompt.employer?.id ?? null },
     dismissible: true,
+  };
+}
+
+/**
+ * An application whose employer has been silent for 14 days or more while the
+ * author waits to hear back (issue: usability check L11). Home suggests a
+ * follow-up on the one silent longest; the rest are on Applications.
+ */
+function quietPrompt(data: Overview): Step | null {
+  const quiet = data.quietApplication;
+  if (!quiet) return null;
+  return {
+    key: "quiet",
+    title: `${quiet.company} has gone quiet for ${count(quiet.quietDays, "day", "days")}, follow up?`,
+    why: `Nothing has changed there for ${count(quiet.quietDays, "day", "days")}. Follow up.`,
+    action: { kind: "application", label: "Open it", applicationId: quiet.id },
   };
 }
 
@@ -158,6 +176,8 @@ export function nextSteps(data: Overview, now: Date = new Date()): Step[] {
         action: { kind: "import", label: "Import a document" },
       });
     }
+    const quiet = quietPrompt(data);
+    if (quiet) steps.push(quiet);
     return steps;
   }
 
@@ -181,6 +201,9 @@ export function nextSteps(data: Overview, now: Date = new Date()): Step[] {
       action: { kind: "generate", label: "Update", render: stale.kind },
     });
   }
+
+  const quiet = quietPrompt(data);
+  if (quiet) steps.push(quiet);
 
   if (steps.length === 0) {
     steps.push({

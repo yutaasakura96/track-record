@@ -87,7 +87,7 @@ const webAddress = (label: string) =>
     return z.NEVER;
   });
 
-const profileBody = z.object({
+export const profileBody = z.object({
   familyNameKanji: required("Family name"),
   givenNameKanji: required("Given name"),
   familyNameKana: kana("Family name (kana)"),

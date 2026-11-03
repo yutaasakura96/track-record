@@ -401,7 +401,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
         url: body.url,
         label: body.label,
       }),
-    ]);
+    ], "move", false);
     // Ids and the kind. Never the link or what the author called it.
     console.log(
       JSON.stringify({ event: "recording_added", applicationId: id, interviewId, recordingId, kind: "link" }),
@@ -441,7 +441,7 @@ export function registerInterviewRoutes(app: Hono<AppEnv>) {
     const now = new Date();
     await saveStanding(db, user.id, id, row, steps, standing, [
       db.update(interviewRecordings).set(EMPTIED(now)).where(live),
-    ]);
+    ], "move", false);
     if (recording.kind === "upload") await deleteFiles(c.env.RECORDINGS, user.id, id, interviewId, [recordingId]);
     console.log(
       JSON.stringify({ event: "recording_removed", applicationId: id, interviewId, recordingId, kind: recording.kind }),

@@ -16,7 +16,8 @@ import { applications, facts, profiles, renderProposals, renderVersions, renders
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
-import { collectRenderInputs, generateIntoProposal, tailoringOf } from "../services/render";
+import { collectRenderInputs, tailoringOf } from "../services/render";
+import { settleLostGeneration, startGeneration } from "~/pipeline/generation";
 import { parseBody } from "../services/validate";
 import { z } from "zod";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
@@ -219,14 +220,15 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
 
     // Returns immediately with a resource to poll. The current version stays
     // fully readable while the proposal generates — never a blank screen.
-    const run = generateIntoProposal({
+    await startGeneration({
       db,
       model: c.get("model"),
       userId: user.id,
       proposalId,
-      inputs,
+      workflow: c.env.GENERATION_WORKFLOW,
+      inlineTest: c.env.GENERATION_INLINE_TEST,
+      waitUntil: (work) => c.executionCtx.waitUntil(work),
     });
-    c.executionCtx.waitUntil(run);
 
     return c.json({ proposalId, renderKind: kind, renderRef: target.ref, status: "generating", warnings }, 202);
   });
@@ -290,7 +292,8 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       c.get("user").id,
       pathParam(c, "id"),
     );
-    return c.json(await proposalResponse(c.get("db"), c.get("user").id, proposal, render));
+    const read = await settleLostGeneration(c.get("db"), c.get("user").id, proposal);
+    return c.json(await proposalResponse(c.get("db"), c.get("user").id, read, render));
   });
 
   /** The split view. Two passes have already run server-side. */

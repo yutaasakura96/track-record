@@ -33,7 +33,7 @@ const educationLevel = z.enum([
   "secondary_lower", "secondary_upper", "vocational", "tertiary", "postgraduate",
 ]);
 
-const educationFields = z.object({
+export const educationFields = z.object({
   institution: z.string().trim().min(1, "An institution name is required."),
   institutionJa: z.string().trim().nullish(),
   /** 学部・学科 — appears on the 履歴書 closing line. */
@@ -78,7 +78,7 @@ const educationRowFields = educationFields.extend({ level: educationLevel.nullis
  * because it is one rule: what makes a finished 学歴 row coherent does not
  * depend on whether the row is arriving or already stored.
  */
-function educationRules(
+export function educationRules(
   value: { outcome: string; startedOn?: string | null; endedOn?: string | null },
   ctx: z.RefinementCtx,
 ) {
@@ -108,7 +108,7 @@ function educationRules(
 const educationBody = educationFields.superRefine(educationRules);
 const educationRow = educationRowFields.superRefine(educationRules);
 
-const certificationBody = z.object({
+export const certificationBody = z.object({
   name: z.string().trim().min(1, "A certification name is required."),
   nameJa: z.string().trim().nullish(),
   issuingOrganization: z.string().trim().min(1, "An issuing organization is required."),

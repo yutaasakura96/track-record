@@ -131,12 +131,12 @@ describe("uploading an audio file", () => {
     expect((await client.json<Detail>(`/api/applications/${id}`)).interviews).toEqual(after.interviews);
   });
 
-  it("is a change to the application", async () => {
+  it("does not count as application activity", async () => {
     const { id, interviewId } = await noted();
     const before = await client.json<Detail>(`/api/applications/${id}`);
     vi.setSystemTime(new Date(DAY_ONE.getTime() + 60_000));
     await upload(id, interviewId, mp3(1024));
-    expect((await client.json<Detail>(`/api/applications/${id}`)).lastActivityAt > before.lastActivityAt).toBe(true);
+    expect((await client.json<Detail>(`/api/applications/${id}`)).lastActivityAt).toBe(before.lastActivityAt);
   });
 
   it("stores the type it recognised, not the one the browser claimed", async () => {
@@ -422,7 +422,7 @@ describe("a removal refused because the application changed", () => {
     const holder = owner as { batch: (...args: unknown[]) => Promise<unknown> };
     const original = holder.batch;
     const spy = vi.spyOn(holder, "batch").mockImplementationOnce(async function (this: unknown, ...args: unknown[]) {
-      await app.db.update(applications).set({ lastActivityAt: new Date(DAY_ONE.getTime() + 60_000) }).where(eq(applications.id, id));
+      await app.db.update(applications).set({ updatedAt: new Date(DAY_ONE.getTime() + 60_000) }).where(eq(applications.id, id));
       return original.apply(this, args);
     });
     try {

@@ -7956,3 +7956,90 @@ part of this.
   group, which is named beside everything, and a tie fell to the earlier group. A skill with no
   evidence gets no suggestion.
   Supersedes the suggested-group rules of 2026-10-23 (employer, then largest group).
+
+---
+
+### [2026-11-02] Generation runs in a Workflow
+
+- **Decision:** a generation is a Workflow of its own (`GenerationWorkflow`, `track-record-generation`),
+  with the proposal ID as its instance ID. It supersedes the `waitUntil` run of the generate route.
+  Moved without running the production test the planning report proposed: the docs' 30-second limit
+  and the measured 75 to 145 seconds already say a real document cannot finish there, and a document
+  that fails only under load would be worse than the move.
+- **Decision:** one step, carrying ids. The run reads the record itself and writes the proposal, so
+  nothing the model reads sits in a Workflow's parameters or stored state. `usable_fact_ids` is written
+  again when the document lands, because this read is the one the document came from.
+- **Decision:** one retry, and a 20-minute timeout per attempt. An attempt holds up to two model calls
+  (the language retry), at most about eleven minutes. Model failures are written to the proposal and
+  do not retry the step, so a step retry is a lost run or a database that did not answer, and it is
+  billed; the default of five would multiply that. A proposal no longer `pending` and `generating`
+  costs nothing when a run reaches it.
+- **Decision:** `generating` always ends. The Workflow's last step fails the proposal when the
+  generate step runs out of attempts, a Workflow that will not start fails it at once, and reading a
+  proposal past `GENERATION_DEADLINE_MS` (45 minutes, past both attempts) fails it. The Generating
+  screen has no way out, and the failed screen has two. Every ending now writes only over `generating`:
+  a run landing after it was given up on would otherwise put a second waiting proposal on the render.
+- **Reason:** Cloudflare's docs give `waitUntil` 30 seconds after the response, and a Workflow step
+  unlimited wall time with 30 seconds of CPU (read 2026-11-02). Waiting on the model is not CPU.
+- **Decision:** inline generation without a Workflow binding is limited to disposable tests and the demo seed; a deployed Worker without the binding fails the proposal.
+- **Revisit if:** a real generation fails at the deadline or the step timeout; or generation gets a
+  way to cancel a run, which dismissing does not do: the model call runs on and its usage is recorded.
+
+---
+
+### [2026-11-02] A fact budget per employer
+
+- **Decision:** a document is sent at most `FACTS_PER_EMPLOYER` (150) facts per employer, and 150 more
+  of those filed under none. Four employers send at most 750, about 112,500 input tokens, about $0.56 of input a
+  document. Uncapped, 4,000 facts cost about $3.50 a document and 7,000 pass the context window. Per
+  employer, not one total, so the largest portfolio cannot crowd out the smallest job.
+- **Decision:** an employer under budget loses nothing. One over it keeps facts in tiers: no open flag,
+  then an open flag other than `repeat`, then an open `repeat`, because a repeat's content is carried
+  by another fact. A checked flag does not count: the author ruled on it.
+- **Decision:** the last tier that fits only in part is sampled evenly by source position. Taking the
+  first 150 would have written every document from a portfolio's first case studies.
+- **Decision:** provenance is not a tier. Measured facts alone can fill a budget, and a 職務経歴書 and a
+  story need the attested account of the work too. An even sample keeps the document's own mix.
+- **Decision:** the budget applies only to what the model is sent (`forModel`). Staleness still reads
+  the whole usable set, so a fact left out still makes a document out of date. The skills list, the
+  résumé's skills and the check on a drafted part read every fact, so a curated skill stays when the
+  fact naming it was not sent. The count left out is logged, as numbers only, and not shown on a screen.
+- **Revisit if:** first drafts from the real record read thin or repeat one project; a document type
+  proves to need far fewer facts than another (the 履歴書 is a candidate); or the author wants to see
+  which facts a draft was not sent.
+
+---
+
+### [2026-11-02] A record can be cleared and loaded without the demo
+
+- **Decision:** `npm run db:load:record` empties one user's record and loads a JSON file of what only
+  the author types: profile, employers with their roles, educations, certifications. Format and
+  runbook are `docs/12` §5b. The file stays out of the repository and the command refuses a path
+  inside it, including `local/`.
+- **Decision:** JSON, validated by the API routes' own schemas made strict. A file that loads is one
+  the screens could have written, and a misspelt key is refused rather than loaded as an empty field.
+- **Decision:** the deletes and the inserts are one transaction, not `resetUser` then inserts. A load
+  that fails leaves the record it found. `RESET_ORDER` moved to `scripts/demo-seed/reset.ts` so both
+  commands share it and the load needs no part of the demo.
+- **Decision:** the load always deletes R2 objects by prefix, not by row, because an object can
+  outlive its row, and checks the prefix is empty after the database transaction commits. A failed R2 delete leaves only orphaned objects for a rerun to clear. Production goes through
+  Cloudflare's REST API, since wrangler has no list command and a script has no binding. The code has
+  no verb that reaches the bucket.
+- **Decision:** beyond the seed's refusals, it refuses while an import or generation is running: a
+  Workflow writing into rows being deleted is either a failure or rows nobody wrote. It has no default
+  user, and it prints no value from the file, including a JSON parser's message, which quotes the text.
+- **Revisit if:** the export becomes a restore path (`docs/12` §5), or projects or gap notes prove worth
+  loading rather than entering on the screens.
+
+---
+
+### [2026-11-02] Activity on an application, previews in dark mode, a quiet application on Home
+
+- **Decision:** only a status change or an interview entry is activity on
+  an application. Correcting a date, making, attaching or recording a document is not, so it no longer clears gone quiet:
+  gone quiet means the employer side has been silent. Supersedes the date and "a document added or
+  recorded as sent" parts of the rule in `02` Applications and `07` §9c (#71).
+- **Decision:** a document preview stays paper-white in dark mode, so View looks as it will print. The
+  app chrome around it follows the theme.
+- **Decision:** Home's Next step names an application that has gone quiet and suggests a follow-up,
+  linking to it. It sits after every existing step and before `You are up to date`.

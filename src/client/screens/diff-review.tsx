@@ -464,7 +464,7 @@ function FirstVersion({
       ) : preview ? (
         <article
           lang={japanese ? "ja" : "en"}
-          className={`mx-auto w-measure max-w-full px-20 py-32 ${japanese ? "tracking-ja" : ""}`}
+          className={`paper mx-auto w-measure max-w-full px-20 py-32 ${japanese ? "tracking-ja" : ""}`}
         >
           <h1 className="text-render-heading font-semibold text-text-strong">{preview.title}</h1>
           {preview.page.stamp ? <p className="mt-8 text-render-body text-text-body">{preview.page.stamp}</p> : null}

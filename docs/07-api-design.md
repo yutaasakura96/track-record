@@ -1010,10 +1010,9 @@ that neither ever blocks.
 
 ## 8. Overview · M1
 
-**`GET /api/overview` → 200** — one request backs the whole home screen, **and it costs the
-database one round trip** (#58): every query below goes in one batch, beside the renders' own. It
-was up to seventeen queries, each its own HTTPS request to Neon and most of them awaited in turn,
-and the home screen waited for all of them.
+**`GET /api/overview` → 200** — one request backs the whole home screen. The base reads run in
+one batch, alongside the renders and quiet-application reads. Before #58, the home screen made up
+to seventeen serial database requests.
 
 ```json
 {
@@ -1036,6 +1035,7 @@ and the home screen waited for all of them.
     "employer": { "id": "emp_…", "name": "Example Corp" },
     "dismissedOn": null
   },
+  "quietApplication": { "id": "app_…", "company": "Example Corp", "quietDays": 22 },
   "documents": [],
   "canGenerate": true,
   "isEmpty": false
@@ -1064,6 +1064,8 @@ every version. It is where the Next step's Confirm step opens Fact Review. A Gen
 the importer accepted is not counted (#57): it carries an `unsure` flag, and a flag is advice, not
 a step.
 `flagged` is the open flags, the same number as `openFlags` in `GET /api/imports/summary`.
+`quietApplication` is the open, waiting application silent longest, with its calendar days since
+last activity, or `null` when none is gone quiet. Home links to it and suggests a follow-up.
 `documents` is the `items` of `GET /api/renders` (§7). `canGenerate` is `false` when no accepted
 fact is both not Private and not Generated, and the home screen then offers no Generate.
 `capturePrompt` (#116) is what the monthly capture prompt is decided from, by the client, since the
@@ -1248,9 +1250,9 @@ screens read too.
   closed application, the standing is unchanged. When the entry moves the step, steps it passes
   over get no date, as on any move. Undo is the same `PUT …/standing` for either kind of standing
   change, and leaves the entry in place.
-- **`lastActivityAt` moves on every write here that changes `step`, `closedAs` or a date, on
-  every interview entry added, corrected or deleted, whether or not it moved the status, and on
-  every recording attached or removed**, so not
+- **`lastActivityAt` moves on every write here that changes `step` or `closedAs`, and on
+  every interview entry added, corrected or deleted, whether or not it moved the status**, but not
+  on a date-only correction or a recording attached or removed, and not
   on `PATCH /api/applications/:id`, and not on a write that leaves all three as they were: the same
   day saved again, the step it is already at, the standing it already has. That one answers with
   the application, writes nothing and logs nothing. The list is ordered by it.
@@ -1258,7 +1260,7 @@ screens read too.
   read it**: `409 conflict`, `This application was changed somewhere else. Reload it and try again.`
   That covers the step, close, date, reopen and standing routes, an interview entry added,
   corrected or deleted, and the three recording writes, and a change to a date alone counts. Nothing of the refused write is saved, the entry and its questions
-  included. The check is on `lastActivityAt`, inside the same batch as the write.
+  included. The check is on `updatedAt`, inside the same batch as the write.
 - **`read-posting` answers with what the text states and nothing it does not**: `company` and
   `position` are an empty string, and `requirements` an empty list, where the text names none.
   That is a `200`, not a failure. What was read is held to the limits a saved application has (200
@@ -1330,8 +1332,9 @@ off first.
   moves their `sentOn` with the date. `PUT …/standing` back to Not applied from the standing that
   move saved takes them back; a copy recorded by hand, or frozen by an earlier move, stays. A copy
   taken back is `404` on both of its routes.
-- **`lastActivityAt` moves** when the documents on the application change, when a tailored document
-  is put on it, and when a copy is recorded. The same ticks saved again write nothing.
+- **`lastActivityAt` does not move** when the documents on the application change, when a tailored
+  document is put on it, or when a copy is recorded (2026-11-02): only a status change and
+  an interview count. The same ticks saved again write nothing.
 - A copy asked for under another application, or another user's, is `404`.
 - Logged: `application_documents_set` with the id and the counts added and removed,
   `tailored_document_created` with the ids, the kind and the job description's length,

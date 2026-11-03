@@ -48,7 +48,8 @@ export interface StubModel extends ModelSeam {
    * open until the test settles it, which is how a test sees what waits.
    */
   extractions: (CandidateFact[] | Error | Promise<CandidateFact[] | Error>)[];
-  generations: (RenderContent | Error)[];
+  /** A promise holds that call open until the test settles it, as `extractions` does. */
+  generations: (RenderContent | Error | Promise<RenderContent | Error>)[];
   /** Every set of facts generation was actually given. */
   generationInputs: { facts: RenderFact[]; spec: RenderSpec }[];
   extractCalls: string[];
@@ -104,7 +105,7 @@ export function stubModel(): StubModel {
     },
     async generateRender(facts, spec, ctx) {
       stub.generationInputs.push({ facts, spec });
-      const next = stub.generations.shift();
+      const next = await stub.generations.shift();
       if (next instanceof Error) throw next;
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return next ?? { sections: [] };
@@ -143,6 +144,7 @@ export function stubModel(): StubModel {
 
 export interface HarnessOptions {
   workflow?: Bindings["IMPORT_WORKFLOW"];
+  generationWorkflow?: Bindings["GENERATION_WORKFLOW"];
   /**
    * Resolve sessions the way the deployment does — through Better Auth, from a
    * cookie. Requires the OIDC fixture to be installed, because the only way to
@@ -213,7 +215,9 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
       if (cookies) merged.set("cookie", cookies);
       const response = await app.fetch(
         new Request(`${ORIGIN}${path}`, { ...init, headers: merged }),
-        options.workflow ? { ...bindings, IMPORT_WORKFLOW: options.workflow } : bindings,
+        options.workflow || options.generationWorkflow
+          ? { ...bindings, IMPORT_WORKFLOW: options.workflow, GENERATION_WORKFLOW: options.generationWorkflow }
+          : bindings,
         createExecutionContext(),
       );
       jar?.capture(response);

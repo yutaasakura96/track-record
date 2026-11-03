@@ -207,20 +207,21 @@ describe("removing a recording", () => {
 });
 
 describe("a recording and the application it is on", () => {
-  it("counts as a change when one is attached and when one is removed, and moves no status", async () => {
+  it("leaves activity unchanged when one is attached and removed", async () => {
     const { id, interviewId } = await noted();
     const before = await read(id);
 
     vi.setSystemTime(dayAfter(5));
     const added = (await (await attach(id, interviewId, LINK)).json()) as Detail;
-    expect(added.daysSinceLastActivity).toBe(0);
-    expect(Date.parse(added.lastActivityAt)).toBeGreaterThan(Date.parse(before.lastActivityAt));
+    expect(added.daysSinceLastActivity).toBe(5);
+    expect(added.lastActivityAt).toBe(before.lastActivityAt);
     expect(added.step).toBe(before.step);
 
     vi.setSystemTime(dayAfter(9));
-    expect((await read(id)).daysSinceLastActivity).toBe(4);
+    expect((await read(id)).daysSinceLastActivity).toBe(9);
     const removed = (await (await remove(id, interviewId, added.interviews[0]!.recordings[0]!.id)).json()) as Detail;
-    expect(removed.daysSinceLastActivity).toBe(0);
+    expect(removed.daysSinceLastActivity).toBe(9);
+    expect(removed.lastActivityAt).toBe(before.lastActivityAt);
     expect(removed.step).toBe(before.step);
   });
 

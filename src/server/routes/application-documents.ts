@@ -29,7 +29,7 @@ import { parseBody } from "../services/validate";
 import { documentTitle, freezeDocuments, liveCopies } from "../services/application-documents";
 import { mainRender } from "../services/render-ref";
 import { photoResponse } from "../services/rirekisho";
-import { detail, markActivity, requireApplication } from "./applications";
+import { detail, requireApplication } from "./applications";
 import { DOCX_MIME } from "~/render/docx";
 import { attachment } from "../http/disposition";
 import { tokyoToday } from "~/render/rirekisho";
@@ -105,11 +105,11 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     const now = new Date();
     try {
-      await db.batch([
-        markActivity(db, user.id, id, now),
+      const writes = [
         ...removed.map((row) => takeOff(db, user.id, row.id, now)),
         ...added.map((render) => putOn(db, user.id, id, render.id)),
-      ]);
+      ];
+      await db.batch([writes[0]!, ...writes.slice(1)]);
     } catch (error) {
       if (violatesUnique(error, "application_one_rirekisho")) throw new ApiError("conflict", MAIN_RIREKISHO_HELD);
       throw error;
@@ -137,7 +137,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     if (!row) throw notFound("That document on this application");
 
     const now = new Date();
-    await db.batch([markActivity(db, user.id, id, now), takeOff(db, user.id, row.id, now)]);
+    await db.batch([takeOff(db, user.id, row.id, now)]);
     console.log(JSON.stringify({ event: "application_documents_set", applicationId: id, added: 0, removed: 1 }));
     return c.json(await detail(db, user.id, id));
   });
@@ -195,14 +195,13 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
       const now = new Date();
       try {
         if (kind === "rirekisho" && application.currentStep === "not_applied") {
-          const [, removed] = await db.batch([
-            markActivity(db, user.id, id, now),
+          const [removed] = await db.batch([
             takeOffMainRirekisho(db, user.id, id, now),
             putOn(db, user.id, id, existing.id),
           ]);
           if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
         } else {
-          await db.batch([markActivity(db, user.id, id, now), putOn(db, user.id, id, existing.id)]);
+          await db.batch([putOn(db, user.id, id, existing.id)]);
         }
       } catch (error) {
         if (!violatesUnique(error, "application_documents_live_uq")) throw error;
@@ -240,11 +239,11 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     const on = await db.select({ renderId: applicationDocuments.renderId }).from(applicationDocuments).where(onApplication(user.id, id));
     const missing = documents.filter((render) => !on.some((row) => row.renderId === render.id));
 
-    await db.batch([
-      markActivity(db, user.id, id, now),
+    const writes = [
       ...missing.map((render) => putOn(db, user.id, id, render.id)),
       ...made.rows.map((copy) => db.insert(applicationSentCopies).values(copy)),
-    ]);
+    ];
+    await db.batch([writes[0]!, ...writes.slice(1)]);
     console.log(JSON.stringify({ event: "application_copies_recorded", applicationId: id, copies: made.rows.length }));
     return c.json({ ...(await detail(db, user.id, id)), frozen: made.named }, 201);
   });

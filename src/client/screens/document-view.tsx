@@ -105,7 +105,7 @@ export function DocumentViewScreen() {
             <p className="text-small text-text-muted">Choose a line to see the facts behind it and where each is quoted from.</p>
           ) : null}
       </div>
-      <div className="bg-card border border-border rounded-tile px-20 max-phone:px-12">
+      <div className="paper border border-border rounded-tile px-20 max-phone:px-12">
         <DocumentPage
           page={data.page}
           language={data.language}
