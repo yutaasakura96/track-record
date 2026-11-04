@@ -257,7 +257,7 @@ describe("a line in English", () => {
     ]) {
       expect(isEnglishLine(line, terms), line).toBe(false);
     }
-    for (const line of ["120ms → 40ms after tuning", "Languages", "SLA Review"]) {
+    for (const line of ["120ms → 40ms after tuning", "Languages", "SLA Review", "ABOUT ME", "NEXT STEPS"]) {
       expect(isEnglishLine(line, terms), line).toBe(true);
     }
   });

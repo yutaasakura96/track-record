@@ -8328,7 +8328,9 @@ part of this.
 - **Decision:** the check (`src/render/japanese.ts`) counts a name joined by 「_」 or 「.」 —
   `TO_DATE`, `ALL_TAB_COLUMNS`, `report.json` — as one word, never a function word, and
   passes a line of such names; takes a recorded term out only where it stands as a word; and passes
-  a line whose only Latin is a number's unit or a capital abbreviation of up to five letters. An
+  a line that carries a digit and whose only Latin is a number's unit or a capital abbreviation of up
+  to five letters. A line with no digit, such as a heading in capitals (「ABOUT ME」), is still read
+  as English. An
   English sentence beside them is still a defect, as are E1 and E2.
 - **Decision:** each part of a Japanese story is held to the Japanese check as it arrives
   (`writeStoryRound`), against every fact's technologies as the joined story is, and a part with a

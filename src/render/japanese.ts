@@ -334,9 +334,13 @@ const withoutTerms = (text: string, terms: readonly string[]): string =>
 /**
  * A number's unit, written against it or a space after it (「120ms」「3 TB」),
  * and a capital abbreviation of up to five letters (「RTO」「SLA」): what a row
- * of figures prints in any language, and not a word of English.
+ * of figures prints in any language, and not a word of English. Taken out only
+ * on a line that carries a digit, so a heading in capitals (「ABOUT ME」) is
+ * still English.
  */
 const FIGURE_LATIN = /(?<=\d ?)\p{Script=Latin}{1,4}(?!\p{Script=Latin})|(?<!\p{Script=Latin})\p{Lu}[\p{Lu}\d]{1,4}(?![\p{Script=Latin}\d])/gu;
+
+const withoutFigures = (line: string): string => (/\d/.test(line) ? line.replace(FIGURE_LATIN, " ") : line);
 
 /**
  * A heading or a block written in English, judged one physical line at a
@@ -349,7 +353,7 @@ const FIGURE_LATIN = /(?<=\d ?)\p{Script=Latin}{1,4}(?!\p{Script=Latin})|(?<!\p{
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
   return withoutTerms(text, terms).split("\n").some((line) => {
     // A line of figures — 「120ms → 40ms」 under a story's table — holds no word, and nor does a name from code.
-    if (!KANA_KANJI.test(line) && LATIN_WORD.test(line.replace(IDENTIFIER, " ").replace(FIGURE_LATIN, " "))) return true;
+    if (!KANA_KANJI.test(line) && LATIN_WORD.test(withoutFigures(line.replace(IDENTIFIER, " ")))) return true;
     return line.split(STATEMENT_BREAK).some((statement) => {
       if (!KANA_KANJI.test(statement)) {
         const words = latinWords(statement);
