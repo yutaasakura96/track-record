@@ -11,11 +11,47 @@
  * so does the end of every run, whether it finished or failed. Whichever asks
  * while nobody is reading claims the oldest waiting version.
  */
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, lt, sql } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import { sourceDocumentVersions } from "~/server/db/schema";
 import { violatesUnique } from "~/server/http/errors";
 import type { Bindings } from "~/server/env";
+
+/**
+ * How long one step of the import Workflow can run. `ImportWorkflow` gives its
+ * steps no config, so each takes Cloudflare's default: five retries, ten
+ * seconds' exponential backoff, ten minutes an attempt — six attempts and
+ * 10 + 20 + 40 + 80 + 160 seconds between them.
+ */
+export const IMPORT_STEP_BOUND_MS = 6 * 10 * 60 * 1000 + (10 + 20 + 40 + 80 + 160) * 1000;
+
+/**
+ * A version still `extracting` this long after its row last changed has no run
+ * reading it. Every step stamps the row when it ends — the plan, each chunk,
+ * the finish — so silence past one step's bound, and five minutes for the step
+ * to start, is a lost run. Left `extracting`, it held every import queued
+ * behind it and kept every screen that polls an import polling for as long as
+ * a tab stayed open (`docs/06`, 2026-11-04).
+ */
+export const IMPORT_LOST_AFTER_MS = IMPORT_STEP_BOUND_MS + 5 * 60 * 1000;
+
+/**
+ * Fails every version of this author's still `extracting` with no change since
+ * `before`, as a run that stopped would. A statement, so a read can put it
+ * first in its batch; the ids it returns are what it failed.
+ */
+export const failLostImports = (db: Db, userId: string, before: Date, reason: string) =>
+  db
+    .update(sourceDocumentVersions)
+    .set({ importStatus: "failed", importError: reason, updatedAt: new Date() })
+    .where(
+      and(
+        eq(sourceDocumentVersions.userId, userId),
+        eq(sourceDocumentVersions.importStatus, "extracting"),
+        lt(sourceDocumentVersions.updatedAt, before),
+      ),
+    )
+    .returning({ id: sourceDocumentVersions.id });
 
 /** Starts reading a version the queue has already claimed. */
 export type LaunchImport = (versionId: string) => Promise<unknown>;

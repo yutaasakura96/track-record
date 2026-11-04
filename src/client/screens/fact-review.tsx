@@ -28,7 +28,7 @@ import { Link, useNavigate, useParams, useSearch } from "@tanstack/react-router"
 import {
   failureText,
   isImportRunning,
-  POLL_MS,
+  pollInterval,
   useEntities,
   useFactAction,
   useFacts,
@@ -60,10 +60,11 @@ export function FactReview() {
     // one long silence. A final status poll can finish before the facts poll;
     // keep reading until the rail contains every fact the status counted.
     refetchInterval: (query) =>
-      isImportRunning(status.data?.status) ||
-      (status.data?.candidatesExtracted ?? 0) > (query.state.data?.items.length ?? 0)
-        ? POLL_MS
-        : false,
+      pollInterval(
+        query,
+        isImportRunning(status.data?.status) ||
+          (status.data?.candidatesExtracted ?? 0) > (query.state.data?.items.length ?? 0),
+      ),
   });
   const source = useSourceText(status.data?.sourceDocumentId ?? "", status.data?.versionNo ?? 1);
   const select = useReviewStore((s) => s.select);

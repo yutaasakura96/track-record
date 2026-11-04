@@ -8,7 +8,7 @@
  */
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
-import { useMasterDocument, useProfilePhotoSrc, useRenderPage, type RenderRow } from "../api";
+import { useMasterPreview, useProfilePhotoSrc, useRenderPage, type RenderRow } from "../api";
 import { relative } from "../format";
 import { DocumentPage } from "./document-page";
 import { Action, QUIET, SECONDARY } from "./document-row";
@@ -148,9 +148,6 @@ export function DocumentCard({
   );
 }
 
-/** How many claims a chapter shows on the career record's picture. */
-const SHOWN = 2;
-
 /**
  * The career record of the tab: not generated and with no versions, so it has
  * no status dot, no History and no Generate. It is opened, and the screen it
@@ -159,8 +156,9 @@ const SHOWN = 2;
  */
 export function MasterDocumentCard({ language, count }: { language: MasterLanguage; count: number }) {
   const words = MASTER_WORDS[language];
-  const master = useMasterDocument(language);
-  const doc = master.data;
+  // The preview, not the document: the server picks the employers and claims
+  // the picture shows (`MASTER_PREVIEW`), in the document's own order.
+  const doc = useMasterPreview(language).data;
   return (
     <Card
       title={words.title}
@@ -169,16 +167,14 @@ export function MasterDocumentCard({ language, count }: { language: MasterLangua
           {doc ? (
             <article lang={language} className={`px-40 py-40 ${language === "ja" ? "tracking-ja" : ""}`}>
               {doc.subjectName ? <p className="text-doc-title font-semibold text-text-bright">{doc.subjectName}</p> : null}
-              {doc.employers.slice(0, 3).map((employer) => (
+              {doc.employers.map((employer) => (
                 <section key={employer.id} className="mt-20">
                   <p className="text-render-heading font-semibold uppercase tracking-heading text-text-dim">{employer.name}</p>
-                  {[...employer.projects.flatMap((project) => project.facts), ...employer.facts]
-                    .slice(0, SHOWN)
-                    .map((fact) => (
-                      <p key={fact.id} className="mt-8 text-doc-body text-text-body">
-                        • {fact.claim}
-                      </p>
-                    ))}
+                  {employer.facts.map((fact) => (
+                    <p key={fact.id} className="mt-8 text-doc-body text-text-body">
+                      • {fact.claim}
+                    </p>
+                  ))}
                 </section>
               ))}
             </article>

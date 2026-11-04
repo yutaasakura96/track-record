@@ -22,7 +22,7 @@ import {
 } from "./helpers/seed";
 import { factFlags } from "~/server/db/schema";
 import type { CandidateFact } from "~/model/types";
-import type { MasterDocument, MasterFact } from "~/shared/master-document";
+import { MASTER_PREVIEW, type MasterDocument, type MasterFact, type MasterPreview } from "~/shared/master-document";
 import type { RenderContent } from "~/shared/render-content";
 
 const USABLE: CandidateFact = {
@@ -479,5 +479,53 @@ describe("the career record as a file", () => {
     await asCandidates(importId);
     const file = await (await client.get("/api/master-document/download")).text();
     expect(file).toContain("1 achievement across 2 years. 1 can go into a document. 4 more are waiting to be sorted and are not listed yet.");
+  });
+});
+
+describe("Home's picture of the career record", () => {
+  const preview = (language: "en" | "ja" = "en") =>
+    client.json<MasterPreview>(`/api/master-document/preview${language === "ja" ? "?language=ja" : ""}`);
+  /** What the card drew from the whole document: the first employers, and the first claims under each. */
+  const fromDocument = (doc: MasterDocument) =>
+    doc.employers.slice(0, MASTER_PREVIEW.employers).map((employer) => ({
+      id: employer.id,
+      name: employer.name,
+      facts: [...employer.projects.flatMap((project) => project.facts), ...employer.facts]
+        .slice(0, MASTER_PREVIEW.facts)
+        .map((fact) => ({ id: fact.id, claim: fact.claim })),
+    }));
+
+  it("shows what the whole document would, in its order, in both languages", async () => {
+    const { employerId, projectId } = await seedRecord();
+    // Three more employers, older and newer, so the first three are a choice.
+    const newer = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameJa: "株式会社ハヤテ", nameLatin: "Hayate K.K.", startedOn: "2024-10-01", endedOn: null });
+    const older = await created("/api/employers", { ...EMPLOYER_FIXTURE, nameJa: "株式会社ミナト", nameLatin: "Minato K.K.", startedOn: "2018-04-01", endedOn: "2022-03-01" });
+    await created("/api/employers", { ...EMPLOYER_FIXTURE, nameJa: "株式会社ユウナギ", nameLatin: "Yunagi K.K.", startedOn: "2014-04-01", endedOn: "2018-03-01" });
+    // A second project at the main employer, newer, so project order decides.
+    const later = await created("/api/projects", { name: "Ledger rebuild", employerId, summary: "Later work.", startedOn: "2024-01-01" });
+    await imported([SIDE, { ...USABLE, claim: "Shortened the ledger close by two days", quote: "The ledger close came in two days sooner." }], "later-notes.md", { projectId: later });
+    // Facts under the newer employer with no project, from two files.
+    await imported([{ ...SIDE, claim: "Wrote the dispatch runbook", quote: "The dispatch runbook was written." }], "b-notes.md", { employerId: newer });
+    await imported([{ ...SIDE, claim: "Moved dispatch onto the queue", quote: "Dispatch moved onto the queue." }], "a-notes.md", { employerId: newer });
+    // One of the main project's facts filed by hand under the older employer.
+    const handFiled = everyFact(await master()).find((fact) => fact.claim === USABLE.claim)!;
+    expect((await client.patch(`/api/facts/${handFiled.id}`, { employerId: older })).status).toBe(200);
+    void projectId;
+
+    const english = await preview();
+    expect(english.employers).toEqual(fromDocument(await master()));
+    expect(english.employers.map((employer) => employer.name)).toEqual(["Hayate K.K.", EMPLOYER_FIXTURE.nameLatin, "Minato K.K."]);
+    expect(english.employers.every((employer) => employer.facts.length > 0)).toBe(true);
+    expect(english.subjectName).toBe((await master()).subjectName);
+
+    const japanese = await preview("ja");
+    expect(japanese.employers).toEqual(fromDocument(await masterJa()));
+    expect(japanese.subjectName).toBe((await masterJa()).subjectName);
+  });
+
+  it("is empty for an empty record, and another author's record is not in it", async () => {
+    await seedRecord();
+    const other = app.as(await seedAllowedUser(SECOND_EMAIL));
+    expect(await other.json<MasterPreview>("/api/master-document/preview")).toEqual({ language: "en", subjectName: null, employers: [] });
   });
 });

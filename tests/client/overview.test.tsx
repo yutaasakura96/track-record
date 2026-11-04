@@ -40,6 +40,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   newFactsSince: null,
   withdrawnFactsSince: null,
   pendingProposalId: null,
+  progressAt: null,
   ...over,
 });
 
@@ -841,6 +842,22 @@ describe("the English documents and the Japanese ones, apart", () => {
     await waitFor(() => expect(api.calls.map((call) => call.path)).toContain("/api/master-document?language=ja"));
     expect(api.calls.slice(before).map((call) => call.path)).not.toContain("/api/master-document");
     expect((await screen.findByRole("tab", { name: "日本語" })).getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("draws the career record card from the preview, never the whole record", async () => {
+    const { api } = open(ROWS, {
+      "GET /api/master-document/preview": {
+        language: "en",
+        subjectName: "Aiko Tanabe",
+        employers: [{ id: "emp_1", name: "Kestrel Freight K.K.", facts: [{ id: "fct_1", claim: "Cut the nightly run to forty minutes" }] }],
+      },
+    });
+    const english = await masterRow("Career record");
+    expect(await within(english).findByText(/Cut the nightly run to forty minutes/)).toBeTruthy();
+    expect(within(english).getByText("Kestrel Freight K.K.")).toBeTruthy();
+    const paths = api.calls.map((call) => call.path);
+    expect(paths).toContain("/api/master-document/preview");
+    expect(paths.filter((path) => path.startsWith("/api/master-document?") || path === "/api/master-document")).toEqual([]);
   });
 
   it("says the master document has no facts yet rather than a zero", async () => {

@@ -492,8 +492,13 @@ step read: that step carries a SHA-256 of its `RenderInputs`, spec and facts (`r
 next in the stage's labels, and a step that continues a draft reads the record again and fails the
 proposal ("The record changed while this document was being written") when its digest differs. The
 draft, its citations and `usable_fact_ids` therefore all come from one read. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
-stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
-past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
+stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and a read of a proposal
+whose row has not changed for `GENERATION_LOST_AFTER_MS` (one step's bound, both attempts at the full
+timeout, plus five minutes) fails it too: its own route and `renderState`, behind every screen that
+polls one, so none reads `generating` for ever. An import is bounded the same way: a version
+`extracting` with no change for `IMPORT_LOST_AFTER_MS` (one step at Cloudflare's default config, plus
+five minutes) is failed by the next read that reports import state, and the one queued behind it
+starts.
 
 **A document is sent at most `FACTS_PER_EMPLOYER` facts per employer** (`src/server/services/fact-budget.ts`),
 and the same again for facts filed under none. `collectRenderInputs` applies the budget only for the

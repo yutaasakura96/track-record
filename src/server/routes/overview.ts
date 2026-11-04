@@ -6,7 +6,7 @@
  * rather than a convenience (`docs/03` §12).
  */
 import type { Hono } from "hono";
-import { and, asc, desc, eq, getTableColumns, inArray, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, getTableColumns, gt, inArray, isNull, sql } from "drizzle-orm";
 import {
   applicationDocuments,
   applicationSentCopies,
@@ -33,13 +33,36 @@ import {
 import { routes } from "../http/registry";
 import { quietApplications } from "./applications";
 import { renderState, usableFacts } from "./renders";
-import { importStart, importStatus, startImport } from "./imports";
+import { importStart, importStatus, settleLostImports, startImport } from "./imports";
 import { provenanceCounts } from "./facts";
 import { factOfFlag, openFlags } from "./flags";
 import type { AppEnv } from "../env";
 
 /** A sent copy as a backup holds it: every column but the file, which is bytes, and the owner. */
 const { file: _file, userId: _userId, ...sentCopyColumns } = getTableColumns(applicationSentCopies);
+
+/** The photo is bytes and is never inlined into the backup: whether there is one is all it says. */
+const { photo: _photo, ...profileColumns } = getTableColumns(profiles);
+
+/**
+ * Rows per read of a document version or a proposal. Each carries every usable
+ * fact's id, about 117 KB on a nine-thousand-fact record, and one read of them
+ * all fails outright past the database's HTTP response limit — 64 MB in
+ * production, 10 MiB on the local proxy (`docs/06`, 2026-11-04).
+ */
+export const EXPORT_PAGE_ROWS = 20;
+
+/** Every row of one of the two history tables, a page at a time in id order. */
+async function allPages<T extends { id: string }>(read: (after: string | null) => Promise<T[]>): Promise<T[]> {
+  const rows: T[] = [];
+  let after: string | null = null;
+  for (;;) {
+    const page = await read(after);
+    rows.push(...page);
+    if (page.length < EXPORT_PAGE_ROWS) return rows;
+    after = page[page.length - 1]!.id;
+  }
+}
 
 export function registerOverviewRoutes(app: Hono<AppEnv>) {
   const api = routes(app);
@@ -55,6 +78,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
    * it are all true at the same instant.
    */
   api.get("/api/overview", async (c) => {
+    await settleLostImports(c);
     if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const userId = c.get("user").id;
     const db = c.get("db");
@@ -335,7 +359,10 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       sentCopyRows,
       gapNoteRows,
     ] = await Promise.all([
-      db.select().from(profiles).where(eq(profiles.userId, userId)),
+      db
+        .select({ ...profileColumns, hasPhoto: sql<boolean>`${profiles.photo} is not null` })
+        .from(profiles)
+        .where(eq(profiles.userId, userId)),
       db.select().from(employers).where(eq(employers.userId, userId)),
       db.select().from(roles).where(eq(roles.userId, userId)),
       db.select().from(projects).where(eq(projects.userId, userId)),
@@ -357,8 +384,22 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
         .from(sourceDocumentVersions)
         .where(eq(sourceDocumentVersions.userId, userId)),
       db.select().from(renders).where(eq(renders.userId, userId)),
-      db.select().from(renderVersions).where(eq(renderVersions.userId, userId)),
-      db.select().from(renderProposals).where(eq(renderProposals.userId, userId)),
+      allPages((after) =>
+        db
+          .select()
+          .from(renderVersions)
+          .where(and(eq(renderVersions.userId, userId), after === null ? undefined : gt(renderVersions.id, after)))
+          .orderBy(asc(renderVersions.id))
+          .limit(EXPORT_PAGE_ROWS),
+      ),
+      allPages((after) =>
+        db
+          .select()
+          .from(renderProposals)
+          .where(and(eq(renderProposals.userId, userId), after === null ? undefined : gt(renderProposals.id, after)))
+          .orderBy(asc(renderProposals.id))
+          .limit(EXPORT_PAGE_ROWS),
+      ),
       db.select().from(factFlags).where(eq(factFlags.userId, userId)),
       db.select().from(applications).where(eq(applications.userId, userId)),
       // Superseded rows too: a backup holds what the database holds.
@@ -375,10 +416,7 @@ export function registerOverviewRoutes(app: Hono<AppEnv>) {
       exportedAt: new Date().toISOString(),
       schemaVersion: 1,
       // The author's photo is bytes and is not inlined into a JSON backup.
-      profile: profileRows.map(({ userId: _u, photo, ...rest }) => ({
-        ...rest,
-        hasPhoto: photo !== null,
-      })),
+      profile: profileRows.map(({ userId: _u, ...rest }) => rest),
       employers: only(employerRows),
       roles: only(roleRows),
       projects: only(projectRows),

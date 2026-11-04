@@ -58,6 +58,19 @@ export interface MasterEmployer {
   facts: MasterFact[];
 }
 
+/**
+ * Home's picture of the career record: the first few employers in the master
+ * document's order, and the first claims under each as it lists them. Its own
+ * read, because the whole document is every accepted fact (`docs/06`, 2026-11-04).
+ */
+export const MASTER_PREVIEW = { employers: 3, facts: 2 } as const;
+
+export interface MasterPreview {
+  language: MasterLanguage;
+  subjectName: string | null;
+  employers: { id: string; name: string; facts: { id: string; claim: string }[] }[];
+}
+
 export interface MasterDocument {
   language: MasterLanguage;
   builtAt: string;

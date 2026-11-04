@@ -49,16 +49,32 @@ export const GENERATE_STEP = {
   timeout: "30 minutes",
 } as const;
 
+/** {@link GENERATE_STEP}'s timeout and delay in milliseconds, for the bound below. */
+const STEP_TIMEOUT_MS = 30 * 60 * 1000;
+const STEP_RETRY_DELAY_MS = 30 * 1000;
+
 /** The most steps a run takes: a story's three rounds, and all three again. */
 export const GENERATION_STEP_LIMIT = 6;
 
 /**
- * Past both attempts of every step of {@link GENERATE_STEP}, a proposal still
- * `generating` has no run left behind it. Reading it fails it, so the author
- * gets the failed screen's way out and not a page that says it is writing
- * forever.
+ * How long one step of {@link GENERATE_STEP} can run: both attempts at the full
+ * timeout, and the delay between them.
  */
-export const GENERATION_DEADLINE_MS = (GENERATION_STEP_LIMIT * 2 * 30 + 5) * 60 * 1000;
+export const GENERATION_STEP_BOUND_MS =
+  (GENERATE_STEP.retries.limit + 1) * STEP_TIMEOUT_MS + GENERATE_STEP.retries.limit * STEP_RETRY_DELAY_MS;
+
+/**
+ * A proposal still `generating` this long after its row last changed has no
+ * run left behind it. Every step that hands on to another stamps the row
+ * (`keepDraft`), so silence past one step's bound, and five minutes for the
+ * step to start, is a lost run, not a slow one. Measured from the last step,
+ * not from the start: a whole run's worst case is six steps, and a screen left
+ * open on a lost one polled for six hours (`docs/06`, 2026-11-04). Every read
+ * that reports the proposal fails it then — its own route and `renderState`
+ * both — so the author gets the failed screen's way out and not a page that
+ * says it is writing forever.
+ */
+export const GENERATION_LOST_AFTER_MS = GENERATION_STEP_BOUND_MS + 5 * 60 * 1000;
 
 export interface GenerationDeps {
   db: Db;
@@ -155,14 +171,14 @@ export async function startGeneration(
   }
 }
 
-/** How a proposal reads now: failed, once its deadline has passed with no result. */
-export async function settleLostGeneration<P extends Pick<typeof renderProposals.$inferSelect, "id" | "generationStatus" | "generationError" | "generatedAt">>(
+/** How a proposal reads now: failed, once a step's bound has passed with no progress. */
+export async function settleLostGeneration<P extends Pick<typeof renderProposals.$inferSelect, "id" | "generationStatus" | "generationError" | "updatedAt">>(
   db: Db,
   userId: string,
   proposal: P,
   now = Date.now(),
 ): Promise<P> {
-  if (proposal.generationStatus !== "generating" || now - proposal.generatedAt.getTime() < GENERATION_DEADLINE_MS) return proposal;
+  if (proposal.generationStatus !== "generating" || now - proposal.updatedAt.getTime() < GENERATION_LOST_AFTER_MS) return proposal;
   await stopGeneration({ db, userId, proposalId: proposal.id });
   return { ...proposal, generationStatus: "failed", generationError: GENERATION_LOST };
 }

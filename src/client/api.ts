@@ -14,7 +14,7 @@ import {
 } from "@tanstack/react-query";
 import { useState } from "react";
 import { RENDER_KINDS, RENDER_TITLE, type DownloadFormat, type RenderContent, type RenderKind } from "~/shared/render-content";
-import type { MasterDocument, MasterLanguage } from "~/shared/master-document";
+import type { MasterDocument, MasterLanguage, MasterPreview } from "~/shared/master-document";
 import type { CareerTimeline, TimelineGapNote } from "~/shared/career-timeline";
 import type { ApplicationStatus, Figures, Standing } from "~/shared/application";
 import type { Interview, InterviewRound } from "~/shared/interview";
@@ -385,6 +385,8 @@ export interface RenderRow {
   /** Facts the current version was generated from that a document may no longer use. */
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 export interface Overview {
@@ -437,6 +439,8 @@ export interface Proposal {
   applicationId: string | null;
   status: "generating" | "failed" | "pending" | "accepted" | "dismissed";
   generationStatus: "generating" | "ready" | "failed";
+  /** When the run last finished a step, while it is generating; `null` after. */
+  progressAt: string | null;
   error: { code: string; message: string } | null;
   basedOnVersionNo: number | null;
   proposedVersionNo: number;
@@ -573,6 +577,7 @@ export const keys = {
   // Under `allFacts`: a ruling on a fact changes what the list holds.
   flags: (state: "open" | "checked") => ["facts", "flags", state] as const,
   masterDocument: (language: MasterLanguage) => ["facts", "master-document", language] as const,
+  masterPreview: (language: MasterLanguage) => ["facts", "master-document", "preview", language] as const,
   // Under `allFacts`, so a ruling on any card refreshes its counts; the record
   // screen's own writes refresh it by name, since they move its gaps.
   careerTimeline: ["facts", "career-timeline"] as const,
@@ -599,6 +604,51 @@ export const keys = {
 
 /** `1.5 s` while a resource is non-terminal (`docs/07` §1). */
 export const POLL_MS = 1500;
+
+/**
+ * How often to read again while nothing has changed for `quietMs`: every
+ * 1.5 s for the first minute, then less and less often, and not at all after
+ * 75 minutes — past the longest a step of either Workflow can run, by when the
+ * server has failed a run that went silent. A resource that keeps changing is
+ * read every 1.5 s however long it runs. Without this a screen left open on an
+ * import or a document that never finished read the database every 1.5 s for
+ * as long as the tab was visible, and kept it awake (`docs/06`, 2026-11-04).
+ */
+export const POLL_BACKOFF: readonly { quietMs: number; everyMs: number | false }[] = [
+  { quietMs: 0, everyMs: POLL_MS },
+  { quietMs: 60_000, everyMs: 5_000 },
+  { quietMs: 5 * 60_000, everyMs: 15_000 },
+  { quietMs: 15 * 60_000, everyMs: 60_000 },
+  { quietMs: 75 * 60_000, everyMs: false },
+];
+
+const lastChange = new WeakMap<object, { seen: string; at: number }>();
+
+/**
+ * The `refetchInterval` for a resource polled while `active`: {@link POLL_MS}
+ * while its answer keeps changing, backing off by {@link POLL_BACKOFF} while it
+ * does not. Any change to the answer counts as progress and starts again.
+ */
+export function pollInterval(
+  query: { state: { data?: unknown } },
+  active: boolean,
+  now: number = Date.now(),
+): number | false {
+  if (!active) {
+    lastChange.delete(query);
+    return false;
+  }
+  const seen = JSON.stringify(query.state.data ?? null);
+  const last = lastChange.get(query);
+  if (!last || last.seen !== seen) {
+    lastChange.set(query, { seen, at: now });
+    return POLL_MS;
+  }
+  const quiet = now - last.at;
+  let every: number | false = POLL_MS;
+  for (const step of POLL_BACKOFF) if (quiet >= step.quietMs) every = step.everyMs;
+  return every;
+}
 
 /** An import is still working, and its resources are still worth re-reading. */
 export const isImportRunning = (status: ImportStatus["status"] | undefined) =>
@@ -833,11 +883,12 @@ export const useOverview = () =>
     queryKey: keys.overview,
     queryFn: () => api<Overview>("/api/overview"),
     refetchInterval: (query) =>
-      isImportRunning(query.state.data?.activeImport?.status) ||
-      (query.state.data?.latestImportSet ?? []).some((row) => isImportRunning(row.status)) ||
-      (query.state.data?.documents ?? []).some((row) => row.status === "proposal_generating")
-        ? POLL_MS
-        : false,
+      pollInterval(
+        query,
+        isImportRunning(query.state.data?.activeImport?.status) ||
+          (query.state.data?.latestImportSet ?? []).some((row) => isImportRunning(row.status)) ||
+          (query.state.data?.documents ?? []).some((row) => row.status === "proposal_generating"),
+      ),
   });
 
 export const useRenders = () =>
@@ -850,7 +901,7 @@ export function useImportStatus(importId: string) {
   return useQuery({
     queryKey: keys.importStatus(importId),
     queryFn: () => api<ImportStatus>(`/api/imports/${importId}`),
-    refetchInterval: (query) => (isImportRunning(query.state.data?.status) ? POLL_MS : false),
+    refetchInterval: (query) => pollInterval(query, isImportRunning(query.state.data?.status)),
   });
 }
 
@@ -860,9 +911,7 @@ export const useDocuments = () =>
     queryKey: keys.documents,
     queryFn: () => api<DocumentsListing>("/api/imports"),
     refetchInterval: (query) =>
-      query.state.data?.documents.some((d) => d.versions.some((v) => isImportRunning(v.status)))
-        ? POLL_MS
-        : false,
+      pollInterval(query, query.state.data?.documents.some((d) => d.versions.some((v) => isImportRunning(v.status))) ?? false),
   });
 
 /**
@@ -875,7 +924,7 @@ export const useImportSummary = () =>
   useQuery({
     queryKey: keys.importSummary,
     queryFn: () => api<ImportSummary>("/api/imports/summary"),
-    refetchInterval: (query) => (query.state.data?.running ? POLL_MS : false),
+    refetchInterval: (query) => pollInterval(query, query.state.data?.running ?? false),
   });
 
 export function useFacts(importId: string, options?: Partial<UseQueryOptions<{ items: Fact[] }>>) {
@@ -917,8 +966,7 @@ export function useProposal(proposalId: string) {
   return useQuery({
     queryKey: keys.proposal(proposalId),
     queryFn: () => api<Proposal>(`/api/proposals/${proposalId}`),
-    refetchInterval: (query) =>
-      query.state.data?.generationStatus === "generating" ? POLL_MS : false,
+    refetchInterval: (query) => pollInterval(query, query.state.data?.generationStatus === "generating"),
   });
 }
 
@@ -1007,7 +1055,7 @@ export const useRenderPage = (ref: string, versionId: string | undefined, enable
     queryFn: () =>
       api<RenderPage>(`/api/renders/${ref}/page${versionId ? `?versionId=${encodeURIComponent(versionId)}` : ""}`),
     retry: (count, error) => !(error instanceof ApiError && (error.status === 404 || error.status === 409)) && count < 3,
-    refetchInterval: (query) => (query.state.data?.document.status === "proposal_generating" ? POLL_MS : false),
+    refetchInterval: (query) => pollInterval(query, query.state.data?.document.status === "proposal_generating"),
   });
 
 export const useRenderProposals = (ref: string) =>
@@ -1051,6 +1099,8 @@ export interface ApplicationDocument {
   newFactsSince: number | null;
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 /** A document that could be ticked: the three, and this application's tailored documents. */
@@ -1127,7 +1177,7 @@ export const useApplication = (id: string) =>
     // A `404` is the answer "there is no such application", not a blip to retry.
     retry: (count, error) => !(error instanceof ApiError && error.status === 404) && count < 3,
     refetchInterval: (query) =>
-      query.state.data?.documents.some((document) => document.status === "proposal_generating") ? POLL_MS : false,
+      pollInterval(query, query.state.data?.documents.some((document) => document.status === "proposal_generating") ?? false),
   });
 
 export const useSentCopy = (applicationId: string, copyId: string) =>
@@ -1973,6 +2023,16 @@ export const useMasterDocument = (language: MasterLanguage) =>
   useQuery({
     queryKey: keys.masterDocument(language),
     queryFn: () => api<MasterDocument>(`/api/master-document${masterQuery(language)}`),
+  });
+
+/**
+ * Home's picture of the career record: a few employers and claims, not the
+ * whole record, which is every accepted fact (`docs/06`, 2026-11-04).
+ */
+export const useMasterPreview = (language: MasterLanguage) =>
+  useQuery({
+    queryKey: keys.masterPreview(language),
+    queryFn: () => api<MasterPreview>(`/api/master-document/preview${masterQuery(language)}`),
   });
 
 /** The career record as a file. It contains Private facts; the screen says so beside the button. */

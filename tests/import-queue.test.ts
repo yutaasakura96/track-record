@@ -12,6 +12,10 @@ import { harness, settle, stubModel, type Client, type Harness, type StubModel }
 import { EMPLOYER_FIXTURE, SECOND_EMAIL, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { ModelUnavailableError, type CandidateFact } from "~/model/types";
 import type { Bindings } from "~/server/env";
+import { eq } from "drizzle-orm";
+import { sourceDocumentVersions } from "~/server/db/schema";
+import { IMPORT_STOPPED } from "~/pipeline/import";
+import { IMPORT_LOST_AFTER_MS } from "~/pipeline/queue";
 
 interface Status {
   importId: string;
@@ -328,6 +332,37 @@ describe("reading one document at a time", () => {
     expect(await statuses(ids)).toEqual(["ready", "ready", "ready"]);
     // Read in the order the files were listed.
     expect(model.extractCalls.map((text) => DOCUMENTS.findIndex((d) => text.includes(d.quote)))).toEqual([0, 1, 2]);
+  });
+
+  it("fails a read whose run went silent past a step's bound, and starts the next", async () => {
+    const first = held();
+    model.extractions = [first.promise, found(1)];
+    const ids = [await send(0), await send(1)];
+    await until(() => readCalls() === 1);
+    const summary = () => client.json<{ running: boolean }>("/api/imports/summary");
+    const silentFor = (ms: number) =>
+      app.db.update(sourceDocumentVersions).set({ updatedAt: new Date(Date.now() - ms) })
+        .where(eq(sourceDocumentVersions.id, ids[0]!));
+
+    // A step can run this long without writing: still being read.
+    await silentFor(IMPORT_LOST_AFTER_MS - 60_000);
+    expect((await summary()).running).toBe(true);
+    expect(await statuses(ids)).toEqual(["extracting", "queued"]);
+
+    // Past it, the sidebar's own poll fails it as a stopped run, and the one
+    // waiting behind it is read.
+    await silentFor(IMPORT_LOST_AFTER_MS + 1000);
+    await summary();
+    const lost = await statusOf(ids[0]!);
+    expect(lost.status).toBe("failed");
+    expect(lost.error?.message).toBe(IMPORT_STOPPED);
+    await until(async () => (await statusOf(ids[1]!)).status === "ready");
+    expect((await summary()).running).toBe(false);
+
+    // The run nobody was waiting for gives up; nothing is left running.
+    first.answer(new ModelUnavailableError("Gone."));
+    await settle();
+    expect(await statuses(ids)).toEqual(["failed", "ready"]);
   });
 
   it("does not start reading the second until the first has failed", async () => {
