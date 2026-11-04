@@ -27,6 +27,7 @@ import {
   roles,
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
+import { isStoryComplete, linesToShorten, repairResumeBounds } from "~/model/generate";
 import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
 import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
@@ -536,6 +537,50 @@ export interface GenerateArgs {
   userId: string;
   proposalId: string;
   inputs: RenderInputs;
+  /** Which call this is. A run starts at {@link FIRST_STAGE}. */
+  stage?: GenerationStage;
+}
+
+/**
+ * One step of a generation run: one round of model calls (`docs/06`,
+ * 2026-11-04). A document is written, a career story a round at a time, an
+ * English résumé's lines over their bound are written again, and a document
+ * that fails its language check is written once more, each in a step of its
+ * own, so each has the whole step timeout. Labels only: a Workflow stores this
+ * between steps, and what a step wrote waits on the proposal row.
+ */
+export interface GenerationStage {
+  call: "write" | "shorten";
+  /** A story's round; past the first, the write continues the draft on the row. */
+  round: number;
+  /** The language check's retry is the second. */
+  attempt: 1 | 2;
+  /** What the first attempt failed, on the second. */
+  firstDefect: EnglishDefect | JapaneseDefect | null;
+  /** A digest of what the step that started the draft read ({@link readDigest}): never the read itself. */
+  read: string | null;
+}
+
+export const FIRST_STAGE: GenerationStage = { call: "write", round: 1, attempt: 1, firstDefect: null, read: null };
+
+/** The reason a run is stopped with when the record moved under a draft. */
+export const RECORD_CHANGED_REASON = "The record changed while this document was being written. Generate it again.";
+
+/**
+ * SHA-256 of a read of the record, facts and spec, the same for two reads
+ * that would send the model the same thing. Rows a query returns in no fixed
+ * order are put in one.
+ */
+export async function readDigest(inputs: RenderInputs): Promise<string> {
+  const byId = <T extends { id: string }>(rows: readonly T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
+  const stable = {
+    ...inputs,
+    facts: byId(inputs.facts),
+    usableFactIds: [...inputs.usableFactIds].sort(),
+    spec: { ...inputs.spec, projects: byId(inputs.spec.projects) },
+  };
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(stable)));
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 /**
@@ -551,49 +596,114 @@ const whileGenerating = (userId: string, proposalId: string) =>
     eq(renderProposals.generationStatus, "generating"),
   );
 
-/** A stated reason on a proposal generation will not finish. */
+/**
+ * What a step's calls cost, added to what the steps before it recorded: a
+ * document written in several steps, or retried, is several billed calls, and
+ * the row reporting one of them would understate what it cost.
+ */
+const addedUsage = (usage: ModelUsage | null) =>
+  usage === null
+    ? {}
+    : {
+        inputTokens: sql`coalesce(${renderProposals.inputTokens}, 0) + ${usage.inputTokens}`,
+        outputTokens: sql`coalesce(${renderProposals.outputTokens}, 0) + ${usage.outputTokens}`,
+        cacheCreationInputTokens: sql`coalesce(${renderProposals.cacheCreationInputTokens}, 0) + ${usage.cacheCreationInputTokens}`,
+        cacheReadInputTokens: sql`coalesce(${renderProposals.cacheReadInputTokens}, 0) + ${usage.cacheReadInputTokens}`,
+      };
+
+/**
+ * A stated reason on a proposal generation will not finish. A draft a step
+ * left on the row goes with it: nothing of a failed generation is kept.
+ */
 export async function failProposal(db: Db, userId: string, proposalId: string, reason: string, usage: ModelUsage | null = null): Promise<void> {
   await db
     .update(renderProposals)
-    .set({ generationStatus: "failed", generationError: reason, ...(usage ?? {}), updatedAt: new Date() })
+    .set({
+      content: { sections: [] } satisfies RenderContent,
+      generationStatus: "failed",
+      generationError: reason,
+      ...addedUsage(usage),
+      updatedAt: new Date(),
+    })
+    .where(whileGenerating(userId, proposalId));
+}
+
+/** What one step wrote, for the next to read. The row still reads `generating`, and no screen shows it. */
+async function keepDraft(db: Db, userId: string, proposalId: string, content: RenderContent, usage: ModelUsage | null): Promise<void> {
+  await db
+    .update(renderProposals)
+    .set({ content, ...addedUsage(usage), updatedAt: new Date() })
     .where(whileGenerating(userId, proposalId));
 }
 
 /**
- * Runs the model and lands the result on the proposal row. It never touches a
- * `render_versions` row and never moves `renders.current_version_id`, which is
- * what makes "a failure never destroys or mutates a stored version" true by
- * construction rather than by care.
+ * Runs one stage of the model and returns the next, or lands the result on
+ * the proposal row and returns `null`. It never touches a `render_versions`
+ * row and never moves `renders.current_version_id`, which is what makes "a
+ * failure never destroys or mutates a stored version" true by construction
+ * rather than by care.
  */
-export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
-  const { db, model, userId, proposalId, inputs } = args;
-  // Summed across attempts: a retried generation is two billed calls, and the
-  // row reporting one of them would understate what the document cost. Kept
-  // outside the `try` so a generation refused after its retry still records
-  // the two calls it spent.
+export async function generateIntoProposal(args: GenerateArgs): Promise<GenerationStage | null> {
+  const { db, model, userId, proposalId, inputs, stage = FIRST_STAGE } = args;
+  // Kept outside the `try` so a generation refused after its retry still
+  // records the calls it spent.
   let usage: ModelUsage | null = null;
+  const onUsage = (u: ModelUsage) => {
+    usage = usage === null ? u : addUsage(usage, u);
+  };
   try {
-    const generate = () =>
-      model.generateRender(inputs.facts, inputs.spec, {
-        onUsage: (u) => {
-          usage = usage === null ? u : addUsage(usage, u);
-        },
-      });
     const today = tokyoToday();
     // A row the record supplies is the same on every attempt, so one that
     // fails the check is refused before any model call, and named as the
     // record's to correct.
     const recordDefect =
-      inputs.spec.kind === "shokumu_keirekisho"
+      stage.call === "write" && stage.attempt === 1 && inputs.spec.kind === "shokumu_keirekisho"
         ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
         : null;
     if (recordDefect !== null) {
       await failProposal(db, userId, proposalId, recordDefect);
       // Ids only.
       console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
-      return;
+      return null;
     }
-    let content = await generate();
+    // A step that continues a draft writes and lands it from the read that
+    // started it, or not at all: a draft checked against one read and landed
+    // against another could drop a citation a fact made Private since needs,
+    // or plan a chapter its facts no longer back.
+    const read = await readDigest(inputs);
+    let draft: RenderContent | null = null;
+    if (stage.call === "shorten" || stage.round > 1) {
+      if (read !== stage.read) {
+        await failProposal(db, userId, proposalId, RECORD_CHANGED_REASON);
+        // Ids only.
+        console.warn(JSON.stringify({ event: "generation_record_changed", proposalId }));
+        return null;
+      }
+      const [row] = await db
+        .select({ content: renderProposals.content })
+        .from(renderProposals)
+        .where(whileGenerating(userId, proposalId))
+        .limit(1);
+      if (!row) return null;
+      draft = row.content as RenderContent;
+    }
+    let content =
+      stage.call === "shorten"
+        ? await repairResumeBounds(draft!, inputs.spec, inputs.facts, (lines) => model.shortenResumeLines(lines, { onUsage }))
+        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, { onUsage });
+    const allowed = new Set(inputs.facts.map((f) => f.id));
+    content = stripUnknownFactIds(content, allowed);
+    const wroteChapters = content.sections.some((section) => !draft?.sections.some((done) => done.key === section.key));
+    if (isChapteredStory(inputs.spec.kind) && wroteChapters && !isStoryComplete(content, inputs.spec)) {
+      await keepDraft(db, userId, proposalId, content, usage);
+      return { ...stage, round: stage.round + 1, read };
+    }
+    // A bullet over 240 characters, or a summary of 50 words, used to refuse
+    // the whole document. Those lines alone are written again, next.
+    if (stage.call === "write" && inputs.spec.kind === "english_resume" && linesToShorten(content, inputs.facts).length > 0) {
+      await keepDraft(db, userId, proposalId, content, usage);
+      return { ...stage, call: "shorten", read };
+    }
     // Issue #104. An English document that comes back in Japanese, or with a
     // checked record name changed, is retried once and then refused —
     // never lands as reviewable content. When this failure was found, the
@@ -611,15 +721,15 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     const defectOf = (c: RenderContent) =>
       inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
     content = assemble(content);
-    const first = defectOf(content);
-    if (first !== null) {
-      // Ids and the defect's name only.
-      console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect: first }));
-      content = assemble(await generate());
-      const second = defectOf(content);
-      if (second !== null) {
-        throw new ModelUnavailableError(first === second ? DEFECT_REASON[second] : mixedDefectReason(inputs.spec.language), second);
+    const defect = defectOf(content);
+    if (defect !== null) {
+      if (stage.attempt === 1) {
+        // Ids and the defect's name only.
+        console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect }));
+        await keepDraft(db, userId, proposalId, { sections: [] }, usage);
+        return { call: "write", round: 1, attempt: 2, firstDefect: defect, read: null };
       }
+      throw new ModelUnavailableError(stage.firstDefect === defect ? DEFECT_REASON[defect] : mixedDefectReason(inputs.spec.language), defect);
     }
     const motivation = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.motivation)?.blocks[0];
     if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription && (motivation?.kind !== "paragraph" || !motivation.text.trim())) {
@@ -641,7 +751,6 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
       }
     }
-    const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
       .set({
@@ -651,7 +760,7 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
         // The record as this run read it, which is later than the route did.
         usableFactIds: inputs.usableFactIds,
         // Four keys, four columns of the same name. See `ModelUsage`.
-        ...(usage ?? {}),
+        ...addedUsage(usage),
         updatedAt: new Date(),
       })
       .where(whileGenerating(userId, proposalId));
@@ -666,6 +775,7 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     if (err instanceof ModelCreditsExhaustedError) logCreditsExhausted("generate");
     else console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
+  return null;
 }
 
 /** The two checks name their defects apart, so one table reads either. */

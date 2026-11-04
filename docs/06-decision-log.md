@@ -8092,3 +8092,65 @@ part of this.
   rule in `docs/04` §0; every other calendar column keeps the day pinned to `01` and never rendered.
   This supersedes any earlier entry that treats the date of birth as month precision.
 - **Revisit if:** another render needs the date of birth at a different precision.
+
+---
+
+### [2026-11-04] A career story is written in parts, and a call that runs out of room says so
+
+- **Context:** on the real record (about 9,300 facts, 488 sent to a story under the per-employer
+  budget) the English career story failed twice, each after about eleven minutes, as "The model
+  returned a document in an unusable shape". The story was simulated through Claude Code on
+  `claude-opus-5` at effort high, with the app's own prompt, payload and checks: written in one call it
+  spent 98,834 output tokens (about 34,600 of them thinking) and was cut off at 64,000 before it
+  finished, against the app's `max_tokens` of 32,000. The Japanese story spent 55,032. A forced tool
+  call cut off at the limit arrives with whatever input had streamed, often none, and `{}` has no
+  `sections`. The story written in one call also ran to about 63,000 characters against the
+  register's 17,000. One run was refused for a routing row that shortened an employer's name.
+- **Decision:** a career story is written in parts, in three rounds (`writeStoryRound`,
+  `src/model/generate.ts`): each employer chapter as one call, sent that employer's facts, the employer calls side by side and
+  the first to fail aborting the rest; then the chapters of no employer as one call, given the
+  employer chapters as written and sent the facts filed under none with the employer facts those
+  chapters cite; then the two tables, from the chapters as written and the facts they cite. The
+  register keeps an unfiled fact out of an employer chapter but not an employer's fact out of the
+  opening or what comes next, which are about the whole record; written first and sent only the
+  unfiled facts, those chapters had no evidence at all on a record that files everything. Each prose
+  part is told its share of the register's length, more for an employer with more facts. The joined
+  story is held to the whole plan by the same check as before. Each `generateRender` call for a story
+  writes one round onto the story so far (`RenderSpec.storySoFar`) and returns it.
+- **Decision:** every generation call may spend 64,000 output tokens (`GENERATION_MAX_TOKENS`), and a
+  call that stops at the limit is refused as having run out of room rather than read as an unusable
+  shape. The cap is not lowered for a single-call document.
+- **Decision:** a generation run is one Workflow step per round of model calls (`GenerationStage`,
+  `src/server/services/render.ts`): the document, or each of a story's three rounds; an English
+  résumé's over-long lines written again; and, when the language check fails, each of those once more.
+  A round's calls run side by side, so no step holds more than one call's worst case, and a step that
+  times out retries only its round rather than paying for every part again. The longest call measured, a 職務経歴書
+  of 44,101 tokens at about 48 a second, is about fifteen minutes, and a call at the full 64,000 about
+  22, so a document and its language retry in one step could pass the step's 30 minutes (Cloudflare's
+  advised ceiling), retry, and end lost after paying for up to four calls. Each step now has the whole
+  timeout. What a step wrote waits on the proposal row, still `generating` and shown nowhere, and is
+  cleared if the run fails; between steps the Workflow holds only the stage's labels. Every step of
+  one generation uses exactly what the first step read: that step carries a SHA-256 of its
+  `RenderInputs`, spec and facts, as an id-like label to the next, and a step that continues a draft
+  reads the record again and fails the proposal when the digest differs ("The record changed while
+  this document was being written. Generate it again."). A draft checked against one read and landed
+  against another could strip a citation a fact made Private since needs, cite a fact staleness then
+  counts as new, or plan a chapter (work outside employment, an employer) its facts no longer back;
+  pinning only the facts left the spec on the later read. Each step adds its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
+  `generateRender` so the rewrite can be a step. The deadline is past both attempts of all six
+  steps a run can take (a story's three rounds, and all three again), 365 minutes.
+- **Decision:** a story's table rows write an employer, school or project name in full, as the lists
+  write it, because the record-name check reads a shortened one as a changed one.
+- **Measured, simulated the same way after the change:** the English story in six calls, 64,672 output
+  tokens, the largest call 15,853 (about five and a half minutes at 48 a second); the Japanese story
+  67,668, the largest call 18,120 (about six and a half). Those runs wrote the chapters of no employer
+  beside the employer chapters, about seven and nine minutes end to end; written after them, in a
+  round and a step of their own, a story's run is three rounds back to back, each as long as its
+  longest call. Both passed the plan and language checks with no unknown fact
+  ids and no fact cited under another employer. The 職務経歴書, still one call, spent 35,886 and 44,101
+  in two runs, past the old 32,000 in one of them, and passed. A story in parts costs about $2.60 at
+  list price, less than the one call would have (about $3.50) had it been given room to finish.
+- **Not done here:** the prose chapters still run long, about twice the register's length in English
+  and one and a half times in Japanese. That is a register question, not a limit one.
+- **Revisit if:** a part's call approaches the limit, an employer comes to hold more facts than one call
+  can write about, or the tables start pointing at headings the prose calls did not write.

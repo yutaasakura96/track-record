@@ -1,5 +1,5 @@
 /**
- * THE SEAM. Six functions.
+ * THE SEAM. Seven functions.
  *
  * **Nothing outside this directory imports an SDK or names a provider** — and
  * that includes the provider's environment variables, which is why the bindings

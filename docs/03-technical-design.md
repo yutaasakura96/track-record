@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a six-function seam (§4) |
+| Model | **Anthropic `claude-opus-5`** | Behind a seven-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -121,8 +121,9 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly six places**. Nothing outside `src/model/` imports an
-SDK or knows a provider name.
+The application touches a model in **exactly seven places**. Nothing outside `src/model/` imports an
+SDK or knows a provider name. `shortenResumeLines` was split out of `generateRender` so a generation
+run can give it a Workflow step of its own (decision log, 2026-11-04).
 
 ```ts
 extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>
@@ -131,6 +132,7 @@ gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
 explainFlag(flag: FlagToExplain): Promise<string>
 readPosting(jobDescription: string): Promise<PostingReading>
 captureClaims(text: string, context: CaptureContext): Promise<CapturedClaim[]>
+shortenResumeLines(lines: LineToShorten[]): Promise<Map<string, string>>
 ```
 
 It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
@@ -232,6 +234,18 @@ employer, project, education and certification lists are labelled for English wo
 names stay verbatim. Fact claims remain in their recorded language. For an English prompt, Japanese
 industry and project-summary copies are omitted from facts' contextual JSON; the labelled employer
 and project lists still carry those fields.
+
+**A career story is written in parts, a round at a time** (`writeStoryRound`, `src/model/generate.ts`;
+decision log, 2026-11-04). Each `generateRender` call for a story writes the next round onto
+`spec.storySoFar` and returns the story so far. The first round is each employer chapter as one call,
+sent that employer's facts, the calls side by side. The second is the chapters that belong to no
+employer as one call, given the employer chapters as written and sent the facts filed under none with
+the employer facts those chapters cite. Each prose call is told its share of the register's length.
+The third is the anchors and routing tables, given the chapters as written and the facts they cite.
+After the last round the parts, joined in plan order, are checked against the whole plan, as a story
+written in one call was. Every other render is one call. A call that stops
+at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
+unusable shape.
 
 **Never sent to the model:** source documents during *generation* (only during extraction), and any
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
@@ -466,9 +480,19 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 **A generation is a Workflow of its own** (`src/pipeline/generation.ts`, `docs/06`, 2026-11-02). A real
 document takes 75 to 145 seconds and a request's `waitUntil` lasts 30 after the response, so
 `POST /api/renders/:ref/generate` writes the proposal and hands its id to `GenerationWorkflow`, whose
-instance ID is the proposal ID. The run reads the record itself and writes to the proposal, in one
-step: its parameters and its stored state hold ids. In disposable test configurations (the suite, the e2e worker and the seed) the same
-function runs behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
+instance ID is the proposal ID. The run reads the record itself and writes to the proposal, one
+Workflow step per round of model calls (`GenerationStage`, `src/server/services/render.ts`): the
+document, or a career story's three rounds; an English résumé's over-long lines written again; and
+each of those once more when the language check fails. A round's calls run side by side, so each step
+holds one call's worst case against the whole 30-minute step timeout, and a step that times out
+retries only its round. A step's parameters and the state passed between steps hold ids and labels;
+what a step wrote waits on the proposal row, which reads `generating` until the last step lands it,
+and is cleared if the run fails. Every step of one generation uses exactly what the first
+step read: that step carries a SHA-256 of its `RenderInputs`, spec and facts (`readDigest`), to the
+next in the stage's labels, and a step that continues a draft reads the record again and fails the
+proposal ("The record changed while this document was being written") when its digest differs. The
+draft, its citations and `usable_fact_ids` therefore all come from one read. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
+stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 
 **A document is sent at most `FACTS_PER_EMPLOYER` facts per employer** (`src/server/services/fact-budget.ts`),

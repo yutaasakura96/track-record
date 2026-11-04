@@ -14,13 +14,23 @@ import { env } from "cloudflare:test";
 import type { WorkflowStep } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { GENERATE_STEP, GENERATION_DEADLINE_MS, GENERATION_LOST, generateProposal, startGeneration } from "~/pipeline/generation";
+import {
+  GENERATE_STEP,
+  GENERATION_DEADLINE_MS,
+  GENERATION_LOST,
+  GENERATION_STEP_LIMIT,
+  generateProposal,
+  generateStage,
+  startGeneration,
+  stepName,
+} from "~/pipeline/generation";
 import { GenerationWorkflow } from "~/pipeline/generation-workflow";
 import { createDb } from "~/server/db/client";
 import { facts, renderProposals } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { newId } from "~/server/http/ids";
-import { collectRenderInputs, generateIntoProposal } from "~/server/services/render";
+import { chaptersOf, writeStoryRound } from "~/model/generate";
+import { FIRST_STAGE, RECORD_CHANGED_REASON, collectRenderInputs, generateIntoProposal, type GenerationStage } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { GenerationWorkflow as DeployedWorkflow } from "~/server/index";
 import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
@@ -74,6 +84,30 @@ function holdModel(content: RenderContent) {
   return () => release();
 }
 
+/** A model that writes a story a round at a time, each part citing every fact it was sent. */
+function storyWriter(rounds: string[][][], sentFacts: string[][] = []): StubModel["generateRender"] {
+  return async (sent, spec) => {
+    const calls: string[][] = [];
+    const content = await writeStoryRound(sent, spec, async (partFacts, partSpec) => {
+      calls.push(partSpec.part!.chapters);
+      sentFacts.push(partFacts.map((f) => f.id));
+      return {
+        sections: chaptersOf(partSpec).map((chapter) => ({
+          key: chapter.key,
+          heading: partSpec.employers.find((e) => e.id === chapter.employerId)?.name ?? "Where it goes",
+          blocks: [{
+            kind: ["anchors", "routing"].includes(chapter.key) ? "row" : "paragraph",
+            text: "Ran a batch platform.",
+            factIds: partFacts.map((f) => f.id),
+          }],
+        })),
+      };
+    });
+    rounds.push(calls);
+    return content;
+  };
+}
+
 beforeEach(async () => {
   model = stubModel();
   started = [];
@@ -123,12 +157,137 @@ describe("a generation in a Workflow", () => {
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
   });
 
-  it("gives a step long enough for two whole attempts at the longest document, and few retries", () => {
+  it("gives a step long enough for the longest call, and few retries", () => {
     const minutes = Number(/^(\d+) minutes$/.exec(GENERATE_STEP.timeout)?.[1]);
-    // 32,000 tokens at about 100 a second, twice: the language check's retry.
-    expect(minutes * 60).toBeGreaterThan((2 * 32_000) / 100);
+    // A step is one call. The longest measured, a 職務経歴書 of 44,101 tokens,
+    // and a call at the full 64,000, at about 48 a second. Thirty minutes is
+    // Cloudflare's ceiling.
+    expect(minutes * 60).toBeGreaterThan(44_101 / 48);
+    expect(minutes * 60).toBeGreaterThan(64_000 / 48);
+    expect(minutes).toBeLessThanOrEqual(30);
     expect(GENERATE_STEP.retries.limit).toBe(1);
-    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(2 * minutes * 60_000);
+    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(GENERATION_STEP_LIMIT * 2 * minutes * 60_000);
+  });
+
+  it("gives the language check's retry and a résumé's long lines each a step of its own", async () => {
+    const proposalId = await generate();
+    const japanese: RenderContent = {
+      sections: DOCUMENT(factId).sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((block) => ({ ...block, text: "東京でバッチ基盤を運用した。" })),
+      })),
+    };
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "Cut the nightly batch to 90 minutes. ".repeat(8).trim();
+    model.generations = [japanese, long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+
+    const steps: string[] = [];
+    const calls: number[] = [];
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) {
+      expect((await proposal(proposalId)).generationStatus).toBe("generating");
+      steps.push(stepName(stage));
+      stage = await generateStage(deps, stage);
+      calls.push(model.generationInputs.length + model.shortenCalls.length);
+    }
+
+    expect(steps).toEqual(["generate", "generate again", "shorten again"]);
+    // One model call a step.
+    expect(calls).toEqual([1, 2, 3]);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.generationStatus).toBe("ready");
+    expect((row!.content as RenderContent).sections[1]!.blocks[0]!.text).toBe("Cut the nightly batch to 90 minutes.");
+  });
+
+  it("adds every step's usage to the proposal", async () => {
+    model.usage = { inputTokens: 10, outputTokens: 5, cacheCreationInputTokens: 1, cacheReadInputTokens: 2 };
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    await landing(proposalId);
+
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
+  });
+
+  it("stops a résumé's draft, rather than landing it against another read, when a cited fact turns Private", async () => {
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+    const next = await generateStage(deps, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    await db.update(facts).set({ disclosure: "private" }).where(eq(facts.id, factId));
+    expect(await generateStage(deps, next!)).toBeNull();
+
+    expect(model.shortenCalls).toHaveLength(0);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row).toMatchObject({ generationStatus: "failed", generationError: RECORD_CHANGED_REASON, content: { sections: [] } });
+  });
+
+  it("writes a career story a round per step: the employers, the chapters of no employer, the tables", async () => {
+    const response = await client.post("/api/renders/career_story_en/generate");
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    const rounds: string[][][] = [];
+    model.generateRender = storyWriter(rounds);
+
+    const steps: string[] = [];
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) {
+      steps.push(stepName(stage));
+      stage = await generateStage({ db, model, userId: user.id, proposalId }, stage);
+    }
+
+    expect(steps).toEqual(["generate", "generate round 2", "generate round 3"]);
+    expect(rounds.map((round) => round.map((call) => call[0]))).toEqual([[expect.stringMatching(/^employer:/)], ["opening"], ["anchors"]]);
+    expect((await proposal(proposalId)).generationStatus).toBe("ready");
+  });
+
+  it("stops a story when a fact is accepted between its rounds", async () => {
+    const response = await client.post("/api/renders/career_story_en/generate");
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    const sentFacts: string[][] = [];
+    model.generateRender = storyWriter([], sentFacts);
+    const deps = { db, model, userId: user.id, proposalId };
+
+    const second = await generateStage(deps, FIRST_STAGE);
+    expect(second?.round).toBe(2);
+    const later = newId("fact");
+    await db.insert(facts).values({
+      id: later, userId: user.id, claim: "Wrote a side project's release tooling.", provenance: "attested", disclosure: "public", status: "accepted",
+    });
+    const sentBefore = sentFacts.length;
+    expect(await generateStage(deps, second!)).toBeNull();
+
+    expect(sentFacts).toHaveLength(sentBefore);
+    expect((await proposal(proposalId)).error?.message).toBe(RECORD_CHANGED_REASON);
+    // The same story, with the record left alone, lands.
+    const next = (await (await client.post("/api/renders/career_story_en/generate")).json()) as { proposalId: string };
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) stage = await generateStage({ ...deps, proposalId: next.proposalId }, stage);
+    expect((await proposal(next.proposalId)).generationStatus).toBe("ready");
+  });
+
+  it("keeps nothing a step wrote when the run ends without a document", async () => {
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    const next = await generateStage({ db, model, userId: user.id, proposalId }, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    await client.post(`/api/proposals/${proposalId}/dismiss`);
+    expect(await generateStage({ db, model, userId: user.id, proposalId }, next!)).toBeNull();
+    expect(model.shortenCalls).toHaveLength(0);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.content).toEqual({ sections: [] });
   });
 
   it("uses the record as the run read it, not as the route did", async () => {

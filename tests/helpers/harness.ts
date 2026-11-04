@@ -20,6 +20,7 @@ import type {
   FactGrade,
   FlagToExplain,
   GradableFact,
+  LineToShorten,
   ModelSeam,
   ModelUsage,
   PostingReading,
@@ -71,6 +72,10 @@ export interface StubModel extends ModelSeam {
   captures: (CapturedClaim[] | ((text: string, context: CaptureContext) => CapturedClaim[]) | Error)[];
   /** Every text and context quick capture was actually given. */
   captureCalls: { text: string; context: CaptureContext }[];
+  /** Queued rewrites by block id, one per `shortenResumeLines` call. Unqueued, it rewrites nothing. */
+  shortenings: (Record<string, string> | Error)[];
+  /** Every set of résumé lines the rewrite was actually given. */
+  shortenCalls: LineToShorten[][];
   /**
    * Reported through `onUsage` on every call, extraction and generation alike.
    * Left unset to model a provider that reports nothing, which is what the
@@ -93,6 +98,8 @@ export function stubModel(): StubModel {
     postingCalls: [],
     captures: [],
     captureCalls: [],
+    shortenings: [],
+    shortenCalls: [],
     async extractFacts(sourceText, ctx) {
       stub.extractCalls.push(sourceText);
       const next = await (stub.extractions.shift() ?? []);
@@ -137,6 +144,13 @@ export function stubModel(): StubModel {
       if (next instanceof Error) throw next;
       if (stub.usage) ctx?.onUsage?.(stub.usage);
       return typeof next === "function" ? next(text, context) : next;
+    },
+    async shortenResumeLines(lines, ctx) {
+      stub.shortenCalls.push(lines);
+      const next = stub.shortenings.shift() ?? {};
+      if (next instanceof Error) throw next;
+      if (stub.usage) ctx?.onUsage?.(stub.usage);
+      return new Map(Object.entries(next));
     },
   };
   return stub;

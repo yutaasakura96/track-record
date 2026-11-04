@@ -16,6 +16,7 @@ import {
   type FlagToExplain,
   type GenerationContext,
   type GradableFact,
+  type LineToShorten,
   type ModelSeam,
   type ModelUsage,
   type PostingReading,
@@ -27,13 +28,16 @@ import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
 import {
   EMIT_RENDER_TOOL,
   EMIT_SHORTENED_TOOL,
+  GENERATION_MAX_TOKENS,
+  OUTPUT_LIMIT_REASON,
   SHORTEN_SYSTEM_PROMPT,
   buildGenerationPrompt,
   parseGeneratedRender,
   readShortened,
-  repairResumeBounds,
   shortenRequest,
+  writeStoryRound,
 } from "../generate";
+import { isChapteredStory } from "~/render/chapters";
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
 import { READ_POSTING_SYSTEM_PROMPT, READ_POSTING_TOOL, postingRequest, readPostingInput } from "../posting";
@@ -153,7 +157,8 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
       spec: RenderSpec,
       ctx?: GenerationContext,
     ): Promise<RenderContent> {
-      try {
+      // One call, returning the tool input it emitted.
+      const emit = async (callFacts: RenderFact[], callSpec: RenderSpec, signal?: AbortSignal): Promise<unknown> => {
         // STREAMED, like extraction, and not by preference: the SDK refuses a
         // non-streaming request whose `max_tokens` could take it past ten
         // minutes, and 32k qualifies. `messages.create` here threw
@@ -161,44 +166,59 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         // below reported as an unreachable service — so this path had never
         // produced a document. `finalMessage()` restores the single-message
         // shape the rest of this function expects.
-        const stream = client.messages.stream({
-          model: config.model,
-          max_tokens: 32000,
-          thinking: THINKING,
-          output_config: OUTPUT_CONFIG,
-          system: [{ type: "text", text: buildGenerationPrompt(spec), cache_control: { type: "ephemeral" } }],
-          tools: [EMIT_RENDER_TOOL],
-          tool_choice: { type: "tool", name: EMIT_RENDER_TOOL.name },
-          messages: [{ role: "user", content: JSON.stringify({ facts }) }],
-        });
+        const stream = client.messages.stream(
+          {
+            model: config.model,
+            max_tokens: GENERATION_MAX_TOKENS,
+            thinking: THINKING,
+            output_config: OUTPUT_CONFIG,
+            system: [{ type: "text", text: buildGenerationPrompt(callSpec), cache_control: { type: "ephemeral" } }],
+            tools: [EMIT_RENDER_TOOL],
+            tool_choice: { type: "tool", name: EMIT_RENDER_TOOL.name },
+            messages: [{ role: "user", content: JSON.stringify({ facts: callFacts }) }],
+          },
+          { signal },
+        );
         const message = await stream.finalMessage();
         // Reported BEFORE the unusable-response check below. A call that
         // returned the wrong shape still ran and is still billed; suppressing
         // its usage would make the cheapest-looking imports the broken ones.
         ctx?.onUsage?.(readUsage(message.usage));
+        // A tool call cut off at the limit arrives with whatever input had
+        // streamed, often none, and read as "an unusable shape" — which is
+        // what a career story reported when it ran out (`docs/06`, 2026-11-04).
+        if (message.stop_reason === "max_tokens") throw new ModelUnavailableError(OUTPUT_LIMIT_REASON);
         const block = message.content.find((b) => b.type === "tool_use" && b.name === EMIT_RENDER_TOOL.name);
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
         }
-        const content = parseGeneratedRender(block.input, spec);
-        if (spec.kind !== "english_resume") return content;
-        // A bullet over 240 characters, or a summary of 50 words, used to
-        // refuse the whole document. Those lines alone are written again.
-        return await repairResumeBounds(content, spec, facts, async (lines) => {
-          // Asked for by the prompt, not forced, as reading a posting is.
-          const repair = await client.messages.stream({
-            model: config.model,
-            max_tokens: 16000,
-            thinking: THINKING,
-            output_config: OUTPUT_CONFIG,
-            system: [{ type: "text", text: SHORTEN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-            tools: [EMIT_SHORTENED_TOOL],
-            messages: [{ role: "user", content: shortenRequest(lines) }],
-          }).finalMessage();
-          ctx?.onUsage?.(readUsage(repair.usage));
-          const answer = repair.content.find((b) => b.type === "tool_use" && b.name === EMIT_SHORTENED_TOOL.name);
-          return answer?.type === "tool_use" ? readShortened(answer.input, lines) : new Map();
-        });
+        return block.input;
+      };
+      try {
+        // A career story is written a round of parts at a time
+        // (`writeStoryRound`); every other document is one call.
+        if (isChapteredStory(spec.kind)) return await writeStoryRound(facts, spec, emit);
+        return parseGeneratedRender(await emit(facts, spec), spec);
+      } catch (err) {
+        throw asModelError(err);
+      }
+    },
+
+    async shortenResumeLines(lines: LineToShorten[], ctx?: GenerationContext): Promise<Map<string, string>> {
+      try {
+        // Asked for by the prompt, not forced, as reading a posting is.
+        const repair = await client.messages.stream({
+          model: config.model,
+          max_tokens: 16000,
+          thinking: THINKING,
+          output_config: OUTPUT_CONFIG,
+          system: [{ type: "text", text: SHORTEN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          tools: [EMIT_SHORTENED_TOOL],
+          messages: [{ role: "user", content: shortenRequest(lines) }],
+        }).finalMessage();
+        ctx?.onUsage?.(readUsage(repair.usage));
+        const answer = repair.content.find((b) => b.type === "tool_use" && b.name === EMIT_SHORTENED_TOOL.name);
+        return answer?.type === "tool_use" ? readShortened(answer.input, lines) : new Map();
       } catch (err) {
         throw asModelError(err);
       }
