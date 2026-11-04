@@ -85,7 +85,13 @@ export async function generateStage(
   stage: GenerationStage,
 ): Promise<GenerationStage | null> {
   const [row] = await db
-    .select({ proposal: renderProposals, render: renders, nameLatin: profiles.nameLatin })
+    // The proposal's two states, not its row: the row carries the draft and
+    // every usable fact id, and this runs once per stage (`docs/06`, 2026-11-04).
+    .select({
+      proposal: { status: renderProposals.status, generationStatus: renderProposals.generationStatus },
+      render: renders,
+      nameLatin: profiles.nameLatin,
+    })
     .from(renderProposals)
     .innerJoin(renders, and(eq(renders.id, renderProposals.renderId), eq(renders.userId, userId)))
     .leftJoin(profiles, eq(profiles.userId, userId))

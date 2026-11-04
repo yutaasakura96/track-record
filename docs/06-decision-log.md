@@ -8154,3 +8154,55 @@ part of this.
   and one and a half times in Japanese. That is a register question, not a limit one.
 - **Revisit if:** a part's call approaches the limit, an employer comes to hold more facts than one call
   can write about, or the tables start pointing at headings the prose calls did not write.
+
+### [2026-11-04] What a screen or a job reads from the database is what it uses
+
+- **Context:** Neon warned at 95% of the month's network transfer: about 4.97 GB of the free plan's
+  5 GB sent from the database between 2026-11-01 and 2026-11-04, almost all from `main`, against a
+  record of about 50 MB (about 9,300 facts after the real-data import). Compute and storage were
+  fine. Measured on a disposable database holding a synthetic record of the same size
+  (`tests/egress.test.ts`, 9,000 invented facts across 24 documents), the bytes the database
+  returned per use of each path showed where it went. The heaviest were the routes the client polls
+  every 1.5 s while an import runs or a document is written. `GET /api/imports/:id` read the whole
+  `source_document_versions` row, the uploaded file (as hex) and its extracted text included, for
+  326 KB a poll. `renderState`, behind `GET /api/overview`, `/api/renders`, `/api/renders/:ref/page`
+  and `/api/applications/:id`, read every usable fact's id and, for each current version, every id
+  in its `usable_fact_ids`: about 870 KB a poll for two numbers a document. The page added every
+  fact in the record to check the dozen it cites. Home open through a batch import read about
+  1.2 MB every 1.5 s, close to 3 GB an hour. Off the polls, `collectRenderInputs` read every column
+  of every accepted fact (generation once a stage, the skills screen twice), and every fact accept
+  or edit read the whole accepted pool's rows two or three times.
+- **Decision:** each of those reads asks for what its caller uses, and the rest happens in SQL.
+  `importStatus` selects the columns it answers with. `renderState` counts each version's added and
+  withdrawn facts with `except` in Postgres, the same set difference `factsSince` took over two
+  Sets, and reads whether a render is tailored rather than its posting. A document page checks the
+  facts it cites (`citedFactStates`), and reads a version without its fact ids (only a restore
+  copies them). `collectRenderInputs` reads the columns it maps, counts Private and Generated facts
+  instead of reading them, reads claims only where they are sent, and for a model call reads them
+  after the budget has chosen the facts (a few hundred, not every usable fact). The skills and résumé
+  readers, which use only technologies, read no claims. The overlap pool reads id, claim,
+  technologies, employer and document; a match's grade and document are read for the matches
+  alone; and one request shares its pool read across flagging, settling and the card it answers
+  with, because nothing between those calls writes a fact. The fact list reads whether a fact has a
+  quote, not the quote it never returns. The flag list reads the flag columns it answers with. The
+  import reads a version's text once per run, not once per chunk (a version's text never changes),
+  and still reads the document's project each step, because that can change while the import runs.
+  Every response and every document is unchanged; the existing suite, the browser smoke test and
+  the generation checks pass as they did.
+- **Measured, bytes from the database per use, before → after:** import status 326 KB → 2 KB;
+  overview while an import runs 1.2 MB → 13 KB; overview 880 KB → 11 KB; a document's page 1.67 MB
+  → 39 KB; an application 881 KB → 12 KB; `/api/renders` 872 KB → 4 KB; Fact Review's rail, every
+  page of a 375-fact import, 338 KB → 193 KB; generating a résumé 19.2 MB → 2.6 MB; the skills screen
+  6.6 MB → 1.4 MB; accepting a fact 3.1 MB → 2.2 MB; refiling one 5.0 MB → 2.3 MB; importing a 40 KB
+  document 3.3 MB → 2.3 MB; the flagged list 1.2 MB → 864 KB.
+- **Decision:** `tests/egress.test.ts` holds every one of those paths to a byte budget at this
+  volume, metering the driver's `fetch` (`tests/helpers/egress.ts`), so a path that goes back to
+  whole rows fails the suite. Run against the code before this change, 13 of its budgets fail.
+- **Not done here:** the master document (2.7 MB) and the flagged list show every fact they hold, so
+  what they read is what they show. Settling `repeat` flags still reads the claims of every accepted
+  fact at each employer that holds one, on every accept, undo or edit, because the matcher weighs
+  words against the whole pool; narrowing it to the employers a change touched would be correct only
+  while every path that changes a pool also settles. Fact Review's rail still re-reads every page on
+  each poll while an import runs. The export reads the whole record because it is the backup.
+- **Revisit if:** the transfer graph climbs again with no import or generation running, a new
+  polled route reads a list, or the record grows past the volume the budgets were set at.
