@@ -4,7 +4,7 @@
  */
 import { expect, test, type Page } from "@playwright/test";
 import { CLAIM, PROFILE, SOURCE_FILENAME, SOURCE_TEXT } from "./fixture";
-import { DIFF_REVIEW_STORAGE_STATE } from "./env";
+import { DRAFT_EDIT_STORAGE_STATE } from "./env";
 
 const evidence = process.env.TEST_EVIDENCE_DIR;
 async function screenshot(page: Page, name: string) {
@@ -16,7 +16,7 @@ interface Content { sections: { key: string; heading: string; blocks: Block[] }[
 
 test("a draft is edited by hand and lands as two versions, with no regeneration", async ({ browser, baseURL }) => {
   test.setTimeout(240_000);
-  const context = await browser.newContext({ baseURL, storageState: DIFF_REVIEW_STORAGE_STATE });
+  const context = await browser.newContext({ baseURL, storageState: DRAFT_EDIT_STORAGE_STATE });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

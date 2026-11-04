@@ -30,6 +30,8 @@ import {
   CREDIT_PAUSE_STORAGE_STATE,
   DIFF_REVIEW_IDENTITY,
   DIFF_REVIEW_STORAGE_STATE,
+  DRAFT_EDIT_IDENTITY,
+  DRAFT_EDIT_STORAGE_STATE,
   JAPANESE_DIFF_IDENTITY,
   JAPANESE_DIFF_STORAGE_STATE,
   EDUCATION_CHIPS_IDENTITY,
@@ -99,6 +101,8 @@ export default async function setup() {
     [DEMO_SEED_IDENTITY, DEMO_SEED_STORAGE_STATE],
     [NUMBER_FLAG_IDENTITY, NUMBER_FLAG_STORAGE_STATE],
     [PHONE_WALL_IDENTITY, PHONE_WALL_STORAGE_STATE],
+    // The draft editor's own author, so it onboards from no profile whichever spec ran first.
+    [DRAFT_EDIT_IDENTITY, DRAFT_EDIT_STORAGE_STATE],
   ] as const) {
     const session = await createDevSession(
       (request) => createAuth(bindings, db).handler(request),
