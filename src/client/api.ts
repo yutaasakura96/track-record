@@ -506,6 +506,24 @@ export interface EditResult {
   warnings: string[];
 }
 
+/** A waiting proposal as content, block ids included: what a draft edit is made from. */
+export interface ProposalContent {
+  id: string;
+  renderKind: RenderKind;
+  renderRef: string;
+  status: Proposal["status"];
+  content: RenderContent;
+}
+
+/**
+ * What a saved draft edit says back: an edit result, plus the version the
+ * draft itself was accepted as, which the edit sits on top of (`docs/06`,
+ * 2026-11-04).
+ */
+export interface DraftEditResult extends EditResult {
+  acceptedVersionNo: number;
+}
+
 export interface VersionHistory {
   renderKind: RenderKind;
   renderRef: string;
@@ -585,6 +603,7 @@ export const keys = {
     ["source", documentId, versionNo] as const,
   proposal: (id: string) => ["proposal", id] as const,
   diff: (id: string) => ["proposal", id, "diff"] as const,
+  proposalContent: (id: string) => ["proposal", id, "content"] as const,
   // `ref` is what the render routes take: a kind, or a tailored résumé's id.
   versions: (ref: string) => ["renders", ref, "versions"] as const,
   // Deliberately NOT under `versions`: invalidating the list on a save would
@@ -1024,6 +1043,20 @@ export const useStoredVersion = (ref: string, versionId: string | null) =>
     enabled: versionId !== null,
     // A stored version is immutable; re-reading it would only risk replacing
     // the document under an editor that has unsaved work in it.
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+  });
+
+/**
+ * A draft's content, read once for the editor. Like a stored version it is not
+ * re-read while the editor is open: the proposal changes only when its drafted
+ * parts are confirmed, which happens on the review, not here.
+ */
+export const useProposalContent = (proposalId: string, enabled: boolean) =>
+  useQuery({
+    queryKey: keys.proposalContent(proposalId),
+    queryFn: () => api<ProposalContent>(`/api/proposals/${proposalId}/content`),
+    enabled,
     staleTime: Infinity,
     refetchOnWindowFocus: false,
   });
@@ -1812,6 +1845,7 @@ export function useConfirmDraft(proposalId: string) {
     onSuccess: (next) => {
       queryClient.setQueryData(keys.proposal(proposalId), next);
       void queryClient.invalidateQueries({ queryKey: keys.diff(proposalId) });
+      void queryClient.invalidateQueries({ queryKey: keys.proposalContent(proposalId) });
     },
   });
 }
@@ -1847,6 +1881,25 @@ export function useEditVersion(ref: string) {
     mutationFn: (body: { basedOnVersionId: string; content: RenderContent }) =>
       api<EditResult>(`/api/renders/${ref}/versions`, { method: "POST", ...json(body) }),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.versions(ref) });
+      void queryClient.invalidateQueries({ queryKey: keys.renders });
+      void queryClient.invalidateQueries({ queryKey: keys.overview });
+    },
+  });
+}
+
+/**
+ * A draft edited by hand: the proposal is accepted as generated and the edit is
+ * saved on top of it, in one request. Everything a decision or an edit
+ * refreshes is refreshed.
+ */
+export function useEditDraft(proposalId: string, ref: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (content: RenderContent) =>
+      api<DraftEditResult>(`/api/proposals/${proposalId}/edit`, { method: "POST", ...json({ content }) }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.proposal(proposalId) });
       void queryClient.invalidateQueries({ queryKey: keys.versions(ref) });
       void queryClient.invalidateQueries({ queryKey: keys.renders });
       void queryClient.invalidateQueries({ queryKey: keys.overview });

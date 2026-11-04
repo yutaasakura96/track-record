@@ -42,7 +42,7 @@ import { useFlashStore } from "../stores/flash";
 import { DownloadButton } from "./download-button";
 import { generateFailure } from "./generate-failure";
 import { useWideEnough } from "./too-narrow";
-import { QUIET, SECONDARY } from "./document-row";
+import { EditLink, FilledFromRecord, QUIET, SECONDARY } from "./document-row";
 import { Button, Chip, Panel } from "./ui";
 import { isSendableKind, nameVersions, type TailoredKind } from "~/shared/application-documents";
 import { APPLICATION_NOTE_MAX } from "~/shared/application";
@@ -240,6 +240,10 @@ export function ResumePanel({
           {makingRirekisho ? <div className="mt-10">{rirekishoCard}</div> : null}
           {picking ? <div className="mt-10">{card}</div> : null}
           {wide ? null : <p className="mt-10 text-small text-text-muted">{HELD_BACK}</p>}
+          {/* Beside Regenerate, once: what regenerating would not change. */}
+          {wide && documents.some((document) => document.tailored && document.currentVersionId) ? (
+            <FilledFromRecord className="mt-10" />
+          ) : null}
         </>
       )}
 
@@ -349,6 +353,8 @@ function DocumentLine({
             <DownloadButton kind={document.kind} docRef={document.ref} label="Download" className={QUIET} />
           </>
         ) : null}
+        {/* The editor is a wide screen, as History is. */}
+        {canOpen ? <EditLink row={document} /> : null}
         {document.tailored && canOpen ? (
           <TailoredAction document={document} canGenerate={canGenerate} busy={busy} onWrite={onWrite} />
         ) : null}

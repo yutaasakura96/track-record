@@ -20,7 +20,7 @@ import { PhoneFrame } from "../components/application-chrome";
 import { DocumentPage, type Trace } from "../components/document-page";
 import { generateFailure, JobHeaderLinks } from "../components/generate-failure";
 import { DownloadButton, WithheldFacts, withheldFacts } from "../components/download-button";
-import { QUIET, SECONDARY } from "../components/document-row";
+import { EditLink, FilledFromRecord, QUIET, SECONDARY } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
 import { useWideEnough } from "../components/too-narrow";
 import { GapNotices } from "../components/gap-notices";
@@ -159,11 +159,9 @@ function Notice({ view, wide }: { view: RenderPage; wide: boolean }) {
               History
             </Link>
           ) : null}
-          {wide && version.isCurrent ? (
-            <Link to="/renders/$ref/edit" params={{ ref: view.renderRef }} className={QUIET}>
-              Edit
-            </Link>
-          ) : null}
+          {/* While a draft waits, Edit opens the draft: editing this version
+              would be refused, because accepting the draft would discard it. */}
+          {wide && version.isCurrent ? <EditLink row={{ ...document, ref: view.renderRef }} /> : null}
           {wide && version.isCurrent ? <NewVersion view={view} /> : null}
           {view.tailored && view.applicationId ? (
             <Link
@@ -182,6 +180,8 @@ function Notice({ view, wide }: { view: RenderPage; wide: boolean }) {
           stays as it is until you accept it.
         </p>
       ) : null}
+      {/* Beside Regenerate: what regenerating is not needed for (`docs/06`, 2026-11-04). */}
+      {wide && version.isCurrent ? <FilledFromRecord kind={view.renderKind} /> : null}
     </div>
   );
 }

@@ -26,7 +26,7 @@ import { DocumentsScreen } from "./screens/documents";
 import { FactReview } from "./screens/fact-review";
 import { DiffReview } from "./screens/diff-review";
 import { VersionHistoryScreen } from "./screens/version-history";
-import { VersionEditScreen } from "./screens/version-edit";
+import { DraftEditScreen, VersionEditScreen } from "./screens/version-edit";
 import { DocumentViewScreen } from "./screens/document-view";
 import { FlaggedScreen } from "./screens/flagged";
 import { MASTER_FILTERS, MasterDocumentScreen, type MasterFilter } from "./screens/master-document";
@@ -237,6 +237,13 @@ const versionEditRoute = createRoute({
   component: VersionEditScreen,
 });
 
+/** Screen 6 on a waiting draft: edit it by hand, then accept it with the edit (`docs/06`, 2026-11-04). */
+const draftEditRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/proposals/$proposalId/edit",
+  component: DraftEditScreen,
+});
+
 const routeTree = rootRoute.addChildren([
   overviewRoute,
   profileRoute,
@@ -256,6 +263,7 @@ const routeTree = rootRoute.addChildren([
   versionHistoryRoute,
   documentViewRoute,
   versionEditRoute,
+  draftEditRoute,
 ]);
 
 /**
@@ -275,4 +283,4 @@ declare module "@tanstack/react-router" {
   }
 }
 
-export { factReviewRoute, diffReviewRoute, versionHistoryRoute, versionEditRoute };
+export { factReviewRoute, diffReviewRoute, versionHistoryRoute, versionEditRoute, draftEditRoute };
