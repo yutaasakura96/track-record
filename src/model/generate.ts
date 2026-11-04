@@ -92,8 +92,9 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // not: a "Chapters: none" heading in the résumé's prompt would be an
   // instruction about a structure that render does not have.
   const chapters = chaptersOf(spec);
-  const chapterList =
-    chapters.length > 0
+  const chapterList = spec.part
+    ? storyPartPrompt(spec, chapters)
+    : chapters.length > 0
       ? `\nChapters, in this order. Emit exactly these keys and no others:\n${chapterPlanForPrompt(chapters)}\n`
       : "";
   // Names are printed as the record holds them and never labelled: the
@@ -186,8 +187,10 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
   // names it, and the author's ※ note is their words, marked as such.
   const gapName = (g: RenderSpec["careerGaps"][number]) =>
     spec.language === "ja" ? gapLabelJa(g) : gapLabelEn(g);
+  // Only to the call that writes the routing table: a part writing prose has
+  // no row to put a gap in.
   const careerGaps =
-    spec.careerGaps.length > 0
+    spec.careerGaps.length > 0 && (!spec.part || spec.part.chapters.includes("routing"))
       ? `
 Gaps in the 履歴書's 学歴・職歴 chronology: months covered by no school and no job. An interviewer holding the 履歴書 asks about each one. The routing table gives every gap a row of its own, asking what the author was doing in those months, and answers it from the author's note where there is one and otherwise from the chapters either side. A note is the author's own words, not a fact, and a row answered from it lists no fact id for it:
 ${spec.careerGaps
@@ -284,7 +287,156 @@ ${jobDescription}
  * is asked for and the chapters it is checked against cannot drift apart.
  */
 export function chaptersOf(spec: RenderSpec): PlannedChapter[] {
-  return chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment);
+  const plan = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment);
+  if (!spec.part) return plan;
+  const writes = new Set(spec.part.chapters);
+  return plan.filter((chapter) => writes.has(chapter.key));
+}
+
+/* ------------------------------------------------ a story written in parts */
+
+/**
+ * Output tokens one generation call may spend, thinking included. A career
+ * story written in one call from a real record (488 facts sent) ran past
+ * 32,000 and then past 64,000: the cut-off tool call arrived with no input, and
+ * the proposal said "unusable shape" (`docs/06`, 2026-11-04). A story is now
+ * written in parts; this is the headroom one part, or a 職務経歴書, is given.
+ */
+export const GENERATION_MAX_TOKENS = 64_000;
+
+/** The reason a call that reached its output limit is refused with. */
+export const OUTPUT_LIMIT_REASON =
+  "The model reached its output limit before it finished this document, so it was not offered for review.";
+
+/**
+ * The length each story register states for the whole story, and the length it
+ * states for a paragraph. A part is told its share, because a call that sees
+ * only the whole story's length writes that much for its one chapter.
+ */
+export const STORY_CHARACTERS: Record<RenderSpec["language"], number> = { en: 17_000, ja: 8_500 };
+const PARAGRAPH_CHARACTERS: Record<RenderSpec["language"], number> = { en: 400, ja: 200 };
+
+/** Written last, from the chapters, by a call of their own. */
+const CLOSING_CHAPTERS: readonly string[] = ["anchors", "routing"];
+
+/** One call of a story: the facts it is sent and the spec it is written to. */
+export interface StoryCall {
+  facts: RenderFact[];
+  spec: RenderSpec;
+}
+
+/**
+ * The prose parts of a story: one per employer chapter, sent that employer's
+ * facts, and one for the chapters that belong to no employer (the opening, the
+ * work outside employment and what comes next), sent the facts filed under
+ * none. That split is the register's own rule about which facts a chapter may
+ * cite, so no part is sent a fact it may not use.
+ *
+ * Each prose chapter's share of the story's length grows with the facts behind
+ * it, which is what the register asks for in words: the longest chapter is the
+ * employer with the most facts, and a thin one is short.
+ */
+export function storyParts(facts: readonly RenderFact[], spec: RenderSpec): StoryCall[] {
+  const prose = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).filter(
+    (chapter) => !CLOSING_CHAPTERS.includes(chapter.key),
+  );
+  const factsOf = (employerId: string | null) =>
+    facts.filter((fact) => (fact.employer?.id ?? null) === employerId);
+  const count = (chapter: PlannedChapter) =>
+    chapter.employerId !== null ? factsOf(chapter.employerId).length : chapter.key === "independent" ? factsOf(null).length : 0;
+  const most = Math.max(1, ...prose.map(count));
+  const weight = (chapter: PlannedChapter) => 1 + (4 * count(chapter)) / most;
+  const total = prose.reduce((sum, chapter) => sum + weight(chapter), 0);
+  const share = (chapters: PlannedChapter[]) =>
+    Math.round((STORY_CHARACTERS[spec.language] * chapters.reduce((sum, c) => sum + weight(c), 0)) / total);
+  const call = (chapters: PlannedChapter[], partFacts: RenderFact[]): StoryCall => ({
+    facts: partFacts,
+    spec: { ...spec, part: { chapters: chapters.map((c) => c.key), characters: share(chapters), written: null } },
+  });
+
+  const framing = prose.filter((chapter) => chapter.employerId === null);
+  return [
+    ...(framing.length > 0 ? [call(framing, factsOf(null))] : []),
+    ...prose.filter((chapter) => chapter.employerId !== null).map((chapter) => call([chapter], factsOf(chapter.employerId))),
+  ];
+}
+
+/**
+ * The call that writes the two closing tables, given the chapters already
+ * written and the facts they cite: every figure in the anchors table comes
+ * from a chapter, and every routing row points at one.
+ */
+export function closingCall(facts: readonly RenderFact[], spec: RenderSpec, written: RenderContent): StoryCall {
+  const cited = new Set(written.sections.flatMap((section) => section.blocks.flatMap((block) => block.factIds)));
+  return {
+    facts: facts.filter((fact) => cited.has(fact.id)),
+    spec: { ...spec, part: { chapters: [...CLOSING_CHAPTERS], characters: null, written } },
+  };
+}
+
+/**
+ * A career story, written in parts and returned as one tool input in plan
+ * order, for `parseGeneratedRender` to hold to the whole plan exactly as it
+ * held a story written in one call.
+ *
+ * The prose parts run together, and the first to fail aborts the rest: a part
+ * that cannot be used makes the story unusable, and the others would only be
+ * billed. Each part is held to its own chapters before the tables are written
+ * from it.
+ */
+export async function writeStoryInParts(
+  facts: readonly RenderFact[],
+  spec: RenderSpec,
+  write: (facts: RenderFact[], spec: RenderSpec, signal: AbortSignal) => Promise<unknown>,
+): Promise<{ sections: RenderContent["sections"] }> {
+  const controller = new AbortController();
+  const run = async ({ facts: partFacts, spec: partSpec }: StoryCall): Promise<RenderContent> => {
+    try {
+      return parseRenderContent(await write(partFacts, partSpec, controller.signal), chaptersOf(partSpec));
+    } catch (error) {
+      controller.abort();
+      throw error;
+    }
+  };
+  const parts = await Promise.all(storyParts(facts, spec).map(run));
+  const order = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).map((chapter) => chapter.key);
+  const prose = parts
+    .flatMap((part) => part.sections)
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const closing = await run(closingCall(facts, spec, { sections: prose }));
+  return { sections: [...prose, ...closing.sections] };
+}
+
+/**
+ * The chapter list of one part's prompt: the whole plan, so the part knows
+ * what the other calls tell, then the chapters this call writes, its share of
+ * the length, and, for the closing tables, the chapters already written.
+ */
+function storyPartPrompt(spec: RenderSpec, chapters: readonly PlannedChapter[]): string {
+  const part = spec.part!;
+  const whole = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment);
+  const length =
+    part.characters === null
+      ? ""
+      : `These chapters together run about ${part.characters} characters, about ${Math.max(
+          1,
+          Math.round(part.characters / PARAGRAPH_CHARACTERS[spec.language]),
+        )} paragraphs. That is this part's share of the whole story, and it replaces the whole story's length as the length to aim at.\n`;
+  const written = part.written
+    ? `\nThe chapters already written, as the reader will read them. Each paragraph ends with the ids of the facts it was written from in square brackets. The two tables are written from these chapters and from nothing else.\n${part.written.sections
+        .map(
+          (section) =>
+            `\n## ${section.heading}\n${section.blocks.map((block) => `${block.text} [${block.factIds.join(", ")}]`).join("\n")}`,
+        )
+        .join("\n")}\n`
+    : "";
+  return `
+This story is written in parts, one call each, and this call writes one part. The whole story's chapters, in order, so you know what the other calls tell:
+${chapterPlanForPrompt(whole)}
+
+Chapters this call writes, in this order. Emit exactly these keys and no others:
+${chapterPlanForPrompt(chapters)}
+${length}${written}`;
 }
 
 const monthOf = (isoDate: string) => isoDate.slice(0, 7);

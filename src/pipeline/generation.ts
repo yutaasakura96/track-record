@@ -22,9 +22,12 @@ import type { ModelSeam } from "~/model/types";
 export const GENERATION_LOST = "This document could not be generated. Nothing was saved. Generate it again.";
 
 /**
- * Per attempt, and an attempt can hold two model calls: a document that fails
- * its language check is written once more. At 32,000 tokens and about 100 a
- * second that is under eleven minutes.
+ * Per attempt, and an attempt can hold two whole documents: one that fails its
+ * language check is written once more. The longest call measured on a real
+ * record wrote about 36,000 tokens, thinking included, and output runs at about
+ * 48 a second, so two are about 25 minutes. A story's parts run side by side and
+ * take less (`docs/06`, 2026-11-04). Thirty minutes is the longest step timeout
+ * Cloudflare advises.
  *
  * One retry, not the default five. A model failure is written to the proposal
  * and does not reach here, so what retries is a lost run or a database that did
@@ -32,7 +35,7 @@ export const GENERATION_LOST = "This document could not be generated. Nothing wa
  */
 export const GENERATE_STEP = {
   retries: { limit: 1, delay: "30 seconds", backoff: "constant" },
-  timeout: "20 minutes",
+  timeout: "30 minutes",
 } as const;
 
 /**
@@ -40,7 +43,7 @@ export const GENERATE_STEP = {
  * has no run left behind it. Reading it fails it, so the author gets the failed
  * screen's way out and not a page that says it is writing forever.
  */
-export const GENERATION_DEADLINE_MS = 45 * 60 * 1000;
+export const GENERATION_DEADLINE_MS = 65 * 60 * 1000;
 
 export interface GenerationDeps {
   db: Db;

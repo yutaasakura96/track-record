@@ -270,6 +270,7 @@ Write the heading yourself. A chapter heading is a line of the story and should 
 Blocks:
 - A chapter is paragraphs: kind "paragraph". Every paragraph lists the ids of the facts it was written from, in factIds.
 - The last two chapters, "anchors" and "routing", are rows: kind "row".
+- A row that names an employer, a school or a project writes the name in full, exactly as the Employers, Education or Projects list writes it. A table is checked against the record, and a shortened name in a row reads as a changed one.
 - There are no bullets anywhere in this document. It is prose and two tables.
 
 The employer chapters, one per employer, keyed by that employer's id:

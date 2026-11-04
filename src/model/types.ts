@@ -302,6 +302,22 @@ export interface RenderSpec {
     motivationNote: string | null;
     kibouNote: string | null;
   } | null;
+  /**
+   * Set only on one call of a career story written in parts
+   * (`writeStoryInParts`, `src/model/generate.ts`). `chapters` are the keys
+   * this call writes, in plan order; `characters` is about how long its prose
+   * chapters run together; `written` is the story so far, given to the call
+   * that writes the two closing tables. A whole story in one call ran past the
+   * output limit on a real record (`docs/06`, 2026-11-04).
+   */
+  part?: StoryPart;
+}
+
+/** One call's share of a career story. See `RenderSpec.part`. */
+export interface StoryPart {
+  chapters: string[];
+  characters: number | null;
+  written: RenderContent | null;
 }
 
 /**

@@ -8092,3 +8092,40 @@ part of this.
   rule in `docs/04` §0; every other calendar column keeps the day pinned to `01` and never rendered.
   This supersedes any earlier entry that treats the date of birth as month precision.
 - **Revisit if:** another render needs the date of birth at a different precision.
+
+---
+
+### [2026-11-04] A career story is written in parts, and a call that runs out of room says so
+
+- **Context:** on the real record (about 9,300 facts, 488 sent to a story under the per-employer
+  budget) the English career story failed twice, each after about eleven minutes, as "The model
+  returned a document in an unusable shape". The story was simulated through Claude Code on
+  `claude-opus-5` at effort high, with the app's own prompt, payload and checks: written in one call it
+  spent 98,834 output tokens (about 34,600 of them thinking) and was cut off at 64,000 before it
+  finished, against the app's `max_tokens` of 32,000. The Japanese story spent 55,032. A forced tool
+  call cut off at the limit arrives with whatever input had streamed, often none, and `{}` has no
+  `sections`. The story written in one call also ran to about 63,000 characters against the
+  register's 17,000. One run was refused for a routing row that shortened an employer's name.
+- **Decision:** a career story is written in parts (`writeStoryInParts`, `src/model/generate.ts`):
+  the chapters of no employer as one call, sent the facts filed under none; each employer chapter as
+  one call, sent that employer's facts; then the two tables, from the chapters as written and the
+  facts they cite. The prose parts run side by side and the first to fail aborts the rest. Each part is
+  told its share of the register's length, more for an employer with more facts. The joined story is
+  held to the whole plan by the same check as before. The seam keeps its six functions; the parts live
+  inside `generateRender`.
+- **Decision:** every generation call may spend 64,000 output tokens (`GENERATION_MAX_TOKENS`), and a
+  call that stops at the limit is refused as having run out of room rather than read as an unusable
+  shape. The generation step's timeout is 30 minutes, Cloudflare's advised ceiling, and the deadline
+  past both attempts 65.
+- **Decision:** a story's table rows write an employer, school or project name in full, as the lists
+  write it, because the record-name check reads a shortened one as a changed one.
+- **Measured, simulated the same way after the change:** the English story in six calls, 64,672 output
+  tokens, the largest call 15,853, about seven minutes end to end; the Japanese story 67,668, the
+  largest call 18,120, about nine minutes. Both passed the plan and language checks with no unknown fact
+  ids and no fact cited under another employer. The 職務経歴書, still one call, spent 35,886 and 44,101
+  in two runs, past the old 32,000 in one of them, and passed. A story in parts costs about $2.60 at
+  list price, less than the one call would have (about $3.50) had it been given room to finish.
+- **Not done here:** the prose chapters still run long, about twice the register's length in English
+  and one and a half times in Japanese. That is a register question, not a limit one.
+- **Revisit if:** a part's call approaches the limit, an employer comes to hold more facts than one call
+  can write about, or the tables start pointing at headings the prose calls did not write.

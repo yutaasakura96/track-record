@@ -125,8 +125,10 @@ describe("a generation in a Workflow", () => {
 
   it("gives a step long enough for two whole attempts at the longest document, and few retries", () => {
     const minutes = Number(/^(\d+) minutes$/.exec(GENERATE_STEP.timeout)?.[1]);
-    // 32,000 tokens at about 100 a second, twice: the language check's retry.
-    expect(minutes * 60).toBeGreaterThan((2 * 32_000) / 100);
+    // The longest call measured, about 36,000 tokens at about 48 a second,
+    // twice: the language check's retry. Thirty minutes is Cloudflare's ceiling.
+    expect(minutes * 60).toBeGreaterThan((2 * 36_000) / 48);
+    expect(minutes).toBeLessThanOrEqual(30);
     expect(GENERATE_STEP.retries.limit).toBe(1);
     expect(GENERATION_DEADLINE_MS).toBeGreaterThan(2 * minutes * 60_000);
   });

@@ -233,6 +233,15 @@ names stay verbatim. Fact claims remain in their recorded language. For an Engli
 industry and project-summary copies are omitted from facts' contextual JSON; the labelled employer
 and project lists still carry those fields.
 
+**A career story is written in parts** (`writeStoryInParts`, `src/model/generate.ts`; decision log,
+2026-11-04). The chapters that belong to no employer are one call, sent the facts filed under none;
+each employer chapter is one call, sent that employer's facts; the parts run side by side, each told
+its share of the register's length. The anchors and routing tables are a last call, given the
+chapters as written and the facts they cite. The parts are joined in plan order and checked against
+the whole plan, as a story written in one call was. Every other render is one call. A call that stops
+at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
+unusable shape.
+
 **Never sent to the model:** source documents during *generation* (only during extraction), and any
 fact whose disclosure is **Private**. Private facts are filtered before the request is built, not
 after the response returns.
