@@ -284,6 +284,7 @@ export function latinTerms(spec: RenderSpec, facts: readonly Pick<RenderFact, "t
     ...spec.educations.flatMap((e) => [e.institution, e.faculty, e.degree, e.fieldOfStudy]),
     ...spec.certifications.flatMap((c) => [c.name, c.issuingOrganization, ...c.technologies]),
     ...(spec.curatedSkills ?? []).flatMap((g) => g.skills),
+    ...(spec.skillShortlist ?? []),
     ...facts.flatMap((f) => f.technologies),
   ];
   // Longest first, so a name containing a shorter one is removed whole.

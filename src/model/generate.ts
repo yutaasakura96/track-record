@@ -9,7 +9,7 @@
  * 職務経歴書 expects — a prompt difference, not a data difference.
  */
 import type Anthropic from "@anthropic-ai/sdk";
-import { ModelUnavailableError, type RenderSpec } from "./types";
+import { ModelUnavailableError, type RenderFact, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
 import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL, hasJapaneseScript, isEnglishOnly } from "~/render/language";
 import {
@@ -20,7 +20,14 @@ import {
 } from "~/render/chapters";
 
 export { capitalInJapanese };
-import { shapeResumeContent } from "~/render/resume";
+import {
+  BULLET_CHARACTER_LIMIT,
+  SUMMARY_KEY,
+  SUMMARY_WORD_LIMIT,
+  resumeOverLimit,
+  shapeResumeContent,
+  validateResumeBounds,
+} from "~/render/resume";
 import { gapLabelEn, gapLabelJa } from "~/shared/career-gap";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
 
@@ -159,6 +166,14 @@ export function buildGenerationPrompt(spec: RenderSpec): string {
           "- none this document may name, so omit the skills section"
         }\n`;
 
+  // With nothing curated, the list the skills section is held to. Without it
+  // the section was written "from the facts", and a record that names about
+  // 800 technologies left it nothing to stop at.
+  const skillShortlist =
+    spec.curatedSkills === null && spec.skillShortlist && spec.skillShortlist.length > 0
+      ? `\nSkills shortlist, chosen from the record because nothing is curated. The best-evidenced skills, each named once. The skills section names only technologies on it, and need not name them all:\n${spec.skillShortlist.join(", ")}\n`
+      : "";
+
   // Printed only when the author has written one. A labelled "none recorded"
   // would reach every render's prompt, including the four that have no cell to
   // put a stated preference in.
@@ -229,7 +244,7 @@ ${educations || "- none recorded"}
 
 Certifications, in the order this document lists them:
 ${certifications || "- none recorded"}
-${curatedSkills}${desiredRoleNote}${careerGaps}${tailoring}
+${curatedSkills}${skillShortlist}${desiredRoleNote}${careerGaps}${tailoring}
 Call emit_render exactly once.`;
 }
 
@@ -307,6 +322,153 @@ export function parseGeneratedRender(input: unknown, spec: RenderSpec): RenderCo
     throw new ModelUnavailableError("The model returned no summary and no bullets.");
   }
   return shaped;
+}
+
+/* ------------------------------------------------- over-long résumé lines */
+
+/**
+ * One line the résumé's bound refused, as the rewrite is asked for it. `facts`
+ * are the ones the line cites, so the rewrite is written from what the line
+ * was, and can drop a fact but never add one.
+ */
+export interface LineToShorten {
+  id: string;
+  kind: "bullet" | "summary";
+  text: string;
+  limit: string;
+  facts: { id: string; claim: string; restricted: boolean }[];
+}
+
+export const EMIT_SHORTENED_TOOL = {
+  name: "emit_shortened",
+  description: "Return every line, rewritten within its limit, by id.",
+  input_schema: {
+    type: "object",
+    properties: {
+      lines: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "The id the line was given, exactly." },
+            text: { type: "string", description: "The rewritten line." },
+          },
+          required: ["id", "text"],
+        },
+      },
+    },
+    required: ["lines"],
+  },
+} satisfies Anthropic.Tool;
+
+/**
+ * The rewrite's rules are the résumé register's own bullet rules, restated for
+ * a call that sees one line at a time. A bullet over the bound is over because
+ * it welded one fact too many, and that is the fix asked for here.
+ */
+export const SHORTEN_SYSTEM_PROMPT = `You shorten lines of an English résumé that are over their length limit, and nothing else.
+
+Each line comes with its id, its limit and the facts it was written from. Rewrite every line so that it is within its limit, and return all of them by calling ${EMIT_SHORTENED_TOOL.name} once.
+
+How to shorten a line:
+- A line over its limit welded one fact too many. Cut the least load-bearing fact — the background, the tooling aside, the second consequence — and keep the rest whole.
+- Keep the number. If the line states a quantity, a duration, a count, a version or a percentage, the rewrite states it too.
+- Write only from the line and the facts given with it. Add no number, technology, date or outcome that they do not state.
+- A bullet stays one sentence, opens with a past-tense action verb and states the outcome. A summary stays one paragraph, and names no employer.
+- English only. No first-person pronouns. No adjectives of self-assessment: no "successfully", "expertly", "cutting-edge", "passionate".
+- A fact marked restricted is generalised: describe the work without naming the client or any system that identifies them.
+- Aim well inside the limit, not at it: count the characters or the words of the rewrite before returning it.`;
+
+/** The lines to rewrite, as the call's one user message. */
+export function shortenRequest(lines: readonly LineToShorten[]): string {
+  return JSON.stringify({
+    lines: lines.map((line) => ({ id: line.id, kind: line.kind, limit: line.limit, text: line.text, facts: line.facts })),
+  });
+}
+
+/** The rewrites the model returned, by id. A line it was not given, or an empty one, is not a rewrite. */
+export function readShortened(input: unknown, asked: readonly LineToShorten[]): Map<string, string> {
+  const ids = new Set(asked.map((line) => line.id));
+  const out = new Map<string, string>();
+  const lines = (input as { lines?: unknown } | null)?.lines;
+  if (!Array.isArray(lines)) return out;
+  for (const line of lines) {
+    const { id, text } = (line ?? {}) as Record<string, unknown>;
+    if (typeof id === "string" && ids.has(id) && typeof text === "string" && text.trim() !== "") out.set(id, text.trim());
+  }
+  return out;
+}
+
+/** The résumé's lines over their bound, each with the facts it cites. */
+export function linesToShorten(content: RenderContent, facts: readonly RenderFact[]): LineToShorten[] {
+  const byId = new Map(facts.map((f) => [f.id, f]));
+  const cited = (factIds: readonly string[]) =>
+    [...new Set(factIds)].flatMap((id) => {
+      const fact = byId.get(id);
+      return fact ? [{ id, claim: fact.claim, restricted: fact.disclosure === "restricted" }] : [];
+    });
+  return resumeOverLimit(content).map((over): LineToShorten =>
+    over.kind === "summary"
+      ? {
+          id: over.blocks[0]!.id,
+          kind: "summary",
+          text: over.blocks.map((b) => b.text).join(" "),
+          limit: `under ${SUMMARY_WORD_LIMIT} words`,
+          facts: cited(over.blocks.flatMap((b) => b.factIds)),
+        }
+      : {
+          id: over.block.id,
+          kind: "bullet",
+          text: over.block.text,
+          limit: `at most ${BULLET_CHARACTER_LIMIT} characters`,
+          facts: cited(over.block.factIds),
+        },
+  );
+}
+
+/**
+ * The rewrites set into the content. A summary that ran over is one paragraph
+ * afterwards, citing every fact its blocks did. A line with no rewrite is left
+ * as it was, for the bound to refuse.
+ */
+export function applyShortened(content: RenderContent, rewrites: ReadonlyMap<string, string>): RenderContent {
+  return {
+    sections: content.sections.map((section) => {
+      if (section.key === SUMMARY_KEY && section.blocks.length > 0 && rewrites.has(section.blocks[0]!.id)) {
+        const [first] = section.blocks;
+        const factIds = [...new Set(section.blocks.flatMap((b) => b.factIds))];
+        return { ...section, blocks: [{ ...first!, text: rewrites.get(first!.id)!, factIds }] };
+      }
+      return { ...section, blocks: section.blocks.map((b) => (rewrites.has(b.id) ? { ...b, text: rewrites.get(b.id)! } : b)) };
+    }),
+  };
+}
+
+/**
+ * A résumé with every line within its bound, or a refusal. Lines over it are
+ * rewritten once, by `shorten`, from the facts they cite; a line still over
+ * after that refuses the document, as it did before there was a rewrite. Only
+ * the lines over the bound are sent: a document whose one bullet ran long is
+ * not written again.
+ */
+export async function repairResumeBounds(
+  content: RenderContent,
+  spec: RenderSpec,
+  facts: readonly RenderFact[],
+  shorten: (lines: LineToShorten[]) => Promise<Map<string, string>>,
+): Promise<RenderContent> {
+  const lines = linesToShorten(content, facts);
+  if (lines.length === 0) return content;
+  const repaired = applyShortened(content, await shorten(lines));
+  try {
+    validateResumeBounds(repaired, spec.employers);
+  } catch (error) {
+    throw new ModelUnavailableError(error instanceof Error ? error.message : "The résumé is invalid.");
+  }
+  if (repaired.sections.some((section) => section.blocks.some((block) => hasJapaneseScript(block.text)))) {
+    throw new ModelUnavailableError("The English résumé contains Japanese script.");
+  }
+  return repaired;
 }
 
 /**

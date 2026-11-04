@@ -224,7 +224,7 @@ Voice:
     - "row" 技術的成果：
     - the bullets for that project.
   - "row" 主な実績： followed by the bullets written from this employer's facts that name no project — the employer-level outcomes. Omit the row and the bullets when every fact at this employer belongs to a project.
-  - "row" 技術スタック：… — the technologies the facts under THIS employer actually name, comma-separated, nothing invented and nothing carried over from another employer. This row lists factIds: it is assembled from facts, unlike the rows above it, which are copied from a list.
+  - "row" 技術スタック：… — the technologies the facts under THIS employer actually name, comma-separated, each once, the ones the employer's work rests on and no more than twelve, nothing invented and nothing carried over from another employer. This row lists factIds: it is assembled from facts, unlike the rows above it, which are copied from a list.
 - An employer with no projects in the Projects list has no プロジェクト rows and no 技術的成果 row. All of its bullets sit under 主な実績.
 
 How to write a bullet:
@@ -243,6 +243,7 @@ How to write a bullet:
 "skills" — 活かせるスキル・経験:
 - Three or four groups. Each group is a "row" holding a short noun-phrase label with factIds empty, followed by ONE "paragraph" of about 200 characters, 体言止め, listing factIds.
 - Group by what the author can DO, not by employer and not by technology family alone. The employment history is printed below and must not be restated here.
+- **When a Skills shortlist is given below, it bounds the section.** Group as above, but name only technologies on the shortlist, each once, written as the shortlist writes it. Leave out one that fits no group rather than add a group for it.
 - **When a curated Skills list is given below, the author has already grouped.** It replaces the two rules above: one "row" per group carrying the group's name, followed by ONE "paragraph", 体言止め, naming exactly that group's skills in the order given and listing factIds. The groups follow the list's order, and no technology the list does not name appears in this section.
 - A group's name is copied as the list gives it. A name marked ${ENGLISH_ONLY_LABEL} is the author's English one: write it as a short Japanese noun phrase meaning the same, and never copy the English.
 

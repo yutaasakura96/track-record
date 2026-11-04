@@ -24,7 +24,16 @@ import {
 } from "../types";
 import type { RenderContent } from "~/shared/render-content";
 import { EXTRACTION_SYSTEM_PROMPT, EXTRACT_FACT_TOOL } from "../extract";
-import { EMIT_RENDER_TOOL, buildGenerationPrompt, parseGeneratedRender } from "../generate";
+import {
+  EMIT_RENDER_TOOL,
+  EMIT_SHORTENED_TOOL,
+  SHORTEN_SYSTEM_PROMPT,
+  buildGenerationPrompt,
+  parseGeneratedRender,
+  readShortened,
+  repairResumeBounds,
+  shortenRequest,
+} from "../generate";
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
 import { EXPLAIN_SYSTEM_PROMPT, explainRequest } from "../explain";
 import { READ_POSTING_SYSTEM_PROMPT, READ_POSTING_TOOL, postingRequest, readPostingInput } from "../posting";
@@ -171,7 +180,25 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         if (!block || block.type !== "tool_use") {
           throw new ModelUnavailableError("The model did not return a document.");
         }
-        return parseGeneratedRender(block.input, spec);
+        const content = parseGeneratedRender(block.input, spec);
+        if (spec.kind !== "english_resume") return content;
+        // A bullet over 240 characters, or a summary of 50 words, used to
+        // refuse the whole document. Those lines alone are written again.
+        return await repairResumeBounds(content, spec, facts, async (lines) => {
+          // Asked for by the prompt, not forced, as reading a posting is.
+          const repair = await client.messages.stream({
+            model: config.model,
+            max_tokens: 16000,
+            thinking: THINKING,
+            output_config: OUTPUT_CONFIG,
+            system: [{ type: "text", text: SHORTEN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+            tools: [EMIT_SHORTENED_TOOL],
+            messages: [{ role: "user", content: shortenRequest(lines) }],
+          }).finalMessage();
+          ctx?.onUsage?.(readUsage(repair.usage));
+          const answer = repair.content.find((b) => b.type === "tool_use" && b.name === EMIT_SHORTENED_TOOL.name);
+          return answer?.type === "tool_use" ? readShortened(answer.input, lines) : new Map();
+        });
       } catch (err) {
         throw asModelError(err);
       }
