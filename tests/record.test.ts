@@ -49,15 +49,72 @@ describe("the profile form", () => {
     expect((await client.get("/api/profile")).status).toBe(404);
   });
 
-  it("rejects a calendar value that is not month precision", async () => {
-    const response = await client.put("/api/profile", {
-      ...PROFILE_FIXTURE,
-      dateOfBirth: "1994-11-17",
-    });
-    expect(response.status).toBe(422);
-    expect(
-      ((await response.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
-    ).toContain("dateOfBirth");
+  it("keeps the day of a date of birth, which is not a month-precision column", async () => {
+    const saved = await client.put("/api/profile", { ...PROFILE_FIXTURE, dateOfBirth: "1994-11-17" });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as { dateOfBirth: string }).dateOfBirth).toBe("1994-11-17");
+    const reread = await client.json<{ dateOfBirth: string }>("/api/profile");
+    expect(reread.dateOfBirth).toBe("1994-11-17");
+  });
+
+  it("rejects a date of birth that is not a real day", async () => {
+    for (const dateOfBirth of ["1994-11", "1994-02-30", "not-a-date"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, dateOfBirth });
+      expect(response.status).toBe(422);
+      expect(
+        ((await response.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+      ).toContain("dateOfBirth");
+    }
+  });
+
+  it("accepts phone numbers as people write them and stores them as ASCII", async () => {
+    for (const [typed, stored] of [
+      ["090-0000-1234", "090-0000-1234"],
+      ["+81 90 0000 1234", "+81 90 0000 1234"],
+      ["(03) 0000-1234", "(03) 0000-1234"],
+      ["０９０－００００－１２３４", "090-0000-1234"],
+    ] as const) {
+      const saved = await client.put("/api/profile", { ...PROFILE_FIXTURE, phone: typed });
+      expect(saved.status).toBe(200);
+      expect(((await saved.json()) as { phone: string }).phone).toBe(stored);
+    }
+  });
+
+  it("rejects a phone number with letters, symbols or too few digits", async () => {
+    for (const phone of ["abc", "090-0000-12ab", "090 0000 1234 ext 5", "☎", "12345", "", "1".repeat(16)]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, phone });
+      expect(response.status).toBe(422);
+      expect(
+        ((await response.json()) as { error: { details: { fields: string[] } } }).error.details.fields,
+      ).toContain("phone");
+    }
+  });
+
+  it("checks the résumé phone the same way, and treats blank as none", async () => {
+    const bad = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePhone: "call me" });
+    expect(bad.status).toBe(422);
+    const blank = await client.put("/api/profile", { ...PROFILE_FIXTURE, resumePhone: "  " });
+    expect(blank.status).toBe(200);
+    expect(((await blank.json()) as { resumePhone: string | null }).resumePhone).toBeNull();
+  });
+
+  it("stores a postal code in one form, however it was typed", async () => {
+    for (const typed of ["150-0001", "1500001", "〒150-0001", "１５０－０００１"]) {
+      const saved = await client.put("/api/profile", { ...PROFILE_FIXTURE, postalCode: typed });
+      expect(saved.status).toBe(200);
+      expect(((await saved.json()) as { postalCode: string }).postalCode).toBe("150-0001");
+    }
+    for (const postalCode of ["15-00001", "150-000", "abc-defg", ""]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, postalCode });
+      expect(response.status).toBe(422);
+    }
+  });
+
+  it("refuses a date of birth in the future or before 1900", async () => {
+    for (const dateOfBirth of ["1899-12-31", "2999-01-01"]) {
+      const response = await client.put("/api/profile", { ...PROFILE_FIXTURE, dateOfBirth });
+      expect(response.status).toBe(422);
+    }
   });
 
   it("rejects katakana in a kana field and saves nothing", async () => {

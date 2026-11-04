@@ -23,7 +23,7 @@ export const PROFILE = {
   "せい · Family name (kana)": "あおき",
   "めい · Given name (kana)": "ようすけ",
   "Name in Latin script": "Yosuke Aoki",
-  "生年月日 · Date of birth": "1994-11",
+  "生年月日 · Date of birth": "1994-11-17",
   "電話番号 · Phone": "080-0000-0000",
   "メールアドレス · Email": "yosuke@example.invalid",
   "郵便番号 · Postal code": "150-0001",

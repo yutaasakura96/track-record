@@ -70,3 +70,64 @@ describe("the résumé header fields (issue #108)", () => {
     expect(screen.getByText("Check this field.")).toBeTruthy();
   });
 });
+
+describe("the date of birth", () => {
+  it("is a full date input, sends the day, and loads a stored day back", async () => {
+    const { api } = mount("/profile", {
+      "GET /api/profile": new Refusal(404, "not_found", "No profile."),
+      "PUT /api/profile": new Refusal(422, "invalid", "Not saved in this test."),
+    });
+    const field = (await screen.findByLabelText(/生年月日/)) as HTMLInputElement;
+    expect(field.type).toBe("date");
+
+    fireEvent.change(field, { target: { value: "1994-11-17" } });
+    fireEvent.submit(document.querySelector("form")!);
+    await screen.findByRole("alert");
+
+    expect(api.bodyOf("PUT", "/api/profile")).toMatchObject({ dateOfBirth: "1994-11-17" });
+  });
+
+  it("shows the stored day in the field", async () => {
+    mount("/profile", {
+      "GET /api/profile": { id: "profile-test-1", hasPhoto: false, dateOfBirth: "1994-11-17" },
+    });
+    const field = (await screen.findByLabelText(/生年月日/)) as HTMLInputElement;
+    expect(field.value).toBe("1994-11-17");
+  });
+});
+
+describe("the contact fields use the right input", () => {
+  it("phones get a telephone keyboard and a pattern, postal code a numeric hyphen keyboard, email its type", async () => {
+    mount("/profile", {
+      "GET /api/profile": new Refusal(404, "not_found", "No profile."),
+    });
+    const phone = (await screen.findByLabelText(/電話番号/)) as HTMLInputElement;
+    expect(phone.type).toBe("tel");
+    expect(phone.getAttribute("inputmode")).toBe("tel");
+    expect(phone.getAttribute("autocomplete")).toBe("tel");
+    const re = new RegExp(`^(?:${phone.getAttribute("pattern")})$`, "v");
+    expect(re.test("090-0000-1234")).toBe(true);
+    expect(re.test("+81 (90) 0000 1234")).toBe(true);
+    expect(re.test("０９０ー００００ー１２３４")).toBe(true);
+    expect(re.test("090−0000‐1234")).toBe(true);
+    expect(re.test("abc")).toBe(false);
+
+    const resumePhone = screen.getByLabelText(/Phone on the résumé/) as HTMLInputElement;
+    expect(resumePhone.type).toBe("tel");
+    expect(resumePhone.getAttribute("pattern")).toBe(phone.getAttribute("pattern"));
+
+    const postal = screen.getByLabelText(/郵便番号/) as HTMLInputElement;
+    expect(postal.getAttribute("autocomplete")).toBe("postal-code");
+    const postalRe = new RegExp(`^(?:${postal.getAttribute("pattern")})$`, "v");
+    expect(postalRe.test("150-0001")).toBe(true);
+    expect(postalRe.test("1500001")).toBe(true);
+    expect(postalRe.test("１５０ー０００１")).toBe(true);
+    expect(postalRe.test("〒 150-0001")).toBe(true);
+    expect("〒 150-0001".length).toBeLessThanOrEqual(postal.maxLength);
+    expect(postalRe.test("15-00001")).toBe(false);
+
+    const email = screen.getByLabelText(/メールアドレス/) as HTMLInputElement;
+    expect(email.type).toBe("email");
+    expect(email.getAttribute("autocomplete")).toBe("email");
+  });
+});
