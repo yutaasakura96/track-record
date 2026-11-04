@@ -487,10 +487,11 @@ each of those once more when the language check fails. A round's calls run side 
 holds one call's worst case against the whole 30-minute step timeout, and a step that times out
 retries only its round. A step's parameters and the state passed between steps hold ids and labels;
 what a step wrote waits on the proposal row, which reads `generating` until the last step lands it,
-and is cleared if the run fails. A draft lands against the read that wrote it: each step strips only
-the fact ids it produced, against its own read, and the proposal's `usable_fact_ids` are the first
-step's. A step that continues a draft is sent only the facts that first read could use, so every step
-writes from one read. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
+and is cleared if the run fails. Every step of one generation uses exactly what the first
+step read: that step carries a SHA-256 of its `RenderInputs`, spec and facts (`readDigest`), to the
+next in the stage's labels, and a step that continues a draft reads the record again and fails the
+proposal ("The record changed while this document was being written") when its digest differs. The
+draft, its citations and `usable_fact_ids` therefore all come from one read. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
 stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 

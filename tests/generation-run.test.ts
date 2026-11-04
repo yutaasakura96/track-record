@@ -30,7 +30,7 @@ import { facts, renderProposals } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { newId } from "~/server/http/ids";
 import { chaptersOf, writeStoryRound } from "~/model/generate";
-import { FIRST_STAGE, collectRenderInputs, generateIntoProposal, type GenerationStage } from "~/server/services/render";
+import { FIRST_STAGE, RECORD_CHANGED_REASON, collectRenderInputs, generateIntoProposal, type GenerationStage } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { GenerationWorkflow as DeployedWorkflow } from "~/server/index";
 import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
@@ -214,7 +214,7 @@ describe("a generation in a Workflow", () => {
     expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
   });
 
-  it("lands a résumé's draft with the citations it was written with, after a cited fact turns Private", async () => {
+  it("stops a résumé's draft, rather than landing it against another read, when a cited fact turns Private", async () => {
     const proposalId = await generate();
     const long = DOCUMENT(factId);
     long.sections[1]!.blocks[0]!.text = "x".repeat(300);
@@ -227,11 +227,9 @@ describe("a generation in a Workflow", () => {
     await db.update(facts).set({ disclosure: "private" }).where(eq(facts.id, factId));
     expect(await generateStage(deps, next!)).toBeNull();
 
+    expect(model.shortenCalls).toHaveLength(0);
     const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
-    expect(row!.generationStatus).toBe("ready");
-    // Still cited, so the render-time block can find it; and the record as the draft's read saw it.
-    expect((row!.content as RenderContent).sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds))).toContain(factId);
-    expect(row!.usableFactIds).toContain(factId);
+    expect(row).toMatchObject({ generationStatus: "failed", generationError: RECORD_CHANGED_REASON, content: { sections: [] } });
   });
 
   it("writes a career story a round per step: the employers, the chapters of no employer, the tables", async () => {
@@ -252,7 +250,7 @@ describe("a generation in a Workflow", () => {
     expect((await proposal(proposalId)).generationStatus).toBe("ready");
   });
 
-  it("writes every round of a story from one read, when a fact is accepted between rounds", async () => {
+  it("stops a story when a fact is accepted between its rounds", async () => {
     const response = await client.post("/api/renders/career_story_en/generate");
     const { proposalId } = (await response.json()) as { proposalId: string };
     const sentFacts: string[][] = [];
@@ -265,16 +263,16 @@ describe("a generation in a Workflow", () => {
     await db.insert(facts).values({
       id: later, userId: user.id, claim: "Wrote a side project's release tooling.", provenance: "attested", disclosure: "public", status: "accepted",
     });
-    let stage: GenerationStage | null = second;
-    while (stage !== null) stage = await generateStage(deps, stage);
+    const sentBefore = sentFacts.length;
+    expect(await generateStage(deps, second!)).toBeNull();
 
-    expect(sentFacts.flat()).not.toContain(later);
-    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
-    expect(row!.generationStatus).toBe("ready");
-    const cited = (row!.content as RenderContent).sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds));
-    expect(cited.length).toBeGreaterThan(0);
-    expect(cited.every((id) => row!.usableFactIds!.includes(id))).toBe(true);
-    expect(row!.usableFactIds).not.toContain(later);
+    expect(sentFacts).toHaveLength(sentBefore);
+    expect((await proposal(proposalId)).error?.message).toBe(RECORD_CHANGED_REASON);
+    // The same story, with the record left alone, lands.
+    const next = (await (await client.post("/api/renders/career_story_en/generate")).json()) as { proposalId: string };
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) stage = await generateStage({ ...deps, proposalId: next.proposalId }, stage);
+    expect((await proposal(next.proposalId)).generationStatus).toBe("ready");
   });
 
   it("keeps nothing a step wrote when the run ends without a document", async () => {

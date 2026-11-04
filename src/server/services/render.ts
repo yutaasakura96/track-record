@@ -28,7 +28,6 @@ import {
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
 import { isStoryComplete, linesToShorten, repairResumeBounds } from "~/model/generate";
-import { citedFactIds } from "~/render/edit";
 import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
 import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
@@ -558,9 +557,31 @@ export interface GenerationStage {
   attempt: 1 | 2;
   /** What the first attempt failed, on the second. */
   firstDefect: EnglishDefect | JapaneseDefect | null;
+  /** A digest of what the step that started the draft read ({@link readDigest}): never the read itself. */
+  read: string | null;
 }
 
-export const FIRST_STAGE: GenerationStage = { call: "write", round: 1, attempt: 1, firstDefect: null };
+export const FIRST_STAGE: GenerationStage = { call: "write", round: 1, attempt: 1, firstDefect: null, read: null };
+
+/** The reason a run is stopped with when the record moved under a draft. */
+export const RECORD_CHANGED_REASON = "The record changed while this document was being written. Generate it again.";
+
+/**
+ * SHA-256 of a read of the record, facts and spec, the same for two reads
+ * that would send the model the same thing. Rows a query returns in no fixed
+ * order are put in one.
+ */
+export async function readDigest(inputs: RenderInputs): Promise<string> {
+  const byId = <T extends { id: string }>(rows: readonly T[]) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
+  const stable = {
+    ...inputs,
+    facts: byId(inputs.facts),
+    usableFactIds: [...inputs.usableFactIds].sort(),
+    spec: { ...inputs.spec, projects: byId(inputs.spec.projects) },
+  };
+  const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(stable)));
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 /**
  * The only way off `generating`, for all three endings. A run that lands after
@@ -607,22 +628,11 @@ export async function failProposal(db: Db, userId: string, proposalId: string, r
     .where(whileGenerating(userId, proposalId));
 }
 
-/**
- * What one step wrote, for the next to read. The row still reads `generating`,
- * and no screen shows it. The step that starts a draft records the record as it
- * read it, which is what the document lands with.
- */
-async function keepDraft(
-  db: Db,
-  userId: string,
-  proposalId: string,
-  content: RenderContent,
-  usage: ModelUsage | null,
-  usableFactIds: string[] | null,
-): Promise<void> {
+/** What one step wrote, for the next to read. The row still reads `generating`, and no screen shows it. */
+async function keepDraft(db: Db, userId: string, proposalId: string, content: RenderContent, usage: ModelUsage | null): Promise<void> {
   await db
     .update(renderProposals)
-    .set({ content, ...(usableFactIds ? { usableFactIds } : {}), ...addedUsage(usage), updatedAt: new Date() })
+    .set({ content, ...addedUsage(usage), updatedAt: new Date() })
     .where(whileGenerating(userId, proposalId));
 }
 
@@ -634,7 +644,7 @@ async function keepDraft(
  * rather than by care.
  */
 export async function generateIntoProposal(args: GenerateArgs): Promise<GenerationStage | null> {
-  const { db, model, userId, proposalId, inputs: read, stage = FIRST_STAGE } = args;
+  const { db, model, userId, proposalId, inputs, stage = FIRST_STAGE } = args;
   // Kept outside the `try` so a generation refused after its retry still
   // records the calls it spent.
   let usage: ModelUsage | null = null;
@@ -647,8 +657,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     // fails the check is refused before any model call, and named as the
     // record's to correct.
     const recordDefect =
-      stage.call === "write" && stage.attempt === 1 && read.spec.kind === "shokumu_keirekisho"
-        ? recordRowDefectReason(recordSections(read.spec, today), read.spec, read.facts)
+      stage.call === "write" && stage.attempt === 1 && inputs.spec.kind === "shokumu_keirekisho"
+        ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
         : null;
     if (recordDefect !== null) {
       await failProposal(db, userId, proposalId, recordDefect);
@@ -656,41 +666,43 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
       return null;
     }
-    // A step that continues a draft reads it back. The draft's citations were
-    // checked against the read that wrote them, and stay: a fact made Private
-    // since is the render-time block's to find, which it can only do cited.
-    // It is sent only facts that read could use, so every step of a document
-    // writes from the one read its usable facts are landed with.
+    // A step that continues a draft writes and lands it from the read that
+    // started it, or not at all: a draft checked against one read and landed
+    // against another could drop a citation a fact made Private since needs,
+    // or plan a chapter its facts no longer back.
+    const read = await readDigest(inputs);
     let draft: RenderContent | null = null;
-    let inputs = read;
     if (stage.call === "shorten" || stage.round > 1) {
+      if (read !== stage.read) {
+        await failProposal(db, userId, proposalId, RECORD_CHANGED_REASON);
+        // Ids only.
+        console.warn(JSON.stringify({ event: "generation_record_changed", proposalId }));
+        return null;
+      }
       const [row] = await db
-        .select({ content: renderProposals.content, usableFactIds: renderProposals.usableFactIds })
+        .select({ content: renderProposals.content })
         .from(renderProposals)
         .where(whileGenerating(userId, proposalId))
         .limit(1);
       if (!row) return null;
       draft = row.content as RenderContent;
-      const readIds = new Set(row.usableFactIds ?? []);
-      inputs = { ...read, facts: read.facts.filter((fact) => readIds.has(fact.id)) };
     }
-    const firstRead = draft === null ? inputs.usableFactIds : null;
     let content =
       stage.call === "shorten"
         ? await repairResumeBounds(draft!, inputs.spec, inputs.facts, (lines) => model.shortenResumeLines(lines, { onUsage }))
         : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, { onUsage });
-    const allowed = new Set([...inputs.facts.map((f) => f.id), ...(draft ? citedFactIds(draft) : [])]);
+    const allowed = new Set(inputs.facts.map((f) => f.id));
     content = stripUnknownFactIds(content, allowed);
     const wroteChapters = content.sections.some((section) => !draft?.sections.some((done) => done.key === section.key));
     if (isChapteredStory(inputs.spec.kind) && wroteChapters && !isStoryComplete(content, inputs.spec)) {
-      await keepDraft(db, userId, proposalId, content, usage, firstRead);
-      return { ...stage, round: stage.round + 1 };
+      await keepDraft(db, userId, proposalId, content, usage);
+      return { ...stage, round: stage.round + 1, read };
     }
     // A bullet over 240 characters, or a summary of 50 words, used to refuse
     // the whole document. Those lines alone are written again, next.
     if (stage.call === "write" && inputs.spec.kind === "english_resume" && linesToShorten(content, inputs.facts).length > 0) {
-      await keepDraft(db, userId, proposalId, content, usage, firstRead);
-      return { ...stage, call: "shorten" };
+      await keepDraft(db, userId, proposalId, content, usage);
+      return { ...stage, call: "shorten", read };
     }
     // Issue #104. An English document that comes back in Japanese, or with a
     // checked record name changed, is retried once and then refused —
@@ -714,8 +726,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       if (stage.attempt === 1) {
         // Ids and the defect's name only.
         console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect }));
-        await keepDraft(db, userId, proposalId, { sections: [] }, usage, null);
-        return { call: "write", round: 1, attempt: 2, firstDefect: defect };
+        await keepDraft(db, userId, proposalId, { sections: [] }, usage);
+        return { call: "write", round: 1, attempt: 2, firstDefect: defect, read: null };
       }
       throw new ModelUnavailableError(stage.firstDefect === defect ? DEFECT_REASON[defect] : mixedDefectReason(inputs.spec.language), defect);
     }
@@ -745,9 +757,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
         content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec),
         generationStatus: "ready",
         generationError: null,
-        // The record as this run's first step read it, which is later than
-        // the route did. A draft carried it here.
-        ...(firstRead ? { usableFactIds: firstRead } : {}),
+        // The record as this run read it, which is later than the route did.
+        usableFactIds: inputs.usableFactIds,
         // Four keys, four columns of the same name. See `ModelUsage`.
         ...addedUsage(usage),
         updatedAt: new Date(),
