@@ -108,6 +108,8 @@ describe("the contact fields use the right input", () => {
     const re = new RegExp(`^(?:${phone.getAttribute("pattern")})$`, "v");
     expect(re.test("090-0000-1234")).toBe(true);
     expect(re.test("+81 (90) 0000 1234")).toBe(true);
+    expect(re.test("０９０ー００００ー１２３４")).toBe(true);
+    expect(re.test("090−0000‐1234")).toBe(true);
     expect(re.test("abc")).toBe(false);
 
     const resumePhone = screen.getByLabelText(/Phone on the résumé/) as HTMLInputElement;
@@ -119,6 +121,7 @@ describe("the contact fields use the right input", () => {
     const postalRe = new RegExp(`^(?:${postal.getAttribute("pattern")})$`, "v");
     expect(postalRe.test("150-0001")).toBe(true);
     expect(postalRe.test("1500001")).toBe(true);
+    expect(postalRe.test("１５０ー０００１")).toBe(true);
     expect(postalRe.test("15-00001")).toBe(false);
 
     const email = screen.getByLabelText(/メールアドレス/) as HTMLInputElement;

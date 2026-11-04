@@ -8080,3 +8080,15 @@ part of this.
   employer) was set aside in the record, not routed in code.
 - **Revisit if:** twenty proves the wrong length for a real résumé, the alias table needs a name it
   lacks, or the rewrite call starts failing often enough to show in proposal errors.
+
+### [2026-11-04] The date of birth is a real day
+
+- **Context:** the profile form collected the date of birth as a month and a year, like every other
+  calendar field, and stored the day as `01`. The 履歴書 prints the full date (年月日生) and computes
+  満N歳 from it, so a pinned day printed a wrong birthday and could put the age a year off.
+- **Decision:** `profiles.date_of_birth` is a real day. The form asks for year, month and day, and the
+  server refuses a date that does not exist or falls outside 1900 to today. It joins
+  `application_steps.happened_on` and `interviews.happened_on` as an exception to the month-precision
+  rule in `docs/04` §0; every other calendar column keeps the day pinned to `01` and never rendered.
+  This supersedes any earlier entry that treats the date of birth as month precision.
+- **Revisit if:** another render needs the date of birth at a different precision.
