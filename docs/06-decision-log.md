@@ -8303,3 +8303,54 @@ part of this.
   A wrong fact is still fixed in the record, and a hand edit does not survive the next generation.
 - **Revisit if:** an author wants to edit, then read the diff, then accept; that needs the edit held
   on the proposal, which this deliberately does not do.
+
+### [2026-11-04] A name from code is a name in the Japanese check, and a story part is retried alone
+
+- **Context:** after the story-in-parts release the English story and the 職務経歴書 generated on the
+  live site, and the Japanese story failed after about 25 minutes: "The model wrote part of this
+  Japanese document in English, twice". It was simulated without the live site: the record read-only
+  from the pre-release backup branch, `collectRenderInputs(..., { forModel: true })`, the released
+  `writeStoryRound`, and every part's prompt run through Claude Code on `claude-opus-5` at effort
+  high, then the app's Japanese check run on each part alone. Four stories passed. Two more were run
+  with thinking off, because a forced tool call on the API spends less on thinking than Claude Code
+  does (the live 職務経歴書 fit in 32,000 tokens where the simulation spent 44,101). In both, one
+  employer chapter failed the check on a Japanese sentence that named SQL functions side by side,
+  names of the `TO_DATE` kind. The check split each name at its underscores into Latin words, found
+  five words with 「to」 twice among them, and read the run as an English sentence. The same chapter
+  named such functions in five of the six
+  stories and passed only while one at a time sat in a run. One of those runs also failed its routing
+  table, which had written fact ids into a row's text. 484 of the 488 facts sent are written in English,
+  so every part of a Japanese story is written from English text.
+- **Reading the check found two more misjudgements.** A recorded term was taken out of any word that
+  contained it: 「TDE」 leaves 「setDefault」 as 「se fault」, and 「CI」 leaves 「decision」 as two
+  words, each cut a word more counted against the line. And a line with no kana or kanji failed on any
+  Latin left, so a row of figures such as 「120ms → 40ms」 read as English.
+- **Decision:** the check (`src/render/japanese.ts`) counts a name joined by 「_」 or 「.」 —
+  `TO_DATE`, `ALL_TAB_COLUMNS`, `report.json` — as one word, never a function word, and
+  passes a line of such names; takes a recorded term out only where it stands as a word; and passes
+  a line that carries a digit and whose only Latin is a number's unit or a capital abbreviation of up
+  to five letters. A line with no digit, such as a heading in capitals (「ABOUT ME」), is still read
+  as English. An
+  English sentence beside them is still a defect, as are E1 and E2.
+- **Decision:** each part of a Japanese story is held to the Japanese check as it arrives
+  (`writeStoryRound`), against every fact's technologies as the joined story is, and a part with a
+  line in English is written again, once, by itself. The check reads one line at a time, so the joined
+  story fails it exactly where a part does. Checked only once joined, one slip cost every part of the
+  story again and a second slip anywhere refused it; now it costs one part's call, and the story is
+  refused only when the same part slips twice, with the same reason as before. Each retry is logged
+  as `generation_part_retried` with the proposal id, the part's chapter keys and the defect's name,
+  so the next slip on the live site names the part. An English story is not checked a part at a time:
+  its check weighs the share of Japanese across the whole document. The check on the whole story
+  stays where it was, and so does its retry.
+- **Decision:** both tables' rules say a fact id goes in `factIds` and is never written in a row's text.
+- **Measured, simulated the same way on the fixed code:** the Japanese story with thinking on, 6 calls,
+  85,005 output tokens, 822 seconds; with thinking off, 6 calls, 55,456, 762 seconds; the English
+  story, 6 calls, 70,746, 598 seconds. All three passed the plan, language and record-name checks with
+  no part retried, no unknown fact id, no fact cited under another employer and no fact id in a row's
+  text. Under the fixed check every part the six earlier runs returned passes; under the released check
+  the two thinking-off employer chapters and the routing table with ids do not.
+- **Not done here:** a part with a line in English is written again with the same prompt, as the
+  whole document was; telling the part which line slipped was not needed in any simulated run. An all-capital English word longer than five letters on a line of its own (「CONVERT」)
+  is still read as English.
+- **Revisit if:** `generation_part_retried` names one chapter again and again, or a Japanese story is
+  refused with a part retried.

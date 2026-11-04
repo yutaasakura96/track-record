@@ -12,6 +12,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { ModelUnavailableError, type LineToShorten, type RenderFact, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
 import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL, hasJapaneseScript, isEnglishOnly } from "~/render/language";
+import { JAPANESE_DEFECT_REASON, japaneseDefect, type JapaneseDefect } from "~/render/japanese";
 import {
   chapterPlan,
   chapterPlanForPrompt,
@@ -424,11 +425,20 @@ export function isStoryComplete(content: RenderContent, spec: RenderSpec): boole
  * part that cannot be used makes the story unusable, and the others would only
  * be billed. Each part is held to its own chapters before the next round is
  * written from it.
+ *
+ * A Japanese part is also held to the Japanese check as it arrives, and a part
+ * with a line in English is written again, once, by itself. The check reads one
+ * line at a time, so the joined story fails it exactly where a part does; held
+ * to it only once joined, one English line cost every part of the story twice
+ * over, about 25 minutes, and the second slip anywhere refused it (`docs/06`,
+ * 2026-11-04). An English part is not checked here: its check weighs the share
+ * of Japanese across the whole document, which a part alone does not hold.
  */
 export async function writeStoryRound(
   facts: readonly RenderFact[],
   spec: RenderSpec,
   write: (facts: RenderFact[], spec: RenderSpec, signal: AbortSignal) => Promise<unknown>,
+  onPartRetried?: (chapters: readonly string[], defect: JapaneseDefect) => void,
 ): Promise<RenderContent> {
   const written: RenderContent = spec.storySoFar ?? { sections: [] };
   const done = new Set(written.sections.map((section) => section.key));
@@ -441,7 +451,14 @@ export async function writeStoryRound(
   const controller = new AbortController();
   const run = async ({ facts: partFacts, spec: partSpec }: StoryCall): Promise<RenderContent> => {
     try {
-      return parseRenderContent(await write(partFacts, partSpec, controller.signal), chaptersOf(partSpec));
+      for (let attempt = 1; ; attempt++) {
+        const part = parseRenderContent(await write(partFacts, partSpec, controller.signal), chaptersOf(partSpec));
+        // Every fact's technologies, not this part's: the joined story is checked against them all.
+        const defect = spec.language === "ja" ? japaneseDefect(part, story, facts) : null;
+        if (defect === null) return part;
+        if (attempt === 2) throw new ModelUnavailableError(JAPANESE_DEFECT_REASON[defect], defect);
+        onPartRetried?.(partSpec.part!.chapters, defect);
+      }
     } catch (error) {
       controller.abort();
       throw error;

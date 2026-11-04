@@ -197,7 +197,7 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
       try {
         // A career story is written a round of parts at a time
         // (`writeStoryRound`); every other document is one call.
-        if (isChapteredStory(spec.kind)) return await writeStoryRound(facts, spec, emit);
+        if (isChapteredStory(spec.kind)) return await writeStoryRound(facts, spec, emit, ctx?.onStoryPartRetried);
         return parseGeneratedRender(await emit(facts, spec), spec);
       } catch (err) {
         throw asModelError(err);
