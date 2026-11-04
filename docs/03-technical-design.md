@@ -242,7 +242,8 @@ sent that employer's facts, the calls side by side. The second is the chapters t
 employer as one call, given the employer chapters as written and sent the facts filed under none with
 the employer facts those chapters cite. Each prose call is told its share of the register's length.
 The third is the anchors and routing tables, given the chapters as written and the facts they cite.
-After the last round the parts, joined in plan order, are checked against the whole plan, as a story
+Each part of a Japanese story is held to the Japanese check as it arrives, and a part with a line in
+English is written again, once, by itself; a second slip in that part refuses the story. After the last round the parts, joined in plan order, are checked against the whole plan, as a story
 written in one call was. Every other render is one call. A call that stops
 at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
 unusable shape.

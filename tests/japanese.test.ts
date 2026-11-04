@@ -222,6 +222,45 @@ describe("a line in English", () => {
     // Three Latin words, one of them a function word, with no Japanese: a sentence.
     expect(isEnglishLine("担当：design of the ledger", terms)).toBe(true);
   });
+
+  it("takes a recorded term out only where it stands as a word, not from inside a longer one", () => {
+    const terms = latinTerms(spec(), [{ technologies: ["TDE", "CI", "Git"] }]);
+    // 「CI」 cut from inside 「decision」 made four words five, two of them function words: a sentence.
+    expect(isEnglishLine("既定値はsetDefaultで設定し、方針はdecision of the boardに従う", terms)).toBe(false);
+    for (const line of ["TDEを有効化", "CIとGitの整備", "TDE, CI, Git"]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
+    expect(isEnglishLine("Gitlab", terms)).toBe(true);
+  });
+
+  it("counts a name from code as one name, not as English words", () => {
+    const terms = latinTerms(spec(), FACTS);
+    for (const line of [
+      "日付と空値の変換はTO_DATE、TO_CHAR、NVLの三つに統一しました。",
+      "列の定義はALL_TAB_COLUMNSとsys.columnsから読み比べました。",
+      "設定はconfig.of.the.appとreport.jsonに分けました。",
+      "TO_DATE → TRY_CONVERT",
+    ]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
+    // An English sentence is still one, however many names from code it holds.
+    expect(isEnglishLine("移行：converted TO_DATE calls to the CONVERT function in all of the stored procedures", terms)).toBe(true);
+  });
+
+  it("passes a row of figures, whose units and abbreviations are no English, and still finds a word among them", () => {
+    const terms = latinTerms(spec(), FACTS);
+    for (const line of [
+      "120ms → 40ms",
+      "Hayabusa Computing Co., Ltd. | 2020-04 – 2024-03 | 120ms → 40ms",
+      "RTO 4h → 15min、RPO 24h → 5min",
+      "p99 40 ms、3 TB、99.9%",
+    ]) {
+      expect(isEnglishLine(line, terms), line).toBe(false);
+    }
+    for (const line of ["120ms → 40ms after tuning", "Languages", "SLA Review"]) {
+      expect(isEnglishLine(line, terms), line).toBe(true);
+    }
+  });
 });
 
 describe("advisories", () => {

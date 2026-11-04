@@ -846,7 +846,12 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     let content =
       stage.call === "shorten"
         ? await repairResumeBounds(draft!, inputs.spec, inputs.facts, (lines) => model.shortenResumeLines(lines, { onUsage }))
-        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, { onUsage });
+        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, {
+            onUsage,
+            // Ids, chapter keys and the defect's name only.
+            onStoryPartRetried: (chapters, defect) =>
+              console.warn(JSON.stringify({ event: "generation_part_retried", proposalId, chapters, defect })),
+          });
     const allowed = new Set(inputs.facts.map((f) => f.id));
     content = stripUnknownFactIds(content, allowed);
     const wroteChapters = content.sections.some((section) => !draft?.sections.some((done) => done.key === section.key));

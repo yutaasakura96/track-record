@@ -388,6 +388,8 @@ export interface LineToShorten {
  */
 export interface GenerationContext {
   onUsage?: (usage: ModelUsage) => void;
+  /** A part of a career story written again for the defect named, by its chapter keys (`writeStoryRound`). */
+  onStoryPartRetried?: (chapters: readonly string[], defect: string) => void;
 }
 
 export interface ModelSeam {

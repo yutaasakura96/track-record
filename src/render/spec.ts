@@ -283,14 +283,15 @@ The employer chapters, one per employer, keyed by that employer's id:
 - One row per employer, in the order their chapters run, carrying that employer's dates and the figures its chapter used. Then one row for each remaining thing a reader would ask a number about: the independent work, the certifications, the education, the languages.
 - A row is a label and its values, compressed. Not a sentence, and never a paragraph.
 - Every number in this table appears in a chapter above. This table is not where a number is introduced; it is where the author finds it again under questioning. A number here that appears in no chapter means a chapter dropped it.
-- A row lists the ids of the facts its numbers came from. A row carrying only dates copied from the Employers list carries no fact ids.
+- A row lists the ids of the facts its numbers came from, in factIds. A row carrying only dates copied from the Employers list carries no fact ids.
 
 "routing" — where each question lands:
 - One row per question the author should expect: the question as a person would actually ask it, then the chapter that answers it and the evidence to reach for.
 - About fifteen rows. Cover the ones this record invites: why the direction changed, why each employer was left, the largest figure in the table above, the thing that went wrong, and what the author wants next.
 - **Every gap the Gaps list below names gets a row**, asking what the author was doing in those months, in the words an interviewer uses about a gap that length. These rows are in addition to the fifteen, and a story whose prompt lists no gaps has none.
 - A row points at a chapter by the heading you gave it above, and may not point at a chapter that does not exist.
-- Where a row names its evidence, list those fact ids.`;
+- Where a row names its evidence, list those fact ids in factIds.
+- A fact id is never written in a row's text, in either table: the reader is shown the text, and an id means nothing to them.`;
 
 /**
  * The fourth buildable render, and the first that is not a document anybody is
