@@ -21,8 +21,8 @@ import { flagRepeats, settleRepeats } from "../services/repeats";
 import type { OverlapPools } from "../services/overlap";
 import { extractUpload } from "~/pipeline/text";
 import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES, importRefusal, importWriteBytes } from "~/shared/import-file";
-import { runImport } from "~/pipeline/import";
-import { ensureWorkflow, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
+import { IMPORT_STOPPED, runImport } from "~/pipeline/import";
+import { IMPORT_LOST_AFTER_MS, ensureWorkflow, failLostImports, recoverActiveImport, startNextImport, type LaunchImport } from "~/pipeline/queue";
 import type { AppEnv, Bindings } from "../env";
 import type { Db } from "../db/client";
 import type { ModelSeam } from "~/model/types";
@@ -290,6 +290,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
    * text, and no fact claim.
    */
   api.get("/api/imports", async (c) => {
+    await settleLostImports(c);
     if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const user = c.get("user");
     const db = c.get("db");
@@ -410,7 +411,10 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
 
-    const [[candidates], running, [flagged]] = await db.batch([
+    // First, so `running` below is read after it: a version whose run went
+    // silent past a step's bound is failed, and the sidebar stops polling.
+    const [lost, [candidates], running, [flagged]] = await db.batch([
+      lostImports(db, user.id),
       db
         .select({ open: sql<number>`count(*)::int` })
         .from(facts)
@@ -438,6 +442,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
         .innerJoin(facts, factOfFlag(user.id))
         .where(openFlags(user.id)),
     ]);
+    if (lost.length > 0) await afterLostImports(c, lost);
 
     return c.json({
       openCandidates: candidates?.open ?? 0,
@@ -448,6 +453,7 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
   });
 
   api.get("/api/imports/:id", async (c) => {
+    await settleLostImports(c);
     if (c.env.IMPORT_WORKFLOW) await startImport(importStart(c));
     const status = await importStatus(c.get("db"), c.get("user").id, pathParam(c, "id"));
     return c.json(status);
@@ -854,6 +860,28 @@ export async function importStatus(db: Db, userId: string, versionId: string) {
     /** Where a retry resumes. `null` when nothing failed. */
     failedAtChunk: failedChunk?.chunkIndex ?? null,
   };
+}
+
+/** The statement that fails this author's lost imports (`~/pipeline/queue.ts`). */
+const lostImports = (db: Db, userId: string) =>
+  failLostImports(db, userId, new Date(Date.now() - IMPORT_LOST_AFTER_MS), IMPORT_STOPPED);
+
+/** Logs what was failed, ids only, and lets the next waiting import start. */
+async function afterLostImports(c: Context<AppEnv>, lost: { id: string }[]): Promise<void> {
+  for (const { id } of lost) console.error(JSON.stringify({ event: "import_lost", versionId: id }));
+  await startImport(importStart(c));
+}
+
+/**
+ * Every read that reports whether an import is running asks this first: a
+ * version left `extracting` by a run that is gone is failed, as the run would
+ * have failed it, and the one queued behind it starts. Without it a lost run
+ * read as running for ever, and every screen that polls one polled for as long
+ * as a tab stayed open (`docs/06`, 2026-11-04).
+ */
+export async function settleLostImports(c: Context<AppEnv>): Promise<void> {
+  const lost = await lostImports(c.get("db"), c.get("user").id);
+  if (lost.length > 0) await afterLostImports(c, lost);
 }
 
 export function importStart(c: Context<AppEnv>): ImportStart {

@@ -16,8 +16,8 @@ import { applications, facts, profiles, renderProposals, renderVersions, renders
 import { ApiError, notFound, preconditionFailed, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
 import { newId } from "../http/ids";
-import { collectRenderInputs, tailoringOf } from "../services/render";
-import { settleLostGeneration, startGeneration } from "~/pipeline/generation";
+import { collectRenderInputs, failLostProposals, tailoringOf } from "../services/render";
+import { GENERATION_LOST, GENERATION_LOST_AFTER_MS, settleLostGeneration, startGeneration } from "~/pipeline/generation";
 import { parseBody } from "../services/validate";
 import { z } from "zod";
 import { mainRender, refOf, resolveRender, titleOf, type RenderRef } from "../services/render-ref";
@@ -383,7 +383,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
         // version as well as on the render: the render only ever remembers its
         // CURRENT era, and restore needs an older one (`docs/06`, 2026-09-12).
         factCountAt: accepted,
-        usableFactIds: proposal.usableFactIds,
+        // Copied inside the database: the ids are the proposal's, and reading
+        // them out only to write them back sent about 100 KB each way.
+        usableFactIds: sql<string[] | null>`(select ${renderProposals.usableFactIds} from ${renderProposals} where ${renderProposals.userId} = ${user.id} and ${renderProposals.id} = ${proposal.id})`,
       }),
       db
         .update(renders)
@@ -1134,7 +1136,11 @@ export async function renderState(
   // database on each poll of a nine-thousand-fact record, for two numbers per
   // document (`docs/06`, 2026-11-04). The set difference runs in Postgres now.
   const usableNow = db.$with("usable_now").as(db.select({ id: facts.id }).from(facts).where(usableFacts(userId)));
-  const [rows, versions, pending, [usable]] = await db.batch([
+  // First, so the proposals read below see it: a run that has gone silent past
+  // a step's bound is failed here as its own route would fail it, and every
+  // screen polling this stops (`docs/06`, 2026-11-04).
+  const [lost, rows, versions, pending, [usable]] = await db.batch([
+    failLostProposals(db, userId, new Date(Date.now() - GENERATION_LOST_AFTER_MS), GENERATION_LOST),
     db.select({
       id: renders.id,
       kind: renders.kind,
@@ -1189,6 +1195,8 @@ export async function renderState(
       .orderBy(desc(renderProposals.generatedAt)),
     db.select({ n: sql<number>`count(*)::int` }).from(facts).where(usableFacts(userId)),
   ]);
+  // Ids only, as `stopGeneration` logs it.
+  for (const { id } of lost) console.error(JSON.stringify({ event: "generation_lost", proposalId: id }));
   const usableCount = usable?.n ?? 0;
   // The row as `refOf` and `titleOf` read it: they ask only whether there is a posting.
   const named = (row: (typeof rows)[number]) => ({ ...row, jobDescription: row.tailored ? "" : null });
@@ -1367,9 +1375,15 @@ async function usableFactCount(db: Db, userId: string): Promise<number> {
   return accepted;
 }
 
+/**
+ * Every column of the proposal but its fact ids: about a hundred kilobytes on a
+ * large record, and the one route that needs them, accept, copies them in SQL.
+ */
+const { usableFactIds: _proposalFactIds, ...proposalColumns } = getTableColumns(renderProposals);
+
 async function requireProposal(db: Db, userId: string, id: string) {
   const [row] = await db
-    .select({ proposal: renderProposals, render: renders })
+    .select({ proposal: proposalColumns, render: renders })
     .from(renderProposals)
     .innerJoin(renders, eq(renders.id, renderProposals.renderId))
     .where(and(eq(renderProposals.userId, userId), eq(renderProposals.id, id)))

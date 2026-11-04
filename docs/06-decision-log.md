@@ -8206,3 +8206,51 @@ part of this.
   each poll while an import runs. The export reads the whole record because it is the backup.
 - **Revisit if:** the transfer graph climbs again with no import or generation running, a new
   polled route reads a list, or the record grows past the volume the budgets were set at.
+
+### [2026-11-04] A running import or generation is polled until it stops changing, and a lost one ends
+
+- **Context:** the database moved to Neon's Launch plan, where network transfer has 500 GB a month
+  included and compute is billed by the hour it is awake, suspending after five idle minutes. An
+  audit of every read on the synthetic record of the entry above (and with twenty more versions of
+  each document) found nothing that keeps the database awake on its own: no cron, no keep-alive,
+  no refetch on focus, and no polling in a hidden tab. Two things could keep it awake for good. A
+  version left `extracting` by a lost run had no timeout, so every sidebar screen polled the summary
+  every 1.5 s for as long as a tab was visible; a lost generation was failed only after 365 minutes,
+  and only when the proposal itself was read, so Home, the document page and the application polled
+  it until then. And after the entry above, the largest polled read left was the proposal screen
+  the client opens after every Generate: `GET /api/proposals/:id` read every usable fact and its
+  claim on each poll, 1.94 MB. Home's career-record card read the whole master document (2.7 MB) to
+  draw three employers and two claims each, and its résumé card, the résumé page and its downloads
+  read every accepted fact (840 KB) to rank the skills line.
+- **Decision:** a run that goes silent past one step's bound is lost, and the next read that reports
+  it fails it. A generation's bound is one step of `GENERATE_STEP`, both attempts at the full
+  timeout and the delay between them, measured from the proposal's `updated_at`, which every step
+  that hands on stamps; `renderState` fails such proposals first in its batch, so every polling
+  screen sees it. An import's is one step at Cloudflare's default config (six attempts of ten
+  minutes and the backoff between), measured from the version's `updated_at`; the summary, the
+  overview, the listing and the status fail it and start the next queued one. Both add five minutes
+  for a step to start.
+- **Decision:** the client polls through `pollInterval`: every 1.5 s while the answer changes, then
+  5 s, 15 s and 60 s as it stays the same, and no more after 75 minutes, past both bounds.
+- **Decision:** a proposal still generating answers from its own row and the two withheld counts;
+  the record is read once it is ready, which is when the drafts, the advisories and `unchanged`
+  need it. Accept copies the proposal's fact ids inside the insert instead of reading them out.
+  Home's card reads `GET /api/master-document/preview`, which orders an employer's first claims as
+  the document does. The résumé's file and page, and the Skills screen's pool, read the usable
+  facts' technologies grouped into sets in SQL (`technologiesOnly`), with the same four filters, and
+  rank them as before. The applications list reads whether a document is tailored, not its posting.
+  The export pages `render_versions` and `render_proposals` twenty rows at a time, since every row
+  carries every usable fact's id and one read of them all passed the 10 MiB the local proxy allows
+  at about 95 versions (64 MB in production at about 550), and asks whether there is a photo rather
+  than reading it. Every document's output is unchanged.
+- **Measured, bytes from the database per use, before → after:** the proposal while it is written
+  1.94 MB → 4 KB; the English résumé's page 838 KB → 55 KB; Home's career-record card 2.7 MB → 4 KB;
+  the applications list with ten tailored résumés 56 KB → 5 KB; the Skills screen 1.36 MB → 573 KB;
+  generating a résumé 2.58 MB → 1.80 MB. The overview, the import listing and the import status
+  each add one statement, the lost-import check, about 0.2 KB.
+- **Not done here:** settling `repeat` flags on each fact click (2.2 MB), Fact Review's rail reading
+  the overlap pool once per page that holds a repeat flag (3.0 MB per open), the photo's `no-store`,
+  Better Auth's two session queries on every request, and the per-row employer subqueries behind
+  the career timeline and the Skills screen. Each carries a trade-off or saves little on Launch.
+- **Revisit if:** the compute's active hours climb with nobody using the site, a step's config
+  changes (both bounds are derived from it), or a new screen polls without `pollInterval`.

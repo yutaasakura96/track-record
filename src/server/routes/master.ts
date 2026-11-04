@@ -39,12 +39,14 @@ import { masterMarkdown } from "~/render/master-document";
 import { studiedText } from "~/shared/education";
 import type { RenderContent } from "~/shared/render-content";
 import {
+  MASTER_PREVIEW,
   MASTER_WORDS,
   keptOut,
   masterLanguage,
   type MasterDocument,
   type MasterFact,
   type MasterLanguage,
+  type MasterPreview,
   type MasterProject,
 } from "~/shared/master-document";
 import type { AppEnv } from "../env";
@@ -55,6 +57,10 @@ export function registerMasterRoutes(app: Hono<AppEnv>) {
 
   api.get("/api/master-document", async (c) =>
     c.json(await buildMasterDocument(c.get("db"), c.get("user").id, masterLanguage(c.req.query("language")))),
+  );
+
+  api.get("/api/master-document/preview", async (c) =>
+    c.json(await buildMasterPreview(c.get("db"), c.get("user").id, masterLanguage(c.req.query("language")))),
   );
 
   api.get("/api/master-document/download", async (c) => {
@@ -280,6 +286,70 @@ export async function buildMasterDocument(
       issuingOrganization: certification.issuingOrganization,
       issuedOn: certification.issuedOn,
       expiresOn: certification.expiresOn,
+    })),
+  };
+}
+
+/**
+ * The first employers of {@link buildMasterDocument} and the first claims it
+ * lists under each, read as that document orders them: an employer's facts by
+ * project, in the document's project order, then those under no project, each
+ * group by file, line and id. A few rows instead of every accepted fact.
+ */
+export async function buildMasterPreview(db: Db, userId: string, language: MasterLanguage = "en"): Promise<MasterPreview> {
+  const [profileRows, employerRows, projectRows] = await db.batch([
+    db
+      .select({ nameLatin: profiles.nameLatin, familyNameKanji: profiles.familyNameKanji, givenNameKanji: profiles.givenNameKanji })
+      .from(profiles)
+      .where(eq(profiles.userId, userId))
+      .limit(1),
+    db
+      .select({ id: employers.id, nameJa: employers.nameJa, nameLatin: employers.nameLatin })
+      .from(employers)
+      .where(eq(employers.userId, userId))
+      .orderBy(desc(employers.startedOn), asc(employers.id))
+      .limit(MASTER_PREVIEW.employers),
+    db
+      .select({ id: projects.id })
+      .from(projects)
+      .where(eq(projects.userId, userId))
+      .orderBy(sql`${projects.startedOn} desc nulls last`, asc(projects.name), asc(projects.id)),
+  ]);
+  // A fact of a project the record no longer holds is listed under no project,
+  // which is where `array_position`'s null sorts it.
+  const projectOrder = projectRows.map((project) => project.id);
+  const claimsUnder = (employerId: string) =>
+    db
+      .select({ id: facts.id, claim: facts.claim })
+      .from(facts)
+      .leftJoin(
+        sourceDocumentVersions,
+        and(eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId), eq(sourceDocumentVersions.userId, userId)),
+      )
+      .leftJoin(
+        sourceDocuments,
+        and(eq(sourceDocuments.id, sourceDocumentVersions.sourceDocumentId), eq(sourceDocuments.userId, userId)),
+      )
+      .where(and(eq(facts.userId, userId), eq(facts.status, "accepted"), eq(effectiveEmployerId, employerId)))
+      .orderBy(
+        sql`array_position(${sql.param(projectOrder)}::text[], ${facts.projectId}) asc nulls last`,
+        asc(sourceDocuments.filename),
+        sql`${facts.lineNumber} asc nulls last`,
+        asc(facts.id),
+      )
+      .limit(MASTER_PREVIEW.facts);
+  const [first, ...rest] = employerRows.map((employer) => claimsUnder(employer.id));
+  const claims = first ? await db.batch([first, ...rest]) : [];
+
+  const profile = profileRows[0];
+  const nameKanji = profile ? `${profile.familyNameKanji}　${profile.givenNameKanji}`.trim() : "";
+  return {
+    language,
+    subjectName: profile ? (language === "ja" && nameKanji ? nameKanji : profile.nameLatin) : null,
+    employers: employerRows.map((employer, i) => ({
+      id: employer.id,
+      name: nameInLanguage(language, employer.nameJa, employer.nameLatin),
+      facts: claims[i] ?? [],
     })),
   };
 }

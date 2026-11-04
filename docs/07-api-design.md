@@ -33,9 +33,12 @@ returns **404, never 403** — a 403 confirms the record exists, which is an inf
 (`04-database-schema.md` §0). Timestamps are ISO-8601 UTC.
 
 **Long operations.** Import and generation return **`202 Accepted`** with a resource to poll.
-The client polls the resource every **1.5 s** while its status is non-terminal. Server-Sent Events
-were considered and rejected for v1: polling a single-user app costs nothing and has no reconnection
-semantics to get wrong.
+The client polls the resource every **1.5 s** while its status is non-terminal and its answer keeps
+changing. While the answer stays the same it backs off: every 5 s after a minute, 15 s after five,
+60 s after fifteen, and not at all after 75 minutes, past the longest a step of either Workflow can
+run, by when the server has failed a run that went silent (`pollInterval`, decision log 2026-11-04).
+Server-Sent Events were considered and rejected for v1: polling a single-user app costs nothing and
+has no reconnection semantics to get wrong.
 
 **Listing.** Collections return `{ "items": [...] }`. Only `GET /api/facts` paginates, with an
 opaque cursor: `{ "items": [...], "nextCursor": "..." | null }`. Everything else is bounded by the
@@ -1089,9 +1092,10 @@ Shown as the **Career record** since #112 (`10` Screen 10); the routes keep thei
 | Method | Path | Notes |
 |---|---|---|
 | `GET` | `/api/master-document` | The whole record as one structure. **Built on the read, by no model, and stored nowhere** |
+| `GET` | `/api/master-document/preview` | Home's picture of it: `{ language, subjectName, employers: [{ id, name, facts: [{ id, claim }] }] }`, the first `MASTER_PREVIEW.employers` employers and the first `MASTER_PREVIEW.facts` claims under each, in the document's order. A few rows, where the whole document is every accepted fact |
 | `GET` | `/api/master-document/download` | The same structure as Markdown, `<Name>-Career-Record-<EN|JA>-<YYYY-MM-DD>.md` dated by the Tokyo day, `cache-control: no-store` |
 
-Both take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
+All three take **`?language=ja`** for the 日本語 master document (#59). Without it, or with any other
 value, the answer is the English one: an unknown value is ignored, as an unknown filter is on
 `GET /api/facts`.
 

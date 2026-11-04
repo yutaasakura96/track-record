@@ -16,7 +16,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   GENERATE_STEP,
-  GENERATION_DEADLINE_MS,
+  GENERATION_LOST_AFTER_MS,
+  GENERATION_STEP_BOUND_MS,
   GENERATION_LOST,
   GENERATION_STEP_LIMIT,
   generateProposal,
@@ -166,7 +167,10 @@ describe("a generation in a Workflow", () => {
     expect(minutes * 60).toBeGreaterThan(64_000 / 48);
     expect(minutes).toBeLessThanOrEqual(30);
     expect(GENERATE_STEP.retries.limit).toBe(1);
-    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(GENERATION_STEP_LIMIT * 2 * minutes * 60_000);
+    // Lost is judged one step at a time: past both attempts of the longest step.
+    expect(GENERATION_STEP_BOUND_MS).toBeGreaterThanOrEqual(2 * minutes * 60_000);
+    expect(GENERATION_LOST_AFTER_MS).toBeGreaterThan(GENERATION_STEP_BOUND_MS);
+    expect(GENERATION_LOST_AFTER_MS).toBeLessThan(GENERATION_STEP_LIMIT * GENERATION_STEP_BOUND_MS);
   });
 
   it("gives the language check's retry and a résumé's long lines each a step of its own", async () => {
@@ -410,7 +414,7 @@ describe("generating always ends", () => {
     const proposalId = await generate();
     await db
       .update(renderProposals)
-      .set({ generatedAt: new Date(Date.now() - GENERATION_DEADLINE_MS - 1000) })
+      .set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS - 1000) })
       .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
 
     expect((await proposal(proposalId)).generationStatus).toBe("failed");
@@ -427,6 +431,39 @@ describe("generating always ends", () => {
       inputs: await collectRenderInputs(db, user.id, "english_resume", "Yosuke Aoki"),
     });
     expect((await proposal(proposalId)).generationStatus).toBe("failed");
+  });
+
+  it("fails a lost run for every screen that polls it, without the proposal being opened", async () => {
+    const proposalId = await generate();
+    const writing = async () =>
+      (await client.json<{ documents: { kind: string; status: string }[] }>("/api/overview")).documents
+        .find((document) => document.kind === "english_resume")!.status;
+    expect(await writing()).toBe("proposal_generating");
+
+    // Inside one step's bound since the run last wrote: still writing.
+    await db.update(renderProposals).set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS + 60_000) })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect(await writing()).toBe("proposal_generating");
+
+    // Past it, Home, which reads `renderState`, no longer says so.
+    await db.update(renderProposals).set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS - 1000) })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect(await writing()).not.toBe("proposal_generating");
+    const [row] = await db.select({ generationStatus: renderProposals.generationStatus, generationError: renderProposals.generationError })
+      .from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row).toEqual({ generationStatus: "failed", generationError: GENERATION_LOST });
+    // Generating again is open: the lost run no longer holds the document.
+    expect((await client.post("/api/renders/english_resume/generate")).status).toBe(202);
+  });
+
+  it("measures lost from the run's last step, not its start", async () => {
+    const proposalId = await generate();
+    // Started long ago, but a step wrote recently: a long run, not a lost one.
+    await db.update(renderProposals).set({
+      generatedAt: new Date(Date.now() - GENERATION_STEP_LIMIT * GENERATION_STEP_BOUND_MS),
+      updatedAt: new Date(),
+    }).where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect((await proposal(proposalId)).generationStatus).toBe("generating");
   });
 
   it("leaves a proposal inside its deadline alone", async () => {
