@@ -21,6 +21,7 @@ import { anchorQuote } from "./quote";
 import { dedupeHash } from "./dedupe";
 import { sortFact, type Flag } from "./flags";
 import { flagRepeats, settleRepeats } from "~/server/services/repeats";
+import type { OverlapPools } from "~/server/services/overlap";
 
 export interface StepRunner {
   do<T>(name: string, fn: () => Promise<T>): Promise<T>;
@@ -123,7 +124,7 @@ async function planChunksStep(deps: ImportDeps): Promise<string[] | "gone"> {
   }
 
   const previousText = await previousVersionText(db, userId, version);
-  const plan = planChunks(version.extractedText, previousText);
+  const plan = planChunks((await versionText(deps)) ?? "", previousText);
 
   const rows = plan.chunks.map((region, index) => ({
     id: newId("importChunk"),
@@ -178,7 +179,7 @@ async function extractChunkStep(deps: ImportDeps, chunkId: string): Promise<"don
   const version = await loadVersion(db, userId, versionId);
   if (!version) return "done";
 
-  const text = version.extractedText;
+  const text = (await versionText(deps)) ?? "";
   const body = text.slice(chunk.startOffset, chunk.endOffset);
 
   let candidates;
@@ -371,8 +372,9 @@ async function finishStep(deps: ImportDeps): Promise<void> {
   // Which of this version's facts likely restate one already in the record.
   // Asked once, here, when every chunk is in. Idempotent, so a retried step
   // writes no second flag.
-  const repeats = await flagRepeats(db, userId, eq(facts.sourceDocumentVersionId, versionId));
-  await settleRepeats(db, userId);
+  const pools: OverlapPools = new Map();
+  const repeats = await flagRepeats(db, userId, eq(facts.sourceDocumentVersionId, versionId), pools);
+  await settleRepeats(db, userId, pools);
 
   await db
     .update(sourceDocumentVersions)
@@ -388,13 +390,42 @@ async function finishStep(deps: ImportDeps): Promise<void> {
 
 /* ------------------------------------------------------------------ shared */
 
+/**
+ * The version's text, read once per run of the import rather than once per
+ * chunk. A version's text never changes — a parser upgrade makes a new version
+ * (`CLAUDE.md`) — so every step of one run can share the read; reading it per
+ * chunk sent a document of N chunks from the database N times (`docs/06`,
+ * 2026-11-04). Its project can change while the import runs, and is still read
+ * by each step (`loadVersion`).
+ *
+ * Keyed by the run's `deps`, which a Workflow builds afresh each time it wakes,
+ * so nothing outlives the run.
+ */
+const texts = new WeakMap<ImportDeps, Promise<string | null>>();
+
+function versionText(deps: ImportDeps): Promise<string | null> {
+  let text = texts.get(deps);
+  if (!text) {
+    const { db, userId, versionId } = deps;
+    text = db
+      .select({ extractedText: sourceDocumentVersions.extractedText })
+      .from(sourceDocumentVersions)
+      .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)))
+      .limit(1)
+      .then(([row]) => row?.extractedText ?? null);
+    // A failed read is not kept: the step's retry reads again.
+    text.catch(() => texts.delete(deps));
+    texts.set(deps, text);
+  }
+  return text;
+}
+
 async function loadVersion(db: Db, userId: string, versionId: string) {
   const [version] = await db
     .select({
       id: sourceDocumentVersions.id,
       sourceDocumentId: sourceDocumentVersions.sourceDocumentId,
       versionNo: sourceDocumentVersions.versionNo,
-      extractedText: sourceDocumentVersions.extractedText,
       projectId: sql<string | null>`(select project_id from source_documents where id = ${sourceDocumentVersions.sourceDocumentId})`,
     })
     .from(sourceDocumentVersions)

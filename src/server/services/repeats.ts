@@ -14,8 +14,7 @@ import { and, eq, inArray, isNotNull, isNull, type SQL } from "drizzle-orm";
 import { factFlags, facts } from "../db/schema";
 import { newId } from "../http/ids";
 import { repeatFlag } from "~/pipeline/flags";
-import { factWithEmployer } from "./employer";
-import { repeatsAmong } from "./overlap";
+import { overlapSubject, repeatsAmong, type OverlapPools } from "./overlap";
 import type { Db } from "../db/client";
 
 /**
@@ -26,9 +25,14 @@ import type { Db } from "../db/client";
  * Idempotent. A fact already flagged keeps the flag it has, checked or not, so
  * a pair the author dismissed is not raised a second time.
  */
-export async function flagRepeats(db: Db, userId: string, where: SQL | undefined): Promise<string[]> {
+export async function flagRepeats(
+  db: Db,
+  userId: string,
+  where: SQL | undefined,
+  pools: OverlapPools = new Map(),
+): Promise<string[]> {
   const arrived = await db
-    .select(factWithEmployer)
+    .select(overlapSubject)
     .from(facts)
     .where(
       and(
@@ -39,7 +43,7 @@ export async function flagRepeats(db: Db, userId: string, where: SQL | undefined
         where,
       ),
     );
-  const matches = await repeatsAmong(db, userId, arrived);
+  const matches = await repeatsAmong(db, userId, arrived, pools);
   if (matches.size === 0) return [];
   await db
     .insert(factFlags)
@@ -55,9 +59,13 @@ export async function flagRepeats(db: Db, userId: string, where: SQL | undefined
   return [...matches.keys()];
 }
 
-export async function settleRepeats(db: Db, userId: string): Promise<void> {
+/**
+ * `pools` is the request's read of the accepted facts, when it asks for
+ * matches again after this with no write to `facts` between (`./overlap.ts`).
+ */
+export async function settleRepeats(db: Db, userId: string, pools: OverlapPools = new Map()): Promise<void> {
   const tracked = await db
-    .select({ ...factWithEmployer, flagId: factFlags.id, checkedAt: factFlags.checkedAt, systemSettledAt: factFlags.systemSettledAt, reason: factFlags.reason })
+    .select({ ...overlapSubject, flagId: factFlags.id, checkedAt: factFlags.checkedAt, systemSettledAt: factFlags.systemSettledAt, reason: factFlags.reason })
     .from(factFlags)
     .innerJoin(facts, and(eq(facts.id, factFlags.factId), eq(facts.userId, factFlags.userId)))
     .where(
@@ -68,7 +76,7 @@ export async function settleRepeats(db: Db, userId: string): Promise<void> {
       ),
     );
   if (tracked.length === 0) return;
-  const matches = await repeatsAmong(db, userId, tracked);
+  const matches = await repeatsAmong(db, userId, tracked, pools);
   const gone = tracked.filter((fact) => fact.checkedAt === null && !matches.has(fact.id)).map((fact) => fact.flagId);
   const restored = tracked.filter((fact) => fact.systemSettledAt !== null && matches.has(fact.id)).map((fact) => fact.flagId);
   const now = new Date();

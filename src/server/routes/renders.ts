@@ -146,7 +146,9 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
     }
 
     const tailoring = target.render ? await tailoringOf(db, user.id, target.render) : null;
-    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, tailoring);
+    // What generation would be given, to refuse before starting it. The claims
+    // are read by the run itself, which reads the record again.
+    const inputs = await collectRenderInputs(db, user.id, kind, profile!.nameLatin, tailoring, { claims: false });
     if (kind === "english_resume") {
       try {
         assertResumeSpecNames(inputs.spec);
@@ -633,7 +635,7 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       );
     }
 
-    const restored = await requireVersion(db, user.id, target, pathParam(c, "id"));
+    const restored = await requireVersion(db, user.id, target, pathParam(c, "id"), { factIds: true });
     // Not an error the author can act on by retrying, and not a silent no-op
     // that appends an identical version to the history.
     if (restored.id === render.currentVersionId) {
@@ -1125,19 +1127,41 @@ export async function renderState(
   userId: string,
 ): Promise<{ documents: RenderState[]; tailored: RenderState[]; usableFacts: number }> {
   // One round trip, not four in a row: this backs the home screen (issue #58).
-  const [rows, versions, pending, usable] = await db.batch([
-    db.select({ ...getTableColumns(renders), applicationCompany: applications.company })
+  //
+  // Counts, not ids. This is polled every 1.5 s while a document is written or
+  // an import runs, and it read every usable fact's id and, for each current
+  // version, every id that version was made from — about 870 KB from the
+  // database on each poll of a nine-thousand-fact record, for two numbers per
+  // document (`docs/06`, 2026-11-04). The set difference runs in Postgres now.
+  const usableNow = db.$with("usable_now").as(db.select({ id: facts.id }).from(facts).where(usableFacts(userId)));
+  const [rows, versions, pending, [usable]] = await db.batch([
+    db.select({
+      id: renders.id,
+      kind: renders.kind,
+      label: renders.label,
+      currentVersionId: renders.currentVersionId,
+      staleSinceFactCount: renders.staleSinceFactCount,
+      createdAt: renders.createdAt,
+      // Whether it is tailored, and not the posting: the posting is a page of text
+      // and nothing here reads more of it than that it is there.
+      tailored: sql<boolean>`${renders.jobDescription} is not null`,
+      applicationCompany: applications.company,
+    })
       .from(renders)
       .leftJoin(applications, and(eq(applications.id, renders.applicationId), eq(applications.userId, userId)))
       .where(eq(renders.userId, userId)),
     // Each render's current version, by join rather than by a list of ids read
     // first, which is what made this a query that had to wait for another.
     db
+      .with(usableNow)
       .select({
         id: renderVersions.id,
         versionNo: renderVersions.versionNo,
         acceptedAt: renderVersions.acceptedAt,
-        usableFactIds: renderVersions.usableFactIds,
+        recorded: sql<boolean>`${renderVersions.usableFactIds} is not null`,
+        // `except` is a set difference, as `factsSince` took one over two Sets.
+        added: sql<number>`(select count(*) from (select id from ${usableNow} except select unnest(${renderVersions.usableFactIds})) as added)::int`,
+        withdrawn: sql<number>`(select count(*) from (select unnest(${renderVersions.usableFactIds}) except select id from ${usableNow}) as withdrawn)::int`,
       })
       .from(renderVersions)
       .innerJoin(
@@ -1163,10 +1187,12 @@ export async function renderState(
         ),
       )
       .orderBy(desc(renderProposals.generatedAt)),
-    db.select({ id: facts.id }).from(facts).where(usableFacts(userId)),
+    db.select({ n: sql<number>`count(*)::int` }).from(facts).where(usableFacts(userId)),
   ]);
-  const usableNow = new Set(usable.map((f) => f.id));
-  const byKind = new Map(rows.filter((r) => r.jobDescription === null).map((r) => [r.kind, r]));
+  const usableCount = usable?.n ?? 0;
+  // The row as `refOf` and `titleOf` read it: they ask only whether there is a posting.
+  const named = (row: (typeof rows)[number]) => ({ ...row, jobDescription: row.tailored ? "" : null });
+  const byKind = new Map(rows.filter((r) => !r.tailored).map((r) => [r.kind, r]));
   const versionById = new Map(versions.map((v) => [v.id, v]));
   const pendingByRender = new Map<string, (typeof pending)[number]>();
   for (const p of pending) if (!pendingByRender.has(p.renderId)) pendingByRender.set(p.renderId, p);
@@ -1176,7 +1202,7 @@ export async function renderState(
     const proposal = row ? pendingByRender.get(row.id) : undefined;
     const pendingProposalId = proposal?.id ?? null;
     const since = version
-      ? factsSince(version.usableFactIds, usableNow, row?.staleSinceFactCount ?? 0)
+      ? factsSince(version, usableCount, row?.staleSinceFactCount ?? 0)
       : null;
 
     // A pending proposal outranks a missing version: a first generation awaiting
@@ -1193,14 +1219,14 @@ export async function renderState(
 
     return {
       id: row?.id ?? null,
-      ref: row ? refOf(row) : kind,
+      ref: row ? refOf(named(row)) : kind,
       tailored:
-        row && row.jobDescription !== null
+        row && row.tailored
           ? { label: row.applicationCompany ?? row.label ?? "", createdAt: row.createdAt.toISOString() }
           : null,
       kind,
       language: RENDER_DEFINITIONS[kind].language,
-      title: row ? titleOf(row, row.applicationCompany) : RENDER_TITLE[kind],
+      title: row ? titleOf(named(row), row.applicationCompany) : RENDER_TITLE[kind],
       buildable: RENDER_DEFINITIONS[kind].buildable,
       currentVersionId: row?.currentVersionId ?? null,
       currentVersionNo: version?.versionNo ?? null,
@@ -1216,10 +1242,10 @@ export async function renderState(
     documents: RENDER_KINDS.map((kind) => stateOf(kind, byKind.get(kind))),
     // Newest first: the one just made is the one being worked on.
     tailored: rows
-      .filter((r) => r.jobDescription !== null)
+      .filter((r) => r.tailored)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
       .map((row) => stateOf(row.kind as RenderKind, row)),
-    usableFacts: usableNow.size,
+    usableFacts: usableCount,
   };
 }
 
@@ -1233,16 +1259,12 @@ export async function renderState(
  * fact withdrawn hides one that arrived, and none is ever reported withdrawn.
  */
 function factsSince(
-  recorded: string[] | null,
-  usableNow: Set<string>,
+  version: { recorded: boolean; added: number; withdrawn: number },
+  usableNow: number,
   countThen: number,
 ): { added: number; withdrawn: number } {
-  if (recorded === null) return { added: Math.max(0, usableNow.size - countThen), withdrawn: 0 };
-  const then = new Set(recorded);
-  return {
-    added: [...usableNow].filter((id) => !then.has(id)).length,
-    withdrawn: [...then].filter((id) => !usableNow.has(id)).length,
-  };
+  if (!version.recorded) return { added: Math.max(0, usableNow - countThen), withdrawn: 0 };
+  return { added: version.added, withdrawn: version.withdrawn };
 }
 
 /**
@@ -1253,10 +1275,19 @@ function factsSince(
  * tailored résumé shares its kind with the main résumé, so the test is the
  * render row and not the kind.
  */
-async function requireVersion(db: Db, userId: string, target: RenderRef, id: string) {
+/**
+ * Every column but the ids of the facts the version was made from, unless
+ * `factIds` asks for them: only a restore copies them, and they are thousands
+ * of ids read on every poll of a document's page (`docs/06`, 2026-11-04).
+ */
+const { usableFactIds: _usableFactIds, ...versionColumns } = getTableColumns(renderVersions);
+
+async function requireVersion(db: Db, userId: string, target: RenderRef, id: string): Promise<Omit<typeof renderVersions.$inferSelect, "usableFactIds">>;
+async function requireVersion(db: Db, userId: string, target: RenderRef, id: string, options: { factIds: true }): Promise<typeof renderVersions.$inferSelect>;
+async function requireVersion(db: Db, userId: string, target: RenderRef, id: string, options?: { factIds: true }) {
   if (!target.render) throw notFound("That version");
   const [version] = await db
-    .select()
+    .select(options?.factIds ? getTableColumns(renderVersions) : versionColumns)
     .from(renderVersions)
     .where(
       and(

@@ -16,7 +16,7 @@
  * be right where the checker is wrong. Refusing on them would block the edit
  * this route exists to serve.
  */
-import { eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { employers, facts, projects } from "../db/schema";
 import { effectiveEmployerId } from "./employer";
 import type { Db } from "../db/client";
@@ -98,6 +98,22 @@ export async function collectEditableRecord(db: Db, userId: string): Promise<Edi
   };
 }
 
+/**
+ * The state of just these facts, for {@link badCitations}. What a document page
+ * or download checks on every read is the facts it cites, and reading every
+ * fact in the record to look a dozen up was most of what the page cost from
+ * the database (`docs/06`, 2026-11-04). An id with no row is absent from the
+ * map, exactly as it is from {@link collectEditableRecord}'s.
+ */
+export async function citedFactStates(db: Db, userId: string, factIds: readonly string[]): Promise<Map<string, FactRow>> {
+  if (factIds.length === 0) return new Map();
+  const rows = await db
+    .select({ id: facts.id, status: facts.status, provenance: facts.provenance, disclosure: facts.disclosure })
+    .from(facts)
+    .where(and(eq(facts.userId, userId), inArray(facts.id, [...new Set(factIds)])));
+  return new Map(rows.map(({ id, ...state }) => [id, state]));
+}
+
 export interface BadCitation {
   factId: string;
   problem: CitationProblem;
@@ -145,7 +161,7 @@ function copySources(
   return copy;
 }
 
-export function badCitations(cited: readonly string[], record: EditableRecord): BadCitation[] {
+export function badCitations(cited: readonly string[], record: Pick<EditableRecord, "byId">): BadCitation[] {
   const bad: BadCitation[] = [];
   for (const factId of cited) {
     const fact = record.byId.get(factId);

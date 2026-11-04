@@ -12,7 +12,7 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, asc, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import {
   applications,
@@ -176,7 +176,15 @@ export async function collectRenderInputs(
    * caller that sends them. Every other caller assembles a file or checks text
    * and reads every usable fact: a résumé's skills, for one, come from them.
    */
-  options: { forModel?: boolean } = {},
+  options: {
+    forModel?: boolean;
+    /**
+     * `false` for a caller that reads only the facts' technologies — the skills
+     * curation and the résumé's skills line — so the claims are not read from
+     * the database to be thrown away. Their facts carry an empty claim.
+     */
+    claims?: boolean;
+  } = {},
 ): Promise<RenderInputs> {
   // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
   // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
@@ -184,10 +192,40 @@ export async function collectRenderInputs(
   // check read. It used to be the fact's own column, with the project passed
   // separately, and a fact filed only through its project or its document
   // reached the model as filed under nothing.
-  const accepted = await db
-    .select({ ...getTableColumns(facts), employerId: effectiveEmployerId })
-    .from(facts)
-    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+  //
+  // The columns read below and no others. This read every column of every
+  // accepted fact — the quote, the hashes, the timestamps — once per stage of a
+  // generation and once more per skills or résumé read, about 6 MB each time on
+  // a nine-thousand-fact record (`docs/06`, 2026-11-04). A claim is read only
+  // for a fact a document may use, and a Private or Generated fact is not read
+  // at all: it is counted, in SQL, and goes no further.
+  const acceptedFact = and(eq(facts.userId, userId), eq(facts.status, "accepted"));
+  const [accepted, [counted]] = await db.batch([
+    db
+      .select({
+        id: facts.id,
+        // A run for the model reads the claims of the facts the budget keeps,
+        // below, once it knows which: a few hundred, not every usable fact.
+        claim: options.claims === false || options.forModel ? sql<string>`''` : facts.claim,
+        provenance: facts.provenance,
+        disclosure: facts.disclosure,
+        technologies: facts.technologies,
+        projectId: facts.projectId,
+        sourceDocumentVersionId: facts.sourceDocumentVersionId,
+        quoteStart: facts.quoteStart,
+        employerId: effectiveEmployerId,
+      })
+      .from(facts)
+      .where(and(acceptedFact, ne(facts.disclosure, "private"), ne(facts.provenance, "generated"))),
+    db
+      .select({
+        accepted: sql<number>`count(*)::int`,
+        private: sql<number>`(count(*) filter (where ${facts.disclosure} = 'private'))::int`,
+        generated: sql<number>`(count(*) filter (where ${facts.disclosure} <> 'private' and ${facts.provenance} = 'generated'))::int`,
+      })
+      .from(facts)
+      .where(acceptedFact),
+  ]);
 
   const employerRows = await db
     .select()
@@ -241,11 +279,6 @@ export async function collectRenderInputs(
     rolesByEmployer.set(role.employerId, held);
   }
 
-  const privateFacts = accepted.filter((f) => f.disclosure === "private");
-  const generatedFacts = accepted.filter(
-    (f) => f.disclosure !== "private" && f.provenance === "generated",
-  );
-
   // S13. An entry left out of THIS render takes its facts with it: a fact filed
   // under an employer the document has no section for is a fact the model has
   // nowhere to put, and that is what `unfiled-fact` reports (`docs/06`,
@@ -269,9 +302,12 @@ export async function collectRenderInputs(
       !(f.projectId !== null && excludedProjectIds.has(f.projectId)),
   );
   // Last, so a fact excluded above never takes a place in the budget.
-  const sent = options.forModel
+  const budgeted = options.forModel
     ? await factsWithinBudget(db, userId, usable)
     : usable;
+  const sent = options.forModel && options.claims !== false
+    ? await withClaims(db, userId, budgeted)
+    : budgeted;
 
   // Bound before the facts are mapped, not after: the employer and project
   // names carried on a FACT follow the document's language for the same reason
@@ -476,14 +512,25 @@ export async function collectRenderInputs(
       jobDescription: tailoring?.jobDescription ?? null,
       application: tailoring?.application ?? null,
     },
-    privateFactCount: privateFacts.length,
-    generatedFactCount: generatedFacts.length,
+    privateFactCount: counted?.private ?? 0,
+    generatedFactCount: counted?.generated ?? 0,
     omittedFactCount: usable.length - sent.length,
-    acceptedFactCount: accepted.length,
+    acceptedFactCount: counted?.accepted ?? 0,
     usableFactIds: accepted
       .filter((f) => f.disclosure !== "private" && f.provenance !== "generated")
       .map((f) => f.id),
   };
+}
+
+/** The claims of these facts, read by id. */
+async function withClaims<T extends { id: string; claim: string }>(db: Db, userId: string, rows: T[]): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const read = await db
+    .select({ id: facts.id, claim: facts.claim })
+    .from(facts)
+    .where(and(eq(facts.userId, userId), inArray(facts.id, rows.map((row) => row.id))));
+  const claimOf = new Map(read.map((row) => [row.id, row.claim]));
+  return rows.map((row) => ({ ...row, claim: claimOf.get(row.id) ?? row.claim }));
 }
 
 /**

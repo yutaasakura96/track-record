@@ -15,7 +15,7 @@ import { asc, eq } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { employers, profiles, roles, type renderVersions } from "../db/schema";
 import { ApiError, preconditionFailed, type ErrorCode } from "../http/errors";
-import { badCitations, citationMessage, collectEditableRecord } from "./version-edit";
+import { badCitations, citationMessage, citedFactStates } from "./version-edit";
 import { collectRirekishoPhoto, collectRirekishoProfile, collectRirekishoRecord } from "./rirekisho";
 import { citedFactIds } from "~/render/edit";
 import { downloadFilename, toDocx } from "~/render/docx";
@@ -41,7 +41,7 @@ import { collectResumeRecord } from "./resume";
 import type { RenderIdentity } from "~/render/identity";
 import { RENDER_LANGUAGE, RENDER_TITLE, type RenderContent, type RenderKind } from "~/shared/render-content";
 
-type VersionRow = typeof renderVersions.$inferSelect;
+type VersionRow = Omit<typeof renderVersions.$inferSelect, "usableFactIds">;
 
 export interface DocumentFile {
   bytes: Uint8Array;
@@ -67,8 +67,8 @@ export interface DocumentFile {
  * version that downloads (`docs/06`, 2026-09-12 third entry).
  */
 export async function refuseWithheldCitations(db: Db, userId: string, content: RenderContent) {
-  const record = await collectEditableRecord(db, userId);
-  const withheld = badCitations(citedFactIds(content), record);
+  const cited = citedFactIds(content);
+  const withheld = badCitations(cited, { byId: await citedFactStates(db, userId, cited) });
   if (withheld.length > 0) {
     throw new ApiError("conflict", citationMessage(withheld), {
       facts: withheld.map((b) => ({ factId: b.factId, problem: b.problem })),
