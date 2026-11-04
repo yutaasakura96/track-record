@@ -14,13 +14,22 @@ import { env } from "cloudflare:test";
 import type { WorkflowStep } from "cloudflare:workers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
-import { GENERATE_STEP, GENERATION_DEADLINE_MS, GENERATION_LOST, generateProposal, startGeneration } from "~/pipeline/generation";
+import {
+  GENERATE_STEP,
+  GENERATION_DEADLINE_MS,
+  GENERATION_LOST,
+  GENERATION_STEP_LIMIT,
+  generateProposal,
+  generateStage,
+  startGeneration,
+  stepName,
+} from "~/pipeline/generation";
 import { GenerationWorkflow } from "~/pipeline/generation-workflow";
 import { createDb } from "~/server/db/client";
 import { facts, renderProposals } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { newId } from "~/server/http/ids";
-import { collectRenderInputs, generateIntoProposal } from "~/server/services/render";
+import { FIRST_STAGE, collectRenderInputs, generateIntoProposal, type GenerationStage } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { GenerationWorkflow as DeployedWorkflow } from "~/server/index";
 import { harness, settle, stubModel, type Client, type SeededUser, type StubModel } from "./helpers/harness";
@@ -123,14 +132,76 @@ describe("a generation in a Workflow", () => {
     expect((await client.post(`/api/proposals/${proposalId}/accept`)).status).toBe(200);
   });
 
-  it("gives a step long enough for two whole attempts at the longest document, and few retries", () => {
+  it("gives a step long enough for the longest call, and few retries", () => {
     const minutes = Number(/^(\d+) minutes$/.exec(GENERATE_STEP.timeout)?.[1]);
-    // The longest call measured, about 36,000 tokens at about 48 a second,
-    // twice: the language check's retry. Thirty minutes is Cloudflare's ceiling.
-    expect(minutes * 60).toBeGreaterThan((2 * 36_000) / 48);
+    // A step is one call. The longest measured, a 職務経歴書 of 44,101 tokens,
+    // and a call at the full 64,000, at about 48 a second. Thirty minutes is
+    // Cloudflare's ceiling.
+    expect(minutes * 60).toBeGreaterThan(44_101 / 48);
+    expect(minutes * 60).toBeGreaterThan(64_000 / 48);
     expect(minutes).toBeLessThanOrEqual(30);
     expect(GENERATE_STEP.retries.limit).toBe(1);
-    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(2 * minutes * 60_000);
+    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(GENERATION_STEP_LIMIT * 2 * minutes * 60_000);
+  });
+
+  it("gives the language check's retry and a résumé's long lines each a step of its own", async () => {
+    const proposalId = await generate();
+    const japanese: RenderContent = {
+      sections: DOCUMENT(factId).sections.map((section) => ({
+        ...section,
+        blocks: section.blocks.map((block) => ({ ...block, text: "東京でバッチ基盤を運用した。" })),
+      })),
+    };
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "Cut the nightly batch to 90 minutes. ".repeat(8).trim();
+    model.generations = [japanese, long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+
+    const steps: string[] = [];
+    const calls: number[] = [];
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) {
+      expect((await proposal(proposalId)).generationStatus).toBe("generating");
+      steps.push(stepName(stage));
+      stage = await generateStage(deps, stage);
+      calls.push(model.generationInputs.length + model.shortenCalls.length);
+    }
+
+    expect(steps).toEqual(["generate", "generate again", "shorten again"]);
+    // One model call a step.
+    expect(calls).toEqual([1, 2, 3]);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.generationStatus).toBe("ready");
+    expect((row!.content as RenderContent).sections[1]!.blocks[0]!.text).toBe("Cut the nightly batch to 90 minutes.");
+  });
+
+  it("adds every step's usage to the proposal", async () => {
+    model.usage = { inputTokens: 10, outputTokens: 5, cacheCreationInputTokens: 1, cacheReadInputTokens: 2 };
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    await landing(proposalId);
+
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
+  });
+
+  it("keeps nothing a step wrote when the run ends without a document", async () => {
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    const next = await generateStage({ db, model, userId: user.id, proposalId }, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    await client.post(`/api/proposals/${proposalId}/dismiss`);
+    expect(await generateStage({ db, model, userId: user.id, proposalId }, next!)).toBeNull();
+    expect(model.shortenCalls).toHaveLength(0);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.content).toEqual({ sections: [] });
   });
 
   it("uses the record as the run read it, not as the route did", async () => {

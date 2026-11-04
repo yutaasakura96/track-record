@@ -16,6 +16,7 @@ import {
   type FlagToExplain,
   type GenerationContext,
   type GradableFact,
+  type LineToShorten,
   type ModelSeam,
   type ModelUsage,
   type PostingReading,
@@ -33,7 +34,6 @@ import {
   buildGenerationPrompt,
   parseGeneratedRender,
   readShortened,
-  repairResumeBounds,
   shortenRequest,
   writeStoryInParts,
 } from "../generate";
@@ -198,25 +198,27 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         // A career story is written in parts (`writeStoryInParts`); every
         // other document is one call.
         const input = isChapteredStory(spec.kind) ? await writeStoryInParts(facts, spec, emit) : await emit(facts, spec);
-        const content = parseGeneratedRender(input, spec);
-        if (spec.kind !== "english_resume") return content;
-        // A bullet over 240 characters, or a summary of 50 words, used to
-        // refuse the whole document. Those lines alone are written again.
-        return await repairResumeBounds(content, spec, facts, async (lines) => {
-          // Asked for by the prompt, not forced, as reading a posting is.
-          const repair = await client.messages.stream({
-            model: config.model,
-            max_tokens: 16000,
-            thinking: THINKING,
-            output_config: OUTPUT_CONFIG,
-            system: [{ type: "text", text: SHORTEN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-            tools: [EMIT_SHORTENED_TOOL],
-            messages: [{ role: "user", content: shortenRequest(lines) }],
-          }).finalMessage();
-          ctx?.onUsage?.(readUsage(repair.usage));
-          const answer = repair.content.find((b) => b.type === "tool_use" && b.name === EMIT_SHORTENED_TOOL.name);
-          return answer?.type === "tool_use" ? readShortened(answer.input, lines) : new Map();
-        });
+        return parseGeneratedRender(input, spec);
+      } catch (err) {
+        throw asModelError(err);
+      }
+    },
+
+    async shortenResumeLines(lines: LineToShorten[], ctx?: GenerationContext): Promise<Map<string, string>> {
+      try {
+        // Asked for by the prompt, not forced, as reading a posting is.
+        const repair = await client.messages.stream({
+          model: config.model,
+          max_tokens: 16000,
+          thinking: THINKING,
+          output_config: OUTPUT_CONFIG,
+          system: [{ type: "text", text: SHORTEN_SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+          tools: [EMIT_SHORTENED_TOOL],
+          messages: [{ role: "user", content: shortenRequest(lines) }],
+        }).finalMessage();
+        ctx?.onUsage?.(readUsage(repair.usage));
+        const answer = repair.content.find((b) => b.type === "tool_use" && b.name === EMIT_SHORTENED_TOOL.name);
+        return answer?.type === "tool_use" ? readShortened(answer.input, lines) : new Map();
       } catch (err) {
         throw asModelError(err);
       }

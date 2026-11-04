@@ -188,4 +188,8 @@ export const e2eModel: ModelSeam = {
         return { claim, month: when, employerId: employer?.id ?? null, projectId: null, technologies: [], missing };
       });
   },
+
+  async shortenResumeLines() {
+    return new Map();
+  },
 };

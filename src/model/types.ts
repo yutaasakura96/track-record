@@ -307,7 +307,8 @@ export interface RenderSpec {
    * (`writeStoryInParts`, `src/model/generate.ts`). `chapters` are the keys
    * this call writes, in plan order; `characters` is about how long its prose
    * chapters run together; `written` is the story so far, given to the call
-   * that writes the two closing tables. A whole story in one call ran past the
+   * that writes the chapters of no employer and to the one that writes the two
+   * closing tables. A whole story in one call ran past the
    * output limit on a real record (`docs/06`, 2026-11-04).
    */
   part?: StoryPart;
@@ -361,6 +362,19 @@ export interface CaptureContext {
 }
 
 /**
+ * One line the résumé's bound refused, as the rewrite is asked for it. `facts`
+ * are the ones the line cites, so the rewrite is written from what the line
+ * was, and can drop a fact but never add one.
+ */
+export interface LineToShorten {
+  id: string;
+  kind: "bullet" | "summary";
+  text: string;
+  limit: string;
+  facts: { id: string; claim: string; restricted: boolean }[];
+}
+
+/**
  * Generation's counterpart to `ExtractionContext`, and what grading,
  * explaining, reading a posting and capturing report through too. It carries one field and is optional — this
  * is a reporting channel, not a capability of its own.
@@ -400,6 +414,13 @@ export interface ModelSeam {
    * returns is a proposal to confirm and is stored nowhere by this call.
    */
   captureClaims(text: string, context: CaptureContext, ctx?: GenerationContext): Promise<CapturedClaim[]>;
+  /**
+   * An English résumé's lines over their bound, written again from the facts
+   * they cite, keyed by block id. A call of its own, not part of
+   * `generateRender`, so a generation run gives it a step of its own
+   * (`docs/06`, 2026-11-04).
+   */
+  shortenResumeLines(lines: LineToShorten[], ctx?: GenerationContext): Promise<Map<string, string>>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

@@ -121,8 +121,9 @@ There are no servers, no containers, no cron jobs, and nothing stateful outside 
 
 ## 4. The model seam
 
-The application touches a model in **exactly six places**. Nothing outside `src/model/` imports an
-SDK or knows a provider name.
+The application touches a model in **exactly seven places**. Nothing outside `src/model/` imports an
+SDK or knows a provider name. `shortenResumeLines` was split out of `generateRender` so a generation
+run can give it a Workflow step of its own (decision log, 2026-11-04).
 
 ```ts
 extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>
@@ -131,6 +132,7 @@ gradeFacts(facts: GradableFact[]): Promise<Map<string, FactGrade>>
 explainFlag(flag: FlagToExplain): Promise<string>
 readPosting(jobDescription: string): Promise<PostingReading>
 captureClaims(text: string, context: CaptureContext): Promise<CapturedClaim[]>
+shortenResumeLines(lines: LineToShorten[]): Promise<Map<string, string>>
 ```
 
 It was two until 2026-10-08 (#57). `gradeFacts` grades the facts extracted before extraction graded
@@ -234,10 +236,11 @@ industry and project-summary copies are omitted from facts' contextual JSON; the
 and project lists still carry those fields.
 
 **A career story is written in parts** (`writeStoryInParts`, `src/model/generate.ts`; decision log,
-2026-11-04). The chapters that belong to no employer are one call, sent the facts filed under none;
-each employer chapter is one call, sent that employer's facts; the parts run side by side, each told
-its share of the register's length. The anchors and routing tables are a last call, given the
-chapters as written and the facts they cite. The parts are joined in plan order and checked against
+2026-11-04). Each employer chapter is one call, sent that employer's facts, and those calls run side
+by side. The chapters that belong to no employer are the next call, given the employer chapters as
+written and sent the facts filed under none with the employer facts those chapters cite. Each prose
+call is told its share of the register's length. The anchors and routing tables are a last call,
+given the chapters as written and the facts they cite. The parts are joined in plan order and checked against
 the whole plan, as a story written in one call was. Every other render is one call. A call that stops
 at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
 unusable shape.
@@ -475,9 +478,14 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 **A generation is a Workflow of its own** (`src/pipeline/generation.ts`, `docs/06`, 2026-11-02). A real
 document takes 75 to 145 seconds and a request's `waitUntil` lasts 30 after the response, so
 `POST /api/renders/:ref/generate` writes the proposal and hands its id to `GenerationWorkflow`, whose
-instance ID is the proposal ID. The run reads the record itself and writes to the proposal, in one
-step: its parameters and its stored state hold ids. In disposable test configurations (the suite, the e2e worker and the seed) the same
-function runs behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
+instance ID is the proposal ID. The run reads the record itself and writes to the proposal, one
+Workflow step per model call (`GenerationStage`, `src/server/services/render.ts`): the document, an
+English résumé's over-long lines written again, and each of those once more when the language check
+fails, so each call has the whole 30-minute step timeout. A step's parameters and the state passed
+between steps hold ids and labels; what a step wrote waits on the proposal row, which reads
+`generating` until the last step lands it, and is cleared if the run fails. Each step adds its calls'
+usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
+stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 
 **A document is sent at most `FACTS_PER_EMPLOYER` facts per employer** (`src/server/services/fact-budget.ts`),

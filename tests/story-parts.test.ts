@@ -3,10 +3,10 @@
  *
  * A story written in one call from a real record ran past the output limit,
  * and the cut-off tool call arrived with no input: the proposal said "unusable
- * shape" after eleven minutes, twice. Each part is now one call — the chapters
- * that belong to no employer, one employer each, then the two tables written
- * from what the others wrote — and the parts are put back together and held to
- * the whole plan as a story written in one call was.
+ * shape" after eleven minutes, twice. Each part is now one call — one employer
+ * each, then the chapters that belong to no employer written around them, then
+ * the two tables written from what the others wrote — and the parts are put
+ * back together and held to the whole plan as a story written in one call was.
  *
  * The provider is exercised over a stubbed `fetch` that answers in the API's
  * streaming shape; nothing here reaches the network. Every fixture is invented.
@@ -19,8 +19,9 @@ import {
   buildGenerationPrompt,
   chaptersOf,
   closingCall,
+  employerParts,
+  framingCall,
   parseGeneratedRender,
-  storyParts,
   writeStoryInParts,
 } from "~/model/generate";
 import { chapterPlan } from "~/render/chapters";
@@ -99,41 +100,54 @@ function answer(partFacts: RenderFact[], partSpec: RenderSpec): { sections: unkn
   };
 }
 
-describe("the parts of a story", () => {
-  const parts = storyParts(FACTS, spec());
+/** Employer chapters as written: A's cites two of its facts, B's its one. */
+const EMPLOYER_CHAPTERS: RenderContent = {
+  sections: [
+    { key: `employer:${EMP_A}`, heading: "At the trading house", blocks: [{ id: "blk_a", kind: "paragraph", text: "Trading text.", factIds: ["fct_a0", "fct_a1"] }] },
+    { key: `employer:${EMP_B}`, heading: "At the electric company", blocks: [{ id: "blk_b", kind: "paragraph", text: "Electric text.", factIds: ["fct_b0"] }] },
+  ],
+};
 
-  it("writes the chapters of no employer together, and each employer alone", () => {
-    expect(parts.map((p) => p.spec.part!.chapters)).toEqual([
-      ["opening", "independent", "ahead"],
-      [`employer:${EMP_A}`],
-      [`employer:${EMP_B}`],
-    ]);
+describe("the parts of a story", () => {
+  const parts = employerParts(FACTS, spec());
+  const framing = framingCall(FACTS, spec(), EMPLOYER_CHAPTERS)!;
+
+  it("writes each employer alone, and the chapters of no employer together", () => {
+    expect(parts.map((p) => p.spec.part!.chapters)).toEqual([[`employer:${EMP_A}`], [`employer:${EMP_B}`]]);
+    expect(framing.spec.part!.chapters).toEqual(["opening", "independent", "ahead"]);
   });
 
-  it("sends each part only the facts its chapters may cite", () => {
-    expect(parts[0]!.facts.map((f) => f.id)).toEqual(["fct_n0", "fct_n1"]);
-    expect(parts[1]!.facts.every((f) => f.employer?.id === EMP_A)).toBe(true);
-    expect(parts[1]!.facts).toHaveLength(12);
-    expect(parts[2]!.facts.map((f) => f.id)).toEqual(["fct_b0"]);
+  it("sends each employer part only its employer's facts", () => {
+    expect(parts[0]!.facts.every((f) => f.employer?.id === EMP_A)).toBe(true);
+    expect(parts[0]!.facts).toHaveLength(12);
+    expect(parts[1]!.facts.map((f) => f.id)).toEqual(["fct_b0"]);
+  });
+
+  it("sends the chapters of no employer the unfiled facts and the employer facts the employer chapters cite, with those chapters", () => {
+    expect(framing.facts.map((f) => f.id)).toEqual(["fct_a0", "fct_a1", "fct_b0", "fct_n0", "fct_n1"]);
+    expect(framing.spec.part!.written).toEqual(EMPLOYER_CHAPTERS);
+  });
+
+  it("still gives the chapters of no employer evidence when nothing is filed under none", () => {
+    const filed = FACTS.filter((f) => f.employer);
+    const call = framingCall(filed, spec({ workOutsideEmployment: false }), EMPLOYER_CHAPTERS)!;
+    expect(call.spec.part!.chapters).toEqual(["opening", "ahead"]);
+    expect(call.facts.map((f) => f.id)).toEqual(["fct_a0", "fct_a1", "fct_b0"]);
   });
 
   it("shares the register's length among the parts, more to the employer with more facts", () => {
-    const characters = parts.map((p) => p.spec.part!.characters!);
-    expect(Math.abs(characters.reduce((a, b) => a + b, 0) - STORY_CHARACTERS.en)).toBeLessThanOrEqual(parts.length);
-    expect(characters[1]!).toBeGreaterThan(characters[2]!);
-    const ja = storyParts(FACTS, spec({ kind: "career_story_ja", language: "ja" }));
-    expect(ja.reduce((sum, p) => sum + p.spec.part!.characters!, 0)).toBeCloseTo(STORY_CHARACTERS.ja, -1);
-  });
-
-  it("leaves out the framing part's facts when nothing is filed under no employer, but still writes its chapters", () => {
-    const [framing] = storyParts(FACTS.filter((f) => f.employer), spec({ workOutsideEmployment: false }));
-    expect(framing!.spec.part!.chapters).toEqual(["opening", "ahead"]);
-    expect(framing!.facts).toEqual([]);
+    const characters = [...parts, framing].map((p) => p.spec.part!.characters!);
+    expect(Math.abs(characters.reduce((a, b) => a + b, 0) - STORY_CHARACTERS.en)).toBeLessThanOrEqual(characters.length);
+    expect(characters[0]!).toBeGreaterThan(characters[1]!);
+    const ja = spec({ kind: "career_story_ja", language: "ja" });
+    const jaParts = [...employerParts(FACTS, ja), framingCall(FACTS, ja, EMPLOYER_CHAPTERS)!];
+    expect(jaParts.reduce((sum, p) => sum + p.spec.part!.characters!, 0)).toBeCloseTo(STORY_CHARACTERS.ja, -1);
   });
 });
 
 describe("a part's prompt", () => {
-  const [framing, thick] = storyParts(FACTS, spec());
+  const [thick] = employerParts(FACTS, spec());
+  const framing = framingCall(FACTS, spec(), EMPLOYER_CHAPTERS)!;
 
   it("shows the whole plan, then asks for this part's chapters alone, at this part's length", () => {
     const prompt = buildGenerationPrompt(thick!.spec);
@@ -144,11 +158,20 @@ describe("a part's prompt", () => {
     const asked = prompt.slice(prompt.indexOf("Chapters this call writes"));
     expect(asked.match(/key "[^"]+"/g)).toEqual([`key "employer:${EMP_A}"`]);
     expect(prompt).toContain(`about ${thick!.spec.part!.characters} characters`);
+    expect(prompt).not.toContain("already written");
+  });
+
+  it("gives the chapters of no employer the employer chapters as written", () => {
+    const prompt = buildGenerationPrompt(framing.spec);
+    expect(prompt).toContain("## At the trading house");
+    expect(prompt).toContain("Trading text. [fct_a0, fct_a1]");
+    expect(prompt).not.toContain("The two tables are written from these chapters");
   });
 
   it("names the gaps only to the call that writes the routing table", () => {
     const written: RenderContent = { sections: [{ key: "opening", heading: "Where it began", blocks: [{ id: "blk_1", kind: "paragraph", text: "Opening text.", factIds: ["fct_n0"] }] }] };
-    expect(buildGenerationPrompt(framing!.spec)).not.toContain("Gaps in the 履歴書");
+    expect(buildGenerationPrompt(framing.spec)).not.toContain("Gaps in the 履歴書");
+    expect(buildGenerationPrompt(thick!.spec)).not.toContain("Gaps in the 履歴書");
     expect(buildGenerationPrompt(closingCall(FACTS, spec(), written).spec)).toContain("Gaps in the 履歴書");
   });
 
@@ -162,6 +185,7 @@ describe("a part's prompt", () => {
     const prompt = buildGenerationPrompt(closing.spec);
     expect(prompt).toContain("## Where it began");
     expect(prompt).toContain("Opening text. [fct_n0]");
+    expect(prompt).toContain("The two tables are written from these chapters");
   });
 
   it("leaves a story written whole, and every other render, as it was", () => {
@@ -177,8 +201,14 @@ describe("writing a story in parts", () => {
       calls.push(partSpec);
       return answer(partFacts, partSpec);
     });
-    expect(calls).toHaveLength(4);
-    expect(calls.at(-1)!.part!.chapters).toEqual(["anchors", "routing"]);
+    expect(calls.map((c) => c.part!.chapters)).toEqual([
+      [`employer:${EMP_A}`],
+      [`employer:${EMP_B}`],
+      ["opening", "independent", "ahead"],
+      ["anchors", "routing"],
+    ]);
+    // The chapters of no employer are written after the employer chapters, from them.
+    expect(calls[2]!.part!.written!.sections.map((s) => s.key)).toEqual([`employer:${EMP_A}`, `employer:${EMP_B}`]);
     const content = parseGeneratedRender(input, spec());
     expect(content.sections.map((s) => s.key)).toEqual(chapterPlan("career_story_en", spec().employers, true).map((c) => c.key));
     expect(new Set(content.sections.flatMap((s) => s.blocks.map((b) => b.id))).size).toBe(content.sections.length);

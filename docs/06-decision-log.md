@@ -8107,16 +8107,29 @@ part of this.
   `sections`. The story written in one call also ran to about 63,000 characters against the
   register's 17,000. One run was refused for a routing row that shortened an employer's name.
 - **Decision:** a career story is written in parts (`writeStoryInParts`, `src/model/generate.ts`):
-  the chapters of no employer as one call, sent the facts filed under none; each employer chapter as
-  one call, sent that employer's facts; then the two tables, from the chapters as written and the
-  facts they cite. The prose parts run side by side and the first to fail aborts the rest. Each part is
-  told its share of the register's length, more for an employer with more facts. The joined story is
-  held to the whole plan by the same check as before. The seam keeps its six functions; the parts live
-  inside `generateRender`.
+  each employer chapter as one call, sent that employer's facts, the employer calls side by side and
+  the first to fail aborting the rest; then the chapters of no employer as one call, given the
+  employer chapters as written and sent the facts filed under none with the employer facts those
+  chapters cite; then the two tables, from the chapters as written and the facts they cite. The
+  register keeps an unfiled fact out of an employer chapter but not an employer's fact out of the
+  opening or what comes next, which are about the whole record; written first and sent only the
+  unfiled facts, those chapters had no evidence at all on a record that files everything. Each prose
+  part is told its share of the register's length, more for an employer with more facts. The joined
+  story is held to the whole plan by the same check as before. The parts live inside `generateRender`.
 - **Decision:** every generation call may spend 64,000 output tokens (`GENERATION_MAX_TOKENS`), and a
   call that stops at the limit is refused as having run out of room rather than read as an unusable
-  shape. The generation step's timeout is 30 minutes, Cloudflare's advised ceiling, and the deadline
-  past both attempts 65.
+  shape. The cap is not lowered for a single-call document.
+- **Decision:** a generation run is one Workflow step per model call (`GenerationStage`,
+  `src/server/services/render.ts`): the document; an English résumé's over-long lines written again;
+  and, when the language check fails, each of those once more. The longest call measured, a 職務経歴書
+  of 44,101 tokens at about 48 a second, is about fifteen minutes, and a call at the full 64,000 about
+  22, so a document and its language retry in one step could pass the step's 30 minutes (Cloudflare's
+  advised ceiling), retry, and end lost after paying for up to four calls. Each step now has the whole
+  timeout. What a step wrote waits on the proposal row, still `generating` and shown nowhere, and is
+  cleared if the run fails; between steps the Workflow holds only the stage's labels. Each step adds
+  its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
+  `generateRender` so the rewrite can be a step. The deadline is past both attempts of all four
+  steps, 245 minutes.
 - **Decision:** a story's table rows write an employer, school or project name in full, as the lists
   write it, because the record-name check reads a shortened one as a changed one.
 - **Measured, simulated the same way after the change:** the English story in six calls, 64,672 output

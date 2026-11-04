@@ -9,7 +9,7 @@
  * 職務経歴書 expects — a prompt difference, not a data difference.
  */
 import type Anthropic from "@anthropic-ai/sdk";
-import { ModelUnavailableError, type RenderFact, type RenderSpec } from "./types";
+import { ModelUnavailableError, type LineToShorten, type RenderFact, type RenderSpec } from "./types";
 import { capitalInJapanese } from "~/render/yen";
 import { ENGLISH_ONLY_LABEL, JAPANESE_ONLY_LABEL, hasJapaneseScript, isEnglishOnly } from "~/render/language";
 import {
@@ -30,6 +30,8 @@ import {
 } from "~/render/resume";
 import { gapLabelEn, gapLabelJa } from "~/shared/career-gap";
 import type { Block, BlockKind, RenderContent } from "~/shared/render-content";
+
+export type { LineToShorten };
 
 export const EMIT_RENDER_TOOL = {
   name: "emit_render",
@@ -326,17 +328,12 @@ export interface StoryCall {
 }
 
 /**
- * The prose parts of a story: one per employer chapter, sent that employer's
- * facts, and one for the chapters that belong to no employer (the opening, the
- * work outside employment and what comes next), sent the facts filed under
- * none. That split is the register's own rule about which facts a chapter may
- * cite, so no part is sent a fact it may not use.
- *
- * Each prose chapter's share of the story's length grows with the facts behind
- * it, which is what the register asks for in words: the longest chapter is the
- * employer with the most facts, and a thin one is short.
+ * The facts a chapter is filed under and its share of the story's length, for
+ * every prose chapter of the plan. A chapter's share grows with the facts
+ * behind it, which is what the register asks for in words: the longest chapter
+ * is the employer with the most facts, and a thin one is short.
  */
-export function storyParts(facts: readonly RenderFact[], spec: RenderSpec): StoryCall[] {
+function proseLayout(facts: readonly RenderFact[], spec: RenderSpec) {
   const prose = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).filter(
     (chapter) => !CLOSING_CHAPTERS.includes(chapter.key),
   );
@@ -347,18 +344,50 @@ export function storyParts(facts: readonly RenderFact[], spec: RenderSpec): Stor
   const most = Math.max(1, ...prose.map(count));
   const weight = (chapter: PlannedChapter) => 1 + (4 * count(chapter)) / most;
   const total = prose.reduce((sum, chapter) => sum + weight(chapter), 0);
-  const share = (chapters: PlannedChapter[]) =>
-    Math.round((STORY_CHARACTERS[spec.language] * chapters.reduce((sum, c) => sum + weight(c), 0)) / total);
-  const call = (chapters: PlannedChapter[], partFacts: RenderFact[]): StoryCall => ({
+  const call = (chapters: PlannedChapter[], partFacts: RenderFact[], written: RenderContent | null): StoryCall => ({
     facts: partFacts,
-    spec: { ...spec, part: { chapters: chapters.map((c) => c.key), characters: share(chapters), written: null } },
+    spec: {
+      ...spec,
+      part: {
+        chapters: chapters.map((c) => c.key),
+        characters: Math.round((STORY_CHARACTERS[spec.language] * chapters.reduce((sum, c) => sum + weight(c), 0)) / total),
+        written,
+      },
+    },
   });
+  return { prose, factsOf, call };
+}
 
+const citedIn = (written: RenderContent): Set<string> =>
+  new Set(written.sections.flatMap((section) => section.blocks.flatMap((block) => block.factIds)));
+
+/**
+ * The employer parts of a story: one call per employer chapter, sent that
+ * employer's facts. The register lets an employer chapter cite its own
+ * employer's facts and no others, so none is sent a fact it may not use.
+ */
+export function employerParts(facts: readonly RenderFact[], spec: RenderSpec): StoryCall[] {
+  const { prose, factsOf, call } = proseLayout(facts, spec);
+  return prose
+    .filter((chapter) => chapter.employerId !== null)
+    .map((chapter) => call([chapter], factsOf(chapter.employerId), null));
+}
+
+/**
+ * The chapters that belong to no employer (the opening, the work outside
+ * employment and what comes next), as one call written after the employer
+ * chapters: given those chapters as written, and sent the facts filed under no
+ * employer with the employer facts those chapters cite. The register keeps an
+ * unfiled fact out of an employer chapter, not an employer's fact out of
+ * these, and the opening and what comes next are about the whole record.
+ * `null` for a plan with none of them.
+ */
+export function framingCall(facts: readonly RenderFact[], spec: RenderSpec, written: RenderContent): StoryCall | null {
+  const { prose, call } = proseLayout(facts, spec);
   const framing = prose.filter((chapter) => chapter.employerId === null);
-  return [
-    ...(framing.length > 0 ? [call(framing, factsOf(null))] : []),
-    ...prose.filter((chapter) => chapter.employerId !== null).map((chapter) => call([chapter], factsOf(chapter.employerId))),
-  ];
+  if (framing.length === 0) return null;
+  const cited = citedIn(written);
+  return call(framing, facts.filter((fact) => fact.employer === undefined || cited.has(fact.id)), written);
 }
 
 /**
@@ -367,7 +396,7 @@ export function storyParts(facts: readonly RenderFact[], spec: RenderSpec): Stor
  * from a chapter, and every routing row points at one.
  */
 export function closingCall(facts: readonly RenderFact[], spec: RenderSpec, written: RenderContent): StoryCall {
-  const cited = new Set(written.sections.flatMap((section) => section.blocks.flatMap((block) => block.factIds)));
+  const cited = citedIn(written);
   return {
     facts: facts.filter((fact) => cited.has(fact.id)),
     spec: { ...spec, part: { chapters: [...CLOSING_CHAPTERS], characters: null, written } },
@@ -379,10 +408,11 @@ export function closingCall(facts: readonly RenderFact[], spec: RenderSpec, writ
  * order, for `parseGeneratedRender` to hold to the whole plan exactly as it
  * held a story written in one call.
  *
- * The prose parts run together, and the first to fail aborts the rest: a part
- * that cannot be used makes the story unusable, and the others would only be
- * billed. Each part is held to its own chapters before the tables are written
- * from it.
+ * The employer parts run together, and the first to fail aborts the rest: a
+ * part that cannot be used makes the story unusable, and the others would only
+ * be billed. Then the chapters of no employer, written around them, and last
+ * the tables, written from all of it. Each part is held to its own chapters
+ * before the next is written from it.
  */
 export async function writeStoryInParts(
   facts: readonly RenderFact[],
@@ -398,11 +428,12 @@ export async function writeStoryInParts(
       throw error;
     }
   };
-  const parts = await Promise.all(storyParts(facts, spec).map(run));
   const order = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).map((chapter) => chapter.key);
-  const prose = parts
-    .flatMap((part) => part.sections)
-    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const inPlanOrder = (sections: RenderContent["sections"]) =>
+    [...sections].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  const employerChapters = { sections: inPlanOrder((await Promise.all(employerParts(facts, spec).map(run))).flatMap((part) => part.sections)) };
+  const framing = framingCall(facts, spec, employerChapters);
+  const prose = inPlanOrder([...employerChapters.sections, ...(framing ? (await run(framing)).sections : [])]);
   const closing = await run(closingCall(facts, spec, { sections: prose }));
   return { sections: [...prose, ...closing.sections] };
 }
@@ -410,7 +441,8 @@ export async function writeStoryInParts(
 /**
  * The chapter list of one part's prompt: the whole plan, so the part knows
  * what the other calls tell, then the chapters this call writes, its share of
- * the length, and, for the closing tables, the chapters already written.
+ * the length, and, for the chapters of no employer and the closing tables,
+ * the chapters already written.
  */
 function storyPartPrompt(spec: RenderSpec, chapters: readonly PlannedChapter[]): string {
   const part = spec.part!;
@@ -422,8 +454,13 @@ function storyPartPrompt(spec: RenderSpec, chapters: readonly PlannedChapter[]):
           1,
           Math.round(part.characters / PARAGRAPH_CHARACTERS[spec.language]),
         )} paragraphs. That is this part's share of the whole story, and it replaces the whole story's length as the length to aim at.\n`;
-  const written = part.written
-    ? `\nThe chapters already written, as the reader will read them. Each paragraph ends with the ids of the facts it was written from in square brackets. The two tables are written from these chapters and from nothing else.\n${part.written.sections
+  const tables = part.chapters.some((key) => CLOSING_CHAPTERS.includes(key));
+  const written = part.written && part.written.sections.length > 0
+    ? `\n${tables ? "The chapters already written" : "The employer chapters, already written"}, as the reader will read them. Each paragraph ends with the ids of the facts it was written from in square brackets. ${
+        tables
+          ? "The two tables are written from these chapters and from nothing else."
+          : "This part's chapters are written around them, and may cite the facts they cite, which are among the facts this call is sent."
+      }\n${part.written.sections
         .map(
           (section) =>
             `\n## ${section.heading}\n${section.blocks.map((block) => `${block.text} [${block.factIds.join(", ")}]`).join("\n")}`,
@@ -477,19 +514,6 @@ export function parseGeneratedRender(input: unknown, spec: RenderSpec): RenderCo
 }
 
 /* ------------------------------------------------- over-long résumé lines */
-
-/**
- * One line the résumé's bound refused, as the rewrite is asked for it. `facts`
- * are the ones the line cites, so the rewrite is written from what the line
- * was, and can drop a fact but never add one.
- */
-export interface LineToShorten {
-  id: string;
-  kind: "bullet" | "summary";
-  text: string;
-  limit: string;
-  facts: { id: string; claim: string; restricted: boolean }[];
-}
 
 export const EMIT_SHORTENED_TOOL = {
   name: "emit_shortened",
