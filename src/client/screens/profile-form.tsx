@@ -6,7 +6,8 @@
  * is saved until the whole form is valid, and the form is here again next time.
  *
  * Calendar fields collect MONTH AND YEAR ONLY. The day is pinned to `01` and is
- * never displayed (`docs/04-database-schema.md` §0).
+ * never displayed (`docs/04-database-schema.md` §0). The date of birth is the
+ * exception: a real day, which the 履歴書 prints and computes age from.
  */
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -19,25 +20,36 @@ interface FieldSpec {
   name: string;
   label: string;
   hint?: string;
-  type?: "text" | "email" | "month" | "tel" | "url";
+  type?: "text" | "email" | "month" | "date" | "tel" | "url";
   optional?: boolean;
+  /** The on-screen keyboard a phone offers. */
+  inputMode?: "text" | "tel" | "numeric" | "email" | "url";
+  /** The browser's autofill token (WHATWG autocomplete). */
+  autoComplete?: string;
+  maxLength?: number;
+  /** Browser-side check; the server repeats it. Full-width digits pass, the server folds them. */
+  pattern?: string;
 }
 
+const NAME_MAX = 100;
+const PHONE_PATTERN = "[+＋]?[0-9０-９\\s\\-－\\(\\)（）]+";
+const POSTAL_PATTERN = "〒?\\s*[0-9０-９]{3}[\\-－]?[0-9０-９]{4}";
+
 const IDENTITY: FieldSpec[] = [
-  { name: "familyNameKanji", label: "姓 · Family name" },
-  { name: "givenNameKanji", label: "名 · Given name" },
-  { name: "familyNameKana", label: "せい · Family name (kana)", hint: "Hiragana." },
+  { name: "familyNameKanji", label: "姓 · Family name", autoComplete: "family-name", maxLength: NAME_MAX },
+  { name: "givenNameKanji", label: "名 · Given name", autoComplete: "given-name", maxLength: NAME_MAX },
+  { name: "familyNameKana", label: "せい · Family name (kana)", hint: "Hiragana.", maxLength: NAME_MAX },
   { name: "givenNameKana", label: "めい · Given name (kana)", hint: "Hiragana." },
   { name: "nameLatin", label: "Name in Latin script", hint: "As it appears on the English résumé." },
-  { name: "dateOfBirth", label: "生年月日 · Date of birth", type: "month", hint: "Month and year." },
+  { name: "dateOfBirth", label: "生年月日 · Date of birth", type: "date", autoComplete: "bday", hint: "Year, month and day." },
   { name: "gender", label: "性別 · Gender", optional: true },
 ];
 
 const CONTACT: FieldSpec[] = [
-  { name: "phone", label: "電話番号 · Phone" },
-  { name: "email", label: "メールアドレス · Email", type: "email" },
-  { name: "postalCode", label: "郵便番号 · Postal code" },
-  { name: "address", label: "住所 · Address" },
+  { name: "phone", label: "電話番号 · Phone", type: "tel", inputMode: "tel", autoComplete: "tel", maxLength: 30, pattern: PHONE_PATTERN, hint: "Digits, with optional + - ( ) and spaces, e.g. 090-1234-5678." },
+  { name: "email", label: "メールアドレス · Email", type: "email", inputMode: "email", autoComplete: "email", maxLength: 254 },
+  { name: "postalCode", label: "郵便番号 · Postal code", inputMode: "tel", autoComplete: "postal-code", maxLength: 9, pattern: POSTAL_PATTERN, hint: "Seven digits, e.g. 123-4567." },
+  { name: "address", label: "住所 · Address", autoComplete: "street-address", maxLength: 200 },
   { name: "addressKana", label: "ふりがな · Address (kana)", hint: "Hiragana." },
 ];
 
@@ -49,7 +61,7 @@ const CONTACT: FieldSpec[] = [
  */
 const RESUME: FieldSpec[] = [
   { name: "resumeHeadline", label: "Headline", hint: "Under your name, e.g. Senior Backend Engineer.", optional: true },
-  { name: "resumePhone", label: "Phone on the résumé", type: "tel", hint: "Not your 履歴書 phone. Leave it blank to keep a phone off the résumé.", optional: true },
+  { name: "resumePhone", label: "Phone on the résumé", type: "tel", inputMode: "tel", autoComplete: "tel", maxLength: 30, pattern: PHONE_PATTERN, hint: "Not your 履歴書 phone. Leave it blank to keep a phone off the résumé.", optional: true },
   { name: "resumeCity", label: "City", optional: true },
   { name: "resumeCountry", label: "Country", optional: true },
   { name: "resumeLinkedinUrl", label: "LinkedIn", type: "url", hint: "linkedin.com/in/…", optional: true },
@@ -77,6 +89,7 @@ export function ProfileForm() {
     if (values[field.name] !== undefined) return values[field.name]!;
     const stored = current?.[field.name as keyof Profile];
     if (field.type === "month") return toMonth(stored as string | undefined);
+    if (field.type === "date") return typeof stored === "string" ? stored.slice(0, 10) : "";
     return stored === null || stored === undefined ? "" : String(stored);
   };
 
@@ -180,6 +193,8 @@ export function ProfileForm() {
   );
 }
 
+const today = new Date().toISOString().slice(0, 10);
+
 function Field({
   spec,
   value,
@@ -202,7 +217,12 @@ function Field({
         // A web address is checked by the server, which also accepts one typed
         // without `https://`; the browser's own `url` check would refuse that.
         type={spec.type === "url" ? "text" : (spec.type ?? "text")}
-        inputMode={spec.type === "url" ? "url" : undefined}
+        inputMode={spec.inputMode ?? (spec.type === "url" ? "url" : undefined)}
+        autoComplete={spec.autoComplete}
+        maxLength={spec.maxLength}
+        pattern={spec.pattern}
+        title={spec.pattern ? spec.hint : undefined}
+        max={spec.type === "date" ? today : undefined}
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-invalid={invalid}

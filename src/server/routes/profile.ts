@@ -29,7 +29,67 @@ export const monthDate = z
   .string()
   .regex(MONTH_DATE_PATTERN, "Use a month, as YYYY-MM-01.");
 
-const required = (label: string) => z.string().trim().min(1, `${label} is required.`);
+/**
+ * A date of birth is a real day, not a calendar column (`rirekisho.ts`): the
+ * 履歴書 prints 年月日生 and computes age from it. `YYYY-MM-DD`, and a day that
+ * exists in that month.
+ */
+export const dateOfBirthDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date, as YYYY-MM-DD.")
+  .refine((value) => {
+    const [year, month, day] = value.split("-").map(Number) as [number, number, number];
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    return (
+      parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day
+    );
+  }, "That date does not exist.")
+  .refine((value) => value >= "1900-01-01" && value <= new Date().toISOString().slice(0, 10), {
+    message: "Date of birth is between 1900 and today.",
+  });
+
+/**
+ * A phone number as people write one: digits with optional `+`, hyphens, spaces
+ * and parentheses (090-1234-5678, +81 90 1234 5678, (03) 1234-5678). Full-width
+ * characters from a Japanese IME are folded to ASCII first, and what is stored
+ * is the folded text. Nine to fifteen digits covers a Japanese number and the
+ * E.164 ceiling.
+ */
+const PHONE_CHARACTERS = /^\+?[\d\s\-()]+$/;
+const phoneNumber = (label: string) =>
+  z
+    .string()
+    .trim()
+    .max(30, `${label} is too long.`)
+    .transform((value) => value.normalize("NFKC").replace(/[\u2010-\u2015\u2212\u30fc]/g, "-"))
+    .refine((value) => {
+      const digits = value.replace(/\D/g, "").length;
+      return PHONE_CHARACTERS.test(value) && digits >= 9 && digits <= 15;
+    }, `${label} is a phone number: digits, with optional +, hyphens, spaces and parentheses.`);
+
+/**
+ * 郵便番号: seven digits, typed `123-4567` or `1234567` (a leading 〒 and
+ * full-width digits are tolerated), and stored as `123-4567` so there is one
+ * form on file.
+ */
+const postalCodeValue = (label: string) =>
+  z
+    .string()
+    .trim()
+    .transform((value, ctx) => {
+      const folded = value.normalize("NFKC").replace(/^〒\s*/, "").replace(/[\u2010-\u2015\u2212\u30fc]/g, "-");
+      const match = /^(\d{3})-?(\d{4})$/.exec(folded);
+      if (match) return `${match[1]}-${match[2]}`;
+      ctx.addIssue({ code: "custom", message: `${label} is seven digits, as 123-4567.` });
+      return z.NEVER;
+    });
+
+const required = (label: string) =>
+  z.string().trim().min(1, `${label} is required.`).max(200, `${label} is too long.`);
+
+/** Blank is the same as absent for an optional, checked field. */
+const blankIsNull = <T extends z.ZodType>(schema: T) =>
+  z.preprocess((value) => (typeof value === "string" && value.trim() === "" ? null : value), schema.nullish().transform((value) => value ?? null));
 
 /**
  * Katakana, full-width and half-width. Not a "hiragana only" test on purpose:
@@ -93,15 +153,15 @@ export const profileBody = z.object({
   familyNameKana: kana("Family name (kana)"),
   givenNameKana: kana("Given name (kana)"),
   nameLatin: required("Name in Latin script"),
-  dateOfBirth: monthDate,
+  dateOfBirth: dateOfBirthDate,
   gender: z.string().trim().nullish(),
-  phone: required("Phone"),
-  email: z.string().trim().email("That is not an email address."),
-  postalCode: required("Postal code"),
+  phone: phoneNumber("Phone"),
+  email: z.string().trim().max(254, "That email address is too long.").email("That is not an email address."),
+  postalCode: postalCodeValue("Postal code"),
   address: required("Address"),
   addressKana: kana("Address (kana)"),
   contactSameAsAddress: z.boolean().default(true),
-  contactPostalCode: z.string().trim().nullish(),
+  contactPostalCode: blankIsNull(postalCodeValue("Contact postal code")),
   contactAddress: z.string().trim().nullish(),
   contactAddressKana: z.string().trim().nullish().refine((v) => !v || !KATAKANA.test(v), {
     message: "Address (kana) is written in hiragana, not katakana.",
@@ -112,7 +172,7 @@ export const profileBody = z.object({
   resumeHeadline: optional,
   resumeCity: optional,
   resumeCountry: optional,
-  resumePhone: optional,
+  resumePhone: blankIsNull(phoneNumber("Phone on the résumé")),
   resumeLinkedinUrl: webAddress("LinkedIn"),
   resumeGithubUrl: webAddress("GitHub"),
   resumePortfolioUrl: webAddress("Portfolio"),
