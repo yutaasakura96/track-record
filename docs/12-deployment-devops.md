@@ -402,7 +402,7 @@ is one the screens could have written, and an unknown key is refused rather than
 | `educations[]` | `institution`, `outcome` (`graduated`, `completed`, `withdrawn`, `expected`), `level` (`secondary_lower`, `secondary_upper`, `vocational`, `tertiary`, `postgraduate`) are required. `institutionJa`, `faculty`, `degree`, `fieldOfStudy`, `startedOn`, `endedOn` are optional | An outcome other than `expected` needs `endedOn`. Every row needs one of the two dates |
 | `certifications[]` | `name`, `issuingOrganization`, `kind` (`technical`, `language`, `other`) are required. `nameJa`, `issuedOn`, `expiresOn`, `credentialId`, `credentialUrl`, `technologies` are optional | `kind` decides where the English résumé puts it |
 
-Every date is a month written `YYYY-MM-01`. The photo, gap notes, skill curation, projects and
+Every date is a month written `YYYY-MM-01`, except `dateOfBirth`, a real day written `YYYY-MM-DD`. The photo, gap notes, skill curation, projects and
 applications are not in the file: the screens add them after the load. An example, all of it invented:
 
 ```json
@@ -414,7 +414,7 @@ applications are not in the file: the screens add them after the load. An exampl
     "familyNameKana": "かくう",
     "givenNameKana": "たろう",
     "nameLatin": "Taro Kakuu",
-    "dateOfBirth": "1991-04-01",
+    "dateOfBirth": "1991-04-17",
     "phone": "090-0000-0000",
     "email": "taro.kakuu@example.invalid",
     "postalCode": "100-0000",

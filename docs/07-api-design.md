@@ -122,7 +122,7 @@ rejected with `403 forbidden` — the only 403 in the API.
   "familyNameKanji": "青木", "givenNameKanji": "陽介",
   "familyNameKana": "あおき", "givenNameKana": "ようすけ",
   "nameLatin": "Yosuke Aoki",
-  "dateOfBirth": "1994-11-01",
+  "dateOfBirth": "1994-11-17",
   "gender": null,
   "phone": "080-0000-0000",
   "email": "yosuke@example.invalid",
@@ -149,6 +149,12 @@ rejected with `403 forbidden` — the only 403 in the API.
 > prints the saved link with only `http://` or `https://` removed; `www.`, casing, path and trailing
 > slash remain as entered.
 > `resumePhone` is the English résumé's own number, never copied from `phone` (`04` §3.2).
+> `dateOfBirth` is a real day, `YYYY-MM-DD`, between 1900-01-01 and today (`04` §0). `phone` and
+> `resumePhone` take digits with an optional leading `+`, hyphens, spaces and parentheses, nine to
+> fifteen digits; `postalCode` and `contactPostalCode` take seven digits, with or without the hyphen
+> and a leading 〒, and are stored `NNN-NNNN`. Full-width input is folded to ASCII before the check,
+> and the folded text is what is stored; a blank `resumePhone` or `contactPostalCode` is `null`. Anything else is
+> `422` naming the field.
 
 > **`photo` is never inlined.** The response reports `hasPhoto`; the image is fetched from
 > `GET /api/profile/photo`. Base64 in a JSON body would put the author's face in every cache and
