@@ -235,13 +235,15 @@ names stay verbatim. Fact claims remain in their recorded language. For an Engli
 industry and project-summary copies are omitted from facts' contextual JSON; the labelled employer
 and project lists still carry those fields.
 
-**A career story is written in parts** (`writeStoryInParts`, `src/model/generate.ts`; decision log,
-2026-11-04). Each employer chapter is one call, sent that employer's facts, and those calls run side
-by side. The chapters that belong to no employer are the next call, given the employer chapters as
-written and sent the facts filed under none with the employer facts those chapters cite. Each prose
-call is told its share of the register's length. The anchors and routing tables are a last call,
-given the chapters as written and the facts they cite. The parts are joined in plan order and checked against
-the whole plan, as a story written in one call was. Every other render is one call. A call that stops
+**A career story is written in parts, a round at a time** (`writeStoryRound`, `src/model/generate.ts`;
+decision log, 2026-11-04). Each `generateRender` call for a story writes the next round onto
+`spec.storySoFar` and returns the story so far. The first round is each employer chapter as one call,
+sent that employer's facts, the calls side by side. The second is the chapters that belong to no
+employer as one call, given the employer chapters as written and sent the facts filed under none with
+the employer facts those chapters cite. Each prose call is told its share of the register's length.
+The third is the anchors and routing tables, given the chapters as written and the facts they cite.
+After the last round the parts, joined in plan order, are checked against the whole plan, as a story
+written in one call was. Every other render is one call. A call that stops
 at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
 unusable shape.
 
@@ -479,12 +481,15 @@ author's real 履歴書 and 職務経歴書 during Phase 4.
 document takes 75 to 145 seconds and a request's `waitUntil` lasts 30 after the response, so
 `POST /api/renders/:ref/generate` writes the proposal and hands its id to `GenerationWorkflow`, whose
 instance ID is the proposal ID. The run reads the record itself and writes to the proposal, one
-Workflow step per model call (`GenerationStage`, `src/server/services/render.ts`): the document, an
-English résumé's over-long lines written again, and each of those once more when the language check
-fails, so each call has the whole 30-minute step timeout. A step's parameters and the state passed
-between steps hold ids and labels; what a step wrote waits on the proposal row, which reads
-`generating` until the last step lands it, and is cleared if the run fails. Each step adds its calls'
-usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
+Workflow step per round of model calls (`GenerationStage`, `src/server/services/render.ts`): the
+document, or a career story's three rounds; an English résumé's over-long lines written again; and
+each of those once more when the language check fails. A round's calls run side by side, so each step
+holds one call's worst case against the whole 30-minute step timeout, and a step that times out
+retries only its round. A step's parameters and the state passed between steps hold ids and labels;
+what a step wrote waits on the proposal row, which reads `generating` until the last step lands it,
+and is cleared if the run fails. A draft lands against the read that wrote it: each step strips only
+the fact ids it produced, against its own read, and the proposal's `usable_fact_ids` are the first
+step's. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
 stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 

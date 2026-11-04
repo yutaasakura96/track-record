@@ -8106,8 +8106,8 @@ part of this.
   call cut off at the limit arrives with whatever input had streamed, often none, and `{}` has no
   `sections`. The story written in one call also ran to about 63,000 characters against the
   register's 17,000. One run was refused for a routing row that shortened an employer's name.
-- **Decision:** a career story is written in parts (`writeStoryInParts`, `src/model/generate.ts`):
-  each employer chapter as one call, sent that employer's facts, the employer calls side by side and
+- **Decision:** a career story is written in parts, in three rounds (`writeStoryRound`,
+  `src/model/generate.ts`): each employer chapter as one call, sent that employer's facts, the employer calls side by side and
   the first to fail aborting the rest; then the chapters of no employer as one call, given the
   employer chapters as written and sent the facts filed under none with the employer facts those
   chapters cite; then the two tables, from the chapters as written and the facts they cite. The
@@ -8115,26 +8115,35 @@ part of this.
   opening or what comes next, which are about the whole record; written first and sent only the
   unfiled facts, those chapters had no evidence at all on a record that files everything. Each prose
   part is told its share of the register's length, more for an employer with more facts. The joined
-  story is held to the whole plan by the same check as before. The parts live inside `generateRender`.
+  story is held to the whole plan by the same check as before. Each `generateRender` call for a story
+  writes one round onto the story so far (`RenderSpec.storySoFar`) and returns it.
 - **Decision:** every generation call may spend 64,000 output tokens (`GENERATION_MAX_TOKENS`), and a
   call that stops at the limit is refused as having run out of room rather than read as an unusable
   shape. The cap is not lowered for a single-call document.
-- **Decision:** a generation run is one Workflow step per model call (`GenerationStage`,
-  `src/server/services/render.ts`): the document; an English résumé's over-long lines written again;
-  and, when the language check fails, each of those once more. The longest call measured, a 職務経歴書
+- **Decision:** a generation run is one Workflow step per round of model calls (`GenerationStage`,
+  `src/server/services/render.ts`): the document, or each of a story's three rounds; an English
+  résumé's over-long lines written again; and, when the language check fails, each of those once more.
+  A round's calls run side by side, so no step holds more than one call's worst case, and a step that
+  times out retries only its round rather than paying for every part again. The longest call measured, a 職務経歴書
   of 44,101 tokens at about 48 a second, is about fifteen minutes, and a call at the full 64,000 about
   22, so a document and its language retry in one step could pass the step's 30 minutes (Cloudflare's
   advised ceiling), retry, and end lost after paying for up to four calls. Each step now has the whole
   timeout. What a step wrote waits on the proposal row, still `generating` and shown nowhere, and is
-  cleared if the run fails; between steps the Workflow holds only the stage's labels. Each step adds
-  its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
-  `generateRender` so the rewrite can be a step. The deadline is past both attempts of all four
-  steps, 245 minutes.
+  cleared if the run fails; between steps the Workflow holds only the stage's labels. A draft lands
+  against the read that wrote it: each step strips only the fact ids it produced, against its own
+  read, and the proposal keeps the first step's `usable_fact_ids`, so a fact made Private while a draft
+  waits stays cited for the render-time block to find rather than being stripped from prose written
+  from it. Each step adds its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
+  `generateRender` so the rewrite can be a step. The deadline is past both attempts of all six
+  steps a run can take (a story's three rounds, and all three again), 365 minutes.
 - **Decision:** a story's table rows write an employer, school or project name in full, as the lists
   write it, because the record-name check reads a shortened one as a changed one.
 - **Measured, simulated the same way after the change:** the English story in six calls, 64,672 output
-  tokens, the largest call 15,853, about seven minutes end to end; the Japanese story 67,668, the
-  largest call 18,120, about nine minutes. Both passed the plan and language checks with no unknown fact
+  tokens, the largest call 15,853 (about five and a half minutes at 48 a second); the Japanese story
+  67,668, the largest call 18,120 (about six and a half). Those runs wrote the chapters of no employer
+  beside the employer chapters, about seven and nine minutes end to end; written after them, in a
+  round and a step of their own, a story's run is three rounds back to back, each as long as its
+  longest call. Both passed the plan and language checks with no unknown fact
   ids and no fact cited under another employer. The 職務経歴書, still one call, spent 35,886 and 44,101
   in two runs, past the old 32,000 in one of them, and passed. A story in parts costs about $2.60 at
   list price, less than the one call would have (about $3.50) had it been given room to finish.

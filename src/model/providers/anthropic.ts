@@ -35,7 +35,7 @@ import {
   parseGeneratedRender,
   readShortened,
   shortenRequest,
-  writeStoryInParts,
+  writeStoryRound,
 } from "../generate";
 import { isChapteredStory } from "~/render/chapters";
 import { GRADE_FACT_TOOL, GRADING_SYSTEM_PROMPT, readGrade } from "../grade";
@@ -195,10 +195,10 @@ export function createAnthropicSeam(config: AnthropicSeamConfig): ModelSeam {
         return block.input;
       };
       try {
-        // A career story is written in parts (`writeStoryInParts`); every
-        // other document is one call.
-        const input = isChapteredStory(spec.kind) ? await writeStoryInParts(facts, spec, emit) : await emit(facts, spec);
-        return parseGeneratedRender(input, spec);
+        // A career story is written a round of parts at a time
+        // (`writeStoryRound`); every other document is one call.
+        if (isChapteredStory(spec.kind)) return await writeStoryRound(facts, spec, emit);
+        return parseGeneratedRender(await emit(facts, spec), spec);
       } catch (err) {
         throw asModelError(err);
       }

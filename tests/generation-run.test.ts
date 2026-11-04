@@ -29,6 +29,7 @@ import { createDb } from "~/server/db/client";
 import { facts, renderProposals } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
 import { newId } from "~/server/http/ids";
+import { chaptersOf, writeStoryRound } from "~/model/generate";
 import { FIRST_STAGE, collectRenderInputs, generateIntoProposal, type GenerationStage } from "~/server/services/render";
 import type { RenderContent } from "~/shared/render-content";
 import { GenerationWorkflow as DeployedWorkflow } from "~/server/index";
@@ -187,6 +188,62 @@ describe("a generation in a Workflow", () => {
 
     const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
     expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
+  });
+
+  it("lands a résumé's draft with the citations it was written with, after a cited fact turns Private", async () => {
+    const proposalId = await generate();
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+    const next = await generateStage(deps, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    await db.update(facts).set({ disclosure: "private" }).where(eq(facts.id, factId));
+    expect(await generateStage(deps, next!)).toBeNull();
+
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.generationStatus).toBe("ready");
+    // Still cited, so the render-time block can find it; and the record as the draft's read saw it.
+    expect((row!.content as RenderContent).sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds))).toContain(factId);
+    expect(row!.usableFactIds).toContain(factId);
+  });
+
+  it("writes a career story a round per step: the employers, the chapters of no employer, the tables", async () => {
+    const response = await client.post("/api/renders/career_story_en/generate");
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    const rounds: string[][][] = [];
+    model.generateRender = async (sent, spec) => {
+      const calls: string[][] = [];
+      const content = await writeStoryRound(sent, spec, async (partFacts, partSpec) => {
+        calls.push(partSpec.part!.chapters);
+        return {
+          sections: chaptersOf(partSpec).map((chapter) => ({
+            key: chapter.key,
+            heading: partSpec.employers.find((e) => e.id === chapter.employerId)?.name ?? "Where it goes",
+            blocks: [{
+              kind: ["anchors", "routing"].includes(chapter.key) ? "row" : "paragraph",
+              text: "Ran a batch platform.",
+              factIds: partFacts.slice(0, 1).map((f) => f.id),
+            }],
+          })),
+        };
+      });
+      rounds.push(calls);
+      return content;
+    };
+
+    const steps: string[] = [];
+    let stage: GenerationStage | null = FIRST_STAGE;
+    while (stage !== null) {
+      steps.push(stepName(stage));
+      stage = await generateStage({ db, model, userId: user.id, proposalId }, stage);
+    }
+
+    expect(steps).toEqual(["generate", "generate round 2", "generate round 3"]);
+    expect(rounds.map((round) => round.map((call) => call[0]))).toEqual([[expect.stringMatching(/^employer:/)], ["opening"], ["anchors"]]);
+    expect((await proposal(proposalId)).generationStatus).toBe("ready");
   });
 
   it("keeps nothing a step wrote when the run ends without a document", async () => {

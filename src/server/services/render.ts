@@ -27,7 +27,8 @@ import {
   roles,
 } from "../db/schema";
 import type { ModelSeam, RenderFact, RenderSpec } from "~/model/types";
-import { linesToShorten, repairResumeBounds } from "~/model/generate";
+import { isStoryComplete, linesToShorten, repairResumeBounds } from "~/model/generate";
+import { citedFactIds } from "~/render/edit";
 import { ModelCreditsExhaustedError, ModelUnavailableError, type ModelUsage } from "~/model/types";
 import { logCreditsExhausted } from "./model-credits";
 import type { RenderContent, RenderKind } from "~/shared/render-content";
@@ -542,22 +543,24 @@ export interface GenerateArgs {
 }
 
 /**
- * One step of a generation run: one model call, or for a story its parts
- * (`docs/06`, 2026-11-04). A document is written, an English résumé's lines over
- * their bound are written again, and a document that fails its language check
- * is written once more, each in a step of its own, so each has the whole step
- * timeout. Labels only: a Workflow stores this between steps, and what a call
- * wrote waits on the proposal row.
+ * One step of a generation run: one round of model calls (`docs/06`,
+ * 2026-11-04). A document is written, a career story a round at a time, an
+ * English résumé's lines over their bound are written again, and a document
+ * that fails its language check is written once more, each in a step of its
+ * own, so each has the whole step timeout. Labels only: a Workflow stores this
+ * between steps, and what a step wrote waits on the proposal row.
  */
 export interface GenerationStage {
   call: "write" | "shorten";
+  /** A story's round; past the first, the write continues the draft on the row. */
+  round: number;
   /** The language check's retry is the second. */
   attempt: 1 | 2;
   /** What the first attempt failed, on the second. */
   firstDefect: EnglishDefect | JapaneseDefect | null;
 }
 
-export const FIRST_STAGE: GenerationStage = { call: "write", attempt: 1, firstDefect: null };
+export const FIRST_STAGE: GenerationStage = { call: "write", round: 1, attempt: 1, firstDefect: null };
 
 /**
  * The only way off `generating`, for all three endings. A run that lands after
@@ -604,11 +607,22 @@ export async function failProposal(db: Db, userId: string, proposalId: string, r
     .where(whileGenerating(userId, proposalId));
 }
 
-/** What one step wrote, for the next to read. The row still reads `generating`, and no screen shows it. */
-async function keepDraft(db: Db, userId: string, proposalId: string, content: RenderContent, usage: ModelUsage | null): Promise<void> {
+/**
+ * What one step wrote, for the next to read. The row still reads `generating`,
+ * and no screen shows it. The step that starts a draft records the record as it
+ * read it, which is what the document lands with.
+ */
+async function keepDraft(
+  db: Db,
+  userId: string,
+  proposalId: string,
+  content: RenderContent,
+  usage: ModelUsage | null,
+  usableFactIds: string[] | null,
+): Promise<void> {
   await db
     .update(renderProposals)
-    .set({ content, ...addedUsage(usage), updatedAt: new Date() })
+    .set({ content, ...(usableFactIds ? { usableFactIds } : {}), ...addedUsage(usage), updatedAt: new Date() })
     .where(whileGenerating(userId, proposalId));
 }
 
@@ -642,25 +656,36 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       console.warn(JSON.stringify({ event: "generation_refused_record_row", proposalId }));
       return null;
     }
-    let content: RenderContent;
-    if (stage.call === "write") {
-      content = await model.generateRender(inputs.facts, inputs.spec, { onUsage });
-      // A bullet over 240 characters, or a summary of 50 words, used to
-      // refuse the whole document. Those lines alone are written again, next.
-      if (inputs.spec.kind === "english_resume" && linesToShorten(content, inputs.facts).length > 0) {
-        await keepDraft(db, userId, proposalId, content, usage);
-        return { ...stage, call: "shorten" };
-      }
-    } else {
+    // A step that continues a draft reads it back. The draft's citations were
+    // checked against the read that wrote them, and stay: a fact made Private
+    // since is the render-time block's to find, which it can only do cited.
+    let draft: RenderContent | null = null;
+    if (stage.call === "shorten" || stage.round > 1) {
       const [row] = await db
         .select({ content: renderProposals.content })
         .from(renderProposals)
         .where(whileGenerating(userId, proposalId))
         .limit(1);
       if (!row) return null;
-      content = await repairResumeBounds(row.content as RenderContent, inputs.spec, inputs.facts, (lines) =>
-        model.shortenResumeLines(lines, { onUsage }),
-      );
+      draft = row.content as RenderContent;
+    }
+    const firstRead = draft === null ? inputs.usableFactIds : null;
+    let content =
+      stage.call === "shorten"
+        ? await repairResumeBounds(draft!, inputs.spec, inputs.facts, (lines) => model.shortenResumeLines(lines, { onUsage }))
+        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, { onUsage });
+    const allowed = new Set([...inputs.facts.map((f) => f.id), ...(draft ? citedFactIds(draft) : [])]);
+    content = stripUnknownFactIds(content, allowed);
+    const wroteChapters = content.sections.some((section) => !draft?.sections.some((done) => done.key === section.key));
+    if (isChapteredStory(inputs.spec.kind) && wroteChapters && !isStoryComplete(content, inputs.spec)) {
+      await keepDraft(db, userId, proposalId, content, usage, firstRead);
+      return { ...stage, round: stage.round + 1 };
+    }
+    // A bullet over 240 characters, or a summary of 50 words, used to refuse
+    // the whole document. Those lines alone are written again, next.
+    if (stage.call === "write" && inputs.spec.kind === "english_resume" && linesToShorten(content, inputs.facts).length > 0) {
+      await keepDraft(db, userId, proposalId, content, usage, firstRead);
+      return { ...stage, call: "shorten" };
     }
     // Issue #104. An English document that comes back in Japanese, or with a
     // checked record name changed, is retried once and then refused —
@@ -684,8 +709,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       if (stage.attempt === 1) {
         // Ids and the defect's name only.
         console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect }));
-        await keepDraft(db, userId, proposalId, { sections: [] }, usage);
-        return { call: "write", attempt: 2, firstDefect: defect };
+        await keepDraft(db, userId, proposalId, { sections: [] }, usage, null);
+        return { call: "write", round: 1, attempt: 2, firstDefect: defect };
       }
       throw new ModelUnavailableError(stage.firstDefect === defect ? DEFECT_REASON[defect] : mixedDefectReason(inputs.spec.language), defect);
     }
@@ -709,15 +734,15 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
         else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
       }
     }
-    const allowed = new Set(inputs.facts.map((f) => f.id));
     await db
       .update(renderProposals)
       .set({
         content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec),
         generationStatus: "ready",
         generationError: null,
-        // The record as this run read it, which is later than the route did.
-        usableFactIds: inputs.usableFactIds,
+        // The record as this run's first step read it, which is later than
+        // the route did. A draft carried it here.
+        ...(firstRead ? { usableFactIds: firstRead } : {}),
         // Four keys, four columns of the same name. See `ModelUsage`.
         ...addedUsage(usage),
         updatedAt: new Date(),

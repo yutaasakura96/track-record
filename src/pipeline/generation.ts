@@ -29,14 +29,16 @@ import type { ModelSeam } from "~/model/types";
 export const GENERATION_LOST = "This document could not be generated. Nothing was saved. Generate it again.";
 
 /**
- * Per step, and a step is one call (`GenerationStage`): a document, an English
- * résumé's lines written again, and each of those once more for a document
- * that fails its language check. The longest call measured on a real record, a
- * 職務経歴書, wrote 44,101 tokens, thinking included; output runs at about 48 a
- * second, so about 15 minutes, and a call at the full `GENERATION_MAX_TOKENS`
- * about 22. A story's parts run side by side and took about nine minutes
- * (`docs/06`, 2026-11-04). Thirty minutes is the longest step timeout Cloudflare
- * advises.
+ * Per step, and a step is one round of calls (`GenerationStage`): a document,
+ * a career story's employer chapters side by side, its chapters of no
+ * employer, its tables, an English résumé's lines written again, and each of
+ * those once more for a document that fails its language check. A round's calls
+ * run together, so a step lasts as long as its longest call. The longest call
+ * measured on a real record, a 職務経歴書, wrote 44,101 tokens, thinking
+ * included; output runs at about 48 a second, so about 15 minutes, and a call at
+ * the full `GENERATION_MAX_TOKENS` about 22. A story's largest part wrote 18,120,
+ * about six minutes (`docs/06`, 2026-11-04). Thirty minutes is the longest step
+ * timeout Cloudflare advises.
  *
  * One retry, not the default five. A model failure is written to the proposal
  * and does not reach here, so what retries is a lost run or a database that did
@@ -47,8 +49,8 @@ export const GENERATE_STEP = {
   timeout: "30 minutes",
 } as const;
 
-/** The most steps a run takes: write, shorten, and both again. */
-export const GENERATION_STEP_LIMIT = 4;
+/** The most steps a run takes: a story's three rounds, and all three again. */
+export const GENERATION_STEP_LIMIT = 6;
 
 /**
  * Past both attempts of every step of {@link GENERATE_STEP}, a proposal still
@@ -67,7 +69,7 @@ export interface GenerationDeps {
 
 /** The Workflow's name for a step, which is fixed for a stage. */
 export const stepName = (stage: GenerationStage): string =>
-  `${stage.call === "write" ? "generate" : "shorten"}${stage.attempt === 2 ? " again" : ""}`;
+  `${stage.call === "write" ? "generate" : "shorten"}${stage.round > 1 ? ` round ${stage.round}` : ""}${stage.attempt === 2 ? " again" : ""}`;
 
 /**
  * Reads the record as it stands and runs one stage of the proposal's

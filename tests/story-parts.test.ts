@@ -21,8 +21,8 @@ import {
   closingCall,
   employerParts,
   framingCall,
-  parseGeneratedRender,
-  writeStoryInParts,
+  isStoryComplete,
+  writeStoryRound,
 } from "~/model/generate";
 import { chapterPlan } from "~/render/chapters";
 import { createAnthropicSeam } from "~/model/providers/anthropic";
@@ -194,29 +194,34 @@ describe("a part's prompt", () => {
   });
 });
 
-describe("writing a story in parts", () => {
-  it("puts the parts back in plan order, and the result passes the whole plan's check", async () => {
-    const calls: RenderSpec[] = [];
-    const input = await writeStoryInParts(FACTS, spec(), async (partFacts, partSpec) => {
-      calls.push(partSpec);
-      return answer(partFacts, partSpec);
-    });
-    expect(calls.map((c) => c.part!.chapters)).toEqual([
-      [`employer:${EMP_A}`],
-      [`employer:${EMP_B}`],
-      ["opening", "independent", "ahead"],
-      ["anchors", "routing"],
+describe("writing a story a round at a time", () => {
+  it("writes the employers, then the chapters of no employer, then the tables, and the whole passes the plan's check", async () => {
+    const rounds: string[][][] = [];
+    let story: RenderContent = { sections: [] };
+    for (let round = 0; round < 3; round++) {
+      const calls: RenderSpec[] = [];
+      expect(isStoryComplete(story, spec())).toBe(false);
+      story = await writeStoryRound(FACTS, { ...spec(), storySoFar: story }, async (partFacts, partSpec) => {
+        calls.push(partSpec);
+        return answer(partFacts, partSpec);
+      });
+      rounds.push(calls.map((c) => c.part!.chapters));
+      // The chapters of no employer are written from the employer chapters.
+      if (round === 1) expect(calls[0]!.part!.written!.sections.map((s) => s.key)).toEqual([`employer:${EMP_A}`, `employer:${EMP_B}`]);
+    }
+    expect(rounds).toEqual([
+      [[`employer:${EMP_A}`], [`employer:${EMP_B}`]],
+      [["opening", "independent", "ahead"]],
+      [["anchors", "routing"]],
     ]);
-    // The chapters of no employer are written after the employer chapters, from them.
-    expect(calls[2]!.part!.written!.sections.map((s) => s.key)).toEqual([`employer:${EMP_A}`, `employer:${EMP_B}`]);
-    const content = parseGeneratedRender(input, spec());
-    expect(content.sections.map((s) => s.key)).toEqual(chapterPlan("career_story_en", spec().employers, true).map((c) => c.key));
-    expect(new Set(content.sections.flatMap((s) => s.blocks.map((b) => b.id))).size).toBe(content.sections.length);
+    expect(isStoryComplete(story, spec())).toBe(true);
+    expect(story.sections.map((s) => s.key)).toEqual(chapterPlan("career_story_en", spec().employers, true).map((c) => c.key));
+    expect(new Set(story.sections.flatMap((s) => s.blocks.map((b) => b.id))).size).toBe(story.sections.length);
   });
 
   it("refuses a part that returns chapters it was not asked for, and aborts the parts still running", async () => {
     const signals: AbortSignal[] = [];
-    const attempt = writeStoryInParts(FACTS, spec(), async (_facts, partSpec, signal) => {
+    const attempt = writeStoryRound(FACTS, spec(), async (_facts, partSpec, signal) => {
       signals.push(signal);
       if (partSpec.part!.chapters[0] === `employer:${EMP_B}`) return { sections: [] };
       return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
@@ -265,14 +270,19 @@ describe("the provider", () => {
     return { seam: createAnthropicSeam({ apiKey: "test-key-not-real", model: "stub-model" }), requests };
   }
 
-  it("writes a story as one call per part and returns it whole", async () => {
+  it("writes a story one round of calls per generateRender, and returns it whole after the last", async () => {
     const { seam, requests } = answering((body) => {
       const keys = askedKeys(body.system[0]!.text);
       const facts = (JSON.parse(body.messages[0]!.content) as { facts: RenderFact[] }).facts;
       return streamed(answer(facts, { ...spec(), part: { chapters: keys, characters: null, written: null } }), "tool_use");
     });
-    const content = await seam.generateRender(FACTS, spec());
-    expect(requests).toHaveLength(4);
+    const sent: number[] = [];
+    let content: RenderContent = { sections: [] };
+    while (!isStoryComplete(content, spec())) {
+      content = await seam.generateRender(FACTS, { ...spec(), storySoFar: content });
+      sent.push(requests.length);
+    }
+    expect(sent).toEqual([2, 3, 4]);
     expect(requests.every((r) => r.max_tokens === GENERATION_MAX_TOKENS)).toBe(true);
     expect(content.sections.map((s) => s.key)).toEqual(chapterPlan("career_story_en", spec().employers, true).map((c) => c.key));
   });

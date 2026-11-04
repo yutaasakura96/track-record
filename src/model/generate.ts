@@ -404,21 +404,40 @@ export function closingCall(facts: readonly RenderFact[], spec: RenderSpec, writ
 }
 
 /**
- * A career story, written in parts and returned as one tool input in plan
- * order, for `parseGeneratedRender` to hold to the whole plan exactly as it
- * held a story written in one call.
- *
- * The employer parts run together, and the first to fail aborts the rest: a
- * part that cannot be used makes the story unusable, and the others would only
- * be billed. Then the chapters of no employer, written around them, and last
- * the tables, written from all of it. Each part is held to its own chapters
- * before the next is written from it.
+ * Whether every chapter of a story's plan has been written.
  */
-export async function writeStoryInParts(
+export function isStoryComplete(content: RenderContent, spec: RenderSpec): boolean {
+  const written = new Set(content.sections.map((section) => section.key));
+  return chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).every((chapter) => written.has(chapter.key));
+}
+
+/**
+ * The next round of a career story, written onto `spec.storySoFar` and
+ * returned with it in plan order. A story is three rounds, each a step of a
+ * generation run of its own (`docs/06`, 2026-11-04): the employer chapters,
+ * side by side; then the chapters of no employer, written around them; then
+ * the tables, written from all of it. A round with no chapters to write is
+ * passed over. Once the last round is written the story is held to the whole
+ * plan by `parseGeneratedRender`, exactly as a story written in one call was.
+ *
+ * The calls of a round run together, and the first to fail aborts the rest: a
+ * part that cannot be used makes the story unusable, and the others would only
+ * be billed. Each part is held to its own chapters before the next round is
+ * written from it.
+ */
+export async function writeStoryRound(
   facts: readonly RenderFact[],
   spec: RenderSpec,
   write: (facts: RenderFact[], spec: RenderSpec, signal: AbortSignal) => Promise<unknown>,
-): Promise<{ sections: RenderContent["sections"] }> {
+): Promise<RenderContent> {
+  const written: RenderContent = spec.storySoFar ?? { sections: [] };
+  const done = new Set(written.sections.map((section) => section.key));
+  const story = { ...spec, storySoFar: undefined };
+  const framing = framingCall(facts, story, written);
+  const round =
+    [employerParts(facts, story), framing ? [framing] : [], [closingCall(facts, story, written)]]
+      .map((calls) => calls.filter((call) => call.spec.part!.chapters.some((key) => !done.has(key))))
+      .find((calls) => calls.length > 0) ?? [];
   const controller = new AbortController();
   const run = async ({ facts: partFacts, spec: partSpec }: StoryCall): Promise<RenderContent> => {
     try {
@@ -429,13 +448,9 @@ export async function writeStoryInParts(
     }
   };
   const order = chapterPlan(spec.kind, spec.employers, spec.workOutsideEmployment).map((chapter) => chapter.key);
-  const inPlanOrder = (sections: RenderContent["sections"]) =>
-    [...sections].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
-  const employerChapters = { sections: inPlanOrder((await Promise.all(employerParts(facts, spec).map(run))).flatMap((part) => part.sections)) };
-  const framing = framingCall(facts, spec, employerChapters);
-  const prose = inPlanOrder([...employerChapters.sections, ...(framing ? (await run(framing)).sections : [])]);
-  const closing = await run(closingCall(facts, spec, { sections: prose }));
-  return { sections: [...prose, ...closing.sections] };
+  const sections = [...written.sections, ...(await Promise.all(round.map(run))).flatMap((part) => part.sections)]
+    .sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
+  return isStoryComplete({ sections }, story) ? parseGeneratedRender({ sections }, story) : { sections };
 }
 
 /**

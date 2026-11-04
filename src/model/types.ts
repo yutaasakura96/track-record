@@ -304,7 +304,7 @@ export interface RenderSpec {
   } | null;
   /**
    * Set only on one call of a career story written in parts
-   * (`writeStoryInParts`, `src/model/generate.ts`). `chapters` are the keys
+   * (`writeStoryRound`, `src/model/generate.ts`). `chapters` are the keys
    * this call writes, in plan order; `characters` is about how long its prose
    * chapters run together; `written` is the story so far, given to the call
    * that writes the chapters of no employer and to the one that writes the two
@@ -312,6 +312,12 @@ export interface RenderSpec {
    * output limit on a real record (`docs/06`, 2026-11-04).
    */
   part?: StoryPart;
+  /**
+   * A career story's chapters written by the steps of this run before this
+   * one, read back off the proposal row. `generateRender` writes the next
+   * round onto them (`writeStoryRound`, `src/model/generate.ts`).
+   */
+  storySoFar?: RenderContent;
 }
 
 /** One call's share of a career story. See `RenderSpec.part`. */
@@ -385,6 +391,10 @@ export interface GenerationContext {
 
 export interface ModelSeam {
   extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>;
+  /**
+   * A document, or for a career story the next round of it: what comes back
+   * is the story so far until every chapter of its plan is written.
+   */
   generateRender(
     facts: RenderFact[],
     spec: RenderSpec,
