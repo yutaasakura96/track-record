@@ -243,8 +243,9 @@ employer as one call, given the employer chapters as written and sent the facts 
 the employer facts those chapters cite. Each prose call is told its share of the register's length.
 The third is the anchors and routing tables, given the chapters as written and the facts they cite.
 Each part of a Japanese story is held to the Japanese check as it arrives, and a part with a line in
-English is written again, once, by itself; a second slip in that part refuses the story. After the last round the parts, joined in plan order, are checked against the whole plan, as a story
-written in one call was. Every other render is one call. A call that stops
+English is written again, once, by itself; a second slip in that part refuses the story. After the
+last round the parts, joined in plan order, are checked against the whole plan, as a story written in
+one call was. Every other render is one call. A call that stops
 at its output limit (`GENERATION_MAX_TOKENS`) is refused as having run out of room, not as an
 unusable shape.
 
@@ -523,11 +524,14 @@ or a heading or block in English, is a defect: generated once more, then refused
 reason. Each physical line of a heading or block is checked separately. A line is English when it
 has no kana or kanji and something Latin is left once the record's own Latin terms are taken out
 (names, titles held, qualifications, technologies and curated skills, but not a skill group's name;
-terms joined only by and, or, &, /, a comma, ・ or 、 go out together with what joins them),
-or when one statement inside it is an English sentence: three or more Latin words carrying an
-English function word when the statement has no kana or kanji, or, beside kana or kanji, a run
-between them and brackets (full-width or half-width) of at least five Latin words carrying at least
-two function words. Thus 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a
+a term goes out only where it stands as a word, and terms joined only by and, or, &, /, a comma, ・
+or 、 go out together with what joins them), along with names from code joined by 「_」 or 「.」
+(`TO_DATE`, `report.json`) and, on a line carrying a digit, a number's unit and a capital
+abbreviation of up to five letters (「120ms → 40ms」 passes, 「ABOUT ME」 does not), or when one
+statement inside it is an English sentence: three or more Latin words carrying an English function
+word when the statement has no kana or kanji, or, beside kana or kanji, a run between them and
+brackets (full-width or half-width) of at least five Latin words carrying at least two function
+words, a name from code counting as one word and never a function word. Thus 「SaaS（Software as a Service）の導入支援」 passes and E2's summary after a
 Japanese project name does not. A 職務経歴書 is checked as assembled, with the record's own 保有資格
 and 学歴 rows in place of the model's. Those rows are checked once before any model call, since no
 attempt can change them: one that fails refuses the proposal with a reason naming its section and
