@@ -46,7 +46,8 @@ import {
   recordRowDefectReason,
   type JapaneseDefect,
 } from "~/render/japanese";
-import { bulletBudget } from "~/render/resume";
+import { bulletBudget, rankedSkills } from "~/render/resume";
+import { boundShokumuLists } from "~/render/skill-lists";
 import { PROSE_SECTION_KEYS, careerGaps, explainedGaps, tokyoToday } from "~/render/rirekisho";
 import { isChapteredStory } from "~/render/chapters";
 import { collectRirekishoRecord } from "./rirekisho";
@@ -56,7 +57,7 @@ import { excludesProject, exclusionsFor } from "./inclusion";
 import { effectiveEmployerId } from "./employer";
 import { factsWithinBudget } from "./fact-budget";
 import { curatedGroups } from "./skills";
-import { curationForRender } from "~/shared/skills";
+import { autoCuratedSkills, curationForRender } from "~/shared/skills";
 
 export interface RenderInputs {
   facts: RenderFact[];
@@ -463,6 +464,14 @@ export async function collectRenderInputs(
       // facts as it did before S9. Rows that leave this render nothing is a
       // curation all the same, and becomes an empty list, never `null`.
       curatedSkills: curation.length > 0 ? curationForRender(curation, renderable) : null,
+      // With nothing curated, the section is still bounded: the first real
+      // record named about 800 technologies, and a section written "from the
+      // facts" had nothing to stop it listing all of them. Ranked over every
+      // usable fact, not the budget's, as the curation is narrowed.
+      skillShortlist:
+        definition.skillsSection && curation.length === 0
+          ? autoCuratedSkills(rankedSkills([...usable, ...certificationRows]))
+          : null,
       jobDescription: tailoring?.jobDescription ?? null,
       application: tailoring?.application ?? null,
     },
@@ -593,8 +602,12 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<void> {
     // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
     // author is shown, so the check reads the content as assembled: a row the
     // model wrote that is discarded is not held to it.
+    // The 職務経歴書's two technology lists are bounded before anything reads
+    // them (`src/render/skill-lists.ts`).
     const assemble = (c: RenderContent) =>
-      inputs.spec.kind === "shokumu_keirekisho" ? withRecordSections(c, inputs.spec, today) : c;
+      inputs.spec.kind === "shokumu_keirekisho"
+        ? withRecordSections(boundShokumuLists(c, inputs.spec, inputs.facts), inputs.spec, today)
+        : c;
     const defectOf = (c: RenderContent) =>
       inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
     content = assemble(content);

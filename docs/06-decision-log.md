@@ -8043,3 +8043,40 @@ part of this.
   app chrome around it follows the theme.
 - **Decision:** Home's Next step names an application that has gone quiet and suggests a follow-up,
   linking to it. It sits after every existing step and before `You are up to date`.
+
+---
+
+### [2026-11-04] A skills list is chosen and bounded, and one long bullet does not cost the document
+
+- **Context:** the first English résumé generated from the real record (14 documents, about 9,300
+  facts) was not accepted. With nothing curated, its Skills line printed every technology any fact
+  named, about 800 of them, with case and alias duplicates. One generation failed outright because a
+  single bullet ran past 240 characters, which refused the whole document before the defect retry
+  could see it. The education line printed the field a second time when the degree already named it.
+- **Decision:** with nothing curated, a document lists the twenty best-evidenced skills
+  (`AUTO_SKILL_CAP`, `src/shared/skills.ts`). Spellings fold to one skill by case, width and
+  punctuation, plus a short alias table (`S3` and `AWS S3` are `Amazon S3`). The line is the same
+  for every version of the English résumé and is the line the Skills screen previews; it is not
+  re-ranked by the facts a version cites. An author's curation is deduplicated the same way and never
+  cut.
+- **Decision:** the 職務経歴書 is handed that list as a `skillShortlist` when nothing is curated, and its
+  register groups only what is on it. Whatever comes back, `src/render/skill-lists.ts` names each
+  technology once in the skills section (at most twenty, and nothing off the list) and once in each
+  `技術スタック` row (at most twelve). It removes only an item that is itself a technology the record
+  names. Prose, and a phrase that merely contains a technology, stay as written. The 履歴書 has no
+  skills section.
+- **Decision:** a résumé bullet over 240 characters, or a summary of 50 words or more, is rewritten
+  alone, from the facts it cites, in one further call inside `generateRender` (the seam keeps its six
+  functions). The document is refused only if a line is still over afterwards. A generated employer
+  section over its bullet budget keeps its first `max` bullets, the ones the register asks it to lead
+  with, instead of being refused; this supersedes any earlier entry that refuses a generation for
+  exceeding the budget. The bounds and the 240-character limit are unchanged, and so is their check on
+  an author's edit.
+- **Decision:** the degree and field print once when the degree names the field
+  (`Bachelor of Science in Computer Science`), in the English résumé and in the career record
+  (`studiedText`, `src/shared/education.ts`). The 職務経歴書's 学歴 rows print 学部・学科 and never
+  the degree, so nothing there repeats.
+- **Not done here:** an education fact the model wrote as a Projects bullet (a bootcamp, filed under no
+  employer) was set aside in the record, not routed in code.
+- **Revisit if:** twenty proves the wrong length for a real résumé, the alias table needs a name it
+  lacks, or the rewrite call starts failing often enough to show in proposal errors.

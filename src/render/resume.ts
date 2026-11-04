@@ -26,8 +26,8 @@
  *     so the three cannot disagree.
  */
 import type { RenderSpec } from "~/model/types";
-import { leavesOutEducation } from "~/shared/education";
-import { curationForRender, type CuratedGroup } from "~/shared/skills";
+import { leavesOutEducation, studiedText } from "~/shared/education";
+import { autoCuratedSkills, curationForRender, skillKey, type CuratedGroup } from "~/shared/skills";
 import { type Block, type RenderContent, type RenderSection } from "~/shared/render-content";
 import { experienceGroups } from "./attribution";
 import { employerChapterKey, employerIdOfChapter } from "./chapters";
@@ -187,15 +187,49 @@ export function shapeResumeContent(content: RenderContent, spec: RenderSpec): Re
   validateResumeSectionShape(content, planned);
   const blocksByKey = new Map(content.sections.map((section) => [section.key, section.blocks]));
 
+  // An employer over its budget keeps the bullets the model put first, which
+  // the register asks it to lead with. Over-long lines are not cut here: a
+  // bullet shortened by truncation loses its outcome, so they are rewritten
+  // (`resumeOverLimit`, `src/model/generate.ts`) and only then held to the bound.
+  const budgetOf = new Map(spec.employers.map((e) => [employerChapterKey(e.id), e.bullets?.max]));
   const sections: RenderSection[] = planned.flatMap(({ key, heading }) => {
-    const blocks = blocksByKey.get(key) ?? [];
+    const max = budgetOf.get(key);
+    const blocks = (blocksByKey.get(key) ?? []).slice(0, max ?? Infinity);
     return blocks.length === 0 ? [] : [{ key, heading, blocks }];
   });
-  validateResumeBounds({ sections }, spec.employers);
   for (const project of spec.projects.filter((p) => p.employerId === null)) {
     if (!blocksByKey.get(projectKey(project.id))?.length) throw new Error(`Project ${project.id} needs bullets.`);
   }
   return { sections };
+}
+
+/** The summary's bound, in words, and every other line's, in characters. */
+export const SUMMARY_WORD_LIMIT = 50;
+export const BULLET_CHARACTER_LIMIT = 240;
+
+const wordsOf = (blocks: readonly Block[]) => blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length;
+
+/** A line the bound refuses: one bullet, or the whole summary, which the bound counts as one. */
+export type OverLimit =
+  | { kind: "bullet"; sectionKey: string; block: Block }
+  | { kind: "summary"; blocks: Block[] };
+
+/** Every line of `content` over its bound, in document order. */
+export function resumeOverLimit(content: RenderContent): OverLimit[] {
+  return content.sections.flatMap((section): OverLimit[] => {
+    if (section.key === SUMMARY_KEY) {
+      const over: OverLimit[] = wordsOf(section.blocks) >= SUMMARY_WORD_LIMIT ? [{ kind: "summary", blocks: section.blocks }] : [];
+      return [
+        ...over,
+        ...section.blocks
+          .filter((block) => block.kind === "bullet" && [...block.text].length > BULLET_CHARACTER_LIMIT)
+          .map((block) => ({ kind: "bullet" as const, sectionKey: section.key, block })),
+      ];
+    }
+    return section.blocks
+      .filter((block) => [...block.text].length > BULLET_CHARACTER_LIMIT)
+      .map((block) => ({ kind: "bullet" as const, sectionKey: section.key, block }));
+  });
 }
 
 /**
@@ -209,11 +243,11 @@ export function validateResumeBounds(
 ): void {
   for (const section of content.sections) {
     const before = previous?.sections.find((row) => row.key === section.key)?.blocks.length;
-    if (section.key === SUMMARY_KEY && section.blocks.flatMap((block) => block.text.trim().split(/\s+/u)).length >= 50) {
-      throw new Error("The résumé summary must be under 50 words.");
+    if (section.key === SUMMARY_KEY && wordsOf(section.blocks) >= SUMMARY_WORD_LIMIT) {
+      throw new Error(`The résumé summary must be under ${SUMMARY_WORD_LIMIT} words.`);
     }
-    if (section.blocks.some((block) => [...block.text].length > 240 && (block.kind === "bullet" || section.key !== SUMMARY_KEY))) {
-      throw new Error(`Résumé section ${section.key} has a bullet over 240 characters.`);
+    if (section.blocks.some((block) => [...block.text].length > BULLET_CHARACTER_LIMIT && (block.kind === "bullet" || section.key !== SUMMARY_KEY))) {
+      throw new Error(`Résumé section ${section.key} has a bullet over ${BULLET_CHARACTER_LIMIT} characters.`);
     }
     const employer = employers.find((row) => employerChapterKey(row.id) === section.key);
     if (employer?.bullets && section.blocks.length > employer.bullets.max && (before === undefined || section.blocks.length > before)) {
@@ -427,29 +461,41 @@ function summaryBlocks(content: RenderContent): ResumeBlock[] {
   return writtenOf(content, SUMMARY_KEY).map((b) => ({ kind: "paragraph", ...b }));
 }
 
+const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
 /**
- * Every technology the résumé's facts and certifications name, the
- * best-evidenced first, then by name: the line printed when nothing is curated.
+ * Every technology the résumé's facts and certifications name, exactly as
+ * they spell it, the best-evidenced skill first. A skill is all its spellings
+ * (`skillKey`), so `zod` and `Zod` count together and sit together, the
+ * commoner spelling first.
  */
 export function rankedSkills(rows: { technologies: string[] }[]): string[] {
-  const tally = new Map<string, number>();
+  const spellings = new Map<string, number>();
+  const backing = new Map<string, number>();
   for (const row of rows) {
-    for (const name of new Set(row.technologies)) tally.set(name, (tally.get(name) ?? 0) + 1);
+    // Exactly as spelled: a curation is narrowed by these names.
+    const names = new Set(row.technologies.filter((name) => name.trim() !== ""));
+    for (const name of names) spellings.set(name, (spellings.get(name) ?? 0) + 1);
+    for (const key of new Set([...names].map(skillKey))) backing.set(key, (backing.get(key) ?? 0) + 1);
   }
-  return [...tally.entries()]
-    .sort(([a, x], [b, y]) => y - x || (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name]) => name);
+  return [...spellings.keys()].sort((a, b) => {
+    const [ka, kb] = [skillKey(a), skillKey(b)];
+    const [x, y] = [backing.get(ka)!, backing.get(kb)!];
+    return y - x || byName(ka, kb) || spellings.get(b)! - spellings.get(a)! || byName(a, b);
+  });
 }
 
 /**
  * The résumé's skills: the author's curation, narrowed to what this résumé may
- * name (`ranked`, from `rankedSkills`). A curation that leaves nothing is no
+ * name (`ranked`, from `rankedSkills`) and each skill listed once, but never
+ * cut — the author chose its length. A curation that leaves nothing is no
  * skills section, never a fallback. With nothing curated, one ungrouped line of
- * `ranked` — the list the Skills screen offers to curate from, in its order.
+ * the best-evidenced skills, each once and no more than `AUTO_SKILL_CAP`.
  */
 export function resumeSkills(curation: CuratedGroup[], ranked: string[]): ResumeRecord["skills"] {
   if (curation.length > 0) return curationForRender(curation, new Set(ranked));
-  return ranked.length > 0 ? [{ name: "", skills: ranked }] : [];
+  const chosen = autoCuratedSkills(ranked);
+  return chosen.length > 0 ? [{ name: "", skills: chosen }] : [];
 }
 
 /**
@@ -560,7 +606,7 @@ function educationBlocks(record: ResumeRecord): ResumeBlock[] {
   return record.educations
     .filter((e) => !leavesOutEducation("english_resume", e.level))
     .map((e): ResumeBlock => {
-      const studied = [e.degree, e.fieldOfStudy].filter((v): v is string => Boolean(v)).join(", ");
+      const studied = studiedText(e.degree, e.fieldOfStudy);
       const detail = e.outcome === "withdrawn" ? [studied, "not completed"].filter(Boolean).join(", ") : studied;
       return { kind: "entry", lead: e.institution, detail: detail || null, dates: educationDates(e) };
     });

@@ -39,8 +39,9 @@ export async function collectResumeRecord(db: Db, userId: string): Promise<Resum
 }
 
 /**
- * The résumé's skills (S9): the curation, or with nothing curated every
- * technology the résumé's facts and certifications name (`resumeSkills`).
+ * The résumé's skills (S9): the curation, or with nothing curated the
+ * best-evidenced of what the résumé's facts and certifications name
+ * (`resumeSkills`) — the same line the Skills screen previews.
  */
 async function skillsFor(
   db: Db,

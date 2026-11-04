@@ -185,6 +185,21 @@ describe("the master document", () => {
     expect(doc.certifications).toMatchObject([{ name: CERTIFICATION_FIXTURE.name }]);
   });
 
+  it("prints a field the degree already names once", async () => {
+    await created("/api/educations", {
+      ...EDUCATION_FIXTURE,
+      faculty: "Faculty of Science",
+      degree: "Bachelor of Science in Computer Science",
+      fieldOfStudy: "Computer Science",
+    });
+    expect((await master()).educations).toMatchObject([
+      { detail: "Faculty of Science, Bachelor of Science in Computer Science" },
+    ]);
+    expect((await masterJa()).educations).toMatchObject([
+      { detail: "Faculty of Science、Bachelor of Science in Computer Science" },
+    ]);
+  });
+
   it("lists a project with no facts rather than hiding it", async () => {
     const employerId = await created("/api/employers", EMPLOYER_FIXTURE);
     await created("/api/projects", { name: "Harbour lantern", employerId });

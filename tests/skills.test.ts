@@ -386,9 +386,19 @@ describe("a curated skill the record stops naming", () => {
 });
 
 describe("a render with a skills section", () => {
-  it("is given no list while nothing is curated", async () => {
+  it("is given no curation while nothing is curated, but a shortlist of what may be named", async () => {
     await seedRecord();
-    expect((await generated("shokumu_keirekisho")).curatedSkills).toBeNull();
+    const spec = await generated("shokumu_keirekisho");
+    expect(spec.curatedSkills).toBeNull();
+    // Private and Generated facts name nothing a document may list.
+    expect(spec.skillShortlist).toEqual(["CockroachDB", "Airflow", "SQL"]);
+    expect((await generated("career_story_en")).skillShortlist).toBeNull();
+  });
+
+  it("is given no shortlist once something is curated", async () => {
+    await seedRecord();
+    await curate([{ name: "Data platforms", skills: ["CockroachDB"] }]);
+    expect((await generated("shokumu_keirekisho")).skillShortlist).toBeNull();
   });
 
   it("is given the curated groups, and a render without the section is not", async () => {

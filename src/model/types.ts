@@ -268,6 +268,14 @@ export interface RenderSpec {
    */
   curatedSkills: { name: string; nameJa: string | null; skills: string[] }[] | null;
   /**
+   * With nothing curated, the skills a render with a skills section may name:
+   * the best-evidenced of what its facts and certifications name, each once
+   * and no more than `AUTO_SKILL_CAP` (`~/shared/skills`). The register groups
+   * them; it names nothing else. Absent or null on a curated render and on one
+   * with no skills section.
+   */
+  skillShortlist?: string[] | null;
+  /**
    * The job a tailored résumé is written toward (issue #57), as the author
    * pasted it. `null` for a main document, which is tailored to nothing.
    *

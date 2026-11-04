@@ -31,3 +31,16 @@ export const leavesOutEducation = (kind: RenderKind, level: EducationLevel | nul
 /** The documents that leave out an education at `level`, in document order. */
 export const educationLeftOutOf = (level: EducationLevel | null): RenderKind[] =>
   RENDER_KINDS.filter((kind) => leavesOutEducation(kind, level));
+
+/**
+ * `Bachelor of Science in Computer Science`, not `…, Computer Science`: a field
+ * the degree's name already states is not printed a second time.
+ */
+export function studiedText(degree: string | null, field: string | null, separator = ", "): string {
+  const d = degree?.trim() ?? "";
+  const f = field?.trim() ?? "";
+  if (!d || !f) return d || f;
+  return ` ${wordsOf(d)} `.includes(` ${wordsOf(f)} `) ? d : `${d}${separator}${f}`;
+}
+
+const wordsOf = (text: string): string => (text.toLocaleLowerCase("en").match(/[\p{L}\p{N}]+/gu) ?? []).join(" ");
