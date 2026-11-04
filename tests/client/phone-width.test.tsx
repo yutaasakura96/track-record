@@ -37,6 +37,7 @@ const TAILORED: ApplicationDocument = {
   newFactsSince: 0,
   withdrawnFactsSince: 0,
   pendingProposalId: null,
+  progressAt: null,
 };
 
 const application = (over: Partial<Application> = {}): Application => ({

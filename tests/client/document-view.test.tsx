@@ -33,6 +33,7 @@ const DOCUMENT: RenderRow = {
   newFactsSince: 0,
   withdrawnFactsSince: 0,
   pendingProposalId: null,
+  progressAt: null,
 };
 
 const view = (over: Partial<RenderPage> = {}): RenderPage => ({

@@ -385,6 +385,8 @@ export interface RenderRow {
   /** Facts the current version was generated from that a document may no longer use. */
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 export interface Overview {
@@ -437,6 +439,8 @@ export interface Proposal {
   applicationId: string | null;
   status: "generating" | "failed" | "pending" | "accepted" | "dismissed";
   generationStatus: "generating" | "ready" | "failed";
+  /** When the run last finished a step, while it is generating; `null` after. */
+  progressAt: string | null;
   error: { code: string; message: string } | null;
   basedOnVersionNo: number | null;
   proposedVersionNo: number;
@@ -1095,6 +1099,8 @@ export interface ApplicationDocument {
   newFactsSince: number | null;
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 /** A document that could be ticked: the three, and this application's tailored documents. */

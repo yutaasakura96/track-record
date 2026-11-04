@@ -38,6 +38,7 @@ const document = (over: Partial<ApplicationDocument> = {}): ApplicationDocument 
   newFactsSince: 0,
   withdrawnFactsSince: 0,
   pendingProposalId: null,
+  progressAt: null,
   ...over,
 });
 const MAIN = document();
@@ -712,6 +713,7 @@ describe("the review of a tailored résumé", () => {
     applicationId: ID,
     status: "pending",
     generationStatus: "ready",
+    progressAt: null,
     error: null,
     basedOnVersionNo: null,
     proposedVersionNo: 1,

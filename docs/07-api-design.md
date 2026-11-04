@@ -37,6 +37,9 @@ The client polls the resource every **1.5 s** while its status is non-terminal a
 changing. While the answer stays the same it backs off: every 5 s after a minute, 15 s after five,
 60 s after fifteen, and not at all after 75 minutes, past the longest a step of either Workflow can
 run, by when the server has failed a run that went silent (`pollInterval`, decision log 2026-11-04).
+A generation's answer changes at every step even when nothing visible does: the proposal and every
+document row reporting it carry `progressAt`, the proposal's `updated_at` while it is generating and
+`null` otherwise, so the 75 minutes run from the last step and not from the first.
 Server-Sent Events were considered and rejected for v1: polling a single-user app costs nothing and
 has no reconnection semantics to get wrong.
 
@@ -749,11 +752,11 @@ filename described below.
     { "kind": "english_resume", "language": "en", "currentVersionNo": 4,
       "generatedAt": "2026-08-09T02:11:00Z", "status": "stale", "newFactsSince": 3,
       "withdrawnFactsSince": 1,
-      "pendingProposalId": null },
+      "pendingProposalId": null, "progressAt": null },
     { "kind": "rirekisho", "language": "ja", "currentVersionNo": null,
       "generatedAt": null, "status": "never_generated", "newFactsSince": null,
       "withdrawnFactsSince": null,
-      "pendingProposalId": null }
+      "pendingProposalId": null, "progressAt": null }
   ]
 }
 ```
@@ -771,7 +774,8 @@ edit or restore carrying its content, `newFactsSince` keeps the usable-count fal
 `proposal_pending` wins over every other status, including a render with no accepted version yet —
 a first generation awaiting review is not `never_generated`. While that proposal is still being
 written the status is `proposal_generating` instead, with `pendingProposalId` set all the same: the
-diff answers `conflict` until it lands. A proposal whose generation `failed`
+diff answers `conflict` until it lands, and `progressAt` is when its run last finished a step
+(§1); it is `null` in every other status. A proposal whose generation `failed`
 is not one: it is still `pending`, but there is no diff to review, so the render reports the status
 it would have without it and `pendingProposalId` is `null`.
 
@@ -832,6 +836,7 @@ Other model failures use `generation_failed`.
   "id": "prp_2Wq5",
   "renderKind": "english_resume",
   "status": "pending",
+  "progressAt": null,
   "basedOnVersionNo": 4,
   "proposedVersionNo": 5,
   "generatedAt": "2026-08-12T09:40:00Z",
@@ -1319,7 +1324,7 @@ off first.
 
 - **`documents`** are the ones on the application, the tailored ones first (résumé, then 履歴書) and
   then the three in their fixed order. Each is `{ ref, kind, tailored, title, language, currentVersionId,
-  currentVersionNo, status, newFactsSince, withdrawnFactsSince, pendingProposalId }`: the fields of
+  currentVersionNo, status, newFactsSince, withdrawnFactsSince, pendingProposalId, progressAt }`: the fields of
   a `GET /api/renders` item (§7), with the title an application uses (`Main résumé`, `履歴書`,
   `職務経歴書`, `Tailored résumé for <company>`, `Tailored 履歴書 for <company>`).
 - **`choices`** are every document that could be ticked, the same shape with `onApplication` and

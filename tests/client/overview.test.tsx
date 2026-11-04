@@ -40,6 +40,7 @@ const row = (over: Partial<RenderRow> = {}): RenderRow => ({
   newFactsSince: null,
   withdrawnFactsSince: null,
   pendingProposalId: null,
+  progressAt: null,
   ...over,
 });
 

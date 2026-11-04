@@ -218,6 +218,41 @@ describe("a generation in a Workflow", () => {
     expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
   });
 
+  it("changes what every polling screen reads at each step, and only there", async () => {
+    const proposalId = await generate();
+    const before = new Date(Date.now() - 20 * 60_000);
+    await db.update(renderProposals).set({ updatedAt: before })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    const polled = async () => ({
+      proposal: await client.json<Proposal & { progressAt: string | null }>(`/api/proposals/${proposalId}`),
+      row: (await client.json<{ documents: { kind: string; status: string; progressAt: string | null }[] }>("/api/overview"))
+        .documents.find((document) => document.kind === "english_resume")!,
+    });
+    const first = await polled();
+    expect(first.proposal.progressAt).toBe(before.toISOString());
+    expect(first.row).toMatchObject({ status: "proposal_generating", progressAt: before.toISOString() });
+
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+    const next = await generateStage(deps, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    // A step that hands on shows nothing new but its stamp, and that is enough to be a change.
+    const second = await polled();
+    expect(second.proposal.progressAt).not.toBe(first.proposal.progressAt);
+    expect(second.row.progressAt).toBe(second.proposal.progressAt);
+    expect({ ...second.proposal, progressAt: null }).toEqual({ ...first.proposal, progressAt: null });
+    expect({ ...second.row, progressAt: null }).toEqual({ ...first.row, progressAt: null });
+
+    expect(await generateStage(deps, next!)).toBeNull();
+    const landed = await polled();
+    expect(landed.proposal).toMatchObject({ generationStatus: "ready", progressAt: null });
+    expect(landed.row).toMatchObject({ status: "proposal_pending", progressAt: null });
+  });
+
   it("stops a résumé's draft, rather than landing it against another read, when a cited fact turns Private", async () => {
     const proposalId = await generate();
     const long = DOCUMENT(factId);

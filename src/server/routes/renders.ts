@@ -1117,6 +1117,8 @@ interface RenderState {
   /** Facts the current version was generated from that a document may no longer use. */
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 /**
@@ -1183,6 +1185,7 @@ export async function renderState(
         id: renderProposals.id,
         renderId: renderProposals.renderId,
         generationStatus: renderProposals.generationStatus,
+        updatedAt: renderProposals.updatedAt,
       })
       .from(renderProposals)
       .where(
@@ -1243,6 +1246,7 @@ export async function renderState(
       newFactsSince: since?.added ?? null,
       withdrawnFactsSince: since?.withdrawn ?? null,
       pendingProposalId,
+      progressAt: proposal?.generationStatus === "generating" ? proposal.updatedAt.toISOString() : null,
     };
   };
 

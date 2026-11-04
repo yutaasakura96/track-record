@@ -54,6 +54,8 @@ export interface ApplicationDocument {
   /** Facts the current version was generated from that a document may no longer use. */
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 /** A document the owner could tick: the three, and this application's tailored documents. */
@@ -162,6 +164,7 @@ export async function readDocuments(db: Db, userId: string, application: Applica
     newFactsSince: row.newFactsSince,
     withdrawnFactsSince: row.withdrawnFactsSince,
     pendingProposalId: row.pendingProposalId,
+    progressAt: row.progressAt,
     onApplication: row.id !== null && onApplication.has(row.id),
     heldBy: !tailored && row.kind === "rirekisho" && choosing && tailoredRirekishoOn ? MAIN_RIREKISHO_HELD : null,
   }));

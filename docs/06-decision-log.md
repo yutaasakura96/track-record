@@ -8231,7 +8231,10 @@ part of this.
   overview, the listing and the status fail it and start the next queued one. Both add five minutes
   for a step to start.
 - **Decision:** the client polls through `pollInterval`: every 1.5 s while the answer changes, then
-  5 s, 15 s and 60 s as it stays the same, and no more after 75 minutes, past both bounds.
+  5 s, 15 s and 60 s as it stays the same, and no more after 75 minutes, past both bounds. Those
+  bounds are per step, so a generating proposal carries `progressAt`, its `updated_at`, in its own
+  answer and in every document row reporting it: each step changes what is polled and starts the
+  75 minutes again, and a run of six steps is followed to its end or its failure.
 - **Decision:** a proposal still generating answers from its own row and the two withheld counts;
   the record is read once it is ready, which is when the drafts, the advisories and `unchanged`
   need it. Accept copies the proposal's fact ids inside the insert instead of reading them out.

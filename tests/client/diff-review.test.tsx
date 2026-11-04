@@ -25,6 +25,7 @@ function proposal(overrides: Partial<Proposal> = {}): Proposal {
     applicationId: null,
     status: "pending",
     generationStatus: "ready",
+    progressAt: null,
     error: null,
     basedOnVersionNo: 3,
     proposedVersionNo: 4,

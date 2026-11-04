@@ -69,6 +69,12 @@ export async function proposalResponse(
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
     generationStatus: proposal.generationStatus,
+    /**
+     * When the run last finished a step, while it is generating; `null` after.
+     * Nothing else here changes from step to step, and a poll that sees no
+     * change backs off and stops (`docs/07` §1).
+     */
+    progressAt: proposal.generationStatus === "generating" ? proposal.updatedAt.toISOString() : null,
     error:
       proposal.generationStatus === "failed"
         ? {
