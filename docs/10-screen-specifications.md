@@ -1825,8 +1825,8 @@ says `Reopened at <step>.`
   you.`, `One note of yours leads its draft.` or `Your two notes lead its drafts.`) and `Your notes`
   (bare), which opens the two fields in place with **`Save your notes`** and `Saved notes are used
   the next time you regenerate it.`; it works at phone width.
-- `View` (Screen 17), `History` (Screen 5) and `Download` (the current version), as links;
-  `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
+- `View` (Screen 17), `History` (Screen 5), `Download` (the current version) and `Edit` (Screen 6,
+  `Edit draft` while a draft waits, as on Home's cards), as links; `Regenerate` (ghost) on a tailored one; and before Applied, `Take off` (bare), which removes the document from the
   application and deletes nothing.
 - Under the rows: `Make a tailored résumé` (ghost) while there is none, which puts back one that
   was taken off and generates only when it has neither a version nor a proposal waiting;
@@ -1842,6 +1842,8 @@ says `Reopened at <step>.`
   **Before Applied, the main 履歴書's tick is disabled while the tailored 履歴書 is on the
   application**, noted `This application has its own 履歴書, written for this job. Take that one
   off to use this one.`
+- Under the rows, once a tailored document has a version, the line of Screen 3 saying what
+  regenerating would not change (2026-11-04).
 
 **`What you sent`**, under a rule, once anything is frozen: `A frozen copy is the file exactly as it
 was on the day. It does not change when the résumé or your record changes later.` A row for every
@@ -2321,7 +2323,7 @@ Under **720px** of width these screens change as follows, and above it they are 
 
 **Screens 2, 5 and 6 are not Applications screens and keep the message.** So in a window under
 1024px, where they ask for a wider one, Résumé for this job holds back every control that leads to
-them: `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it` and `History`,
+them: `Make a tailored résumé`, `Generate`, `Regenerate`, `Review changes`, `Open it`, `History` and `Edit`,
 and the `Import a document` link. In their place the panel says once, in `text-muted`:
 `Making a tailored résumé, writing or reviewing a version and its history need a wider window, so
 they are not shown here.` Choosing, recording, taking off, reading a sent copy and downloading stay,
