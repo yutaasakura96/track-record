@@ -36,7 +36,7 @@ changes.
 |---|---|---|
 | Cloudflare Workers Paid | **$5.00** | 10M requests, 30M CPU-ms included. Nowhere near the limits |
 | Cloudflare Workflows | **$0.00** | 500k steps included; **waiting on the model is not billed** |
-| Neon | **$0.00** | Free tier: 0.5 GB, 100 CU-hours, scale-to-zero |
+| Neon | **$0.00** | Free tier: 0.5 GB, 100 CU-hours, 5 GB of network transfer a month, scale-to-zero |
 | Cloudflare R2 | **$0.00** | Free tier: 10 GB-month of storage, 1M writes and 10M reads a month, no egress charge (pricing read 2026-10-15). At 90 MB a file at most, that is over a hundred recordings |
 | Anthropic | **~$1–2** | Bursty. The whole 2.4 MB corpus extracts once for ~$3. Included monthly credits can cover this usage (`12` §9) |
 | Domain | ~$1 | Amortised, already owned |
@@ -54,6 +54,9 @@ path:
 2. **Neon storage**, 0.5 GB free. Source documents in `bytea` dominate; ten users would approach it.
    The paid tier is the answer, or object storage at that point.
 3. **Neon compute**, 100 CU-hours across the account — shared with the author's other project.
+4. **Neon network transfer**, 5 GB a month free. One user reached 95% of it in four days in November
+   2026 through polled routes reading whole rows; `tests/egress.test.ts` now holds each path to a byte
+   budget (decision log, 2026-11-04).
 
 **Nothing on Cloudflare breaks.** The $5 tier absorbs orders of magnitude more than this will see.
 
