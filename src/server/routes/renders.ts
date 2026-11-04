@@ -467,6 +467,128 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
   });
 
   /**
+   * A waiting proposal as content rather than as a diff, block ids included:
+   * what a hand edit of a draft is made from, as `GET /api/renders/:ref/versions/:id`
+   * is for a stored version. Kept off `GET /api/proposals/:id`, which a
+   * generating proposal is polled on and which never needs the document.
+   */
+  api.get("/api/proposals/:id/content", async (c) => {
+    const { proposal, render } = await requireProposal(c.get("db"), c.get("user").id, pathParam(c, "id"));
+    if (proposal.generationStatus !== "ready") {
+      throw new ApiError("conflict", "This proposal has not finished generating.");
+    }
+    return c.json({
+      id: proposal.id,
+      renderKind: render.kind,
+      renderRef: refOf(render),
+      status: proposal.status,
+      content: proposal.content,
+    });
+  });
+
+  /**
+   * A draft edited by hand before it is accepted (`docs/06`, 2026-11-04).
+   *
+   * One request, two versions, one batch: the proposal is accepted as it was
+   * generated, and the author's edit is appended on top of it as an
+   * `edited` version whose source is the one just accepted. The history then
+   * says what happened in the words it already has — `ACCEPTED · from a
+   * proposal`, then `EDITED BY HAND · Edited from v<n>` — and what the model
+   * wrote stays readable and downloadable beside what the author made of it.
+   * Editing the proposal's content in place would have lost the one thing a
+   * reviewer of this document most needs to see.
+   *
+   * It runs every check accept runs (no drafted part left unconfirmed) and
+   * every check the hand-edit route runs (`checkHandEdit`), and it calls no
+   * model. Staleness is set as accept sets it, because the content accepted
+   * here was generated from today's record; the edit on top consumes no facts.
+   */
+  api.post("/api/proposals/:id/edit", async (c) => {
+    const user = c.get("user");
+    const db = c.get("db");
+    // Found before the body is read: someone else's proposal is a 404 whatever was sent.
+    const { proposal, render } = await requireProposal(db, user.id, pathParam(c, "id"));
+    const body = await c.req.json().catch(() => null);
+    if (typeof body !== "object" || body === null) {
+      throw validationFailed("That edit is not a document.", ["content"]);
+    }
+    const { content: submitted } = body as Record<string, unknown>;
+    if (proposal.status !== "pending") throw alreadyDecided();
+    if (proposal.generationStatus !== "ready") {
+      throw new ApiError("conflict", "This proposal has not finished generating.");
+    }
+    const generated = proposal.content as RenderContent;
+    const drafts = draftedBlocks(generated).length;
+    if (drafts > 0) throw draftsWaiting(drafts);
+
+    const { content, record } = await checkHandEdit(
+      db,
+      user.id,
+      render.kind as RenderKind,
+      submitted,
+      generated,
+      "That edit changes nothing. Accept the proposal as it is instead.",
+    );
+
+    const highest = await highestVersionNo(db, user.id, render.id);
+    const acceptedId = newId("renderVersion");
+    const editedId = newId("renderVersion");
+    const acceptedAt = new Date();
+    const accepted = await usableFactCount(db, user.id);
+
+    await db.batch([
+      db.insert(renderVersions).values({
+        id: acceptedId,
+        userId: user.id,
+        renderId: render.id,
+        versionNo: highest + 1,
+        content: proposal.content,
+        acceptedAt,
+        factCountAt: accepted,
+        usableFactIds: sql<string[] | null>`(select ${renderProposals.usableFactIds} from ${renderProposals} where ${renderProposals.userId} = ${user.id} and ${renderProposals.id} = ${proposal.id})`,
+      }),
+      db.insert(renderVersions).values({
+        id: editedId,
+        userId: user.id,
+        renderId: render.id,
+        versionNo: highest + 2,
+        content,
+        acceptedAt,
+        origin: "edited",
+        sourceVersionId: acceptedId,
+        // The accepted version's era, carried forward as every edit carries
+        // its source's: the edit consumes no facts.
+        factCountAt: accepted,
+        usableFactIds: sql<string[] | null>`(select ${renderProposals.usableFactIds} from ${renderProposals} where ${renderProposals.userId} = ${user.id} and ${renderProposals.id} = ${proposal.id})`,
+      }),
+      db
+        .update(renders)
+        .set({ currentVersionId: editedId, staleSinceFactCount: accepted, updatedAt: acceptedAt })
+        .where(and(eq(renders.userId, user.id), eq(renders.id, render.id))),
+      db
+        .update(renderProposals)
+        .set({ status: "accepted", decidedAt: acceptedAt, updatedAt: acceptedAt })
+        .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposal.id))),
+    ]);
+    // Ids and numbers. Never the draft, never the edit.
+    console.log(JSON.stringify({ event: "proposal_edited_and_accepted", proposalId: proposal.id, versionNo: highest + 2 }));
+
+    return c.json(
+      {
+        renderKind: render.kind,
+        renderRef: refOf(render),
+        acceptedVersionNo: highest + 1,
+        newVersionNo: highest + 2,
+        origin: "edited" as const,
+        sourceVersionId: acceptedId,
+        acceptedAt: acceptedAt.toISOString(),
+        warnings: editWarnings(content, record.record),
+      },
+      201,
+    );
+  });
+
+  /**
    * Rejecting is one action even when nearly every line changed, and it leaves
    * the stored version BYTE-IDENTICAL. The proposal is retained rather than
    * deleted — the decision is recoverable, though it is not a version.
@@ -837,34 +959,14 @@ export function registerRenderRoutes(app: Hono<AppEnv>) {
       .limit(1);
     if (!current) throw notFound("That version");
 
-    let content: RenderContent;
-    try {
-      content = parseEditedContent(submitted, current.content as RenderContent);
-    } catch (err) {
-      if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
-      throw err;
-    }
-    if (target.kind === "english_resume") {
-      const record = await collectResumeRecord(db, user.id);
-      try {
-        validateResumeEditShape(content, current.content as RenderContent);
-        validateResumeBounds(content, record.employers, current.content as RenderContent);
-      } catch (error) {
-        if (error instanceof Error) throw validationFailed(error.message, ["content"]);
-        throw error;
-      }
-    }
-    if (sameContent(content, current.content as RenderContent)) {
-      throw new ApiError("conflict", "That edit changes nothing.");
-    }
-
-    const record = await collectEditableRecord(db, user.id);
-    const bad = badCitations(citedFactIds(content), record);
-    if (bad.length > 0) {
-      throw new ApiError("validation_failed", citationMessage(bad), {
-        facts: bad.map((b) => ({ factId: b.factId, problem: b.problem })),
-      });
-    }
+    const { content, record } = await checkHandEdit(
+      db,
+      user.id,
+      kind,
+      submitted,
+      current.content as RenderContent,
+      "That edit changes nothing.",
+    );
 
     const highest = await highestVersionNo(db, user.id, render.id);
     const versionId = newId("renderVersion");
@@ -1384,6 +1486,53 @@ async function usableFactCount(db: Db, userId: string): Promise<number> {
  * large record, and the one route that needs them, accept, copies them in SQL.
  */
 const { usableFactIds: _proposalFactIds, ...proposalColumns } = getTableColumns(renderProposals);
+
+/**
+ * Every check a hand edit is held to, whatever it was made from: a stored
+ * version (`POST /api/renders/:ref/versions`) or a waiting draft
+ * (`POST /api/proposals/:id/edit`, `docs/06` 2026-11-04). One function, so the
+ * two cannot drift apart on what a typed block may cite.
+ *
+ * Shape and ids first (`parseEditedContent`), then the English résumé's bounds
+ * against the record's names, then sameness, then the four citation refusals.
+ * The order is the edit route's own, and its tests pin it.
+ */
+async function checkHandEdit(
+  db: Db,
+  userId: string,
+  kind: RenderKind,
+  submitted: unknown,
+  previous: RenderContent,
+  unchanged: string,
+) {
+  let content: RenderContent;
+  try {
+    content = parseEditedContent(submitted, previous);
+  } catch (err) {
+    if (err instanceof EditRejected) throw validationFailed(err.message, ["content"]);
+    throw err;
+  }
+  if (kind === "english_resume") {
+    const resume = await collectResumeRecord(db, userId);
+    try {
+      validateResumeEditShape(content, previous);
+      validateResumeBounds(content, resume.employers, previous);
+    } catch (error) {
+      if (error instanceof Error) throw validationFailed(error.message, ["content"]);
+      throw error;
+    }
+  }
+  if (sameContent(content, previous)) throw new ApiError("conflict", unchanged);
+
+  const record = await collectEditableRecord(db, userId);
+  const bad = badCitations(citedFactIds(content), record);
+  if (bad.length > 0) {
+    throw new ApiError("validation_failed", citationMessage(bad), {
+      facts: bad.map((b) => ({ factId: b.factId, problem: b.problem })),
+    });
+  }
+  return { content, record };
+}
 
 async function requireProposal(db: Db, userId: string, id: string) {
   const [row] = await db

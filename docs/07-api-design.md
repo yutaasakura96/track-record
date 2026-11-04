@@ -714,6 +714,8 @@ tailored document's `title` is `Tailored résumé for <company>` or `Tailored �
 | `GET` | `/api/proposals/:id/diff` | M1 | Diff changes and, for a first version, a document preview. **Computed server-side** |
 | `POST` | `/api/proposals/:id/accept` | M1 | → new version |
 | `POST` | `/api/proposals/:id/dismiss` | M1 | Retained as dismissed; the stored version is byte-identical |
+| `GET` | `/api/proposals/:id/content` | 2026-11-04 | A ready proposal as **content**, block ids included — what a draft edit is made from. `409` while it is still generating or failed |
+| `POST` | `/api/proposals/:id/edit` | 2026-11-04 | A **draft edited by hand**. Body `{ content }` → `201`: the draft is accepted as generated as v<n> and the edit appended as v<n+1>, `origin: "edited"`, source v<n>, in one batch. Same checks as accept and as the hand edit; no model call (decision log 2026-11-04) |
 | `POST` | `/api/proposals/:id/drafts/:blockId` | 2026-10-26 | Body `{ text }`, 1 to 1,200 characters once trimmed. Confirms one drafted part of a tailored 履歴書, as drafted or as edited: the block says `text` and is a draft no longer, its `factIds` kept. → `200` + the proposal. `404` for a block that is not a draft of this proposal, `409` once the proposal is decided or still generating, or when it changed since it was read, `422` for an empty text or one with 御社 |
 | `GET` | `/api/renders/:kind/download` | M1 | `?format=docx\|md\|pdf&versionId=` — **assembled on demand, never stored**, and **citations re-checked on every request** (`409` naming the fact ids). `docx` without a format. 履歴書 is `docx` or `pdf`; `pdf` is the English résumé's, the 履歴書's and the 職務経歴書's only (#109, #117) |
 | `GET` | `/api/renders/:kind/page` | #106 | `?versionId=`, the current version without it. `{ renderKind, renderRef, title, language, tailored, applicationId, document, canGenerate, version, page, evidence }`: the page its `.docx` download would hold today, from the same inputs, **never stored**; `document` is its `GET /api/renders` row. Cited section blocks carry their `factIds`; a 履歴書's motivation and kibou sheet cells also carry them. Blocks and cells copied from the record may omit `factIds` (treated as `[]`). `evidence` is every cited fact once, `{ id, claim, provenance, employer, quote, source: { importId, filename, lineNumber } \| null }`, the employer named in the document's language and `source` null on a fact added by hand (#110). Refused at `409` on a withheld fact exactly as the download is, before anything is looked up |
@@ -931,6 +933,21 @@ notice is absent.
 ```
 
 Accepting an already-decided proposal → `409 conflict`.
+
+**`POST /api/proposals/:id/edit` → 201.** A waiting draft edited by hand (decision log
+2026-11-04). One batch writes two versions: the proposal as generated (`origin: "accepted"`), then
+the edit on top of it (`origin: "edited"`, `source_version_id` the first), and marks the proposal
+accepted. It refuses as accept does — `409` once decided, still generating, or with a drafted part
+unconfirmed (`details.drafts`) — and as the hand edit does: `422` for a shape, an empty document, two
+blocks claiming one id, the English résumé's bounds or a citation that cannot be rendered (ids and
+reasons, never a claim); `409` when the edit changes nothing. Block ids the draft carried are kept;
+others are minted. Staleness is set as accept sets it. A proposal of another user is `404` before the
+body is read.
+
+```json
+{ "renderKind": "english_resume", "acceptedVersionNo": 4, "newVersionNo": 5, "origin": "edited",
+  "sourceVersionId": "ver_…", "acceptedAt": "2026-11-04T09:52:00Z", "warnings": [] }
+```
 
 **`GET /api/renders/english_resume/download?format=docx` → 200** ·
 `Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document` ·

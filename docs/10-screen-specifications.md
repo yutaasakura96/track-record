@@ -378,6 +378,13 @@ A change with no explanation is a defect.
   these include register checks on ready content (`03` §6); they never disable Accept.
 - **Accept is all-or-nothing.** No per-change accept. If a proposed line is wrong, the fix is the underlying fact.
   The one part confirmed piece by piece is a draft (below), and Accept waits for it.
+- **`Edit draft`** (secondary), between the decline and `Accept`, opens Screen 6 on the draft
+  (2026-11-04). Saving there accepts the draft as generated and saves the edit on top of it; a
+  hand edit is the author's own version, not a partial accept. It is disabled with Accept's reason
+  while a drafted part waits.
+- Under the footer copy, the line of Screen 3 worded for this document: what it takes from the
+  Profile and the Career timeline at every download, with links, and that changing those needs no
+  regenerating. A career story's line names the Profile alone.
 - **After Accept** the author returns to Home on the accepted document's language tab (or to the
   application, for a tailored one), with one line: `Saved as v<n> of your <render>.` Keeping the
   current version changes neither the tab nor says anything.
@@ -553,8 +560,10 @@ said nothing about where to start, and the honest answer is that they do not dep
 Each document card: title, status dot + text in plain words, then a muted line `v<N> · written
 <relative time>` (the English résumé adds `· your main résumé, tailored to no job`). **View leads**:
 once a version exists, the first control is `View` (Screen 17), a secondary button named `View
-<document>`, then the quiet links `Download` and `History` (Screen 5), and the card's write set a
-step down at the right. **View is the card's primary action but is not drawn as a primary button**:
+<document>`, then the quiet links `Download`, `History` (Screen 5) and `Edit` (Screen 6), and the
+card's write set a step down at the right. **`Edit` opens what can be edited now** (2026-11-04): the
+current version; the waiting draft, as `Edit draft`, while a proposal waits, first version or not,
+because editing the current version is then refused; nothing while a version is being written. **View is the card's primary action but is not drawn as a primary button**:
 the Next step keeps the only primary button in the content column, as #58 decided. Before a version
 exists there is nothing to view, and the write is the card's one secondary control.
 
@@ -577,6 +586,12 @@ résumé's `Download PDF` saves its PDF, and a second quiet `Word` beside it (ac
 履歴書's and the 職務経歴書's do the same (#117), and their files are saved under their Japanese names
 (`履歴書_青木陽介_20261023.pdf`). The stories have one format and one download link. A
 Generate or Update the server refuses says the server's reason above the cards.
+
+**One line under the cards says what regenerating would not change** (2026-11-04), once any card on
+the tab has a version or a draft: `Your name, contact details and photo come from your Profile, and
+the job and school rows with their dates from your Career timeline. Every download reads them again,
+so changing them there needs no regenerating. To change a sentence, edit it.`, `Profile` and `Career
+timeline` linking to their screens. Screen 17 and the diff review word it for the one document.
 
 **Section 3 — Your record at a glance.** Under the documents (#111), heading `Your record at a
 glance`, sentence `Where you worked, what you hold, and the facts your documents are written from.`,
@@ -970,7 +985,9 @@ only place a block citing a fact that can no longer be rendered can be edited ou
 **Interaction model:** a **focused task** — no sidebar, like fact review and diff review. There is
 unsaved work on this screen, and a nav row that discards it on a click is the failure mode.
 
-Reached from `Edit` on the current-version row of Screen 5. Route: `/renders/:kind/edit`.
+Reached from `Edit` on the current-version row of Screen 5, on Screen 17, on Home's cards and on an
+application's documents. Route: `/renders/:kind/edit`. **The same screen edits a waiting draft** at
+`/proposals/:id/edit` (below).
 
 **It always edits the current version.** The route refuses an edit made against any other
 (`docs/07` §7), so the screen never asks which version it is editing; it reads the current one and
@@ -1079,6 +1096,28 @@ restructuring a section by hand may be right where the checker is wrong (`docs/0
 | **Refused — the version moved underneath** | The server's `409`, with `Reload and edit again` as the action. The draft cannot be carried across: it was made against a document that no longer exists as current |
 | **Refused — a block cites a fact that can no longer be rendered** | The server's `422` in the footer, then the way out: `Remove the citation, or delete the block, and save again.` **The blocks citing those ids are marked in place** — amber, which is "not usable yet" (`05` §1) and not a generic warning — so the author reads the refusal and sees where it lives. The ids are listed under the message, in the mono IDENTIFIER role with the reason per id (unknown · not accepted · Private · Generated), **only when there are two or more**: with one fact the server's own sentence already names it, and repeating it says the same thing twice. With two or more the message names the first plus `(and N others)`, so the list is the only place the rest are said |
 | **Refused — the edit empties the document** | Prevented rather than reported: `Save` is disabled, stating `An edit cannot empty the document.` |
+
+### On a waiting draft · 2026-11-04
+
+A draft that is right but for one line used to leave the author three choices: accept it wrong,
+dismiss it, or pay for a regeneration that rewrites everything. Screen 6 opens on the draft instead,
+reached from `Edit draft` on Screen 2's footer and from `Edit draft` wherever a document with a
+waiting draft is listed. Route `/proposals/:id/edit`; the content is `GET /api/proposals/:id/content`.
+
+- **Every rule above holds**: the section, the block, what an edit may change, the 履歴書 caveat,
+  `Save` disabled until something changed, `Cancel` asking in place, the refusals stated in place.
+- Header: `<render name> · editing the v<n> draft`, note `Saving accepts the draft as v<n> and saves
+  your edit as v<n+1>. Nothing is saved until then.`, `Cancel` (back to Screen 2) and `Accept with my
+  edits as v<n+1>` (primary). The discard question's note reads `Nothing has been saved yet. The
+  draft is unchanged and still waiting for you.`
+- **Saving writes two versions** (`POST /api/proposals/:id/edit`): the draft as generated, then the
+  edit on top of it. Screen 5 then reads `EDITED BY HAND · Edited from v<n>` over `ACCEPTED · from a
+  proposal`. With no warnings the screen leaves for the version history; with warnings it shows the
+  saved panel above.
+- **A draft that cannot be edited says why and where to go**, in place of the editor: still being
+  written; could not be written; a drafted part not confirmed (`Confirm or edit each on the review
+  first.`, the content never read); or already decided (`Edit the current version` instead). Each
+  carries `Go to the review`.
 
 ---
 
@@ -2151,7 +2190,10 @@ Read-only.
    `Open it` when a proposal is waiting or being written, and none when the document is not built
    or no fact can be used. A tailored résumé also has `Back to the application` (bare). While a
    proposal is waiting: `A new version is waiting for you. This page stays as it is until you
-   accept it.`
+   accept it.` and `Edit` becomes `Edit draft`, opening Screen 6 on the draft; while one is being
+   written it is absent (2026-11-04). On the current version, one line under the notice says what
+   this document takes from the Profile and the Career timeline at every download, with links, and
+   that changing those needs no regenerating (the line of Screen 3, worded for the document).
 2. **The 履歴書 caveat**, on a 履歴書 only: `The education, employment and qualification tables are
    filled from your record as it is now, as the download is.` When the file's 写真 cell is empty, a
    second line in the owner's words, `写真欄は空欄です。必要な場合はWordで貼付してください`, and the link

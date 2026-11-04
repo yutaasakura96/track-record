@@ -1734,3 +1734,54 @@ describe("the backup", () => {
     ).toBeTruthy();
   });
 });
+
+/**
+ * A small fix is a hand edit, not a regeneration (`docs/06`, 2026-11-04), so
+ * Edit is on every card that has something to edit, and the line beside
+ * Regenerate says what regenerating would not change.
+ */
+describe("editing a document by hand", () => {
+  it("offers Edit on a card with a version, opening the editor on it", async () => {
+    open([row({ status: "up_to_date", currentVersionId: "ver-test-1", currentVersionNo: 2 })]);
+    const item = await documentRow();
+    expect(within(item).getByRole("link", { name: "Edit" }).getAttribute("href")).toBe("/renders/english_resume/edit");
+  });
+
+  it("opens the draft instead while one waits, first version or not", async () => {
+    open([
+      row({ status: "proposal_pending", pendingProposalId: "prop-test-1" }),
+      row({ kind: "career_story_en", title: "Career story", status: "proposal_pending", currentVersionId: "ver-test-2", pendingProposalId: "prop-test-2" }),
+    ]);
+    expect(within(await documentRow()).getByRole("link", { name: "Edit draft" }).getAttribute("href")).toBe(
+      "/proposals/prop-test-1/edit",
+    );
+    const story = await documentRow("Career story");
+    expect(within(story).getByRole("link", { name: "Edit draft" }).getAttribute("href")).toBe("/proposals/prop-test-2/edit");
+    expect(within(story).queryByRole("link", { name: "Edit" })).toBeNull();
+  });
+
+  it("offers no Edit while a version is still being written, or before any exists", async () => {
+    open([
+      row({ status: "proposal_generating", currentVersionId: "ver-test-1", pendingProposalId: "prop-test-1" }),
+      row({ kind: "career_story_en", title: "Career story" }),
+    ]);
+    expect(within(await documentRow()).queryByRole("link", { name: /^Edit/ })).toBeNull();
+    expect(within(await documentRow("Career story")).queryByRole("link", { name: /^Edit/ })).toBeNull();
+  });
+
+  it("says once, beside the documents, that names, contact details, photo and dates come from the record", async () => {
+    open([row({ status: "up_to_date", currentVersionId: "ver-test-1" })]);
+    const line = (await screen.findByText(/Every download reads them again/)).closest("p")!;
+    expect(line.textContent).toBe(
+      "Your name, contact details and photo come from your Profile, and the job and school rows with their dates from your Career timeline. Every download reads them again, so changing them there needs no regenerating. To change a sentence, edit it.",
+    );
+    expect(within(line).getByRole("link", { name: "Profile" }).getAttribute("href")).toBe("/profile");
+    expect(within(line).getByRole("link", { name: "Career timeline" }).getAttribute("href")).toBe("/record");
+  });
+
+  it("does not say it before there is any document to regenerate", async () => {
+    open([row()]);
+    await documentRow();
+    expect(screen.queryByText(/Every download reads them again/)).toBeNull();
+  });
+});

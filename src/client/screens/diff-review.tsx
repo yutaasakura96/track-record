@@ -31,6 +31,7 @@ import { DocumentBlocks } from "../components/document-blocks";
 import { DocumentPage } from "../components/document-page";
 import { DraftedParts } from "../components/drafted-parts";
 import { DownloadButton } from "../components/download-button";
+import { FilledFromRecord } from "../components/document-row";
 import { ReadFailure } from "../components/read-failure";
 import { RENDER_LANGUAGE } from "~/shared/render-content";
 import { useDocumentLanguageStore } from "../stores/document-language";
@@ -329,6 +330,7 @@ function Review({
 }) {
   const { accept, dismiss } = useDecideProposal(proposalId);
   const leave = useLeave(proposal);
+  const navigate = useNavigate();
   const setLanguage = useDocumentLanguageStore((state) => state.setLanguage);
   const flash = useFlashStore((state) => state.show);
   // A refused decision used to reject into nothing: the buttons stayed, no
@@ -412,11 +414,23 @@ function Review({
               ? ` ${proposal.withheld.generatedFactCount} unverified fact${proposal.withheld.generatedFactCount === 1 ? "" : "s"} ${proposal.withheld.generatedFactCount === 1 ? "was" : "were"} left out until promoted.`
               : ""}
           </p>
+          {/* A line that is wrong only in a name, a date or the photo is not
+              the generated text, and regenerating would not fix it. */}
+          <FilledFromRecord kind={proposal.renderKind} compact />
         </div>
         <div className="ml-auto flex items-center gap-10">
           {/* There is no current version to keep on a first one; the draft is what is let go. */}
           <Button onClick={() => void decide(dismiss)}>
             {first ? "Discard draft" : "Keep current version"}
+          </Button>
+          {/* Fixing one line by hand, rather than paying for a regeneration
+              (`docs/06`, 2026-11-04). Held while drafts wait, as Accept is. */}
+          <Button
+            onClick={() => void navigate({ to: "/proposals/$proposalId/edit", params: { proposalId } })}
+            disabled={drafted}
+            disabledReason={drafted ? "Confirm or edit each drafted part first." : undefined}
+          >
+            Edit draft
           </Button>
           <Button
             variant="primary"

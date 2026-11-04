@@ -41,6 +41,7 @@ import { ImportDropTarget, useImportPicker } from "../components/import-picker";
 import { relative } from "../format";
 import { QUIET, SECONDARY } from "../components/document-row";
 import { DocumentCard, MasterDocumentCard } from "../components/document-card";
+import { FilledFromRecord } from "../components/document-row";
 import { GapNotices } from "../components/gap-notices";
 import { LanguagePanel, LanguageTabs } from "../components/language-tabs";
 import { useDocumentLanguageStore } from "../stores/document-language";
@@ -722,6 +723,8 @@ function CareerDocuments({
             </DocumentCard>
           ))}
         </ul>
+        {/* Beside every Regenerate, said once (`docs/06`, 2026-11-04). */}
+        {shown.some((row) => row.currentVersionId || row.pendingProposalId) ? <FilledFromRecord className="mt-8" /> : null}
       </LanguagePanel>
     </Section>
   );

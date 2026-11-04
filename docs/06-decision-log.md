@@ -8257,3 +8257,49 @@ part of this.
   the career timeline and the Skills screen. Each carries a trade-off or saves little on Launch.
 - **Revisit if:** the compute's active hours climb with nobody using the site, a step's config
   changes (both bounds are derived from it), or a new screen polls without `pollInterval`.
+
+---
+
+### [2026-11-04] A draft is edited by hand before it is accepted, and lands as two versions
+
+- **Context:** a fresh draft could only be accepted, dismissed or generated again. A draft that was
+  right except for one line pushed the author to a paid regeneration, which writes the whole document
+  again and may not fix the line. Most of the small fixes an author wants are not in the generated
+  text at all: the name, contact details and photo come from the profile at every download, and on
+  the English résumé, the 履歴書 and the 職務経歴書 the job and school rows and their dates come from
+  the career timeline. An accepted document's current version could already be edited by hand
+  (Screen 6, S16); a waiting draft could not, because the edit route refuses while a proposal waits.
+- **Decision:** `POST /api/proposals/:id/edit` takes the whole edited document, as the edit route
+  does, and in one batch accepts the draft **as it was generated** as v<n> and appends the edit on
+  top of it as v<n+1>, `origin: "edited"`, its source the version just accepted. The history then
+  says what happened in the words it already had: `ACCEPTED · from a proposal`, then `EDITED BY HAND
+  · Edited from v<n>`. What the model wrote stays readable, downloadable and restorable beside what
+  the author made of it.
+- **Rejected: editing the proposal's content in place before accept.** It would have lost the
+  generated text, or needed a new column on both tables to keep it and a new origin to say a version
+  was edited before it existed. Two rows in the shapes the history already reads need neither a
+  migration nor a new word. The drafted-part route (2026-10-26) does edit a proposal in place, and
+  that stays right for it: a 志望動機 is drafted *for* the author to rewrite, and no fact states it.
+- **Decision:** it runs every check accept runs and every check the edit route runs, through one
+  function (`checkHandEdit` in `src/server/routes/renders.ts`) both routes call: a drafted part
+  still unconfirmed is `409` as on accept; the shape and block-id rules of `parseEditedContent`, with
+  ids kept from the draft so the next proposal diffs against the same blocks; the English résumé's
+  bounds against the record's names; `409` when it changes nothing (accept it as it is instead); the
+  four citation refusals. It calls no model. Staleness is set as accept sets it, because the
+  accepted content was generated from today's record; the edit consumes no facts. Attribution
+  warnings come back on the `201` and land on Screen 6's saved panel, as for any hand edit.
+- **Decision:** the editor is Screen 6 itself at `/proposals/$proposalId/edit`, with the same rules:
+  citations removed and never added, no block moved between sections, section keys never shown. The
+  draft's content is read from `GET /api/proposals/:id/content`, kept off the polled
+  `GET /api/proposals/:id`.
+- **Decision:** `Edit` is offered wherever a document is listed or read: Home's cards, the
+  application's documents, Screen 17 and the diff review's footer (`Edit draft`). While a draft
+  waits it opens the draft, since editing the current version would be refused; while one is being
+  written it is absent. One line beside Regenerate says what that document takes from the profile
+  and the career timeline, with links, and that changing them there needs no regenerating. It is
+  worded per document, because a career story takes nothing from the timeline.
+- **Unchanged:** the edit route still refuses while a proposal waits. Accept is still all or
+  nothing; a hand edit is the author's own version on top of an accepted one, not a partial accept.
+  A wrong fact is still fixed in the record, and a hand edit does not survive the next generation.
+- **Revisit if:** an author wants to edit, then read the diff, then accept; that needs the edit held
+  on the proposal, which this deliberately does not do.

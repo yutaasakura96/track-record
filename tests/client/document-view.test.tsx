@@ -156,6 +156,17 @@ describe("the page", () => {
     expect(bar.getByRole("link", { name: "Review changes" }).getAttribute("href")).toBe("/proposals/prop-test-wait");
     expect(bar.queryByRole("button", { name: "Regenerate" })).toBeNull();
     expect(screen.getByText(/A new version is waiting for you/)).toBeTruthy();
+    // Editing this version would be refused while the draft waits, so Edit opens the draft.
+    expect(bar.getByRole("link", { name: "Edit draft" }).getAttribute("href")).toBe("/proposals/prop-test-wait/edit");
+    expect(bar.queryByRole("link", { name: "Edit" })).toBeNull();
+  });
+
+  it("says beside Regenerate what this document takes from the record, so it needs no regenerating", async () => {
+    open();
+    await notice();
+    const line = screen.getByText(/Every download reads them again/).closest("p")!;
+    expect(line.textContent).toContain("Your name and contact details come from your Profile");
+    expect(line.textContent).toContain("each job's employer, title and dates from your Career timeline");
   });
 
   it("reads an earlier version by id, without Edit or a new version, and leads to the current one", async () => {
