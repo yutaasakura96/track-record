@@ -30,7 +30,16 @@ export interface FlagResponse {
   checked: boolean;
 }
 
-export const flagResponse = (flag: typeof factFlags.$inferSelect): FlagResponse => ({
+/** The columns {@link flagResponse} reads, for a select that answers with flags and nothing more. */
+export const flagColumns = {
+  id: factFlags.id,
+  kind: factFlags.kind,
+  reason: factFlags.reason,
+  explanation: factFlags.explanation,
+  checkedAt: factFlags.checkedAt,
+};
+
+export const flagResponse = (flag: Pick<typeof factFlags.$inferSelect, keyof typeof flagColumns>): FlagResponse => ({
   id: flag.id,
   kind: flag.kind,
   reason: flag.reason,
@@ -46,7 +55,7 @@ export async function flagsOf(db: Db, userId: string, factIds: string[]): Promis
   const byFact = new Map<string, FlagResponse[]>();
   if (factIds.length === 0) return byFact;
   const rows = await db
-    .select()
+    .select({ ...flagColumns, factId: factFlags.factId })
     .from(factFlags)
     .where(and(eq(factFlags.userId, userId), inArray(factFlags.factId, factIds)))
     .orderBy(KIND_ORDER, asc(factFlags.id));
@@ -84,7 +93,10 @@ export function registerFlagRoutes(app: Hono<AppEnv>) {
     const [rows, [counts]] = await db.batch([
       db
         .select({
-          flag: factFlags,
+          // What the list answers with. Every open flag is listed, so the
+          // owner, the token counts and the timestamps were read thousands of
+          // times for nothing (`docs/06`, 2026-11-04).
+          flag: flagColumns,
           factId: facts.id,
           claim: facts.claim,
           provenance: facts.provenance,

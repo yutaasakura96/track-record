@@ -15,16 +15,30 @@ import { and, eq } from "drizzle-orm";
 import type { Db } from "~/server/db/client";
 import { profiles, renderProposals, renders } from "~/server/db/schema";
 import type { Bindings } from "~/server/env";
-import { collectRenderInputs, failProposal, generateIntoProposal, tailoringOf } from "~/server/services/render";
+import {
+  FIRST_STAGE,
+  collectRenderInputs,
+  failProposal,
+  generateIntoProposal,
+  tailoringOf,
+  type GenerationStage,
+} from "~/server/services/render";
 import type { RenderKind } from "~/shared/render-content";
 import type { ModelSeam } from "~/model/types";
 
 export const GENERATION_LOST = "This document could not be generated. Nothing was saved. Generate it again.";
 
 /**
- * Per attempt, and an attempt can hold two model calls: a document that fails
- * its language check is written once more. At 32,000 tokens and about 100 a
- * second that is under eleven minutes.
+ * Per step, and a step is one round of calls (`GenerationStage`): a document,
+ * a career story's employer chapters side by side, its chapters of no
+ * employer, its tables, an English résumé's lines written again, and each of
+ * those once more for a document that fails its language check. A round's calls
+ * run together, so a step lasts as long as its longest call. The longest call
+ * measured on a real record, a 職務経歴書, wrote 44,101 tokens, thinking
+ * included; output runs at about 48 a second, so about 15 minutes, and a call at
+ * the full `GENERATION_MAX_TOKENS` about 22. A story's largest part wrote 18,120,
+ * about six minutes (`docs/06`, 2026-11-04). Thirty minutes is the longest step
+ * timeout Cloudflare advises.
  *
  * One retry, not the default five. A model failure is written to the proposal
  * and does not reach here, so what retries is a lost run or a database that did
@@ -32,15 +46,19 @@ export const GENERATION_LOST = "This document could not be generated. Nothing wa
  */
 export const GENERATE_STEP = {
   retries: { limit: 1, delay: "30 seconds", backoff: "constant" },
-  timeout: "20 minutes",
+  timeout: "30 minutes",
 } as const;
 
+/** The most steps a run takes: a story's three rounds, and all three again. */
+export const GENERATION_STEP_LIMIT = 6;
+
 /**
- * Past both attempts of {@link GENERATE_STEP}, a proposal still `generating`
- * has no run left behind it. Reading it fails it, so the author gets the failed
- * screen's way out and not a page that says it is writing forever.
+ * Past both attempts of every step of {@link GENERATE_STEP}, a proposal still
+ * `generating` has no run left behind it. Reading it fails it, so the author
+ * gets the failed screen's way out and not a page that says it is writing
+ * forever.
  */
-export const GENERATION_DEADLINE_MS = 45 * 60 * 1000;
+export const GENERATION_DEADLINE_MS = (GENERATION_STEP_LIMIT * 2 * 30 + 5) * 60 * 1000;
 
 export interface GenerationDeps {
   db: Db;
@@ -49,16 +67,31 @@ export interface GenerationDeps {
   proposalId: string;
 }
 
+/** The Workflow's name for a step, which is fixed for a stage. */
+export const stepName = (stage: GenerationStage): string =>
+  `${stage.call === "write" ? "generate" : "shorten"}${stage.round > 1 ? ` round ${stage.round}` : ""}${stage.attempt === 2 ? " again" : ""}`;
+
 /**
- * Reads the record as it stands and writes the document to the proposal.
+ * Reads the record as it stands and runs one stage of the proposal's
+ * generation, returning the next or `null` once the proposal has landed or
+ * failed.
  *
  * A proposal already dismissed or already landed costs nothing: this is what a
  * retried step meets when the attempt before it got that far, and what a run
  * that was queued meets when the author changed their mind.
  */
-export async function generateProposal({ db, model, userId, proposalId }: GenerationDeps): Promise<null> {
+export async function generateStage(
+  { db, model, userId, proposalId }: GenerationDeps,
+  stage: GenerationStage,
+): Promise<GenerationStage | null> {
   const [row] = await db
-    .select({ proposal: renderProposals, render: renders, nameLatin: profiles.nameLatin })
+    // The proposal's two states, not its row: the row carries the draft and
+    // every usable fact id, and this runs once per stage (`docs/06`, 2026-11-04).
+    .select({
+      proposal: { status: renderProposals.status, generationStatus: renderProposals.generationStatus },
+      render: renders,
+      nameLatin: profiles.nameLatin,
+    })
     .from(renderProposals)
     .innerJoin(renders, and(eq(renders.id, renderProposals.renderId), eq(renders.userId, userId)))
     .leftJoin(profiles, eq(profiles.userId, userId))
@@ -73,10 +106,16 @@ export async function generateProposal({ db, model, userId, proposalId }: Genera
   const tailoring = await tailoringOf(db, userId, row.render);
   const inputs = await collectRenderInputs(db, userId, row.render.kind as RenderKind, row.nameLatin ?? "", tailoring, { forModel: true });
   // Counts only.
-  if (inputs.omittedFactCount > 0) {
+  if (inputs.omittedFactCount > 0 && stage.call === "write") {
     console.log(JSON.stringify({ event: "generation_facts_left_out", proposalId, sent: inputs.facts.length, omitted: inputs.omittedFactCount }));
   }
-  await generateIntoProposal({ db, model, userId, proposalId, inputs });
+  return generateIntoProposal({ db, model, userId, proposalId, inputs, stage });
+}
+
+/** Every stage of a proposal's generation, one after the other: the run outside a Workflow. */
+export async function generateProposal(deps: GenerationDeps): Promise<null> {
+  let stage: GenerationStage | null = FIRST_STAGE;
+  while (stage !== null) stage = await generateStage(deps, stage);
   return null;
 }
 

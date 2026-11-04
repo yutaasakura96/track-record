@@ -18,6 +18,7 @@ import { requireOwnedEmployer } from "./record";
 import { factOfFlag, openFlags } from "./flags";
 import { employerSetByHand } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
+import type { OverlapPools } from "../services/overlap";
 import { extractUpload } from "~/pipeline/text";
 import { MAX_BATCH_BYTES, MAX_IMPORT_WRITE_BYTES, importRefusal, importWriteBytes } from "~/shared/import-file";
 import { runImport } from "~/pipeline/import";
@@ -633,8 +634,9 @@ export function registerImportRoutes(app: Hono<AppEnv>) {
             .then(([, , n, f]) => [n, f] as const);
 
     // A document filed elsewhere changes which facts its own stand beside.
-    await flagRepeats(db, user.id, ofThisDocument);
-    await settleRepeats(db, user.id);
+    const pools: OverlapPools = new Map();
+    await flagRepeats(db, user.id, ofThisDocument, pools);
+    await settleRepeats(db, user.id, pools);
 
     const [row] = where;
     // Counts, never a claim.
@@ -792,9 +794,25 @@ async function requireVersion(db: Db, userId: string, versionId: string) {
 export async function importStatus(db: Db, userId: string, versionId: string) {
   // One round trip: this is polled every 1.5 s while an import runs, by Fact
   // Review and, through the overview, by the home screen (issue #58).
+  //
+  // The columns it answers with, and not the row: the row holds the uploaded
+  // file and its extracted text, and reading them on every poll sent the whole
+  // document from the database forty times a minute (`docs/06`, 2026-11-04).
   const [[version], [{ extracted } = { extracted: 0 }], [failedChunk]] = await db.batch([
     db
-      .select()
+      .select({
+        id: sourceDocumentVersions.id,
+        sourceDocumentId: sourceDocumentVersions.sourceDocumentId,
+        versionNo: sourceDocumentVersions.versionNo,
+        importStatus: sourceDocumentVersions.importStatus,
+        importError: sourceDocumentVersions.importError,
+        chunksTotal: sourceDocumentVersions.chunksTotal,
+        chunksDone: sourceDocumentVersions.chunksDone,
+        candidatesDiscarded: sourceDocumentVersions.candidatesDiscarded,
+        candidatesSuppressed: sourceDocumentVersions.candidatesSuppressed,
+        wordCount: sourceDocumentVersions.wordCount,
+        changedRegionShare: sourceDocumentVersions.changedRegionShare,
+      })
       .from(sourceDocumentVersions)
       .where(and(eq(sourceDocumentVersions.userId, userId), eq(sourceDocumentVersions.id, versionId)))
       .limit(1),

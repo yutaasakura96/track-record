@@ -100,7 +100,7 @@ test it with a real table rather than prose.
 Cloudflare Workers (paid) · Hono API · React + Vite SPA · TanStack Router + Query · Zustand ·
 Tailwind v4 + shadcn/ui · Neon Postgres · Drizzle · Better Auth with
 Google OIDC · Cloudflare Workflows for the import pipeline · Anthropic `claude-opus-5` behind a
-six-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
+seven-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `docx` and
 `docxtemplater` for Word output.
 
 **Rules that are easy to break and expensive to fix:**
@@ -117,8 +117,8 @@ six-function seam · BudouX for Japanese segmentation · jsdiff for diffing · `
 - **Logs never contain source text, fact claims, or render content.**
 - **No secret and no database dump is ever committed.** This repo is public.
 - **Calendar columns are month precision** — `date` with the day pinned to `01`, never rendered.
-  The exceptions are an application step's and an interview entry's `happened_on`, real days
-  (`docs/04` §3.14, §3.15).
+  The exceptions are an application step's and an interview entry's `happened_on` and the profile's
+  `date_of_birth`, real days (`docs/04` §0, §3.2, §3.14, §3.15).
 - **Every design value comes from `@theme`, generated from `docs/05-design-system.md`.** Arbitrary
   Tailwind values (`p-[13px]`, `text-[#fff]`) and raw colour literals are banned by
   `scripts/check-design-tokens.mjs`, which `npm run lint` runs — they are how the forbidden list dies.

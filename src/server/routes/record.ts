@@ -20,6 +20,7 @@ import { routes } from "../http/registry";
 import { newId } from "../http/ids";
 import { clearInclusions } from "../services/inclusion";
 import { flagRepeats, settleRepeats } from "../services/repeats";
+import type { OverlapPools } from "../services/overlap";
 import { parseBody } from "../services/validate";
 import { monthDate } from "./profile";
 import type { AppEnv } from "../env";
@@ -216,8 +217,9 @@ export function registerRecordRoutes(app: Hono<AppEnv>) {
       .returning();
     if (!row) throw notFound("That project");
     if (body.employerId !== undefined) {
-      await flagRepeats(db, user.id, eq(facts.projectId, row.id));
-      await settleRepeats(db, user.id);
+      const pools: OverlapPools = new Map();
+      await flagRepeats(db, user.id, eq(facts.projectId, row.id), pools);
+      await settleRepeats(db, user.id, pools);
     }
     return c.json(stripInternals(row));
   });

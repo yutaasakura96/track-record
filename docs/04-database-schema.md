@@ -29,9 +29,11 @@ is a bug in one of them, not a matter of interpretation.
   **never rendered**. `date` is kept rather than a year/month integer pair because it sorts, compares
   and subtracts with ordinary Postgres date functions. Forms collect month and year only — the
   author should never have to invent the day they started a job in 2016.
-  **One exception:** `application_steps.happened_on` (§3.14) is a real day. It is not a date in
+  **Exceptions:** `application_steps.happened_on` (§3.14) is a real day. It is not a date in
   the career record and reaches no document; "16 days since the first interview" needs days.
   `interviews.happened_on` (§3.15) is a real day for the same reason: it becomes a step's date.
+  `profiles.date_of_birth` (§3.2) is a real day, collected as year, month and day: the 履歴書 prints
+  it as 年月日生 and computes 満N歳 from it.
 - **Money and headcount** (`資本金`, `従業員数`) are `bigint` and `integer`. 資本金 is stored in **yen**,
   not 万円, and formatted at render time.
 
@@ -161,7 +163,7 @@ One row per user. Holds the PII that 履歴書 convention requires and **no othe
 | `family_name_kana` | text | no | — | ふりがな — hiragana |
 | `given_name_kana` | text | no | — | ふりがな — hiragana |
 | `name_latin` | text | no | — | For the English résumé |
-| `date_of_birth` | date | no | — | 生年月日. Age (満N歳) is **computed at generation**, never stored |
+| `date_of_birth` | date | no | — | 生年月日. **A real day**, not month precision (§0). Age (満N歳) is **computed at generation**, never stored |
 | `gender` | text | yes | `null` | 性別. Nullable — optional under the 2024 JIS revision |
 | `phone` | text | no | — | 電話 |
 | `email` | text | no | — | Email |
@@ -530,7 +532,7 @@ unique index on `application_id`. Since migration 0036 (2026-10-26) that index i
 |---|---|---|---|
 | `id` / `user_id` | text | no | |
 | `render_id` | text | no | FK **cascade** |
-| `content` | jsonb | no | `{ "sections": [] }` until generation lands. On a tailored 履歴書 a block may carry `"drafted": true` (2026-10-26): the 志望動機 or 本人希望欄 drafted for the author, cleared when the author confirms or edits it. A proposal holding one is not accepted, so no `render_versions.content` carries the flag |
+| `content` | jsonb | no | `{ "sections": [] }` until generation lands. While `generating`, it holds what the run's earlier steps wrote (a story's rounds so far, a résumé awaiting its line rewrite), and is cleared back if the run fails (`03` §6). On a tailored 履歴書 a block may carry `"drafted": true` (2026-10-26): the 志望動機 or 本人希望欄 drafted for the author, cleared when the author confirms or edits it. A proposal holding one is not accepted, so no `render_versions.content` carries the flag |
 | `status` | proposal_status | no | The author's decision: pending, accepted, dismissed |
 | `generation_status` | generation_status | no | Default `'generating'`. The row exists from the moment generation starts, because `POST /api/renders/:kind/generate` returns `202` with a resource to poll. **This is what the poll reads** |
 | `generation_error` | text | yes | A stated reason, populated when `failed`. A failure never mutates a stored version |

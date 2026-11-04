@@ -14,6 +14,41 @@ import { and, eq, inArray } from "drizzle-orm";
 import { facts, sourceDocumentVersions, sourceDocuments } from "../db/schema";
 import { overlapMatcher, type OverlapFact } from "~/overlap";
 import { effectiveEmployerId, type FactWithEmployer } from "./employer";
+
+/** What the matcher reads of a fact it compares: the fields `matchesFor` uses, and no others. */
+export type OverlapSubject = Pick<
+  FactWithEmployer,
+  "id" | "status" | "claim" | "technologies" | "sourceDocumentVersionId" | "resolvedEmployerId"
+>;
+
+/** The columns of {@link OverlapSubject}, for a select that hands facts to the matcher. */
+export const overlapSubject = {
+  id: facts.id,
+  status: facts.status,
+  claim: facts.claim,
+  technologies: facts.technologies,
+  sourceDocumentVersionId: facts.sourceDocumentVersionId,
+  resolvedEmployerId: effectiveEmployerId,
+};
+
+interface PoolRow {
+  id: string;
+  claim: string;
+  technologies: string[];
+  employerId: string | null;
+  sourceDocumentVersionId: string | null;
+}
+
+/**
+ * The accepted facts at each employer, as one request read them. A request that
+ * asks for matches more than once after its last write to `facts` — flag the
+ * repeats, settle them, then answer with the card — passes one of these to
+ * every call and reads each employer's pool once. Flags are written between
+ * those calls, and facts are not, so the pool cannot have changed.
+ *
+ * Without one, each call reads afresh, as every call did before.
+ */
+export type OverlapPools = Map<string, PoolRow[]>;
 import type { Db } from "../db/client";
 
 export interface LikelyMatchResponse {
@@ -41,8 +76,9 @@ const NONE: ReadonlySet<string> = new Set();
 export async function likelyMatchesFor(
   db: Db,
   userId: string,
-  page: readonly FactWithEmployer[],
+  page: readonly OverlapSubject[],
   repeatFlagged: ReadonlySet<string> = NONE,
+  pools: OverlapPools = new Map(),
 ): Promise<Map<string, LikelyMatchResponse[]>> {
   return matchesFor(
     db,
@@ -50,6 +86,7 @@ export async function likelyMatchesFor(
     page.filter(
       (fact) => fact.status === "candidate" || (fact.status === "accepted" && repeatFlagged.has(fact.id)),
     ),
+    pools,
   );
 }
 
@@ -61,15 +98,17 @@ export async function likelyMatchesFor(
 export async function repeatsAmong(
   db: Db,
   userId: string,
-  accepted: readonly FactWithEmployer[],
+  accepted: readonly OverlapSubject[],
+  pools: OverlapPools = new Map(),
 ): Promise<Map<string, LikelyMatchResponse[]>> {
-  return matchesFor(db, userId, accepted.filter((fact) => fact.status === "accepted"));
+  return matchesFor(db, userId, accepted.filter((fact) => fact.status === "accepted"), pools);
 }
 
 async function matchesFor(
   db: Db,
   userId: string,
-  open: readonly FactWithEmployer[],
+  open: readonly OverlapSubject[],
+  pools: OverlapPools,
 ): Promise<Map<string, LikelyMatchResponse[]>> {
   const result = new Map<string, LikelyMatchResponse[]>();
   if (open.length === 0) return result;
@@ -80,51 +119,35 @@ async function matchesFor(
   const employerIds = [...new Set(employerOf.values())];
   if (employerIds.length === 0) return result;
 
-  const existing = await db
-    .select({
-      id: facts.id,
-      claim: facts.claim,
-      provenance: facts.provenance,
-      gradedAt: facts.gradedAt,
-      autoAcceptedAt: facts.autoAcceptedAt,
-      technologies: facts.technologies,
-      employerId: effectiveEmployerId,
-      sourceDocumentVersionId: facts.sourceDocumentVersionId,
-      importId: sourceDocumentVersions.id,
-      versionNo: sourceDocumentVersions.versionNo,
-      filename: sourceDocuments.filename,
-    })
-    .from(facts)
-    .leftJoin(
-      sourceDocumentVersions,
-      and(
-        eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId),
-        eq(sourceDocumentVersions.userId, facts.userId),
-      ),
-    )
-    .leftJoin(
-      sourceDocuments,
-      and(
-        eq(sourceDocuments.id, sourceDocumentVersions.sourceDocumentId),
-        eq(sourceDocuments.userId, facts.userId),
-      ),
-    )
-    .where(
-      and(
-        eq(facts.userId, userId),
-        eq(facts.status, "accepted"),
-        inArray(effectiveEmployerId, employerIds),
-      ),
-    );
-
-  const byEmployer = new Map<string, typeof existing>();
-  for (const row of existing) {
-    const group = byEmployer.get(row.employerId!) ?? [];
-    group.push(row);
-    byEmployer.set(row.employerId!, group);
+  // What the matcher compares, and nothing else: every accepted fact at these
+  // employers is read here, on every card and every settle, so the columns that
+  // only decorate a match — its grade, its document — are read below for the
+  // matches alone (`docs/06`, 2026-11-04).
+  const missing = employerIds.filter((id) => !pools.has(id));
+  if (missing.length > 0) {
+    const read = await db
+      .select({
+        id: facts.id,
+        claim: facts.claim,
+        technologies: facts.technologies,
+        employerId: effectiveEmployerId,
+        sourceDocumentVersionId: facts.sourceDocumentVersionId,
+      })
+      .from(facts)
+      .where(
+        and(
+          eq(facts.userId, userId),
+          eq(facts.status, "accepted"),
+          inArray(effectiveEmployerId, missing),
+        ),
+      );
+    for (const id of missing) pools.set(id, []);
+    for (const row of read) pools.get(row.employerId!)!.push(row);
   }
-  const byId = new Map(existing.map((row) => [row.id, row]));
+
+  const byEmployer = new Map(employerIds.map((id) => [id, pools.get(id)!]));
   const matchers = new Map<string, (candidate: OverlapFact) => { id: string; conflict: boolean }[]>();
+  const matched = new Map<string, { id: string; conflict: boolean }[]>();
 
   for (const candidate of open) {
     const employerId = employerOf.get(candidate.id);
@@ -149,13 +172,50 @@ async function matchesFor(
     }
     const found = match(candidate);
     if (found.length === 0) continue;
+    matched.set(candidate.id, found);
+  }
+  if (matched.size === 0) return result;
+
+  // The matches, decorated: at most a few per card.
+  const matchedIds = [...new Set([...matched.values()].flatMap((found) => found.map((match) => match.id)))];
+  const decorations = await db
+    .select({
+      id: facts.id,
+      provenance: facts.provenance,
+      gradedAt: facts.gradedAt,
+      autoAcceptedAt: facts.autoAcceptedAt,
+      importId: sourceDocumentVersions.id,
+      versionNo: sourceDocumentVersions.versionNo,
+      filename: sourceDocuments.filename,
+    })
+    .from(facts)
+    .leftJoin(
+      sourceDocumentVersions,
+      and(
+        eq(sourceDocumentVersions.id, facts.sourceDocumentVersionId),
+        eq(sourceDocumentVersions.userId, facts.userId),
+      ),
+    )
+    .leftJoin(
+      sourceDocuments,
+      and(
+        eq(sourceDocuments.id, sourceDocumentVersions.sourceDocumentId),
+        eq(sourceDocuments.userId, facts.userId),
+      ),
+    )
+    .where(and(eq(facts.userId, userId), inArray(facts.id, matchedIds)));
+  const decorationOf = new Map(decorations.map((row) => [row.id, row]));
+  const claimOf = new Map<string, string>();
+  for (const pool of byEmployer.values()) for (const row of pool) claimOf.set(row.id, row.claim);
+
+  for (const [candidateId, found] of matched) {
     result.set(
-      candidate.id,
+      candidateId,
       found.map(({ id, conflict }) => {
-        const row = byId.get(id)!;
+        const row = decorationOf.get(id)!;
         return {
           id,
-          claim: row.claim,
+          claim: claimOf.get(id)!,
           provenance: row.provenance,
           graded: row.gradedAt !== null || row.autoAcceptedAt !== null,
           document:

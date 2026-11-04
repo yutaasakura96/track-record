@@ -1,9 +1,10 @@
 /**
- * THE SEAM. Six functions, and nothing else: read a passage into facts, write
+ * THE SEAM. Seven functions, and nothing else: read a passage into facts, write
  * a document from facts, grade facts extracted before grading existed,
  * explain one flag (`docs/06`, 2026-10-08), read a pasted job posting
- * (`docs/06`, 2026-10-11), and split a typed sentence or two into claims
- * (`docs/06`, 2026-10-16).
+ * (`docs/06`, 2026-10-11), split a typed sentence or two into claims
+ * (`docs/06`, 2026-10-16), and rewrite an English résumé's over-long lines
+ * (`docs/06`, 2026-11-04).
  *
  * Nothing outside `src/model/` imports an SDK or knows a provider name
  * (`docs/03-technical-design.md` §4). Swapping providers is a configuration
@@ -302,6 +303,29 @@ export interface RenderSpec {
     motivationNote: string | null;
     kibouNote: string | null;
   } | null;
+  /**
+   * Set only on one call of a career story written in parts
+   * (`writeStoryRound`, `src/model/generate.ts`). `chapters` are the keys
+   * this call writes, in plan order; `characters` is about how long its prose
+   * chapters run together; `written` is the story so far, given to the call
+   * that writes the chapters of no employer and to the one that writes the two
+   * closing tables. A whole story in one call ran past the
+   * output limit on a real record (`docs/06`, 2026-11-04).
+   */
+  part?: StoryPart;
+  /**
+   * A career story's chapters written by the steps of this run before this
+   * one, read back off the proposal row. `generateRender` writes the next
+   * round onto them (`writeStoryRound`, `src/model/generate.ts`).
+   */
+  storySoFar?: RenderContent;
+}
+
+/** One call's share of a career story. See `RenderSpec.part`. */
+export interface StoryPart {
+  chapters: string[];
+  characters: number | null;
+  written: RenderContent | null;
 }
 
 /**
@@ -345,6 +369,19 @@ export interface CaptureContext {
 }
 
 /**
+ * One line the résumé's bound refused, as the rewrite is asked for it. `facts`
+ * are the ones the line cites, so the rewrite is written from what the line
+ * was, and can drop a fact but never add one.
+ */
+export interface LineToShorten {
+  id: string;
+  kind: "bullet" | "summary";
+  text: string;
+  limit: string;
+  facts: { id: string; claim: string; restricted: boolean }[];
+}
+
+/**
  * Generation's counterpart to `ExtractionContext`, and what grading,
  * explaining, reading a posting and capturing report through too. It carries one field and is optional — this
  * is a reporting channel, not a capability of its own.
@@ -355,6 +392,10 @@ export interface GenerationContext {
 
 export interface ModelSeam {
   extractFacts(sourceText: string, ctx: ExtractionContext): Promise<CandidateFact[]>;
+  /**
+   * A document, or for a career story the next round of it: what comes back
+   * is the story so far until every chapter of its plan is written.
+   */
   generateRender(
     facts: RenderFact[],
     spec: RenderSpec,
@@ -384,6 +425,13 @@ export interface ModelSeam {
    * returns is a proposal to confirm and is stored nowhere by this call.
    */
   captureClaims(text: string, context: CaptureContext, ctx?: GenerationContext): Promise<CapturedClaim[]>;
+  /**
+   * An English résumé's lines over their bound, written again from the facts
+   * they cite, keyed by block id. A call of its own, not part of
+   * `generateRender`, so a generation run gives it a step of its own
+   * (`docs/06`, 2026-11-04).
+   */
+  shortenResumeLines(lines: LineToShorten[], ctx?: GenerationContext): Promise<Map<string, string>>;
 }
 
 /** Thrown when the provider is unreachable or answers unusably. Always retryable. */

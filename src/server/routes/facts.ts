@@ -17,7 +17,7 @@ import { ApiError, conflict, notFound, validationFailed, pathParam } from "../ht
 import { newId } from "../http/ids";
 import { routes } from "../http/registry";
 import { parseBody } from "../services/validate";
-import { likelyMatchesFor, type LikelyMatchResponse } from "../services/overlap";
+import { likelyMatchesFor, type LikelyMatchResponse, type OverlapPools } from "../services/overlap";
 import { effectiveEmployerId, factWithEmployer, type FactWithEmployer } from "../services/employer";
 import { flagRepeats, settleRepeats } from "../services/repeats";
 import { employerSetByHand } from "../db/fact-employer";
@@ -96,7 +96,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
 
     const rows = await c
       .get("db")
-      .select(factWithEmployer)
+      .select(listedFact)
       .from(facts)
       .where(and(...filters))
       .orderBy(asc(facts.id))
@@ -159,12 +159,14 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       }
     }
     await db.batch(writes as any);
+    // Read once from here: nothing below writes a fact (`../services/overlap.ts`).
+    const pools: OverlapPools = new Map();
     // A new wording or a new employer can make a pair, and can unmake one.
     if (body.claim !== undefined || body.employerId !== undefined) {
-      await flagRepeats(db, user.id, eq(facts.id, fact.id));
-      await settleRepeats(db, user.id);
+      await flagRepeats(db, user.id, eq(facts.id, fact.id), pools);
+      await settleRepeats(db, user.id, pools);
     }
-    return c.json(await withMatches(db, user.id, fact.id));
+    return c.json(await withMatches(db, user.id, fact.id, pools));
   });
 
   /**
@@ -276,8 +278,9 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
     const sortedIds = results.slice(0, updates.length).flat().map((row) => row.id);
 
     // The check a candidate's card made, now that there is no card to make it on.
-    const repeats = sortedIds.length > 0 ? await flagRepeats(db, user.id, inArray(facts.id, sortedIds)) : [];
-    if (sortedIds.length > 0) await settleRepeats(db, user.id);
+    const pools: OverlapPools = new Map();
+    const repeats = sortedIds.length > 0 ? await flagRepeats(db, user.id, inArray(facts.id, sortedIds), pools) : [];
+    if (sortedIds.length > 0) await settleRepeats(db, user.id, pools);
     const flagged = new Set([...sortedIds.filter((id) => withFlags.has(id)), ...repeats]).size;
 
     const [{ remaining } = { remaining: 0 }] = await db
@@ -341,6 +344,8 @@ async function resolve(
   const user = c.get("user");
   const db = c.get("db");
   const fact = await requireFact(db, user.id, pathParam(c, "id"));
+  // Read once, after the write each branch makes (`../services/overlap.ts`).
+  const pools: OverlapPools = new Map();
 
   // Undoing the author's ruling on a fact the importer accepted puts it back
   // as the importer left it: accepted, and graded by nobody but the importer.
@@ -349,9 +354,9 @@ async function resolve(
       .update(facts)
       .set({ status: "accepted", resolvedAt: fact.autoAcceptedAt, updatedAt: new Date() })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-    await flagRepeats(db, user.id, eq(facts.id, fact.id));
-    await settleRepeats(db, user.id);
-    return c.json(await withMatches(db, user.id, fact.id));
+    await flagRepeats(db, user.id, eq(facts.id, fact.id), pools);
+    await settleRepeats(db, user.id, pools);
+    return c.json(await withMatches(db, user.id, fact.id, pools));
   }
 
   // A captured fact was never a candidate: it went into the record on the
@@ -362,8 +367,8 @@ async function resolve(
       .update(facts)
       .set({ status: "accepted", resolvedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-    await settleRepeats(db, user.id);
-    return c.json(await withMatches(db, user.id, fact.id));
+    await settleRepeats(db, user.id, pools);
+    return c.json(await withMatches(db, user.id, fact.id, pools));
   }
 
   // Accepting is the author grading the fact; a candidate carries no decision.
@@ -377,8 +382,8 @@ async function resolve(
       updatedAt: new Date(),
     })
     .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
-  await settleRepeats(db, user.id);
-  return c.json(await withMatches(db, user.id, fact.id));
+  await settleRepeats(db, user.id, pools);
+  return c.json(await withMatches(db, user.id, fact.id, pools));
 }
 
 /**
@@ -386,10 +391,10 @@ async function resolve(
  * resolved, and its likely matches computed. Read rather than taken from the
  * write's `returning`, so the employer is resolved by the same select.
  */
-async function withMatches(db: Db, userId: string, id: string) {
+async function withMatches(db: Db, userId: string, id: string, pools?: OverlapPools) {
   const fact = await requireFact(db, userId, id);
   const flags = await flagsOf(db, userId, [fact.id]);
-  const matches = await likelyMatchesFor(db, userId, [fact], repeatFlagged(flags));
+  const matches = await likelyMatchesFor(db, userId, [fact], repeatFlagged(flags), pools);
   return toResponse(fact, matches.get(fact.id) ?? [], flags.get(fact.id) ?? []);
 }
 
@@ -403,11 +408,46 @@ async function requireFact(db: Db, userId: string, id: string): Promise<FactWith
   return fact;
 }
 
-const hasEvidence = (fact: typeof facts.$inferSelect) =>
+const hasEvidence = (fact: Pick<typeof facts.$inferSelect, "sourceDocumentVersionId" | "quoteStart" | "quoteEnd"> & ({ quote: string | null } | { hasQuote: boolean })) =>
   fact.sourceDocumentVersionId !== null &&
-  fact.quote !== null &&
+  ("hasQuote" in fact ? fact.hasQuote : fact.quote !== null) &&
   fact.quoteStart !== null &&
   fact.quoteEnd !== null;
+
+/**
+ * A fact as the list answers with it: every column {@link toResponse} reads,
+ * and whether there is a quote rather than the quote. The response never
+ * carries the quote (see the head of this file), and the list is read page
+ * after page every 1.5 s while an import runs, so reading it — with the
+ * dedupe hash, the owner and two timestamps beside it — was most of what each
+ * page cost from the database (`docs/06`, 2026-11-04).
+ */
+const listedFact = {
+  id: facts.id,
+  claim: facts.claim,
+  provenance: facts.provenance,
+  disclosure: facts.disclosure,
+  status: facts.status,
+  employerId: facts.employerId,
+  employerSetAt: facts.employerSetAt,
+  projectId: facts.projectId,
+  occurredOn: facts.occurredOn,
+  createdAt: facts.createdAt,
+  sourceDocumentVersionId: facts.sourceDocumentVersionId,
+  hasQuote: sql<boolean>`${facts.quote} is not null`,
+  quoteStart: facts.quoteStart,
+  quoteEnd: facts.quoteEnd,
+  lineNumber: facts.lineNumber,
+  technologies: facts.technologies,
+  isClientIdentifying: facts.isClientIdentifying,
+  gradedAt: facts.gradedAt,
+  autoAcceptedAt: facts.autoAcceptedAt,
+  resolvedEmployerId: factWithEmployer.resolvedEmployerId,
+};
+
+/** What {@link toResponse} reads of a fact: a whole row, or the list's columns. */
+type ResponseFact = Omit<FactWithEmployer, "quote" | "userId" | "dedupeHash" | "resolvedAt" | "updatedAt"> &
+  ({ quote: string | null } | { hasQuote: boolean });
 
 /**
  * `evidence` is `null` for a fact with no verbatim support — the card renders
@@ -417,7 +457,7 @@ const hasEvidence = (fact: typeof facts.$inferSelect) =>
  * the open card (`docs/10` Screen 1).
  */
 export function toResponse(
-  fact: FactWithEmployer,
+  fact: ResponseFact,
   likelyMatches: LikelyMatchResponse[],
   flags: FlagResponse[],
 ) {

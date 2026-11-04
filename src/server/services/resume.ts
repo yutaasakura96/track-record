@@ -21,7 +21,7 @@ import { rankedSkills, resumeSkills, type ResumeRecord } from "~/render/resume";
 import type { PaperSize } from "~/render/resume-docx";
 
 export async function collectResumeRecord(db: Db, userId: string): Promise<ResumeRecord & { paper: PaperSize }> {
-  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "");
+  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { claims: false });
   const [profile] = await db
     .select({ paperSize: profiles.paperSize })
     .from(profiles)
@@ -58,6 +58,6 @@ async function skillsFor(
  * Skills screen's preview leaves out what the résumé leaves out (issue #114).
  */
 export async function resumeSkillPool(db: Db, userId: string): Promise<string[]> {
-  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "");
+  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { claims: false });
   return rankedSkills([...facts, ...spec.certifications]);
 }

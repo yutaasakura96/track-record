@@ -164,7 +164,7 @@ describe("loading a record", () => {
       user: user.id, recordingObjectsDeleted: 0, employers: 1, roles: 1, educations: 1, certifications: 1, facts: 0, documents: 0, renders: 0,
     });
     const [profile] = await db.select().from(s.profiles).where(eq(s.profiles.userId, user.id));
-    expect(profile).toMatchObject({ nameLatin: "Taro Kakuu", dateOfBirth: "1991-04-01", paperSize: "a4", contactSameAsAddress: true });
+    expect(profile).toMatchObject({ nameLatin: "Taro Kakuu", dateOfBirth: "1991-04-17", paperSize: "a4", contactSameAsAddress: true });
     expect(await count(s.applications, user.id)).toBe(0);
     expect(await count(s.interviews, user.id)).toBe(0);
 

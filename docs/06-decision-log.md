@@ -8080,3 +8080,129 @@ part of this.
   employer) was set aside in the record, not routed in code.
 - **Revisit if:** twenty proves the wrong length for a real résumé, the alias table needs a name it
   lacks, or the rewrite call starts failing often enough to show in proposal errors.
+
+### [2026-11-04] The date of birth is a real day
+
+- **Context:** the profile form collected the date of birth as a month and a year, like every other
+  calendar field, and stored the day as `01`. The 履歴書 prints the full date (年月日生) and computes
+  満N歳 from it, so a pinned day printed a wrong birthday and could put the age a year off.
+- **Decision:** `profiles.date_of_birth` is a real day. The form asks for year, month and day, and the
+  server refuses a date that does not exist or falls outside 1900 to today. It joins
+  `application_steps.happened_on` and `interviews.happened_on` as an exception to the month-precision
+  rule in `docs/04` §0; every other calendar column keeps the day pinned to `01` and never rendered.
+  This supersedes any earlier entry that treats the date of birth as month precision.
+- **Revisit if:** another render needs the date of birth at a different precision.
+
+---
+
+### [2026-11-04] A career story is written in parts, and a call that runs out of room says so
+
+- **Context:** on the real record (about 9,300 facts, 488 sent to a story under the per-employer
+  budget) the English career story failed twice, each after about eleven minutes, as "The model
+  returned a document in an unusable shape". The story was simulated through Claude Code on
+  `claude-opus-5` at effort high, with the app's own prompt, payload and checks: written in one call it
+  spent 98,834 output tokens (about 34,600 of them thinking) and was cut off at 64,000 before it
+  finished, against the app's `max_tokens` of 32,000. The Japanese story spent 55,032. A forced tool
+  call cut off at the limit arrives with whatever input had streamed, often none, and `{}` has no
+  `sections`. The story written in one call also ran to about 63,000 characters against the
+  register's 17,000. One run was refused for a routing row that shortened an employer's name.
+- **Decision:** a career story is written in parts, in three rounds (`writeStoryRound`,
+  `src/model/generate.ts`): each employer chapter as one call, sent that employer's facts, the employer calls side by side and
+  the first to fail aborting the rest; then the chapters of no employer as one call, given the
+  employer chapters as written and sent the facts filed under none with the employer facts those
+  chapters cite; then the two tables, from the chapters as written and the facts they cite. The
+  register keeps an unfiled fact out of an employer chapter but not an employer's fact out of the
+  opening or what comes next, which are about the whole record; written first and sent only the
+  unfiled facts, those chapters had no evidence at all on a record that files everything. Each prose
+  part is told its share of the register's length, more for an employer with more facts. The joined
+  story is held to the whole plan by the same check as before. Each `generateRender` call for a story
+  writes one round onto the story so far (`RenderSpec.storySoFar`) and returns it.
+- **Decision:** every generation call may spend 64,000 output tokens (`GENERATION_MAX_TOKENS`), and a
+  call that stops at the limit is refused as having run out of room rather than read as an unusable
+  shape. The cap is not lowered for a single-call document.
+- **Decision:** a generation run is one Workflow step per round of model calls (`GenerationStage`,
+  `src/server/services/render.ts`): the document, or each of a story's three rounds; an English
+  résumé's over-long lines written again; and, when the language check fails, each of those once more.
+  A round's calls run side by side, so no step holds more than one call's worst case, and a step that
+  times out retries only its round rather than paying for every part again. The longest call measured, a 職務経歴書
+  of 44,101 tokens at about 48 a second, is about fifteen minutes, and a call at the full 64,000 about
+  22, so a document and its language retry in one step could pass the step's 30 minutes (Cloudflare's
+  advised ceiling), retry, and end lost after paying for up to four calls. Each step now has the whole
+  timeout. What a step wrote waits on the proposal row, still `generating` and shown nowhere, and is
+  cleared if the run fails; between steps the Workflow holds only the stage's labels. Every step of
+  one generation uses exactly what the first step read: that step carries a SHA-256 of its
+  `RenderInputs`, spec and facts, as an id-like label to the next, and a step that continues a draft
+  reads the record again and fails the proposal when the digest differs ("The record changed while
+  this document was being written. Generate it again."). A draft checked against one read and landed
+  against another could strip a citation a fact made Private since needs, cite a fact staleness then
+  counts as new, or plan a chapter (work outside employment, an employer) its facts no longer back;
+  pinning only the facts left the spec on the later read. Each step adds its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
+  `generateRender` so the rewrite can be a step. The deadline is past both attempts of all six
+  steps a run can take (a story's three rounds, and all three again), 365 minutes.
+- **Decision:** a story's table rows write an employer, school or project name in full, as the lists
+  write it, because the record-name check reads a shortened one as a changed one.
+- **Measured, simulated the same way after the change:** the English story in six calls, 64,672 output
+  tokens, the largest call 15,853 (about five and a half minutes at 48 a second); the Japanese story
+  67,668, the largest call 18,120 (about six and a half). Those runs wrote the chapters of no employer
+  beside the employer chapters, about seven and nine minutes end to end; written after them, in a
+  round and a step of their own, a story's run is three rounds back to back, each as long as its
+  longest call. Both passed the plan and language checks with no unknown fact
+  ids and no fact cited under another employer. The 職務経歴書, still one call, spent 35,886 and 44,101
+  in two runs, past the old 32,000 in one of them, and passed. A story in parts costs about $2.60 at
+  list price, less than the one call would have (about $3.50) had it been given room to finish.
+- **Not done here:** the prose chapters still run long, about twice the register's length in English
+  and one and a half times in Japanese. That is a register question, not a limit one.
+- **Revisit if:** a part's call approaches the limit, an employer comes to hold more facts than one call
+  can write about, or the tables start pointing at headings the prose calls did not write.
+
+### [2026-11-04] What a screen or a job reads from the database is what it uses
+
+- **Context:** Neon warned at 95% of the month's network transfer: about 4.97 GB of the free plan's
+  5 GB sent from the database between 2026-11-01 and 2026-11-04, almost all from `main`, against a
+  record of about 50 MB (about 9,300 facts after the real-data import). Compute and storage were
+  fine. Measured on a disposable database holding a synthetic record of the same size
+  (`tests/egress.test.ts`, 9,000 invented facts across 24 documents), the bytes the database
+  returned per use of each path showed where it went. The heaviest were the routes the client polls
+  every 1.5 s while an import runs or a document is written. `GET /api/imports/:id` read the whole
+  `source_document_versions` row, the uploaded file (as hex) and its extracted text included, for
+  326 KB a poll. `renderState`, behind `GET /api/overview`, `/api/renders`, `/api/renders/:ref/page`
+  and `/api/applications/:id`, read every usable fact's id and, for each current version, every id
+  in its `usable_fact_ids`: about 870 KB a poll for two numbers a document. The page added every
+  fact in the record to check the dozen it cites. Home open through a batch import read about
+  1.2 MB every 1.5 s, close to 3 GB an hour. Off the polls, `collectRenderInputs` read every column
+  of every accepted fact (generation once a stage, the skills screen twice), and every fact accept
+  or edit read the whole accepted pool's rows two or three times.
+- **Decision:** each of those reads asks for what its caller uses, and the rest happens in SQL.
+  `importStatus` selects the columns it answers with. `renderState` counts each version's added and
+  withdrawn facts with `except` in Postgres, the same set difference `factsSince` took over two
+  Sets, and reads whether a render is tailored rather than its posting. A document page checks the
+  facts it cites (`citedFactStates`), and reads a version without its fact ids (only a restore
+  copies them). `collectRenderInputs` reads the columns it maps, counts Private and Generated facts
+  instead of reading them, reads claims only where they are sent, and for a model call reads them
+  after the budget has chosen the facts (a few hundred, not every usable fact). The skills and résumé
+  readers, which use only technologies, read no claims. The overlap pool reads id, claim,
+  technologies, employer and document; a match's grade and document are read for the matches
+  alone; and one request shares its pool read across flagging, settling and the card it answers
+  with, because nothing between those calls writes a fact. The fact list reads whether a fact has a
+  quote, not the quote it never returns. The flag list reads the flag columns it answers with. The
+  import reads a version's text once per run, not once per chunk (a version's text never changes),
+  and still reads the document's project each step, because that can change while the import runs.
+  Every response and every document is unchanged; the existing suite, the browser smoke test and
+  the generation checks pass as they did.
+- **Measured, bytes from the database per use, before → after:** import status 326 KB → 2 KB;
+  overview while an import runs 1.2 MB → 13 KB; overview 880 KB → 11 KB; a document's page 1.67 MB
+  → 39 KB; an application 881 KB → 12 KB; `/api/renders` 872 KB → 4 KB; Fact Review's rail, every
+  page of a 375-fact import, 338 KB → 193 KB; generating a résumé 19.2 MB → 2.6 MB; the skills screen
+  6.6 MB → 1.4 MB; accepting a fact 3.1 MB → 2.2 MB; refiling one 5.0 MB → 2.3 MB; importing a 40 KB
+  document 3.3 MB → 2.3 MB; the flagged list 1.2 MB → 864 KB.
+- **Decision:** `tests/egress.test.ts` holds every one of those paths to a byte budget at this
+  volume, metering the driver's `fetch` (`tests/helpers/egress.ts`), so a path that goes back to
+  whole rows fails the suite. Run against the code before this change, 13 of its budgets fail.
+- **Not done here:** the master document (2.7 MB) and the flagged list show every fact they hold, so
+  what they read is what they show. Settling `repeat` flags still reads the claims of every accepted
+  fact at each employer that holds one, on every accept, undo or edit, because the matcher weighs
+  words against the whole pool; narrowing it to the employers a change touched would be correct only
+  while every path that changes a pool also settles. Fact Review's rail still re-reads every page on
+  each poll while an import runs. The export reads the whole record because it is the backup.
+- **Revisit if:** the transfer graph climbs again with no import or generation running, a new
+  polled route reads a list, or the record grows past the volume the budgets were set at.

@@ -67,6 +67,7 @@ function scriptedSeam(candidates: CandidateFact[]): ModelSeam {
     explainFlag: refuse,
     readPosting: refuse,
     captureClaims: refuse,
+    shortenResumeLines: refuse,
   };
 }
 

@@ -15,7 +15,7 @@ export const PROFILE = {
   "せい · Family name (kana)": "さとう",
   "めい · Given name (kana)": "みさき",
   "Name in Latin script": "Misaki Sato",
-  "生年月日 · Date of birth": "1995-04",
+  "生年月日 · Date of birth": "1995-04-23",
   "電話番号 · Phone": "080-0000-0001",
   "メールアドレス · Email": "misaki@example.invalid",
   "郵便番号 · Postal code": "100-0001",
