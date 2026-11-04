@@ -254,6 +254,8 @@ describe("a line in English", () => {
       "Hayabusa Computing Co., Ltd. | 2020-04 – 2024-03 | 120ms → 40ms",
       "RTO 4h → 15min、RPO 24h → 5min",
       "p99 40 ms、3 TB、99.9%",
+      "RTO 1.5h → 0.5h",
+      "SLA 99.9%",
     ]) {
       expect(isEnglishLine(line, terms), line).toBe(false);
     }

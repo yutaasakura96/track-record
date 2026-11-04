@@ -259,11 +259,11 @@ const MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE = 2;
  * words with 「to」 twice among them, and a Japanese sentence naming SQL
  * functions read as an English one (`docs/06`, 2026-11-04).
  */
-const IDENTIFIER = /[\p{Script=Latin}\d]+(?:[_.][\p{Script=Latin}\d]+)+/gu;
+const IDENTIFIER = /\p{Script=Latin}[\p{Script=Latin}\d]*(?:[_.][\p{Script=Latin}\d]+)+/gu;
 
 /** The Latin words of a text, a name from code counted as one word and never as a function word. */
 const latinWords = (text: string): string[] =>
-  (text.replace(IDENTIFIER, (name) => (/\p{Script=Latin}/u.test(name) ? " identifier " : name)).match(/\p{Script=Latin}+/gu) ?? []).map((w) =>
+  (text.replace(IDENTIFIER, " identifier ").match(/\p{Script=Latin}+/gu) ?? []).map((w) =>
     w.toLocaleLowerCase(),
   );
 
@@ -340,7 +340,10 @@ const withoutTerms = (text: string, terms: readonly string[]): string =>
  */
 const FIGURE_LATIN = /(?<=\d ?)\p{Script=Latin}{1,4}(?!\p{Script=Latin})|(?<!\p{Script=Latin})\p{Lu}[\p{Lu}\d]{1,4}(?![\p{Script=Latin}\d])/gu;
 
-const withoutFigures = (line: string): string => (/\d/.test(line) ? line.replace(FIGURE_LATIN, " ") : line);
+const withoutNamesAndFigures = (line: string): string => {
+  const names = line.replace(IDENTIFIER, " ");
+  return /\d/.test(line) ? names.replace(FIGURE_LATIN, " ") : names;
+};
 
 /**
  * A heading or a block written in English, judged one physical line at a
@@ -353,7 +356,7 @@ const withoutFigures = (line: string): string => (/\d/.test(line) ? line.replace
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
   return withoutTerms(text, terms).split("\n").some((line) => {
     // A line of figures — 「120ms → 40ms」 under a story's table — holds no word, and nor does a name from code.
-    if (!KANA_KANJI.test(line) && LATIN_WORD.test(withoutFigures(line.replace(IDENTIFIER, " ")))) return true;
+    if (!KANA_KANJI.test(line) && LATIN_WORD.test(withoutNamesAndFigures(line))) return true;
     return line.split(STATEMENT_BREAK).some((statement) => {
       if (!KANA_KANJI.test(statement)) {
         const words = latinWords(statement);
