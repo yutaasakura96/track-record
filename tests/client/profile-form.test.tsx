@@ -122,6 +122,8 @@ describe("the contact fields use the right input", () => {
     expect(postalRe.test("150-0001")).toBe(true);
     expect(postalRe.test("1500001")).toBe(true);
     expect(postalRe.test("１５０ー０００１")).toBe(true);
+    expect(postalRe.test("〒 150-0001")).toBe(true);
+    expect("〒 150-0001".length).toBeLessThanOrEqual(postal.maxLength);
     expect(postalRe.test("15-00001")).toBe(false);
 
     const email = screen.getByLabelText(/メールアドレス/) as HTMLInputElement;

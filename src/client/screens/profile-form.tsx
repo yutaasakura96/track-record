@@ -49,7 +49,7 @@ const IDENTITY: FieldSpec[] = [
 const CONTACT: FieldSpec[] = [
   { name: "phone", label: "電話番号 · Phone", type: "tel", inputMode: "tel", autoComplete: "tel", maxLength: 30, pattern: PHONE_PATTERN, hint: "Digits, with optional + - ( ) and spaces, e.g. 090-1234-5678." },
   { name: "email", label: "メールアドレス · Email", type: "email", inputMode: "email", autoComplete: "email", maxLength: 254 },
-  { name: "postalCode", label: "郵便番号 · Postal code", inputMode: "tel", autoComplete: "postal-code", maxLength: 9, pattern: POSTAL_PATTERN, hint: "Seven digits, e.g. 123-4567." },
+  { name: "postalCode", label: "郵便番号 · Postal code", inputMode: "tel", autoComplete: "postal-code", maxLength: 12, pattern: POSTAL_PATTERN, hint: "Seven digits, e.g. 123-4567." },
   { name: "address", label: "住所 · Address", autoComplete: "street-address", maxLength: TEXT_MAX },
   { name: "addressKana", label: "ふりがな · Address (kana)", hint: "Hiragana.", maxLength: TEXT_MAX },
 ];
