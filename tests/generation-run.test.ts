@@ -84,6 +84,30 @@ function holdModel(content: RenderContent) {
   return () => release();
 }
 
+/** A model that writes a story a round at a time, each part citing every fact it was sent. */
+function storyWriter(rounds: string[][][], sentFacts: string[][] = []): StubModel["generateRender"] {
+  return async (sent, spec) => {
+    const calls: string[][] = [];
+    const content = await writeStoryRound(sent, spec, async (partFacts, partSpec) => {
+      calls.push(partSpec.part!.chapters);
+      sentFacts.push(partFacts.map((f) => f.id));
+      return {
+        sections: chaptersOf(partSpec).map((chapter) => ({
+          key: chapter.key,
+          heading: partSpec.employers.find((e) => e.id === chapter.employerId)?.name ?? "Where it goes",
+          blocks: [{
+            kind: ["anchors", "routing"].includes(chapter.key) ? "row" : "paragraph",
+            text: "Ran a batch platform.",
+            factIds: partFacts.map((f) => f.id),
+          }],
+        })),
+      };
+    });
+    rounds.push(calls);
+    return content;
+  };
+}
+
 beforeEach(async () => {
   model = stubModel();
   started = [];
@@ -214,25 +238,7 @@ describe("a generation in a Workflow", () => {
     const response = await client.post("/api/renders/career_story_en/generate");
     const { proposalId } = (await response.json()) as { proposalId: string };
     const rounds: string[][][] = [];
-    model.generateRender = async (sent, spec) => {
-      const calls: string[][] = [];
-      const content = await writeStoryRound(sent, spec, async (partFacts, partSpec) => {
-        calls.push(partSpec.part!.chapters);
-        return {
-          sections: chaptersOf(partSpec).map((chapter) => ({
-            key: chapter.key,
-            heading: partSpec.employers.find((e) => e.id === chapter.employerId)?.name ?? "Where it goes",
-            blocks: [{
-              kind: ["anchors", "routing"].includes(chapter.key) ? "row" : "paragraph",
-              text: "Ran a batch platform.",
-              factIds: partFacts.slice(0, 1).map((f) => f.id),
-            }],
-          })),
-        };
-      });
-      rounds.push(calls);
-      return content;
-    };
+    model.generateRender = storyWriter(rounds);
 
     const steps: string[] = [];
     let stage: GenerationStage | null = FIRST_STAGE;
@@ -244,6 +250,31 @@ describe("a generation in a Workflow", () => {
     expect(steps).toEqual(["generate", "generate round 2", "generate round 3"]);
     expect(rounds.map((round) => round.map((call) => call[0]))).toEqual([[expect.stringMatching(/^employer:/)], ["opening"], ["anchors"]]);
     expect((await proposal(proposalId)).generationStatus).toBe("ready");
+  });
+
+  it("writes every round of a story from one read, when a fact is accepted between rounds", async () => {
+    const response = await client.post("/api/renders/career_story_en/generate");
+    const { proposalId } = (await response.json()) as { proposalId: string };
+    const sentFacts: string[][] = [];
+    model.generateRender = storyWriter([], sentFacts);
+    const deps = { db, model, userId: user.id, proposalId };
+
+    const second = await generateStage(deps, FIRST_STAGE);
+    expect(second?.round).toBe(2);
+    const later = newId("fact");
+    await db.insert(facts).values({
+      id: later, userId: user.id, claim: "Wrote a side project's release tooling.", provenance: "attested", disclosure: "public", status: "accepted",
+    });
+    let stage: GenerationStage | null = second;
+    while (stage !== null) stage = await generateStage(deps, stage);
+
+    expect(sentFacts.flat()).not.toContain(later);
+    const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row!.generationStatus).toBe("ready");
+    const cited = (row!.content as RenderContent).sections.flatMap((s) => s.blocks.flatMap((b) => b.factIds));
+    expect(cited.length).toBeGreaterThan(0);
+    expect(cited.every((id) => row!.usableFactIds!.includes(id))).toBe(true);
+    expect(row!.usableFactIds).not.toContain(later);
   });
 
   it("keeps nothing a step wrote when the run ends without a document", async () => {

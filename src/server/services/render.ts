@@ -634,7 +634,7 @@ async function keepDraft(
  * rather than by care.
  */
 export async function generateIntoProposal(args: GenerateArgs): Promise<GenerationStage | null> {
-  const { db, model, userId, proposalId, inputs, stage = FIRST_STAGE } = args;
+  const { db, model, userId, proposalId, inputs: read, stage = FIRST_STAGE } = args;
   // Kept outside the `try` so a generation refused after its retry still
   // records the calls it spent.
   let usage: ModelUsage | null = null;
@@ -647,8 +647,8 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     // fails the check is refused before any model call, and named as the
     // record's to correct.
     const recordDefect =
-      stage.call === "write" && stage.attempt === 1 && inputs.spec.kind === "shokumu_keirekisho"
-        ? recordRowDefectReason(recordSections(inputs.spec, today), inputs.spec, inputs.facts)
+      stage.call === "write" && stage.attempt === 1 && read.spec.kind === "shokumu_keirekisho"
+        ? recordRowDefectReason(recordSections(read.spec, today), read.spec, read.facts)
         : null;
     if (recordDefect !== null) {
       await failProposal(db, userId, proposalId, recordDefect);
@@ -659,15 +659,20 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     // A step that continues a draft reads it back. The draft's citations were
     // checked against the read that wrote them, and stay: a fact made Private
     // since is the render-time block's to find, which it can only do cited.
+    // It is sent only facts that read could use, so every step of a document
+    // writes from the one read its usable facts are landed with.
     let draft: RenderContent | null = null;
+    let inputs = read;
     if (stage.call === "shorten" || stage.round > 1) {
       const [row] = await db
-        .select({ content: renderProposals.content })
+        .select({ content: renderProposals.content, usableFactIds: renderProposals.usableFactIds })
         .from(renderProposals)
         .where(whileGenerating(userId, proposalId))
         .limit(1);
       if (!row) return null;
       draft = row.content as RenderContent;
+      const readIds = new Set(row.usableFactIds ?? []);
+      inputs = { ...read, facts: read.facts.filter((fact) => readIds.has(fact.id)) };
     }
     const firstRead = draft === null ? inputs.usableFactIds : null;
     let content =

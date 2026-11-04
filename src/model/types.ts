@@ -1,9 +1,10 @@
 /**
- * THE SEAM. Six functions, and nothing else: read a passage into facts, write
+ * THE SEAM. Seven functions, and nothing else: read a passage into facts, write
  * a document from facts, grade facts extracted before grading existed,
  * explain one flag (`docs/06`, 2026-10-08), read a pasted job posting
- * (`docs/06`, 2026-10-11), and split a typed sentence or two into claims
- * (`docs/06`, 2026-10-16).
+ * (`docs/06`, 2026-10-11), split a typed sentence or two into claims
+ * (`docs/06`, 2026-10-16), and rewrite an English résumé's over-long lines
+ * (`docs/06`, 2026-11-04).
  *
  * Nothing outside `src/model/` imports an SDK or knows a provider name
  * (`docs/03-technical-design.md` §4). Swapping providers is a configuration

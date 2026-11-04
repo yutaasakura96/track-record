@@ -8133,7 +8133,8 @@ part of this.
   against the read that wrote it: each step strips only the fact ids it produced, against its own
   read, and the proposal keeps the first step's `usable_fact_ids`, so a fact made Private while a draft
   waits stays cited for the render-time block to find rather than being stripped from prose written
-  from it. Each step adds its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
+  from it. A step that continues a draft is sent only the facts that first read could use, so a fact
+  accepted between a story's rounds is not cited by a later round and missed by staleness. Each step adds its usage to the row. The seam gains a seventh function, `shortenResumeLines`, taken out of
   `generateRender` so the rewrite can be a step. The deadline is past both attempts of all six
   steps a run can take (a story's three rounds, and all three again), 365 minutes.
 - **Decision:** a story's table rows write an employer, school or project name in full, as the lists

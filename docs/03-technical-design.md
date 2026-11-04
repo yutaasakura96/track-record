@@ -24,7 +24,7 @@ Every decision below has a matching entry in `06-decision-log.md` explaining wha
 | ORM | **Drizzle** | Readable SQL migrations; schema file mirrors doc 04 |
 | Auth | **Better Auth** + Google OIDC | Supplies the `user` table PRD §1 requires |
 | Long-running work | **Cloudflare Workflows** | Billed only while executing; waiting on the model is free |
-| Model | **Anthropic `claude-opus-5`** | Behind a six-function seam (§4) |
+| Model | **Anthropic `claude-opus-5`** | Behind a seven-function seam (§4) |
 | Japanese segmentation | **BudouX** | 文節-scale phrases, ~15 KB, no dictionary |
 | Diffing | **jsdiff `diffArrays`** | Myers, at token granularity |
 | `.docx` | **`docx`** (résumé, 職務経歴書) · **`docxtemplater`** (履歴書) | Documents are built; forms are filled |
@@ -489,7 +489,8 @@ retries only its round. A step's parameters and the state passed between steps h
 what a step wrote waits on the proposal row, which reads `generating` until the last step lands it,
 and is cleared if the run fails. A draft lands against the read that wrote it: each step strips only
 the fact ids it produced, against its own read, and the proposal's `usable_fact_ids` are the first
-step's. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
+step's. A step that continues a draft is sent only the facts that first read could use, so every step
+writes from one read. Each step adds its calls' usage to the row. In disposable test configurations (the suite, the e2e worker and the seed) the same
 stages run one after another behind `waitUntil`. A run that cannot finish fails the proposal, and reading a proposal
 past `GENERATION_DEADLINE_MS` fails it too, so none reads `generating` for ever.
 
