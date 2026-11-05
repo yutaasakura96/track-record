@@ -848,7 +848,9 @@ live rows.
   off in the same batch, and the main 履歴書 cannot be put on while the tailored one is. Triggers hold
   it, not an index (migration 0037): one on `application_documents` refuses a live row that would put
   both on at Not applied, one on `applications` refuses a move back to Not applied while both are on.
-  From Applied onward both may be recorded as sent.
+  From Applied onward both may be recorded as sent. Choosing documents and putting a tailored 履歴書
+  on lock the `applications` row first (`select … for update`, `src/server/routes/application-documents.ts`),
+  so a main and a tailored 履歴書 chosen at the same moment resolve one after the other, never as a 500.
 
 **`application_sent_copies`** — one row per document per time it was sent.
 

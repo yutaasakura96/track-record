@@ -17,10 +17,10 @@
  * and counts.
  */
 import type { Hono } from "hono";
-import { and, eq, inArray, isNull } from "drizzle-orm";
+import { and, eq, exists, inArray, isNull, sql } from "drizzle-orm";
 import PizZip from "pizzip";
 import { z } from "zod";
-import { applicationDocuments, applicationSentCopies, profiles, renders } from "../db/schema";
+import { applicationDocuments, applicationSentCopies, applications, profiles, renders } from "../db/schema";
 import { storedBytes } from "../db/bytes";
 import { ApiError, notFound, pathParam, validationFailed, violatesUnique } from "../http/errors";
 import { routes } from "../http/registry";
@@ -105,11 +105,13 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
 
     const now = new Date();
     try {
-      const writes = [
+      // The application's row before any document's, in the order a tailored
+      // 履歴書 put on at the same moment takes them, so neither waits on the other.
+      await db.batch([
+        lockApplication(db, user.id, id),
         ...removed.map((row) => takeOff(db, user.id, row.id, now)),
         ...added.map((render) => putOn(db, user.id, id, render.id)),
-      ];
-      await db.batch([writes[0]!, ...writes.slice(1)]);
+      ]);
     } catch (error) {
       if (violatesUnique(error, "application_one_rirekisho")) throw new ApiError("conflict", MAIN_RIREKISHO_HELD);
       throw error;
@@ -193,18 +195,20 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
       // One 履歴書 before Applied: the main one makes way, and is still a
       // document on Home, untouched.
       const now = new Date();
-      try {
-        if (kind === "rirekisho" && application.currentStep === "not_applied") {
-          const [removed] = await db.batch([
-            takeOffMainRirekisho(db, user.id, id, now),
-            putOn(db, user.id, id, existing.id),
-          ]);
-          if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
-        } else {
-          await db.batch([putOn(db, user.id, id, existing.id)]);
-        }
-      } catch (error) {
-        if (!violatesUnique(error, "application_documents_live_uq")) throw error;
+      if (kind === "rirekisho") {
+        // The application's row first, the lock the one-履歴書 trigger takes.
+        // A main 履歴書 ticked at the same moment is then either committed
+        // before the take-off reads, and taken off, or waits and is refused
+        // by the trigger. Without it the take-off can miss a main 履歴書
+        // committed after it read, and the trigger refuses this one instead.
+        const [, removed] = await db.batch([
+          lockApplication(db, user.id, id),
+          takeOffMainRirekisho(db, user.id, id, now),
+          putOn(db, user.id, id, existing.id),
+        ]);
+        if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
+      } else {
+        await db.batch([putOn(db, user.id, id, existing.id)]);
       }
     }
     return c.json({ ...(await detail(db, user.id, id)), replaced }, created ? 201 : 200);
@@ -350,8 +354,19 @@ const onApplication = (userId: string, applicationId: string) =>
     isNull(applicationDocuments.removedAt),
   );
 
+/**
+ * On the application, once. A request at the same moment that put the same
+ * document on has done what this one would: the live index makes this one wait
+ * for it, then write nothing.
+ */
 const putOn = (db: Db, userId: string, applicationId: string, renderId: string) =>
-  db.insert(applicationDocuments).values({ id: newId("applicationDocument"), userId, applicationId, renderId });
+  db
+    .insert(applicationDocuments)
+    .values({ id: newId("applicationDocument"), userId, applicationId, renderId })
+    .onConflictDoNothing({
+      target: [applicationDocuments.applicationId, applicationDocuments.renderId],
+      where: sql`${sql.identifier("removed_at")} is null`,
+    });
 
 /** Off the application, and still a row: nothing is deleted. */
 const takeOff = (db: Db, userId: string, id: string, now: Date) =>
@@ -384,12 +399,30 @@ async function isOn(db: Db, userId: string, applicationId: string, renderId: str
   return row !== undefined;
 }
 
+const lockApplication = (db: Db, userId: string, applicationId: string) =>
+  db
+    .select({ id: applications.id })
+    .from(applications)
+    .where(and(eq(applications.userId, userId), eq(applications.id, applicationId)))
+    .for("update");
+
+/**
+ * The main 履歴書 off the application, while it is Not applied. The step is
+ * read here, after `lockApplication`, not from the application read before the
+ * batch: a step saved in between is the one the trigger holds to.
+ */
 const takeOffMainRirekisho = (db: Db, userId: string, applicationId: string, now: Date) =>
   db.update(applicationDocuments)
     .set({ removedAt: now, updatedAt: now })
     .where(and(
       onApplication(userId, applicationId),
       inArray(applicationDocuments.renderId, db.select({ id: renders.id }).from(renders).where(mainRender(userId, "rirekisho"))),
+      exists(
+        db
+          .select({ id: applications.id })
+          .from(applications)
+          .where(and(eq(applications.userId, userId), eq(applications.id, applicationId), eq(applications.currentStep, "not_applied"))),
+      ),
     ))
     .returning({ id: applicationDocuments.id });
 
