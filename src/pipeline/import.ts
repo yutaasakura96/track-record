@@ -27,6 +27,9 @@ export interface StepRunner {
   do<T>(name: string, fn: () => Promise<T>): Promise<T>;
 }
 
+/** What a version says when its reading stopped part way: a lost run, or one that gave up. */
+export const IMPORT_STOPPED = "Extraction stopped before it finished.";
+
 /** Used in tests and wherever the Workflows binding is absent. */
 export const inlineStepRunner: StepRunner = { do: (_name, fn) => fn() };
 
@@ -80,7 +83,7 @@ async function stoppedStep(deps: ImportDeps): Promise<void> {
     .update(sourceDocumentVersions)
     .set({
       importStatus: "failed",
-      importError: "Extraction stopped before it finished.",
+      importError: IMPORT_STOPPED,
       updatedAt: new Date(),
     })
     .where(

@@ -21,7 +21,10 @@ import { rankedSkills, resumeSkills, type ResumeRecord } from "~/render/resume";
 import type { PaperSize } from "~/render/resume-docx";
 
 export async function collectResumeRecord(db: Db, userId: string): Promise<ResumeRecord & { paper: PaperSize }> {
-  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { claims: false });
+  // The facts' technologies, grouped into sets in SQL: the skills are all the
+  // résumé's file takes from the facts, and one row per accepted fact was most
+  // of what reading a résumé page or download sent (`docs/06`, 2026-11-04).
+  const { technologySets, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { technologiesOnly: true });
   const [profile] = await db
     .select({ paperSize: profiles.paperSize })
     .from(profiles)
@@ -33,7 +36,7 @@ export async function collectResumeRecord(db: Db, userId: string): Promise<Resum
     projects: spec.projects,
     educations: spec.educations,
     certifications: spec.certifications,
-    skills: await skillsFor(db, userId, facts, spec.certifications),
+    skills: await skillsFor(db, userId, technologySets, spec.certifications),
     paper: profile?.paperSize ?? "a4",
   };
 }
@@ -46,7 +49,7 @@ export async function collectResumeRecord(db: Db, userId: string): Promise<Resum
 async function skillsFor(
   db: Db,
   userId: string,
-  facts: { technologies: string[] }[],
+  facts: { technologies: string[]; count?: number }[],
   certifications: { technologies: string[] }[],
 ): Promise<ResumeRecord["skills"]> {
   return resumeSkills(await curatedGroups(db, userId), rankedSkills([...facts, ...certifications]));
@@ -58,6 +61,6 @@ async function skillsFor(
  * Skills screen's preview leaves out what the résumé leaves out (issue #114).
  */
 export async function resumeSkillPool(db: Db, userId: string): Promise<string[]> {
-  const { facts, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { claims: false });
-  return rankedSkills([...facts, ...spec.certifications]);
+  const { technologySets, spec } = await collectRenderInputs(db, userId, "english_resume", "", null, { technologiesOnly: true });
+  return rankedSkills([...technologySets, ...spec.certifications]);
 }

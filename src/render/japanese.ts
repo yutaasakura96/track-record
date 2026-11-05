@@ -252,7 +252,20 @@ const MAX_LATIN_WORDS_IN_JAPANESE = 2;
 const MIN_SENTENCE_WORDS_BESIDE_JAPANESE = 5;
 const MIN_SENTENCE_FUNCTION_WORDS_BESIDE_JAPANESE = 2;
 
-const latinWords = (text: string): string[] => (text.match(/\p{Script=Latin}+/gu) ?? []).map((w) => w.toLocaleLowerCase());
+/**
+ * A name from code — a function, a column, a file — joined by 「_」 or 「.」:
+ * 「TO_DATE」「ALL_TAB_COLUMNS」「report.json」. It is one name, not English
+ * words. Split apart, two names of the 「TO_DATE」 kind and one more made five
+ * words with 「to」 twice among them, and a Japanese sentence naming SQL
+ * functions read as an English one (`docs/06`, 2026-11-04).
+ */
+const IDENTIFIER = /\p{Script=Latin}[\p{Script=Latin}\d]*(?:[_.][\p{Script=Latin}\d]+)+/gu;
+
+/** The Latin words of a text, a name from code counted as one word and never as a function word. */
+const latinWords = (text: string): string[] =>
+  (text.replace(IDENTIFIER, " identifier ").match(/\p{Script=Latin}+/gu) ?? []).map((w) =>
+    w.toLocaleLowerCase(),
+  );
 
 const functionWordCount = (words: readonly string[]): number => words.filter((w) => FUNCTION_WORDS.has(w)).length;
 
@@ -303,24 +316,47 @@ const TERM_CONNECTOR = new RegExp(
 /**
  * The text with the record's terms taken out. Terms joined only by a connector
  * go together: 「React and TypeScript」 is a list of names, not a sentence.
+ *
+ * A term is taken out only where it stands as a word, not from inside a longer
+ * one. Taken from anywhere, a short term cut ordinary words apart: 「TDE」 leaves
+ * 「setDefault」 as 「se fault」, 「CI」 leaves 「decision」 as 「de sion」, and
+ * each cut is one more Latin word counted against the line.
  */
 const withoutTerms = (text: string, terms: readonly string[]): string =>
   terms
-    .reduce((t, term) => t.replace(new RegExp(escaped(term), "giu"), TERM_MARK), text.replaceAll(TERM_MARK, " "))
+    .reduce(
+      (t, term) => t.replace(new RegExp(`(?<!\\p{Script=Latin})${escaped(term)}(?!\\p{Script=Latin})`, "giu"), TERM_MARK),
+      text.replaceAll(TERM_MARK, " "),
+    )
     .replace(TERM_CONNECTOR, TERM_MARK)
     .replaceAll(TERM_MARK, " ");
 
 /**
+ * A number's unit, written against it or a space after it (「120ms」「3 TB」),
+ * and a capital abbreviation of up to five letters (「RTO」「SLA」): what a row
+ * of figures prints in any language, and not a word of English. Taken out only
+ * on a line that carries a digit, so a heading in capitals (「ABOUT ME」) is
+ * still English.
+ */
+const FIGURE_LATIN = /(?<=\d ?)\p{Script=Latin}{1,4}(?!\p{Script=Latin})|(?<!\p{Script=Latin})\p{Lu}[\p{Lu}\d]{1,4}(?![\p{Script=Latin}\d])/gu;
+
+const withoutNamesAndFigures = (line: string): string => {
+  const names = line.replace(IDENTIFIER, " ");
+  return /\d/.test(line) ? names.replace(FIGURE_LATIN, " ") : names;
+};
+
+/**
  * A heading or a block written in English, judged one physical line at a
- * time. Either a line has no kana or kanji and something Latin is left once the record's own terms are taken
- * out (E1: 「Languages」), or one statement inside it is an English sentence:
+ * time. Either a line has no kana or kanji and a Latin word is left once the record's own terms, and the
+ * units and abbreviations of its figures, are taken out (E1: 「Languages」), or one statement inside it is an English sentence:
  * three or more Latin words carrying a function word when the statement holds
  * no Japanese, or a sentence-length run of Latin words beside the Japanese
  * when it does (E2: a Japanese name, then the summary in English).
  */
 export function isEnglishLine(text: string, terms: readonly string[]): boolean {
   return withoutTerms(text, terms).split("\n").some((line) => {
-    if (!KANA_KANJI.test(line) && LATIN_WORD.test(line)) return true;
+    // A line of figures — 「120ms → 40ms」 under a story's table — holds no word, and nor does a name from code.
+    if (!KANA_KANJI.test(line) && LATIN_WORD.test(withoutNamesAndFigures(line))) return true;
     return line.split(STATEMENT_BREAK).some((statement) => {
       if (!KANA_KANJI.test(statement)) {
         const words = latinWords(statement);

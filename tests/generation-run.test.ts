@@ -16,7 +16,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { and, eq } from "drizzle-orm";
 import {
   GENERATE_STEP,
-  GENERATION_DEADLINE_MS,
+  GENERATION_LOST_AFTER_MS,
+  GENERATION_STEP_BOUND_MS,
   GENERATION_LOST,
   GENERATION_STEP_LIMIT,
   generateProposal,
@@ -166,7 +167,10 @@ describe("a generation in a Workflow", () => {
     expect(minutes * 60).toBeGreaterThan(64_000 / 48);
     expect(minutes).toBeLessThanOrEqual(30);
     expect(GENERATE_STEP.retries.limit).toBe(1);
-    expect(GENERATION_DEADLINE_MS).toBeGreaterThan(GENERATION_STEP_LIMIT * 2 * minutes * 60_000);
+    // Lost is judged one step at a time: past both attempts of the longest step.
+    expect(GENERATION_STEP_BOUND_MS).toBeGreaterThanOrEqual(2 * minutes * 60_000);
+    expect(GENERATION_LOST_AFTER_MS).toBeGreaterThan(GENERATION_STEP_BOUND_MS);
+    expect(GENERATION_LOST_AFTER_MS).toBeLessThan(GENERATION_STEP_LIMIT * GENERATION_STEP_BOUND_MS);
   });
 
   it("gives the language check's retry and a résumé's long lines each a step of its own", async () => {
@@ -212,6 +216,41 @@ describe("a generation in a Workflow", () => {
 
     const [row] = await db.select().from(renderProposals).where(eq(renderProposals.id, proposalId));
     expect(row).toMatchObject({ generationStatus: "ready", inputTokens: 20, outputTokens: 10, cacheCreationInputTokens: 2, cacheReadInputTokens: 4 });
+  });
+
+  it("changes what every polling screen reads at each step, and only there", async () => {
+    const proposalId = await generate();
+    const before = new Date(Date.now() - 20 * 60_000);
+    await db.update(renderProposals).set({ updatedAt: before })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    const polled = async () => ({
+      proposal: await client.json<Proposal & { progressAt: string | null }>(`/api/proposals/${proposalId}`),
+      row: (await client.json<{ documents: { kind: string; status: string; progressAt: string | null }[] }>("/api/overview"))
+        .documents.find((document) => document.kind === "english_resume")!,
+    });
+    const first = await polled();
+    expect(first.proposal.progressAt).toBe(before.toISOString());
+    expect(first.row).toMatchObject({ status: "proposal_generating", progressAt: before.toISOString() });
+
+    const long = DOCUMENT(factId);
+    long.sections[1]!.blocks[0]!.text = "x".repeat(300);
+    model.generations = [long];
+    model.shortenings = [{ blk_2: "Cut the nightly batch to 90 minutes." }];
+    const deps = { db, model, userId: user.id, proposalId };
+    const next = await generateStage(deps, FIRST_STAGE);
+    expect(next?.call).toBe("shorten");
+
+    // A step that hands on shows nothing new but its stamp, and that is enough to be a change.
+    const second = await polled();
+    expect(second.proposal.progressAt).not.toBe(first.proposal.progressAt);
+    expect(second.row.progressAt).toBe(second.proposal.progressAt);
+    expect({ ...second.proposal, progressAt: null }).toEqual({ ...first.proposal, progressAt: null });
+    expect({ ...second.row, progressAt: null }).toEqual({ ...first.row, progressAt: null });
+
+    expect(await generateStage(deps, next!)).toBeNull();
+    const landed = await polled();
+    expect(landed.proposal).toMatchObject({ generationStatus: "ready", progressAt: null });
+    expect(landed.row).toMatchObject({ status: "proposal_pending", progressAt: null });
   });
 
   it("stops a résumé's draft, rather than landing it against another read, when a cited fact turns Private", async () => {
@@ -410,7 +449,7 @@ describe("generating always ends", () => {
     const proposalId = await generate();
     await db
       .update(renderProposals)
-      .set({ generatedAt: new Date(Date.now() - GENERATION_DEADLINE_MS - 1000) })
+      .set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS - 1000) })
       .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
 
     expect((await proposal(proposalId)).generationStatus).toBe("failed");
@@ -427,6 +466,39 @@ describe("generating always ends", () => {
       inputs: await collectRenderInputs(db, user.id, "english_resume", "Yosuke Aoki"),
     });
     expect((await proposal(proposalId)).generationStatus).toBe("failed");
+  });
+
+  it("fails a lost run for every screen that polls it, without the proposal being opened", async () => {
+    const proposalId = await generate();
+    const writing = async () =>
+      (await client.json<{ documents: { kind: string; status: string }[] }>("/api/overview")).documents
+        .find((document) => document.kind === "english_resume")!.status;
+    expect(await writing()).toBe("proposal_generating");
+
+    // Inside one step's bound since the run last wrote: still writing.
+    await db.update(renderProposals).set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS + 60_000) })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect(await writing()).toBe("proposal_generating");
+
+    // Past it, Home, which reads `renderState`, no longer says so.
+    await db.update(renderProposals).set({ updatedAt: new Date(Date.now() - GENERATION_LOST_AFTER_MS - 1000) })
+      .where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect(await writing()).not.toBe("proposal_generating");
+    const [row] = await db.select({ generationStatus: renderProposals.generationStatus, generationError: renderProposals.generationError })
+      .from(renderProposals).where(eq(renderProposals.id, proposalId));
+    expect(row).toEqual({ generationStatus: "failed", generationError: GENERATION_LOST });
+    // Generating again is open: the lost run no longer holds the document.
+    expect((await client.post("/api/renders/english_resume/generate")).status).toBe(202);
+  });
+
+  it("measures lost from the run's last step, not its start", async () => {
+    const proposalId = await generate();
+    // Started long ago, but a step wrote recently: a long run, not a lost one.
+    await db.update(renderProposals).set({
+      generatedAt: new Date(Date.now() - GENERATION_STEP_LIMIT * GENERATION_STEP_BOUND_MS),
+      updatedAt: new Date(),
+    }).where(and(eq(renderProposals.userId, user.id), eq(renderProposals.id, proposalId)));
+    expect((await proposal(proposalId)).generationStatus).toBe("generating");
   });
 
   it("leaves a proposal inside its deadline alone", async () => {

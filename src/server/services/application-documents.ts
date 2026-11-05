@@ -10,7 +10,7 @@
  * Nothing here compares a copy with its document. Whether what was sent is
  * still what would be sent today is the owner's to know (`docs/06`, 2026-10-11).
  */
-import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import { applicationDocuments, applicationSentCopies, renderVersions, renders } from "../db/schema";
 import { newId } from "../http/ids";
@@ -54,6 +54,8 @@ export interface ApplicationDocument {
   /** Facts the current version was generated from that a document may no longer use. */
   withdrawnFactsSince: number | null;
   pendingProposalId: string | null;
+  /** When a proposal being generated last finished a step; `null` otherwise. */
+  progressAt: string | null;
 }
 
 /** A document the owner could tick: the three, and this application's tailored documents. */
@@ -78,9 +80,15 @@ export interface SentCopySummary {
   recordedAt: string;
 }
 
-/** What an application is called for a document: the main documents by kind, its own by kind and company. */
-export const documentTitle = (render: Pick<RenderRow, "kind" | "jobDescription">, company: string) =>
-  render.jobDescription === null && isSendableKind(render.kind)
+/**
+ * What an application is called for a document: the main documents by kind, its own by kind and company.
+ * Only whether the render has a job description matters, so a caller that read the flag passes `tailored`.
+ */
+export const documentTitle = (
+  render: Pick<RenderRow, "kind"> & ({ jobDescription: string | null } | { tailored: boolean }),
+  company: string,
+) =>
+  !("tailored" in render ? render.tailored : render.jobDescription !== null) && isSendableKind(render.kind)
     ? SENDABLE_TITLE[render.kind]
     : tailoredDocumentTitle(render.kind, company);
 
@@ -156,6 +164,7 @@ export async function readDocuments(db: Db, userId: string, application: Applica
     newFactsSince: row.newFactsSince,
     withdrawnFactsSince: row.withdrawnFactsSince,
     pendingProposalId: row.pendingProposalId,
+    progressAt: row.progressAt,
     onApplication: row.id !== null && onApplication.has(row.id),
     heldBy: !tailored && row.kind === "rirekisho" && choosing && tailoredRirekishoOn ? MAIN_RIREKISHO_HELD : null,
   }));
@@ -209,7 +218,9 @@ export async function readResumeLines(
       .select({
         applicationId: applicationDocuments.applicationId,
         kind: renders.kind,
-        jobDescription: renders.jobDescription,
+        // Whether it is tailored, not the posting: the list is read on every
+        // sidebar screen and each description runs to kilobytes (`docs/06`, 2026-11-04).
+        tailored: sql<boolean>`${renders.jobDescription} is not null`,
         versionNo: renderVersions.versionNo,
       })
       .from(applicationDocuments)
@@ -236,9 +247,7 @@ export async function readResumeLines(
     lines.set(copy.applicationId, line);
   }
 
-  const ordered = [...chosen].sort(
-    (a, b) => placeOf(a.kind, a.jobDescription !== null) - placeOf(b.kind, b.jobDescription !== null),
-  );
+  const ordered = [...chosen].sort((a, b) => placeOf(a.kind, a.tailored) - placeOf(b.kind, b.tailored));
   for (const row of ordered) {
     const line = lines.get(row.applicationId) ?? { documents: [], sent: false };
     // Once anything is sent the row names what was sent, not what is chosen.

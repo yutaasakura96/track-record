@@ -241,6 +241,15 @@ describe("choosing the documents for a job", () => {
     expect(again.documents).toHaveLength(1);
   });
 
+  it("puts a document on once when the same ticks are saved in concurrent requests", async () => {
+    await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
+    const made = await add();
+
+    const both = await Promise.all([choose(made.id, ["english_resume"]), choose(made.id, ["english_resume"])]);
+    expect(both.map((response) => response.status)).toEqual([200, 200]);
+    expect((await read(made.id)).documents.map((document) => document.title)).toEqual(["Main résumé"]);
+  });
+
   it("takes a document off without touching the document, and unticking does the same", async () => {
     await accept("english_resume", resumeContent("Cut the nightly run to 90 minutes."));
     await accept("shokumu_keirekisho", content("夜間バッチを短縮。"));
@@ -823,6 +832,19 @@ describe("recording another sent copy", () => {
     // From Applied onward a document is recorded, not chosen or taken off.
     expect((await choose(made.id, [])).status).toBe(409);
     expect((await client.delete(`/api/applications/${made.id}/documents/shokumu_keirekisho`)).status).toBe(409);
+  });
+
+  it("puts a document that was not on the application on once when it is recorded in concurrent requests", async () => {
+    await accept("shokumu_keirekisho", content("夜間バッチを短縮。"));
+    const made = await add();
+    await move(made.id, "applied");
+
+    const both = await Promise.all([record(made.id, ["shokumu_keirekisho"]), record(made.id, ["shokumu_keirekisho"])]);
+    expect(both.map((response) => response.status)).toEqual([201, 201]);
+    const after = await read(made.id);
+    expect(after.documents.map((document) => document.title)).toEqual(["職務経歴書"]);
+    // Each request recorded its copy: nothing is compared.
+    expect(after.sentCopies).toHaveLength(2);
   });
 
   it("refuses a document with no version, an unknown one, and another application's résumé", async () => {

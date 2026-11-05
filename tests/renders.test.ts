@@ -1767,6 +1767,183 @@ describe("a version is edited by hand", () => {
 });
 
 /**
+ * A draft edited by hand before it is accepted (`docs/06`, 2026-11-04). Fixing
+ * one line of a fresh draft must not need a paid regeneration, and must not
+ * cost the history what the model wrote: the draft is accepted as generated and
+ * the edit lands on top of it, in one write.
+ */
+describe("a draft is edited by hand before it is accepted", () => {
+  interface Version {
+    id: string;
+    versionNo: number;
+    origin: string;
+    sourceVersionId: string | null;
+    content: RenderContent;
+  }
+  interface HistoryRow {
+    id: string;
+    versionNo: number;
+    origin: string;
+    sourceVersionNo: number | null;
+    isCurrent: boolean;
+  }
+
+  const editDraft = (proposalId: string, content: unknown) =>
+    client.post(`/api/proposals/${proposalId}/edit`, { content });
+
+  async function draft() {
+    const record = await seedRecord();
+    const created = (await (
+      await generate(
+        resumeFrom([
+          { text: "Cut nightly batch runtime from six hours to ninety minutes", factIds: [record.measuredPublic.id] },
+          { text: "Introduced trunk-based development", factIds: [record.attestedRestricted.id] },
+        ]),
+      )
+    ).json()) as { proposalId: string };
+    const content = await client.json<{ content: RenderContent; status: string }>(
+      `/api/proposals/${created.proposalId}/content`,
+    );
+    return { record, proposalId: created.proposalId, content: content.content, status: content.status };
+  }
+
+  async function history() {
+    return client.json<{ items: HistoryRow[]; currentVersionId: string | null }>(
+      "/api/renders/english_resume/versions",
+    );
+  }
+
+  /** The draft with its first block reworded, the rest as generated. */
+  function reworded(content: RenderContent, text: string): RenderContent {
+    return {
+      sections: content.sections.map((s, si) => ({
+        ...s,
+        blocks: s.blocks.map((b, bi) => (si === 0 && bi === 0 ? { ...b, text } : b)),
+      })),
+    };
+  }
+
+  it("hands out a waiting draft as content, block ids included", async () => {
+    const { content, status } = await draft();
+    expect(status).toBe("pending");
+    expect(content.sections[0]!.blocks.map((b) => b.id)).toEqual(["blk_1", "blk_2"]);
+  });
+
+  it("accepts the draft as generated and saves the edit on top, with no model call", async () => {
+    const { proposalId, content } = await draft();
+    const calls = () => model.generationInputs.length + model.shortenCalls.length + model.extractCalls.length;
+    const before = calls();
+
+    const response = await editDraft(proposalId, reworded(content, "Cut nightly batch runtime to ninety minutes"));
+    expect(response.status).toBe(201);
+    const body = (await response.json()) as {
+      acceptedVersionNo: number;
+      newVersionNo: number;
+      origin: string;
+      warnings: string[];
+    };
+    expect(body).toMatchObject({ acceptedVersionNo: 1, newVersionNo: 2, origin: "edited", warnings: [] });
+    expect(calls()).toBe(before);
+
+    // The history says what happened in the words it already has.
+    const { items } = await history();
+    expect(items.map((v) => [v.versionNo, v.origin, v.sourceVersionNo, v.isCurrent])).toEqual([
+      [2, "edited", 1, true],
+      [1, "accepted", null, false],
+    ]);
+
+    // What the model wrote stays readable beside what the author made of it.
+    const v1 = await client.json<Version>(`/api/renders/english_resume/versions/${items[1]!.id}`);
+    expect(v1.content.sections[0]!.blocks[0]!.text).toBe("Cut nightly batch runtime from six hours to ninety minutes");
+
+    // The download is the edit.
+    const download = await (await client.get("/api/renders/english_resume/download?format=md")).text();
+    expect(download).toContain("Cut nightly batch runtime to ninety minutes");
+    expect(download).not.toContain("from six hours");
+
+    const proposal = await client.json<{ status: string }>(`/api/proposals/${proposalId}`);
+    expect(proposal.status).toBe("accepted");
+    const row = (await client.json<{ items: RenderRow[] }>("/api/renders")).items.find((i) => i.kind === "english_resume")!;
+    expect(row.status).toBe("up_to_date");
+    expect(row.currentVersionNo).toBe(2);
+  });
+
+  it("keeps the generated block ids, so the next proposal diffs against the same blocks", async () => {
+    const { proposalId, content } = await draft();
+    await editDraft(proposalId, reworded(content, "Cut nightly batch runtime to ninety minutes"));
+    const { currentVersionId } = await history();
+    const v2 = await client.json<Version>(`/api/renders/english_resume/versions/${currentVersionId}`);
+    expect(v2.content.sections[0]!.blocks.map((b) => b.id)).toEqual(["blk_1", "blk_2"]);
+  });
+
+  it("refuses an edit that changes nothing, and accepts nothing", async () => {
+    const { proposalId, content } = await draft();
+    const response = await editDraft(proposalId, content);
+    expect(response.status).toBe(409);
+    expect((await client.json<{ status: string }>(`/api/proposals/${proposalId}`)).status).toBe("pending");
+    expect((await history()).items).toHaveLength(0);
+  });
+
+  it("refuses an edit that empties the document", async () => {
+    const { proposalId, content } = await draft();
+    const response = await editDraft(proposalId, {
+      sections: content.sections.map((s) => ({ ...s, blocks: [] })),
+    });
+    expect(response.status).toBe(422);
+    expect((await history()).items).toHaveLength(0);
+  });
+
+  it("refuses a block citing a Private, Generated or unknown fact", async () => {
+    const { record, proposalId, content } = await draft();
+    for (const factId of [record.measuredPrivate.id, record.generatedPublic.id, "fct_nosuchfactatall"]) {
+      const block = content.sections[0]!.blocks[0]!;
+      const response = await editDraft(proposalId, {
+        sections: [{ ...content.sections[0], blocks: [{ ...block, text: "A hand-typed line", factIds: [factId] }] }],
+      });
+      expect(response.status, factId).toBe(422);
+      const body = (await response.json()) as { error: { message: string } };
+      expect(body.error.message).toContain(factId);
+      expect(body.error.message).not.toContain("settlement ledger");
+    }
+    expect((await history()).items).toHaveLength(0);
+    expect((await client.json<{ status: string }>(`/api/proposals/${proposalId}`)).status).toBe("pending");
+  });
+
+  it("holds the English résumé to its bounds", async () => {
+    const { proposalId, content } = await draft();
+    const response = await editDraft(proposalId, reworded(content, `Cut ${"nightly batch runtime ".repeat(20)}`));
+    expect(response.status).toBe(422);
+    expect((await history()).items).toHaveLength(0);
+  });
+
+  it("refuses a decided proposal, as accept does", async () => {
+    const { proposalId, content } = await draft();
+    await client.post(`/api/proposals/${proposalId}/dismiss`);
+    const response = await editDraft(proposalId, reworded(content, "Cut nightly batch runtime to ninety minutes"));
+    expect(response.status).toBe(409);
+    expect((await history()).items).toHaveLength(0);
+  });
+
+  it("lands on top of an existing version as the next two", async () => {
+    const { record, proposalId } = await draft();
+    await client.post(`/api/proposals/${proposalId}/accept`);
+    const again = (await (
+      await generate(resumeFrom([{ text: "Reduced nightly batch runtime by three quarters", factIds: [record.measuredPublic.id] }]))
+    ).json()) as { proposalId: string };
+    const { content } = await client.json<{ content: RenderContent }>(`/api/proposals/${again.proposalId}/content`);
+
+    const response = await editDraft(again.proposalId, reworded(content, "Reduced nightly batch runtime by 75%"));
+    expect(response.status).toBe(201);
+    const { items } = await history();
+    expect(items.map((v) => [v.versionNo, v.origin, v.sourceVersionNo])).toEqual([
+      [3, "edited", 2],
+      [2, "accepted", null],
+      [1, "accepted", null],
+    ]);
+  });
+});
+
+/**
  * Restore, the version list and the version diff (S14, `docs/06` 2026-09-12).
  *
  * The third writer of `render_versions`, and the one that can put a document

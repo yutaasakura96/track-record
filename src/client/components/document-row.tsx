@@ -7,6 +7,7 @@
 import type { ReactNode } from "react";
 import { Link } from "@tanstack/react-router";
 import type { RenderRow } from "../api";
+import type { RenderKind } from "~/shared/render-content";
 import { relative } from "../format";
 import { DownloadButton } from "./download-button";
 import { Button, Dot } from "./ui";
@@ -58,6 +59,7 @@ export function DocumentRow({
             <Link to="/renders/$ref/history" params={{ ref: row.ref }} className={QUIET}>
               History
             </Link>
+            <EditLink row={row} />
             {/* One word on every row, so the rows line up: the file's type
                 differs by document and is the document's own business. */}
             <DownloadButton kind={row.kind} docRef={row.ref} label="Download" className={QUIET} />
@@ -165,5 +167,96 @@ export function Action({
     >
       {label}
     </Button>
+  );
+}
+
+/**
+ * `Edit` wherever a document is listed or read (`docs/06`, 2026-11-04): a
+ * small fix is a hand edit, not a paid regeneration. It opens what can be
+ * edited NOW. While a draft waits, editing the current version is refused
+ * (a later accept would discard the edit), so it opens the draft instead;
+ * while one is being written, there is nothing to open and it is absent.
+ */
+export function EditLink({
+  row,
+  className = QUIET,
+}: {
+  row: Pick<RenderRow, "ref" | "status" | "currentVersionId" | "pendingProposalId">;
+  className?: string;
+}) {
+  if (row.status === "proposal_generating") return null;
+  if (row.status === "proposal_pending" && row.pendingProposalId) {
+    return (
+      <Link
+        to="/proposals/$proposalId/edit"
+        params={{ proposalId: row.pendingProposalId }}
+        className={className}
+      >
+        Edit draft
+      </Link>
+    );
+  }
+  if (!row.currentVersionId) return null;
+  return (
+    <Link to="/renders/$ref/edit" params={{ ref: row.ref }} className={className}>
+      Edit
+    </Link>
+  );
+}
+
+/**
+ * What each document takes from the record at every download rather than from
+ * its stored text — so what changing it there spares a regeneration of. Only
+ * what is true of that document: a career story prints a name and contact
+ * details and nothing from the timeline.
+ */
+const FILLED_FROM_RECORD: Record<RenderKind, { profile: string; timeline: string | null }> = {
+  english_resume: { profile: "name and contact details", timeline: "each job's employer, title and dates" },
+  rirekisho: {
+    profile: "name, contact details and photo",
+    timeline: "the education, employment and qualification tables",
+  },
+  shokumu_keirekisho: {
+    profile: "name and contact details",
+    timeline: "each employer's period, employment type and roles",
+  },
+  career_story_en: { profile: "name and contact details", timeline: null },
+  career_story_ja: { profile: "name and contact details", timeline: null },
+};
+
+/**
+ * The one line beside Generate again (`docs/10` Screen 3, Screen 17): names,
+ * contact details, the photo and dates are not the generated text, and fixing
+ * them needs no regeneration. Without `kind` it speaks for every document.
+ */
+export function FilledFromRecord({
+  kind,
+  compact = false,
+  className = "",
+}: {
+  kind?: RenderKind;
+  /** At the smaller role, for a footer already set in it. */
+  compact?: boolean;
+  className?: string;
+}) {
+  const filled = kind
+    ? FILLED_FROM_RECORD[kind]
+    : { profile: "name, contact details and photo", timeline: "the job and school rows with their dates" };
+  return (
+    <p className={`${compact ? "text-smaller" : "text-small"} text-text-muted ${className}`}>
+      Your {filled.profile} come from your{" "}
+      <Link to="/profile" className={QUIET}>
+        Profile
+      </Link>
+      {filled.timeline ? (
+        <>
+          , and {filled.timeline} from your{" "}
+          <Link to="/record" className={QUIET}>
+            Career timeline
+          </Link>
+        </>
+      ) : null}
+      . Every download reads them again, so changing them there needs no regenerating. To change a sentence, edit it.
+    </p>
   );
 }

@@ -12,7 +12,7 @@ import { employers, facts, renderProposals, renderVersions, renders, sourceDocum
 import type { Rationale } from "~/diff";
 import type { EmployerNames } from "~/render/attribution";
 import { RENDER_LANGUAGE, draftedBlocks, type Block, type RenderContent, type RenderKind } from "~/shared/render-content";
-import { collectRenderInputs, tailoringOf } from "./render";
+import { collectRenderInputs, tailoringOf, withheldFactCounts } from "./render";
 import { refOf, titleOf } from "./render-ref";
 import { rirekishoWarnings } from "~/render/rirekisho";
 import { japaneseAdvisories } from "~/render/japanese";
@@ -23,14 +23,23 @@ import { collectRirekishoRecord, hasProfilePhoto } from "./rirekisho";
 export async function proposalResponse(
   db: Db,
   userId: string,
-  proposal: typeof renderProposals.$inferSelect,
+  proposal: Omit<typeof renderProposals.$inferSelect, "usableFactIds">,
   render: typeof renders.$inferSelect,
 ) {
   const kind = render.kind as RenderKind;
   // A tailored document is checked as one: a tailored 履歴書's 志望動機 is
   // written to 貴社, and its company's name in a cell is worth saying.
   const tailoring = await tailoringOf(db, userId, render);
-  const inputs = await collectRenderInputs(db, userId, kind, "", tailoring);
+  // A proposal still being written is polled every 1.5 s, and nothing below
+  // that needs the record's facts is answered until it is ready: the Japanese
+  // advisories, the drafts and `unchanged` all read the finished content. So
+  // the facts are read once it is, and until then only the two withheld
+  // counts (`docs/06`, 2026-11-04).
+  const ready = proposal.generationStatus === "ready";
+  const inputs = ready ? await collectRenderInputs(db, userId, kind, "", tailoring) : null;
+  const withheld = inputs
+    ? { privateFactCount: inputs.privateFactCount, generatedFactCount: inputs.generatedFactCount }
+    : await withheldFactCounts(db, userId);
   const basedOn = proposal.basedOnVersionId
     ? await db
         .select({ versionNo: renderVersions.versionNo })
@@ -43,9 +52,9 @@ export async function proposalResponse(
   const basedOnVersionNo = basedOn[0]?.versionNo ?? null;
 
   const content = proposal.content as RenderContent;
-  const currentContentForCompare = await currentContent(db, userId, render.currentVersionId);
+  const currentContentForCompare = ready ? await currentContent(db, userId, render.currentVersionId) : null;
   const unchanged =
-    proposal.generationStatus === "ready" &&
+    ready &&
     currentContentForCompare !== null &&
     JSON.stringify(currentContentForCompare) === JSON.stringify(content);
 
@@ -60,6 +69,12 @@ export async function proposalResponse(
     /** The author's decision, once generation has produced something to decide. */
     status: proposal.generationStatus === "ready" ? proposal.status : proposal.generationStatus,
     generationStatus: proposal.generationStatus,
+    /**
+     * When the run last finished a step, while it is generating; `null` after.
+     * Nothing else here changes from step to step, and a poll that sees no
+     * change backs off and stops (`docs/07` §1).
+     */
+    progressAt: proposal.generationStatus === "generating" ? proposal.updatedAt.toISOString() : null,
     error:
       proposal.generationStatus === "failed"
         ? {
@@ -87,7 +102,7 @@ export async function proposalResponse(
               : null,
           })
         : []),
-      ...(RENDER_LANGUAGE[kind] === "ja" && proposal.generationStatus === "ready" ? japaneseAdvisories(content, inputs.spec) : []),
+      ...(RENDER_LANGUAGE[kind] === "ja" && inputs ? japaneseAdvisories(content, inputs.spec) : []),
     ],
     /**
      * The parts drafted for the author to confirm or edit, in document order
@@ -109,10 +124,7 @@ export async function proposalResponse(
      */
     unchanged,
     /** A count and nothing else. The footer never says WHICH facts. */
-    withheld: {
-      privateFactCount: inputs.privateFactCount,
-      generatedFactCount: inputs.generatedFactCount,
-    },
+    withheld,
   };
 }
 

@@ -12,7 +12,7 @@
  *
  * (`docs/03-technical-design.md` §7.)
  */
-import { and, asc, desc, eq, inArray, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lt, ne, notInArray, or, sql } from "drizzle-orm";
 import type { Db } from "../db/client";
 import {
   applications,
@@ -164,6 +164,58 @@ export function inDocumentOrder<T>(
   return [...read.filter((r) => dateOf(r) !== null), ...read.filter((r) => dateOf(r) === null)];
 }
 
+/** The accepted facts no document may use, counted and never read: Private, then Generated. */
+const withheldCountQuery = (db: Db, userId: string) =>
+  db
+    .select({
+      accepted: sql<number>`count(*)::int`,
+      private: sql<number>`(count(*) filter (where ${facts.disclosure} = 'private'))::int`,
+      generated: sql<number>`(count(*) filter (where ${facts.disclosure} <> 'private' and ${facts.provenance} = 'generated'))::int`,
+    })
+    .from(facts)
+    .where(and(eq(facts.userId, userId), eq(facts.status, "accepted")));
+
+/**
+ * The two counts the review footer states, without the facts behind them. A
+ * proposal still being written is polled every 1.5 s and needs these and
+ * nothing else from the record (`docs/06`, 2026-11-04).
+ */
+export async function withheldFactCounts(db: Db, userId: string): Promise<Pick<RenderInputs, "privateFactCount" | "generatedFactCount">> {
+  const [counted] = await withheldCountQuery(db, userId);
+  return { privateFactCount: counted?.private ?? 0, generatedFactCount: counted?.generated ?? 0 };
+}
+
+/** How many usable facts carry exactly this set of technologies, under this employer. */
+export interface TechnologySet {
+  technologies: string[];
+  employerId: string | null;
+  count: number;
+}
+
+/**
+ * What `technologiesOnly` answers: the record's lists, and the usable facts'
+ * technologies grouped into sets, instead of one row per fact.
+ */
+export type TechnologyInputs = Omit<RenderInputs, "facts" | "usableFactIds" | "omittedFactCount"> & {
+  technologySets: TechnologySet[];
+};
+
+export async function collectRenderInputs(
+  db: Db,
+  userId: string,
+  kind: RenderKind,
+  subjectName: string,
+  tailoring: Tailoring | null,
+  options: { technologiesOnly: true },
+): Promise<TechnologyInputs>;
+export async function collectRenderInputs(
+  db: Db,
+  userId: string,
+  kind: RenderKind,
+  subjectName: string,
+  tailoring?: Tailoring | null,
+  options?: { forModel?: boolean; claims?: boolean },
+): Promise<RenderInputs>;
 export async function collectRenderInputs(
   db: Db,
   userId: string,
@@ -184,8 +236,16 @@ export async function collectRenderInputs(
      * the database to be thrown away. Their facts carry an empty claim.
      */
     claims?: boolean;
+    /**
+     * For a caller that reads only the record's lists and the usable facts'
+     * technologies — the résumé's file and page, and the Skills screen's pool.
+     * The facts are not read one row per fact: their technologies come back
+     * grouped into sets, counted in SQL, under the same filters (`docs/06`,
+     * 2026-11-04). The answer carries no facts and no fact ids.
+     */
+    technologiesOnly?: boolean;
   } = {},
-): Promise<RenderInputs> {
+): Promise<RenderInputs | TechnologyInputs> {
   // `employerId` is the employer each fact RESOLVES to — its hand-set one, then
   // its document's, then its project's (`docs/04` §3.12) — so every exclusion,
   // filing and heading below reads the order Version Edit and the attribution
@@ -200,8 +260,7 @@ export async function collectRenderInputs(
   // for a fact a document may use, and a Private or Generated fact is not read
   // at all: it is counted, in SQL, and goes no further.
   const acceptedFact = and(eq(facts.userId, userId), eq(facts.status, "accepted"));
-  const [accepted, [counted]] = await db.batch([
-    db
+  const acceptedQuery = db
       .select({
         id: facts.id,
         // A run for the model reads the claims of the facts the budget keeps,
@@ -216,16 +275,10 @@ export async function collectRenderInputs(
         employerId: effectiveEmployerId,
       })
       .from(facts)
-      .where(and(acceptedFact, ne(facts.disclosure, "private"), ne(facts.provenance, "generated"))),
-    db
-      .select({
-        accepted: sql<number>`count(*)::int`,
-        private: sql<number>`(count(*) filter (where ${facts.disclosure} = 'private'))::int`,
-        generated: sql<number>`(count(*) filter (where ${facts.disclosure} <> 'private' and ${facts.provenance} = 'generated'))::int`,
-      })
-      .from(facts)
-      .where(acceptedFact),
-  ]);
+      .where(and(acceptedFact, ne(facts.disclosure, "private"), ne(facts.provenance, "generated")));
+  const [accepted, [counted]] = options.technologiesOnly
+    ? [[] as Awaited<typeof acceptedQuery>, await withheldCountQuery(db, userId)]
+    : await db.batch([acceptedQuery, withheldCountQuery(db, userId)]);
 
   const employerRows = await db
     .select()
@@ -292,6 +345,11 @@ export async function collectRenderInputs(
     projectRows.filter((p) => excludesProject(excluded, p)).map((p) => p.id),
   );
 
+  // The same four filters as `usable` below, applied in SQL.
+  const technologySets = options.technologiesOnly
+    ? await usableTechnologySets(db, userId, [...excluded.employer], [...excludedProjectIds])
+    : null;
+
   // Every filter runs here, before the request is built. Nothing downstream can
   // reintroduce an excluded fact, because nothing downstream ever sees one.
   const usable = accepted.filter(
@@ -335,7 +393,7 @@ export async function collectRenderInputs(
       }))
     : [];
   const renderable = new Set([
-    ...usable.flatMap((f) => f.technologies),
+    ...(technologySets ?? usable).flatMap((f) => f.technologies),
     ...certificationRows.flatMap((c) => c.technologies),
   ]);
   // A fact repeats its employer's industry and its project's summary, and an
@@ -444,7 +502,9 @@ export async function collectRenderInputs(
       // and a career story planned from the Projects list alone had no chapter
       // to put them in (`docs/06`, 2026-09-13).
       workOutsideEmployment:
-        renderFacts.some((f) => f.employer === undefined) ||
+        (technologySets
+          ? technologySets.some((set) => !set.employerId || !employerById.has(set.employerId))
+          : renderFacts.some((f) => f.employer === undefined)) ||
         includedProjects.some((p) => p.employerId === null),
       // Read from the profile row the caller already fetched? No — this
       // function owns the payload, and a field the route had to remember to
@@ -507,7 +567,7 @@ export async function collectRenderInputs(
       // usable fact, not the budget's, as the curation is narrowed.
       skillShortlist:
         definition.skillsSection && curation.length === 0
-          ? autoCuratedSkills(rankedSkills([...usable, ...certificationRows]))
+          ? autoCuratedSkills(rankedSkills([...(technologySets ?? usable), ...certificationRows]))
           : null,
       jobDescription: tailoring?.jobDescription ?? null,
       application: tailoring?.application ?? null,
@@ -519,7 +579,44 @@ export async function collectRenderInputs(
     usableFactIds: accepted
       .filter((f) => f.disclosure !== "private" && f.provenance !== "generated")
       .map((f) => f.id),
+    ...(technologySets ? { technologySets } : {}),
   };
+}
+
+/**
+ * The usable facts' technologies, one row per distinct set of names under one
+ * employer, with how many facts carry it: what ranking skills needs, without a
+ * row per fact. A fact's names are de-duplicated as `rankedSkills` does it, by
+ * exact spelling; blank names are left for it to drop.
+ */
+async function usableTechnologySets(
+  db: Db,
+  userId: string,
+  excludedEmployerIds: string[],
+  excludedProjectIds: string[],
+): Promise<TechnologySet[]> {
+  const usableFact = and(
+    eq(facts.userId, userId),
+    eq(facts.status, "accepted"),
+    ne(facts.disclosure, "private"),
+    ne(facts.provenance, "generated"),
+    ...(excludedEmployerIds.length > 0
+      ? [or(isNull(effectiveEmployerId), notInArray(effectiveEmployerId, excludedEmployerIds))]
+      : []),
+    ...(excludedProjectIds.length > 0 ? [or(isNull(facts.projectId), notInArray(facts.projectId, excludedProjectIds))] : []),
+  );
+  const perFact = db
+    .select({
+      employerId: sql<string | null>`${effectiveEmployerId}`.as("employer_id"),
+      technologies: sql<string[]>`array(select distinct t from unnest(${facts.technologies}) as t order by t)`.as("technologies"),
+    })
+    .from(facts)
+    .where(usableFact)
+    .as("per_fact");
+  return db
+    .select({ technologies: perFact.technologies, employerId: perFact.employerId, count: sql<number>`count(*)::int` })
+    .from(perFact)
+    .groupBy(perFact.employerId, perFact.technologies);
 }
 
 /** The claims of these facts, read by id. */
@@ -675,6 +772,18 @@ export async function failProposal(db: Db, userId: string, proposalId: string, r
     .where(whileGenerating(userId, proposalId));
 }
 
+/**
+ * Fails, as {@link failProposal} does, every proposal still `generating` that
+ * has not changed since `before`: the runs behind them are gone. A statement,
+ * so a caller can put it first in the batch that reads the proposals.
+ */
+export const failLostProposals = (db: Db, userId: string, before: Date, reason: string) =>
+  db
+    .update(renderProposals)
+    .set({ content: { sections: [] } satisfies RenderContent, generationStatus: "failed", generationError: reason, updatedAt: new Date() })
+    .where(and(eq(renderProposals.userId, userId), eq(renderProposals.generationStatus, "generating"), lt(renderProposals.updatedAt, before)))
+    .returning({ id: renderProposals.id });
+
 /** What one step wrote, for the next to read. The row still reads `generating`, and no screen shows it. */
 async function keepDraft(db: Db, userId: string, proposalId: string, content: RenderContent, usage: ModelUsage | null): Promise<void> {
   await db
@@ -737,7 +846,12 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     let content =
       stage.call === "shorten"
         ? await repairResumeBounds(draft!, inputs.spec, inputs.facts, (lines) => model.shortenResumeLines(lines, { onUsage }))
-        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, { onUsage });
+        : await model.generateRender(inputs.facts, draft ? { ...inputs.spec, storySoFar: draft } : inputs.spec, {
+            onUsage,
+            // Ids, chapter keys and the defect's name only.
+            onStoryPartRetried: (chapters, defect) =>
+              console.warn(JSON.stringify({ event: "generation_part_retried", proposalId, chapters, defect })),
+          });
     const allowed = new Set(inputs.facts.map((f) => f.id));
     content = stripUnknownFactIds(content, allowed);
     const wroteChapters = content.sections.some((section) => !draft?.sections.some((done) => done.key === section.key));

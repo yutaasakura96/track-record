@@ -231,6 +231,81 @@ describe("writing a story a round at a time", () => {
   });
 });
 
+describe("a Japanese story's parts and the Japanese check", () => {
+  const ja = (over: Partial<RenderSpec> = {}) => spec({ kind: "career_story_ja", language: "ja", ...over });
+  /** A part in Japanese, except where `english` names a chapter, whose paragraph is an English sentence. */
+  const japanese = (english: string | null) => (partFacts: RenderFact[], partSpec: RenderSpec) => {
+    const written = answer(partFacts, partSpec) as { sections: { key: string; heading: string; blocks: { text: string }[] }[] };
+    for (const section of written.sections) {
+      section.heading = "章の見出し";
+      section.blocks[0]!.text =
+        section.key === english ? "移行を担当し、Replaced the nightly batch with a stream that settles every order in under a minute." : "移行を担当しました。";
+    }
+    return written;
+  };
+
+  it("writes a part with a line in English again, by itself, and keeps the parts that passed", async () => {
+    const asked: string[][] = [];
+    const retried: [readonly string[], string][] = [];
+    let slipped = false;
+    const story = await writeStoryRound(
+      FACTS,
+      ja(),
+      async (partFacts, partSpec) => {
+        asked.push(partSpec.part!.chapters);
+        const english = !slipped && partSpec.part!.chapters[0] === `employer:${EMP_B}`;
+        if (english) slipped = true;
+        return japanese(english ? `employer:${EMP_B}` : null)(partFacts, partSpec);
+      },
+      (chapters, defect) => retried.push([chapters, defect]),
+    );
+    expect(asked).toEqual([[`employer:${EMP_A}`], [`employer:${EMP_B}`], [`employer:${EMP_B}`]]);
+    expect(retried).toEqual([[[`employer:${EMP_B}`], "english"]]);
+    expect(story.sections.map((s) => s.blocks[0]!.text)).toEqual(["移行を担当しました。", "移行を担当しました。"]);
+  });
+
+  it("refuses the story when the same part writes English twice, with the reason the whole story gave, and aborts the rest", async () => {
+    const signals: AbortSignal[] = [];
+    const attempt = writeStoryRound(FACTS, ja(), async (partFacts, partSpec, signal) => {
+      signals.push(signal);
+      if (partSpec.part!.chapters[0] === `employer:${EMP_B}`) return japanese(`employer:${EMP_B}`)(partFacts, partSpec);
+      return new Promise((_, reject) => signal.addEventListener("abort", () => reject(new Error("aborted"))));
+    });
+    await expect(attempt).rejects.toThrow(/in English, twice/);
+    expect(signals.every((s) => s.aborted)).toBe(true);
+  });
+
+  it("checks the tables against every fact's technologies, not only the facts the tables are sent", async () => {
+    const facts = [...FACTS.slice(0, 13), { ...fact("fct_n0", null), technologies: ["Amazon Aurora PostgreSQL"] }];
+    const written: RenderContent = {
+      sections: [
+        ...EMPLOYER_CHAPTERS.sections.map((s) => ({ ...s, heading: "章", blocks: s.blocks.map((b) => ({ ...b, text: "移行を担当しました。" })) })),
+        ...["opening", "independent", "ahead"].map((key) => ({ key, heading: "章", blocks: [{ id: `blk_${key}`, kind: "paragraph" as const, text: "本文です。", factIds: [] }] })),
+      ],
+    };
+    let calls = 0;
+    await writeStoryRound(facts, ja({ storySoFar: written }), async (partFacts, partSpec) => {
+      calls++;
+      // Cites only employer facts, so fct_n0 and its technology are not sent here.
+      expect(partFacts.map((f) => f.id)).not.toContain("fct_n0");
+      const rows = japanese(null)(partFacts, partSpec);
+      // A line with no kana or kanji passes only as a recorded term.
+      rows.sections[0]!.blocks[0]!.text = "Amazon Aurora PostgreSQL";
+      return rows;
+    });
+    expect(calls).toBe(1);
+  });
+
+  it("leaves an English story's parts to the whole document's check", async () => {
+    let calls = 0;
+    await writeStoryRound(FACTS, spec(), async (partFacts, partSpec) => {
+      calls++;
+      return japanese(partSpec.part!.chapters[0]!)(partFacts, partSpec);
+    });
+    expect(calls).toBe(2);
+  });
+});
+
 /* ------------------------------------------------- the provider, over fetch */
 
 /** The API's streaming answer for one forced `emit_render` call. */

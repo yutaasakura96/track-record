@@ -8206,3 +8206,151 @@ part of this.
   each poll while an import runs. The export reads the whole record because it is the backup.
 - **Revisit if:** the transfer graph climbs again with no import or generation running, a new
   polled route reads a list, or the record grows past the volume the budgets were set at.
+
+### [2026-11-04] A running import or generation is polled until it stops changing, and a lost one ends
+
+- **Context:** the database moved to Neon's Launch plan, where network transfer has 500 GB a month
+  included and compute is billed by the hour it is awake, suspending after five idle minutes. An
+  audit of every read on the synthetic record of the entry above (and with twenty more versions of
+  each document) found nothing that keeps the database awake on its own: no cron, no keep-alive,
+  no refetch on focus, and no polling in a hidden tab. Two things could keep it awake for good. A
+  version left `extracting` by a lost run had no timeout, so every sidebar screen polled the summary
+  every 1.5 s for as long as a tab was visible; a lost generation was failed only after 365 minutes,
+  and only when the proposal itself was read, so Home, the document page and the application polled
+  it until then. And after the entry above, the largest polled read left was the proposal screen
+  the client opens after every Generate: `GET /api/proposals/:id` read every usable fact and its
+  claim on each poll, 1.94 MB. Home's career-record card read the whole master document (2.7 MB) to
+  draw three employers and two claims each, and its résumé card, the résumé page and its downloads
+  read every accepted fact (840 KB) to rank the skills line.
+- **Decision:** a run that goes silent past one step's bound is lost, and the next read that reports
+  it fails it. A generation's bound is one step of `GENERATE_STEP`, both attempts at the full
+  timeout and the delay between them, measured from the proposal's `updated_at`, which every step
+  that hands on stamps; `renderState` fails such proposals first in its batch, so every polling
+  screen sees it. An import's is one step at Cloudflare's default config (six attempts of ten
+  minutes and the backoff between), measured from the version's `updated_at`; the summary, the
+  overview, the listing and the status fail it and start the next queued one. Both add five minutes
+  for a step to start.
+- **Decision:** the client polls through `pollInterval`: every 1.5 s while the answer changes, then
+  5 s, 15 s and 60 s as it stays the same, and no more after 75 minutes, past both bounds. Those
+  bounds are per step, so a generating proposal carries `progressAt`, its `updated_at`, in its own
+  answer and in every document row reporting it: each step changes what is polled and starts the
+  75 minutes again, and a run of six steps is followed to its end or its failure.
+- **Decision:** a proposal still generating answers from its own row and the two withheld counts;
+  the record is read once it is ready, which is when the drafts, the advisories and `unchanged`
+  need it. Accept copies the proposal's fact ids inside the insert instead of reading them out.
+  Home's card reads `GET /api/master-document/preview`, which orders an employer's first claims as
+  the document does. The résumé's file and page, and the Skills screen's pool, read the usable
+  facts' technologies grouped into sets in SQL (`technologiesOnly`), with the same four filters, and
+  rank them as before. The applications list reads whether a document is tailored, not its posting.
+  The export pages `render_versions` and `render_proposals` twenty rows at a time, since every row
+  carries every usable fact's id and one read of them all passed the 10 MiB the local proxy allows
+  at about 95 versions (64 MB in production at about 550), and asks whether there is a photo rather
+  than reading it. Every document's output is unchanged.
+- **Measured, bytes from the database per use, before → after:** the proposal while it is written
+  1.94 MB → 4 KB; the English résumé's page 838 KB → 55 KB; Home's career-record card 2.7 MB → 4 KB;
+  the applications list with ten tailored résumés 56 KB → 5 KB; the Skills screen 1.36 MB → 573 KB;
+  generating a résumé 2.58 MB → 1.80 MB. The overview, the import listing and the import status
+  each add one statement, the lost-import check, about 0.2 KB.
+- **Not done here:** settling `repeat` flags on each fact click (2.2 MB), Fact Review's rail reading
+  the overlap pool once per page that holds a repeat flag (3.0 MB per open), the photo's `no-store`,
+  Better Auth's two session queries on every request, and the per-row employer subqueries behind
+  the career timeline and the Skills screen. Each carries a trade-off or saves little on Launch.
+- **Revisit if:** the compute's active hours climb with nobody using the site, a step's config
+  changes (both bounds are derived from it), or a new screen polls without `pollInterval`.
+
+---
+
+### [2026-11-04] A draft is edited by hand before it is accepted, and lands as two versions
+
+- **Context:** a fresh draft could only be accepted, dismissed or generated again. A draft that was
+  right except for one line pushed the author to a paid regeneration, which writes the whole document
+  again and may not fix the line. Most of the small fixes an author wants are not in the generated
+  text at all: the name, contact details and photo come from the profile at every download, and on
+  the English résumé, the 履歴書 and the 職務経歴書 the job and school rows and their dates come from
+  the career timeline. An accepted document's current version could already be edited by hand
+  (Screen 6, S16); a waiting draft could not, because the edit route refuses while a proposal waits.
+- **Decision:** `POST /api/proposals/:id/edit` takes the whole edited document, as the edit route
+  does, and in one batch accepts the draft **as it was generated** as v<n> and appends the edit on
+  top of it as v<n+1>, `origin: "edited"`, its source the version just accepted. The history then
+  says what happened in the words it already had: `ACCEPTED · from a proposal`, then `EDITED BY HAND
+  · Edited from v<n>`. What the model wrote stays readable, downloadable and restorable beside what
+  the author made of it.
+- **Rejected: editing the proposal's content in place before accept.** It would have lost the
+  generated text, or needed a new column on both tables to keep it and a new origin to say a version
+  was edited before it existed. Two rows in the shapes the history already reads need neither a
+  migration nor a new word. The drafted-part route (2026-10-26) does edit a proposal in place, and
+  that stays right for it: a 志望動機 is drafted *for* the author to rewrite, and no fact states it.
+- **Decision:** it runs every check accept runs and every check the edit route runs, through one
+  function (`checkHandEdit` in `src/server/routes/renders.ts`) both routes call: a drafted part
+  still unconfirmed is `409` as on accept; the shape and block-id rules of `parseEditedContent`, with
+  ids kept from the draft so the next proposal diffs against the same blocks; the English résumé's
+  bounds against the record's names; `409` when it changes nothing (accept it as it is instead); the
+  four citation refusals. It calls no model. Staleness is set as accept sets it, because the
+  accepted content was generated from today's record; the edit consumes no facts. Attribution
+  warnings come back on the `201` and land on Screen 6's saved panel, as for any hand edit.
+- **Decision:** the editor is Screen 6 itself at `/proposals/$proposalId/edit`, with the same rules:
+  citations removed and never added, no block moved between sections, section keys never shown. The
+  draft's content is read from `GET /api/proposals/:id/content`, kept off the polled
+  `GET /api/proposals/:id`.
+- **Decision:** `Edit` is offered wherever a document is listed or read: Home's cards, the
+  application's documents, Screen 17 and the diff review's footer (`Edit draft`). While a draft
+  waits it opens the draft, since editing the current version would be refused; while one is being
+  written it is absent. One line beside Regenerate says what that document takes from the profile
+  and the career timeline, with links, and that changing them there needs no regenerating. It is
+  worded per document, because a career story takes nothing from the timeline.
+- **Unchanged:** the edit route still refuses while a proposal waits. Accept is still all or
+  nothing; a hand edit is the author's own version on top of an accepted one, not a partial accept.
+  A wrong fact is still fixed in the record, and a hand edit does not survive the next generation.
+- **Revisit if:** an author wants to edit, then read the diff, then accept; that needs the edit held
+  on the proposal, which this deliberately does not do.
+
+### [2026-11-04] A name from code is a name in the Japanese check, and a story part is retried alone
+
+- **Context:** after the story-in-parts release the English story and the 職務経歴書 generated on the
+  live site, and the Japanese story failed after about 25 minutes: "The model wrote part of this
+  Japanese document in English, twice". It was simulated without the live site: the record read-only
+  from the pre-release backup branch, `collectRenderInputs(..., { forModel: true })`, the released
+  `writeStoryRound`, and every part's prompt run through Claude Code on `claude-opus-5` at effort
+  high, then the app's Japanese check run on each part alone. Four stories passed. Two more were run
+  with thinking off, because a forced tool call on the API spends less on thinking than Claude Code
+  does (the live 職務経歴書 fit in 32,000 tokens where the simulation spent 44,101). In both, one
+  employer chapter failed the check on a Japanese sentence that named SQL functions side by side,
+  names of the `TO_DATE` kind. The check split each name at its underscores into Latin words, found
+  five words with 「to」 twice among them, and read the run as an English sentence. The same chapter
+  named such functions in five of the six
+  stories and passed only while one at a time sat in a run. One of those runs also failed its routing
+  table, which had written fact ids into a row's text. 484 of the 488 facts sent are written in English,
+  so every part of a Japanese story is written from English text.
+- **Reading the check found two more misjudgements.** A recorded term was taken out of any word that
+  contained it: 「TDE」 leaves 「setDefault」 as 「se fault」, and 「CI」 leaves 「decision」 as two
+  words, each cut a word more counted against the line. And a line with no kana or kanji failed on any
+  Latin left, so a row of figures such as 「120ms → 40ms」 read as English.
+- **Decision:** the check (`src/render/japanese.ts`) counts a name joined by 「_」 or 「.」 —
+  `TO_DATE`, `ALL_TAB_COLUMNS`, `report.json` — as one word, never a function word, and
+  passes a line of such names; takes a recorded term out only where it stands as a word; and passes
+  a line that carries a digit and whose only Latin is a number's unit or a capital abbreviation of up
+  to five letters. A line with no digit, such as a heading in capitals (「ABOUT ME」), is still read
+  as English. An
+  English sentence beside them is still a defect, as are E1 and E2.
+- **Decision:** each part of a Japanese story is held to the Japanese check as it arrives
+  (`writeStoryRound`), against every fact's technologies as the joined story is, and a part with a
+  line in English is written again, once, by itself. The check reads one line at a time, so the joined
+  story fails it exactly where a part does. Checked only once joined, one slip cost every part of the
+  story again and a second slip anywhere refused it; now it costs one part's call, and the story is
+  refused only when the same part slips twice, with the same reason as before. Each retry is logged
+  as `generation_part_retried` with the proposal id, the part's chapter keys and the defect's name,
+  so the next slip on the live site names the part. An English story is not checked a part at a time:
+  its check weighs the share of Japanese across the whole document. The check on the whole story
+  stays where it was, and so does its retry.
+- **Decision:** both tables' rules say a fact id goes in `factIds` and is never written in a row's text.
+- **Measured, simulated the same way on the fixed code:** the Japanese story with thinking on, 6 calls,
+  85,005 output tokens, 822 seconds; with thinking off, 6 calls, 55,456, 762 seconds; the English
+  story, 6 calls, 70,746, 598 seconds. All three passed the plan, language and record-name checks with
+  no part retried, no unknown fact id, no fact cited under another employer and no fact id in a row's
+  text. Under the fixed check every part the six earlier runs returned passes; under the released check
+  the two thinking-off employer chapters and the routing table with ids do not.
+- **Not done here:** a part with a line in English is written again with the same prompt, as the
+  whole document was; telling the part which line slipped was not needed in any simulated run. An all-capital English word longer than five letters on a line of its own (「CONVERT」)
+  is still read as English.
+- **Revisit if:** `generation_part_retried` names one chapter again and again, or a Japanese story is
+  refused with a part retried.

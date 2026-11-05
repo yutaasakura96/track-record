@@ -178,6 +178,8 @@ describe("one user's record is unreachable from another's session", () => {
       ["GET", `/api/proposals/${b.proposalId}/diff`],
       ["POST", `/api/proposals/${b.proposalId}/accept`],
       ["POST", `/api/proposals/${b.proposalId}/dismiss`],
+      ["GET", `/api/proposals/${b.proposalId}/content`],
+      ["POST", `/api/proposals/${b.proposalId}/edit`],
       ["POST", `/api/facts/${b.factId}/accept`],
       ["POST", `/api/facts/${b.factId}/reject`],
       ["POST", `/api/facts/${b.factId}/undo`],

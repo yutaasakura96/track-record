@@ -469,14 +469,17 @@ const byName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
  * (`skillKey`), so `zod` and `Zod` count together and sit together, the
  * commoner spelling first.
  */
-export function rankedSkills(rows: { technologies: string[] }[]): string[] {
+export function rankedSkills(rows: { technologies: string[]; count?: number }[]): string[] {
   const spellings = new Map<string, number>();
   const backing = new Map<string, number>();
   for (const row of rows) {
+    // `count` is how many facts carry exactly this set of names, for a caller
+    // that read the sets grouped rather than one row per fact.
+    const count = row.count ?? 1;
     // Exactly as spelled: a curation is narrowed by these names.
     const names = new Set(row.technologies.filter((name) => name.trim() !== ""));
-    for (const name of names) spellings.set(name, (spellings.get(name) ?? 0) + 1);
-    for (const key of new Set([...names].map(skillKey))) backing.set(key, (backing.get(key) ?? 0) + 1);
+    for (const name of names) spellings.set(name, (spellings.get(name) ?? 0) + count);
+    for (const key of new Set([...names].map(skillKey))) backing.set(key, (backing.get(key) ?? 0) + count);
   }
   return [...spellings.keys()].sort((a, b) => {
     const [ka, kb] = [skillKey(a), skillKey(b)];

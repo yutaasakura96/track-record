@@ -20,14 +20,22 @@
  *   - **The saved state is where the route's attribution warnings land.** They
  *     arrive with the `201` and have nowhere else to go — which is the whole
  *     reason this is a screen rather than a textarea on Screen 5.
+ *
+ * The same editor opens on a waiting draft (`/proposals/$proposalId/edit`,
+ * `docs/06` 2026-11-04). Saving there accepts the draft as generated and saves
+ * the edit on top of it, so fixing one line of a fresh draft costs no
+ * regeneration and the history still shows what the model wrote.
  */
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import {
   ApiError,
   failureText,
   useDoc,
+  useEditDraft,
   useEditVersion,
+  useProposal,
+  useProposalContent,
   useStoredVersion,
   useVersionHistory,
   type Doc,
@@ -47,7 +55,7 @@ export function VersionEditScreen() {
   // No sidebar: this is a focused task. There is unsaved work on this screen,
   // and a nav row that discards it on a click is the failure mode.
   return doc ? (
-    <Editor doc={doc} />
+    <VersionEditor doc={doc} />
   ) : (
     <main className="min-h-screen grid place-items-center px-20">
       {failure ? (
@@ -102,13 +110,135 @@ const isEmpty = (content: RenderContent) =>
 
 /* ------------------------------------------------------------------ screen */
 
-function Editor({ doc }: { doc: Doc }) {
+/** Screen 6 on the current version: `Save as v<n+1>` appends an `edited` version. */
+function VersionEditor({ doc }: { doc: Doc }) {
   const navigate = useNavigate();
   const history = useVersionHistory(doc.ref);
   const currentVersionId = history.data?.currentVersionId ?? null;
   const version = useStoredVersion(doc.ref, currentVersionId);
   const save = useEditVersion(doc.ref);
+  const leave = () => void navigate({ to: "/renders/$ref/history", params: { ref: doc.ref } });
 
+  if (history.isPending || (currentVersionId !== null && version.isPending)) return <Reading doc={doc} />;
+
+  // Reaching the editor for a render with no current version is the same
+  // nothing Screen 5 reports, and it gets the same sentence.
+  const loaded = version.data;
+  if (currentVersionId === null || !loaded) return <NotGeneratedYet doc={doc} />;
+
+  return (
+    <Editor
+      doc={doc}
+      loaded={{ key: loaded.id, content: loaded.content }}
+      title={`editing v${loaded.versionNo}`}
+      note={`Saving creates v${loaded.versionNo + 1}. v${loaded.versionNo} stays readable and downloadable.`}
+      saveLabel={`Save as v${loaded.versionNo + 1}`}
+      saving={save.isPending}
+      save={(content) => save.mutateAsync({ basedOnVersionId: loaded.id, content })}
+      onSaved={leave}
+      onCancel={leave}
+    />
+  );
+}
+
+export function DraftEditScreen() {
+  const { proposalId } = useParams({ from: "/proposals/$proposalId/edit" });
+  const proposal = useProposal(proposalId);
+  const data = proposal.data;
+  return data ? (
+    <DraftEditor
+      proposalId={proposalId}
+      doc={{ ref: data.renderRef, kind: data.renderKind, title: data.title }}
+    />
+  ) : (
+    <main className="min-h-screen grid place-items-center px-20">
+      {proposal.isError ? (
+        <ReadFailure query={proposal} />
+      ) : (
+        <p className="text-ui text-text-dim">Opening the draft…</p>
+      )}
+    </main>
+  );
+}
+
+/**
+ * Screen 6 on a waiting draft (`docs/06`, 2026-11-04). The draft is accepted as
+ * it was generated and the edit is saved on top of it as the next version, in
+ * one request: what the model wrote stays in the history, and no model is
+ * called. Every check accept runs is run, so a draft with a drafted part still
+ * to confirm is sent back to the review first.
+ */
+function DraftEditor({ proposalId, doc }: { proposalId: string; doc: Doc }) {
+  const navigate = useNavigate();
+  const proposal = useProposal(proposalId).data!;
+  // Judged once, as the screen opens. Saving accepts the proposal, and the
+  // refreshed read must not swap the saved panel, warnings and all, for
+  // "already decided".
+  const [editable] = useState(
+    proposal.generationStatus === "ready" && proposal.status === "pending" && proposal.drafts.length === 0,
+  );
+  const read = useProposalContent(proposalId, editable);
+  const save = useEditDraft(proposalId, doc.ref);
+  const review = () => void navigate({ to: "/proposals/$proposalId", params: { proposalId } });
+  const history = () => void navigate({ to: "/renders/$ref/history", params: { ref: doc.ref } });
+
+  if (!editable) return <DraftNotEditable doc={doc} proposalId={proposalId} drafts={proposal.drafts.length} status={proposal.status} />;
+  if (!read.data) {
+    return read.isError ? (
+      <Frame doc={doc} note="">
+        <ReadFailure query={read} />
+      </Frame>
+    ) : (
+      <Reading doc={doc} />
+    );
+  }
+
+  const accepted = proposal.proposedVersionNo;
+  return (
+    <Editor
+      doc={doc}
+      loaded={{ key: read.data.id, content: read.data.content }}
+      title={`editing the v${accepted} draft`}
+      note={`Saving accepts the draft as v${accepted} and saves your edit as v${accepted + 1}. Nothing is saved until then.`}
+      saveLabel={`Accept with my edits as v${accepted + 1}`}
+      saving={save.isPending}
+      save={(content) => save.mutateAsync(content)}
+      onSaved={history}
+      onCancel={review}
+      cancelNote="Nothing has been saved yet. The draft is unchanged and still waiting for you."
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ editor */
+
+/**
+ * The editor itself, whatever it was opened on. `loaded` is the document as it
+ * was read; `save` is the request that turns the edit into a version.
+ */
+function Editor({
+  doc,
+  loaded,
+  title,
+  note,
+  saveLabel,
+  saving,
+  save,
+  onSaved,
+  onCancel,
+  cancelNote,
+}: {
+  doc: Doc;
+  loaded: { key: string; content: RenderContent };
+  title: string;
+  note: string;
+  saveLabel: string;
+  saving: boolean;
+  save: (content: RenderContent) => Promise<EditResult>;
+  onSaved: () => void;
+  onCancel: () => void;
+  cancelNote?: string;
+}) {
   const [draft, setDraft] = useState<RenderContent | null>(null);
   // Anything the save threw: a refusal, or a request that never arrived.
   const [refusal, setRefusal] = useState<unknown>(null);
@@ -117,56 +247,34 @@ function Editor({ doc }: { doc: Doc }) {
   /** The block whose text should take focus once it exists in the DOM. */
   const [focusBlock, setFocusBlock] = useState<string | null>(null);
 
-  // The loaded version is immutable, so this runs once per version id rather
-  // than on every render of the query.
-  const loaded = version.data;
+  // What was loaded does not change under the editor, so this runs once per
+  // document read rather than on every render of the query.
   useEffect(() => {
-    if (loaded) setDraft(loaded.content);
-  }, [loaded?.id]);
+    setDraft(loaded.content);
+  }, [loaded.key]);
 
-  const versionNo = loaded?.versionNo ?? null;
-  const nextVersionNo = versionNo === null ? null : versionNo + 1;
   const proposed = draft ? submittable(draft) : null;
-  const changed = proposed !== null && loaded !== undefined && !sameContent(proposed, loaded.content);
+  const changed = proposed !== null && !sameContent(proposed, loaded.content);
   const emptied = proposed !== null && isEmpty(proposed);
 
-  const leave = () => void navigate({ to: "/renders/$ref/history", params: { ref: doc.ref } });
-
   const commit = async () => {
-    if (!proposed || !loaded) return;
+    if (!proposed) return;
     setRefusal(null);
     try {
-      const result = await save.mutateAsync({
-        basedOnVersionId: loaded.id,
-        content: proposed,
-      });
+      const result = await save(proposed);
       // No warnings means the work is done and there is nothing to say. The
       // history is where an edit is read back, and the new version is at the
       // top of it marked `Current`.
-      if (result.warnings.length === 0) leave();
+      if (result.warnings.length === 0) onSaved();
       else setSaved(result);
     } catch (error) {
       setRefusal(error);
     }
   };
 
-  if (history.isPending || (currentVersionId !== null && version.isPending)) {
-    return (
-      <Frame doc={doc} note="">
-        <Panel>
-          <p className="text-smaller text-text-dim">Reading the current version…</p>
-        </Panel>
-      </Frame>
-    );
-  }
-
-  // Reaching the editor for a render with no current version is the same
-  // nothing Screen 5 reports, and it gets the same sentence.
-  if (currentVersionId === null || !loaded) return <NotGeneratedYet doc={doc} />;
-
   if (saved) {
     return (
-      <SavedPanel doc={doc} result={saved} onLeave={leave} />
+      <SavedPanel doc={doc} result={saved} onLeave={onSaved} />
     );
   }
 
@@ -176,16 +284,16 @@ function Editor({ doc }: { doc: Doc }) {
   return (
     <Frame
       doc={doc}
-      note={`Saving creates v${nextVersionNo}. v${versionNo} stays readable and downloadable.`}
-      title={`editing v${versionNo}`}
+      note={note}
+      title={title}
       actions={
         <>
-          <Button onClick={() => (changed ? setConfirmingCancel(true) : leave())}>Cancel</Button>
+          <Button onClick={() => (changed ? setConfirmingCancel(true) : onCancel())}>Cancel</Button>
           <Button
             variant="primary"
-            disabled={!changed || emptied || save.isPending}
+            disabled={!changed || emptied || saving}
             disabledReason={
-              save.isPending
+              saving
                 ? "Saving…"
                 : emptied
                   ? "An edit cannot empty the document."
@@ -193,7 +301,7 @@ function Editor({ doc }: { doc: Doc }) {
             }
             onClick={commit}
           >
-            Save as v{nextVersionNo}
+            {saveLabel}
           </Button>
         </>
       }
@@ -319,7 +427,7 @@ function Editor({ doc }: { doc: Doc }) {
       {refusal !== null ? <Refusal error={refusal} withheld={withheld} /> : null}
 
       {confirmingCancel ? (
-        <ConfirmDiscard onDiscard={leave} onKeepEditing={() => setConfirmingCancel(false)} />
+        <ConfirmDiscard note={cancelNote} onDiscard={onCancel} onKeepEditing={() => setConfirmingCancel(false)} />
       ) : null}
     </Frame>
   );
@@ -522,9 +630,11 @@ function Refusal({ error, withheld }: { error: unknown; withheld: { factId: stri
 }
 
 function ConfirmDiscard({
+  note = "Nothing has been saved yet. The version you were editing is unchanged either way.",
   onDiscard,
   onKeepEditing,
 }: {
+  note?: string;
   onDiscard: () => void;
   onKeepEditing: () => void;
 }) {
@@ -548,9 +658,7 @@ function ConfirmDiscard({
         onClick={(event) => event.stopPropagation()}
       >
         <p className="text-ui text-text-secondary">Discard your changes?</p>
-        <p className="text-smaller text-text-dimmer">
-          Nothing has been saved yet. The version you were editing is unchanged either way.
-        </p>
+        <p className="text-smaller text-text-dimmer">{note}</p>
         <div className="ml-auto flex items-center gap-10">
           <Button onClick={onKeepEditing} autoFocus>
             Keep editing
@@ -611,6 +719,61 @@ function SavedPanel({
 }
 
 /* ------------------------------------------------------------------ states */
+
+function Reading({ doc }: { doc: Doc }) {
+  return (
+    <Frame doc={doc} note="">
+      <Panel>
+        <p className="text-smaller text-text-dim">Reading the document…</p>
+      </Panel>
+    </Frame>
+  );
+}
+
+/**
+ * A draft that cannot be edited here: one still being written, one already
+ * decided, or one with a drafted part the author has not confirmed. Accept
+ * refuses the last, so this refuses it too, and says where it is done.
+ */
+function DraftNotEditable({
+  doc,
+  proposalId,
+  drafts,
+  status,
+}: {
+  doc: Doc;
+  proposalId: string;
+  drafts: number;
+  status: string;
+}) {
+  const sentence =
+    status === "generating"
+      ? "This draft is still being written."
+      : status === "failed"
+        ? "This draft could not be written, so there is nothing to edit."
+        : status === "pending" && drafts > 0
+          ? `${drafts === 1 ? "One part was" : `${drafts} parts were`} drafted for you and ${drafts === 1 ? "is" : "are"} not confirmed yet. Confirm or edit each on the review first.`
+          : "This draft has already been decided. Edit the document from its current version instead.";
+  return (
+    <Frame doc={doc} note="">
+      <Panel>
+        <div className="flex items-center gap-12">
+          <p className="text-ui text-text-dim">{sentence}</p>
+          <div className="ml-auto shrink-0 flex items-center gap-10">
+            {status === "accepted" ? (
+              <Link to="/renders/$ref/edit" params={{ ref: doc.ref }} className="text-small text-accent-link hover:text-accent-link-hover">
+                Edit the current version
+              </Link>
+            ) : null}
+            <Link to="/proposals/$proposalId" params={{ proposalId }} className="text-small text-accent-link hover:text-accent-link-hover">
+              Go to the review
+            </Link>
+          </div>
+        </div>
+      </Panel>
+    </Frame>
+  );
+}
 
 /**
  * There is nothing to edit. The sentence is Screen 5's, and so is the action:
