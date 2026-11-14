@@ -17,7 +17,7 @@ over MCP, and Claude (Desktop, Code, or a claude.ai custom connector) does the w
 
 | Tool | What it does | Reused from |
 | --- | --- | --- |
-| `get_record(document)` | The record for one document (a kind, or a tailored document's id): the facts and spec the model seam is sent, held to the same budget, plus counts of what was withheld and a list of every document | `resolveRender`, `requireProfile`, `tailoringOf`, `collectRenderInputs({ forModel: true })`, `renderState` |
+| `get_record(document)` | The record for one document (a kind, or a tailored document's id): the facts and spec the model seam is sent, held to the same budget; `instructions`, the generator's own system prompt for it; counts of what was withheld; and a list of every document | `resolveRender`, `requireProfile`, `tailoringOf`, `collectRenderInputs({ forModel: true })`, `buildGenerationPrompt`, `renderState` |
 | `list_sources()` | Source document ids and filenames | — |
 | `get_source(source_document_id)` | The extracted text of the latest version, which quotes are copied from | — |
 | `add_fact(claim, quote, source_document_id, technologies, grade?)` | Adds a fact the way the importer does. The quote must match the source exactly; a quote that doesn't match is refused and nothing is stored. A repeat of a fact already in the record is refused. Otherwise the fact is accepted with the caller's grade, filtered through the importer's floor, and flagged where needed | `anchorQuote`, `dedupeHash`, `sortFact` |
@@ -128,14 +128,20 @@ the proposal on the document's page, as you would one the app generated itself.
 
 ## What the demonstration showed (after the rebase)
 
-`claude -p` (Sonnet, run under the author's plan) was connected to the server against the demo database:
+`claude -p` (Sonnet, run under the author's plan) was connected to the server against the demo database.
+
+**Guided run, before `instructions` existed:**
 
 1. `get_record("english_resume")` returned 2 of the 4 facts, `withheld: { private: 1, generated: 1, overBudget: 0 }`.
-2. `save_render` stored a two-bullet projects section citing `fct_mcp_demo_1` and `fct_mcp_demo_2` as a
-   `ready` proposal, with no warnings.
+2. `save_render` stored a two-bullet section as a `ready` proposal. Told only to write a "projects" section,
+   Claude filed employer facts under Projects, which the register says not to do.
 3. `add_fact` with a paraphrased quote was refused ("does not appear verbatim … Nothing was stored").
 
-Before the employer had a city, the smoke run's `save_render` was refused with upstream's résumé precondition
+**Open run, with `instructions`:** asked only to "write my English résumé and save it", Claude produced the
+generator's structure: a summary, and a section keyed `employer:emp_mcp_demo` with each fact under its
+employer. `save_render` accepted it on the first try, with no warnings.
+
+Before the employer had a city, `save_render` was refused with upstream's résumé precondition
 ("… needs a city"), which is the generate route's own refusal reaching the MCP caller.
 
 `tests/mcp.test.ts` (14 tests, a real MCP client over `InMemoryTransport`) covers:
@@ -150,10 +156,11 @@ Before the employer had a city, the smoke run's `save_render` was refused with u
 
 ## Findings
 
-- **Claude doesn't get the generator's output-format rules.** `src/model/generate.ts` sends them in the system
-  prompt; an MCP client gets only `spec.register`. Before the rebase this showed up as an employer heading the
-  attribution check couldn't match. After it, Claude filed employer facts under Projects, which the register
-  itself says not to do. Next step: expose the format rules as an MCP **prompt**, or inside `get_record`.
+- **Claude needs the generator's brief, not just the register.** Without it, Claude wrote an employer heading
+  the attribution check couldn't match, and later filed employer facts under Projects. `get_record` now returns
+  `buildGenerationPrompt(spec)`, the same system prompt `generateRender` sends, and the open run above came out
+  right the first time. A career story is still given its whole-story prompt; the generator writes one in
+  parts (`writeStoryRound`), and a long story may need the same split here.
 - **`get_source` sends source text to Claude.** That's the same exposure as the import pipeline, which sends
   chunks to Anthropic today, but this time it goes to whatever client the author connects.
 - **The generator's repair loops become refusals.** Lines too long, a career story missing a chapter, and a

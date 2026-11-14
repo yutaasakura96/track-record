@@ -52,7 +52,7 @@ import { collectRirekishoRecord, hasProfilePhoto } from "~/server/services/rirek
 import { EditRejected, citedFactIds, parseEditedContent } from "~/render/edit";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { isChapteredStory } from "~/render/chapters";
-import { isStoryComplete, linesToShorten } from "~/model/generate";
+import { buildGenerationPrompt, isStoryComplete, linesToShorten } from "~/model/generate";
 
 /** A refusal Claude can read and act on. Ids and reasons, never record text. */
 class Refused extends Error {}
@@ -127,8 +127,10 @@ export function createTrackRecordServer(db: Db, userId: string): McpServer {
         "Private nor Generated-provenance, the employers, roles, projects, education and certifications " +
         "that document draws on, the register (style instruction) it is written in and, for a tailored " +
         "document, the posting it is written toward. This is exactly the input Track Record's own " +
-        "generator receives. Cite facts by their `id` in save_render. `documents` lists every document, " +
-        "main and tailored, with the ref to pass back.",
+        "generator receives. `instructions` is the generator's own system prompt for this document: " +
+        "follow it exactly, write the facts given in the `facts` array, and pass the document to " +
+        "save_render where it says to call emit_render. Cite facts by their `id`. `documents` lists " +
+        "every document, main and tailored, with the ref to pass back.",
       inputSchema: { document: documentSchema },
     },
     ({ document }) =>
@@ -139,6 +141,10 @@ export function createTrackRecordServer(db: Db, userId: string): McpServer {
           document: target.ref,
           kind: target.kind,
           title: target.title,
+          // The system prompt `generateRender` sends, built from the same spec:
+          // one source of the register, the section keys and the citation rules,
+          // so a document written here is written to the generator's brief.
+          instructions: buildGenerationPrompt(inputs.spec),
           spec: inputs.spec,
           facts: inputs.facts,
           withheld: {

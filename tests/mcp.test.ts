@@ -12,6 +12,7 @@ import { and, eq } from "drizzle-orm";
 import { harness, settle, stubModel, type Client, type StubModel } from "./helpers/harness";
 import { EMPLOYER_FIXTURE, PROFILE_FIXTURE, ROLE_FIXTURE, seedAllowedUser, uploadForm } from "./helpers/seed";
 import { createTrackRecordServer } from "~/mcp/server";
+import { buildGenerationPrompt } from "~/model/generate";
 import { factFlags, facts, renderProposals } from "~/server/db/schema";
 import type { Db } from "~/server/db/client";
 
@@ -138,6 +139,8 @@ describe("get_record", () => {
     expect(ids).toEqual([seeded.measuredPublic.id, seeded.attestedRestricted.id].sort());
     expect(record.withheld).toEqual({ private: 1, generated: 1, overBudget: 0 });
     expect(record.spec.subjectName).toBe(PROFILE_FIXTURE.nameLatin);
+    // The generator's own brief, not a paraphrase of it.
+    expect(result.json<{ instructions: string }>().instructions).toBe(buildGenerationPrompt(record.spec as never));
 
     // The Private fact's claim is nowhere in the payload, not merely unlisted.
     expect(result.text).not.toContain("settlement ledger");
