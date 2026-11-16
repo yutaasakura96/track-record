@@ -13,6 +13,7 @@ import { relative } from "../format";
 import { DocumentPage } from "./document-page";
 import { Action, EditLink, QUIET, SECONDARY } from "./document-row";
 import { DownloadButton } from "./download-button";
+import { OpenInClaude } from "./open-in-claude";
 import { Dot } from "./ui";
 import { MASTER_WORDS, type MasterLanguage } from "~/shared/master-document";
 
@@ -143,6 +144,7 @@ export function DocumentCard({
         {/* A small fix is an edit, not a regeneration (`docs/06`, 2026-11-04);
             on a first draft it is the only way in besides the review. */}
         <EditLink row={row} />
+        <OpenInClaude row={row} />
         <span className={version || row.status === "proposal_pending" ? "ml-auto" : ""}>
           <Action row={row} canGenerate={canGenerate} busy={busy} onGenerate={onGenerate} quiet={version} />
         </span>

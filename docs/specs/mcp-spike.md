@@ -126,6 +126,14 @@ reports `Connection closed`. It needs `node` on the PATH that Claude Desktop sta
 Ask Claude to call `get_record` for a document, write it, and `save_render` it. Open Track Record and review
 the proposal on the document's page, as you would one the app generated itself.
 
+Or use **Open in Claude** on a document's card on Home (`src/client/components/open-in-claude.tsx`). It is
+Claude Desktop's documented deep link, `claude://claude.ai/new?q=<prompt>`, with that prompt typed in for the
+card's document ref; the author reads it and presses Send. It is shown only in a development build
+(`import.meta.env.DEV`), because the server is local and reads the local database, and only where `save_render`
+could open a proposal (buildable, none waiting or being written). The link cannot install the server: without
+the config above, Claude answers that it has no Track Record tools. The web form, `claude.ai/new?q=`, is not
+documented and is not used. A production build would show it once a remote connector exists.
+
 ## What the demonstration showed (after the rebase)
 
 `claude -p` (Sonnet, run under the author's plan) was connected to the server against the demo database.
