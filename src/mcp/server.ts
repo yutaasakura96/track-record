@@ -23,12 +23,11 @@
  *   line goes to stderr and carries a tool name and nothing else.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { Db } from "~/server/db/client";
 import { factFlags, facts, sourceDocuments, sourceDocumentVersions } from "~/server/db/schema";
-import { ApiError, notFound, violatesUnique } from "~/server/http/errors";
+import { notFound, violatesUnique } from "~/server/http/errors";
 import { newId } from "~/server/http/ids";
 import { anchorQuote } from "~/pipeline/quote";
 import { dedupeHash } from "~/pipeline/dedupe";
@@ -49,62 +48,14 @@ import {
   editWarnings,
 } from "~/server/services/version-edit";
 import { collectRirekishoRecord, hasProfilePhoto } from "~/server/services/rirekisho";
-import { EditRejected, citedFactIds, parseEditedContent } from "~/render/edit";
+import { citedFactIds, parseEditedContent } from "~/render/edit";
+import { Refused, guarded, ok } from "./result";
+import { registerJobTools } from "./jobs";
+import { registerStoryTools } from "./story";
+import { contentSchema, documentSchema } from "./schemas";
 import { rirekishoWarnings, tokyoToday } from "~/render/rirekisho";
 import { isChapteredStory } from "~/render/chapters";
 import { buildGenerationPrompt, isStoryComplete, linesToShorten } from "~/model/generate";
-
-/** A refusal Claude can read and act on. Ids and reasons, never record text. */
-class Refused extends Error {}
-
-const ok = (payload: unknown): CallToolResult => ({
-  content: [{ type: "text", text: JSON.stringify(payload, null, 2) }],
-});
-
-const refused = (message: string): CallToolResult => ({
-  content: [{ type: "text", text: message }],
-  isError: true,
-});
-
-/**
- * Every handler runs through this. An `ApiError` or `Refused` is a message
- * written for the caller; anything else is not, and becomes a generic one.
- */
-async function guarded(tool: string, run: () => Promise<CallToolResult>): Promise<CallToolResult> {
-  try {
-    return await run();
-  } catch (err) {
-    if (err instanceof Refused || err instanceof ApiError || err instanceof EditRejected) {
-      return refused(err.message);
-    }
-    // The tool name only. Never the arguments, which carry claims and quotes.
-    console.error(JSON.stringify({ event: "mcp_tool_failed", tool }));
-    return refused(`${tool} failed. Nothing was changed.`);
-  }
-}
-
-/**
- * A main document by its kind (`english_resume`, `rirekisho`, …) or a tailored
- * document by its id, exactly as the render routes address them
- * (`services/render-ref.ts`).
- */
-const documentSchema = z
-  .string()
-  .default("english_resume")
-  .describe("A document kind (english_resume, rirekisho, shokumu_keirekisho, career_story_en, career_story_ja) or a tailored document's id from get_record's `documents`.");
-
-const blockSchema = z.object({
-  id: z.string().optional(),
-  kind: z.enum(["paragraph", "bullet", "row"]),
-  text: z.string(),
-  factIds: z.array(z.string()).default([]),
-});
-
-const contentSchema = z.object({
-  sections: z.array(
-    z.object({ key: z.string(), heading: z.string(), blocks: z.array(blockSchema) }),
-  ),
-});
 
 export function createTrackRecordServer(db: Db, userId: string): McpServer {
   const server = new McpServer({ name: "track-record", version: "0.2.0" });
@@ -130,7 +81,8 @@ export function createTrackRecordServer(db: Db, userId: string): McpServer {
         "generator receives. `instructions` is the generator's own system prompt for this document: " +
         "follow it exactly, write the facts given in the `facts` array, and pass the document to " +
         "save_render where it says to call emit_render. Cite facts by their `id`. `documents` lists " +
-        "every document, main and tailored, with the ref to pass back.",
+        "every document, main and tailored, with the ref to pass back. A career story is long: when " +
+        "`writeInParts` is true, write it with story_part, a part at a time, instead of all at once.",
       inputSchema: { document: documentSchema },
     },
     ({ document }) =>
@@ -145,6 +97,7 @@ export function createTrackRecordServer(db: Db, userId: string): McpServer {
           // one source of the register, the section keys and the citation rules,
           // so a document written here is written to the generator's brief.
           instructions: buildGenerationPrompt(inputs.spec),
+          writeInParts: isChapteredStory(target.kind),
           spec: inputs.spec,
           facts: inputs.facts,
           withheld: {
@@ -385,6 +338,8 @@ export function createTrackRecordServer(db: Db, userId: string): McpServer {
       }),
   );
 
+  registerJobTools(server, db, userId);
+  registerStoryTools(server, inputsFor);
   return server;
 }
 
