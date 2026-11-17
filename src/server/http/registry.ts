@@ -40,6 +40,15 @@ export function isPublicPath(path: string): boolean {
   return PUBLIC_PATH_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
+/**
+ * Routes that check an OAuth access token instead of a session: the claude.ai
+ * connector, and nothing else (decision log 2026-11-17). Not public: each
+ * answers 401 without a valid token, which is what the enumeration test asks.
+ */
+export const BEARER_PATHS = ["/api/mcp"] as const;
+
+export const isBearerPath = (path: string): boolean => (BEARER_PATHS as readonly string[]).includes(path);
+
 function record(method: HttpMethod, path: string) {
   if (!path.startsWith("/api/")) {
     throw new Error(`Route ${method} ${path} is outside /api — the Worker serves nothing else.`);

@@ -6,6 +6,8 @@
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { jwt } from "better-auth/plugins";
+import { mcp } from "@better-auth/mcp";
 import type { Db } from "./db/client";
 import * as schema from "./db/schema";
 import type { Bindings, SessionUser } from "./env";
@@ -37,6 +39,20 @@ export function isAllowedEmail(allowlist: string, email: string): boolean {
     .filter(Boolean)
     .includes(normalised);
 }
+
+/**
+ * The claude.ai connector's protected resource (`docs/specs/mcp-spike.md`).
+ * Access tokens are audience-bound to it, and it is published in the RFC 9728
+ * metadata exactly as Claude compares it, so it is the Worker's own origin.
+ */
+export const mcpResource = (env: Pick<Bindings, "BETTER_AUTH_URL">) => `${new URL(env.BETTER_AUTH_URL).origin}/api/mcp`;
+
+/**
+ * The one scope the connector grants: the author's record, read and written
+ * through the MCP tools. The identity scopes are the provider's own, and say
+ * nothing to Google: the Google client still asks for `GOOGLE_SCOPES` alone.
+ */
+export const MCP_SCOPE = "record";
 
 export function createAuth(env: Bindings, db: Db) {
   return betterAuth({
@@ -78,6 +94,31 @@ export function createAuth(env: Bindings, db: Db) {
       },
     },
     emailAndPassword: { enabled: false },
+    plugins: [
+      // Signs the connector's access tokens; the keys live in `jwks`.
+      jwt({ schema: { jwks: { modelName: "jwks" } } }),
+      mcp({
+        resource: mcpResource(env),
+        // The SPA shows the sign-in screen on `/` for a signed-out visitor, and
+        // passes the signed query back as `oauth_query` so the provider resumes.
+        loginPage: "/",
+        consentPage: "/consent",
+        scopes: ["openid", "profile", "email", "offline_access", MCP_SCOPE],
+        // claude.ai registers itself (RFC 7591). A registered client holds
+        // nothing: a token still needs an allowlisted author's sign-in and consent.
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        schema: {
+          oauthClient: { modelName: "oauthClients" },
+          oauthResource: { modelName: "oauthResources" },
+          oauthClientResource: { modelName: "oauthClientResources" },
+          oauthRefreshToken: { modelName: "oauthRefreshTokens" },
+          oauthAccessToken: { modelName: "oauthAccessTokens" },
+          oauthConsent: { modelName: "oauthConsents" },
+          oauthClientAssertion: { modelName: "oauthClientAssertions" },
+        },
+      }),
+    ],
   });
 }
 

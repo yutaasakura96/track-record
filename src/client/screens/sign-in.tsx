@@ -10,8 +10,20 @@ import { useState } from "react";
 import { api, ApiError } from "../api";
 import { Button } from "../components/ui";
 
+/**
+ * The signed query Better Auth's OAuth provider sends a signed-out visitor
+ * here with, when a client such as claude.ai is asking to connect. Passed back
+ * on sign-in, it lets the provider carry on to the consent screen once the
+ * session exists (decision log 2026-11-17). `null` on an ordinary visit.
+ */
+export function pendingOAuthQuery(search: string): string | null {
+  const params = new URLSearchParams(search);
+  return params.has("sig") && params.has("client_id") ? params.toString() : null;
+}
+
 export function SignIn({ reason }: { reason?: ApiError }) {
   const rejected = reason?.status === 403;
+  const oauthQuery = pendingOAuthQuery(window.location.search);
   const [starting, setStarting] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
 
@@ -27,7 +39,7 @@ export function SignIn({ reason }: { reason?: ApiError }) {
     try {
       const { url } = await api<{ url: string }>("/api/auth/sign-in/social", {
         method: "POST",
-        body: JSON.stringify({ provider: "google", callbackURL: "/" }),
+        body: JSON.stringify({ provider: "google", callbackURL: "/", ...(oauthQuery ? { oauth_query: oauthQuery } : {}) }),
       });
       window.location.href = url;
     } catch (error) {
@@ -44,6 +56,12 @@ export function SignIn({ reason }: { reason?: ApiError }) {
         <p className="mt-8 text-ui text-text-dim">
           A structured record of one career, and every career document generated from it.
         </p>
+
+        {oauthQuery ? (
+          <p className="mt-20 text-ui text-text-muted">
+            An app is asking to connect to your record. Sign in, then choose whether to allow it.
+          </p>
+        ) : null}
 
         {rejected ? (
           <p className="mt-20 mx-auto max-w-measure border border-border-control rounded-control px-14 py-12 text-small text-text-muted">

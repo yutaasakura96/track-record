@@ -9,7 +9,7 @@
 import { Hono } from "hono";
 import type { MiddlewareHandler } from "hono";
 import { ApiError, errorResponse } from "./http/errors";
-import { isPublicPath } from "./http/registry";
+import { isBearerPath, isPublicPath } from "./http/registry";
 import { createDb } from "./db/client";
 import { betterAuthSessions, isAllowedEmail, type SessionResolver } from "./auth";
 import { createModelSeam } from "~/model";
@@ -34,6 +34,7 @@ import { registerRecordingRoutes } from "./routes/recordings";
 import { registerApplicationDocumentRoutes } from "./routes/application-documents";
 import { registerOverviewRoutes } from "./routes/overview";
 import { registerCaptureRoutes } from "./routes/capture";
+import { registerMcpRoutes } from "./routes/mcp";
 
 export interface AppOptions {
   /** Overridden in tests. No test ever calls a real model (`docs/11` §1). */
@@ -78,17 +79,22 @@ export function createApp(options: AppOptions = {}) {
   registerApplicationDocumentRoutes(app);
   registerOverviewRoutes(app);
   registerCaptureRoutes(app);
+  registerMcpRoutes(app);
 
   return app;
 }
 
 /**
  * Requires a valid session on every route whose path is not on the exemption
- * list — which is the auth callbacks and nothing else.
+ * list — which is the auth callbacks and nothing else. The connector's route
+ * is let through to its own access-token check (`routes/mcp.ts`).
  */
 function denyByDefault(resolveSession: SessionResolver): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
-    if (isPublicPath(new URL(c.req.url).pathname)) return next();
+    const path = new URL(c.req.url).pathname;
+    if (isPublicPath(path)) return next();
+    // The connector's route checks its own bearer token, the allowlist with it.
+    if (isBearerPath(path)) return next();
 
     const user = await resolveSession(c.req.raw, c.env, c.get("db"));
     if (!user) throw new ApiError("unauthenticated", "Sign in to continue.");

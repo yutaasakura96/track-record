@@ -216,30 +216,42 @@ starts by hand now has a way through MCP:
   store nothing until the author has checked what was read. `get_instructions` tells Claude to show the
   author first and save only what they confirm; captured claims are saved as Attested on that word.
 
-## What a remote connector (claude.ai, Max) still needs
+## The claude.ai connector
 
-The local server is enough for Claude Desktop and Claude Code. A claude.ai custom connector needs a public
-HTTPS endpoint that does OAuth. I verified this against the Cloudflare Agents docs on 2026-11-14; I didn't
-build it.
+The same server, reachable from claude.ai, Claude Desktop and the phone with no local setup (decision log
+2026-11-17). Built on the existing auth rather than beside it:
 
-1. **Transport.** Serve the same `createTrackRecordServer` over Streamable HTTP from the Worker. Either
-   `createMcpHandler` from `agents/mcp/server` (stateless, agents 0.33.0) or `McpAgent.serve("/mcp")` (a Durable
-   Object per session). The tools already run in workerd, because the suite runs them there. The route would
-   have to be registered through `routes(app)` or deliberately sit beside it, and the deny-by-default
-   enumeration test would have to know about it.
-2. **Authorization.** `@cloudflare/workers-oauth-provider` (1.2.4) wraps the Worker and provides
-   `/authorize`, `/token` and dynamic client registration (`/register`), which claude.ai uses. Its
-   `defaultHandler` would run the existing Better Auth Google sign-in, still `openid email profile` only,
-   and pass `{ userId }` as props. Tools read it with `getMcpAuthContext()`. The `user_id` binding then
-   comes from the token instead of a command-line flag. The invite allowlist applies at that sign-in.
-   Better Auth also ships an MCP/OIDC provider plugin that may cover this; I haven't checked it.
-3. **Storage.** The OAuth provider needs a KV namespace for grants and tokens.
-4. **Revocation and audit.** The settings screen needs a way to see and revoke connector grants. Writes made
-   over MCP could also be labelled (for example, a proposal reason "Saved from Claude"), so the diff screen
-   shows where a proposal came from.
-5. **Production.** A push to `main` migrates and deploys production, and production holds the real record. A
-   remote connector reaches that record directly, so it needs the review a production route gets, not a spike's.
-6. **Decision log.** Moving generation from the API to the author's own Claude changes the stack decision
-   that names the model seam. It needs a new entry before this becomes the main path.
+- **Endpoint.** `POST /api/mcp` on the Worker (`src/server/routes/mcp.ts`): Streamable HTTP, stateless, one
+  `createTrackRecordServer` per request, bound to the user the access token was issued to.
+- **Authorization server.** Better Auth's `@better-auth/mcp` plugin with `jwt` (`createAuth` in
+  `src/server/auth.ts`): dynamic client registration at `/api/auth/oauth2/register`, PKCE, a `record` scope,
+  JWT access tokens bound to `/api/mcp`, refresh tokens. The Google sign-in and the allowlist are the login;
+  the SPA's `/consent` screen is where the author allows a client.
+- **Discovery.** The Worker answers `/.well-known/oauth-protected-resource[/api/mcp]` and
+  `/.well-known/oauth-authorization-server/api/auth` (`DISCOVERY_PATHS` in `src/server/index.ts`); a request
+  without a token gets a `401` whose `WWW-Authenticate` points at the first.
+- **Token check.** Signed by a key in `jwks`, read in-process; this deployment's issuer; audience `/api/mcp`;
+  the `record` scope (a `403 insufficient_scope` without it); a user who still exists and is still on the
+  allowlist.
+- **Tests.** `tests/mcp-connector.test.ts` walks claude.ai's path with the suite's stand-in for Google:
+  discovery, registration, authorize while signed out, sign-in, consent, token, then `initialize`,
+  `tools/list` and a tool call. Missing, altered and out-of-scope tokens are refused.
 
-Rough size: a day for transport plus OAuth, most of it in the Better Auth handoff and the tests.
+### Connecting
+
+Once deployed: add a custom connector in claude.ai's connector settings, with the URL
+`https://<the workers.dev address>/api/mcp`. claude.ai registers itself, opens Track Record's sign-in, and
+then the consent screen. Claude Code: `claude mcp add --transport http track-record https://<address>/api/mcp`.
+
+### Still open
+
+- **Revocation.** An access token is a JWT and holds until it expires. There is no screen listing connected
+  clients or revoking their refresh tokens yet.
+- **Claude Code over HTTP.** The provider registers an `http://localhost` redirect only for a client that
+  says `application_type: "native"`; a web client must use HTTPS. claude.ai's callback is HTTPS. Whether Claude
+  Code's registration says native is unverified; the local stdio server remains its path until it is.
+- **Labelling.** A proposal saved over MCP looks like any other on the diff screen; a reason such as "Saved from
+  Claude" would say where it came from.
+- **Model seam.** Moving generation from the API to the author's own Claude changes the stack decision that
+  names the model seam. The app still calls the API when the author presses Generate; the connector is a
+  second path, not a replacement.

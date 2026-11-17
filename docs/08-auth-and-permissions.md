@@ -124,9 +124,18 @@ database round-trip that buys it is irrelevant at one user.
 is explicit and short:
 
 ```
-/api/auth/*        — the OIDC start, callback and sign-out
+/api/auth/*        — the OIDC start, callback and sign-out, and the OAuth provider's endpoints
 /                  — the SPA shell and static assets
+/.well-known/oauth-authorization-server/api/auth
+/.well-known/oauth-protected-resource[/api/mcp]
+                   — the connector's discovery metadata, served by the Worker (decision log 2026-11-17)
 ```
+
+**One route checks a token instead of a session:** `/api/mcp`, the claude.ai connector. It is not
+public. It answers `401` without an access token this deployment issued for it, carrying the
+`record` scope, for a user still on the allowlist, so the enumeration test below sees it fail closed
+like every other route. A token is issued only after the author signs in with Google and allows the
+client on the consent screen.
 
 Everything else is protected **because it exists**, not because someone remembered to protect it.
 A route added without thinking about auth fails closed.
