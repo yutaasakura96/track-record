@@ -49,7 +49,7 @@ export function SignIn({ reason }: { reason?: ApiError }) {
   }
 
   return (
-    <main className="min-h-screen grid place-items-center px-20">
+    <main className="min-h-screen grid grid-cols-1 place-items-center px-20">
       <div className="w-measure max-w-full text-center">
         <div className="app-mark mx-auto mb-20 size-16 rounded-chip" aria-hidden />
         <h1 className="text-page font-semibold tracking-tight text-text-bright">Track Record</h1>

@@ -8,6 +8,7 @@
  *
  * - signed by a key in `jwks`, read in-process rather than fetched from the
  *   Worker's own URL;
+ * - presented with a DPoP proof from its key, when it is DPoP-bound;
  * - issued by this deployment, for this resource (`mcpResource`), carrying
  *   the `record` scope;
  * - for a user who still exists and is still on the allowlist, as the session
@@ -21,7 +22,14 @@
 import type { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
-import { createInsufficientScopeError, isInsufficientScopeError, verifyJwsAccessToken } from "@better-auth/core/oauth2";
+import {
+  createDpopReplayStore,
+  createInsufficientScopeError,
+  enforceDpopBinding,
+  isInsufficientScopeError,
+  parseAccessTokenAuthorization,
+  verifyJwsAccessToken,
+} from "@better-auth/core/oauth2";
 import { APIError } from "better-auth/api";
 import { createResourceServerChallenge } from "@better-auth/oauth-provider";
 import { users } from "../db/schema";
@@ -61,14 +69,24 @@ export function registerMcpRoutes(app: Hono<AppEnv>) {
 
     let userId: string;
     try {
-      const header = c.req.header("authorization") ?? "";
-      const token = /^Bearer\s+(.+)$/i.exec(header)?.[1]?.trim();
-      if (!token) throw new Unauthorized("missing token");
-      const { baseURL } = await auth.$context;
-      const claims = await verifyJwsAccessToken(token, {
+      const authorization = parseAccessTokenAuthorization(c.req.header("authorization"));
+      if (!authorization?.token || authorization.scheme === "Unknown") throw new Unauthorized("missing token");
+      const { baseURL, internalAdapter } = await auth.$context;
+      const claims = await verifyJwsAccessToken(authorization.token, {
         // The keys from the database, through the plugin, not over HTTP.
         jwksFetch: async () => ({ keys: (await auth.api.getJwks()).keys }),
         verifyOptions: { issuer: baseURL, audience: resource, requiredClaims: ["sub", "azp"] },
+      });
+      // A DPoP-bound token (`cnf.jkt`) is good only with a proof from its key,
+      // as `verifyAccessTokenRequest` checks; that function fetches the keys
+      // over HTTP, so its binding step is called here on the verified claims.
+      await enforceDpopBinding({
+        payload: claims,
+        authorization,
+        proofJwt: c.req.header("dpop"),
+        method: c.req.method,
+        url: c.req.url,
+        replayStore: createDpopReplayStore(internalAdapter),
       });
       const scopes = new Set(String(claims.scope ?? "").split(" ").filter(Boolean));
       if (!scopes.has(MCP_SCOPE)) throw createInsufficientScopeError([MCP_SCOPE]);

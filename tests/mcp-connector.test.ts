@@ -184,6 +184,21 @@ describe("discovery", () => {
   });
 });
 
+describe("registration", () => {
+  it("refuses a client naming any callback but Claude's", async () => {
+    const app = harness(stubModel(), { realSessions: true });
+    for (const redirect_uris of [["https://claude.ai.attacker.example/api/mcp/auth_callback"], [REDIRECT, "https://attacker.example/cb"], []]) {
+      const response = await app.anonymous().request("/api/auth/oauth2/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ client_name: "Claude", redirect_uris, token_endpoint_auth_method: "none" }),
+      });
+      expect(response.status, JSON.stringify(redirect_uris)).toBe(400);
+      expect(await response.text()).toContain("invalid_redirect_uri");
+    }
+  });
+});
+
 describe("/api/mcp", () => {
   it("refuses a request with no token, pointing the client at the metadata", async () => {
     const app = harness(stubModel(), { realSessions: true });
@@ -227,6 +242,20 @@ describe("/api/mcp", () => {
     const challenge = response.headers.get("www-authenticate") ?? "";
     expect(challenge).toContain('error="insufficient_scope"');
     expect(challenge).toContain('scope="record"');
+  });
+
+  it("refuses a bearer token presented as DPoP, since it is bound to no key", async () => {
+    const { app, tokens } = await connect();
+    const response = await app.anonymous().request("/api/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        authorization: `DPoP ${tokens.access_token}`,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }),
+    });
+    expect(response.status).toBe(401);
   });
 
   it("refuses a token that has been altered", async () => {

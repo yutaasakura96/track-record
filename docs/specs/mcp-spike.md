@@ -226,30 +226,40 @@ The same server, reachable from claude.ai, Claude Desktop and the phone with no 
 - **Authorization server.** Better Auth's `@better-auth/mcp` plugin with `jwt` (`createAuth` in
   `src/server/auth.ts`): dynamic client registration at `/api/auth/oauth2/register`, PKCE, a `record` scope,
   JWT access tokens bound to `/api/mcp`, refresh tokens. The Google sign-in and the allowlist are the login;
-  the SPA's `/consent` screen is where the author allows a client.
+  the SPA's `/consent` screen is where the author allows a client, and it names the host Allow sends the
+  code to. Registration is open but takes only Claude's callbacks (`CONNECTOR_REDIRECTS`): a client named
+  "Claude" with anyone else's redirect would otherwise be one click on Allow from a token for the record.
 - **Discovery.** The Worker answers `/.well-known/oauth-protected-resource[/api/mcp]` and
   `/.well-known/oauth-authorization-server/api/auth` (`DISCOVERY_PATHS` in `src/server/index.ts`); a request
   without a token gets a `401` whose `WWW-Authenticate` points at the first.
 - **Token check.** Signed by a key in `jwks`, read in-process; this deployment's issuer; audience `/api/mcp`;
-  the `record` scope (a `403 insufficient_scope` without it); a user who still exists and is still on the
-  allowlist.
+  the `record` scope (a `403 insufficient_scope` without it); a DPoP proof from its key when the token is
+  DPoP-bound; a user who still exists and is still on the allowlist.
 - **Tests.** `tests/mcp-connector.test.ts` walks claude.ai's path with the suite's stand-in for Google:
   discovery, registration, authorize while signed out, sign-in, consent, token, then `initialize`,
-  `tools/list` and a tool call. Missing, altered and out-of-scope tokens are refused.
+  `tools/list` and a tool call. Missing, altered and out-of-scope tokens are refused, as are a registration
+  naming another callback and a bearer token presented as DPoP.
 
 ### Connecting
 
 Once deployed: add a custom connector in claude.ai's connector settings, with the URL
 `https://<the workers.dev address>/api/mcp`. claude.ai registers itself, opens Track Record's sign-in, and
-then the consent screen. Claude Code: `claude mcp add --transport http track-record https://<address>/api/mcp`.
+then the consent screen. Claude Code uses the local stdio server (see Still open).
+
+**Rolling back across 0038.** Better Auth 1.7.15 writes Google account rows with `issuer` null, and 1.7.1
+finds accounts by issuer. Before deploying a Worker older than this change, run
+`update accounts set issuer = 'https://accounts.google.com' where provider_id = 'google' and issuer is null`,
+or a user who first signed in after the upgrade cannot sign in.
 
 ### Still open
 
-- **Revocation.** An access token is a JWT and holds until it expires. There is no screen listing connected
-  clients or revoking their refresh tokens yet.
-- **Claude Code over HTTP.** The provider registers an `http://localhost` redirect only for a client that
-  says `application_type: "native"`; a web client must use HTTPS. claude.ai's callback is HTTPS. Whether Claude
-  Code's registration says native is unverified; the local stdio server remains its path until it is.
+- **Revocation.** An access token is a JWT and holds for an hour. A refresh token lasts 30 days and every
+  refresh renews it, and signing out does not end it. There is no screen listing connected clients or
+  revoking their refresh tokens yet; until there is, removing a row from `oauth_refresh_tokens`, or the
+  author from the allowlist, is how a connection ends.
+- **Claude Code over HTTP.** Claude Code registers a loopback callback, which `CONNECTOR_REDIRECTS` refuses.
+  Allowing it safely means accepting `http://localhost` and `http://127.0.0.1` on any port for native clients
+  only; until then the local stdio server is its path.
 - **Labelling.** A proposal saved over MCP looks like any other on the diff screen; a reason such as "Saved from
   Claude" would say where it came from.
 - **Model seam.** Moving generation from the API to the author's own Claude changes the stack decision that

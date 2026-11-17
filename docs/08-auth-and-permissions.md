@@ -135,7 +135,9 @@ is explicit and short:
 public. It answers `401` without an access token this deployment issued for it, carrying the
 `record` scope, for a user still on the allowlist, so the enumeration test below sees it fail closed
 like every other route. A token is issued only after the author signs in with Google and allows the
-client on the consent screen.
+client on the consent screen. Client registration at `/api/auth/oauth2/register` is open, but it
+takes only Claude's own callbacks (`CONNECTOR_REDIRECTS` in `src/server/auth.ts`), so a code is never
+sent anywhere but Claude.
 
 Everything else is protected **because it exists**, not because someone remembered to protect it.
 A route added without thinking about auth fails closed.

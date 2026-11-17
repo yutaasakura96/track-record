@@ -16,7 +16,6 @@ import { Button } from "../components/ui";
 interface PublicClient {
   client_id: string;
   client_name?: string;
-  client_uri?: string;
 }
 
 /** What each scope the provider can ask for means here, in the author's terms. */
@@ -25,8 +24,17 @@ const SCOPE_WORDS: Record<string, string> = {
   openid: "Know that it is you",
   profile: "Your name",
   email: "Your email address",
-  offline_access: "Stay connected until you disconnect it",
+  offline_access: "Stay connected without asking you again, for up to 30 days at a time",
 };
+
+function hostOf(url: string | null): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).host;
+  } catch {
+    return null;
+  }
+}
 
 export function ConsentScreen() {
   const query = new URLSearchParams(window.location.search);
@@ -58,10 +66,12 @@ export function ConsentScreen() {
   }
 
   const name = client.data?.client_name ?? "An app";
+  // Where Allow sends the code, from the signed query, so a name alone never vouches for an app.
+  const returnsTo = hostOf(query.get("redirect_uri"));
   const invalid = clientId === "" || !query.has("sig") || client.isError;
 
   return (
-    <main className="min-h-screen grid place-items-center px-20">
+    <main className="min-h-screen grid grid-cols-1 place-items-center px-20">
       <div className="w-measure max-w-full">
         <div className="app-mark mb-20 size-16 rounded-chip" aria-hidden />
         {invalid ? (
@@ -74,9 +84,7 @@ export function ConsentScreen() {
             <h1 className="text-page font-semibold tracking-tight text-text-bright">
               {client.isPending ? "Connect an app" : `Connect ${name} to Track Record`}
             </h1>
-            {client.data?.client_uri ? (
-              <p className="mt-4 text-small text-text-muted">{client.data.client_uri}</p>
-            ) : null}
+            {returnsTo ? <p className="mt-4 text-small text-text-muted">Allowing sends you back to {returnsTo}</p> : null}
             <p className="mt-16 text-ui text-text-dim">It is asking to:</p>
             <ul className="mt-8 flex flex-col gap-6 text-ui text-text-body">
               {scopes.map((scope) => (
