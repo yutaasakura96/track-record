@@ -116,10 +116,14 @@ const resume = (blocks: { text: string; factIds: string[] }[]) => ({
 });
 
 describe("tools", () => {
-  it("lists the five tools", async () => {
+  it("lists every tool", async () => {
     const { tools } = await mcp.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["add_fact", "get_record", "get_source", "list_sources", "save_render"].sort(),
+      [
+        "add_application", "add_fact", "capture_facts", "explain_flag", "get_instructions", "get_record",
+        "get_source", "grade_facts", "list_applications", "list_flags", "list_sources", "list_waiting_facts",
+        "save_render", "story_part", "tailor_document",
+      ].sort(),
     );
   });
 });
@@ -330,5 +334,85 @@ describe("save_render", () => {
     const second = await call("save_render", { document: "english_resume", content });
     expect(second.isError).toBe(true);
     expect(second.text).toMatch(/proposal waiting/);
+  });
+});
+
+describe("story_part", () => {
+  /** A part with one block per chapter it asks for, citing the first fact it may use. */
+  const writePart = (next: { chapters: string[]; facts: { id: string }[] }, names: Map<string, string> = new Map()) => ({
+    sections: next.chapters.map((key) => ({
+      key,
+      // An employer chapter is headed with the employer's name as the record holds it.
+      heading: names.get(key.replace(/^employer:/, "")) ?? key,
+      blocks: [
+        {
+          kind: key === "anchors" || key === "routing" ? "row" : "paragraph",
+          text: `Invented text for ${key}.`,
+          factIds: next.facts.slice(0, 1).map((f) => f.id),
+        },
+      ],
+    })),
+  });
+
+  interface Step {
+    complete: boolean;
+    next: { chapters: string[]; facts: { id: string }[]; instructions: string } | string;
+    story_so_far: { sections: { key: string; blocks: { id: string }[] }[] };
+  }
+
+  it("walks the generator's parts in order, then saves the whole story as a proposal", async () => {
+    await seedRecord();
+    const record = (await call("get_record", { document: "career_story_en" })).json<{
+      writeInParts: boolean;
+      spec: { employers: { id: string; name: string }[] };
+    }>();
+    expect(record.writeInParts).toBe(true);
+    const names = new Map(record.spec.employers.map((e) => [e.id, e.name]));
+
+    let step = (await call("story_part", { document: "career_story_en" })).json<Step>();
+    const asked: string[][] = [];
+    while (!step.complete) {
+      const next = step.next as Exclude<Step["next"], string>;
+      expect(next.instructions).toContain("This story is written in parts");
+      asked.push(next.chapters);
+      const result = await call("story_part", { document: "career_story_en", story_so_far: step.story_so_far, part: writePart(next, names) });
+      expect(result.isError, result.text).toBe(false);
+      step = result.json<Step>();
+    }
+
+    // Employer chapters first, the closing tables last, as `writeStoryRound` orders them.
+    expect(asked[0]!.every((key) => key.startsWith("employer:"))).toBe(true);
+    expect(asked.at(-1)).toEqual(["anchors", "routing"]);
+    const ids = step.story_so_far.sections.flatMap((s) => s.blocks.map((b) => b.id));
+    expect(new Set(ids).size).toBe(ids.length);
+
+    const saved = await call("save_render", { document: "career_story_en", content: step.story_so_far });
+    expect(saved.isError, saved.text).toBe(false);
+  });
+
+  it("refuses a part with the wrong chapters, or citing a fact not given for it, and keeps the story as it was", async () => {
+    await seedRecord();
+    const first = (await call("story_part", { document: "career_story_en" })).json<Step>();
+    const next = first.next as Exclude<Step["next"], string>;
+
+    const wrong = await call("story_part", {
+      document: "career_story_en",
+      part: { sections: [{ key: "anchors", heading: "Anchors", blocks: [{ kind: "row", text: "x", factIds: [] }] }] },
+    });
+    expect(wrong.isError).toBe(true);
+    expect(wrong.text).toContain("Write this part again");
+
+    const part = writePart(next);
+    part.sections[0]!.blocks[0]!.factIds = ["fct_not_given"];
+    const stray = await call("story_part", { document: "career_story_en", part });
+    expect(stray.isError).toBe(true);
+    expect(stray.text).toContain("fct_not_given");
+  });
+
+  it("is refused for a document that is not a story", async () => {
+    await seedRecord();
+    const result = await call("story_part", { document: "english_resume" });
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain("not a career story");
   });
 });

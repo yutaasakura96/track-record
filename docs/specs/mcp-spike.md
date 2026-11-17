@@ -22,8 +22,23 @@ over MCP, and Claude (Desktop, Code, or a claude.ai custom connector) does the w
 | `get_source(source_document_id)` | The extracted text of the latest version, which quotes are copied from | — |
 | `add_fact(claim, quote, source_document_id, technologies, grade?)` | Adds a fact the way the importer does. The quote must match the source exactly; a quote that doesn't match is refused and nothing is stored. A repeat of a fact already in the record is refused. Otherwise the fact is accepted with the caller's grade, filtered through the importer's floor, and flagged where needed | `anchorQuote`, `dedupeHash`, `sortFact` |
 | `save_render(document, content)` | Stores `RenderContent` as a ready proposal, after the generate route's refusals and the generator's own post-model checks | `requireRenderable`, `refuseUngeneratable`, `parseEditedContent`, `badCitations`, `linesToShorten`, `isStoryComplete`, `settleContent`, `openProposal`, `editWarnings`, `rirekishoWarnings` |
+| `story_part(document, story_so_far?, part?)` | Writes a career story a part at a time, as the generator does: each employer chapter alone with only its facts, then the chapters of no employer, then the closing tables. Each call returns the next part's chapters, the generator's prompt for that part and the facts it may cite. Each part is checked as it arrives (its chapters, its citations, the Japanese check), and the joined story is held to the whole plan | `employerParts`, `framingCall`, `closingCall`, `chaptersOf`, `buildGenerationPrompt`, `parseRenderContent`, `japaneseDefect`, `parseGeneratedRender` |
+| `get_instructions(job)` | The app's own system prompt for one model job (`extract`, `read_posting`, `capture`, `explain_flag`, `grade`), and which tool saves its answer here. `capture` also gets the employers and projects to match names against | `EXTRACTION_SYSTEM_PROMPT`, `READ_POSTING_SYSTEM_PROMPT`, `CAPTURE_SYSTEM_PROMPT`, `EXPLAIN_SYSTEM_PROMPT`, `GRADING_SYSTEM_PROMPT` |
+| `list_applications()` / `add_application(...)` | Lists applications with their tailored documents, and adds one at Not applied from a posting Claude read and the author confirmed | `createBody`, `createApplication` |
+| `tailor_document(application_id, kind)` | Gives an application its own English résumé or 履歴書 and puts it on the application; the returned id is the `document` for `get_record` | `addTailored` |
+| `capture_facts(claims)` | Saves claims the author typed and confirmed, Attested with no quote, as quick capture does | `saveBody`, `saveCaptured` |
+| `list_flags()` / `explain_flag(flag_id, explanation)` | Open flags with their facts, and stores the explanation Claude wrote where Explain this shows it. A flag already explained keeps its explanation | `factOfFlag`, `requireFlag`, `storeExplanation` |
+| `list_waiting_facts()` / `grade_facts(grades)` | Facts waiting from before the importer graded, and accepts them with Claude's grades through Sort's own code: kept Private when confidential, Measured only with a passage, flagged and checked for repeats | `SORT_BATCH`, `applyGrades` |
 
-Two extractions keep it to one code path rather than a fork:
+Extractions keep it to one code path rather than a fork. The routes' own zod schemas validate the job tools'
+input, so a value the screen refuses is refused in the same words. Each route below now calls the function
+its body became:
+
+- `routes/applications.ts`: `createApplication`. `routes/application-documents.ts`: `addTailored`.
+  `routes/capture.ts`: `saveCaptured`. `routes/flags.ts`: `storeExplanation` (and `requireFlag`, exported).
+  `routes/facts.ts`: `applyGrades`, the write half of `POST /api/facts/sort`.
+
+The first two, from the spike:
 
 - **`src/server/services/render-state.ts`** holds what used to live privately in `routes/renders.ts`:
   `renderState`, `usableFacts`, `waitingProposalId`, `ensureRender`. It also holds three functions the
@@ -167,8 +182,8 @@ Before the employer had a city, `save_render` was refused with upstream's résum
 - **Claude needs the generator's brief, not just the register.** Without it, Claude wrote an employer heading
   the attribution check couldn't match, and later filed employer facts under Projects. `get_record` now returns
   `buildGenerationPrompt(spec)`, the same system prompt `generateRender` sends, and the open run above came out
-  right the first time. A career story is still given its whole-story prompt; the generator writes one in
-  parts (`writeStoryRound`), and a long story may need the same split here.
+  right the first time. A career story is written with `story_part`, a part at a time, with each part's own
+  prompt from the generator's own planning functions (`get_record` says so with `writeInParts`).
 - **`get_source` sends source text to Claude.** That's the same exposure as the import pipeline, which sends
   chunks to Anthropic today, but this time it goes to whatever client the author connects.
 - **The generator's repair loops become refusals.** Lines too long, a career story missing a chapter, and a
@@ -177,25 +192,29 @@ Before the employer had a city, `save_render` was refused with upstream's résum
 
 ## What upstream changed that the MCP design now has to cover
 
-The seam has grown from two functions to seven (`ModelSeam` in `src/model/types.ts`), and the server covers
-two of them:
+The seam has grown from two functions to seven (`ModelSeam` in `src/model/types.ts`). Every one the author
+starts by hand now has a way through MCP:
 
-| Seam function | Covered by MCP? | What it would take |
-| --- | --- | --- |
-| `generateRender` | Yes, `get_record` + `save_render` | — |
-| `extractFacts` + `gradeFacts` | Partly, `add_fact` one fact per call | A bulk `add_facts`, or a prompt that walks a source by `chunk.ts`'s boundaries |
-| `shortenResumeLines` | As a refusal | Covered by Claude writing again |
-| `readPosting` | No | A tool to store what Claude read from a posting on the application |
-| `explainFlag` | No | A tool that stores an explanation on a flag |
-| `captureClaims` | No | A tool for interview capture, if interviews move to MCP |
+| Seam function | Covered by |
+| --- | --- |
+| `generateRender` | `get_record` + `save_render`; a career story through `story_part` |
+| `extractFacts` | `get_instructions("extract")` + `get_source` + `add_fact`, one fact per call |
+| `gradeFacts` | `add_fact`'s grade for new facts; `list_waiting_facts` + `grade_facts` for old ones |
+| `shortenResumeLines` | A refusal from `save_render`; Claude writes the lines again |
+| `readPosting` | `get_instructions("read_posting")` + `add_application` |
+| `explainFlag` | `list_flags` + `explain_flag` |
+| `captureClaims` | `get_instructions("capture")` + `capture_facts` |
 
 - **Tailored documents** are addressed by their id. `document` accepts one, and `get_record`'s `documents`
-  lists them. Creating one (and an application) is still done in the app.
+  lists them. `add_application` and `tailor_document` create them.
 - **A tailored 履歴書 lands with drafts.** `settleContent` marks the 志望動機 and 本人希望欄 as drafts, so
   the proposal can't be accepted until the author confirms each one. That's the same gate as a generated one,
   and it's intended.
-- **Applications** (status, documents sent, 履歴書 choice) have no tools. They're the author's own actions and
-  don't need a model; leaving them in the app is the right default.
+- **Application steps** (status, documents sent, 履歴書 choice) have no tools. They're the author's own actions and
+  don't need a model; leaving them in the app is the right default. So is marking a flag checked.
+- **Where the author confirms on screen, Claude asks in chat.** Reading a posting and capturing a note both
+  store nothing until the author has checked what was read. `get_instructions` tells Claude to show the
+  author first and save only what they confirm; captured claims are saved as Attested on that word.
 
 ## What a remote connector (claude.ai, Max) still needs
 
