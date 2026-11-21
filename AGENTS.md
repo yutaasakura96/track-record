@@ -53,9 +53,10 @@ every run under the same guards; it is safe to wipe. Its Worker needs port 8788 
 `docker volume rm` against it.
 **A push to `main` migrates and deploys production** (the `deploy` job in `ci.yml`, `docs/12` §3);
 production serves from `workers.dev`, not a custom domain.
-`npm run db:up` from any worktree mounts that same `track-record_pgdata` volume. To keep a task off it
-entirely, run a second stack under its own compose project (`docker compose -p <name>` with an override
-that `!override`s both ports) and point `TEST_DATABASE_URL` at it with `?proxyPort=<proxy port>`.
+`npm run db:up` from any worktree mounts that same `track-record_pgdata` volume, because
+`docker-compose.yml` pins the project name to `track-record`. To keep a task off it entirely, run a
+second stack under its own compose project (`docker compose -p <name>` with an override that
+`!override`s both ports) and point `TEST_DATABASE_URL` at it with `?proxyPort=<proxy port>`.
 
 Read in this order: `docs/01-project-brief.md` and `docs/02-product-requirements.md` (what this is),
 then `docs/03-technical-design.md` and `docs/04-database-schema.md` (how it is built).
