@@ -9,15 +9,20 @@
  * Between 1024 and 1280 the panes simply narrow: the layout is fluid, and the
  * desktop gate is a product decision rather than a layout limitation.
  *
- * Four exceptions open at any width and are laid out for a phone under 720px:
+ * Five exceptions open at any width and are laid out for a phone under 720px:
  * everything under `/applications` (issue #75), Quick capture (issue #95),
- * reading a document (issue #106), and Skills (issue #114). Nothing else does.
+ * reading a document (issue #106), Skills (issue #114), and connecting an app
+ * (`/consent`, decision log 2026-11-17), which claude.ai opens on a phone as
+ * readily as on a desktop. The sign-in an app's connection starts on, `/` with
+ * the provider's signed query, opens too, or a phone could never reach consent.
+ * Nothing else does.
  * The message names them and links to the three that need no document open,
  * because a window that lands here has no sidebar to find them by.
  */
 import { useEffect, useState, type ReactNode } from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useOverview } from "../api";
+import { pendingOAuthQuery } from "../screens/sign-in";
 
 const MINIMUM = 1024;
 
@@ -27,15 +32,19 @@ export const CAPTURE_PATH = "/capture";
 /** Skills' route (issue #114). */
 const SKILLS_PATH = "/skills";
 
+/** Connecting an app: the OAuth consent screen. */
+const CONSENT_PATH = "/consent";
+
 /** Reading a document: `/renders/<ref>/view`, and none of that document's other screens. */
 const VIEW_PATH = /^\/renders\/[^/]+\/view$/;
 
-/** The screens that work at phone width: under `/applications`, Quick capture, reading a document, and Skills. */
+/** The screens that work at phone width: under `/applications`, Quick capture, reading a document, Skills, and consent. */
 export const opensOnAPhone = (path: string) =>
   path === "/applications" ||
   path.startsWith("/applications/") ||
   path === CAPTURE_PATH ||
   path === SKILLS_PATH ||
+  path === CONSENT_PATH ||
   VIEW_PATH.test(path);
 
 /**
@@ -60,7 +69,8 @@ export function TooNarrow({ children }: { children: ReactNode }) {
   const wide = useWideEnough();
   const path = useRouterState({ select: (state) => state.location.pathname });
 
-  if (wide || opensOnAPhone(path)) return <>{children}</>;
+  const connecting = path === "/" && pendingOAuthQuery(window.location.search) !== null;
+  if (wide || opensOnAPhone(path) || connecting) return <>{children}</>;
 
   return <Wall />;
 }

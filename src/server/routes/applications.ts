@@ -84,7 +84,7 @@ const requirements = z
 
 const tooLong = `A job description can be at most ${JOB_DESCRIPTION_MAX.toLocaleString("en-US")} characters.`;
 
-const createBody = z.strictObject({
+export const createBody = z.strictObject({
   company,
   position,
   jobDescription: z.string().trim().min(1, "Paste the job description.").max(JOB_DESCRIPTION_MAX, tooLong),
@@ -180,31 +180,7 @@ export function registerApplicationRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
     const body = await parseBody(c, createBody);
-
-    const id = newId("application");
-    const now = new Date();
-    await db.batch([
-      db.insert(applications).values({
-        id,
-        userId: user.id,
-        company: body.company,
-        position: body.position,
-        jobDescription: body.jobDescription,
-        postingUrl: body.postingUrl ?? null,
-        requirements: body.requirements ?? [],
-        lastActivityAt: now,
-      }),
-      db.insert(applicationSteps).values({
-        id: newId("applicationStep"),
-        userId: user.id,
-        applicationId: id,
-        status: "not_applied",
-        happenedOn: tokyoToday(now),
-      }),
-    ]);
-    // An id and a length. Never the text, the company or the position.
-    console.log(JSON.stringify({ event: "application_created", applicationId: id, characters: body.jobDescription.length }));
-
+    const id = await createApplication(db, user.id, body);
     return c.json(await detail(db, user.id, id), 201);
   });
 
@@ -385,6 +361,37 @@ export async function quietApplications(db: Db, userId: string) {
       return quietDays === null ? [] : [{ id: row.id, company: row.company, quietDays }];
     })
     .sort((a, b) => b.quietDays - a.quietDays);
+}
+
+/**
+ * Adds a job, at Not applied, with today as the day it was added. The route
+ * and the MCP server's `add_application` both store one through this.
+ */
+export async function createApplication(db: Db, userId: string, body: z.infer<typeof createBody>): Promise<string> {
+  const id = newId("application");
+  const now = new Date();
+  await db.batch([
+    db.insert(applications).values({
+      id,
+      userId,
+      company: body.company,
+      position: body.position,
+      jobDescription: body.jobDescription,
+      postingUrl: body.postingUrl ?? null,
+      requirements: body.requirements ?? [],
+      lastActivityAt: now,
+    }),
+    db.insert(applicationSteps).values({
+      id: newId("applicationStep"),
+      userId,
+      applicationId: id,
+      status: "not_applied",
+      happenedOn: tokyoToday(now),
+    }),
+  ]);
+  // An id and a length. Never the text, the company or the position.
+  console.log(JSON.stringify({ event: "application_created", applicationId: id, characters: body.jobDescription.length }));
+  return id;
 }
 
 /** A miss is a 404, and so is another user's id: saying a row exists would confirm it. */

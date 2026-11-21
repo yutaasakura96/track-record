@@ -182,15 +182,7 @@ export function registerFlagRoutes(app: Hono<AppEnv>) {
       throw new ApiError("upstream_unavailable", "The explanation could not be written just now. Try again.");
     }
 
-    const [updated] = await db
-      .update(factFlags)
-      // `ModelUsage`'s four keys are the four column names (`pipeline/import.ts`).
-      .set({ explanation, ...(usage ?? {}), updatedAt: new Date() })
-      .where(and(eq(factFlags.userId, user.id), eq(factFlags.id, flag.id)))
-      .returning();
-    // The flag id and counts. Never the explanation, which restates the fact.
-    console.log(JSON.stringify({ event: "flag_explained", flagId: flag.id, ...(usage ?? {}) }));
-    return c.json(flagResponse(updated ?? { ...flag, explanation }));
+    return c.json(await storeExplanation(db, user.id, flag, explanation, usage));
   });
 
   /** Idempotent, both ways: a one-click action on a list where a double-click is likely. */
@@ -198,7 +190,30 @@ export function registerFlagRoutes(app: Hono<AppEnv>) {
   api.post("/api/flags/:id/uncheck", (c) => setChecked(c.get("db"), c.get("user").id, pathParam(c, "id"), false).then((f) => c.json(f)));
 }
 
-async function setChecked(db: Db, userId: string, id: string, checked: boolean): Promise<FlagResponse> {
+/**
+ * Stores `Explain this`'s answer on the flag, where asking again reads it
+ * back. The route stores the model's; the MCP server's `explain_flag` stores
+ * the one Claude wrote, with no usage.
+ */
+export async function storeExplanation(
+  db: Db,
+  userId: string,
+  flag: typeof factFlags.$inferSelect,
+  explanation: string,
+  usage: ModelUsage | null,
+): Promise<FlagResponse> {
+  const [updated] = await db
+    .update(factFlags)
+    // `ModelUsage`'s four keys are the four column names (`pipeline/import.ts`).
+    .set({ explanation, ...(usage ?? {}), updatedAt: new Date() })
+    .where(and(eq(factFlags.userId, userId), eq(factFlags.id, flag.id)))
+    .returning();
+  // The flag id and counts. Never the explanation, which restates the fact.
+  console.log(JSON.stringify({ event: "flag_explained", flagId: flag.id, ...(usage ?? {}) }));
+  return flagResponse(updated ?? { ...flag, explanation });
+}
+
+export async function setChecked(db: Db, userId: string, id: string, checked: boolean): Promise<FlagResponse> {
   const { flag } = await requireFlag(db, userId, id);
   if ((flag.checkedAt !== null) === checked && !(checked && flag.systemSettledAt !== null)) return flagResponse(flag);
   const now = new Date();
@@ -211,7 +226,7 @@ async function setChecked(db: Db, userId: string, id: string, checked: boolean):
 }
 
 /** A flag and its fact, or a 404. Another user's flag is the same 404. */
-async function requireFlag(db: Db, userId: string, id: string) {
+export async function requireFlag(db: Db, userId: string, id: string) {
   const [row] = await db
     .select({ flag: factFlags, fact: facts })
     .from(factFlags)

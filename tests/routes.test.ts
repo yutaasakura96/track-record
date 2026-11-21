@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { createApp } from "~/server/app";
-import { PUBLIC_PATH_PREFIXES, registeredRoutes } from "~/server/http/registry";
+import { PUBLIC_PATH_PREFIXES, isBearerPath, registeredRoutes } from "~/server/http/registry";
 import { harness } from "./helpers/harness";
 
 // Building the app is what populates the registry.
@@ -76,6 +76,12 @@ describe("deny-by-default routing", () => {
         response.status,
         `${route.method} ${route.path} must require a session`,
       ).toBe(401);
+      // The connector's route checks a token, not a session, and refuses with
+      // the challenge that sends an OAuth client to sign in (decision log 2026-11-17).
+      if (isBearerPath(route.path)) {
+        expect(response.headers.get("www-authenticate"), `${route.path} must challenge for a token`).toContain("resource_metadata=");
+        continue;
+      }
       const body = (await response.json()) as { error: { code: string } };
       expect(body.error.code).toBe("unauthenticated");
     }

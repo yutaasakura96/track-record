@@ -25,7 +25,7 @@ import { requireOwnedEmployer } from "./record";
 import { flagsOf, repeatFlagged, type FlagResponse } from "./flags";
 import { classifyClaim, sortFact } from "~/pipeline/flags";
 import { creditsExhaustedError } from "../services/model-credits";
-import { ModelUnavailableError, type ModelUsage } from "~/model";
+import { ModelUnavailableError, type FactGrade, type ModelUsage } from "~/model";
 import type { AppEnv } from "../env";
 import type { Context } from "hono";
 import type { Db } from "../db/client";
@@ -63,7 +63,7 @@ const regradeBody = z.object({
  * the call answers while the browser is still waiting on it; the client asks
  * again until none are left (`docs/07` §6).
  */
-const SORT_BATCH = 25;
+export const SORT_BATCH = 25;
 
 const sortBody = z.object({ importId: z.string().trim().min(1).optional() });
 
@@ -226,62 +226,7 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       throw new ApiError("upstream_unavailable", "The facts could not be sorted just now. Nothing was changed; try again.");
     }
 
-    const now = new Date();
-    const flagWrites: unknown[] = [];
-    const withFlags = new Set<string>();
-    const updates = batch.map((fact) => {
-      const sorted = sortFact(fact, grades.get(fact.id) ?? null);
-      for (const flag of sorted.flags) {
-        withFlags.add(fact.id);
-        flagWrites.push(db
-          .insert(factFlags)
-          .select(db
-            .select({
-              id: sql<string>`${newId("factFlag")}::text`.as("id"),
-              userId: facts.userId,
-              factId: facts.id,
-              kind: sql<typeof flag.kind>`${flag.kind}::fact_flag_kind`.as("kind"),
-              reason: sql<string>`${flag.reason}::text`.as("reason"),
-              explanation: sql<null>`null::text`.as("explanation"),
-              inputTokens: sql<null>`null::integer`.as("input_tokens"),
-              outputTokens: sql<null>`null::integer`.as("output_tokens"),
-              cacheCreationInputTokens: sql<null>`null::integer`.as("cache_creation_input_tokens"),
-              cacheReadInputTokens: sql<null>`null::integer`.as("cache_read_input_tokens"),
-              checkedAt: sql<null>`null::timestamptz`.as("checked_at"),
-              systemSettledAt: sql<null>`null::timestamptz`.as("system_settled_at"),
-              createdAt: sql<Date>`now()`.as("created_at"),
-              updatedAt: sql<Date>`now()`.as("updated_at"),
-            })
-            .from(facts)
-            .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.autoAcceptedAt, now))))
-          .onConflictDoNothing());
-      }
-      const confidential = sorted.disclosure === "private";
-      return db
-        .update(facts)
-        .set({
-          status: "accepted",
-          provenance: sorted.provenance,
-          disclosure: confidential ? "private" : fact.disclosure,
-          isClientIdentifying: fact.isClientIdentifying || sorted.isClientIdentifying,
-          autoAcceptedAt: now,
-          resolvedAt: now,
-          updatedAt: now,
-        })
-        // Still a candidate: a fact the author ruled on while the model was
-        // answering keeps the author's ruling.
-        .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id), eq(facts.status, "candidate"),
-          eq(facts.claim, fact.claim), eq(facts.disclosure, fact.disclosure), eq(facts.provenance, fact.provenance)))
-        .returning({ id: facts.id });
-    });
-    const results = await db.batch([...updates, ...flagWrites] as any) as { id: string }[][];
-    const sortedIds = results.slice(0, updates.length).flat().map((row) => row.id);
-
-    // The check a candidate's card made, now that there is no card to make it on.
-    const pools: OverlapPools = new Map();
-    const repeats = sortedIds.length > 0 ? await flagRepeats(db, user.id, inArray(facts.id, sortedIds), pools) : [];
-    if (sortedIds.length > 0) await settleRepeats(db, user.id, pools);
-    const flagged = new Set([...sortedIds.filter((id) => withFlags.has(id)), ...repeats]).size;
+    const { sortedIds, flagged } = await applyGrades(db, user.id, batch, grades);
 
     const [{ remaining } = { remaining: 0 }] = await db
       .select({ remaining: sql<number>`count(*)::int` })
@@ -319,6 +264,78 @@ export function registerFactRoutes(app: Hono<AppEnv>) {
       .where(and(eq(facts.userId, user.id), eq(facts.id, fact.id)));
     return c.json(await withMatches(db, user.id, fact.id));
   });
+}
+
+/**
+ * Accepts waiting facts with the grades given, flags what is worth a look,
+ * and checks them for repeats. A fact with no grade is kept Generated and
+ * flagged; a fact the author ruled on meanwhile keeps the author's ruling.
+ * `POST /api/facts/sort` passes the model's grades, the MCP server's
+ * `grade_facts` the ones Claude gave.
+ */
+export async function applyGrades(
+  db: Db,
+  userId: string,
+  batch: (typeof facts.$inferSelect)[],
+  grades: Map<string, FactGrade>,
+): Promise<{ sortedIds: string[]; flagged: number }> {
+  const now = new Date();
+  const flagWrites: unknown[] = [];
+  const withFlags = new Set<string>();
+  const updates = batch.map((fact) => {
+    const sorted = sortFact(fact, grades.get(fact.id) ?? null);
+    for (const flag of sorted.flags) {
+      withFlags.add(fact.id);
+      flagWrites.push(db
+        .insert(factFlags)
+        .select(db
+          .select({
+            id: sql<string>`${newId("factFlag")}::text`.as("id"),
+            userId: facts.userId,
+            factId: facts.id,
+            kind: sql<typeof flag.kind>`${flag.kind}::fact_flag_kind`.as("kind"),
+            reason: sql<string>`${flag.reason}::text`.as("reason"),
+            explanation: sql<null>`null::text`.as("explanation"),
+            inputTokens: sql<null>`null::integer`.as("input_tokens"),
+            outputTokens: sql<null>`null::integer`.as("output_tokens"),
+            cacheCreationInputTokens: sql<null>`null::integer`.as("cache_creation_input_tokens"),
+            cacheReadInputTokens: sql<null>`null::integer`.as("cache_read_input_tokens"),
+            checkedAt: sql<null>`null::timestamptz`.as("checked_at"),
+            systemSettledAt: sql<null>`null::timestamptz`.as("system_settled_at"),
+            createdAt: sql<Date>`now()`.as("created_at"),
+            updatedAt: sql<Date>`now()`.as("updated_at"),
+          })
+          .from(facts)
+          .where(and(eq(facts.userId, userId), eq(facts.id, fact.id), eq(facts.autoAcceptedAt, now))))
+        .onConflictDoNothing());
+    }
+    const confidential = sorted.disclosure === "private";
+    return db
+      .update(facts)
+      .set({
+        status: "accepted",
+        provenance: sorted.provenance,
+        disclosure: confidential ? "private" : fact.disclosure,
+        isClientIdentifying: fact.isClientIdentifying || sorted.isClientIdentifying,
+        autoAcceptedAt: now,
+        resolvedAt: now,
+        updatedAt: now,
+      })
+      // Still a candidate: a fact the author ruled on while the model was
+      // answering keeps the author's ruling.
+      .where(and(eq(facts.userId, userId), eq(facts.id, fact.id), eq(facts.status, "candidate"),
+        eq(facts.claim, fact.claim), eq(facts.disclosure, fact.disclosure), eq(facts.provenance, fact.provenance)))
+      .returning({ id: facts.id });
+  });
+  const results = await db.batch([...updates, ...flagWrites] as any) as { id: string }[][];
+  const sortedIds = results.slice(0, updates.length).flat().map((row) => row.id);
+
+  // The check a candidate's card made, now that there is no card to make it on.
+  const pools: OverlapPools = new Map();
+  const repeats = sortedIds.length > 0 ? await flagRepeats(db, userId, inArray(facts.id, sortedIds), pools) : [];
+  if (sortedIds.length > 0) await settleRepeats(db, userId, pools);
+  const flagged = new Set([...sortedIds.filter((id) => withFlags.has(id)), ...repeats]).size;
+  return { sortedIds, flagged };
 }
 
 /**

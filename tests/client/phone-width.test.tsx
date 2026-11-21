@@ -15,7 +15,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import type { Application, ApplicationDocument } from "~/client/api";
 import { figures, type Standing } from "~/shared/application";
-import { mount } from "./harness";
+import { mount, Refusal } from "./harness";
 
 const TODAY = "2026-10-10";
 const ID = "app-test-kestrel";
@@ -97,6 +97,24 @@ describe("the wider-window message at phone width", () => {
     expect(await screen.findByRole("heading", { name: "Skills", level: 1 })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Menu" })).toBeTruthy();
     expect(screen.queryByText(WIDER)).toBeNull();
+  });
+
+  it("is not shown on Connect an app, which claude.ai opens on a phone", async () => {
+    // No signed query is stubbed, so the screen says the link has expired: it renders, not the message.
+    mount("/consent", ROUTES);
+    expect(await screen.findByRole("heading", { name: "This link has expired" })).toBeTruthy();
+    expect(screen.queryByText(WIDER)).toBeNull();
+  });
+
+  it("is not shown on the sign-in an app's connection starts on", async () => {
+    window.history.replaceState(null, "", "/?client_id=invented-client&sig=invented-signature");
+    try {
+      mount("/", { "GET /api/auth/session": new Refusal(401, "unauthenticated", "Sign in.") });
+      expect(await screen.findByText(/An app is asking to connect to your record/)).toBeTruthy();
+      expect(screen.queryByText(WIDER)).toBeNull();
+    } finally {
+      window.history.replaceState(null, "", "/");
+    }
   });
 
   it("names the real minimum and links to the screens that do work", async () => {

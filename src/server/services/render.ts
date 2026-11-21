@@ -865,25 +865,10 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       await keepDraft(db, userId, proposalId, content, usage);
       return { ...stage, call: "shorten", read };
     }
-    // Issue #104. An English document that comes back in Japanese, or with a
-    // checked record name changed, is retried once and then refused —
-    // never lands as reviewable content. When this failure was found, the
-    // review screen did not show heading changes. A Japanese document is held
-    // to its own check the same way (issue #117): 御社, or a line in English.
-    // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
-    // author is shown, so the check reads the content as assembled: a row the
-    // model wrote that is discarded is not held to it.
-    // The 職務経歴書's two technology lists are bounded before anything reads
-    // them (`src/render/skill-lists.ts`).
-    const assemble = (c: RenderContent) =>
-      inputs.spec.kind === "shokumu_keirekisho"
-        ? withRecordSections(boundShokumuLists(c, inputs.spec, inputs.facts), inputs.spec, today)
-        : c;
-    const defectOf = (c: RenderContent) =>
-      inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
-    content = assemble(content);
-    const defect = defectOf(content);
-    if (defect !== null) {
+    const settled = settleContent(content, inputs, today);
+    if (!settled.ok) {
+      if (settled.defect === null) throw new ModelUnavailableError(settled.reason);
+      const defect = settled.defect;
       if (stage.attempt === 1) {
         // Ids and the defect's name only.
         console.warn(JSON.stringify({ event: "generation_retried", proposalId, defect }));
@@ -892,30 +877,11 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
       }
       throw new ModelUnavailableError(stage.firstDefect === defect ? DEFECT_REASON[defect] : mixedDefectReason(inputs.spec.language), defect);
     }
-    const motivation = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.motivation)?.blocks[0];
-    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription && (motivation?.kind !== "paragraph" || !motivation.text.trim())) {
-      throw new ModelUnavailableError("The tailored 履歴書 needs a 志望動機 to confirm. Generate it again.");
-    }
-    if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription) {
-      const kibou = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.kibou);
-      if (!kibou?.blocks.some((block) => block.kind === "paragraph" && block.text.trim())) {
-        const block = {
-          id: `blk_${crypto.randomUUID()}`,
-          kind: "paragraph" as const,
-          text: [inputs.spec.application?.kibouNote, inputs.spec.desiredRoleNote, "貴社規定に従います。"]
-            .map((text) => text?.trim())
-            .find((text) => text && defectOf({ sections: [{ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [{ id: "", kind: "paragraph", text, factIds: [] }] }] }) === null)!,
-          factIds: [],
-          drafted: true as const,
-        };
-        if (kibou) kibou.blocks = [block];
-        else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
-      }
-    }
+    content = settled.content;
     await db
       .update(renderProposals)
       .set({
-        content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec),
+        content,
         generationStatus: "ready",
         generationError: null,
         // The record as this run read it, which is later than the route did.
@@ -937,6 +903,66 @@ export async function generateIntoProposal(args: GenerateArgs): Promise<Generati
     else console.error(JSON.stringify({ event: "generation_failed", proposalId }));
   }
   return null;
+}
+
+export type Settled =
+  | { ok: true; content: RenderContent }
+  /** `defect` is named when the content failed a language or record-name check; `null` for any other refusal. */
+  | { ok: false; defect: EnglishDefect | JapaneseDefect | null; reason: string };
+
+/**
+ * Every deterministic check a finished document is held to before it lands on
+ * a proposal, whoever wrote it: the model seam (`generateIntoProposal`) or a
+ * client of the MCP server (`src/mcp/server.ts`). One function, so the two
+ * cannot drift apart on what a document may be.
+ *
+ * Unknown and excluded citations are stripped, the 職務経歴書's record rows are
+ * assembled in, the language and record-name checks run, a tailored 履歴書 is
+ * held to having a 志望動機 and given a 本人希望欄, and drafts are marked.
+ */
+export function settleContent(written: RenderContent, inputs: RenderInputs, today: string): Settled {
+  const allowed = new Set(inputs.facts.map((f) => f.id));
+  let content = stripUnknownFactIds(written, allowed);
+  // Issue #104. An English document that comes back in Japanese, or with a
+  // checked record name changed, is retried once and then refused —
+  // never lands as reviewable content. When this failure was found, the
+  // review screen did not show heading changes. A Japanese document is held
+  // to its own check the same way (issue #117): 御社, or a line in English.
+  // The record's own 保有資格 and 学歴 rows (issue #117) are part of what the
+  // author is shown, so the check reads the content as assembled: a row the
+  // model wrote that is discarded is not held to it.
+  // The 職務経歴書's two technology lists are bounded before anything reads
+  // them (`src/render/skill-lists.ts`).
+  const assemble = (c: RenderContent) =>
+    inputs.spec.kind === "shokumu_keirekisho"
+      ? withRecordSections(boundShokumuLists(c, inputs.spec, inputs.facts), inputs.spec, today)
+      : c;
+  const defectOf = (c: RenderContent) =>
+    inputs.spec.language === "en" ? englishDefect(c, inputs.spec) : japaneseDefect(c, inputs.spec, inputs.facts);
+  content = assemble(content);
+  const defect = defectOf(content);
+  if (defect !== null) return { ok: false, defect, reason: DEFECT_REASON[defect] };
+  const motivation = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.motivation)?.blocks[0];
+  if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription && (motivation?.kind !== "paragraph" || !motivation.text.trim())) {
+    return { ok: false, defect: null, reason: "The tailored 履歴書 needs a 志望動機 to confirm. Generate it again." };
+  }
+  if (inputs.spec.kind === "rirekisho" && inputs.spec.jobDescription) {
+    const kibou = content.sections.find((section) => section.key === PROSE_SECTION_KEYS.kibou);
+    if (!kibou?.blocks.some((block) => block.kind === "paragraph" && block.text.trim())) {
+      const block = {
+        id: `blk_${crypto.randomUUID()}`,
+        kind: "paragraph" as const,
+        text: [inputs.spec.application?.kibouNote, inputs.spec.desiredRoleNote, "貴社規定に従います。"]
+          .map((text) => text?.trim())
+          .find((text) => text && defectOf({ sections: [{ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [{ id: "", kind: "paragraph", text, factIds: [] }] }] }) === null)!,
+        factIds: [],
+        drafted: true as const,
+      };
+      if (kibou) kibou.blocks = [block];
+      else content.sections.push({ key: PROSE_SECTION_KEYS.kibou, heading: "本人希望欄", blocks: [block] });
+    }
+  }
+  return { ok: true, content: withDrafts(stripUnknownFactIds(content, allowed), inputs.spec) };
 }
 
 /** The two checks name their defects apart, so one table reads either. */

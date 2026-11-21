@@ -165,52 +165,7 @@ export function registerApplicationDocumentRoutes(app: Hono<AppEnv>) {
     if (!isTailoredKind(kind)) {
       throw validationFailed("An application can have its own résumé or its own 履歴書, and no other document.", ["kind"]);
     }
-    const application = await requireApplication(db, user.id, id);
-
-    let existing = await ownTailored(db, user.id, id, kind);
-    const created = !existing;
-    if (!existing) {
-      const renderId = newId("render");
-      try {
-        await db.insert(renders).values({
-          id: renderId,
-          userId: user.id,
-          kind,
-          label: application.company,
-          jobDescription: application.jobDescription,
-          applicationId: id,
-        });
-        // An id, a kind and a length. Never the text: a job description names a company.
-        console.log(JSON.stringify({ event: "tailored_document_created", renderId, applicationId: id, kind, characters: application.jobDescription.length }));
-      } catch (error) {
-        // Two requests at once. The index let one in, and that one is the document.
-        if (!violatesUnique(error, "renders_application_uq")) throw error;
-      }
-      existing = await ownTailored(db, user.id, id, kind);
-      if (!existing) throw new ApiError("internal", "The document could not be stored. Try again.");
-    }
-
-    const replaced: string[] = [];
-    if (!(await isOn(db, user.id, id, existing.id))) {
-      // One 履歴書 before Applied: the main one makes way, and is still a
-      // document on Home, untouched.
-      const now = new Date();
-      if (kind === "rirekisho") {
-        // The application's row first, the lock the one-履歴書 trigger takes.
-        // A main 履歴書 ticked at the same moment is then either committed
-        // before the take-off reads, and taken off, or waits and is refused
-        // by the trigger. Without it the take-off can miss a main 履歴書
-        // committed after it read, and the trigger refuses this one instead.
-        const [, removed] = await db.batch([
-          lockApplication(db, user.id, id),
-          takeOffMainRirekisho(db, user.id, id, now),
-          putOn(db, user.id, id, existing.id),
-        ]);
-        if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
-      } else {
-        await db.batch([putOn(db, user.id, id, existing.id)]);
-      }
-    }
+    const { created, replaced } = await addTailored(db, user.id, id, kind);
     return c.json({ ...(await detail(db, user.id, id)), replaced }, created ? 201 : 200);
   });
 
@@ -374,6 +329,66 @@ const takeOff = (db: Db, userId: string, id: string, now: Date) =>
     .update(applicationDocuments)
     .set({ removedAt: now, updatedAt: now })
     .where(and(eq(applicationDocuments.userId, userId), eq(applicationDocuments.id, id)));
+
+/**
+ * The application's tailored document of a kind, made if it has none and put
+ * on the application if it is off. The route and the MCP server's
+ * `tailor_document` both go through this; it generates nothing.
+ */
+export async function addTailored(
+  db: Db,
+  userId: string,
+  id: string,
+  kind: TailoredKind,
+): Promise<{ renderId: string; created: boolean; replaced: string[] }> {
+  const application = await requireApplication(db, userId, id);
+
+  let existing = await ownTailored(db, userId, id, kind);
+  const created = !existing;
+  if (!existing) {
+    const renderId = newId("render");
+    try {
+      await db.insert(renders).values({
+        id: renderId,
+        userId: userId,
+        kind,
+        label: application.company,
+        jobDescription: application.jobDescription,
+        applicationId: id,
+      });
+      // An id, a kind and a length. Never the text: a job description names a company.
+      console.log(JSON.stringify({ event: "tailored_document_created", renderId, applicationId: id, kind, characters: application.jobDescription.length }));
+    } catch (error) {
+      // Two requests at once. The index let one in, and that one is the document.
+      if (!violatesUnique(error, "renders_application_uq")) throw error;
+    }
+    existing = await ownTailored(db, userId, id, kind);
+    if (!existing) throw new ApiError("internal", "The document could not be stored. Try again.");
+  }
+
+  const replaced: string[] = [];
+  if (!(await isOn(db, userId, id, existing.id))) {
+    // One 履歴書 before Applied: the main one makes way, and is still a
+    // document on Home, untouched.
+    const now = new Date();
+    if (kind === "rirekisho") {
+      // The application's row first, the lock the one-履歴書 trigger takes.
+      // A main 履歴書 ticked at the same moment is then either committed
+      // before the take-off reads, and taken off, or waits and is refused
+      // by the trigger. Without it the take-off can miss a main 履歴書
+      // committed after it read, and the trigger refuses this one instead.
+      const [, removed] = await db.batch([
+        lockApplication(db, userId, id),
+        takeOffMainRirekisho(db, userId, id, now),
+        putOn(db, userId, id, existing.id),
+      ]);
+      if (removed.length) replaced.push(SENDABLE_TITLE.rirekisho);
+    } else {
+      await db.batch([putOn(db, userId, id, existing.id)]);
+    }
+  }
+  return { renderId: existing.id, created, replaced };
+}
 
 function refuseOnceApplied(application: ApplicationRow, message: string) {
   if (application.currentStep !== "not_applied") throw new ApiError("conflict", message);

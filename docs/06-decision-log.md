@@ -8354,3 +8354,55 @@ part of this.
   is still read as English.
 - **Revisit if:** `generation_part_retried` names one chapter again and again, or a Japanese story is
   refused with a part retried.
+
+### [2026-11-17] Claude reaches the record through a claude.ai connector, behind OAuth the app issues
+
+- **Context:** the MCP server (#178, `docs/specs/mcp-spike.md`) let Claude Desktop and Claude Code
+  write documents on the author's own Claude plan instead of the app calling the API, but only from
+  the author's machine against a local database. claude.ai and the phone need a remote server: a
+  public HTTPS endpoint that claude.ai can register with and get a token from (Anthropic's connector
+  docs: DCR or CIMD, PKCE S256, RFC 8414 and RFC 9728 discovery, `WWW-Authenticate` on a 401).
+- **Decision:** the Worker serves the same `createTrackRecordServer` at `/api/mcp` over Streamable
+  HTTP, stateless, one server per request (`src/server/routes/mcp.ts`). Better Auth's own
+  `@better-auth/mcp` plugin, with `jwt`, is the authorization server: the existing Google sign-in
+  and allowlist are the login, a consent screen in the SPA (`/consent`) is where the author allows a
+  client, and access tokens are JWTs bound to the `/api/mcp` resource. Rejected:
+  `@cloudflare/workers-oauth-provider`, which would need a KV namespace and a second login path
+  beside Better Auth's.
+- **Decision:** `/api/mcp` is the one route that checks a bearer token instead of a session
+  (`BEARER_PATHS` in `src/server/http/registry.ts`). It is not public: without a token it answers
+  `401` with the RFC 9728 challenge, so the enumeration test still sees it fail closed. The token
+  must be signed by a key in `jwks` (read in-process; a Worker fetching its own workers.dev URL for
+  the JWKS was avoided), issued by this deployment, for this resource, with the `record` scope, and
+  for a user who still exists and is still on the allowlist. The user id the tools are bound to is
+  the token's subject.
+- **Decision:** the Worker now answers three paths outside `/api` (`run_worker_first`,
+  `DISCOVERY_PATHS` in `src/server/index.ts`): `/.well-known/oauth-authorization-server/api/auth`,
+  `/.well-known/oauth-protected-resource` and `/.well-known/oauth-protected-resource/api/mcp`. Each
+  is public metadata served by Better Auth, with nothing of the record in it. Everything else
+  outside `/api` is still the static assets'.
+- **Decision:** open dynamic client registration. A registered client holds nothing; a token needs
+  the author's Google sign-in on the allowlist and their consent. CIMD was not added: claude.ai falls
+  back to DCR when the metadata does not advertise CIMD, and CIMD would have the Worker fetch a
+  client-chosen URL, which is more surface than one user needs.
+- **Decision:** Better Auth moves from 1.7.1 to 1.7.15, exact versions with `@better-auth/core`,
+  `@better-auth/mcp`, `@better-auth/oauth-provider` and `better-call` pinned together (npm resolved
+  the plugin's peer to a newer core otherwise). 1.7.15 was the newest release at least two weeks
+  old. 1.7.3 and later no longer write `accounts.issuer`, so migration 0038 makes it nullable, drops
+  its unique index and makes (`provider_id`, `account_id`) unique, as Better Auth's 1.7 upgrade guide
+  says; the same migration adds the eight OAuth tables (`docs/04` §3.20).
+- **Not changed:** Google is still asked for `openid email profile` and nothing else. The `record`,
+  `openid`, `profile`, `email` and `offline_access` scopes are this app's own provider's, granted to
+  the client, and say nothing to Google.
+- **Verified:** `tests/mcp-connector.test.ts` walks claude.ai's path against the deployed
+  configuration with the suite's OIDC issuer for Google: discovery at the root paths, registration,
+  authorize while signed out, sign-in carrying the signed query, consent, the token exchange with
+  PKCE, then `initialize`, `tools/list` and a tool call on `/api/mcp`. A missing, altered or
+  out-of-scope token is refused.
+- **Not done here:** connecting from the real claude.ai, which needs this deployed. An access token
+  is a JWT and holds until it expires. A screen listing connected clients and revoking their refresh
+  tokens is not built; until it is, removing the connector in claude.ai stops it being used, and
+  revoking server-side is a database change.
+- **Revisit if:** claude.ai stops falling back to DCR, a second user is invited (each token is
+  already bound to one user, but consent and client listings would need a screen), or a tool is
+  added that a token should not reach.

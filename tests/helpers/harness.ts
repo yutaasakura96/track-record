@@ -173,6 +173,8 @@ export interface Harness {
   /** Signed in as this user unless a request overrides it. */
   as(user: SeededUser): Client;
   anonymous(): Client;
+  /** A client that keeps cookies, as a browser does, and starts with none. */
+  browser(): Client;
   /**
    * The whole sign-in path: `POST /sign-in/social` → the issuer → the callback
    * → a session cookie. Only on a `realSessions` harness.
@@ -260,6 +262,7 @@ export function harness(model: StubModel = stubModel(), options: HarnessOptions 
     db: createDb(bindings.DATABASE_URL),
     as: (user) => client({ [TEST_USER_HEADER]: `${user.id}|${user.email}|${user.name}` }),
     anonymous: () => client({}),
+    browser: () => client({}, new CookieJar()),
     signIn: async (issuer, identity) => {
       if (!options.realSessions) {
         throw new Error("signIn() needs harness(model, { realSessions: true }).");

@@ -31,6 +31,7 @@ import { creditsExhaustedError } from "../services/model-credits";
 import { ModelUnavailableError, type CapturedClaim, type ModelUsage } from "~/model";
 import { CAPTURE_TEXT_MAX, CAPTURED_CLAIMS_MAX, CLAIM_MAX } from "~/shared/capture";
 import type { AppEnv } from "../env";
+import type { Db } from "../db/client";
 
 const MONTH = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -66,7 +67,7 @@ const claimBody = z
     path: ["employerId"],
   });
 
-const saveBody = z.object({
+export const saveBody = z.object({
   claims: z
     .array(claimBody)
     .min(1, "Save at least one claim.")
@@ -152,72 +153,7 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
     const user = c.get("user");
     const db = c.get("db");
     const body = await parseBody(c, saveBody);
-
-    // A foreign key alone would let one user file a fact under another user's
-    // employer or project. Each is a read filtered by `user_id`, and a miss is a 404.
-    for (const id of new Set(body.claims.map((claim) => claim.employerId).filter((id): id is string => !!id))) {
-      await requireOwnedEmployer(db, user.id, id);
-    }
-    for (const id of new Set(body.claims.map((claim) => claim.projectId).filter((id): id is string => !!id))) {
-      await requireOwnedProject(db, user.id, id);
-    }
-
-    const now = new Date();
-    const rows = body.claims.map((claim) => {
-      const technologies = [...new Set(claim.technologies ?? [])];
-      const { shape, flags } = classifyClaim({ claim: claim.claim, quote: null, technologies });
-      return {
-        fact: {
-          id: newId("fact"),
-          userId: user.id,
-          claim: claim.claim,
-          occurredOn: claim.month ? `${claim.month}-01` : null,
-          projectId: claim.projectId ?? null,
-          ...(claim.employerId === undefined ? {} : { employerId: claim.employerId, employerSetAt: now }),
-          provenance: "attested" as const,
-          disclosure: shape ? ("private" as const) : ("restricted" as const),
-          isClientIdentifying: shape !== null,
-          status: "accepted" as const,
-          technologies,
-          resolvedAt: now,
-          // The author's grade: the confirmation on the screen is the ruling.
-          gradedAt: now,
-        },
-        // Only the shape check's flag. A number needs no passage to check it
-        // against: the author typed it and confirmed it.
-        flags: flags.filter((flag) => flag.kind === "confidential"),
-      };
-    });
-
-    await db.batch([
-      db.insert(facts).values(rows.map((row) => row.fact)),
-      ...rows.flatMap((row) =>
-        row.flags.map((flag) =>
-          db.insert(factFlags).values({ id: newId("factFlag"), userId: user.id, factId: row.fact.id, ...flag }),
-        ),
-      ),
-    ] as any);
-
-    const ids = rows.map((row) => row.fact.id);
-    await settleRepeats(db, user.id);
-
-    const saved = await db
-      .select(factWithEmployer)
-      .from(facts)
-      .where(and(eq(facts.userId, user.id), inArray(facts.id, ids)))
-      .orderBy(asc(facts.id));
-    const flags = await flagsOf(db, user.id, ids);
-
-    // Counts only. Never a claim.
-    console.log(
-      JSON.stringify({
-        event: "facts_captured",
-        facts: saved.length,
-        private: saved.filter((fact) => fact.disclosure === "private").length,
-        withMonth: saved.filter((fact) => fact.occurredOn !== null).length,
-        filed: saved.filter((fact) => fact.resolvedEmployerId !== null).length,
-      }),
-    );
+    const { saved, flags } = await saveCaptured(db, user.id, body);
     return c.json({ items: saved.map((fact) => toResponse(fact, [], flags.get(fact.id) ?? [])) }, 201);
   });
 
@@ -243,4 +179,79 @@ export function registerCaptureRoutes(app: Hono<AppEnv>) {
       });
     return c.json({ dismissedOn: month });
   });
+}
+
+/**
+ * Saves confirmed claims into the record: accepted, Attested, graded by the
+ * author, with no source and no quote. The route and the MCP server's
+ * `capture_facts` both store them through this.
+ */
+export async function saveCaptured(db: Db, userId: string, body: z.infer<typeof saveBody>) {
+
+  // A foreign key alone would let one user file a fact under another user's
+  // employer or project. Each is a read filtered by `user_id`, and a miss is a 404.
+  for (const id of new Set(body.claims.map((claim) => claim.employerId).filter((id): id is string => !!id))) {
+    await requireOwnedEmployer(db, userId, id);
+  }
+  for (const id of new Set(body.claims.map((claim) => claim.projectId).filter((id): id is string => !!id))) {
+    await requireOwnedProject(db, userId, id);
+  }
+
+  const now = new Date();
+  const rows = body.claims.map((claim) => {
+    const technologies = [...new Set(claim.technologies ?? [])];
+    const { shape, flags } = classifyClaim({ claim: claim.claim, quote: null, technologies });
+    return {
+      fact: {
+        id: newId("fact"),
+        userId: userId,
+        claim: claim.claim,
+        occurredOn: claim.month ? `${claim.month}-01` : null,
+        projectId: claim.projectId ?? null,
+        ...(claim.employerId === undefined ? {} : { employerId: claim.employerId, employerSetAt: now }),
+        provenance: "attested" as const,
+        disclosure: shape ? ("private" as const) : ("restricted" as const),
+        isClientIdentifying: shape !== null,
+        status: "accepted" as const,
+        technologies,
+        resolvedAt: now,
+        // The author's grade: the confirmation on the screen is the ruling.
+        gradedAt: now,
+      },
+      // Only the shape check's flag. A number needs no passage to check it
+      // against: the author typed it and confirmed it.
+      flags: flags.filter((flag) => flag.kind === "confidential"),
+    };
+  });
+
+  await db.batch([
+    db.insert(facts).values(rows.map((row) => row.fact)),
+    ...rows.flatMap((row) =>
+      row.flags.map((flag) =>
+        db.insert(factFlags).values({ id: newId("factFlag"), userId: userId, factId: row.fact.id, ...flag }),
+      ),
+    ),
+  ] as any);
+
+  const ids = rows.map((row) => row.fact.id);
+  await settleRepeats(db, userId);
+
+  const saved = await db
+    .select(factWithEmployer)
+    .from(facts)
+    .where(and(eq(facts.userId, userId), inArray(facts.id, ids)))
+    .orderBy(asc(facts.id));
+  const flags = await flagsOf(db, userId, ids);
+
+  // Counts only. Never a claim.
+  console.log(
+    JSON.stringify({
+      event: "facts_captured",
+      facts: saved.length,
+      private: saved.filter((fact) => fact.disclosure === "private").length,
+      withMonth: saved.filter((fact) => fact.occurredOn !== null).length,
+      filed: saved.filter((fact) => fact.resolvedEmployerId !== null).length,
+    }),
+  );
+  return { saved, flags };
 }
