@@ -13,6 +13,13 @@
 # TWO SERVICES, not one. The application talks to Postgres over Neon's HTTP
 # protocol, which plain Postgres does not implement — so a Neon proxy sits in
 # front of it. Without the proxy every database test fails at connection time.
+# ONE PROJECT NAME, wherever it is run from. Without it Compose names the project after the folder,
+# so `npm run db:up` from a worktree under `.claude/worktrees/` started a stack of its own on a new,
+# empty volume, and the container names `scripts/capture-proxy-state.mjs` and
+# `src/server/db/proxy-watch.ts` restart (`track-record-neon-proxy-1`) did not exist. A deliberately
+# separate stack still gets its own with `docker compose -p <name>`, which takes precedence over this.
+name: track-record
+
 services:
   postgres:
     image: postgres:17
