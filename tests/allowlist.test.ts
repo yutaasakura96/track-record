@@ -78,7 +78,7 @@ describe("a Google identity outside the allowlist", () => {
  * can be observed doing its job.
  */
 describe("the allowlist, on the real sign-in path", () => {
-  it("admits an invited identity, and records the issuer that asserted it", async () => {
+  it("admits an invited identity, and records the account it signed in with", async () => {
     const app = harness(stubModel(), { realSessions: true });
     const walk = await app.signIn(issuer, {
       sub: "115902847362519048371",
@@ -93,12 +93,13 @@ describe("the allowlist, on the real sign-in path", () => {
     const [created] = await app.db.select().from(users).where(eq(users.email, SECOND_EMAIL));
     expect(created).toBeDefined();
 
-    // `accounts.issuer` is the OIDC issuer, not the provider id. A missing
-    // column here surfaced as a SQL syntax error on the callback (`docs/06`,
-    // 2026-09-01, item 3) and nothing in the suite could see it.
+    // An account is looked up by (provider_id, account_id) again since Better
+    // Auth 1.7.3; `accounts.issuer` is written only by 1.7.0 through 1.7.2 and
+    // is null on a new row (decision log 2026-11-17). The account itself must
+    // still be stored on the callback, which is what 2026-09-01, item 3 was.
     const [account] = await app.db.select().from(accounts).where(eq(accounts.userId, created!.id));
-    expect(account?.issuer).toBe("https://accounts.google.com");
     expect(account?.providerId).toBe("google");
+    expect(account?.accountId).toBe("115902847362519048371");
   });
 
   it("refuses an identity off the list, and leaves no user row behind", async () => {

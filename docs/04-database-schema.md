@@ -931,6 +931,29 @@ is kept and printed nowhere.
 
 ---
 
+### 3.20 The connector's OAuth tables · migration 0038, 2026-11-17
+
+`jwks`, `oauth_clients`, `oauth_resources`, `oauth_client_resources`, `oauth_access_tokens`,
+`oauth_refresh_tokens`, `oauth_consents` and `oauth_client_assertions`: what Better Auth's `jwt` and
+`@better-auth/mcp` plugins write for the claude.ai connector (decision log 2026-11-17). Like §3.1's
+tables they are the library's, named to §0's conventions by `modelName` overrides in `createAuth`,
+and this document does not restate their columns (`src/server/db/schema.ts` holds them).
+
+- `jwks` holds the keys access tokens are signed with; the private key is encrypted with
+  `BETTER_AUTH_SECRET`.
+- `oauth_clients` holds a client that registered itself (claude.ai, Claude Code). A client holds
+  nothing of the record: a token for it needs the author's sign-in and consent.
+- `oauth_consents` records what the author allowed a client; `oauth_access_tokens` and
+  `oauth_refresh_tokens` what was issued. Each names the user it is for, and is a sign-in table, not
+  a record table: the demo reset leaves it alone, as it leaves `sessions`.
+
+The same migration relaxes `accounts.issuer`. Better Auth 1.7.0 through 1.7.2 required it and looked
+an account up by (`issuer`, `account_id`); 1.7.3 went back to (`provider_id`, `account_id`) and no
+longer writes it. The column is nullable and kept for the rows that hold it, its unique index is
+dropped, and (`provider_id`, `account_id`) is unique instead.
+
+---
+
 ## 4. The 履歴書 field contract
 
 **Extracted from `local/JAPANESE/履歴書.docx` on 2026-08-12** — the author's actual file, not a

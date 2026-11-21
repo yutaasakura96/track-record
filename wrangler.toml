@@ -22,7 +22,9 @@ not_found_handling = "single-page-application"
 # misses every static asset, and is answered by `not_found_handling` — i.e. the SPA
 # shell — instead of reaching the Worker. Naming the API prefix opts /api out of that
 # implicit routing. Verified against the Workers static-assets documentation, 2026-08-30.
-run_worker_first = ["/api/*"]
+# The three OAuth discovery documents for the claude.ai connector are the Worker's
+# too (src/server/index.ts, decision log 2026-11-17).
+run_worker_first = ["/api/*", "/.well-known/oauth-authorization-server/*", "/.well-known/oauth-protected-resource", "/.well-known/oauth-protected-resource/*"]
 
 [limits]
 # Paid plan default is 30s; raisable to 300_000. Raise only if the .docx

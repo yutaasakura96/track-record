@@ -80,13 +80,16 @@ describe("the seed's refusals", () => {
 });
 
 describe("the reset order", () => {
-  it("names every table that holds a user's rows, except the sign-in ones", async () => {
+  it("names every table that holds a user's rows, except the sign-in and OAuth ones", async () => {
     const rows = await db.execute(sql`
       select table_name from information_schema.columns
       where table_schema = 'public' and column_name = 'user_id'`);
     const owned = (rows.rows as { table_name: string }[]).map((row) => row.table_name);
     const reset = RESET_ORDER.map((table) => getTableName(table));
-    expect([...reset].sort()).toEqual(owned.filter((name) => name !== "accounts" && name !== "sessions").sort());
+    // The sign-in tables, and the connector's OAuth grants beside them, are the
+    // library's and are not part of a record (decision log 2026-11-17).
+    const signIn = new Set(["accounts", "sessions", "oauth_clients", "oauth_access_tokens", "oauth_refresh_tokens", "oauth_consents"]);
+    expect([...reset].sort()).toEqual(owned.filter((name) => !signIn.has(name)).sort());
   });
 });
 

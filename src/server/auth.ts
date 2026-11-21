@@ -6,6 +6,9 @@
  */
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import { jwt } from "better-auth/plugins";
+import { APIError, createAuthMiddleware } from "better-auth/api";
+import { mcp } from "@better-auth/mcp";
 import type { Db } from "./db/client";
 import * as schema from "./db/schema";
 import type { Bindings, SessionUser } from "./env";
@@ -37,6 +40,45 @@ export function isAllowedEmail(allowlist: string, email: string): boolean {
     .filter(Boolean)
     .includes(normalised);
 }
+
+/**
+ * The claude.ai connector's protected resource (`docs/specs/mcp-spike.md`).
+ * Access tokens are audience-bound to it, and it is published in the RFC 9728
+ * metadata exactly as Claude compares it, so it is the Worker's own origin.
+ */
+export const mcpResource = (env: Pick<Bindings, "BETTER_AUTH_URL">) => `${new URL(env.BETTER_AUTH_URL).origin}/api/mcp`;
+
+/**
+ * The one scope the connector grants: the author's record, read and written
+ * through the MCP tools. The identity scopes are the provider's own, and say
+ * nothing to Google: the Google client still asks for `GOOGLE_SCOPES` alone.
+ */
+export const MCP_SCOPE = "record";
+
+/**
+ * The only callbacks a registered client may name: claude.ai's, and the
+ * claude.com one Anthropic says it may move to. Registration is open, so
+ * without this anyone could register a client called "Claude" with their own
+ * redirect and phish one click on Allow into a token for the record.
+ */
+export const CONNECTOR_REDIRECTS: ReadonlySet<string> = new Set([
+  "https://claude.ai/api/mcp/auth_callback",
+  "https://claude.com/api/mcp/auth_callback",
+]);
+
+const REGISTER_PATH = "/oauth2/register";
+
+/** Refuses a registration naming any redirect outside `CONNECTOR_REDIRECTS`. */
+const pinConnectorRedirects = createAuthMiddleware(async (ctx) => {
+  if (ctx.path !== REGISTER_PATH) return;
+  const uris: unknown = (ctx.body as { redirect_uris?: unknown } | undefined)?.redirect_uris;
+  const allowed = Array.isArray(uris) && uris.length > 0 && uris.every((uri) => typeof uri === "string" && CONNECTOR_REDIRECTS.has(uri));
+  if (allowed) return;
+  throw new APIError("BAD_REQUEST", {
+    error: "invalid_redirect_uri",
+    error_description: "This deployment connects to Claude only.",
+  });
+});
 
 export function createAuth(env: Bindings, db: Db) {
   return betterAuth({
@@ -78,6 +120,33 @@ export function createAuth(env: Bindings, db: Db) {
       },
     },
     emailAndPassword: { enabled: false },
+    hooks: { before: pinConnectorRedirects },
+    plugins: [
+      // Signs the connector's access tokens; the keys live in `jwks`.
+      jwt({ schema: { jwks: { modelName: "jwks" } } }),
+      mcp({
+        resource: mcpResource(env),
+        // The SPA shows the sign-in screen on `/` for a signed-out visitor, and
+        // passes the signed query back as `oauth_query` so the provider resumes.
+        loginPage: "/",
+        consentPage: "/consent",
+        scopes: ["openid", "profile", "email", "offline_access", MCP_SCOPE],
+        // claude.ai registers itself (RFC 7591), and only with its own callback
+        // (`pinConnectorRedirects`). A registered client holds nothing: a token
+        // still needs an allowlisted author's sign-in and consent.
+        allowDynamicClientRegistration: true,
+        allowUnauthenticatedClientRegistration: true,
+        schema: {
+          oauthClient: { modelName: "oauthClients" },
+          oauthResource: { modelName: "oauthResources" },
+          oauthClientResource: { modelName: "oauthClientResources" },
+          oauthRefreshToken: { modelName: "oauthRefreshTokens" },
+          oauthAccessToken: { modelName: "oauthAccessTokens" },
+          oauthConsent: { modelName: "oauthConsents" },
+          oauthClientAssertion: { modelName: "oauthClientAssertions" },
+        },
+      }),
+    ],
   });
 }
 

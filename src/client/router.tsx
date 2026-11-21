@@ -35,6 +35,7 @@ import { SentCopyScreen } from "./screens/sent-copy";
 import { NewApplicationScreen } from "./screens/application-new";
 import { ApplicationScreen } from "./screens/application";
 import { CaptureScreen } from "./screens/capture";
+import { ConsentScreen } from "./screens/consent";
 import { TooNarrow } from "./components/too-narrow";
 
 function Shell() {
@@ -60,7 +61,9 @@ function Gate({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Every render needs a name to put on it, so identity comes first and
     // nothing else is reachable until it exists.
-    if (!signedOut && missingProfile && path !== "/profile") {
+    // Allowing an app to connect asks nothing of the profile, and a redirect
+    // here would drop the provider's signed query (decision log 2026-11-17).
+    if (!signedOut && missingProfile && path !== "/profile" && path !== "/consent") {
       void navigate({ to: "/profile", replace: true });
     }
   }, [signedOut, missingProfile, path, navigate]);
@@ -90,6 +93,13 @@ const overviewRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
   component: Overview,
+});
+
+/** Where Better Auth's OAuth provider asks the author to allow a client (decision log 2026-11-17). */
+const consentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/consent",
+  component: ConsentScreen,
 });
 
 const profileRoute = createRoute({
@@ -246,6 +256,7 @@ const draftEditRoute = createRoute({
 
 const routeTree = rootRoute.addChildren([
   overviewRoute,
+  consentRoute,
   profileRoute,
   recordRoute,
   skillsRoute,
