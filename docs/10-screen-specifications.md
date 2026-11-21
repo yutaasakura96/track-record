@@ -2259,6 +2259,19 @@ alone, 600 × 800 as a JPEG; `Cancel` (bare) sends nothing. A framed part under 
 refused before anything is sent, as is a file the browser cannot open; the server's refusal (type,
 3:4, size) shows under the panel in `removed`, and the crop stays.
 
+## The profile form's Connected apps · decision log 2026-11-21
+
+A panel `Connected apps` under the form, apart from it and shown only once a profile exists:
+`Apps you allowed to read your record and save drafts to it. Disconnecting one stops it at once;
+connecting again asks you to sign in and allow it.` Each app the author allowed on the consent screen
+is a row: its registered name (`An unnamed app` without one) in `text-strong`, under it in
+`text-faint` `Sends you back to {host} · Allowed YYYY-MM-DD · Last signed in {relative}` (the last
+part only once it has signed in), and `Disconnect` (secondary) at the right, labelled
+`Disconnect {name}` for a screen reader. One press ends it, without a confirmation, since connecting
+again undoes it; the row reads `Disconnecting…` meanwhile and leaves the list when the server answers.
+With no app: `No app is connected.` A refusal shows under the panel in `removed`, followed by `The app
+is still connected.`
+
 ## Screens not yet designed
 
 Needed before their milestones; not blocking M1.

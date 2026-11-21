@@ -1,6 +1,7 @@
 /**
  * The claude.ai connector (decision log 2026-11-17): discovery, dynamic client
- * registration, sign-in and consent, the token, and `/api/mcp` behind it.
+ * registration, sign-in and consent, the token, `/api/mcp` behind it, and
+ * ending a connection from the profile (decision log 2026-11-21).
  *
  * Walked the way claude.ai walks it, against the deployed Better Auth
  * configuration, with the suite's OIDC issuer standing in for Google. What is
@@ -14,7 +15,7 @@ import worker from "~/server/index";
 import type { Bindings } from "~/server/env";
 import { harness, stubModel, type Client } from "./helpers/harness";
 import { installIssuer, type FixtureIssuer } from "./helpers/oidc";
-import { AUTHOR_EMAIL } from "./helpers/seed";
+import { AUTHOR_EMAIL, seedAllowedUser } from "./helpers/seed";
 
 const bindings = env as unknown as Bindings;
 const ORIGIN = new URL(bindings.BETTER_AUTH_URL).origin;
@@ -132,7 +133,7 @@ async function connect(scope = "record offline_access") {
   });
   expect(token.status, await token.clone().text()).toBe(200);
   const tokens = (await token.json()) as { access_token: string; refresh_token?: string; scope: string };
-  return { app, clientId, tokens };
+  return { app, browser, clientId, tokens };
 }
 
 /** One JSON-RPC call to `/api/mcp`, as a Streamable HTTP client sends it. */
@@ -264,5 +265,48 @@ describe("/api/mcp", () => {
     const claims = JSON.parse(atob(payload!.replace(/-/g, "+").replace(/_/g, "/")));
     const altered = `${header}.${base64url(new TextEncoder().encode(JSON.stringify({ ...claims, sub: "usr_someone_else" })).buffer)}.${signature}`;
     expect((await rpc(app, altered, "tools/list")).status).toBe(401);
+  });
+});
+
+describe("connected apps", () => {
+  const refresh = (app: ReturnType<typeof harness>, clientId: string, refreshToken: string) =>
+    app.anonymous().request("/api/auth/oauth2/token", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: refreshToken, client_id: clientId, resource: RESOURCE }).toString(),
+    });
+
+  it("lists the client the author allowed, with where it sends them back to", async () => {
+    const { browser, clientId } = await connect();
+    const { items } = (await (await browser.get("/api/connections")).json()) as {
+      items: { clientId: string; name: string | null; host: string | null; lastUsedAt: string | null }[];
+    };
+    const mine = items.find((item) => item.clientId === clientId);
+    expect(mine).toMatchObject({ name: "Claude", host: "claude.ai" });
+    expect(mine?.lastUsedAt).toBeTruthy();
+  });
+
+  it("ends a connection at once: the token still inside its hour is refused, and so is its refresh token", async () => {
+    const { app, browser, clientId, tokens } = await connect();
+    expect((await rpc(app, tokens.access_token, "tools/list")).status).toBe(200);
+
+    const ended = await browser.delete(`/api/connections/${encodeURIComponent(clientId)}`);
+    expect(ended.status).toBe(204);
+
+    expect((await rpc(app, tokens.access_token, "tools/list")).status).toBe(401);
+    expect((await refresh(app, clientId, tokens.refresh_token!)).status).toBeGreaterThanOrEqual(400);
+    const { items } = (await (await browser.get("/api/connections")).json()) as { items: { clientId: string }[] };
+    expect(items.some((item) => item.clientId === clientId)).toBe(false);
+    expect((await browser.delete(`/api/connections/${encodeURIComponent(clientId)}`)).status).toBe(404);
+  });
+
+  it("neither lists nor ends another user's connection", async () => {
+    const { app, clientId, tokens } = await connect();
+    const someoneElse = harness().as(await seedAllowedUser());
+
+    const { items } = await someoneElse.json<{ items: { clientId: string }[] }>("/api/connections");
+    expect(items.some((item) => item.clientId === clientId)).toBe(false);
+    expect((await someoneElse.delete(`/api/connections/${encodeURIComponent(clientId)}`)).status).toBe(404);
+    expect((await rpc(app, tokens.access_token, "tools/list")).status).toBe(200);
   });
 });

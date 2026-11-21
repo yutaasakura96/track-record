@@ -12,7 +12,9 @@
  * - issued by this deployment, for this resource (`mcpResource`), carrying
  *   the `record` scope;
  * - for a user who still exists and is still on the allowlist, as the session
- *   middleware asks of a session.
+ *   middleware asks of a session;
+ * - from a client the author has not disconnected: their consent for it is
+ *   still there.
  *
  * A request without a valid token is answered 401 with the RFC 9728 challenge
  * that points the client at the protected resource metadata, so the route
@@ -20,7 +22,7 @@
  * to comes from the token's subject and from nothing the client sends.
  */
 import type { Hono } from "hono";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
 import {
   createDpopReplayStore,
@@ -32,7 +34,7 @@ import {
 } from "@better-auth/core/oauth2";
 import { APIError } from "better-auth/api";
 import { createResourceServerChallenge } from "@better-auth/oauth-provider";
-import { users } from "../db/schema";
+import { oauthConsents, users } from "../db/schema";
 import { routes } from "../http/registry";
 import { createAuth, isAllowedEmail, MCP_SCOPE, mcpResource } from "../auth";
 import { createTrackRecordServer } from "~/mcp/server";
@@ -93,6 +95,14 @@ export function registerMcpRoutes(app: Hono<AppEnv>) {
 
       const [user] = await db.select({ id: users.id, email: users.email }).from(users).where(eq(users.id, String(claims.sub))).limit(1);
       if (!user || !isAllowedEmail(c.env.ALLOWED_SIGNUP_EMAILS, user.email)) throw new Unauthorized("no such user");
+      // Disconnecting on the profile deletes this row, which ends a token still
+      // inside its hour at once (`routes/connections.ts`).
+      const [consent] = await db
+        .select({ id: oauthConsents.id })
+        .from(oauthConsents)
+        .where(and(eq(oauthConsents.userId, user.id), eq(oauthConsents.clientId, String(claims.azp))))
+        .limit(1);
+      if (!consent) throw new Unauthorized("disconnected");
       userId = user.id;
     } catch (error) {
       // An id and a reason class only. Never the token or its claims.

@@ -14,6 +14,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ApiError, useProfile, useSaveProfile, type Profile } from "../api";
 import { Button, Panel } from "../components/ui";
 import { ProfilePhoto } from "../components/profile-photo";
+import { ConnectedApps } from "../components/connected-apps";
 import { fromMonth, toMonth } from "~/shared/calendar";
 
 interface FieldSpec {
@@ -189,6 +190,13 @@ export function ProfileForm() {
             </Button>
           </div>
         </form>
+
+        {/* Saved on its own, apart from the form, and only once there is a profile to be signed in as. */}
+        {current ? (
+          <div className="mt-20">
+            <ConnectedApps />
+          </div>
+        ) : null}
       </div>
     </main>
   );

@@ -575,6 +575,7 @@ export interface RenderDiff {
 export const keys = {
   session: ["session"] as const,
   profile: ["profile"] as const,
+  connections: ["connections"] as const,
   overview: ["overview"] as const,
   renders: ["renders"] as const,
   entity: (key: EntityKey) => [key] as const,
@@ -1631,6 +1632,31 @@ function photoChanged(queryClient: ReturnType<typeof useQueryClient>, saved: Pro
 }
 
 /** Puts the cropped photo on the profile. The body is the JPEG itself, never a form. */
+/** A client the author allowed on the consent screen (`/api/connections`). */
+export interface Connection {
+  clientId: string;
+  name: string | null;
+  host: string | null;
+  connectedAt: string;
+  lastUsedAt: string | null;
+}
+
+export const useConnections = () =>
+  useQuery({
+    queryKey: keys.connections,
+    queryFn: async () => (await api<{ items: Connection[] }>("/api/connections")).items,
+  });
+
+/** Ends a connection: the client has to ask again, through sign-in and consent. */
+export function useDisconnect() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (clientId: string) =>
+      api<null>(`/api/connections/${encodeURIComponent(clientId)}`, { method: "DELETE" }),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: keys.connections }),
+  });
+}
+
 export function useSaveProfilePhoto() {
   const queryClient = useQueryClient();
   return useMutation({
