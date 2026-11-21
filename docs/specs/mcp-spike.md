@@ -234,7 +234,10 @@ The same server, reachable from claude.ai, Claude Desktop and the phone with no 
   without a token gets a `401` whose `WWW-Authenticate` points at the first.
 - **Token check.** Signed by a key in `jwks`, read in-process; this deployment's issuer; audience `/api/mcp`;
   the `record` scope (a `403 insufficient_scope` without it); a DPoP proof from its key when the token is
-  DPoP-bound; a user who still exists and is still on the allowlist.
+  DPoP-bound; a user who still exists and is still on the allowlist; and the author's consent for the client, still there.
+- **Disconnecting.** The profile's `Connected apps` panel lists each allowed client; `Disconnect`
+  (`DELETE /api/connections/:clientId`) deletes the author's consents and refresh tokens for it, and the
+  consent check above stops a JWT access token still inside its hour at once (decision log 2026-11-21).
 - **Tests.** `tests/mcp-connector.test.ts` walks claude.ai's path with the suite's stand-in for Google:
   discovery, registration, authorize while signed out, sign-in, consent, token, then `initialize`,
   `tools/list` and a tool call. Missing, altered and out-of-scope tokens are refused, as are a registration
@@ -253,10 +256,6 @@ or a user who first signed in after the upgrade cannot sign in.
 
 ### Still open
 
-- **Revocation.** An access token is a JWT and holds for an hour. A refresh token lasts 30 days and every
-  refresh renews it, and signing out does not end it. There is no screen listing connected clients or
-  revoking their refresh tokens yet; until there is, removing a row from `oauth_refresh_tokens`, or the
-  author from the allowlist, is how a connection ends.
 - **Claude Code over HTTP.** Claude Code registers a loopback callback, which `CONNECTOR_REDIRECTS` refuses.
   Allowing it safely means accepting `http://localhost` and `http://127.0.0.1` on any port for native clients
   only; until then the local stdio server is its path.

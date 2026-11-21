@@ -35,6 +35,7 @@ import { registerApplicationDocumentRoutes } from "./routes/application-document
 import { registerOverviewRoutes } from "./routes/overview";
 import { registerCaptureRoutes } from "./routes/capture";
 import { registerMcpRoutes } from "./routes/mcp";
+import { registerConnectionRoutes } from "./routes/connections";
 
 export interface AppOptions {
   /** Overridden in tests. No test ever calls a real model (`docs/11` §1). */
@@ -79,6 +80,7 @@ export function createApp(options: AppOptions = {}) {
   registerApplicationDocumentRoutes(app);
   registerOverviewRoutes(app);
   registerCaptureRoutes(app);
+  registerConnectionRoutes(app);
   registerMcpRoutes(app);
 
   return app;

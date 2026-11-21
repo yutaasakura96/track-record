@@ -108,6 +108,8 @@ rejected with `403 forbidden` — the only 403 in the API.
 | `GET` | `/api/profile/photo` | #117 | The 履歴書's 写真, its type read from its bytes, `cache-control: private, no-store`. `404` when there is none |
 | `PUT` | `/api/profile/photo` | #117 | The raw body is the image, already cropped to 3:4 in the browser; never a form. `200` + the profile. `404` with no profile; `422` (`fields: ["photo"]`) for anything that is not a structurally complete JPEG or PNG (a PNG: signature, IHDR first, an IDAT, valid chunk CRCs, nothing after IEND; a JPEG: SOI, a SOF carrying the size, an SOS, EOI at the end), not 3:4 by its header to within a pixel, under 300 × 400, or over 2 MB however the request counts it. Logged as its type, pixel size and byte count, never its bytes |
 | `DELETE` | `/api/profile/photo` | #117 | Takes it off for good. `200` + the profile; removing none is not an error |
+| `GET` | `/api/connections` | 2026-11-21 | `{ items: [{ clientId, name, host, connectedAt, lastUsedAt }] }`, the clients the author allowed on the consent screen, newest first; `host` is that of the client's first redirect, `lastUsedAt` its newest refresh token or null |
+| `DELETE` | `/api/connections/:clientId` | 2026-11-21 | Ends a connection: deletes the author's consents and refresh tokens for the client in one transaction, and `/api/mcp` refuses its access tokens from the next request. `204`; `404` when the author has none for it. Logged as the client id and a count |
 | `GET` | `/api/employers` | M1 | Reverse chronological |
 | `POST` | `/api/employers` | M1 | |
 | `PATCH` | `/api/employers/:id` | M1 | |
