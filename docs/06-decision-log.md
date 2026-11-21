@@ -8406,3 +8406,27 @@ part of this.
 - **Revisit if:** claude.ai stops falling back to DCR, a second user is invited (each token is
   already bound to one user, but consent and client listings would need a screen), or a tool is
   added that a token should not reach.
+
+### [2026-11-21] A connected app is ended from the profile, at once
+
+- **Context:** the 2026-11-17 entry left revocation as a database change. A refresh token lasts 30
+  days and renews on every use, signing out does not end it, and Better Auth's own
+  `/oauth2/delete-consent` deletes the consent row and leaves the refresh tokens working.
+- **Decision:** the profile carries a `Connected apps` panel (`src/client/components/connected-apps.tsx`)
+  listing each client the author allowed, with the host Allow sends them back to, the day it was
+  allowed and when it last signed in. `Disconnect` calls `DELETE /api/connections/:clientId`
+  (`src/server/routes/connections.ts`), which deletes that author's consents and refresh tokens for
+  the client in one transaction; the access tokens issued from them go by cascade. The client's
+  registration stays, since it is Claude's and connecting again reuses it.
+- **Decision:** `/api/mcp` also requires the consent row for the token's user and client (`azp`) on
+  every request. A JWT access token cannot be recalled before its hour is up, so without this check a
+  disconnected client would keep working for up to an hour; with it, the next call is refused with the
+  same `401` challenge, and the client has to send the author through sign-in and Allow again.
+- **Decision:** the panel sits on the profile, not on a new `Settings` screen with a sidebar row. One
+  panel does not earn a destination, and the profile is already where the author's own account lives.
+- **Verified:** `tests/mcp-connector.test.ts` connects, ends the connection, and finds the token still
+  inside its hour refused, its refresh token refused, the listing without it and a second delete
+  `404`; another user can neither list nor end it. `tests/client/connected-apps.test.tsx` covers the
+  panel.
+- **Revisit if:** a second user is invited (the listing and the delete already filter by user), or a
+  second kind of connected client appears that needs more than one Disconnect.

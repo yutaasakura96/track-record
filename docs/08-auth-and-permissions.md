@@ -137,7 +137,9 @@ public. It answers `401` without an access token this deployment issued for it, 
 like every other route. A token is issued only after the author signs in with Google and allows the
 client on the consent screen. Client registration at `/api/auth/oauth2/register` is open, but it
 takes only Claude's own callbacks (`CONNECTOR_REDIRECTS` in `src/server/auth.ts`), so a code is never
-sent anywhere but Claude.
+sent anywhere but Claude. The profile's `Connected apps` panel ends a connection: it deletes the
+author's consent and refresh tokens for that client, and `/api/mcp` asks for the consent on every
+request, so a JWT access token still inside its hour stops at once (decision log 2026-11-21).
 
 Everything else is protected **because it exists**, not because someone remembered to protect it.
 A route added without thinking about auth fails closed.
